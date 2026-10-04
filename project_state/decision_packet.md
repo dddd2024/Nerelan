@@ -1,10 +1,10 @@
-# Unattended bounded recovery with preserved cumulative expenditure
+# Compact unattended entry correction with unchanged cumulative charter
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue811_unattended_recovery_r3_v3",
-  "round_id": "round_20261004_issue811_unattended_recovery_r3_v3",
+  "decision_id": "decision_20261004_issue811_unattended_entry_budget_r3_v1",
+  "round_id": "round_20261004_issue811_unattended_entry_budget_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE811_UNATTENDED_BOUNDED_RECOVERY",
+  "decision_scope": "ISSUE811_UNATTENDED_ENTRY_FOOTPRINT_CORRECTION",
   "source_issue": 811,
   "parent_issue": 137,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / explicit current user approval",
-  "approval_basis": "Explicit additional6checks4rounds and within-allowance successor6hour approval; cumulativeprior8/5 retained.",
+  "approval_basis": "Owner explicitly preauthorized same-scope prospective successors within remaining14checks9rounds and original absolute expiry; no new allowance or authority expansion.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue811-unattended-followup-r3-v2-20261004",
-  "base_sha": "7beee81b14f3843658911f284366cd70940ab82a",
-  "activation_base_sha": "7beee81b14f3843658911f284366cd70940ab82a",
-  "starting_head": "7beee81b14f3843658911f284366cd70940ab82a",
-  "required_branch": "codex/issue811-unattended-recovery-r3-v3-20261004",
+  "integration_base_ref": "codex/issue811-unattended-recovery-r3-v3-20261004",
+  "base_sha": "1b44f98fed418fe299440c48bd1973589cc7dab0",
+  "activation_base_sha": "1b44f98fed418fe299440c48bd1973589cc7dab0",
+  "starting_head": "1b44f98fed418fe299440c48bd1973589cc7dab0",
+  "required_branch": "codex/issue811-unattended-entry-budget-r3-v1-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Explicit current Owner reply \u6279\u51c6 grants the proposed SIX additional provider-free development checks and FOUR correction rounds for Issue811 existing3repair files plusAGENTS.md, and prospective successor preparation within same remainingallowance and same6hour absoluteexpiry. Preserve originalsource/nativefailures/dev6timeout/dev7-dev8each1failed18passed, noreset. Prior cumulative8checks and5rounds spent; absolute cumulative14checks9rounds maximum. New fresh exactbase7beee81b14f3843658911f284366cd70940ab82a approvedPR1076activation/planningref, notmain. Adopt4uncommitted permittedproducts by hashes. Decisiononlyactivation+canonicalgates+exactDraft before anynewsourcechange. Firstcorrection: fixture Gitpointer Windows Hidden attribute currentlyobserved onrootpointer; Microsoft CreateFile documents CREATE_ALWAYSnormal cannotoverwritehiddenfile; oldreadonlyassumptionwasnotproven andchmod didnotfix. Use existingfile r+b +truncate inownedfixture only, preservinghiddenattribute; host must stillrejectchangedpointer asreview_projection_mutated. Capturecomplete controlledfixture exceptiontrace for actionabletestfailure, noproduct/private/modelreasoning export. ExistinglongUTF8CRLF fixture localcore.autocrlffalse andsourcecontextindex/text/protectedmetadata/diagnostic/sourcecollector/evidence/output guards preserved. AGENTS unattendedguidance alreadyadopted unchangedunlessneededwithin approvedscope: no authorityexpansion orautomaticbudgets/infinitecycles. Only fourproductpaths review_execution.py, test_review_execution.py, docs/review-only-tasks.md, AGENTS.md; no sourcecollector/normalizer/API/lifecycle/taskstore/opencodepermissions/binding/vault/model/workflow/dependency/verifier mutations. Development ordinals9-14 only, first affectedreview/Git/API<=300seconds then affected+existing execution/service/opencode/artifact/workspace regression<=1200seconds; furtherchecks onlyafternewchange/failure/unresolvedneed andwithin6total. Correction ordinals6-9 only; no disguisedfixtureexecutions underhelper names or testweakening/newskip/deselect. Use -x to preservefirstfailure native traceback/JUnit beforelarge-suite timeout. Newownedabsent scratch F:/nrl-reviewrt4 only parentcreate afterresolvedabsencecheck; children c9-c14/full/pa/ex unique; cleanup onlynewownedfixtures, no user/runtime/originaldata deletion. Onceapproved correctedcandidate development passes, finalmandatory freshfullPlatformV1once<=2400seconds with exact4existinginstalledOpenCode exclusions, PathAonce<=120seconds, committedheadfocusedonce<=300seconds; sourcefreeze/hashpreservation/gitdiffcheck/readiness. Mandatoryfailure stops THIScandidatepublication and noextra mandatoryretry; prospective successor onlyifallowed within samecharter unchanged aggregateceiling/expiry and canonicalnewauthority, notautomaticoverrideofmandatoryfailure. No planscope/allowlist/criteria/forbiddenoperation expansion. Only oneDecisionactivation and oneproductcommit inthiswindow,2normalexactbranchpushes,1Draft,max6bodyupdates, naturalexactheadCI readoriginallogs/artifacts verify actualcoverage/counts. Prospective approvedsuccessors retainpastcommit/push/process/CI failure evidence; do not amendactivatedauthority or create fake sourcechanges. No live model/API/credential/browser/install/Ready/Merge/Issueclosure/comment/rerun/dispatch/historyrewrite/secretororiginalprocessops. UI remainsrunning. Full811/fullGitHubbacklog/integratedindependentacceptance remainincomplete. All fixedsource identity/digest/confinement checks retained.",
-    "completion_boundary": "All4sourcefiles implemented withproviderfree mandatory/exactheadCI; no model, independent acceptance, landing or full811claim."
+    "specification": "Explicit Owner-approved6additionaldevelopmentchecks4corrections and prospective same-scope successors within remaining aggregate allowance prospectively authorizes this NEW source candidate. Original PR1077@1b44f98fed418fe299440c48bd1973589cc7dab0 implemented all4products and passed local full2071/22/4,PathA191,committed89; natural CI37181971505 workflowSUCCESS but native repository diagnostic6941pass31skip1failure: addedAGENTS guidance madeentry15780bytes exceed existing12000byte invariant. All89review cases passed; preserve original native log/XML/artifact and collector assertion failure, never call whole candidate accepted. This corrective successor keeps exact same4path allowlist and unchanged remaining aggregate development10spent/max14 andcorrections6spent/max9, same absolute2026-10-04T11:25:31.954556Z expiry. New explicit planning base is current1077source1b44 and its approved branch; fresh Decision-only activation/canonicalpreflight/readiness/Draft precede AGENTS change. ONLY implementation delta intended: compress newly added Long-duration unattended work section to <=983UTF8bytes, keeping all original11017entrybytes verbatim and existing12000test/authority boundaries unchanged. Preserve bounded standing-grant/no repetitive approvals, actualGoalTask-first+observedCodexfallback, criticalpath eligiblequeue, fresh explicitly preauthorized successor with originalexpiry/remainingaggregate/cumulativefailurepreservation, no budget reset, boundedcorrection/mandatoryfailure publicationstop/no testweakening/original-livehandle waits, checkpoint/reobservation/no historicalreplay/repeatedpassedchecks and truthful completion. No other source/test/docs/permission/criterion/threshold/skip changes, no new references beyond fourfiles. This is correction7/9. Development ordinal11: actual instruction-context contracts once<=120seconds; ordinals12-14 only justifiedbychange/failurewithinremainingallowance, max300seconds each. Freshmandatory fullPlatformV1once2400seconds/exactoriginal4installedOpenCode optin deselections; PathAonce120seconds; committedheadinstruction-context+review/Git/API once300seconds. Freeze source/checkhashes, gitdiffcheck/readiness and naturalexactheadCI originalartifactcasecoverage+zero repositoryfailures. Mandatoryfailure stops THIScandidate; further same-scope prospective authority onlywithincharter remainingaggregate/absoluteexpiry, no retroactive reset. OneDecisionactivation+oneproductcommit,2normalexactbranchpushes,1Draft,max6descriptionupdates. No model/credential/browser/host/frontend launch/runtime mutation/install/Ready/Merge/mainpush/rewrite/comments/closure/rerun/dispatch. Scope and completion boundary remain sourcecandidate+actualchecks/CI, not nativeModel/independent acceptance/whole811/118/backlog. Preserve #1078 active F controller fullcheck untouched. Newowned absent fixtureparent F:/nrl-reviewrt5 only disposable pytest fixtures; no original owned artifact/source/process deletion.",
+    "completion_boundary": "Same4sourcecandidate with compact AGENTS entry under original12000byte invariant, preserved authority text and original failure, actual fresh mandatory/exact-head CI; no independent acceptance/landing/full goal claim."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -220,7 +220,7 @@
       "Trusted provider-free tests newly owned ephemeral loopback fixtures only; never existing frontend/Task/model services or real provider/auth/model."
     ],
     "github_control_plane_network_exceptions": [
-      "Max2 normal pushes to codex/issue811-short-fixtures-r3-v1-20261003; one activation Draft against main@97d766d7253378c093c31ed29c990cb6921f2ae4; max6 body updates; bounded natural CI/artifact reads only."
+      "Max2 normal pushes to codex/issue811-unattended-entry-budget-r3-v1-20261004,1activationDraft against codex/issue811-unattended-recovery-r3-v3-20261004@1b44f98fed418fe299440c48bd1973589cc7dab0,max6descriptionupdates and bounded naturalCI/log/artifact/liveauthority reads; no other writes."
     ]
   },
   "path_risk_floor": [
@@ -236,7 +236,7 @@
   "allowed_commands": [
     {
       "command_id": "review.bootstrap",
-      "command": "Owner approvednew bounded successor fromexact7bee; preserved4dirtysourcehashes; Decision-onlyactivation canonicalgates and exactDraft before newproductchanges.",
+      "command": "Only current same-scope originalabsoluteexpiry/aggregate14checks9rounds charter: Decision-only activation and exactDraft before AGENTS change, ordinal11 instruction contracts, freshfullPlatform/PathA/committedfocus mandatory once, max2push1Draft6bodyupdates/naturalCI originalevidence; no other actions.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -265,7 +265,7 @@
     },
     {
       "command_id": "review.implement",
-      "command": "Explicit current Owner reply \u6279\u51c6 grants the proposed SIX additional provider-free development checks and FOUR correction rounds for Issue811 existing3repair files plusAGENTS.md, and prospective successor preparation within same remainingallowance and same6hour absoluteexpiry. Preserve originalsource/nativefailures/dev6timeout/dev7-dev8each1failed18passed, noreset. Prior cumulative8checks and5rounds spent; absolute cumulative14checks9rounds maximum. New fresh exactbase7beee81b14f3843658911f284366cd70940ab82a approvedPR1076activation/planningref, notmain. Adopt4uncommitted permittedproducts by hashes. Decisiononlyactivation+canonicalgates+exactDraft before anynewsourcechange. Firstcorrection: fixture Gitpointer Windows Hidden attribute currentlyobserved onrootpointer; Microsoft CreateFile documents CREATE_ALWAYSnormal cannotoverwritehiddenfile; oldreadonlyassumptionwasnotproven andchmod didnotfix. Use existingfile r+b +truncate inownedfixture only, preservinghiddenattribute; host must stillrejectchangedpointer asreview_projection_mutated. Capturecomplete controlledfixture exceptiontrace for actionabletestfailure, noproduct/private/modelreasoning export. ExistinglongUTF8CRLF fixture localcore.autocrlffalse andsourcecontextindex/text/protectedmetadata/diagnostic/sourcecollector/evidence/output guards preserved. AGENTS unattendedguidance alreadyadopted unchangedunlessneededwithin approvedscope: no authorityexpansion orautomaticbudgets/infinitecycles. Only fourproductpaths review_execution.py, test_review_execution.py, docs/review-only-tasks.md, AGENTS.md; no sourcecollector/normalizer/API/lifecycle/taskstore/opencodepermissions/binding/vault/model/workflow/dependency/verifier mutations. Development ordinals9-14 only, first affectedreview/Git/API<=300seconds then affected+existing execution/service/opencode/artifact/workspace regression<=1200seconds; furtherchecks onlyafternewchange/failure/unresolvedneed andwithin6total. Correction ordinals6-9 only; no disguisedfixtureexecutions underhelper names or testweakening/newskip/deselect. Use -x to preservefirstfailure native traceback/JUnit beforelarge-suite timeout. Newownedabsent scratch F:/nrl-reviewrt4 only parentcreate afterresolvedabsencecheck; children c9-c14/full/pa/ex unique; cleanup onlynewownedfixtures, no user/runtime/originaldata deletion. Onceapproved correctedcandidate development passes, finalmandatory freshfullPlatformV1once<=2400seconds with exact4existinginstalledOpenCode exclusions, PathAonce<=120seconds, committedheadfocusedonce<=300seconds; sourcefreeze/hashpreservation/gitdiffcheck/readiness. Mandatoryfailure stops THIScandidatepublication and noextra mandatoryretry; prospective successor onlyifallowed within samecharter unchanged aggregateceiling/expiry and canonicalnewauthority, notautomaticoverrideofmandatoryfailure. No planscope/allowlist/criteria/forbiddenoperation expansion. Only oneDecisionactivation and oneproductcommit inthiswindow,2normalexactbranchpushes,1Draft,max6bodyupdates, naturalexactheadCI readoriginallogs/artifacts verify actualcoverage/counts. Prospective approvedsuccessors retainpastcommit/push/process/CI failure evidence; do not amendactivatedauthority or create fake sourcechanges. No live model/API/credential/browser/install/Ready/Merge/Issueclosure/comment/rerun/dispatch/historyrewrite/secretororiginalprocessops. UI remainsrunning. Full811/fullGitHubbacklog/integratedindependentacceptance remainincomplete. All fixedsource identity/digest/confinement checks retained.",
+      "command": "Explicit Owner-approved6additionaldevelopmentchecks4corrections and prospective same-scope successors within remaining aggregate allowance prospectively authorizes this NEW source candidate. Original PR1077@1b44f98fed418fe299440c48bd1973589cc7dab0 implemented all4products and passed local full2071/22/4,PathA191,committed89; natural CI37181971505 workflowSUCCESS but native repository diagnostic6941pass31skip1failure: addedAGENTS guidance madeentry15780bytes exceed existing12000byte invariant. All89review cases passed; preserve original native log/XML/artifact and collector assertion failure, never call whole candidate accepted. This corrective successor keeps exact same4path allowlist and unchanged remaining aggregate development10spent/max14 andcorrections6spent/max9, same absolute2026-10-04T11:25:31.954556Z expiry. New explicit planning base is current1077source1b44 and its approved branch; fresh Decision-only activation/canonicalpreflight/readiness/Draft precede AGENTS change. ONLY implementation delta intended: compress newly added Long-duration unattended work section to <=983UTF8bytes, keeping all original11017entrybytes verbatim and existing12000test/authority boundaries unchanged. Preserve bounded standing-grant/no repetitive approvals, actualGoalTask-first+observedCodexfallback, criticalpath eligiblequeue, fresh explicitly preauthorized successor with originalexpiry/remainingaggregate/cumulativefailurepreservation, no budget reset, boundedcorrection/mandatoryfailure publicationstop/no testweakening/original-livehandle waits, checkpoint/reobservation/no historicalreplay/repeatedpassedchecks and truthful completion. No other source/test/docs/permission/criterion/threshold/skip changes, no new references beyond fourfiles. This is correction7/9. Development ordinal11: actual instruction-context contracts once<=120seconds; ordinals12-14 only justifiedbychange/failurewithinremainingallowance, max300seconds each. Freshmandatory fullPlatformV1once2400seconds/exactoriginal4installedOpenCode optin deselections; PathAonce120seconds; committedheadinstruction-context+review/Git/API once300seconds. Freeze source/checkhashes, gitdiffcheck/readiness and naturalexactheadCI originalartifactcasecoverage+zero repositoryfailures. Mandatoryfailure stops THIScandidate; further same-scope prospective authority onlywithincharter remainingaggregate/absoluteexpiry, no retroactive reset. OneDecisionactivation+oneproductcommit,2normalexactbranchpushes,1Draft,max6descriptionupdates. No model/credential/browser/host/frontend launch/runtime mutation/install/Ready/Merge/mainpush/rewrite/comments/closure/rerun/dispatch. Scope and completion boundary remain sourcecandidate+actualchecks/CI, not nativeModel/independent acceptance/whole811/118/backlog. Preserve #1078 active F controller fullcheck untouched. Newowned absent fixtureparent F:/nrl-reviewrt5 only disposable pytest fixtures; no original owned artifact/source/process deletion.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -291,7 +291,7 @@
     },
     {
       "command_id": "review.validate",
-      "command": "Sixadditionaldevchecks ord9-14 andfouradditionalcorrections ord6-9 only; sameabsoluteexpiry/aggregateceiling on anyprospectiveauthorizedsuccessor. freshmandatoryfullPlatformV1/PathA/exactfocusonce, sourcefreeze/gitdiffcheck/currentreadiness.",
+      "command": "Only current same-scope originalabsoluteexpiry/aggregate14checks9rounds charter: Decision-only activation and exactDraft before AGENTS change, ordinal11 instruction contracts, freshfullPlatform/PathA/committedfocus mandatory once, max2push1Draft6bodyupdates/naturalCI originalevidence; no other actions.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -319,7 +319,7 @@
     },
     {
       "command_id": "review.publish",
-      "command": "Exactactivationplusoneproductnormalpush/Draftheadbinding, naturalCI originalnativeevidence read; noReady/Merge/Issueclosure/comments/reruns/dispatch.",
+      "command": "Only current same-scope originalabsoluteexpiry/aggregate14checks9rounds charter: Decision-only activation and exactDraft before AGENTS change, ordinal11 instruction contracts, freshfullPlatform/PathA/committedfocus mandatory once, max2push1Draft6bodyupdates/naturalCI originalevidence; no other actions.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -341,11 +341,11 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Carry preserved known source/gates unstaged; reuse only new absent child fixtures under owned F:/nrl-reviewrt1, external issue811-review-only-runtime-r3-v3. Existing user/runtime/process/configuration preserved."
+    "note": "Preserve existing five generated gates unstaged; only fresh owned F:/nrl-reviewrt5 fixtures and external evidence; no original source/runtime/process/config changes."
   },
   "follows_last_decision_id": "decision_20261004_issue811_review_only_runtime_r3_v2",
   "follows_last_round_id": "round_20261004_issue811_review_only_runtime_r3_v2",
-  "workstream_id": "issue811-review-only-runtime-r3-v3",
+  "workstream_id": "issue811-unattended-entry-budget-r3-v1",
   "source_issues": [
     811,
     179,
@@ -358,15 +358,15 @@
   "integration_observation_surface": "user_local_owned_exact_main_successor",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T05:25:31.954556+00:00",
+  "approval_event_or_time": "2026-10-04T06:32:55.699635+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 6,
-  "owned_test_scratch_root": "F:\\nrl-reviewrt1",
+  "owned_test_scratch_root": "F:\\nrl-reviewrt5",
   "mandatory_pytest_process_limit": 3,
-  "cumulative_prior_development_checks": 1,
+  "cumulative_prior_development_checks": 10,
   "cumulative_development_check_limit": 14,
-  "cumulative_prior_correction_rounds": 1,
+  "cumulative_prior_correction_rounds": 6,
   "cumulative_correction_round_limit": 9,
   "preserved_source_handoff_manifest": [
     {
