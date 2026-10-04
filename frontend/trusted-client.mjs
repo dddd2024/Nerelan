@@ -162,7 +162,13 @@ async function runClient() {
     process.stderr.write('trusted_client_unavailable\n');
     process.exitCode = 1;
   } finally {
-    if (browser) await browser.close().catch(() => {});
+    try {
+      if (browser) await browser.close().catch(() => {});
+    } finally {
+      // The host intentionally keeps this private pipe open during a session.
+      // On terminal failure/disconnect it must no longer keep Node alive.
+      process.stdin.destroy();
+    }
   }
 }
 

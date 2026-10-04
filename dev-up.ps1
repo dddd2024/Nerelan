@@ -589,7 +589,7 @@ if (-not $combinedProc.HasExited) {
 
 $frontendProc = Start-ServiceProcess `
   -name "frontend-vite" `
-  -cmd $npm -serviceArgs @("--prefix", "frontend", "run", "dev") `
+  -cmd $npm -serviceArgs @("--prefix", "frontend", "run", "dev", "--", "--host", "127.0.0.1", "--port", [string]$FrontendPort, "--strictPort", "--configLoader", "runner") `
   -env $frontendEnv -cwd $repoDir -logDir $runtimeDir
 
 Start-Sleep -Milliseconds 1500

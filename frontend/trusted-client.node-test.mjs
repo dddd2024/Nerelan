@@ -2,10 +2,41 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { PassThrough } from 'node:stream';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { validateConfiguration, forwardTaskRequest, handleRoute, privateConfiguration } from './trusted-client.mjs';
 
 const token = 'a'.repeat(64);
 const frontend = 'http://127.0.0.1:4173';
+
+test('actual broker exits on malformed bootstrap while private stdin stays open', async () => {
+  const child = spawn(process.execPath, [fileURLToPath(new URL('./trusted-client.mjs', import.meta.url))], {
+    stdio: ['pipe', 'pipe', 'pipe'], env: {},
+  });
+  let stderr = ''; let stdout = '';
+  child.stderr.setEncoding('utf8'); child.stderr.on('data', data => { stderr += data; });
+  child.stdout.setEncoding('utf8'); child.stdout.on('data', data => { stdout += data; });
+  child.stdin.on('error', () => {});
+  const exited = new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('close', (code, signal) => resolve({ code, signal }));
+  });
+  let timeout;
+  try {
+    child.stdin.write('not-json\n'); // Intentionally do not end the parent's private pipe.
+    const result = await Promise.race([exited, new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('broker retained private stdin after failure')), 5000);
+    })]);
+    assert.deepEqual(result, { code: 1, signal: null });
+    assert.equal(stdout, '');
+    assert.equal(stderr, 'trusted_client_unavailable\n');
+  } finally {
+    clearTimeout(timeout);
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    child.stdin.destroy();
+    await exited;
+  }
+});
 
 async function fixture(callback) {
   const server = http.createServer(callback);
