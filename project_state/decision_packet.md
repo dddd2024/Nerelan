@@ -1,10 +1,10 @@
-# Windows owned fixture lifecycle repair
+# Durable autonomous-window lifecycle prerequisite for Issue118
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261001_issue1047_windows_owned_shutdown_r3_v1",
-  "round_id": "round_20261001_issue1047_windows_owned_shutdown_r3_v1",
+  "decision_id": "decision_20261004_issue118_window_lifecycle_r3_v1",
+  "round_id": "round_20261004_issue118_window_lifecycle_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "WINDOWS_OWNED_FIXTURE_LIFECYCLE_REPAIR",
-  "source_issue": 1047,
-  "parent_issue": 289,
+  "decision_scope": "ISSUE118_DURABLE_WINDOW_LIFECYCLE",
+  "source_issue": 118,
+  "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
-  "approved_by": "dddd2024 via explicit user approval 2026-10-01T04:02:30Z Sentinel_738c3b494528819196b021a484258575",
-  "approval_basis": "User approved the assistant proposal: isolated reproduction, edits to dev-up/dev-down and corresponding tests, stop ONLY identity-verified test-created processes; no other processes. User confirmed continuing responsibility at 2026-10-01T04:02:53Z Sentinel_06d2a4e71b988191a4f73f5274609416. This is a fresh bounded Decision, not reuse of #1042 or #1044. Issue comments are tracking, not authority.",
+  "approved_by": "dddd2024 / explicit current Owner full architecture delegation",
+  "approval_basis": "Current Owner delegates implementation and routine scoped decisions; this prospective bounded source phase preserves all privileged publication and independent acceptance boundaries.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "activation_base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "starting_head": "9092911f41a089e249f27c883526904299be1d17",
-  "required_branch": "owner/20261001-windows-owned-shutdown-r3-v1",
+  "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "required_branch": "codex/issue118-window-lifecycle-r3-v1-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,9 +42,9 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 5,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 7,
+  "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -52,11 +52,10 @@
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
   "live_model_call_limit": 0,
-  "provider_network_call_limit": 0,
   "credential_access_limit": 0,
   "pr_creation_allowed": true,
-  "issue_comment_allowed": true,
-  "pull_request_comment_allowed": true,
+  "issue_comment_allowed": false,
+  "pull_request_comment_allowed": false,
   "merge_allowed": false,
   "mark_ready_allowed": false,
   "workflow_rerun_allowed": false,
@@ -78,10 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Reproduce the four historical Windows launcher failures using actual current main scripts and fixture functions. Capture taskkill returncode/stdout/stderr and exact PID, executable and start-time before stop; never stop live/user/unknown/reused processes. Establish actual cause before repair. Fix only the necessary dev-up/dev-down lifecycle and corresponding tests; preserve strict identity refusal, unknown-port refusal and launcher semantics. Record process exit, owned LISTEN disappearance and restart readiness separately. Socket timeout/unreachable is not evidence of port free. Windows PowerShell 5.1 and PowerShell 7 must exercise actual script behavior. #1004 timestamp coercion is distinct until demonstrated; no unrelated framework replacement.",
-    "reuse": "Existing scripts, Process identity APIs, native taskkill and provider-free Windows fixture. No copied verifier, no governance/check changes, no dependencies.",
-    "execution_surface_note": "Fresh full isolated checkout on hostname dd under authorized Temp. Bootstrap Decision-only activation precedes generated plan, lint and actual PRE_EXECUTION_AUTHORIZED. After preflight, at most 16 focused scenario/probe executions, 2 Platform suite runs and 2 repository suite runs, within 4 hours. Known existing Python, PowerShell, cmd and taskkill only. Loopback fixture listeners only. Destructive permission means solely termination of newly created fixture processes whose exact PID/executable/start-time and fixture ownership have been verified immediately before stop, and documented descendants created by that fixture. No files deleted or moved; no unknown or user processes terminated. Evidence may be written only within this isolated Temp work/evidence area and external pytest basetemp under authorized Temp. Record failures and preserve evidence.",
-    "completion_boundary": "One Draft, three product paths, immutable Decision bootstrap only; generated artifacts not committed. Author tests are not independent acceptance. Natural exact-head CI, no reruns/dispatch. Update #1047/#1010/#289/#1004/#1041 with factual progress; fresh-read and surgically update stale #1010 current status, preserve history/concurrent modifications. No source issue closure, Ready, merge, deploy, settings, credentials or payment."
+    "specification": "The current Owner explicitly delegates full responsibility to implement the unattended-platform architecture and identifies its GitHub Issue. Live Issue118 is the canonical architecture target, with separately governed phases. This NEW Phase-E lifecycle foundation addresses concrete runtime races before canonical-policy integration: serialize expiry/replay/conflict checking and insertion in the existing TaskStore SQLite transaction so concurrent hosts cannot activate two windows; reserve a future-start active window against competing activation; retain immutable policy revision/digest and historical replay without reactivation or reset of task/retry/usage counters. AutonomyService delegates activation exclusivity to that store transaction, and authorization checks the exact requested currently active window rather than existence of any window. Require expiry/start and identity fences to remain fail closed. Reuse existing TaskStore, window rows, coordinator claims/reservations, receipts and API; no second database, authority schema, Gate, runtime, verifier or unrestricted Boolean. Browser identity/ACTIVATE is NOT authenticated Owner authority; no claim that this slice implements canonical Owner verification or privileged adapters. No model or existing runtime launch/mutation; the observed project executor's R0/R1 adapter rejects R3 source work before dispatch, so use authorized Codex source fallback rather than bypassing the adapter or retrying the failed native reviewer. Explicit fresh main97d766d base, not obsolete origin/main; reuse idle F controller preserving its old Decision/native failure and five unstaged generated gates. Decision-only activation, canonical startup/plan/lint/preflight/readiness and exact activation Draft precede product changes. Exactly four product paths: autonomy.py, control_store.py, a new lifecycle regression test, and explanatory lifecycle documentation. Preserve all original tests and schema/fields/capabilities/budget accounting. Add meaningful multi-connection concurrency, scheduled-window reservation, same-revision conflict, restart/replay/counter preservation, stopped/expired replay, stale-window authorization and denied-receipt tests; use owned file-backed SQLite fixtures and controlled clocks, never real TaskStore/runtime. Development max6 provider-free pytest processes <=300s each and max3 correction rounds; only repeat after a change/failure/unresolved need. Final mandatory full PlatformV1 once<=2400s with only four preexisting installed OpenCode opt-in deselections, PathA once<=120s, committed exact-head lifecycle+autonomy+coordinator/budget regressions once<=300s. Mandatory failure stops this candidate publication, no retry or implicit renewal. Freeze all four source files during checks, retain real logs/JUnit/native exit and source hashes; git diff --check and scoped publication readiness. One Decision activation commit, one product commit, two normal pushes to exact branch, one Draft against main@97d766d, at most6 description updates; natural exact-head Actions original logs/artifacts read only. No Ready/Merge/main push/auto-merge/rebase/rewrite/tag/release/deploy/Issue or PR comments/closure/runner/workflow dispatch or rerun/install/credential/model/browser/private-session access. Source candidate and CI are not independent acceptance, canonical-policy/privileged-operation completion or mainline landing. Whole118 and all122Issue backlog remain the full objective; this critical-path prerequisite does not replace them. Absolute six-hour expiry and actual cumulative counters within this separate source window, no transfer/reset of prior811 budgets. No automatic successor grant.",
+    "completion_boundary": "Atomic durable-window lifecycle and exact-window authorization source implementation with actual provider-free checks and source CI; all remaining architecture stages and independent landing acceptance remain required."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -89,30 +86,32 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py"
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "docs/unattended-window-lifecycle.md"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py"
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "docs/unattended-window-lifecycle.md"
   ],
   "generated_artifact_paths": [
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json"
   ],
@@ -120,7 +119,13 @@
     "AGENTS.md",
     "docs/agents/governance-reference.md",
     ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "tests/test_mainline_landing.py",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
     ".github/workflows/ci.yml"
   ],
   "forbidden_mutated_paths": [
@@ -129,23 +134,25 @@
     ".github/**",
     ".codex-skills/**",
     "reverse_agent/control_plane/**",
-    "reverse_agent/model_access/**",
     "reverse_agent/project_gate.py",
     "reverse_agent/mainline_landing.py",
-    "reverse_agent/platform_v1/**",
-    "tests/test_mainline_landing.py",
-    "frontend/**",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/model_access/**",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
-    "launch_nerelan.bat",
-    "launch_reverse_agent.bat",
+    "frontend/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "reverse_agent/github_remote_verifier.py",
-    "tests/platform_v1/test_check_producer_binding.py",
-    "docs/check-producer-binding.md"
+    "**/auth.json",
+    "reverse_agent/platform_v1/run_store.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "tests/platform_v1/test_autonomy.py"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -160,15 +167,30 @@
     "workflow_rerun",
     "workflow_dispatch",
     "runner_dispatch",
-    "model_api_invocation",
-    "provider_network_call",
-    "credential_access",
     "unknown_binary_execution",
     "external_reverse_tool_invocation",
     "tag_or_release",
     "dependency_install",
-    "local_browser_execution",
-    "generated_governance_commit"
+    "generated_governance_commit",
+    "raw_secret_read_or_export",
+    "model_provider_config_mutation",
+    "payment",
+    "process_stop_without_identity",
+    "issue_comment",
+    "pull_request_comment",
+    "raw_credential_read_copy_or_print",
+    "independent_acceptance_by_self_or_same_underlying_model",
+    "automatic_GPT_fallback_or_retries",
+    "shared_dependency_mutation",
+    "existing_model_configuration_mutation",
+    "unknown_process_stop",
+    "ignore_rules_or_sandbox_bypass",
+    "existing_runtime_or_configuration_mutation",
+    "application_model_retry",
+    "model_fallback",
+    "raw_managed_session_access",
+    "existing_task_or_runtime_mutation",
+    "destructive_outside_new_owned_disposable_fixture_process_groups_or_scratch"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -185,16 +207,13 @@
     "merge_allowed": false,
     "remote_observation_read_only_allowed": true,
     "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Unchanged natural CI dependency setup and provider-free tests only. No rerun or dispatch."
+    "ci_network_exceptions": [],
+    "trusted_worker_network_exceptions": [],
+    "user_local_network_exceptions": [
+      "New owned provider-free test loopback fixtures only; no model/provider/existing services."
     ],
-    "trusted_worker_network_exceptions": [
-      "Within isolated dd Temp checkout, run the four exact retained Windows launcher tests/scenarios and narrow lifecycle probes using existing installed PS5/PS7/Python, actual scripts and fixture helpers. Capture exact identity, taskkill returncode/stdout/stderr, process exit, owned LISTEN and readiness. Stop only freshly created identity-verified fixture processes/descendants; never unknown/live/user processes. Bounded loopback only; preserve evidence and do not erase fixtures.",
-      "Run focused Windows launcher regressions on actual PS5 and PS7, tests/test_mainline_landing.py, applicable Platform V1 and repository deterministic pytest, git diff --check, within declared budgets. Test fixture process cleanup uses the same exact ownership constraint; no model/provider calls, installs or unknown binary."
-    ],
-    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Publish only owner/20261001-windows-owned-shutdown-r3-v1 and one Draft against main@9092911f41a089e249f27c883526904299be1d17. Update exact head binding and factual tracking #1047/#1010/#289/#1004/#1041, preserving concurrent/history content. No Ready/merge/closure/settings/deployment."
+      "Two normal pushes to codex/issue118-window-lifecycle-r3-v1-20261004, one activation Draft against main@97d766d7253378c093c31ed29c990cb6921f2ae4, max6 exact-head body updates; bounded natural CI/log/artifact and live authority readback only. No other writes."
     ]
   },
   "path_risk_floor": [
@@ -203,106 +222,92 @@
       "minimum_risk": "R2"
     },
     {
-      "pattern": "dev-up.ps1",
-      "minimum_risk": "R3"
-    },
-    {
-      "pattern": "dev-down.ps1",
-      "minimum_risk": "R3"
+      "pattern": "reverse_agent/platform_v1/functional_validation.py",
+      "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
-      "command_id": "windows.bootstrap",
-      "command": "Run existing startup-snapshot, transition-command-plan, transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before fixture execution or implementation. Worktree-publication-readiness before scoped staging/publication. Preserve gates uncommitted.",
+      "command_id": "window.bootstrap",
+      "command": "Fresh exact-main branch preserving existing five gates, Decision-only commit, canonical preflight/readiness, exact activation Draft before any product mutation.",
       "phase": "bootstrap",
-      "required": false,
+      "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
         "code_read",
+        "commit",
         "local_static_check",
-        "command_plan_generation"
+        "command_plan_generation",
+        "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
+      "allowed_mutated_paths": [
+        "project_state/decision_packet.md"
+      ],
       "produced_artifacts": [
+        "project_state/gates/bootstrap_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
         "project_state/gates/transition_command_plan_preview.json",
         "project_state/gates/transition_preflight_result.json"
       ]
     },
     {
-      "command_id": "windows.reproduce",
-      "command": "Within isolated dd Temp checkout, run the four exact retained Windows launcher tests/scenarios and narrow lifecycle probes using existing installed PS5/PS7/Python, actual scripts and fixture helpers. Capture exact identity, taskkill returncode/stdout/stderr, process exit, owned LISTEN and readiness. Stop only freshly created identity-verified fixture processes/descendants; never unknown/live/user processes. Bounded loopback only; preserve evidence and do not erase fixtures.",
-      "phase": "diagnosis",
-      "required": false,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "unit_test",
-        "local_static_check",
-        "destructive",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "windows.implement",
-      "command": "After actual preflight and causal reproduction, minimally repair dev-up.ps1/dev-down.ps1 and corresponding actual-function tests only. Preserve identity and unknown-port fail-closed semantics. Do not alter judges, governance, workflows, dependencies or other candidates.",
+      "command_id": "window.implementation",
+      "command": "The current Owner explicitly delegates full responsibility to implement the unattended-platform architecture and identifies its GitHub Issue. Live Issue118 is the canonical architecture target, with separately governed phases. This NEW Phase-E lifecycle foundation addresses concrete runtime races before canonical-policy integration: serialize expiry/replay/conflict checking and insertion in the existing TaskStore SQLite transaction so concurrent hosts cannot activate two windows; reserve a future-start active window against competing activation; retain immutable policy revision/digest and historical replay without reactivation or reset of task/retry/usage counters. AutonomyService delegates activation exclusivity to that store transaction, and authorization checks the exact requested currently active window rather than existence of any window. Require expiry/start and identity fences to remain fail closed. Reuse existing TaskStore, window rows, coordinator claims/reservations, receipts and API; no second database, authority schema, Gate, runtime, verifier or unrestricted Boolean. Browser identity/ACTIVATE is NOT authenticated Owner authority; no claim that this slice implements canonical Owner verification or privileged adapters. No model or existing runtime launch/mutation; the observed project executor's R0/R1 adapter rejects R3 source work before dispatch, so use authorized Codex source fallback rather than bypassing the adapter or retrying the failed native reviewer. Explicit fresh main97d766d base, not obsolete origin/main; reuse idle F controller preserving its old Decision/native failure and five unstaged generated gates. Decision-only activation, canonical startup/plan/lint/preflight/readiness and exact activation Draft precede product changes. Exactly four product paths: autonomy.py, control_store.py, a new lifecycle regression test, and explanatory lifecycle documentation. Preserve all original tests and schema/fields/capabilities/budget accounting. Add meaningful multi-connection concurrency, scheduled-window reservation, same-revision conflict, restart/replay/counter preservation, stopped/expired replay, stale-window authorization and denied-receipt tests; use owned file-backed SQLite fixtures and controlled clocks, never real TaskStore/runtime. Development max6 provider-free pytest processes <=300s each and max3 correction rounds; only repeat after a change/failure/unresolved need. Final mandatory full PlatformV1 once<=2400s with only four preexisting installed OpenCode opt-in deselections, PathA once<=120s, committed exact-head lifecycle+autonomy+coordinator/budget regressions once<=300s. Mandatory failure stops this candidate publication, no retry or implicit renewal. Freeze all four source files during checks, retain real logs/JUnit/native exit and source hashes; git diff --check and scoped publication readiness. One Decision activation commit, one product commit, two normal pushes to exact branch, one Draft against main@97d766d, at most6 description updates; natural exact-head Actions original logs/artifacts read only. No Ready/Merge/main push/auto-merge/rebase/rewrite/tag/release/deploy/Issue or PR comments/closure/runner/workflow dispatch or rerun/install/credential/model/browser/private-session access. Source candidate and CI are not independent acceptance, canonical-policy/privileged-operation completion or mainline landing. Whole118 and all122Issue backlog remain the full objective; this critical-path prerequisite does not replace them. Absolute six-hour expiry and actual cumulative counters within this separate source window, no transfer/reset of prior811 budgets. No automatic successor grant.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
+        "code_read",
         "source_edit",
-        "local_static_check"
+        "integration_test",
+        "local_static_check",
+        "machine_specific_execution"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "dev-up.ps1",
-        "dev-down.ps1",
-        "tests/platform_v1/test_dev_up_contract.py"
+        "reverse_agent/platform_v1/autonomy.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "tests/platform_v1/test_autonomy_window_lifecycle.py",
+        "docs/unattended-window-lifecycle.md"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "windows.validate",
-      "command": "Run focused Windows launcher regressions on actual PS5 and PS7, tests/test_mainline_landing.py, applicable Platform V1 and repository deterministic pytest, git diff --check, within declared budgets. Test fixture process cleanup uses the same exact ownership constraint; no model/provider calls, installs or unknown binary.",
+      "command_id": "window.validation",
+      "command": "Max6 development checks<=300s and3 correction rounds; final mandatory fullPlatform once2400s/PathA once120s/committed focused once300s; existing4 opt-in deselections only, original logs/XML, source freeze and git diff check.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "trusted_worker",
+      "execution_surface": "user_local",
       "operations": [
-        "unit_test",
-        "local_static_check",
+        "code_read",
+        "integration_test",
         "diff_validation",
-        "destructive",
-        "network_access"
+        "local_static_check",
+        "machine_specific_execution",
+        "commit",
+        "source_edit"
       ],
-      "network_access": true,
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "windows.publish",
-      "command": "Publish only owner/20261001-windows-owned-shutdown-r3-v1 and one Draft against main@9092911f41a089e249f27c883526904299be1d17. Update exact head binding and factual tracking #1047/#1010/#289/#1004/#1041, preserving concurrent/history content. No Ready/merge/closure/settings/deployment.",
+      "command_id": "window.publication",
+      "command": "Max2 normal pushes/1 Draft against main@97d766d7253378c093c31ed29c990cb6921f2ae4/6 description updates, natural CI original evidence readback only, no landing or comments.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -312,34 +317,38 @@
       "operations": [
         "push",
         "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
         "network_access"
       ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
-    },
-    {
-      "command_id": "windows.observe",
-      "command": "Read exact remote head/base, scoped diff, immutable Decision and natural CI until terminal. Disclose actual local vs CI results and remaining independent acceptance.",
-      "phase": "final_evidence",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "remote_observation",
-      "operations": [
-        "read_only_audit",
-        "code_read"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
     }
   ],
-  "issue_completion_close_allowed": []
+  "issue_completion_close_allowed": [],
+  "runtime_scratch_policy": {
+    "paths": [],
+    "stage_allowed": false,
+    "note": "Preserve old five generated gates unstaged and old failed native window; only new owned disposable SQLite/pytest fixtures under F:/nrl-window118-v1 and external evidence directory. No existing host/model/runtime changes."
+  },
+  "workstream_id": "issue118-window-lifecycle-r3-v1",
+  "source_issues": [
+    118
+  ],
+  "local_browser_launch_limit": 0,
+  "development_check_run_limit": 6,
+  "development_correction_round_limit": 3,
+  "execution_window_hours": 6,
+  "integration_observation_surface": "user_local_exact_main_fresh_branch",
+  "runtime_host_launch_limit": 0,
+  "frontend_launch_limit": 0,
+  "approval_event_or_time": "2026-10-04T06:00:04.757249+00:00",
+  "credential_status_probe_limit": 0,
+  "provider_network_call_limit": 0,
+  "pull_request_description_update_limit": 6,
+  "owned_test_scratch_root": "F:\\nrl-window118-v1",
+  "mandatory_pytest_process_limit": 3,
+  "cumulative_development_check_limit": 6,
+  "cumulative_correction_round_limit": 3
 }
 ```
