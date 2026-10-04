@@ -52,6 +52,7 @@ from .control_store import PlatformControlStore
 from .goal_service import GoalService
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
+from .local_client_session import LocalClientSession
 
 
 class CombinedTrustedHost:
@@ -146,6 +147,9 @@ class CombinedTrustedHost:
         self._relay_server_inner: ThreadingHTTPServer | None = None
         self._threads: list[threading.Thread] = []
         self._started_servers: list[ThreadingHTTPServer] = []
+        # Private lifecycle identity foundation. HTTP admission is unchanged
+        # until the separately governed guard and native bootstrap are wired.
+        self._local_client_session = LocalClientSession()
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -402,6 +406,8 @@ class CombinedTrustedHost:
             actual_task_port = self._task_server.server_address[1]
             self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
 
+            self._local_client_session.rotate()
+
             for server in (self._model_server, self._task_server, relay_srv):
                 t = threading.Thread(target=server.serve_forever, daemon=True)
                 t.start()
@@ -414,6 +420,7 @@ class CombinedTrustedHost:
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        self._local_client_session.revoke()
         if close_account_auth:
             try:
                 self._account_auth.close()
