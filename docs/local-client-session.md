@@ -53,3 +53,18 @@ Windows frontend flows, lifecycle cleanup and restart acceptance still require
 separate actual runtime evidence. #384 and #118 remain open pending that evidence,
 canonical Owner and upper authority, privileged-operation evaluation, durable
 receipts and independent acceptance.
+
+The launcher forwards the selected frontend port to Vite through npm's `--`
+argument separator, together with loopback `--host` and `--strictPort`. An
+occupied selected port must fail instead of silently starting on another port.
+Vite's existing `runner` configuration loader avoids the bundle loader's
+temporary configuration files under shared `node_modules/.vite-temp`.
+Terminal broker failure or browser disconnect closes the private stdin handle
+after browser cleanup, so the host's open pipe cannot retain the broker process.
+
+The original actual Windows attempt on source `1b99c23d` failed because Vite
+used port 4174 instead of the requested 18879. Its owned service groups were
+cleaned up; no private browser opened. Native source regressions verify argument
+forwarding and an actual broker's bounded failure exit with parent stdin open.
+These checks do not establish actual browser lifecycle acceptance or prove that
+shared dependency state was unchanged during that original attempt.
