@@ -1,10 +1,10 @@
-# Owner-approved compatibility correction with preserved failures
+# Actual Windows native-client acceptance for118/384
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue118_launcher_compatibility_r3_v2",
-  "round_id": "round_20261004_issue118_launcher_compatibility_r3_v2",
+  "decision_id": "decision_20261004_issue118_native_browser_acceptance_r3_v2",
+  "round_id": "round_20261004_issue118_native_browser_acceptance_r3_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_OWNER_APPROVED_COMPATIBILITY_CORRECTION",
+  "decision_scope": "ISSUE118_ACTUAL_WINDOWS_PRIVATE_CLIENT_ACCEPTANCE",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / explicit current Owner full architecture delegation",
-  "approval_basis": "Explicit Owner \u6279\u51c6\uff0c\u7ee7\u7eed to the pending exact one-correction/one-dev/mandatory-replay/two-push/Draft compatibility plan.",
+  "approval_basis": "Explicit Owner approval of exact v2 proposal followed by explicit approval of cutoff-only amendment to 2026-10-04T15:30:00Z; preserve all original spending/failures.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue118-launcher-repair-r3-v1-20261004",
-  "base_sha": "ae7475d3cef2a738a9ad68b2bd373234f67e99a5",
-  "activation_base_sha": "ae7475d3cef2a738a9ad68b2bd373234f67e99a5",
-  "starting_head": "ae7475d3cef2a738a9ad68b2bd373234f67e99a5",
-  "required_branch": "codex/issue118-launcher-compatibility-r3-v2-20261004",
+  "integration_base_ref": "codex/issue118-launcher-compatibility-r3-v2-20261004",
+  "base_sha": "86caba45888455994b0e43c820833878a8a5bac1",
+  "activation_base_sha": "86caba45888455994b0e43c820833878a8a5bac1",
+  "starting_head": "86caba45888455994b0e43c820833878a8a5bac1",
+  "required_branch": "codex/issue118-native-browser-acceptance-r3-v2-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,9 +42,9 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -68,7 +68,7 @@
   "dependency_install_allowed": false,
   "live_provider_access_allowed": false,
   "credential_access_allowed": false,
-  "local_browser_execution_allowed": false,
+  "local_browser_execution_allowed": true,
   "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "unknown_binary_execution_allowed": false,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "# Reviewable compatibility correction \u2014 EXPLICITLY OWNER APPROVED\n\nCurrent source activation: ae7475d3cef2a738a9ad68b2bd373234f67e99a5, Draft1083. The approved five-file change is uncommitted. Preserve it and the five generated gates; no reset/stash/restore/cleanup.\n\nActual native regressions first failed before repair. After repair, actual frontend AST invocation passed selected port18879/strict loopback/configLoader runner; all18 native broker transport/bootstrap tests passed, including actual child exit1 while the parent kept stdin open. Original69 Python functions and all old native tests are unchanged.\n\nDevelopment2 produced99 passes and72 tmp_path setup errors from an absent approved basetemp parent. Its original evidence remains. Creating only that empty parent preceded the first mandatory full Platform check, without another development invocation.\n\nThe first mandatory Platform invocation now reports failures. Source observation identifies a compatibility defect: deleting VITE_PORT broke the existing npm.cmd fixture that forwards %VITE_PORT% to its owned stub-host.ps1. No fixture weakening, source correction, further mandatory check, product commit or push follows this failure under the current packet.\n\n## Exact proposed delta\n\nIn dev-up.ps1, retain both original VITE_PORT=[string]$FrontendPort and VITE_INLINE_CONFIG compatibility variables alongside the new real npm/Vite CLI arguments. Actual CLI port/strictPort remains authoritative for real Vite; variables preserve existing callers and Windows safety fixtures. Do not change old test assertions. Remaining approved four files retain their current source patch.\n\n## Proposed bounded continuation\n\nOne additional source compatibility correction, one disposable provider-free focused development invocation, one new full Platform mandatory invocation, then the unused Path-A and exact-head checks. Use actual existing tests/test_path_a_gate.py; the earlier generated prose's tests/control_plane/test_path_a_policy.py does not exist and has never been claimed executed. Keep the old immutable Decision unchanged; a new exact source scope/Decision/plan/preflight/Draft must bind the approved correction and mandatory replay explicitly.\n\nNo original failure/counter/deadline reset. Original source deadline2026-10-04T14:55:31.639949Z remains. New prospective activation/product commit and exact Draft publication need two new bounded branch pushes; do not claim those granted by the exhausted original phase. No actual browser/runtime/model calls, credentials, dependency installs, workflow dispatch/rerun, Ready/Merge, main push, tag/release/deploy or existing frontend mutation.\n\nMandatory source/local/natural exact-head CI evidence remains necessary; source completion is not authenticated real browser acceptance, independent audit, #118 completion or mainline landing.\n\nOwner explicitly replied \u6279\u51c6\uff0c\u7ee7\u7eed to the pending exact compatibility proposal in this chat on2026-10-04. Approval grants1 additional compatibility correction,1 focused development invocation,1 new mandatory full Platform invocation after preserving original failure, the unused Path-A and committed exact-head focused checks,2 branch pushes and1 new Draft. No actual browser/runtime/model/credential/install/Ready/Merge or workflow dispatch/rerun permission. Exact planning base is prior activation codex/issue118-launcher-repair-r3-v1-20261004@ae7475d3cef2a738a9ad68b2bd373234f67e99a5; underlying product source1b99c23d remains unchanged until carried candidate edits.\nExisting five-file candidate changes were already authorized and made under prior Draft1083. Freeze and preserve their exact hashes/patch before this activation; they are carried existing work, not newly edited before this Draft. Only Decision is staged/committed for activation. No new source correction until canonical gates/PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY and bound Draft exist. Restore exactly the two original compatibility environment entries in dev-up.ps1; preserve actual Vite CLI arguments and all other four candidate files byte-identical. Preserve all original69 Python functions/all original native tests.\nSource hashes freeze for mandatory checks. Known Node E:\\Program Files\\nodejs\\node.exe@58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may execute committed native standard-library source tests; no actual browser or SDK execution. One focused dev<=900s; full tests/platform_v1 once<=2400s with ONLY four original installed-OpenCode opt-in exclusions; tests/test_path_a_gate.py once<=120s; committed focused launcher/bootstrap/client-auth/host/session once<=900s. Each invocation uses a new disposable child under F:\\nrl-launch118-v2; create its empty parent first. No failed check is waived. Git diff --check and canonical publication readiness required. Natural exact-head CI must be observed with original native logs/JUnit/artifacts before claiming this source phase complete. Independent acceptance/actual Windows browser acceptance/full118/full384/fullgoal remain pending. Original absolute expiry 2026-10-04T14:55:31.639949+00:00; never renew runtime expiry or discard any failure/spending.\n",
-    "completion_boundary": "Five-file carried source candidate plus one compatibility correction, required local checks and natural exact-head CI. Not actual browser acceptance, independent review, landing or whole architecture completion."
+    "specification": "# #118 / #384 actual Windows client acceptance \u2014 proposed, NOT authorized\n\nPrepared 2026-10-04T14:20:44Z. No Decision is activated by this proposal.\n\nSource: dddd2024/Nerelan, codex/issue118-launcher-compatibility-r3-v2-20261004@86caba45888455994b0e43c820833878a8a5bac1, tree 0b7ec91968977c2abb3920a2996a95e8e6ae0d7a, Draft #1084. Local Platform 1992 passed / 22 skipped; Path A 191 passed; committed focused 171 passed. Native CI original JUnit 6863 passed / 31 skipped / zero failures or errors. Windows lifecycle 63 passed. Frontend CI 40 passed / 2 skipped is fixture acceptance, not actual private-client acceptance.\n\n## Proposed exact operations and bounds\n\n- Use the existing controller F:/Nerelan-issue1027-frontend-audit. Preserve its five generated gates before changing phases; no reset, restore, stash, deletion or broad staging. Fresh branch codex/issue118-native-browser-acceptance-r3-v2-20261004 from the exact source above; one immutable Decision-only activation, existing canonical plan/preflight and publication-readiness checks, one exact activation push, one Draft against that source branch, up to two Draft description updates. Product commits/source corrections/development test retries: zero.\n- Create exactly one new owned local clone F:/nrl-auth118-native2 (observed absent). Exact source commit/tree and canonical repository origin must be attested before runtime. This is not an additional registered worktree. Preserve failed clone native1 and all its evidence. Only a disclosed runtime safety delta to frontend/vite.config.ts may set cacheDir inside native2. Reuse existing dependency junction to F:/reverse-agent/frontend/node_modules; no installs or shared dependency/cache modifications. The committed launcher uses actual Vite CLI and configLoader runner. Verify owned optimizer output and absence of shared-cache writes; if this cannot be established, report it as unverified, not read-only proof.\n- One supported dev-up invocation, at most 180 seconds; one stack/frontend startup and one native Edge launch. Require loopback ports 18877 Task, 18878 Model and 18879 frontend free first. Private relay uses an owned ephemeral loopback port. Use fresh empty stores; do not copy/read existing credentials, saved sessions or model configuration. Zero provider/model calls, auth-list probes, OpenCode launches, task execution, window activation or privileged operations.\n- Known Node SHA256 58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f; Edge SHA256 39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907, Microsoft signature VALID at preparation. Recheck immediately before execution. Unknown executable or changed fingerprint stops execution.\n- At most two acceptance observation invocations, each <=180 seconds. Actual Windows UI Automation/Win32 observations and screenshots of the exact owned Edge window only; navigate home/tasks/settings. Observe successful authenticated frontend Task API reads. Missing-capability/no-Origin native requests to this owned Task API must receive 401; health exposes readiness only. No private capability value in renderer, URL, argv, env, logs or evidence; do not read/export the host capability.\n- Close only the identity-bound owned browser window using native UI. Observe broker/process birth identity and readiness; require terminal broker cleanup rather than assume browser closure proves it. One canonical owned dev-down invocation <=120 seconds, including failure cleanup using existing identity-bound job ownership. Never stop unrelated processes or the accepted frontend at 4173/8765/8766. Keep owned logs, databases and failed evidence; do not delete the clone.\n- Absolute cutoff 2026-10-04T14:55:31.639949Z (2026-10-04 22:55:31 China), matching the unchanged source cutoff. Do not start if insufficient time remains for observation and owned cleanup. No renewal, automatic successor, second startup, repair or counter reset. Natural CI observation is read-only; no dispatch/rerun. No Ready, merge, main push, tag, release, deployment, issue/comment writes or independent acceptance claim.\n\n## Aggregate accounting and acceptance\n\nPreserve prior source totals six development invocations and seven correction rounds, prior mandatory failure, source PR #1084 two pushes/two description updates, and the original runtime failure #1082 startup 1/1. This proposal adds one prospective runtime startup only; aggregate real runtime startups become 2 with the first recorded failed, not 1 after a reset. New phase activation/push/Draft budgets remain separate and cumulative records remain intact.\n\nSuccess requires actual pixels/navigation, private transport positive/negative HTTP evidence, browser-only closure/process evidence, and exact-owned cleanup. Any missing result is unverified; a failed acceptance stops this phase. This is neither independent review nor #118/#384/all backlog completion nor landing. Owner/compiler authority and privileged adapters remain subsequent separately scoped work.\n\nApproval is required because the currently activated compatibility Decision explicitly has local_browser_execution_allowed=false and runtime_host_launch_limit=0. The failed runtime Decision explicitly forbids automatic successor/retry/reset and is expired. The next runtime is an explicitly selected new exact-source phase, not continuation under either exhausted grant. After approval, record the approval verbatim and activate a fresh bounded Decision using existing repository mechanisms before any runtime.\n\nOwner explicitly approved the exact proposal, then explicitly approved ONLY its cutoff amendment to 2026-10-04T15:30:00Z in this chat on 2026-10-04. The original cutoff, all failed attempts and all cumulative source spending remain historical and unchanged. This exact new runtime Decision grants ONE prospective additional startup on source86caba, not a reset or automatic successor under the expired original runtime. Original runtime startup remains one failed; cumulative becomes two only if this launch actually begins. Original source total six development checks/seven corrections. No product corrections/commits, source test replays or models. No independent acceptance or landing.\nThe proposal text above records its originally prepared cutoff; this explicitly Owner-approved amendment supersedes ONLY the new runtime cutoff: expiry 2026-10-04T15:30:00Z, no renewal.\n",
+    "completion_boundary": "Actual owned Windows frontend/native private transport and browser-only closure evidence; source defects stop this phase. No complete architecture, independent acceptance or landing claim."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -86,11 +86,6 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
-    "dev-up.ps1",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "docs/local-client-session.md",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -99,11 +94,6 @@
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
-    "dev-up.ps1",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "docs/local-client-session.md",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
@@ -135,29 +125,19 @@
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
-    "docs/agents/**",
+    "docs/**",
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/model_access/**",
+    "reverse_agent/**",
+    "frontend/**",
+    "dev-up.ps1",
+    "dev-down.ps1",
+    "pyproject.toml",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
-    "frontend/src/**",
-    "frontend/node_modules/**",
-    "pyproject.toml",
-    "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "**/auth.json",
-    "reverse_agent/platform_v1/run_store.py",
-    "reverse_agent/platform_v1/autonomy.py",
-    "reverse_agent/platform_v1/control_store.py",
-    "reverse_agent/platform_v1/local_client_session.py",
-    "reverse_agent/platform_v1/authority_adapter.py",
-    "reverse_agent/platform_v1/publication_controller.py"
+    "**/auth.json"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -215,10 +195,10 @@
     "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "New owned provider-free synthetic HTTP/Node fixtures only, known installed Node58e74bf...; no model/provider/browser/existing ports."
+      "Owned real frontend18879/Task18877/Model18878/ephemeral relay only; no models/provider/auth probes/other listeners."
     ],
     "github_control_plane_network_exceptions": [
-      "Two exact pushes codex/issue118-launcher-compatibility-r3-v2-20261004, one Draft against codex/issue118-launcher-repair-r3-v1-20261004@ae7475d3cef2a738a9ad68b2bd373234f67e99a5, two descriptions and bounded read-only exact-head natural CI evidence. No other writes."
+      "One activation push exactcodex/issue118-native-browser-acceptance-r3-v2-20261004, one Draft againstcodex/issue118-launcher-compatibility-r3-v2-20261004@86caba45888455994b0e43c820833878a8a5bac1,2 descriptions, bounded read-only natural CI and authority; no other writes."
     ]
   },
   "path_risk_floor": [
@@ -233,8 +213,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "compatibility.bootstrap",
-      "command": "Fresh exact planning-base branch, Decision-only activation, canonical gates and bound Draft before new source edits; preserve already-authorized carried source.",
+      "command_id": "native.bootstrap",
+      "command": "Fresh exact-base branch, immutable Decision-only activation and canonical gates; Draft before any actual runtime.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -262,8 +242,8 @@
       ]
     },
     {
-      "command_id": "compatibility.implementation",
-      "command": "# Reviewable compatibility correction \u2014 EXPLICITLY OWNER APPROVED\n\nCurrent source activation: ae7475d3cef2a738a9ad68b2bd373234f67e99a5, Draft1083. The approved five-file change is uncommitted. Preserve it and the five generated gates; no reset/stash/restore/cleanup.\n\nActual native regressions first failed before repair. After repair, actual frontend AST invocation passed selected port18879/strict loopback/configLoader runner; all18 native broker transport/bootstrap tests passed, including actual child exit1 while the parent kept stdin open. Original69 Python functions and all old native tests are unchanged.\n\nDevelopment2 produced99 passes and72 tmp_path setup errors from an absent approved basetemp parent. Its original evidence remains. Creating only that empty parent preceded the first mandatory full Platform check, without another development invocation.\n\nThe first mandatory Platform invocation now reports failures. Source observation identifies a compatibility defect: deleting VITE_PORT broke the existing npm.cmd fixture that forwards %VITE_PORT% to its owned stub-host.ps1. No fixture weakening, source correction, further mandatory check, product commit or push follows this failure under the current packet.\n\n## Exact proposed delta\n\nIn dev-up.ps1, retain both original VITE_PORT=[string]$FrontendPort and VITE_INLINE_CONFIG compatibility variables alongside the new real npm/Vite CLI arguments. Actual CLI port/strictPort remains authoritative for real Vite; variables preserve existing callers and Windows safety fixtures. Do not change old test assertions. Remaining approved four files retain their current source patch.\n\n## Proposed bounded continuation\n\nOne additional source compatibility correction, one disposable provider-free focused development invocation, one new full Platform mandatory invocation, then the unused Path-A and exact-head checks. Use actual existing tests/test_path_a_gate.py; the earlier generated prose's tests/control_plane/test_path_a_policy.py does not exist and has never been claimed executed. Keep the old immutable Decision unchanged; a new exact source scope/Decision/plan/preflight/Draft must bind the approved correction and mandatory replay explicitly.\n\nNo original failure/counter/deadline reset. Original source deadline2026-10-04T14:55:31.639949Z remains. New prospective activation/product commit and exact Draft publication need two new bounded branch pushes; do not claim those granted by the exhausted original phase. No actual browser/runtime/model calls, credentials, dependency installs, workflow dispatch/rerun, Ready/Merge, main push, tag/release/deploy or existing frontend mutation.\n\nMandatory source/local/natural exact-head CI evidence remains necessary; source completion is not authenticated real browser acceptance, independent audit, #118 completion or mainline landing.\n\nOwner explicitly replied \u6279\u51c6\uff0c\u7ee7\u7eed to the pending exact compatibility proposal in this chat on2026-10-04. Approval grants1 additional compatibility correction,1 focused development invocation,1 new mandatory full Platform invocation after preserving original failure, the unused Path-A and committed exact-head focused checks,2 branch pushes and1 new Draft. No actual browser/runtime/model/credential/install/Ready/Merge or workflow dispatch/rerun permission. Exact planning base is prior activation codex/issue118-launcher-repair-r3-v1-20261004@ae7475d3cef2a738a9ad68b2bd373234f67e99a5; underlying product source1b99c23d remains unchanged until carried candidate edits.\nExisting five-file candidate changes were already authorized and made under prior Draft1083. Freeze and preserve their exact hashes/patch before this activation; they are carried existing work, not newly edited before this Draft. Only Decision is staged/committed for activation. No new source correction until canonical gates/PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY and bound Draft exist. Restore exactly the two original compatibility environment entries in dev-up.ps1; preserve actual Vite CLI arguments and all other four candidate files byte-identical. Preserve all original69 Python functions/all original native tests.\nSource hashes freeze for mandatory checks. Known Node E:\\Program Files\\nodejs\\node.exe@58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may execute committed native standard-library source tests; no actual browser or SDK execution. One focused dev<=900s; full tests/platform_v1 once<=2400s with ONLY four original installed-OpenCode opt-in exclusions; tests/test_path_a_gate.py once<=120s; committed focused launcher/bootstrap/client-auth/host/session once<=900s. Each invocation uses a new disposable child under F:\\nrl-launch118-v2; create its empty parent first. No failed check is waived. Git diff --check and canonical publication readiness required. Natural exact-head CI must be observed with original native logs/JUnit/artifacts before claiming this source phase complete. Independent acceptance/actual Windows browser acceptance/full118/full384/fullgoal remain pending. Original absolute expiry 2026-10-04T14:55:31.639949+00:00; never renew runtime expiry or discard any failure/spending.\n",
+      "command_id": "native.implementation",
+      "command": "# #118 / #384 actual Windows client acceptance \u2014 proposed, NOT authorized\n\nPrepared 2026-10-04T14:20:44Z. No Decision is activated by this proposal.\n\nSource: dddd2024/Nerelan, codex/issue118-launcher-compatibility-r3-v2-20261004@86caba45888455994b0e43c820833878a8a5bac1, tree 0b7ec91968977c2abb3920a2996a95e8e6ae0d7a, Draft #1084. Local Platform 1992 passed / 22 skipped; Path A 191 passed; committed focused 171 passed. Native CI original JUnit 6863 passed / 31 skipped / zero failures or errors. Windows lifecycle 63 passed. Frontend CI 40 passed / 2 skipped is fixture acceptance, not actual private-client acceptance.\n\n## Proposed exact operations and bounds\n\n- Use the existing controller F:/Nerelan-issue1027-frontend-audit. Preserve its five generated gates before changing phases; no reset, restore, stash, deletion or broad staging. Fresh branch codex/issue118-native-browser-acceptance-r3-v2-20261004 from the exact source above; one immutable Decision-only activation, existing canonical plan/preflight and publication-readiness checks, one exact activation push, one Draft against that source branch, up to two Draft description updates. Product commits/source corrections/development test retries: zero.\n- Create exactly one new owned local clone F:/nrl-auth118-native2 (observed absent). Exact source commit/tree and canonical repository origin must be attested before runtime. This is not an additional registered worktree. Preserve failed clone native1 and all its evidence. Only a disclosed runtime safety delta to frontend/vite.config.ts may set cacheDir inside native2. Reuse existing dependency junction to F:/reverse-agent/frontend/node_modules; no installs or shared dependency/cache modifications. The committed launcher uses actual Vite CLI and configLoader runner. Verify owned optimizer output and absence of shared-cache writes; if this cannot be established, report it as unverified, not read-only proof.\n- One supported dev-up invocation, at most 180 seconds; one stack/frontend startup and one native Edge launch. Require loopback ports 18877 Task, 18878 Model and 18879 frontend free first. Private relay uses an owned ephemeral loopback port. Use fresh empty stores; do not copy/read existing credentials, saved sessions or model configuration. Zero provider/model calls, auth-list probes, OpenCode launches, task execution, window activation or privileged operations.\n- Known Node SHA256 58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f; Edge SHA256 39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907, Microsoft signature VALID at preparation. Recheck immediately before execution. Unknown executable or changed fingerprint stops execution.\n- At most two acceptance observation invocations, each <=180 seconds. Actual Windows UI Automation/Win32 observations and screenshots of the exact owned Edge window only; navigate home/tasks/settings. Observe successful authenticated frontend Task API reads. Missing-capability/no-Origin native requests to this owned Task API must receive 401; health exposes readiness only. No private capability value in renderer, URL, argv, env, logs or evidence; do not read/export the host capability.\n- Close only the identity-bound owned browser window using native UI. Observe broker/process birth identity and readiness; require terminal broker cleanup rather than assume browser closure proves it. One canonical owned dev-down invocation <=120 seconds, including failure cleanup using existing identity-bound job ownership. Never stop unrelated processes or the accepted frontend at 4173/8765/8766. Keep owned logs, databases and failed evidence; do not delete the clone.\n- Absolute cutoff 2026-10-04T14:55:31.639949Z (2026-10-04 22:55:31 China), matching the unchanged source cutoff. Do not start if insufficient time remains for observation and owned cleanup. No renewal, automatic successor, second startup, repair or counter reset. Natural CI observation is read-only; no dispatch/rerun. No Ready, merge, main push, tag, release, deployment, issue/comment writes or independent acceptance claim.\n\n## Aggregate accounting and acceptance\n\nPreserve prior source totals six development invocations and seven correction rounds, prior mandatory failure, source PR #1084 two pushes/two description updates, and the original runtime failure #1082 startup 1/1. This proposal adds one prospective runtime startup only; aggregate real runtime startups become 2 with the first recorded failed, not 1 after a reset. New phase activation/push/Draft budgets remain separate and cumulative records remain intact.\n\nSuccess requires actual pixels/navigation, private transport positive/negative HTTP evidence, browser-only closure/process evidence, and exact-owned cleanup. Any missing result is unverified; a failed acceptance stops this phase. This is neither independent review nor #118/#384/all backlog completion nor landing. Owner/compiler authority and privileged adapters remain subsequent separately scoped work.\n\nApproval is required because the currently activated compatibility Decision explicitly has local_browser_execution_allowed=false and runtime_host_launch_limit=0. The failed runtime Decision explicitly forbids automatic successor/retry/reset and is expired. The next runtime is an explicitly selected new exact-source phase, not continuation under either exhausted grant. After approval, record the approval verbatim and activate a fresh bounded Decision using existing repository mechanisms before any runtime.\n\nOwner explicitly approved the exact proposal, then explicitly approved ONLY its cutoff amendment to 2026-10-04T15:30:00Z in this chat on 2026-10-04. The original cutoff, all failed attempts and all cumulative source spending remain historical and unchanged. This exact new runtime Decision grants ONE prospective additional startup on source86caba, not a reset or automatic successor under the expired original runtime. Original runtime startup remains one failed; cumulative becomes two only if this launch actually begins. Original source total six development checks/seven corrections. No product corrections/commits, source test replays or models. No independent acceptance or landing.\nThe proposal text above records its originally prepared cutoff; this explicitly Owner-approved amendment supersedes ONLY the new runtime cutoff: expiry 2026-10-04T15:30:00Z, no renewal.\n",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -279,18 +259,12 @@
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "dev-up.ps1",
-        "frontend/trusted-client.mjs",
-        "frontend/trusted-client.node-test.mjs",
-        "tests/platform_v1/test_dev_up_contract.py",
-        "docs/local-client-session.md"
-      ],
+      "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "compatibility.validation",
-      "command": "# Reviewable compatibility correction \u2014 EXPLICITLY OWNER APPROVED\n\nCurrent source activation: ae7475d3cef2a738a9ad68b2bd373234f67e99a5, Draft1083. The approved five-file change is uncommitted. Preserve it and the five generated gates; no reset/stash/restore/cleanup.\n\nActual native regressions first failed before repair. After repair, actual frontend AST invocation passed selected port18879/strict loopback/configLoader runner; all18 native broker transport/bootstrap tests passed, including actual child exit1 while the parent kept stdin open. Original69 Python functions and all old native tests are unchanged.\n\nDevelopment2 produced99 passes and72 tmp_path setup errors from an absent approved basetemp parent. Its original evidence remains. Creating only that empty parent preceded the first mandatory full Platform check, without another development invocation.\n\nThe first mandatory Platform invocation now reports failures. Source observation identifies a compatibility defect: deleting VITE_PORT broke the existing npm.cmd fixture that forwards %VITE_PORT% to its owned stub-host.ps1. No fixture weakening, source correction, further mandatory check, product commit or push follows this failure under the current packet.\n\n## Exact proposed delta\n\nIn dev-up.ps1, retain both original VITE_PORT=[string]$FrontendPort and VITE_INLINE_CONFIG compatibility variables alongside the new real npm/Vite CLI arguments. Actual CLI port/strictPort remains authoritative for real Vite; variables preserve existing callers and Windows safety fixtures. Do not change old test assertions. Remaining approved four files retain their current source patch.\n\n## Proposed bounded continuation\n\nOne additional source compatibility correction, one disposable provider-free focused development invocation, one new full Platform mandatory invocation, then the unused Path-A and exact-head checks. Use actual existing tests/test_path_a_gate.py; the earlier generated prose's tests/control_plane/test_path_a_policy.py does not exist and has never been claimed executed. Keep the old immutable Decision unchanged; a new exact source scope/Decision/plan/preflight/Draft must bind the approved correction and mandatory replay explicitly.\n\nNo original failure/counter/deadline reset. Original source deadline2026-10-04T14:55:31.639949Z remains. New prospective activation/product commit and exact Draft publication need two new bounded branch pushes; do not claim those granted by the exhausted original phase. No actual browser/runtime/model calls, credentials, dependency installs, workflow dispatch/rerun, Ready/Merge, main push, tag/release/deploy or existing frontend mutation.\n\nMandatory source/local/natural exact-head CI evidence remains necessary; source completion is not authenticated real browser acceptance, independent audit, #118 completion or mainline landing.\n\nOwner explicitly replied \u6279\u51c6\uff0c\u7ee7\u7eed to the pending exact compatibility proposal in this chat on2026-10-04. Approval grants1 additional compatibility correction,1 focused development invocation,1 new mandatory full Platform invocation after preserving original failure, the unused Path-A and committed exact-head focused checks,2 branch pushes and1 new Draft. No actual browser/runtime/model/credential/install/Ready/Merge or workflow dispatch/rerun permission. Exact planning base is prior activation codex/issue118-launcher-repair-r3-v1-20261004@ae7475d3cef2a738a9ad68b2bd373234f67e99a5; underlying product source1b99c23d remains unchanged until carried candidate edits.\nExisting five-file candidate changes were already authorized and made under prior Draft1083. Freeze and preserve their exact hashes/patch before this activation; they are carried existing work, not newly edited before this Draft. Only Decision is staged/committed for activation. No new source correction until canonical gates/PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY and bound Draft exist. Restore exactly the two original compatibility environment entries in dev-up.ps1; preserve actual Vite CLI arguments and all other four candidate files byte-identical. Preserve all original69 Python functions/all original native tests.\nSource hashes freeze for mandatory checks. Known Node E:\\Program Files\\nodejs\\node.exe@58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may execute committed native standard-library source tests; no actual browser or SDK execution. One focused dev<=900s; full tests/platform_v1 once<=2400s with ONLY four original installed-OpenCode opt-in exclusions; tests/test_path_a_gate.py once<=120s; committed focused launcher/bootstrap/client-auth/host/session once<=900s. Each invocation uses a new disposable child under F:\\nrl-launch118-v2; create its empty parent first. No failed check is waived. Git diff --check and canonical publication readiness required. Natural exact-head CI must be observed with original native logs/JUnit/artifacts before claiming this source phase complete. Independent acceptance/actual Windows browser acceptance/full118/full384/fullgoal remain pending. Original absolute expiry 2026-10-04T14:55:31.639949+00:00; never renew runtime expiry or discard any failure/spending.\n",
+      "command_id": "native.validation",
+      "command": "# #118 / #384 actual Windows client acceptance \u2014 proposed, NOT authorized\n\nPrepared 2026-10-04T14:20:44Z. No Decision is activated by this proposal.\n\nSource: dddd2024/Nerelan, codex/issue118-launcher-compatibility-r3-v2-20261004@86caba45888455994b0e43c820833878a8a5bac1, tree 0b7ec91968977c2abb3920a2996a95e8e6ae0d7a, Draft #1084. Local Platform 1992 passed / 22 skipped; Path A 191 passed; committed focused 171 passed. Native CI original JUnit 6863 passed / 31 skipped / zero failures or errors. Windows lifecycle 63 passed. Frontend CI 40 passed / 2 skipped is fixture acceptance, not actual private-client acceptance.\n\n## Proposed exact operations and bounds\n\n- Use the existing controller F:/Nerelan-issue1027-frontend-audit. Preserve its five generated gates before changing phases; no reset, restore, stash, deletion or broad staging. Fresh branch codex/issue118-native-browser-acceptance-r3-v2-20261004 from the exact source above; one immutable Decision-only activation, existing canonical plan/preflight and publication-readiness checks, one exact activation push, one Draft against that source branch, up to two Draft description updates. Product commits/source corrections/development test retries: zero.\n- Create exactly one new owned local clone F:/nrl-auth118-native2 (observed absent). Exact source commit/tree and canonical repository origin must be attested before runtime. This is not an additional registered worktree. Preserve failed clone native1 and all its evidence. Only a disclosed runtime safety delta to frontend/vite.config.ts may set cacheDir inside native2. Reuse existing dependency junction to F:/reverse-agent/frontend/node_modules; no installs or shared dependency/cache modifications. The committed launcher uses actual Vite CLI and configLoader runner. Verify owned optimizer output and absence of shared-cache writes; if this cannot be established, report it as unverified, not read-only proof.\n- One supported dev-up invocation, at most 180 seconds; one stack/frontend startup and one native Edge launch. Require loopback ports 18877 Task, 18878 Model and 18879 frontend free first. Private relay uses an owned ephemeral loopback port. Use fresh empty stores; do not copy/read existing credentials, saved sessions or model configuration. Zero provider/model calls, auth-list probes, OpenCode launches, task execution, window activation or privileged operations.\n- Known Node SHA256 58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f; Edge SHA256 39966f2799d3503e74871c945ba1c4877f38426d1c28756ab1545ad7c3de8907, Microsoft signature VALID at preparation. Recheck immediately before execution. Unknown executable or changed fingerprint stops execution.\n- At most two acceptance observation invocations, each <=180 seconds. Actual Windows UI Automation/Win32 observations and screenshots of the exact owned Edge window only; navigate home/tasks/settings. Observe successful authenticated frontend Task API reads. Missing-capability/no-Origin native requests to this owned Task API must receive 401; health exposes readiness only. No private capability value in renderer, URL, argv, env, logs or evidence; do not read/export the host capability.\n- Close only the identity-bound owned browser window using native UI. Observe broker/process birth identity and readiness; require terminal broker cleanup rather than assume browser closure proves it. One canonical owned dev-down invocation <=120 seconds, including failure cleanup using existing identity-bound job ownership. Never stop unrelated processes or the accepted frontend at 4173/8765/8766. Keep owned logs, databases and failed evidence; do not delete the clone.\n- Absolute cutoff 2026-10-04T14:55:31.639949Z (2026-10-04 22:55:31 China), matching the unchanged source cutoff. Do not start if insufficient time remains for observation and owned cleanup. No renewal, automatic successor, second startup, repair or counter reset. Natural CI observation is read-only; no dispatch/rerun. No Ready, merge, main push, tag, release, deployment, issue/comment writes or independent acceptance claim.\n\n## Aggregate accounting and acceptance\n\nPreserve prior source totals six development invocations and seven correction rounds, prior mandatory failure, source PR #1084 two pushes/two description updates, and the original runtime failure #1082 startup 1/1. This proposal adds one prospective runtime startup only; aggregate real runtime startups become 2 with the first recorded failed, not 1 after a reset. New phase activation/push/Draft budgets remain separate and cumulative records remain intact.\n\nSuccess requires actual pixels/navigation, private transport positive/negative HTTP evidence, browser-only closure/process evidence, and exact-owned cleanup. Any missing result is unverified; a failed acceptance stops this phase. This is neither independent review nor #118/#384/all backlog completion nor landing. Owner/compiler authority and privileged adapters remain subsequent separately scoped work.\n\nApproval is required because the currently activated compatibility Decision explicitly has local_browser_execution_allowed=false and runtime_host_launch_limit=0. The failed runtime Decision explicitly forbids automatic successor/retry/reset and is expired. The next runtime is an explicitly selected new exact-source phase, not continuation under either exhausted grant. After approval, record the approval verbatim and activate a fresh bounded Decision using existing repository mechanisms before any runtime.\n\nOwner explicitly approved the exact proposal, then explicitly approved ONLY its cutoff amendment to 2026-10-04T15:30:00Z in this chat on 2026-10-04. The original cutoff, all failed attempts and all cumulative source spending remain historical and unchanged. This exact new runtime Decision grants ONE prospective additional startup on source86caba, not a reset or automatic successor under the expired original runtime. Original runtime startup remains one failed; cumulative becomes two only if this launch actually begins. Original source total six development checks/seven corrections. No product corrections/commits, source test replays or models. No independent acceptance or landing.\nThe proposal text above records its originally prepared cutoff; this explicitly Owner-approved amendment supersedes ONLY the new runtime cutoff: expiry 2026-10-04T15:30:00Z, no renewal.\n",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -312,8 +286,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "compatibility.publication",
-      "command": "Two exact pushes/one Draft/two descriptions, read-only natural CI evidence. codex/issue118-launcher-compatibility-r3-v2-20261004",
+      "command_id": "native.publication",
+      "command": "One exact activation push and Draft, two truthful evidence descriptions; no landing. codex/issue118-native-browser-acceptance-r3-v2-20261004",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -335,44 +309,37 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Provider-free disposable source tests only under F:\\nrl-launch118-v2; preserve all existing runtimes/shared dependencies/candidate source/unknown work."
+    "note": "Exactly new owned external runtimeF:\\nrl-auth118-native2; one clone/stack/browser, readonly shared deps, cacheDir safety config only. Never stage runtime/evidence. Existing runtimes preserved."
   },
-  "workstream_id": "issue118-launcher-compatibility-r3-v2",
+  "workstream_id": "issue118-native-browser-acceptance-r3-v2",
   "source_issues": [
     118,
     384
   ],
-  "local_browser_launch_limit": 0,
-  "development_check_run_limit": 1,
-  "development_correction_round_limit": 1,
-  "execution_window_hours": 6,
+  "local_browser_launch_limit": 1,
+  "execution_window_hours": 1.5,
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
-  "runtime_host_launch_limit": 0,
-  "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T13:21:23.701585+00:00",
+  "runtime_host_launch_limit": 1,
+  "frontend_launch_limit": 1,
+  "approval_event_or_time": "2026-10-04T14:53:12.500836+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 2,
-  "owned_test_scratch_root": "F:\\nrl-launch118-v2",
-  "mandatory_pytest_process_limit": 3,
-  "cumulative_development_check_limit": 6,
-  "cumulative_correction_round_limit": 7,
-  "cumulative_prior_correction_rounds": 6,
-  "cumulative_prior_development_checks": 5,
-  "approved_repair_limits": {
-    "new_corrections": 1,
-    "new_development_checks": 1,
-    "prior_source1081_dev": 3,
-    "prior_source1081_corrections": 4,
-    "prior_repair1083_dev": 2,
-    "prior_repair1083_corrections": 2,
-    "prior_repair_mandatory_failed": 1,
-    "new_mandatory_full": 1,
-    "unused_path_a": 1,
-    "unused_exact_head": 1,
-    "prior_failed_runtime_launches": 1,
-    "runtime_launches_allowed": 0,
-    "expires_at": "2026-10-04T14:55:31.639949+00:00"
+  "runtime_acceptance_limits": {
+    "clone": 1,
+    "stack_start": 1,
+    "browser_start": 1,
+    "observations": 2,
+    "normal_cleanup": 1,
+    "source_corrections": 0,
+    "source_checks_replay": 0,
+    "prior_source_dev_spent": 6,
+    "prior_source_corrections_spent": 7,
+    "prior_runtime_failed_startups": 1,
+    "cumulative_runtime_startup_limit": 2,
+    "prior_source_original_deadline": "2026-10-04T14:55:31.639949+00:00",
+    "owned_runtime_root": "F:\\nrl-auth118-native2",
+    "expires_at": "2026-10-04T15:30:00+00:00"
   }
 }
 ```
