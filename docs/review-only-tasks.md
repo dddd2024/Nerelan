@@ -19,13 +19,27 @@ index or configuration. Forge identity remains unauthenticated by a local
 origin string; oversized/binary/sensitive content retains its withheld state.
 
 The executor runs in a newly owned disposable projection repository outside
-the target. Only a host-authored plan and JSON context are materialized.
+the target. A readable JSON index references every collected nonwithheld
+base/head text through host-authored ordinal `.txt` files. Their UTF-8 bytes and
+source line boundaries are preserved; withheld content stays explicitly withheld.
+The target digest binds the original collected observations, while the index
+describes their presentation. It does not replace the collector's identity.
 Head instructions, plugins, skills and MCP configuration remain quoted data;
 none becomes executable project configuration. The dedicated `review_only`
 role denies all shell, network, task and external-directory tools and permits
 only `.reverse-agent-handoff/review.md` as an edit. Its prompt does not promote
-the original team task title to reviewer instructions. The projection, including
-its Git metadata, is checked for mutations and then removed.
+the original team task title to reviewer instructions. Standard Git
+`--separate-git-dir` places disposable runtime metadata outside the model's
+context directory. Runtime cache/index activity therefore does not rewrite
+model inputs. The context, all data files, plan, `.git` pointer and private Git
+configuration/HEAD/initial branch reference remain protected. Reviewer tools
+cannot edit the private metadata through external-directory or edit permissions.
+The entire newly owned container is then removed.
+
+Integrity rejection events retain bounded known host-path labels and the count
+of unexpected files. Unknown filenames and file contents are not exported in
+diagnostics, because they could contain sensitive data. This is the existing
+task failure path, not a new verifier or acceptance receipt.
 
 The handoff is JSON with exactly `target_digest` and `findings`. It is limited
 to 64 KiB and 64 findings. Findings use the existing normalizer's exact field
@@ -53,6 +67,13 @@ detection, false-positive rate, billing or independent reviewer qualification.
 Live execution requires the separately authorized existing model/credential
 path and independent acceptance. This feature does not activate an autonomy
 window or register an unattended review workflow.
+
+The original native trial of #1074 failed with `review_projection_mutated`;
+the target and setup stayed unchanged. Its temporary projection was removed
+before changed-path diagnostics were retained, so its exact mutation cause
+remains unresolved. The separate metadata layout and text presentation are a
+new candidate requiring fresh native evaluation; provider-free fixtures alone
+do not establish that the real-model lifecycle now succeeds.
 
 Remaining Issue #811 work includes mature analyzer composition, contextual
 impact retrieval, prior forge feedback linking, real model/evaluation evidence,
