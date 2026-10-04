@@ -1,10 +1,10 @@
-# Durable autonomous-window lifecycle prerequisite for Issue118
+# Trusted local-client session foundation for Issues118/384
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue118_window_lifecycle_r3_v1",
-  "round_id": "round_20261004_issue118_window_lifecycle_r3_v1",
+  "decision_id": "decision_20261004_issue118_client_session_r3_v2",
+  "round_id": "round_20261004_issue118_client_session_r3_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,7 +16,7 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_DURABLE_WINDOW_LIFECYCLE",
+  "decision_scope": "ISSUE118_LOCAL_CLIENT_SESSION_FOUNDATION",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
@@ -25,11 +25,11 @@
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "main",
-  "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "required_branch": "codex/issue118-window-lifecycle-r3-v1-20261004",
+  "integration_base_ref": "codex/issue118-window-lifecycle-r3-v1-20261004",
+  "base_sha": "42e22900fb13c530ac43ba207810f38bf5ac9e1e",
+  "activation_base_sha": "42e22900fb13c530ac43ba207810f38bf5ac9e1e",
+  "starting_head": "42e22900fb13c530ac43ba207810f38bf5ac9e1e",
+  "required_branch": "codex/issue118-client-session-r3-v2-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "The current Owner explicitly delegates full responsibility to implement the unattended-platform architecture and identifies its GitHub Issue. Live Issue118 is the canonical architecture target, with separately governed phases. This NEW Phase-E lifecycle foundation addresses concrete runtime races before canonical-policy integration: serialize expiry/replay/conflict checking and insertion in the existing TaskStore SQLite transaction so concurrent hosts cannot activate two windows; reserve a future-start active window against competing activation; retain immutable policy revision/digest and historical replay without reactivation or reset of task/retry/usage counters. AutonomyService delegates activation exclusivity to that store transaction, and authorization checks the exact requested currently active window rather than existence of any window. Require expiry/start and identity fences to remain fail closed. Reuse existing TaskStore, window rows, coordinator claims/reservations, receipts and API; no second database, authority schema, Gate, runtime, verifier or unrestricted Boolean. Browser identity/ACTIVATE is NOT authenticated Owner authority; no claim that this slice implements canonical Owner verification or privileged adapters. No model or existing runtime launch/mutation; the observed project executor's R0/R1 adapter rejects R3 source work before dispatch, so use authorized Codex source fallback rather than bypassing the adapter or retrying the failed native reviewer. Explicit fresh main97d766d base, not obsolete origin/main; reuse idle F controller preserving its old Decision/native failure and five unstaged generated gates. Decision-only activation, canonical startup/plan/lint/preflight/readiness and exact activation Draft precede product changes. Exactly four product paths: autonomy.py, control_store.py, a new lifecycle regression test, and explanatory lifecycle documentation. Preserve all original tests and schema/fields/capabilities/budget accounting. Add meaningful multi-connection concurrency, scheduled-window reservation, same-revision conflict, restart/replay/counter preservation, stopped/expired replay, stale-window authorization and denied-receipt tests; use owned file-backed SQLite fixtures and controlled clocks, never real TaskStore/runtime. Development max6 provider-free pytest processes <=300s each and max3 correction rounds; only repeat after a change/failure/unresolved need. Final mandatory full PlatformV1 once<=2400s with only four preexisting installed OpenCode opt-in deselections, PathA once<=120s, committed exact-head lifecycle+autonomy+coordinator/budget regressions once<=300s. Mandatory failure stops this candidate publication, no retry or implicit renewal. Freeze all four source files during checks, retain real logs/JUnit/native exit and source hashes; git diff --check and scoped publication readiness. One Decision activation commit, one product commit, two normal pushes to exact branch, one Draft against main@97d766d, at most6 description updates; natural exact-head Actions original logs/artifacts read only. No Ready/Merge/main push/auto-merge/rebase/rewrite/tag/release/deploy/Issue or PR comments/closure/runner/workflow dispatch or rerun/install/credential/model/browser/private-session access. Source candidate and CI are not independent acceptance, canonical-policy/privileged-operation completion or mainline landing. Whole118 and all122Issue backlog remain the full objective; this critical-path prerequisite does not replace them. Absolute six-hour expiry and actual cumulative counters within this separate source window, no transfer/reset of prior811 budgets. No automatic successor grant.",
-    "completion_boundary": "Atomic durable-window lifecycle and exact-window authorization source implementation with actual provider-free checks and source CI; all remaining architecture stages and independent landing acceptance remain required."
+    "specification": "Current Owner delegates full unattended architecture implementation and routine scoped decisions. The unpublished v1 activation has a mismatched generated allowlist and is preserved as stopped before any preflight, Draft, source edit or check. This replacement preserves its absolute deadline and charges one correction round, with remaining total budgets6 dev/2 correction. This is a NEW distinct source phase for Issue118's trusted-client dependency384, not renewal of a failed window. Prior118 lifecycle source at42e22900 is complete with actual local/native CI; its remaining budget is not transferred or reset. Fresh planning base is exact codex/issue118-window-lifecycle-r3-v1-20261004@42e22900, not implicit main. Live384 has no source grant itself; Owner current architecture delegation authorizes this prospective bounded prerequisite. Existing project executor supports R0/R1 and rejects R3 source work; use Codex fallback without bypass/model retries. Implement a server-owned high-entropy process-local client capability with bounded monotonic lifetime, constant-time bounded ASCII comparison, thread-safe rotation/revocation, fail-closed entropy/clock failure, no token in representation/errors/URLs/env/logs/persistent data, and exact private in-process bootstrap delivery. Bind its lifecycle to CombinedTrustedHost start/cleanup, including partial startup failure. No HTTP guard activation in this prerequisite: existing frontend/API semantics remain byte-identical and hole384 remains open until separately governed request enforcement and trusted browser launcher integration; never claim session existence authenticates current requests or Owner policy activation. One existing host, no new token-fetch route, browser storage, second TaskStore, OAuth/RBAC, privileged capability, schema/Gate/verifier, Model Control change or dependency. Exactly four product paths: new local_client_session.py, existing trusted_host.py lifecycle seam, new deterministic tests, explanatory doc. Preserve all existing tests and work. Meaningful deterministic tests must cover missing/wrong/non-ASCII/oversized/expired/stale tokens, restart isolation/rotation/revocation, clock rollback/error and entropy error fail closed, bounded TTL, concurrent check/revoke, safe repr/exceptions, trusted private delivery failure, host startup/stop/failed startup without providers/real model/credential/browser launch. Never include actual production token in artifacts, fixture metadata or subprocess environments; fixtures may use synthetic tokens in memory. Max6 dev pytest<=300s,3 correction rounds; once-only final fullPlatform2400 with existing four opt-in exclusions, PathA120, committed focused session+trustedhost<=300. Freeze four source hashes, actual logs/JUnit/exit and diff check. Decision-only activation and canonical gates and exact activation Draft before source edits. One Decision commit, one product commit,2 exactbranch pushes,1 Draft against explicit planning branch,6 descriptions, bounded natural CI readback. No automatic successor, mandatory failure stops publication, absolute6h window. No model/credential/browser/existing runtime changes/install/dispatch/rerun/Issue or PR comments/closure/Ready/Merge/main/history/tag/release/deploy. This source foundation does not complete384/118/backlog or independent acceptance.",
+    "completion_boundary": "Host-owned bounded client-session foundation, with actual source checks; HTTP authentication/browser bootstrap/Owner authority and privileged operation chain remain required."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -91,10 +91,10 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/autonomy.py",
-    "reverse_agent/platform_v1/control_store.py",
-    "tests/platform_v1/test_autonomy_window_lifecycle.py",
-    "docs/unattended-window-lifecycle.md"
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "docs/local-client-session.md"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -103,10 +103,10 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/autonomy.py",
-    "reverse_agent/platform_v1/control_store.py",
-    "tests/platform_v1/test_autonomy_window_lifecycle.py",
-    "docs/unattended-window-lifecycle.md"
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "docs/local-client-session.md"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -213,7 +213,7 @@
       "New owned provider-free test loopback fixtures only; no model/provider/existing services."
     ],
     "github_control_plane_network_exceptions": [
-      "Two normal pushes to codex/issue118-window-lifecycle-r3-v1-20261004, one activation Draft against main@97d766d7253378c093c31ed29c990cb6921f2ae4, max6 exact-head body updates; bounded natural CI/log/artifact and live authority readback only. No other writes."
+      "Two normal pushes to codex/issue118-client-session-r3-v2-20261004, one activation Draft against codex/issue118-window-lifecycle-r3-v1-20261004@42e22900fb13c530ac43ba207810f38bf5ac9e1e, max6 exact-head body updates; bounded natural CI/log/artifact and live authority readback only. No other writes."
     ]
   },
   "path_risk_floor": [
@@ -258,7 +258,7 @@
     },
     {
       "command_id": "window.implementation",
-      "command": "The current Owner explicitly delegates full responsibility to implement the unattended-platform architecture and identifies its GitHub Issue. Live Issue118 is the canonical architecture target, with separately governed phases. This NEW Phase-E lifecycle foundation addresses concrete runtime races before canonical-policy integration: serialize expiry/replay/conflict checking and insertion in the existing TaskStore SQLite transaction so concurrent hosts cannot activate two windows; reserve a future-start active window against competing activation; retain immutable policy revision/digest and historical replay without reactivation or reset of task/retry/usage counters. AutonomyService delegates activation exclusivity to that store transaction, and authorization checks the exact requested currently active window rather than existence of any window. Require expiry/start and identity fences to remain fail closed. Reuse existing TaskStore, window rows, coordinator claims/reservations, receipts and API; no second database, authority schema, Gate, runtime, verifier or unrestricted Boolean. Browser identity/ACTIVATE is NOT authenticated Owner authority; no claim that this slice implements canonical Owner verification or privileged adapters. No model or existing runtime launch/mutation; the observed project executor's R0/R1 adapter rejects R3 source work before dispatch, so use authorized Codex source fallback rather than bypassing the adapter or retrying the failed native reviewer. Explicit fresh main97d766d base, not obsolete origin/main; reuse idle F controller preserving its old Decision/native failure and five unstaged generated gates. Decision-only activation, canonical startup/plan/lint/preflight/readiness and exact activation Draft precede product changes. Exactly four product paths: autonomy.py, control_store.py, a new lifecycle regression test, and explanatory lifecycle documentation. Preserve all original tests and schema/fields/capabilities/budget accounting. Add meaningful multi-connection concurrency, scheduled-window reservation, same-revision conflict, restart/replay/counter preservation, stopped/expired replay, stale-window authorization and denied-receipt tests; use owned file-backed SQLite fixtures and controlled clocks, never real TaskStore/runtime. Development max6 provider-free pytest processes <=300s each and max3 correction rounds; only repeat after a change/failure/unresolved need. Final mandatory full PlatformV1 once<=2400s with only four preexisting installed OpenCode opt-in deselections, PathA once<=120s, committed exact-head lifecycle+autonomy+coordinator/budget regressions once<=300s. Mandatory failure stops this candidate publication, no retry or implicit renewal. Freeze all four source files during checks, retain real logs/JUnit/native exit and source hashes; git diff --check and scoped publication readiness. One Decision activation commit, one product commit, two normal pushes to exact branch, one Draft against main@97d766d, at most6 description updates; natural exact-head Actions original logs/artifacts read only. No Ready/Merge/main push/auto-merge/rebase/rewrite/tag/release/deploy/Issue or PR comments/closure/runner/workflow dispatch or rerun/install/credential/model/browser/private-session access. Source candidate and CI are not independent acceptance, canonical-policy/privileged-operation completion or mainline landing. Whole118 and all122Issue backlog remain the full objective; this critical-path prerequisite does not replace them. Absolute six-hour expiry and actual cumulative counters within this separate source window, no transfer/reset of prior811 budgets. No automatic successor grant.",
+      "command": "Current Owner delegates full unattended architecture implementation and routine scoped decisions. The unpublished v1 activation has a mismatched generated allowlist and is preserved as stopped before any preflight, Draft, source edit or check. This replacement preserves its absolute deadline and charges one correction round, with remaining total budgets6 dev/2 correction. This is a NEW distinct source phase for Issue118's trusted-client dependency384, not renewal of a failed window. Prior118 lifecycle source at42e22900 is complete with actual local/native CI; its remaining budget is not transferred or reset. Fresh planning base is exact codex/issue118-window-lifecycle-r3-v1-20261004@42e22900, not implicit main. Live384 has no source grant itself; Owner current architecture delegation authorizes this prospective bounded prerequisite. Existing project executor supports R0/R1 and rejects R3 source work; use Codex fallback without bypass/model retries. Implement a server-owned high-entropy process-local client capability with bounded monotonic lifetime, constant-time bounded ASCII comparison, thread-safe rotation/revocation, fail-closed entropy/clock failure, no token in representation/errors/URLs/env/logs/persistent data, and exact private in-process bootstrap delivery. Bind its lifecycle to CombinedTrustedHost start/cleanup, including partial startup failure. No HTTP guard activation in this prerequisite: existing frontend/API semantics remain byte-identical and hole384 remains open until separately governed request enforcement and trusted browser launcher integration; never claim session existence authenticates current requests or Owner policy activation. One existing host, no new token-fetch route, browser storage, second TaskStore, OAuth/RBAC, privileged capability, schema/Gate/verifier, Model Control change or dependency. Exactly four product paths: new local_client_session.py, existing trusted_host.py lifecycle seam, new deterministic tests, explanatory doc. Preserve all existing tests and work. Meaningful deterministic tests must cover missing/wrong/non-ASCII/oversized/expired/stale tokens, restart isolation/rotation/revocation, clock rollback/error and entropy error fail closed, bounded TTL, concurrent check/revoke, safe repr/exceptions, trusted private delivery failure, host startup/stop/failed startup without providers/real model/credential/browser launch. Never include actual production token in artifacts, fixture metadata or subprocess environments; fixtures may use synthetic tokens in memory. Max6 dev pytest<=300s,3 correction rounds; once-only final fullPlatform2400 with existing four opt-in exclusions, PathA120, committed focused session+trustedhost<=300. Freeze four source hashes, actual logs/JUnit/exit and diff check. Decision-only activation and canonical gates and exact activation Draft before source edits. One Decision commit, one product commit,2 exactbranch pushes,1 Draft against explicit planning branch,6 descriptions, bounded natural CI readback. No automatic successor, mandatory failure stops publication, absolute6h window. No model/credential/browser/existing runtime changes/install/dispatch/rerun/Issue or PR comments/closure/Ready/Merge/main/history/tag/release/deploy. This source foundation does not complete384/118/backlog or independent acceptance.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -275,10 +275,10 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/autonomy.py",
-        "reverse_agent/platform_v1/control_store.py",
-        "tests/platform_v1/test_autonomy_window_lifecycle.py",
-        "docs/unattended-window-lifecycle.md"
+        "reverse_agent/platform_v1/local_client_session.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "tests/platform_v1/test_local_client_session.py",
+        "docs/local-client-session.md"
       ],
       "produced_artifacts": []
     },
@@ -307,7 +307,7 @@
     },
     {
       "command_id": "window.publication",
-      "command": "Max2 normal pushes/1 Draft against main@97d766d7253378c093c31ed29c990cb6921f2ae4/6 description updates, natural CI original evidence readback only, no landing or comments.",
+      "command": "Max2 normal pushes/1 Draft against codex/issue118-window-lifecycle-r3-v1-20261004@42e22900fb13c530ac43ba207810f38bf5ac9e1e/6 description updates, natural CI original evidence readback only, no landing or comments.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -331,24 +331,27 @@
     "stage_allowed": false,
     "note": "Preserve old five generated gates unstaged and old failed native window; only new owned disposable SQLite/pytest fixtures under F:/nrl-window118-v1 and external evidence directory. No existing host/model/runtime changes."
   },
-  "workstream_id": "issue118-window-lifecycle-r3-v1",
+  "workstream_id": "issue118-client-session-r3-v2",
   "source_issues": [
-    118
+    118,
+    384
   ],
   "local_browser_launch_limit": 0,
   "development_check_run_limit": 6,
   "development_correction_round_limit": 3,
   "execution_window_hours": 6,
-  "integration_observation_surface": "user_local_exact_main_fresh_branch",
+  "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T06:00:04.757249+00:00",
+  "approval_event_or_time": "2026-10-04T07:36:03.625280+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 6,
-  "owned_test_scratch_root": "F:\\nrl-window118-v1",
+  "owned_test_scratch_root": "F:\\nrl-session118-v1",
   "mandatory_pytest_process_limit": 3,
   "cumulative_development_check_limit": 6,
-  "cumulative_correction_round_limit": 3
+  "cumulative_correction_round_limit": 3,
+  "cumulative_prior_development_checks": 0,
+  "cumulative_prior_correction_rounds": 1
 }
 ```
