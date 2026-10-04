@@ -738,8 +738,37 @@ class PlatformControlStore:
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
         capabilities = tuple(str(v) for v in payload.get("capabilities", ()))
         with self._lock:
+            cur = self._conn.cursor()
             try:
-                self._conn.execute(
+                # The service's earlier observation is not an activation lock.
+                # BEGIN IMMEDIATE also serializes independent TaskStore hosts.
+                cur.execute("BEGIN IMMEDIATE")
+                cur.execute(
+                    "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
+                    "stop_reason = 'window_expired', updated_at = ? "
+                    "WHERE status = 'ACTIVE' AND expires_at <= ?",
+                    (now, now),
+                )
+                existing = cur.execute(
+                    "SELECT * FROM platform_autonomous_windows WHERE policy_id = ? AND policy_revision = ?",
+                    (str(payload["policy_id"]), int(payload["policy_revision"])),
+                ).fetchone()
+                if existing is not None:
+                    if existing["policy_digest"] != digest:
+                        raise TaskStoreError("policy_revision_conflict")
+                    # Replaying a terminal revision returns history, never a
+                    # fresh ACTIVE window or a fresh set of budget counters.
+                    record = self._row_to_window(existing)
+                    self._conn.commit()
+                    return record
+                active = cur.execute(
+                    "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' LIMIT 1"
+                ).fetchone()
+                if active is not None:
+                    # A scheduled window also reserves activation, although
+                    # active_window() cannot dispatch it before starts_at.
+                    raise TaskStoreError(f"active_window_already_exists:{active['id']}")
+                cur.execute(
                     "INSERT INTO platform_autonomous_windows "
                     "(id, policy_id, policy_revision, policy_digest, owner_identity, confirmation, "
                     "starts_at, expires_at, status, repositories_json, capabilities_json, "
@@ -773,13 +802,11 @@ class PlatformControlStore:
                         now,
                     ),
                 )
+                self._conn.commit()
             except Exception as exc:
-                existing = self._conn.execute(
-                    "SELECT * FROM platform_autonomous_windows WHERE policy_id = ? AND policy_revision = ?",
-                    (str(payload["policy_id"]), int(payload["policy_revision"])),
-                ).fetchone()
-                if existing is not None and existing["policy_digest"] == digest:
-                    return self._row_to_window(existing)
+                self._conn.rollback()
+                if isinstance(exc, TaskStoreError):
+                    raise
                 raise TaskStoreError(f"window_activation_failed:{exc}") from exc
         return self.get_window(window_id)
 

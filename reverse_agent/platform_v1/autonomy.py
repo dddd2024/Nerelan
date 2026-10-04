@@ -37,16 +37,8 @@ class AutonomyService:
 
     def activate(self, payload: Mapping[str, Any]) -> AutonomousWindowRecord:
         normalized = self._validate_policy(payload)
-        active = self.control_store.active_window()
-        if active is not None:
-            if (
-                active.policy_id == normalized["policy_id"]
-                and active.policy_revision == normalized["policy_revision"]
-            ):
-                return self.control_store.activate_window(
-                    normalized, confirmation=str(payload.get("confirmation", ""))
-                )
-            raise TaskStoreError(f"active_window_already_exists:{active.id}")
+        # Expiry, immutable replay and exclusivity share the store's write
+        # transaction. A preflight read here cannot fence another host.
         return self.control_store.activate_window(
             normalized, confirmation=str(payload.get("confirmation", ""))
         )
@@ -63,8 +55,9 @@ class AutonomyService:
         decision = "allowed"
         reason = "operation_inside_active_window"
         try:
+            active = self.control_store.active_window()
             window = self.control_store.get_window(window_id)
-            if window.status != "ACTIVE" or self.control_store.active_window() is None:
+            if window.status != "ACTIVE" or active is None or active.id != window.id:
                 raise TaskStoreError("window_not_active")
             if repository not in window.repositories:
                 raise TaskStoreError("repository_outside_window")
