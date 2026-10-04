@@ -1,4 +1,4 @@
-# Trusted local-client identity foundation
+# Trusted local-client session and native browser transport
 
 Issue #118 depends on #384: loopback and Origin do not authenticate the
 caller. `LocalClientSession` provides a host-memory identity prerequisite:
@@ -17,17 +17,39 @@ bootstrap endpoint, persistent file, TaskStore field or browser storage.
 Its representation and public errors contain fixed messages only.
 
 `deliver` is an in-process seam for trusted native launcher code, not a
-public API or proof that an arbitrary callback is trusted. A later launcher
-must use private IPC to its owned browser broker and keep the value out of
-renderer state, worker environments, logs and evidence. Neither a capability
-nor the existing browser `ACTIVATE` literal proves Owner policy confirmation.
+public API or proof that an arbitrary callback is trusted. The Windows launcher
+starts the host's owned Node browser broker with private anonymous stdin IPC.
+The capability stays in host and broker memory; the broker's native HTTP layer
+adds it to requests only for the exact configured Task API origin and `/api/`
+paths, originating from the configured frontend frame. It does not modify
+renderer request headers or follow redirects. It blocks service workers,
+strips credential cookies, bounds requests, responses and timeouts, and
+reports fixed errors. All existing frontend HTTP clients use that one seam.
 
-This phase does **not** install request authentication. Current Task API
-routes and browser behavior are unchanged, and #384 remains open. Deployment
-acceptance requires the subsequent default-deny HTTP guard, separate strict
-Origin checks, complete route classification and rejection before dispatch,
-supported trusted browser bootstrap, positive frontend flows, and actual
-Windows lifecycle evidence. The primitive must not be presented as a fix for
-the currently unauthenticated Task API. Canonical Owner/upper authority,
-privileged operation evaluation, durable receipts and independent acceptance
-remain separate requirements for #118.
+Task API GETs exposing user state and all POSTs now require exactly one current
+capability header before JSON parsing, task lookup or dispatch. Missing,
+duplicate, malformed, expired and stale values return a fixed 401. Origin
+validation is independent: a disallowed Origin returns 403; omitting Origin
+does not grant access. A factory without a private session defaults to denial.
+After rejecting a POST, the handler may discard an explicitly sized bounded
+body without parsing it, so Windows socket closure does not hide the response.
+GET `/api/health` exposes only `{"ready":true}` for launcher readiness; OPTIONS
+is preflight only and cannot read state or execute work.
+
+The supported launcher checks the broker's exact process creation time,
+executable and readiness, and retains verified ownership and fail-closed
+cleanup. `-NoBrowser` starts services without delivering a browser identity;
+opening an arbitrary browser tab does not authenticate it. Broker exit clears
+UI readiness; host cleanup revokes the identity and stops its owned broker.
+The exact existing `playwright-core` 1.62.1 dependency is a production dependency;
+this change does not install packages or alter shared node_modules.
+
+Neither this capability nor the browser `ACTIVATE` literal proves Owner policy
+confirmation. All existing execution, authority, budget and publication checks
+remain necessary. Model Control authentication is a separate unresolved surface.
+Source tests use synthetic identities, native Node HTTP and owned loopback
+fixtures, without launching a real browser or making model calls. Supported
+Windows frontend flows, lifecycle cleanup and restart acceptance still require
+separate actual runtime evidence. #384 and #118 remain open pending that evidence,
+canonical Owner and upper authority, privileged-operation evaluation, durable
+receipts and independent acceptance.

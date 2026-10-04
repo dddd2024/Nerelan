@@ -58,6 +58,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 # Test infrastructure: FakeExecutor
 # ---------------------------------------------------------------------------
 
+from _local_client_fixture import client_session, client_headers
+
 @pytest.fixture(autouse=True)
 def _setup_repo_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically set up REVERSE_AGENT_REPO_DIR for tests that need it."""
@@ -949,6 +951,7 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls.store = store
     handler_cls.router = RR()
@@ -983,7 +986,7 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/tasks/{task.id}/execute",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1029,6 +1032,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
         store, RR(), allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls.store = store
     handler_cls.router = RR()
@@ -1047,7 +1051,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/tasks/{task.id}/execute",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1078,6 +1082,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
         store, RR2(), allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls2.store = store
     handler_cls2.router = RR2()
@@ -1094,7 +1099,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
     req2 = urllib.request.Request(
         f"http://127.0.0.1:{port2}/api/tasks/{task.id}/resume",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1139,6 +1144,7 @@ def test_binding_resolver_preserved(tmp_path) -> None:
         store, ExecutorRouter(),
         allowed_origin="http://localhost:4173",
         binding_resolver=fake_resolver,
+        local_client_session=client_session(),
     )
     handler_cls.binding_resolver = fake_resolver
 

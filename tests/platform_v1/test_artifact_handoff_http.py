@@ -16,6 +16,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import _handler_factory
 
 
+from _local_client_fixture import client_session, client_headers
+
 @pytest.mark.parametrize("mode", ["single", "sequential_team"])
 def test_http_selection_clear_approval_launch_and_input_proof(goal_checks, tmp_path, monkeypatch, mode):
     root, base, store, control, service, goal, window = goal_checks
@@ -32,13 +34,13 @@ def test_http_selection_clear_approval_launch_and_input_proof(goal_checks, tmp_p
     router.replace("opencode", factory)
     server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_factory(store, router,
         allowed_origin="http://localhost:5173", binding_resolver=LocalBinding(),
-        execution_authority_sha="artifact-http-authority", planning_sha="artifact-http-plan"))
+        execution_authority_sha="artifact-http-authority", planning_sha="artifact-http-plan", local_client_session=client_session(),))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     def request(path, body=None):
         req = Request(f"http://127.0.0.1:{server.server_port}" + path,
                       data=json.dumps(body).encode() if body is not None else None,
-                      headers={"Origin": "http://localhost:5173", "Content-Type": "application/json"})
+                      headers=client_headers({"Origin": "http://localhost:5173", "Content-Type": "application/json"}))
         with urlopen(req, timeout=120) as response:
             return json.load(response)
     try:

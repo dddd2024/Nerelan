@@ -18,6 +18,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import _handler_factory
 
 
+from _local_client_fixture import client_session, client_headers
+
 def _find_free_port():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
@@ -104,7 +106,7 @@ def _full_chain(tmp_path) -> dict:
             service_store,
             router,
             allowed_origin="http://localhost:5173",
-        ),
+         local_client_session=client_session(),),
     )
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -118,7 +120,7 @@ def _full_chain(tmp_path) -> dict:
         if body is not None:
             headers["Content-Type"] = "application/json"
             data = json.dumps(body).encode()
-        req = _urllib.Request(url, data=data, headers=headers, method=method)
+        req = _urllib.Request(url, data=data, headers=client_headers(headers), method=method)
         with _urllib.urlopen(req, timeout=10) as resp:
             raw = resp.read()
             return resp.status, json.loads(raw.decode()) if raw else None
@@ -175,7 +177,7 @@ def test_provider_free_chain_rejects_external_origin(tmp_path) -> None:
 
     server = ThreadingHTTPServer(
         ("127.0.0.1", _find_free_port()),
-        _handler_factory(store, router, allowed_origin="http://localhost:5173"),
+        _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),),
     )
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)

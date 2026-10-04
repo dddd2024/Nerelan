@@ -335,6 +335,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
     coordinator: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
+    local_client_session = None
+
+    def setup(self) -> None:
+        super().setup()
+        self.connection.settimeout(5.0)
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -349,6 +354,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if not self._check_origin():
+            return
+        if self.path.split("?", 1)[0] == "/api/health":
+            self._send_json(HTTPStatus.OK, {"ready": True})
+            return
+        if not self._check_local_client():
             return
         try:
             segments = self._segments()
@@ -511,6 +521,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if not self._check_origin():
+            return
+        if not self._check_local_client():
             return
         try:
             segments = self._segments()
@@ -1055,6 +1067,33 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self._send_forbidden()
         return False
 
+    def _check_local_client(self) -> bool:
+        values = self.headers.get_all("X-Nerelan-Client-Capability", [])
+        session = self.local_client_session
+        if len(values) == 1 and session is not None and session.accepts(values[0]):
+            return True
+        self._send_json(HTTPStatus.UNAUTHORIZED, {
+            "error": "请通过 Nerelan 启动器重新打开客户端。",
+            "code": "local_client_session_required",
+        })
+        # Admission has already failed; discard only a small, explicitly sized
+        # body without parsing it. Closing a socket with unread POST bytes can
+        # reset the connection on Windows and hide the fixed 401 response.
+        if self.command == "POST":
+            lengths = self.headers.get_all("Content-Length", [])
+            if len(lengths) == 1 and lengths[0].isascii() and lengths[0].isdigit():
+                length = int(lengths[0]) if len(lengths[0]) <= 6 else -1
+                if 0 < length <= _MAX_BODY_BYTES:
+                    previous = self.connection.gettimeout()
+                    try:
+                        self.connection.settimeout(0.25)
+                        self.rfile.read(length)
+                    except (OSError, TimeoutError):
+                        pass
+                    finally:
+                        self.connection.settimeout(previous)
+        return False
+
     def _send_cors_headers(self) -> None:
         origin = self.headers.get("Origin")
         if origin and origin == self.allowed_origin:
@@ -1089,6 +1128,7 @@ def _handler_factory(
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
     coordinator: Any | None = None,
+    local_client_session: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -1096,6 +1136,7 @@ def _handler_factory(
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
+    ConfiguredHandler.local_client_session = local_client_session
     ConfiguredHandler.live_enabled = False
     ConfiguredHandler.lease_provider = (
         _CallableWrapper(lease_provider) if lease_provider else None
@@ -1162,6 +1203,16 @@ def _ensure_db_path(db_path: str) -> str:
     return db_path
 
 
+class _ClientTaskServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def server_close(self) -> None:
+        session = self.RequestHandlerClass.local_client_session
+        if session is not None:
+            session.revoke()
+        super().server_close()
+
+
 class TaskService:
     """Convenience wrapper that starts the trusted loopback Task API."""
 
@@ -1174,6 +1225,7 @@ class TaskService:
         github_adapter: Any | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
+        local_client_session: Any | None = None,
     ) -> None:
         if store is not None:
             self.store = store
@@ -1185,6 +1237,9 @@ class TaskService:
         self.github_adapter = github_adapter
         self.execution_authority_sha = execution_authority_sha
         self.planning_sha = planning_sha
+        from .local_client_session import LocalClientSession
+        self._local_client_session = local_client_session or LocalClientSession()
+        self._server: ThreadingHTTPServer | None = None
 
     def start(
         self,
@@ -1192,11 +1247,13 @@ class TaskService:
         host: str | None = None,
         port: int | None = None,
     ) -> tuple[ThreadingHTTPServer, Thread]:
+        if self._server is not None and self._server.socket.fileno() != -1:
+            raise RuntimeError("task_service_already_started")
         bind_host = validate_bind_host(
             host or os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1")
         )
         bind_port = port or int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766"))
-        server = ThreadingHTTPServer(
+        server = _ClientTaskServer(
             (bind_host, bind_port),
             _handler_factory(
                 self.store,
@@ -1205,8 +1262,17 @@ class TaskService:
                 github_adapter=self.github_adapter,
                 execution_authority_sha=self.execution_authority_sha,
                 planning_sha=self.planning_sha,
+                local_client_session=self._local_client_session,
             ),
         )
+        try:
+            self._local_client_session.rotate()
+        except BaseException:
+            server.server_close()
+            self._local_client_session.revoke()
+            raise
+        server.daemon_threads = True
+        self._server = server
         thread = Thread(target=server.serve_forever, daemon=True)
         thread.start()
         return server, thread
@@ -1232,16 +1298,25 @@ def run_task_service(
     else:
         db_path = _ensure_db_path(_default_task_db_path())
         svc_store = TaskStore(db_path=db_path)
-    server = ThreadingHTTPServer(
+    from .local_client_session import LocalClientSession
+    session = LocalClientSession()
+    server = _ClientTaskServer(
         (bind_host, bind_port),
         _handler_factory(
             svc_store,
             ExecutorRouter(),
             allowed_origin=origin,
             github_adapter=github_adapter,
+            local_client_session=session,
         ),
     )
-    server.serve_forever()
+    try:
+        session.rotate()
+        server.daemon_threads = True
+        server.serve_forever()
+    finally:
+        session.revoke()
+        server.server_close()
 
 
 if __name__ == "__main__":
