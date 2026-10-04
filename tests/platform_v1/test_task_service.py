@@ -18,6 +18,8 @@ from reverse_agent.platform_v1.task_service import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
 @pytest.fixture()
 def task_server(tmp_path):
     db_path = str(tmp_path / "tasks.sqlite3")
@@ -28,6 +30,7 @@ def task_server(tmp_path):
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -50,7 +53,7 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     if body is not None:
         headers["Content-Type"] = "application/json"
         body = json.dumps(body).encode()
-    conn.request(method, path, body=body, headers=headers)
+    conn.request(method, path, body=body, headers=client_headers(headers))
     resp = conn.getresponse()
     data = resp.read()
     return resp.status, json.loads(data.decode()) if data else None
@@ -749,10 +752,10 @@ def test_queue_cancel_http_rejects_non_empty_or_non_object_body(task_server, bod
         conn = http.client.HTTPConnection(host, int(port), timeout=10)
         conn.request(
             "POST", f"/api/runs/{task_id}/cancel", body=raw_body,
-            headers={
+            headers=client_headers({
                 "Accept": "application/json", "Origin": "http://localhost:5173",
                 "Content-Type": "application/json",
-            },
+            }),
         )
         response = conn.getresponse()
         status = response.status
@@ -1111,6 +1114,7 @@ def test_router_injection_http_execute(task_server) -> None:
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
@@ -1162,6 +1166,7 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -1218,6 +1223,7 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -1384,6 +1390,7 @@ def task_server_with_github(tmp_path):
         store, router,
         allowed_origin="http://localhost:5173",
         github_adapter=adapter,
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
@@ -1418,7 +1425,7 @@ def test_opencode_task_without_repository_rejected_without_origin(tmp_path) -> N
     db_path = str(tmp_path / "tasks_no_origin.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     from http.server import ThreadingHTTPServer as _Srv
     server = _Srv(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
@@ -1434,7 +1441,7 @@ def test_opencode_task_without_repository_rejected_without_origin(tmp_path) -> N
             "POST",
             "/api/tasks",
             body=body_bytes,
-            headers={"Content-Type": "application/json"},
+            headers=client_headers({"Content-Type": "application/json"}),
         )
         resp = conn.getresponse()
         data = resp.read().decode("utf-8")
@@ -1516,6 +1523,7 @@ def test_repository_catalog_endpoint_adapter_error_sanitized(task_server_with_gi
         store2, ExecutorRouter(),
         allowed_origin="http://localhost:5173",
         github_adapter=failing_adapter,
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
     s2 = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls2)
@@ -1563,7 +1571,7 @@ def test_combined_trusted_host_wires_live_github_adapter(tmp_path) -> None:
     from reverse_agent.platform_v1.task_service import _handler_factory
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
-    host = CombinedTrustedHost()
+    host = CombinedTrustedHost( local_client_session=client_session(activate=False),)
     assert host.github_adapter is None
 
     db_path = str(tmp_path / "ctw.db")
@@ -1572,6 +1580,7 @@ def test_combined_trusted_host_wires_live_github_adapter(tmp_path) -> None:
         model_control_port=0,
         task_api_port=0,
         allowed_origin="http://localhost:5173",
+        local_client_session=client_session(activate=False),
     )
     host.start()
     try:
@@ -1609,6 +1618,7 @@ def test_combined_trusted_host_allows_fake_adapter_injection(tmp_path) -> None:
         task_api_port=0,
         allowed_origin="http://localhost:5173",
         github_adapter=fake,
+        local_client_session=client_session(activate=False),
     )
     assert host.github_adapter is fake
     host.start()
@@ -1792,6 +1802,7 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1860,7 +1871,7 @@ def test_http_execute_uses_persisted_mode_not_request_override(tmp_path) -> None
     db_path = str(tmp_path / "persist_mode.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1926,7 +1937,7 @@ def test_http_execute_mode_dispatches_correctly_for_sequential_team(
     db_path = str(tmp_path / "http-seq-dispatch.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -2006,6 +2017,7 @@ def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]

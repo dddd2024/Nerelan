@@ -63,6 +63,16 @@ def test_task_api_origin_is_frontend() -> None:
     assert '"REVERSE_AGENT_TASK_SERVICE_ORIGIN"' in _DEV_UP
 
 
+def test_launcher_uses_public_health_and_owned_private_browser_bootstrap() -> None:
+    assert '/api/health' in _DEV_UP
+    assert 'Start-Process $FrontendUrl' not in _DEV_UP
+    assert 'Test-TrustedClientReady' in _DEV_UP
+    assert 'client_process_start_filetime' in _DEV_UP
+    assert 'client_process_executable' in _DEV_UP
+    assert 'client_transport_revision' in _DEV_UP
+    assert '"REVERSE_AGENT_TRUSTED_CLIENT_UI"' in _DEV_UP
+
+
 def test_repo_dir_is_provided() -> None:
     assert '"REVERSE_AGENT_REPO_DIR"' in _DEV_UP
 

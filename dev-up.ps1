@@ -416,8 +416,20 @@ function Stop-VerifiedChild([object]$child) {
 
 function Test-StackHealthy {
   if (-not (Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles" -attempts 8 -intervalMs 250)) { return $false }
-  if (-not (Wait-ServiceReady -url "${TaskApiUrl}/api/tasks" -attempts 8 -intervalMs 250)) { return $false }
+  if (-not (Wait-ServiceReady -url "${TaskApiUrl}/api/health" -attempts 8 -intervalMs 250)) { return $false }
+  if (-not $NoBrowser -and -not (Test-TrustedClientReady)) { return $false }
   return (Wait-ServiceReady -url "$FrontendUrl/" -attempts 8 -intervalMs 250)
+}
+
+function Test-TrustedClientReady {
+  try {
+    $clientMeta = Get-Content -LiteralPath (Join-Path $script:runtimeDir "trusted_host_meta.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (-not $clientMeta.client_ui_enabled -or -not $clientMeta.client_ui_ready -or -not $clientMeta.client_process_pid) { return $false }
+    $clientProcess = Get-Process -Id ([int]$clientMeta.client_process_pid) -ErrorAction Stop
+    if ([string]$clientProcess.StartTime.ToUniversalTime().ToFileTimeUtc() -ne [string]$clientMeta.client_process_start_filetime) { return $false }
+    return ([IO.Path]::GetFileName($clientProcess.Path) -ieq "node.exe" -and
+      [string]$clientProcess.Path -ieq [string]$clientMeta.client_process_executable)
+  } catch { return $false }
 }
 
 function Wait-PortsFreed {
@@ -463,7 +475,9 @@ if (Test-Path -LiteralPath $pidFile) {
     } else {
       $ownedChildren = @($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ })
       $configMatches = (([string]$runtimeState.source_dir).TrimEnd('\') -ieq ([string]$sourceDir).TrimEnd('\')) -and
-        ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel)
+        ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel) -and
+        ([bool]$runtimeState.client_ui_enabled -eq (-not [bool]$NoBrowser)) -and
+        ([string]$runtimeState.client_transport_revision -eq "1")
       $rootsPresent = @($ownedChildren | Where-Object { Get-Process -Id $_.pid -ErrorAction SilentlyContinue }).Count -eq $ownedChildren.Count
       $failedStop = @($ownedChildren | Where-Object { $_.stop_diagnostics -and -not $_.stop_diagnostics.completed }).Count -gt 0
       if ($ownedChildren.Count -eq @($runtimeState.children).Count -and $ownedChildren.Count -gt 0 -and $rootsPresent -and -not $failedStop -and $configMatches -and (Test-StackHealthy)) {
@@ -487,9 +501,6 @@ if (Test-Path -LiteralPath $pidFile) {
 
 if ($stackReused) {
   Write-StackSummary
-  if (-not $NoBrowser) {
-    try { Start-Process $FrontendUrl } catch {}
-  }
   exit 0
 }
 
@@ -552,6 +563,8 @@ $combinedTrustedHostEnv = [ordered]@{
   "REVERSE_AGENT_REPO_DIR" = $sourceDir
   "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
   "REVERSE_AGENT_AUTONOMOUS" = "1"
+  "REVERSE_AGENT_TRUSTED_CLIENT_UI" = $(if ($NoBrowser) { "0" } else { "1" })
+  "REVERSE_AGENT_TRUSTED_CLIENT_NODE" = $node
 }
 
 $combinedProc = Start-ServiceProcess `
@@ -563,7 +576,7 @@ Start-Sleep -Milliseconds 2000
 
 if (-not $combinedProc.HasExited) {
   $mcHealthy = Wait-ServiceReady -url "$ModelControlUrl/api/model-profiles"
-  $taskHealthy = Wait-ServiceReady -url "${TaskApiUrl}/api/tasks"
+  $taskHealthy = Wait-ServiceReady -url "${TaskApiUrl}/api/health"
   if (-not $mcHealthy) {
     Fail-Closed "Model Control did not become healthy at ${ModelControlUrl}"
   }
@@ -587,6 +600,15 @@ if (-not $frontendProc.HasExited) {
   }
 } else {
   Fail-Closed "Frontend exited before health check"
+}
+
+if (-not $NoBrowser) {
+  $clientReady = $false
+  for ($clientAttempt = 0; $clientAttempt -lt 120; $clientAttempt++) {
+    if (Test-TrustedClientReady) { $clientReady = $true; break }
+    Start-Sleep -Milliseconds 250
+  }
+  if (-not $clientReady) { Fail-Closed "trusted client did not become ready" }
 }
 
 $urlMap = [ordered]@{
@@ -616,6 +638,8 @@ $record = [ordered]@{
   repo_dir = $repoDir
   source_dir = $sourceDir
   open_code_model = $OpenCodeModel
+  client_ui_enabled = (-not [bool]$NoBrowser)
+  client_transport_revision = "1"
   children = $persistentChildren
   metadata = [ordered]@{
     frontend_url = $FrontendUrl
@@ -631,6 +655,5 @@ $record | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $pidFile -Encoding 
 
 Write-StackSummary
 
-if (-not $NoBrowser) {
-  try { Start-Process $FrontendUrl } catch {}
-}
+# The combined host owns the authenticated browser. A generic URL launch has
+# no private session capability and is intentionally not used here.
