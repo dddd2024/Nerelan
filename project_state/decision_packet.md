@@ -1,10 +1,10 @@
-# Default-deny Task client and trusted native bootstrap for118/384
+# Owner-approved bounded launcher repair for118/384
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261004_issue118_client_guard_bootstrap_r3_v1",
-  "round_id": "round_20261004_issue118_client_guard_bootstrap_r3_v1",
+  "decision_id": "decision_20261004_issue118_launcher_repair_r3_v1",
+  "round_id": "round_20261004_issue118_launcher_repair_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_TASK_CLIENT_GUARD_AND_TRUSTED_BOOTSTRAP",
+  "decision_scope": "ISSUE118_OWNER_APPROVED_LAUNCHER_REPAIR",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 / explicit current Owner full architecture delegation",
-  "approval_basis": "Current Owner delegates implementation and routine scoped decisions; this prospective bounded source phase preserves all privileged publication and independent acceptance boundaries.",
+  "approval_basis": "Explicit current Owner approval: \u6279\u51c6\u8fd9\u4efd\u6709\u754c\u4fee\u590d\u65b9\u6848, exact five files, two corrections/two development checks, original source expiry.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue118-client-session-r3-v2-20261004",
-  "base_sha": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "activation_base_sha": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "starting_head": "e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47",
-  "required_branch": "codex/issue118-client-guard-bootstrap-r3-v1-20261004",
+  "integration_base_ref": "codex/issue118-client-guard-bootstrap-r3-v1-20261004",
+  "base_sha": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "activation_base_sha": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "starting_head": "1b99c23d1e6c51289b973b2bbfe893627353af6f",
+  "required_branch": "codex/issue118-launcher-repair-r3-v1-20261004",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Current Owner delegates full unattended-platform implementation and routine scoped decisions. Issue118 is the primary architecture, dependency384 is confirmed loopback-client authority gap. Neither planning Issue nor its labels grants execution; this prospective bounded PathB source authority derives from current Owner full delegation. Previous distinct lifecycle/session foundations1078/1080 are source/native-CI complete, remain Draft/unaccepted/unmerged, with their failure/spending records preserved; no counters or expiry are renewed/transferred. This NEW request-admission and trusted native browser-bootstrap phase uses explicit planning base codex/issue118-client-session-r3-v2-20261004@e15a0b40, not main. Reuse idle F controller and existing shared frontend dependencies READ ONLY. Project's existing adapter cannot implement R3 source work and earlier real review failed; use Codex source fallback without project bypass/model retry. Before any product edit create Decision-only commit, canonical startup/plan/lint/preflight/readiness and bound activation Draft.\nImplement default-deny Task API client identity before sensitive GET or every POST body parsing/task lookup/dispatch/publication/window mutation, using existing host-memory LocalClientSession and bounded duplicate-header-safe constant-time validation. No-Origin transport is not authority; valid native capability may accompany no-Origin, while absent/wrong/expired/stale/query-only values fail closed. Preserve strict Origin as separate defense, OPTIONS is unauthenticated preflight only. Add explicitly public GET /api/health exposing only readiness Boolean and no user/window/repository state. Use existing Task service, one TaskStore/coordinator/receipts; do not copy runtime or invent policy/authority verifier/Gate. Preserve all upper authority/risk/budget/review/privileged-operation fences: client identity alone is not Owner policy confirmation or execution grant. Existing Model Control authority gap is not silently claimed fixed.\nWire the same session into CombinedTrustedHost handler; standalone TaskService gets an owned lifecycle session with private in-process delivery, no unauthenticated factory fallback. Reject duplicate active host starts, enforce existing loopback validator, revoke on owned cleanup and partial failures. Supported Windows dev-up opens owned native browser via trusted host and private anonymous stdin IPC to known Node; no capability env/argv/URL/log/file/TaskStore/evidence/renderer JS/browser storage or model child environment. No public token-fetch/GUI command endpoint. Node bridge uses existing mature playwright-core production dependency pinned1.62.1, promoted from already installed transitive dev package via exact package/lock edits; no install/shared node_modules/cache mutation. Exactly bound frontend/API origins and task API paths, block service workers, use native Node HTTP forwarding with strict limits/timeouts and no redirect-follow or credential forwarding to another origin; private value never enters renderer headers. Browser ownership/closure and unsupported bootstrap fail truthfully; preserve NoBrowser and existing verified process-tree ownership/unknown-port rejection. Health probing uses public-safe route. Native broker lifecycle status may be sanitized metadata, never secret. Existing five frontend HTTP clients remain unchanged; one native transport seam, no second frontend state machine.\nExactly26 approved product paths. Existing13 fixture modules may change ONLY explicit synthetic current-client session construction and positive task request headers, preserving original assertions/negative Origin semantics/provider-free behavior; no global HTTP monkeypatch/autouse auth injection, no auto-auth of new raw negative clients. Dev-up contract may adapt health/browser lifecycle assertions and retain all original ownership/safety tests. New deterministic HTTP negatives must reject before executor/Git/task/window/store actions, including missing/wrong/expired/stale/duplicate/non-ASCII/oversized/query-only/no-Origin; allowed Origin plus current capability retains semantics and disallowed Origin remains403. Prove session restart/rotation, zero secret persistence/logs/worker-env exposure, public health no user state, typed direct in-process bootstrap. New Python bootstrap tests invoke committed native Node standard-library test suite against owned fake loopback servers; verify private header injection/renderer absence/origin/frame/path limits/redirect no-leak/timeout/size/control IPC/error sanitization. Source checks do NOT launch actual browser or existing stack. Actual Windows supported-launcher/browser end-to-end acceptance remains a separate bounded runtime phase; do not call fixtures production proof or mark384/118/wholeGoal complete.\nMax8 development check invocations <=900seconds each and4 correction rounds, repeat only after changes/failures/unresolved need. Final mandatory full PlatformV1 once<=2400seconds with ONLY existing four installed-OpenCode opt-in exclusions, PathA once<=120seconds, committed exact-head client-auth/bootstrap/legacy Task HTTP/host/launcher regressions once<=900seconds. New Node suite runs under actual pytest producer and remains blocking; no skips for missing required Node capability. Existing frontend assets are unchanged, production dependency lock consistency is deterministic-tested; no local frontend build/Vitest/shared caches required. Freeze all26 source hashes for mandatory checks; preserve actual logs/JUnit/exit, original failures and spending, git diff --check, canonical publication readiness. Known local Node exact ref E:/Program Files/nodejs/node.exe SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may run only provider-free source checks; natural CI uses its installed known runner Node for committed standard-library tests. No real browser/model/provider/credential/known OpenCode probe/existing runtime modifications.\nOne Decision activation, one product commit,2 exact-branch pushes,1 Draft against explicit planning integration,6 description updates; bounded natural exact-head CI original logs/artifacts readback only, no runner/workflow dispatch or rerun. No Ready/Merge/main/auto-merge/history/tag/release/package publication/deploy/Issue or PR comments/closure/install/raw credential or private model-session access. Mandatory failure stops affected candidate publication; no automatic successor or budget reset. Absolute six-hour source window. All original broad backlog and architecture objectives remain intact, full client identity/product acceptance/Owner compiler/privileged adapters/recovery/independent landing remain required.",
-    "completion_boundary": "Default-deny Task client HTTP guard and trusted native browser bootstrap source, actual provider-free local/native CI evidence; actual Windows runtime acceptance, authenticated canonical Owner/upper authority and privileged architecture remain separate."
+    "specification": "# Proposed bounded source repair \u2014 EXPLICITLY OWNER APPROVED SOURCE REPAIR\n\nWork Item: dddd2024/Nerelan#118, prerequisite native-client lifecycle from #384.\nExact planning base: codex/issue118-client-guard-bootstrap-r3-v1-20261004 at 1b99c23d1e6c51289b973b2bbfe893627353af6f. No main fallback.\n\nOriginal runtime packet stops after its first failed launch and expressly forbids an automatic successor, retry or reset. It remains immutable. Source-phase1081 spent3 development checks and4 corrections; runtime1082 spent1/1 launches and permits0 source corrections. Preserve every failure, receipt, counter and original deadline.\n\n## Exact prospective source scope\n\n- dev-up.ps1: pass Vite --host127.0.0.1, --port with the selected FrontendPort, and --strictPort through npm's argument separator. Evaluate Vite's existing configLoader runner to avoid shared node_modules/.vite-temp writes; no dependency install/version change.\n- frontend/trusted-client.mjs: close the private stdin handle on terminal bootstrap failure/browser disconnect after bounded owned browser cleanup. Preserve private capability isolation and fixed diagnostics.\n- frontend/trusted-client.node-test.mjs: spawn the actual committed broker with malformed configuration while parent stdin remains open; require bounded exit1 and fixed diagnostics, no browser/SDK/model call. Keep all existing negative transport tests.\n- tests/platform_v1/test_dev_up_contract.py: verify actual forwarded CLI arguments, exact selected port and strict binding; preserve existing Windows ownership/cleanup contracts.\n- docs/local-client-session.md: describe the launcher/pipe lifecycle and explicitly distinguish source verification from actual browser acceptance.\n\n## Proposed new limits\n\nTwo source correction passes, two disposable provider-free development checks, one mandatory Platform V1 check, one mandatory Path-A check, one exact-head focused check and git diff --check. One Decision activation commit and one product commit; two exact branch pushes, one Draft, up to two description updates. Fresh bounded Path-B packet/plan/preflight/Draft must exist before source changes. Proposed phase expires at the existing source deadline2026-10-04T14:55:31.639949Z; never renew the failed runtime deadline.\n\nZero actual runtime launches, real browser launches, model/provider calls, credential access, installs, workflow dispatch/rerun, Ready, merge, main push, tag/release/deploy or existing frontend mutation. Later actual Windows acceptance requires separately selected bounded authority and retains this original failure.\n\n## Acceptance and remaining architecture\n\nNative child exits with stdin still open; selected port reaches Vite CLI with strictPort; shared dependencies receive no configuration-temp writes; original tests preserved, required local checks and exact-head natural CI pass. Source completion does not claim private browser acceptance, independent audit, mainline landing or #118 completion.\n\nAfter this prerequisite: connect authenticated Owner activation to the existing upper-authority validator/compiler; bind durable immutable policy revisions and per-operation receipts; implement separately scoped GitHub, release and deployment adapters with external-truth reconciliation; complete recovery and morning summaries. Reuse existing TaskStore/coordinator/authority code and mature runtimes.\n\nOwner explicitly replied \u6279\u51c6\u8fd9\u4efd\u6709\u754c\u4fee\u590d\u65b9\u6848 to the exact five-file/two-correction/two-development-check question in this chat. This new approval permits this prospective phase, not automatic renewal of the failed runtime packet. Preserve source1081 dev3/corrections4, runtime1082 launch1/1 failed, immutable Decisions and both original deadlines. Two new corrections yield total source corrections at most6; two new dev checks yield total at most5. No actual runtime/browser/model launch. Known installed Node may execute committed native standard-library tests only. Mandatory checks: full tests/platform_v1 once2400s with ONLY original four OpenCode opt-in exclusions; tests/control_plane/test_path_a_policy.py once120s; committed focused launcher/bootstrap/client-auth/host/session once900s. Existing original assertions must remain. Disposable test state under F:/nrl-launch118-v1. Product commit1, exact branch pushes2, Draft1, description updates2; natural exact-head CI read-only. Canonical gates required. No independent acceptance, full118 completion or landing claim.\n",
+    "completion_boundary": "Five-file source repair, deterministic local and natural exact-head CI evidence; actual browser acceptance and full architecture remain pending."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -86,71 +86,29 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
+    "dev-up.ps1",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "docs/local-client-session.md",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/trusted_client.py",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "dev-up.ps1",
-    "docs/local-client-session.md",
-    "tests/platform_v1/test_task_client_auth.py",
-    "tests/platform_v1/test_trusted_client_bootstrap.py",
-    "tests/platform_v1/_local_client_fixture.py",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_durable_execution_v5.py",
-    "tests/platform_v1/test_execution_runtime_budget.py",
-    "tests/platform_v1/test_goal_completion_evidence.py",
-    "tests/platform_v1/test_goal_plan_revision.py",
-    "tests/platform_v1/test_provider_free_task_plane.py",
-    "tests/platform_v1/test_system_doctor.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_service.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
+    "dev-up.ps1",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "docs/local-client-session.md",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/platform_v1/task_service.py",
-    "reverse_agent/platform_v1/trusted_host.py",
-    "reverse_agent/platform_v1/trusted_client.py",
-    "frontend/trusted-client.mjs",
-    "frontend/trusted-client.node-test.mjs",
-    "frontend/package.json",
-    "frontend/package-lock.json",
-    "dev-up.ps1",
-    "docs/local-client-session.md",
-    "tests/platform_v1/test_task_client_auth.py",
-    "tests/platform_v1/test_trusted_client_bootstrap.py",
-    "tests/platform_v1/_local_client_fixture.py",
-    "tests/platform_v1/test_dev_up_contract.py",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_durable_execution.py",
-    "tests/platform_v1/test_durable_execution_v5.py",
-    "tests/platform_v1/test_execution_runtime_budget.py",
-    "tests/platform_v1/test_goal_completion_evidence.py",
-    "tests/platform_v1/test_goal_plan_revision.py",
-    "tests/platform_v1/test_provider_free_task_plane.py",
-    "tests/platform_v1/test_system_doctor.py",
-    "tests/platform_v1/test_task3c_v4_repairs.py",
-    "tests/platform_v1/test_task3c_v6_production_relay.py",
-    "tests/platform_v1/test_task_service.py",
-    "tests/platform_v1/test_trusted_host.py",
-    "tests/platform_v1/test_trusted_host_lifecycle.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -260,7 +218,7 @@
       "New owned provider-free synthetic HTTP/Node fixtures only, known installed Node58e74bf...; no model/provider/browser/existing ports."
     ],
     "github_control_plane_network_exceptions": [
-      "Two exact branch pushes tocodex/issue118-client-guard-bootstrap-r3-v1-20261004,1 Draft againstcodex/issue118-client-session-r3-v2-20261004@e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47,6 exact-head descriptions, bounded natural CI original evidence and live authority readback; no other GitHub writes."
+      "Two pushes exact codex/issue118-launcher-repair-r3-v1-20261004, one Draft against codex/issue118-client-guard-bootstrap-r3-v1-20261004@1b99c23d1e6c51289b973b2bbfe893627353af6f, two descriptions, bounded read-only natural CI evidence. No other writes."
     ]
   },
   "path_risk_floor": [
@@ -275,8 +233,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "client.bootstrap",
-      "command": "Fresh exact planning-base branch, Decision-only activation, canonical gates, exact bound activation Draft before source.",
+      "command_id": "repair.bootstrap",
+      "command": "Fresh exact-base Decision activation, canonical gates and bound Draft before source.",
       "phase": "bootstrap",
       "required": true,
       "expected_exit_codes": [
@@ -304,8 +262,8 @@
       ]
     },
     {
-      "command_id": "client.implementation",
-      "command": "Current Owner delegates full unattended-platform implementation and routine scoped decisions. Issue118 is the primary architecture, dependency384 is confirmed loopback-client authority gap. Neither planning Issue nor its labels grants execution; this prospective bounded PathB source authority derives from current Owner full delegation. Previous distinct lifecycle/session foundations1078/1080 are source/native-CI complete, remain Draft/unaccepted/unmerged, with their failure/spending records preserved; no counters or expiry are renewed/transferred. This NEW request-admission and trusted native browser-bootstrap phase uses explicit planning base codex/issue118-client-session-r3-v2-20261004@e15a0b40, not main. Reuse idle F controller and existing shared frontend dependencies READ ONLY. Project's existing adapter cannot implement R3 source work and earlier real review failed; use Codex source fallback without project bypass/model retry. Before any product edit create Decision-only commit, canonical startup/plan/lint/preflight/readiness and bound activation Draft.\nImplement default-deny Task API client identity before sensitive GET or every POST body parsing/task lookup/dispatch/publication/window mutation, using existing host-memory LocalClientSession and bounded duplicate-header-safe constant-time validation. No-Origin transport is not authority; valid native capability may accompany no-Origin, while absent/wrong/expired/stale/query-only values fail closed. Preserve strict Origin as separate defense, OPTIONS is unauthenticated preflight only. Add explicitly public GET /api/health exposing only readiness Boolean and no user/window/repository state. Use existing Task service, one TaskStore/coordinator/receipts; do not copy runtime or invent policy/authority verifier/Gate. Preserve all upper authority/risk/budget/review/privileged-operation fences: client identity alone is not Owner policy confirmation or execution grant. Existing Model Control authority gap is not silently claimed fixed.\nWire the same session into CombinedTrustedHost handler; standalone TaskService gets an owned lifecycle session with private in-process delivery, no unauthenticated factory fallback. Reject duplicate active host starts, enforce existing loopback validator, revoke on owned cleanup and partial failures. Supported Windows dev-up opens owned native browser via trusted host and private anonymous stdin IPC to known Node; no capability env/argv/URL/log/file/TaskStore/evidence/renderer JS/browser storage or model child environment. No public token-fetch/GUI command endpoint. Node bridge uses existing mature playwright-core production dependency pinned1.62.1, promoted from already installed transitive dev package via exact package/lock edits; no install/shared node_modules/cache mutation. Exactly bound frontend/API origins and task API paths, block service workers, use native Node HTTP forwarding with strict limits/timeouts and no redirect-follow or credential forwarding to another origin; private value never enters renderer headers. Browser ownership/closure and unsupported bootstrap fail truthfully; preserve NoBrowser and existing verified process-tree ownership/unknown-port rejection. Health probing uses public-safe route. Native broker lifecycle status may be sanitized metadata, never secret. Existing five frontend HTTP clients remain unchanged; one native transport seam, no second frontend state machine.\nExactly26 approved product paths. Existing13 fixture modules may change ONLY explicit synthetic current-client session construction and positive task request headers, preserving original assertions/negative Origin semantics/provider-free behavior; no global HTTP monkeypatch/autouse auth injection, no auto-auth of new raw negative clients. Dev-up contract may adapt health/browser lifecycle assertions and retain all original ownership/safety tests. New deterministic HTTP negatives must reject before executor/Git/task/window/store actions, including missing/wrong/expired/stale/duplicate/non-ASCII/oversized/query-only/no-Origin; allowed Origin plus current capability retains semantics and disallowed Origin remains403. Prove session restart/rotation, zero secret persistence/logs/worker-env exposure, public health no user state, typed direct in-process bootstrap. New Python bootstrap tests invoke committed native Node standard-library test suite against owned fake loopback servers; verify private header injection/renderer absence/origin/frame/path limits/redirect no-leak/timeout/size/control IPC/error sanitization. Source checks do NOT launch actual browser or existing stack. Actual Windows supported-launcher/browser end-to-end acceptance remains a separate bounded runtime phase; do not call fixtures production proof or mark384/118/wholeGoal complete.\nMax8 development check invocations <=900seconds each and4 correction rounds, repeat only after changes/failures/unresolved need. Final mandatory full PlatformV1 once<=2400seconds with ONLY existing four installed-OpenCode opt-in exclusions, PathA once<=120seconds, committed exact-head client-auth/bootstrap/legacy Task HTTP/host/launcher regressions once<=900seconds. New Node suite runs under actual pytest producer and remains blocking; no skips for missing required Node capability. Existing frontend assets are unchanged, production dependency lock consistency is deterministic-tested; no local frontend build/Vitest/shared caches required. Freeze all26 source hashes for mandatory checks; preserve actual logs/JUnit/exit, original failures and spending, git diff --check, canonical publication readiness. Known local Node exact ref E:/Program Files/nodejs/node.exe SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f may run only provider-free source checks; natural CI uses its installed known runner Node for committed standard-library tests. No real browser/model/provider/credential/known OpenCode probe/existing runtime modifications.\nOne Decision activation, one product commit,2 exact-branch pushes,1 Draft against explicit planning integration,6 description updates; bounded natural exact-head CI original logs/artifacts readback only, no runner/workflow dispatch or rerun. No Ready/Merge/main/auto-merge/history/tag/release/package publication/deploy/Issue or PR comments/closure/install/raw credential or private model-session access. Mandatory failure stops affected candidate publication; no automatic successor or budget reset. Absolute six-hour source window. All original broad backlog and architecture objectives remain intact, full client identity/product acceptance/Owner compiler/privileged adapters/recovery/independent landing remain required.",
+      "command_id": "repair.implementation",
+      "command": "# Proposed bounded source repair \u2014 EXPLICITLY OWNER APPROVED SOURCE REPAIR\n\nWork Item: dddd2024/Nerelan#118, prerequisite native-client lifecycle from #384.\nExact planning base: codex/issue118-client-guard-bootstrap-r3-v1-20261004 at 1b99c23d1e6c51289b973b2bbfe893627353af6f. No main fallback.\n\nOriginal runtime packet stops after its first failed launch and expressly forbids an automatic successor, retry or reset. It remains immutable. Source-phase1081 spent3 development checks and4 corrections; runtime1082 spent1/1 launches and permits0 source corrections. Preserve every failure, receipt, counter and original deadline.\n\n## Exact prospective source scope\n\n- dev-up.ps1: pass Vite --host127.0.0.1, --port with the selected FrontendPort, and --strictPort through npm's argument separator. Evaluate Vite's existing configLoader runner to avoid shared node_modules/.vite-temp writes; no dependency install/version change.\n- frontend/trusted-client.mjs: close the private stdin handle on terminal bootstrap failure/browser disconnect after bounded owned browser cleanup. Preserve private capability isolation and fixed diagnostics.\n- frontend/trusted-client.node-test.mjs: spawn the actual committed broker with malformed configuration while parent stdin remains open; require bounded exit1 and fixed diagnostics, no browser/SDK/model call. Keep all existing negative transport tests.\n- tests/platform_v1/test_dev_up_contract.py: verify actual forwarded CLI arguments, exact selected port and strict binding; preserve existing Windows ownership/cleanup contracts.\n- docs/local-client-session.md: describe the launcher/pipe lifecycle and explicitly distinguish source verification from actual browser acceptance.\n\n## Proposed new limits\n\nTwo source correction passes, two disposable provider-free development checks, one mandatory Platform V1 check, one mandatory Path-A check, one exact-head focused check and git diff --check. One Decision activation commit and one product commit; two exact branch pushes, one Draft, up to two description updates. Fresh bounded Path-B packet/plan/preflight/Draft must exist before source changes. Proposed phase expires at the existing source deadline2026-10-04T14:55:31.639949Z; never renew the failed runtime deadline.\n\nZero actual runtime launches, real browser launches, model/provider calls, credential access, installs, workflow dispatch/rerun, Ready, merge, main push, tag/release/deploy or existing frontend mutation. Later actual Windows acceptance requires separately selected bounded authority and retains this original failure.\n\n## Acceptance and remaining architecture\n\nNative child exits with stdin still open; selected port reaches Vite CLI with strictPort; shared dependencies receive no configuration-temp writes; original tests preserved, required local checks and exact-head natural CI pass. Source completion does not claim private browser acceptance, independent audit, mainline landing or #118 completion.\n\nAfter this prerequisite: connect authenticated Owner activation to the existing upper-authority validator/compiler; bind durable immutable policy revisions and per-operation receipts; implement separately scoped GitHub, release and deployment adapters with external-truth reconciliation; complete recovery and morning summaries. Reuse existing TaskStore/coordinator/authority code and mature runtimes.\n\nOwner explicitly replied \u6279\u51c6\u8fd9\u4efd\u6709\u754c\u4fee\u590d\u65b9\u6848 to the exact five-file/two-correction/two-development-check question in this chat. This new approval permits this prospective phase, not automatic renewal of the failed runtime packet. Preserve source1081 dev3/corrections4, runtime1082 launch1/1 failed, immutable Decisions and both original deadlines. Two new corrections yield total source corrections at most6; two new dev checks yield total at most5. No actual runtime/browser/model launch. Known installed Node may execute committed native standard-library tests only. Mandatory checks: full tests/platform_v1 once2400s with ONLY original four OpenCode opt-in exclusions; tests/control_plane/test_path_a_policy.py once120s; committed focused launcher/bootstrap/client-auth/host/session once900s. Existing original assertions must remain. Disposable test state under F:/nrl-launch118-v1. Product commit1, exact branch pushes2, Draft1, description updates2; natural exact-head CI read-only. Canonical gates required. No independent acceptance, full118 completion or landing claim.\n",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -322,38 +280,17 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/task_service.py",
-        "reverse_agent/platform_v1/trusted_host.py",
-        "reverse_agent/platform_v1/trusted_client.py",
+        "dev-up.ps1",
         "frontend/trusted-client.mjs",
         "frontend/trusted-client.node-test.mjs",
-        "frontend/package.json",
-        "frontend/package-lock.json",
-        "dev-up.ps1",
-        "docs/local-client-session.md",
-        "tests/platform_v1/test_task_client_auth.py",
-        "tests/platform_v1/test_trusted_client_bootstrap.py",
-        "tests/platform_v1/_local_client_fixture.py",
         "tests/platform_v1/test_dev_up_contract.py",
-        "tests/platform_v1/test_artifact_handoff_http.py",
-        "tests/platform_v1/test_durable_execution.py",
-        "tests/platform_v1/test_durable_execution_v5.py",
-        "tests/platform_v1/test_execution_runtime_budget.py",
-        "tests/platform_v1/test_goal_completion_evidence.py",
-        "tests/platform_v1/test_goal_plan_revision.py",
-        "tests/platform_v1/test_provider_free_task_plane.py",
-        "tests/platform_v1/test_system_doctor.py",
-        "tests/platform_v1/test_task3c_v4_repairs.py",
-        "tests/platform_v1/test_task3c_v6_production_relay.py",
-        "tests/platform_v1/test_task_service.py",
-        "tests/platform_v1/test_trusted_host.py",
-        "tests/platform_v1/test_trusted_host_lifecycle.py"
+        "docs/local-client-session.md"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "client.validation",
-      "command": "Max8 provider-free development checks900s /4 corrections; once mandatory fullPlatform2400,PathA120,committed focused900; original four opt-in exclusions only; actual native Node tests, source freeze/logs/XML and diff check.",
+      "command_id": "repair.validation",
+      "command": "# Proposed bounded source repair \u2014 EXPLICITLY OWNER APPROVED SOURCE REPAIR\n\nWork Item: dddd2024/Nerelan#118, prerequisite native-client lifecycle from #384.\nExact planning base: codex/issue118-client-guard-bootstrap-r3-v1-20261004 at 1b99c23d1e6c51289b973b2bbfe893627353af6f. No main fallback.\n\nOriginal runtime packet stops after its first failed launch and expressly forbids an automatic successor, retry or reset. It remains immutable. Source-phase1081 spent3 development checks and4 corrections; runtime1082 spent1/1 launches and permits0 source corrections. Preserve every failure, receipt, counter and original deadline.\n\n## Exact prospective source scope\n\n- dev-up.ps1: pass Vite --host127.0.0.1, --port with the selected FrontendPort, and --strictPort through npm's argument separator. Evaluate Vite's existing configLoader runner to avoid shared node_modules/.vite-temp writes; no dependency install/version change.\n- frontend/trusted-client.mjs: close the private stdin handle on terminal bootstrap failure/browser disconnect after bounded owned browser cleanup. Preserve private capability isolation and fixed diagnostics.\n- frontend/trusted-client.node-test.mjs: spawn the actual committed broker with malformed configuration while parent stdin remains open; require bounded exit1 and fixed diagnostics, no browser/SDK/model call. Keep all existing negative transport tests.\n- tests/platform_v1/test_dev_up_contract.py: verify actual forwarded CLI arguments, exact selected port and strict binding; preserve existing Windows ownership/cleanup contracts.\n- docs/local-client-session.md: describe the launcher/pipe lifecycle and explicitly distinguish source verification from actual browser acceptance.\n\n## Proposed new limits\n\nTwo source correction passes, two disposable provider-free development checks, one mandatory Platform V1 check, one mandatory Path-A check, one exact-head focused check and git diff --check. One Decision activation commit and one product commit; two exact branch pushes, one Draft, up to two description updates. Fresh bounded Path-B packet/plan/preflight/Draft must exist before source changes. Proposed phase expires at the existing source deadline2026-10-04T14:55:31.639949Z; never renew the failed runtime deadline.\n\nZero actual runtime launches, real browser launches, model/provider calls, credential access, installs, workflow dispatch/rerun, Ready, merge, main push, tag/release/deploy or existing frontend mutation. Later actual Windows acceptance requires separately selected bounded authority and retains this original failure.\n\n## Acceptance and remaining architecture\n\nNative child exits with stdin still open; selected port reaches Vite CLI with strictPort; shared dependencies receive no configuration-temp writes; original tests preserved, required local checks and exact-head natural CI pass. Source completion does not claim private browser acceptance, independent audit, mainline landing or #118 completion.\n\nAfter this prerequisite: connect authenticated Owner activation to the existing upper-authority validator/compiler; bind durable immutable policy revisions and per-operation receipts; implement separately scoped GitHub, release and deployment adapters with external-truth reconciliation; complete recovery and morning summaries. Reuse existing TaskStore/coordinator/authority code and mature runtimes.\n\nOwner explicitly replied \u6279\u51c6\u8fd9\u4efd\u6709\u754c\u4fee\u590d\u65b9\u6848 to the exact five-file/two-correction/two-development-check question in this chat. This new approval permits this prospective phase, not automatic renewal of the failed runtime packet. Preserve source1081 dev3/corrections4, runtime1082 launch1/1 failed, immutable Decisions and both original deadlines. Two new corrections yield total source corrections at most6; two new dev checks yield total at most5. No actual runtime/browser/model launch. Known installed Node may execute committed native standard-library tests only. Mandatory checks: full tests/platform_v1 once2400s with ONLY original four OpenCode opt-in exclusions; tests/control_plane/test_path_a_policy.py once120s; committed focused launcher/bootstrap/client-auth/host/session once900s. Existing original assertions must remain. Disposable test state under F:/nrl-launch118-v1. Product commit1, exact branch pushes2, Draft1, description updates2; natural exact-head CI read-only. Canonical gates required. No independent acceptance, full118 completion or landing claim.\n",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -375,8 +312,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "client.publication",
-      "command": "2 normal exactbranch pushes/1 Draft againstcodex/issue118-client-session-r3-v2-20261004@e15a0b408d12b51e237bd0c4ac7ce290e1d1ed47/6 descriptions, natural source CI read only; no landing/comments/install/model/browser.",
+      "command_id": "repair.publication",
+      "command": "Two exact branch pushes and one Draft, two descriptions; natural CI read-only. codex/issue118-launcher-repair-r3-v1-20261004",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -398,28 +335,38 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Only new owned pytest/Node temporary loopback fixtures under F:/nrl-client118-v1 and external evidence; no existing hosts, shared frontend caches/dependency writes or browser launch. Preserve old five unstaged generated gates."
+    "note": "Disposable provider-free tests only F:/nrl-launch118-v1. Preserve all existing runtimes and shared dependencies."
   },
-  "workstream_id": "issue118-client-guard-bootstrap-r3-v1",
+  "workstream_id": "issue118-launcher-repair-r3-v1",
   "source_issues": [
     118,
     384
   ],
   "local_browser_launch_limit": 0,
-  "development_check_run_limit": 8,
-  "development_correction_round_limit": 4,
+  "development_check_run_limit": 2,
+  "development_correction_round_limit": 2,
   "execution_window_hours": 6,
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-04T08:55:31.639949+00:00",
+  "approval_event_or_time": "2026-10-04T11:15:02.352755+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
-  "pull_request_description_update_limit": 6,
-  "owned_test_scratch_root": "F:\\nrl-client118-v1",
+  "pull_request_description_update_limit": 2,
+  "owned_test_scratch_root": "F:\\nrl-launch118-v1",
   "mandatory_pytest_process_limit": 3,
-  "cumulative_development_check_limit": 8,
-  "cumulative_correction_round_limit": 4,
-  "cumulative_prior_correction_rounds": 1
+  "cumulative_development_check_limit": 5,
+  "cumulative_correction_round_limit": 6,
+  "cumulative_prior_correction_rounds": 4,
+  "cumulative_prior_development_checks": 3,
+  "approved_repair_limits": {
+    "corrections": 2,
+    "development_checks": 2,
+    "prior_source_corrections": 4,
+    "prior_source_development_checks": 3,
+    "failed_runtime_launches": 1,
+    "runtime_launches_allowed": 0,
+    "expires_at": "2026-10-04T14:55:31.639949+00:00"
+  }
 }
 ```
