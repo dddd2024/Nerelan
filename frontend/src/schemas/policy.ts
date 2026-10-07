@@ -57,40 +57,40 @@ const stopConditionSchema = z.enum([
 
 const stopConditionScopeSchema = z.enum(["task", "window"]);
 
-const positiveInt = z
+const nonnegativeInt = z
   .number()
   .int("必须为整数")
-  .positive("必须为正整数");
+  .nonnegative("必须为非负整数");
 
 // ---------------------------------------------------------------------------
 // Nested objects
 // ---------------------------------------------------------------------------
 
 const filesystemScopeSchema = z.object({
-  allowedPaths: z.array(z.string()).default([]),
-  writablePaths: z.array(z.string()).default([]),
+  allowedPaths: z.array(z.string()),
+  writablePaths: z.array(z.string()),
   tempDir: z.string().optional(),
-});
+}).strict();
 
 const networkScopeSchema = z.object({
-  allowedDomains: z.array(z.string()).default([]),
-  allowWrite: z.boolean().default(false),
-});
+  allowedDomains: z.array(z.string()),
+  allowWrite: z.boolean(),
+}).strict();
 
 const shellScopeSchema = z.object({
-  allowedCommands: z.array(z.string()).default([]),
-  deniedCommands: z.array(z.string()).default([]),
-});
+  allowedCommands: z.array(z.string()),
+  deniedCommands: z.array(z.string()),
+}).strict();
 
 const secretsScopeSchema = z.object({
   access: secretsAccessSchema,
-  allowedKeys: z.array(z.string()).default([]),
-});
+  allowedKeys: z.array(z.string()),
+}).strict();
 
 const workerApprovalScopeSchema = z.object({
-  required: z.boolean().default(false),
-  approvers: z.array(z.string()).default([]),
-});
+  required: z.boolean(),
+  approvers: z.array(z.string()),
+}).strict();
 
 const resourceAccessSchema = z.object({
   filesystem: filesystemScopeSchema,
@@ -98,47 +98,47 @@ const resourceAccessSchema = z.object({
   shell: shellScopeSchema,
   secrets: secretsScopeSchema,
   workerApproval: workerApprovalScopeSchema,
-});
+}).strict();
 
 const mergePolicySchema = z.object({
-  allowedRepositories: z.array(z.string()).default([]),
-  allowedBaseBranches: z.array(z.string()).default([]),
-  requiredChecks: z.array(z.string()).default([]),
-  allowedMergeMethods: z.array(mergeMethodSchema).default([]),
-  requireExactHead: z.boolean().default(true),
-});
+  allowedRepositories: z.array(z.string()),
+  allowedBaseBranches: z.array(z.string()),
+  requiredChecks: z.array(z.string()),
+  allowedMergeMethods: z.array(mergeMethodSchema),
+  requireExactHead: z.boolean(),
+}).strict();
 
 const publicationPolicySchema = z.object({
-  allowedArtifactOrPackage: z.array(z.string()).default([]),
-  allowedRegistry: z.array(z.string()).default([]),
-  allowedRepository: z.array(z.string()).default([]),
-  allowedEnvironment: z.array(z.string()).default([]),
+  allowedArtifactOrPackage: z.array(z.string()),
+  allowedRegistry: z.array(z.string()),
+  allowedRepository: z.array(z.string()),
+  allowedEnvironment: z.array(z.string()),
   rollbackStrategy: z.string().optional(),
-});
+}).strict();
 
 const stopConditionRuleSchema = z.object({
   type: stopConditionSchema,
   scope: stopConditionScopeSchema,
   limit: z.number().int().positive().optional(),
-});
+}).strict();
 
 const autonomousWindowSchema = z.object({
-  enabled: z.boolean().default(false),
+  enabled: z.boolean(),
   startsAt: z.string().min(1),
   expiresAt: z.string().min(1),
-  maxPrsOpened: positiveInt,
-  maxMergesToMain: positiveInt,
-  maxReleasesCreated: positiveInt,
-  maxDeploysToEnvironment: positiveInt,
-  stopConditions: z.array(stopConditionRuleSchema).default([]),
-});
+  maxPrsOpened: nonnegativeInt,
+  maxMergesToMain: nonnegativeInt,
+  maxReleasesCreated: nonnegativeInt,
+  maxDeploysToEnvironment: nonnegativeInt,
+  stopConditions: z.array(stopConditionRuleSchema),
+}).strict();
 
 const budgetsSchema = z.object({
-  maxPrsOpened: positiveInt,
-  maxMergesToMain: positiveInt,
-  maxReleasesCreated: positiveInt,
-  maxDeploysToEnvironment: positiveInt,
-});
+  maxPrsOpened: nonnegativeInt,
+  maxMergesToMain: nonnegativeInt,
+  maxReleasesCreated: nonnegativeInt,
+  maxDeploysToEnvironment: nonnegativeInt,
+}).strict();
 
 // ---------------------------------------------------------------------------
 // Root schema
@@ -155,13 +155,25 @@ export const policySchema = z
     mergePolicy: mergePolicySchema,
     autonomousWindow: autonomousWindowSchema,
     budgets: budgetsSchema,
-  })
+  }).strict()
   .superRefine((policy, ctx) => {
     const errors: string[] = [];
 
     const has = (cap: string) => policy.githubCapabilities.includes(cap as never);
     const hasPub = (cap: string) =>
       policy.publicationCapabilities.includes(cap as never);
+
+    const quotas: Array<[boolean, keyof PolicyContract["budgets"]]> = [
+      [has("open_draft_pr"), "maxPrsOpened"],
+      [has("merge_pr"), "maxMergesToMain"],
+      [hasPub("create_tag") || hasPub("create_github_release") || hasPub("publish_package") || hasPub("publish_container"), "maxReleasesCreated"],
+      [policy.publicationCapabilities.some((cap) => cap.startsWith("deploy_") || cap === "rollback_deployment"), "maxDeploysToEnvironment"],
+    ];
+    for (const [enabled, key] of quotas) {
+      if (enabled && (policy.budgets[key] === 0 || (policy.autonomousWindow.enabled && policy.autonomousWindow[key] === 0))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["budgets", key], message: "已启用的发布能力必须有正数额度" });
+      }
+    }
 
     // merge_pr requires merge policy fields
     if (has("merge_pr")) {

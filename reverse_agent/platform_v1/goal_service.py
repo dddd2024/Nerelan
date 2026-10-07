@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import re
+import json
+import hashlib
+from pathlib import Path
 import shutil
 from typing import Any, Mapping, Sequence
 
@@ -23,6 +26,7 @@ from .functional_validation import (
 )
 from .run_read_model import publication_projection
 from .artifact_handoff import freeze_handoff_contract, normalize_input, validate_plan_inputs
+from .task_runtime import HOST_VALIDATION_CONTRACT, ExecutorRuntimeError, load_host_validation_contract
 
 
 @dataclass(frozen=True)
@@ -34,6 +38,7 @@ class PlannedTask:
     capability: str = "execute_task"
     validation_checks: tuple[dict[str, str], ...] = ()
     artifact_input: dict[str, str] | None = None
+    validation_command_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -154,8 +159,13 @@ class GoalService:
             raise TaskStoreError("goal_requires_active_window")
         if goal.repository not in window.repositories:
             raise TaskStoreError("goal_repository_outside_window")
-        if "execute_task" not in window.capabilities:
-            raise TaskStoreError("goal_window_missing_execute_task_capability")
+        planned_tasks = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
+        for item in planned_tasks:
+            if item.capability not in window.capabilities:
+                raise TaskStoreError(f"goal_window_missing_{item.capability}_capability")
+            if item.validation_command_id and (goal.orchestration_mode != "single" or item.artifact_input
+                                               or item.validation_checks):
+                raise TaskStoreError("host_validation_requires_standalone_single_task")
         if goal.executor_kind == "opencode":
             try:
                 resolve_repository_workspace(goal.repository)
@@ -175,12 +185,14 @@ class GoalService:
                 executor_kind=goal.executor_kind,
                 binding_ref=goal.binding_ref,
                 permission_profile="AUTONOMOUS_WINDOW",
-                policy_ref=window.policy_id,
+                policy_ref=window.id if plan_task.validation_command_id else window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
                 orchestration_mode=goal.orchestration_mode,
             )
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
+            if plan_task.validation_command_id:
+                self._freeze_host_validation(task, goal, plan_task, window)
             try:
                 self.control_store.link_goal_task(
                     goal.id,
@@ -199,6 +211,38 @@ class GoalService:
         return self.control_store.mark_goal_running(
             goal.id, revision=goal.revision, window_id=window_id
         )
+
+    def _freeze_host_validation(self, task: Any, goal: GoalRecord, plan_task: PlannedTask, window: Any) -> None:
+        binding = self.control_store.window_policy_binding(window.id)
+        authority = binding.get("authority", {})
+        if (not binding.get("canonical_policy") or not isinstance(authority, Mapping)
+                or authority.get("plan_task_id") != plan_task.id
+                or authority.get("goal_idempotency_key") != goal.idempotency_key
+                or "git_diff_check" not in authority.get("validation_command_ids", ())):
+            raise TaskStoreError("host_validation_requires_bound_authority")
+        workspace = resolve_repository_workspace(goal.repository)
+        if workspace.repo_dir != Path(authority["workspace_path"]).resolve():
+            raise TaskStoreError("host_validation_workspace_mismatch")
+        contract = {"version": 1, "task_id": task.id, "repository": task.repository,
+                    "goal_id": goal.id, "goal_revision": goal.revision,
+                    "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan_task.id,
+                    "capability": "validate_task", "validation_command_id": plan_task.validation_command_id,
+                    "window_id": window.id, "policy_digest": window.policy_digest,
+                    "workspace_path": str(workspace.repo_dir), "base_sha": authority["head_sha"],
+                    "allowed_paths": list(authority["validation_paths"]),
+                    "goal_idempotency_key": goal.idempotency_key}
+        try:
+            previous = load_host_validation_contract(self.store.get_task(task.id))
+        except ExecutorRuntimeError as exc:
+            raise TaskStoreError(str(exc)) from exc
+        if previous is not None:
+            if previous != contract:
+                raise TaskStoreError("host_validation_contract_conflict")
+            return
+        detail = json.dumps(contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        identity = hashlib.sha256(detail.encode("utf-8")).hexdigest()
+        self.store.add_evidence(task.id, category=HOST_VALIDATION_CONTRACT, label="approved_host_check",
+                                value=identity, status="APPROVED", detail=detail, raw_json_digest=identity)
 
     def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
         goals = self.control_store.list_goals(limit=limit)
@@ -359,7 +403,11 @@ class GoalService:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
         checks = normalize_checks(raw.get("validation_checks", ()))
         artifact_input = normalize_input(raw.get("artifact_input"))
-        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input)
+        command = raw.get("validation_command_id", "")
+        if (not isinstance(command, str) or (command and
+                (command != "git_diff_check" or capability != "validate_task" or artifact_input or checks))):
+            raise TaskStoreError("unsupported_standalone_validation_command")
+        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -388,6 +436,8 @@ class GoalService:
                     "",
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
+                    *([f"Host check: `{item.validation_command_id}` (patch hygiene only)"]
+                      if item.validation_command_id else []),
                     "Functional checks: " + (", ".join(
                         f"`{check['profile_id']}` in `{check['working_directory']}`" for check in item.validation_checks
                     ) or "not selected (patch hygiene alone is not functional verification)"),

@@ -20,6 +20,15 @@ from reverse_agent.platform_v1.task_service import (
 
 from _local_client_fixture import client_session, client_headers
 
+
+def _legacy_fixture_autonomy(store):
+    """Explicit in-process adapter for preexisting fixture-executor HTTP tests."""
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    return AutonomyService(control_store=PlatformControlStore(store), capabilities=CapabilityRegistry())
+
+
 @pytest.fixture()
 def task_server(tmp_path):
     db_path = str(tmp_path / "tasks.sqlite3")
@@ -27,6 +36,7 @@ def task_server(tmp_path):
     router = ExecutorRouter()
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -57,6 +67,100 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     resp = conn.getresponse()
     data = resp.read()
     return resp.status, json.loads(data.decode()) if data else None
+
+
+def _enable_legacy_window_fixture(server):
+    """Only old lifecycle fixtures use the in-process activation adapter.
+
+    Production HTTP still invokes activate_policy and never accepts this old
+    Owner/ACTIVATE shape. This adapter does not prove delegated authority.
+    """
+    service = server.RequestHandlerClass.autonomy_service
+    service.activate_policy = service.activate
+
+
+@pytest.fixture
+def production_policy_server(tmp_path, monkeypatch):
+    from http.server import ThreadingHTTPServer
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    store = TaskStore(str(tmp_path / "production-policy.sqlite3"))
+    router = ExecutorRouter()
+    handler = _handler_factory(store, router, allowed_origin="http://localhost:5173",
+                                          local_client_session=client_session())
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        store._conn.close()
+
+
+def test_production_http_has_no_renderer_owner_activation_fallback(production_policy_server):
+    base, server = production_policy_server
+    before = server.RequestHandlerClass.store._conn.total_changes
+    status, template = _req(base, "GET", "/api/windows/policy")
+    assert status == 200 and template == {"available": False, "reason": "trusted_policy_unavailable"}
+    for payload, error in (
+        ({"owner_identity": "local-owner", "confirmation": "ACTIVATE"}, "canonical_policy_fields_invalid"),
+        ({"policy_id": "caller", "policy_revision": 1, "policy": {}, "confirmation": "ACTIVATE"},
+         "canonical_policy_fields_invalid"),
+        ({"policy_id": "caller", "policy_revision": 1, "policy": {}}, "delegated_policy_authority_unavailable"),
+    ):
+        status, body = _req(base, "POST", "/api/windows/activate", payload)
+        assert status == 409 and body == {"error": error}
+    assert server.RequestHandlerClass.control_store.active_window() is None
+    assert server.RequestHandlerClass.store._conn.total_changes == before
+
+
+def test_production_direct_execute_cannot_bypass_missing_goal_authority(production_policy_server, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    # A configured delegated host must never fall back to the ordinary fixture
+    # execution path when its pin is malformed or the Task lacks Goal authority.
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="Unbound task", executor_kind="deterministic_fixture")
+    def forbidden(**unused):
+        pytest.fail("Unapproved direct request reached executor")
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, body = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
+    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.total_changes == before
+
+
+def test_same_database_reopen_preserves_history_and_instance_without_path_disclosure(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _instance_metadata
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    path = str(tmp_path / "persistent.sqlite3")
+    first = TaskStore(path)
+    control = PlatformControlStore(first)
+    task = first.create_task(title="Durable history", executor_kind="deterministic_fixture")
+    goal = control.create_goal(title="Persistent goal", objective="Keep history", repository="owner/repo",
+                               idempotency_key="persistent-goal")
+    identity = _instance_metadata(first)
+    first._conn.close()
+    reopened = TaskStore(path)
+    reopened_control = PlatformControlStore(reopened)
+    other = TaskStore(str(tmp_path / "other.sqlite3"))
+    try:
+        assert reopened.get_task(task.id).title == "Durable history"
+        assert reopened_control.get_goal(goal.id).idempotency_key == "persistent-goal"
+        assert _instance_metadata(reopened) == identity
+        assert _instance_metadata(other)["id"] != identity["id"]
+        assert identity["kind"] == "workspace"
+        assert str(tmp_path) not in json.dumps(identity)
+        assert "persistent.sqlite3" not in json.dumps(identity)
+    finally:
+        reopened._conn.close()
+        other._conn.close()
 
 
 @pytest.mark.parametrize("kind", ["goals", "runs"])
@@ -196,7 +300,8 @@ def test_create_and_read_task(task_server) -> None:
 
 
 def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
-    base, _ = task_server
+    base, server = task_server
+    _enable_legacy_window_fixture(server)
     status, platform = _req(base, "GET", "/api/platform/status")
     assert status == 200
     assert platform["service"] == "reverse-agent-platform-v2"
@@ -1111,6 +1216,7 @@ def test_router_injection_http_execute(task_server) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -1163,6 +1269,7 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -1220,6 +1327,7 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -1799,6 +1907,7 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
     handler_cls = _handler_factory(
         store,
         ExecutorRouter(),
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -2014,6 +2123,7 @@ def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
@@ -2169,7 +2279,8 @@ def test_roadmap_phase_lifecycle_and_derived_status_over_http(task_server) -> No
 
 
 def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
-    base, _ = task_server
+    base, server = task_server
+    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "runs goal",
         "idempotency_key": "runs-http-1",
@@ -2240,6 +2351,7 @@ def test_new_read_model_routes_fail_closed_on_unknown_paths(task_server) -> None
 
 def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     base, server = task_server
+    _enable_legacy_window_fixture(server)
     store = server.RequestHandlerClass.store
 
     status, goal = _req(base, "POST", "/api/goals", {
@@ -2290,7 +2402,8 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     ]
 
 
-def _launch_http_goal(base, goal_key_suffix):
+def _launch_http_goal(base, goal_key_suffix, server):
+    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "HTTP convergence " + goal_key_suffix,
         "repository": "dddd2024/reverse-agent",
@@ -2323,7 +2436,7 @@ def _launch_http_goal(base, goal_key_suffix):
 def test_goal_http_converges_to_blocked_on_failed_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "failed")
+    goal_id, launched = _launch_http_goal(base, "failed", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "FAILED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2339,7 +2452,7 @@ def test_goal_http_converges_to_blocked_on_failed_task(task_server) -> None:
 def test_goal_http_converges_to_blocked_on_blocked_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "blocked")
+    goal_id, launched = _launch_http_goal(base, "blocked", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "BLOCKED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2355,7 +2468,7 @@ def test_goal_http_converges_to_blocked_on_blocked_task(task_server) -> None:
 def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "cancelled")
+    goal_id, launched = _launch_http_goal(base, "cancelled", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "CANCELLED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2372,7 +2485,7 @@ def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
 
 def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> None:
     base, server = task_server
-    goal_id, launched = _launch_http_goal(base, "queue-cancel-convergence")
+    goal_id, launched = _launch_http_goal(base, "queue-cancel-convergence", server)
     task_id = launched["task_links"][0]["task_id"]
     store = server.RequestHandlerClass.store
     control = server.RequestHandlerClass.control_store

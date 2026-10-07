@@ -19,9 +19,11 @@ import hashlib
 import json
 import re
 import subprocess
+import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Mapping, Protocol
+from datetime import datetime, timezone
 
 from ..project_state import extract_markdown_json_block
 from .contracts import PlatformWorkItem
@@ -648,3 +650,179 @@ def select_command(bundle: AuthorityBundle, command_id: str) -> dict[str, Any]:
         if cmd.get("command_id") == command_id:
             return cmd
     raise AuthorityBundleError("unknown_command_id", command_id)
+
+
+@dataclass(frozen=True)
+class PolicyAuthority:
+    """Host-pinned non-merge authority, never constructed from renderer flags."""
+
+    decision_id: str
+    round_id: str
+    decision_content_sha256: str
+    decision_commit_sha: str
+    command_plan_sha256: str
+    repository: str
+    branch: str
+    base_sha: str
+    head_sha: str
+    binding: dict[str, Any]
+
+
+def _policy_git_result(root: Path, *args: str) -> subprocess.CompletedProcess[bytes]:
+    env = {key: os.environ[key] for key in ("PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP") if key in os.environ}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+               GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0")
+    if args and args[0] == "diff":
+        args = ("diff", "--no-ext-diff", "--no-textconv", *args[1:])
+    result = subprocess.run(
+        ["git", "--no-pager", "--no-optional-locks", "-c", "core.fsmonitor=false",
+         "-c", f"core.hooksPath={os.devnull}", *args],
+        cwd=root, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=10,
+    )
+    if result.returncode:
+        raise AuthorityBundleError("policy_git_observation_failed")
+    return result
+
+
+def _policy_git(root: Path, *args: str) -> str:
+    return _policy_git_result(root, *args).stdout.decode("utf-8").strip()
+
+
+def load_policy_authority(
+    *, repo_dir: str, pins: Mapping[str, Any], database_path: str,
+    host_instance_id: str,
+) -> PolicyAuthority:
+    """Read the current Decision/plan and reuse canonical read-only preflight.
+
+    ``pins`` is delivered by an owner-controlled launcher to the host, not an
+    HTTP endpoint. Its immutable Decision commit is the trust anchor. A local
+    file's status/verified flag, an arbitrary HEAD or merge intent is no grant.
+    """
+    required = {
+        "decision_commit_sha", "decision_content_sha256", "upper_proposal_sha256",
+        "upper_expires_at", "delegation_slot_id", "database_path",
+        "workspace_path", "host_instance_id", "expected_head_sha", "command_plan_sha256",
+    }
+    if (not isinstance(pins, Mapping) or not required <= set(pins)
+            or set(pins) - required):
+        raise AuthorityBundleError("invalid_policy_host_pins")
+    for name in required:
+        if not isinstance(pins[name], str) or not pins[name].strip():
+            raise AuthorityBundleError("invalid_policy_host_pin", name)
+    for name, regex in (("decision_commit_sha", _SHA1_HEX_RE),
+                        ("expected_head_sha", _SHA1_HEX_RE),
+                        ("decision_content_sha256", _SHA256_HEX_RE),
+                        ("command_plan_sha256", _SHA256_HEX_RE),
+                        ("upper_proposal_sha256", _SHA256_HEX_RE)):
+        if not regex.fullmatch(pins[name]):
+            raise AuthorityBundleError("invalid_policy_host_pin", name)
+    root = Path(repo_dir).resolve(strict=True)
+    if not root.is_dir() or root == Path(root.anchor):
+        raise AuthorityBundleError("invalid_policy_repository_root")
+    raw = _read_blob(root, "project_state/decision_packet.md")
+    meta, contract, digest = _parse_decision_packet(raw)
+    _validate_decision_meta(meta)
+    if digest != pins["decision_content_sha256"]:
+        raise AuthorityBundleError("policy_decision_digest_mismatch")
+    activation = pins["decision_commit_sha"]
+    # Compare original Git blob bytes, preserving newline/Unicode semantics.
+    result = _policy_git_result(root, "show", f"{activation}:project_state/decision_packet.md")
+    if result.returncode or result.stdout != raw:
+        raise AuthorityBundleError("policy_activation_blob_mismatch")
+    head = _policy_git(root, "rev-parse", "HEAD")
+    branch = _policy_git(root, "branch", "--show-current")
+    base = str(contract.get("activation_base_sha", ""))
+    if not _SHA1_HEX_RE.fullmatch(base) or branch != contract.get("required_branch"):
+        raise AuthorityBundleError("policy_branch_base_mismatch")
+    if _policy_git(root, "merge-base", base, head) != base:
+        raise AuthorityBundleError("policy_base_ancestry_mismatch")
+    if pins["expected_head_sha"] != head:
+        raise AuthorityBundleError("policy_head_mismatch")
+    plan_raw = _read_blob(root, "project_state/gates/command_plan.json")
+    plan, plan_digest = _parse_command_plan(plan_raw)
+    _validate_command_plan(plan, expected_decision_id=meta["decision_id"],
+                           expected_round_id=meta["round_id"])
+    if pins["command_plan_sha256"] != plan_digest:
+        raise AuthorityBundleError("policy_command_plan_digest_mismatch")
+    from ..project_gate import transition_command_plan, transition_preflight
+    expected = transition_command_plan(state_dir=root / "project_state", write_result=False)
+    if (expected.get("plan_status") != "PASSED"
+            or any(plan.get(key) != expected.get(key)
+                   for key in ("schema_version", "decision_id", "round_id", "commands"))):
+        raise AuthorityBundleError("policy_command_plan_contract_mismatch")
+    recorded, _ = _parse_command_plan(_read_blob(
+        root, "project_state/gates/transition_preflight_result.json"))
+    if (recorded.get("gate_status") != "PRE_EXECUTION_AUTHORIZED"
+            or recorded.get("decision_id") != meta["decision_id"]
+            or recorded.get("round_id") != meta["round_id"]
+            or recorded.get("blocking_reasons")):
+        raise AuthorityBundleError("policy_recorded_preflight_invalid")
+    fresh = transition_preflight(state_dir=root / "project_state", repo_root=root,
+                                 write_result=False)
+    immutable = fresh.get("decision_immutability", {})
+    if (fresh.get("gate_status") != "PRE_EXECUTION_AUTHORIZED"
+            or fresh.get("blocking_reasons") or immutable.get("passed") is not True
+            or immutable.get("decision_commit") != activation):
+        raise AuthorityBundleError("policy_current_preflight_invalid")
+    binding = contract.get("autonomy_policy_authority")
+    if not isinstance(binding, dict):
+        raise AuthorityBundleError("policy_delegation_binding_missing")
+    for name in ("upper_proposal_sha256", "delegation_slot_id", "host_instance_id"):
+        if binding.get(name) != pins[name]:
+            raise AuthorityBundleError("policy_delegation_pin_mismatch", name)
+    if binding.get("host_instance_id") != host_instance_id:
+        raise AuthorityBundleError("policy_host_instance_mismatch")
+    for name, actual in (("database_path", database_path), ("workspace_path", pins["workspace_path"])):
+        if (not isinstance(binding.get(name), str)
+                or Path(binding[name]).resolve() != Path(pins[name]).resolve()
+                or Path(binding[name]).resolve() != Path(actual).resolve()):
+            raise AuthorityBundleError("policy_runtime_path_mismatch", name)
+    workspace = Path(binding["workspace_path"]).resolve(strict=True)
+    from .repository_workspace import normalize_github_origin
+    try:
+        identity = normalize_github_origin(_policy_git(workspace, "config", "--get", "remote.origin.url"))
+    except ValueError as exc:
+        raise AuthorityBundleError("policy_workspace_origin_invalid") from exc
+    if (identity != contract.get("repository")
+            or _policy_git(workspace, "rev-parse", "HEAD") != head
+            or _policy_git(workspace, "branch", "--show-current") != branch
+            or _read_blob(workspace, "project_state/decision_packet.md") != raw):
+        raise AuthorityBundleError("policy_workspace_identity_mismatch")
+    # The authority repo passes the original Gate. An owned runtime clone may
+    # carry only the separately authorized Vite cache configuration and Gate
+    # observations; that exception cannot become a product/source wildcard.
+    deltas = set(_policy_git(workspace, "diff", "HEAD", "--name-only").splitlines())
+    gate_paths = {
+        "project_state/gates/bootstrap_state.json", "project_state/gates/command_plan.json",
+        "project_state/gates/startup_snapshot.json", "project_state/gates/transition_command_plan_preview.json",
+        "project_state/gates/transition_preflight_result.json",
+    }
+    if deltas - gate_paths - {"frontend/vite.config.ts"}:
+        raise AuthorityBundleError("policy_workspace_source_drift")
+    if "frontend/vite.config.ts" in deltas:
+        original = _policy_git_result(workspace, "show", f"{head}:frontend/vite.config.ts")
+        expected_vite = original.stdout.replace(
+            b'    base: "/",', b'    base: "/",\n    cacheDir: resolve(__dirname, ".vite-native-owned"),', 1)
+        if (original.returncode or expected_vite == original.stdout
+                or _read_blob(workspace, "frontend/vite.config.ts") != expected_vite):
+            raise AuthorityBundleError("policy_runtime_config_drift")
+    try:
+        expiry = datetime.fromisoformat(binding["upper_expires_at"].replace("Z", "+00:00"))
+        pinned_expiry = datetime.fromisoformat(pins["upper_expires_at"].replace("Z", "+00:00"))
+    except (KeyError, ValueError, TypeError, AttributeError) as exc:
+        raise AuthorityBundleError("policy_upper_expiry_invalid") from exc
+    if (expiry.tzinfo is None or pinned_expiry.tzinfo is None or expiry != pinned_expiry
+            or expiry <= datetime.now(timezone.utc)):
+        raise AuthorityBundleError("policy_upper_expired_or_mismatch")
+    if (binding.get("confirmation_mode") != "DELEGATED_CONTROLLER"
+            or binding.get("personally_human") is not False
+            or not isinstance(binding.get("controller_identity"), str)
+            or not binding["controller_identity"].strip()
+            or contract.get("repository") != binding.get("policy", {}).get("repository")
+            or contract.get("live_model_call_limit") != 0
+            or contract.get("live_provider_access_allowed") is not False):
+        raise AuthorityBundleError("policy_delegation_contract_invalid")
+    # Defensive copy: renderer mutation cannot change the verified host object.
+    binding = json.loads(json.dumps(binding, ensure_ascii=False, allow_nan=False))
+    return PolicyAuthority(meta["decision_id"], meta["round_id"], digest, activation,
+                           plan_digest, contract["repository"], branch, base, head, binding)

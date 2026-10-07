@@ -14,6 +14,8 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+import base64
 from typing import Any, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
@@ -44,6 +46,10 @@ PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _utc_now_precise() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _utc_now_ms() -> int:
@@ -134,6 +140,9 @@ class AutonomousWindowRecord:
     stop_reason: str
     created_at: str
     updated_at: str
+    canonical_policy_digest: str = ""
+    confirmation_mode: str = ""
+    instance_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -151,6 +160,13 @@ class OperationReceipt:
     result: str
     remaining_tasks: int
     created_at: str
+    policy_revision: int = 0
+    policy_digest: str = ""
+    actor: str = ""
+    confirmation_mode: str = ""
+    preconditions_digest: str = ""
+    budget: dict[str, Any] | None = None
+    evidence: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -378,11 +394,34 @@ class PlatformControlStore:
                 ("observed_token_units", "INTEGER NOT NULL DEFAULT 0"),
                 ("observed_cost_micro_units", "INTEGER NOT NULL DEFAULT 0"),
                 ("unknown_observation_count", "INTEGER NOT NULL DEFAULT 0"),
+                ("canonical_policy_json", "TEXT NOT NULL DEFAULT '{}'"),
+                ("canonical_policy_digest", "TEXT NOT NULL DEFAULT ''"),
+                ("confirmation_mode", "TEXT NOT NULL DEFAULT ''"),
+                ("confirmation_provenance_json", "TEXT NOT NULL DEFAULT '{}'"),
+                ("delegation_slot_id", "TEXT NOT NULL DEFAULT ''"),
+                ("policy_authority_json", "TEXT NOT NULL DEFAULT '{}'"),
             ):
                 if column not in window_columns:
                     self._conn.execute(
                         f"ALTER TABLE platform_autonomous_windows ADD COLUMN {column} {definition}"
                     )
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_window_delegation_slot "
+                "ON platform_autonomous_windows(delegation_slot_id) WHERE delegation_slot_id <> ''"
+            )
+            receipt_columns = {row["name"] for row in self._conn.execute("PRAGMA table_info(platform_operation_receipts)")}
+            for column, definition in (
+                ("policy_revision", "INTEGER NOT NULL DEFAULT 0"),
+                ("policy_digest", "TEXT NOT NULL DEFAULT ''"),
+                ("actor", "TEXT NOT NULL DEFAULT ''"),
+                ("confirmation_mode", "TEXT NOT NULL DEFAULT ''"),
+                ("preconditions_digest", "TEXT NOT NULL DEFAULT ''"),
+                ("budget_json", "TEXT NOT NULL DEFAULT '{}'"),
+                ("evidence_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ):
+                if column not in receipt_columns:
+                    self._conn.execute(f"ALTER TABLE platform_operation_receipts ADD COLUMN {column} {definition}")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
 
     # Goal records -----------------------------------------------------
 
@@ -728,11 +767,66 @@ class PlatformControlStore:
 
     # Autonomous windows and receipts ---------------------------------
 
-    def activate_window(self, payload: Mapping[str, Any], *, confirmation: str) -> AutonomousWindowRecord:
+    def activate_policy_window(self, payload: Mapping[str, Any], *, authority: Mapping[str, Any]) -> AutonomousWindowRecord:
+        """Trusted service entry; policy/slot creation shares the existing transaction."""
+        from .autonomy import validate_canonical_policy, policy_digest
+        policy = validate_canonical_policy(payload.get("canonical_policy"))
+        provenance = payload.get("confirmation_provenance")
+        if (not isinstance(authority, Mapping) or not isinstance(provenance, Mapping)
+                or payload.get("confirmation_mode") != "DELEGATED_CONTROLLER"
+                or provenance.get("personally_human") is not False
+                or provenance.get("confirmation_mode") != "DELEGATED_CONTROLLER"
+                or payload.get("policy_digest_sha256") != policy_digest(policy)
+                or authority.get("policy_digest_sha256") != policy_digest(policy)
+                or authority.get("policy") != policy
+                or authority.get("max_real_window_activations") != 1
+                or authority.get("database_path") is None
+                or Path(str(authority["database_path"])).resolve() != Path(self.task_store.db_path).resolve()):
+            raise TaskStoreError("trusted_policy_store_binding_invalid")
+        for name in ("policy_id", "policy_revision", "window_id", "delegation_slot_id"):
+            if payload.get(name) != authority.get(name):
+                raise TaskStoreError("trusted_policy_store_identity_mismatch")
+        expected = {"owner_identity": authority.get("controller_identity"),
+                    "starts_at": datetime.fromisoformat(policy["autonomousWindow"]["startsAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "expires_at": datetime.fromisoformat(policy["autonomousWindow"]["expiresAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    "max_tasks": authority.get("max_tasks"), "max_retries": authority.get("max_retries"),
+                    "max_concurrent_tasks": authority.get("max_concurrent_tasks")}
+        if (any(payload.get(key) != value for key, value in expected.items())
+                or tuple(payload.get("repositories", ())) != (policy["repository"],)
+                or tuple(payload.get("capabilities", ())) != ("validate_task",)
+                or not isinstance(authority.get("delegation_slot_id"), str)
+                or not authority["delegation_slot_id"]
+                or type(authority.get("max_real_window_activations")) is not int):
+            raise TaskStoreError("trusted_policy_store_scope_mismatch")
+        for name in ("controller_identity", "decision_id", "decision_content_sha256", "decision_commit_sha",
+                     "command_plan_sha256", "upper_proposal_sha256", "host_instance_id", "delegation_slot_id"):
+            if provenance.get(name) != authority.get(name):
+                raise TaskStoreError("trusted_policy_store_provenance_mismatch")
+        binding = {"canonical_policy": policy, "policy_digest_sha256": policy_digest(policy),
+                   "confirmation_mode": "DELEGATED_CONTROLLER", "confirmation_provenance": dict(provenance),
+                   "delegation_slot_id": authority["delegation_slot_id"], "authority": dict(authority)}
+        base_payload = {key: value for key, value in payload.items() if key not in {
+            "canonical_policy", "policy_digest_sha256", "confirmation_mode", "confirmation_provenance", "delegation_slot_id"}}
+        return self.activate_window(base_payload, confirmation="DELEGATED_CONTROLLER", _trusted_binding=binding)
+
+    def window_policy_binding(self, window_id: str) -> dict[str, Any]:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM platform_autonomous_windows WHERE id = ?", (window_id,)).fetchone()
+            if row is None:
+                raise TaskStoreError("window_not_found")
+            return {"canonical_policy": json.loads(row["canonical_policy_json"]),
+                    "policy_digest_sha256": row["canonical_policy_digest"],
+                    "confirmation_mode": row["confirmation_mode"],
+                    "confirmation_provenance": json.loads(row["confirmation_provenance_json"]),
+                    "delegation_slot_id": row["delegation_slot_id"],
+                    "authority": json.loads(row["policy_authority_json"])}
+
+    def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
+                        _trusted_binding: Mapping[str, Any] | None = None) -> AutonomousWindowRecord:
         reject_sensitive_keys(payload)
-        if confirmation.strip() != "ACTIVATE":
+        if confirmation.strip() != ("DELEGATED_CONTROLLER" if _trusted_binding else "ACTIVATE"):
             raise TaskStoreError("owner_activation_confirmation_required")
-        digest = sha256_json(payload)
+        digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
         window_id = str(payload.get("window_id") or _id("window"))
         now = _utc_now()
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
@@ -746,8 +840,8 @@ class PlatformControlStore:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
                     "stop_reason = 'window_expired', updated_at = ? "
-                    "WHERE status = 'ACTIVE' AND expires_at <= ?",
-                    (now, now),
+                    "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
+                    (now, _utc_now_precise()),
                 )
                 existing = cur.execute(
                     "SELECT * FROM platform_autonomous_windows WHERE policy_id = ? AND policy_revision = ?",
@@ -756,6 +850,13 @@ class PlatformControlStore:
                 if existing is not None:
                     if existing["policy_digest"] != digest:
                         raise TaskStoreError("policy_revision_conflict")
+                    if _trusted_binding and (
+                        existing["delegation_slot_id"] != _trusted_binding["delegation_slot_id"]
+                        or existing["policy_authority_json"] != canonical_json(_trusted_binding["authority"])
+                        or existing["confirmation_provenance_json"] != canonical_json(_trusted_binding["confirmation_provenance"])
+                        or existing["canonical_policy_json"] != canonical_json(_trusted_binding["canonical_policy"])
+                    ):
+                        raise TaskStoreError("policy_revision_authority_conflict")
                     # Replaying a terminal revision returns history, never a
                     # fresh ACTIVE window or a fresh set of budget counters.
                     record = self._row_to_window(existing)
@@ -784,7 +885,7 @@ class PlatformControlStore:
                         int(payload["policy_revision"]),
                         digest,
                         str(payload["owner_identity"]),
-                        "ACTIVATE",
+                        confirmation.strip(),
                         str(payload["starts_at"]),
                         str(payload["expires_at"]),
                         canonical_json(list(repositories)),
@@ -802,6 +903,14 @@ class PlatformControlStore:
                         now,
                     ),
                 )
+                if _trusted_binding:
+                    cur.execute(
+                        "UPDATE platform_autonomous_windows SET canonical_policy_json = ?, canonical_policy_digest = ?, "
+                        "confirmation_mode = ?, confirmation_provenance_json = ?, delegation_slot_id = ?, policy_authority_json = ? WHERE id = ?",
+                        (canonical_json(_trusted_binding["canonical_policy"]), _trusted_binding["policy_digest_sha256"],
+                         _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
+                         _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
+                    )
                 self._conn.commit()
             except Exception as exc:
                 self._conn.rollback()
@@ -828,16 +937,16 @@ class PlatformControlStore:
             return tuple(self._row_to_window(row) for row in rows)
 
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
-        current = now or _utc_now()
+        current = now or _utc_now_precise()
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? "
-                "WHERE status = 'ACTIVE' AND expires_at <= ?",
+                "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
                 (_utc_now(), current),
             )
             row = self._conn.execute(
                 "SELECT * FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                "AND starts_at <= ? AND expires_at > ? ORDER BY created_at DESC LIMIT 1",
+                "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?) ORDER BY created_at DESC LIMIT 1",
                 (current, current),
             ).fetchone()
             return self._row_to_window(row) if row is not None else None
@@ -886,7 +995,7 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
-            if str(window["expires_at"]) <= _utc_now():
+            if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
@@ -901,10 +1010,11 @@ class PlatformControlStore:
             task = cur.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None or task["status"] not in {"QUEUED", "INTERRUPTED"}:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] == "INTERRUPTED":
+            completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
+            if task["status"] == "INTERRUPTED" and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
-            elif int(window["tasks_started"]) >= int(window["max_tasks"]):
+            elif task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
@@ -975,7 +1085,9 @@ class PlatformControlStore:
                         int(active_reservation["claim_epoch"]),
                     ),
                 )
-            if task["status"] == "INTERRUPTED":
+            if completion_recovery:
+                pass  # Finish the original persisted result; no new task/retry spending.
+            elif task["status"] == "INTERRUPTED":
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
                     "updated_at = ? WHERE id = ?",
@@ -1021,7 +1133,7 @@ class PlatformControlStore:
         self.append_receipt(
             window_id=window_id,
             operation_type="task_execution",
-            capability="execute_task",
+            capability=self._claim_operation(task_id),
             repository=self.task_store.get_task(task_id).repository,
             subject_id=task_id,
             decision="allowed",
@@ -1050,7 +1162,7 @@ class PlatformControlStore:
         self.append_receipt(
             window_id=window_id,
             operation_type="task_execution",
-            capability="execute_task",
+            capability=self._claim_operation(task_id),
             repository=self.task_store.get_task(task_id).repository,
             subject_id=task_id,
             decision="allowed",
@@ -1058,6 +1170,53 @@ class PlatformControlStore:
             input_payload={"task_id": task_id, "claim_epoch": epoch},
             result=f"{result[:220]}:{budget_result}",
         )
+
+    def _claim_operation(self, task_id: str) -> str:
+        from .task_runtime import task_operation
+        return task_operation(self.task_store.get_task(task_id))
+
+    def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
+        """Narrow recovery of an existing result, never permission to rerun a checker."""
+        with self._lock:
+            task = self.task_store.get_task(task_id)
+            claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND window_id = ?",
+                                       (task_id, window_id)).fetchone()
+            if task.status != "INTERRUPTED" or claim is None or claim["status"] == "COMPLETE":
+                return False
+            from .task_runtime import load_host_validation_contract
+            contract = load_host_validation_contract(task)
+            if contract is None or contract["window_id"] != window_id:
+                return False
+            return self._completed_host_checker(task_id)
+
+    def _completed_host_checker(self, task_id: str) -> bool:
+        """Zero model work is proven by host result/checkpoint, not executor name."""
+        from .task_runtime import load_host_validation_contract
+        task = self.task_store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None or task.validation_command_id != "git_diff_check" or task.validation_exit_code is None:
+            return False
+        actual = self.task_store.get_latest_durable_run_observation(task_id)
+        if actual is None or actual.accepted_checkpoint != "POST_VALIDATION":
+            return False
+        run = self.task_store._get_durable_run(actual.run_id)
+        if (run.validation_command_id != task.validation_command_id
+                or run.validation_exit_code != task.validation_exit_code
+                or run.validation_output_digest != task.validation_output_digest):
+            return False
+        executor = any(row.get("category") == "Executor" and row.get("label") == "runtime_kind"
+                       and row.get("value") == "host_validation" and row.get("status") == "pass"
+                       and row.get("detail") == "model_execution_skipped=true; PATCH_HYGIENE only; no functional acceptance"
+                       for row in task.evidence_refs)
+        validation = any(row.get("category") == "Validation" and row.get("label") == "git_diff_check"
+                         and row.get("raw_json_digest") == task.validation_output_digest
+                         and str(row.get("value")) == str(task.validation_exit_code)
+                         for row in task.evidence_refs)
+        host_event = any(event.type == "EXECUTOR_RUNNING" and event.metadata == {
+            "runtime_kind": "host_validation", "model_execution_skipped": True,
+            "validation_surface": "PATCH_HYGIENE", "roles_executed": []}
+            for event in self.task_store.get_events(task_id))
+        return executor and validation and host_event and bool(task.validation_output_digest)
 
     def _finalize_task_claim(
         self,
@@ -1113,7 +1272,8 @@ class PlatformControlStore:
                     if observation["status"] == "UNKNOWN"
                 )
                 usage_unknown = bool(unknown_count)
-                if not observations and task["executor_kind"] != "deterministic_fixture":
+                host_zero = not observations and self._completed_host_checker(task_id)
+                if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
                     usage_unknown = True
                     unknown_count = 1
                 token_units = 0
@@ -1281,13 +1441,33 @@ class PlatformControlStore:
         result: str = "",
     ) -> OperationReceipt:
         reject_sensitive_keys(input_payload)
-        window = self.get_window(window_id)
         receipt_id = _id("receipt")
         with self._lock:
-            self._conn.execute(
+            window = self.get_window(window_id)
+            binding = self.window_policy_binding(window_id)
+            authority = binding["authority"]
+            budget = {"tasks_remaining": max(0, window.max_tasks - window.tasks_started),
+                      "retries_remaining": max(0, window.max_retries - window.retries_used),
+                      "max_concurrent_tasks": window.max_concurrent_tasks,
+                      "observed_token_units": window.observed_token_units,
+                      "observed_cost_micro_units": window.observed_cost_micro_units,
+                      "unknown_observation_count": window.unknown_observation_count}
+            evidence = {"external_id": external_id, "result_digest": sha256_json(result),
+                        "decision_content_sha256": authority.get("decision_content_sha256", ""),
+                        "command_plan_sha256": authority.get("command_plan_sha256", ""),
+                        "host_instance_id": authority.get("host_instance_id", ""),
+                        "delegation_slot_id": binding["delegation_slot_id"]}
+            preconditions = {"status": window.status, "starts_at": window.starts_at,
+                             "expires_at": window.expires_at, "policy_digest": window.policy_digest,
+                             "capabilities": window.capabilities, "repositories": window.repositories,
+                             "authority_digest": sha256_json(authority)}
+            try:
+                self._conn.execute(
                 "INSERT INTO platform_operation_receipts "
                 "(id, window_id, operation_type, capability, repository, subject_id, decision, reason, "
-                "input_digest, external_id, result, remaining_tasks, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "input_digest, external_id, result, remaining_tasks, created_at, policy_revision, policy_digest, actor, "
+                "confirmation_mode, preconditions_digest, budget_json, evidence_json) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     receipt_id,
                     window_id,
@@ -1302,9 +1482,59 @@ class PlatformControlStore:
                     result[:300],
                     max(0, window.max_tasks - window.tasks_started),
                     _utc_now(),
+                    window.policy_revision, window.policy_digest, window.owner_identity,
+                    binding["confirmation_mode"], sha256_json(preconditions),
+                    canonical_json(budget), canonical_json(evidence),
                 ),
-            )
-        return self.list_receipts(window_id=window_id, limit=1)[0]
+                )
+            except Exception as exc:
+                # A partial effect with missing receipt remains visibly blocked;
+                # never reset a spent claim or silently continue publication.
+                self._conn.execute("UPDATE platform_autonomous_windows SET status = 'BLOCKED', "
+                                   "stop_reason = 'receipt_persistence_failed', updated_at = ? WHERE id = ?",
+                                   (_utc_now(), window_id))
+                raise TaskStoreError("receipt_persistence_failed") from exc
+            row = self._conn.execute("SELECT * FROM platform_operation_receipts WHERE id = ?", (receipt_id,)).fetchone()
+            return self._row_to_receipt(row)
+
+    def receipt_totals(self, *, window_id: str) -> dict[str, int]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS total, COALESCE(SUM(decision = 'allowed'), 0) AS allowed, "
+                "COALESCE(SUM(decision = 'denied'), 0) AS denied FROM platform_operation_receipts WHERE window_id = ?",
+                (window_id,),
+            ).fetchone()
+            return {key: int(row[key]) for key in ("allowed", "denied", "total")}
+
+    def list_receipts_page(self, *, window_id: str, limit: int = 100, cursor: str | None = None) -> dict[str, Any]:
+        bounded = page_limit(limit)
+        with self._lock:
+            latest = int(self._conn.execute("SELECT COALESCE(MAX(seq), 0) FROM platform_operation_receipts WHERE window_id = ?",
+                                            (window_id,)).fetchone()[0])
+            snapshot, before = latest, latest + 1
+            if cursor is not None:
+                try:
+                    if not isinstance(cursor, str) or not 1 <= len(cursor) <= 1024:
+                        raise ValueError
+                    payload = json.loads(base64.b64decode(cursor + "=" * (-len(cursor) % 4), altchars=b"-_", validate=True))
+                    if (not isinstance(payload, list) or len(payload) != 4 or payload[0] != window_id
+                            or type(payload[1]) is not int or payload[1] != 1
+                            or type(payload[2]) is not int or type(payload[3]) is not int
+                            or not 0 <= payload[2] <= latest or not 1 <= payload[3] <= payload[2] + 1):
+                        raise ValueError
+                    snapshot, before = payload[2:]
+                except (ValueError, TypeError, UnicodeError) as exc:
+                    raise TaskStoreError("invalid_receipt_cursor") from exc
+            rows = self._conn.execute("SELECT * FROM platform_operation_receipts WHERE window_id = ? "
+                                      "AND seq <= ? AND seq < ? ORDER BY seq DESC LIMIT ?",
+                                      (window_id, snapshot, before, bounded + 1)).fetchall()
+            items = rows[:bounded]
+            next_cursor = None
+            if len(rows) > bounded:
+                payload = canonical_json([window_id, 1, snapshot, int(items[-1]["seq"])])
+                next_cursor = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+            return {"items": [self._row_to_receipt(row) for row in items], "next_cursor": next_cursor,
+                    "snapshot_seq": snapshot}
 
     def list_receipts(self, *, window_id: str, limit: int = 200) -> tuple[OperationReceipt, ...]:
         with self._lock:
@@ -1563,6 +1793,8 @@ class PlatformControlStore:
             observed_cost_micro_units=int(row["observed_cost_micro_units"]),
             unknown_observation_count=int(row["unknown_observation_count"]),
             stop_reason=row["stop_reason"], created_at=row["created_at"], updated_at=row["updated_at"],
+            canonical_policy_digest=row["canonical_policy_digest"], confirmation_mode=row["confirmation_mode"],
+            instance_id=json.loads(row["policy_authority_json"]).get("host_instance_id", ""),
         )
 
     @staticmethod
@@ -1573,6 +1805,9 @@ class PlatformControlStore:
             decision=row["decision"], reason=row["reason"], input_digest=row["input_digest"],
             external_id=row["external_id"], result=row["result"], remaining_tasks=int(row["remaining_tasks"]),
             created_at=row["created_at"],
+            policy_revision=int(row["policy_revision"]), policy_digest=row["policy_digest"], actor=row["actor"],
+            confirmation_mode=row["confirmation_mode"], preconditions_digest=row["preconditions_digest"],
+            budget=json.loads(row["budget_json"]), evidence=json.loads(row["evidence_json"]),
         )
 
     @staticmethod

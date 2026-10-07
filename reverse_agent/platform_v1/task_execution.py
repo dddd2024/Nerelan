@@ -41,6 +41,7 @@ from .task_runtime import (
     ExecutorRouter,
     ExecutorRuntimeError,
     LocalValidationRunner,
+    load_host_validation_contract,
 )
 
 
@@ -138,6 +139,9 @@ class TaskExecutionService:
             raise TaskExecutionError(
                 f"task_not_queued:{task_id}:{task.status}"
             )
+
+        if load_host_validation_contract(task) is not None:
+            return self.execute_host_validation(task_id)
 
         executor_kind = task.executor_kind
         running_status = (
@@ -292,6 +296,126 @@ class TaskExecutionService:
             failure_classification=final.failure_classification,
             failure_detail=final.failure_detail,
         )
+
+    def execute_host_validation(self, task_id: str, *, lease: Any | None = None) -> TaskExecutionOutcome:
+        """Run the frozen hygiene check without preparing an executor or reading a binding.
+
+        A coordinator supplies its existing durable lease. Direct in-process use
+        retains the ordinary TaskStore lifecycle; production admission is the
+        host's server-resolved autonomous policy, never these evidence fields alone.
+        """
+        task = self.store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None or task.orchestration_mode != "single":
+            raise TaskExecutionError("host_validation_contract_required")
+        if task.status not in {"QUEUED", "PREPARING_WORKSPACE", "RUNNING", "INTERRUPTED"}:
+            raise TaskExecutionError("host_validation_task_not_runnable")
+        binding = resolve_repository_workspace(task.repository)
+        if binding.repo_dir != Path(contract["workspace_path"]).resolve():
+            raise TaskExecutionError("host_validation_workspace_drift")
+        before = {row["id"] for row in task.evidence_refs}
+
+        def transition(status: str) -> None:
+            if lease is None:
+                self.store.transition_to(task_id, status)
+            else:
+                self.store._fenced_transition_to(lease.run_id, task_id, status, lease.owner, lease.epoch)
+
+        def evidence(**values: Any) -> None:
+            if lease is None:
+                self.store.add_evidence(task_id, **values)
+            else:
+                self.store._fenced_add_evidence(lease.run_id, task_id, owner=lease.owner, epoch=lease.epoch, **values)
+
+        if lease is not None:
+            run = self.store._get_durable_run(lease.run_id)
+            if run.repository_base_sha and run.repository_base_sha != contract["base_sha"]:
+                raise TaskExecutionError("host_validation_durable_base_drift")
+            if run.worktree_path and Path(run.worktree_path) != binding.repo_dir:
+                raise TaskExecutionError("host_validation_durable_workspace_drift")
+            if run.accepted_checkpoint == "POST_VALIDATION":
+                # The checker result is durable before terminal publication. A
+                # restarted owner completes that publication without rerunning it.
+                if run.validation_command_id != "git_diff_check" or run.validation_exit_code is None:
+                    raise TaskExecutionError("host_validation_checkpoint_result_missing")
+                code = run.validation_exit_code
+                self.store._fenced_set_task_validation(lease.run_id, task_id, command_id="git_diff_check",
+                    exit_code=code, output_digest=run.validation_output_digest, owner=lease.owner, epoch=lease.epoch)
+                if task.status == "INTERRUPTED":
+                    transition("RUNNING")
+                if code == 0:
+                    transition("VALIDATING")
+                    transition("READY_FOR_REVIEW")
+                else:
+                    self.store._fenced_terminalize(lease.run_id, task_id, terminal_status="FAILED",
+                        validation_command_id="git_diff_check", validation_exit_code=code,
+                        validation_output_digest=run.validation_output_digest,
+                        failure_classification="deterministic_validation_failure", failure_detail="Persisted host check failed",
+                        owner=lease.owner, epoch=lease.epoch)
+                final = self.store.get_task(task_id)
+                return TaskExecutionOutcome(task_id=task_id, execution_id=final.execution_id, success=code == 0,
+                    validation_command_id="git_diff_check", validation_exit_code=code,
+                    failure_classification=final.failure_classification, failure_detail=final.failure_detail)
+            if not run.repository_base_sha:
+                self.store._set_repository_base_sha(lease.run_id, contract["base_sha"], lease.owner, lease.epoch)
+            if not run.worktree_path:
+                self.store._set_worktree_identity(lease.run_id, str(binding.repo_dir), contract["base_sha"],
+                                                 lease.owner, lease.epoch)
+            milestones = ("PRE_PLANNER", "POST_PLANNER", "POST_CODER", "POST_REVIEWER")
+            if run.accepted_checkpoint not in (*milestones, ""):
+                raise TaskExecutionError("host_validation_checkpoint_invalid")
+            start = milestones.index(run.accepted_checkpoint) + 1 if run.accepted_checkpoint else 0
+            contract_digest = next(row["raw_json_digest"] for row in task.evidence_refs
+                                   if row.get("category") == "HostValidationContract")
+            for checkpoint in milestones[start:]:
+                self.store._accept_checkpoint(lease.run_id, checkpoint, contract_digest,
+                                              run.role_attempt, lease.owner, lease.epoch)
+        if task.status == "QUEUED":
+            transition("PREPARING_WORKSPACE")
+        if task.status != "RUNNING":
+            transition("RUNNING")
+        values = dict(event_type="EXECUTOR_RUNNING", title="Host hygiene check", description="Model execution skipped",
+                      metadata={"runtime_kind": "host_validation", "model_execution_skipped": True,
+                                "validation_surface": "PATCH_HYGIENE", "roles_executed": []})
+        if lease is None:
+            self.store.add_event(task_id, **values)
+        else:
+            self.store._fenced_add_event(lease.run_id, task_id, owner=lease.owner, epoch=lease.epoch, **values)
+        try:
+            code, output, identity = LocalValidationRunner().run(
+                task_id=task_id, command_id=contract["validation_command_id"], cwd=str(binding.repo_dir),
+                allowed_paths=contract["allowed_paths"], expected_head=contract["base_sha"])
+        except (ExecutorRuntimeError, OSError, subprocess.SubprocessError) as exc:
+            code, output = -1, str(exc)
+            import hashlib
+            identity = hashlib.sha256(output.encode("utf-8")).hexdigest()
+        evidence(category="Validation", label="git_diff_check", value=str(code), status="pass" if code == 0 else "fail",
+                 detail=output, raw_json_digest=identity)
+        evidence(category="Executor", label="runtime_kind", value="host_validation", status="pass",
+                 detail="model_execution_skipped=true; PATCH_HYGIENE only; no functional acceptance")
+        if lease is None:
+            self.store.set_validation_result(task_id, command_id="git_diff_check", exit_code=code, output_digest=identity)
+        else:
+            self.store._fenced_set_task_validation(lease.run_id, task_id, command_id="git_diff_check", exit_code=code,
+                                                 output_digest=identity, owner=lease.owner, epoch=lease.epoch)
+            self.store._set_validation_result(lease.run_id, command_id="git_diff_check", exit_code=code,
+                                             output_digest=identity, owner=lease.owner, epoch=lease.epoch)
+            self.store._accept_checkpoint(lease.run_id, "POST_VALIDATION", identity, run.role_attempt, lease.owner, lease.epoch)
+        if code == 0:
+            transition("VALIDATING")
+            transition("READY_FOR_REVIEW")
+        elif lease is None:
+            self.store.classify_failure(task_id, classification="deterministic_validation_failure", detail=output)
+        else:
+            self.store._fenced_terminalize(lease.run_id, task_id, terminal_status="FAILED",
+                validation_command_id="git_diff_check", validation_exit_code=code, validation_output_digest=identity,
+                failure_classification="deterministic_validation_failure", failure_detail=output,
+                owner=lease.owner, epoch=lease.epoch)
+        final = self.store.get_task(task_id)
+        return TaskExecutionOutcome(task_id=task_id, execution_id=final.execution_id, success=code == 0,
+            validation_command_id="git_diff_check", validation_exit_code=code,
+            evidence_ids=tuple(row["id"] for row in final.evidence_refs if row["id"] not in before),
+            failure_classification=final.failure_classification, failure_detail=final.failure_detail)
 
     def execute_sequential_team(
         self,

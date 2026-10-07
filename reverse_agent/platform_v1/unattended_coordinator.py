@@ -15,7 +15,7 @@ from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService
 from .run_store import TaskStore, TaskStoreError
 from .task_execution import TaskExecutionService
-from .task_runtime import ExecutorRouter
+from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
 from reverse_agent.architecture.contracts import (
     WorkerAssignment,
     WorkerExecutionResult,
@@ -153,7 +153,9 @@ class UnattendedCoordinator:
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
-            operation = "resume_task" if task.status == "INTERRUPTED" else "execute_task"
+            operation = task_operation(task)
+            if task.status == "INTERRUPTED" and operation != "validate_task":
+                operation = "resume_task"
             if not self.autonomy.authorize(
                 window_id=window.id,
                 operation=operation,
@@ -444,6 +446,35 @@ class UnattendedCoordinator:
         if self.task_executor is not None:
             return self.task_executor(task_id)
         task = self.store.get_task(task_id)
+        if load_host_validation_contract(task) is not None:
+            # Reuse durable TaskStore leases and checkpoints. This branch must
+            # precede all model-oriented durable dispatch and binding access.
+            self.autonomy.check_task_scope(task_id, "validate_task")
+            durable = self._durable_service()
+            durable._assert_trusted_identity_for_execute()
+            if task.status == "INTERRUPTED":
+                with self.store._lock:
+                    row = self.store._conn.execute(
+                        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+                        (task_id,)).fetchone()
+                if row is None:
+                    raise TaskStoreError("host_validation_resume_run_missing")
+                lease = self.store._recover_durable_lease(row["run_id"], self.owner,
+                    expiry_ms=durable.expiry_ms, require_interrupted=True)
+            else:
+                lease = durable._acquire_or_find_lease(task_id, self.owner, "", self.workspace_root)
+            from .durable_execution import _HeartbeatContext
+            heartbeat = _HeartbeatContext(store=self.store, run_id=lease.run_id, owner=lease.owner,
+                epoch=lease.epoch, expiry_ms=durable.expiry_ms,
+                heartbeat_window_ms=durable.heartbeat_window_ms)
+            outcome = heartbeat.heartbeat_during(lambda: TaskExecutionService(
+                store=self.store, router=self.router).execute_host_validation(task_id, lease=lease))
+            # An unfinished producer retains its original expiring lease so
+            # reconciliation can observe the abandoned Run after an exception
+            # or abrupt exit. Only a durable terminal result releases ownership.
+            if self.store.get_task(task_id).status in {"READY_FOR_REVIEW", "FAILED", "BLOCKED", "CANCELLED"}:
+                self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+            return outcome
         durable_identity_available = bool(
             self.execution_authority_sha.strip() and self.planning_sha.strip()
         )

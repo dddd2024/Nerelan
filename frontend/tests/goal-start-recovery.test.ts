@@ -1,9 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   startGoal,
+  createGoalDraft,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
 import type { PlatformGoal, PlatformWindow } from "@/lib/platform-client";
+import { profileToPolicy } from "@/lib/profile-mapper";
+
+function approvedTemplate() {
+  const policy = profileToPolicy("ASK_FOR_APPROVAL");
+  policy.repository = input.repository;
+  policy.autonomousWindow.expiresAt = "2030-12-31T08:00:00Z";
+  return { available: true, policy_id: "approved-recovery-fixture", policy_revision: 1, policy_digest: "a".repeat(64),
+    window_id: "window-recovery-1", policy, confirmation_provenance: { confirmation_mode: "DELEGATED_CONTROLLER", personally_human: false },
+    supported_operations: ["execute_task"], validation_command_id: "git_diff_check" };
+}
 
 const input: StartGoalInput = {
   objective: "Recover one durable Goal start operation",
@@ -40,9 +51,11 @@ function goal(status: PlatformGoal["status"]): PlatformGoal {
 function windowFor(repository = input.repository): PlatformWindow {
   return {
     id: "window-recovery-1",
-    policy_id: "owner-ui-operation-recovery-001",
+    policy_id: "approved-recovery-fixture",
+    policy_revision: 1,
+    canonical_policy_digest: "a".repeat(64),
     status: "ACTIVE",
-    expires_at: "2026-09-10T12:00:00Z",
+    expires_at: "2030-12-31T08:00:00Z",
     repositories: [repository],
     capabilities: [
       "execute_task",
@@ -83,6 +96,47 @@ function operationStorageKey(operationId = input.operationId) {
 }
 
 describe("resumable Goal start operation", () => {
+  it("saves a checker draft without reading policy and binds recovery to its actual key", async () => {
+    const draftInput: StartGoalInput = { ...input, operationId: "checker-draft-recovery", executorKind: "opencode", checkerDraft: {
+      idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "",
+    } };
+    const bodies: unknown[] = [];
+    let attempts = 0;
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      expect(pathOf(url)).toBe("/api/goals");
+      bodies.push(JSON.parse(String(init?.body)));
+      attempts += 1;
+      if (attempts === 1) throw new TypeError("lost checker draft response");
+      return json(goal("DRAFT"));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(createGoalDraft(draftInput)).rejects.toThrow("lost checker draft response");
+    await expect(createGoalDraft({ ...draftInput, checkerDraft: { ...draftInput.checkerDraft!, idempotencyKey: "different-frozen-key" } })).rejects.toMatchObject({ code: "goal_start_operation_input_mismatch" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await expect(createGoalDraft(draftInput)).resolves.toMatchObject({ status: "DRAFT" });
+    expect(bodies).toEqual([expect.objectContaining({ idempotency_key: "approved-frozen-checker-goal", executor_kind: "opencode", orchestration_mode: "single", binding_ref: "" }), expect.objectContaining({ idempotency_key: "approved-frozen-checker-goal", executor_kind: "opencode", orchestration_mode: "single", binding_ref: "" })]);
+  });
+  it("uses the frozen provider-free Goal identity and explicit checker plan", async () => {
+    const approved = { ...approvedTemplate(), supported_operations: ["validate_task"], goal_idempotency_key: "approved-checker-goal", plan_task_id: "CHECK001" };
+    const active = windowFor();
+    let serverGoal = { ...goal("DRAFT"), executor_kind: "opencode" as const, orchestration_mode: "single" as const };
+    const bodies: Record<string, unknown>[] = [];
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") return json(approved);
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: active } });
+      if (init?.body) bodies.push({ path, ...JSON.parse(String(init.body)) });
+      if (path.endsWith("/plan")) serverGoal = { ...serverGoal, status: "PLANNED" };
+      if (path.endsWith("/approve")) serverGoal = { ...serverGoal, status: "APPROVED" };
+      if (path.endsWith("/launch")) serverGoal = { ...serverGoal, status: "RUNNING" };
+      return json(serverGoal);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(startGoal(input)).resolves.toMatchObject({ status: "RUNNING" });
+    expect(bodies.find((body) => body.path === "/api/goals")).toMatchObject({ idempotency_key: approved.goal_idempotency_key, executor_kind: "opencode", orchestration_mode: "single", binding_ref: "" });
+    expect(bodies.find((body) => String(body.path).endsWith("/plan"))).toMatchObject({ tasks: [expect.objectContaining({ id: "CHECK001", capability: "validate_task", validation_command_id: "git_diff_check" })] });
+    expect(bodies.some((body) => "confirmation" in body || "owner_identity" in body)).toBe(false);
+  });
   beforeEach(() => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
     window.localStorage.clear();
@@ -102,6 +156,7 @@ describe("resumable Goal start operation", () => {
     const fetchMock = vi.fn(
       async (requestInput: RequestInfo | URL, init?: RequestInit) => {
         const path = pathOf(requestInput);
+        if (path === "/api/windows/policy") return json(approvedTemplate());
         if (path === "/api/platform/status") {
           statusReads += 1;
           return json({
@@ -185,6 +240,7 @@ describe("resumable Goal start operation", () => {
     const fetchMock = vi.fn(
       async (requestInput: RequestInfo | URL, init?: RequestInit) => {
         const path = pathOf(requestInput);
+        if (path === "/api/windows/policy") return json(approvedTemplate());
         paths.push(`${init?.method ?? "GET"} ${path}`);
         if (path === "/api/platform/status") {
           return json({ autonomy: { active_window: windowFor() } });
@@ -237,6 +293,7 @@ describe("resumable Goal start operation", () => {
   it("fails before Goal creation when another repository owns the active window", async () => {
     const fetchMock = vi.fn(async (requestInput: RequestInfo | URL) => {
       const path = pathOf(requestInput);
+        if (path === "/api/windows/policy") return json(approvedTemplate());
       if (path === "/api/platform/status") {
         return json({
           autonomy: { active_window: windowFor("dddd2024/OtherRepo") },
@@ -249,7 +306,7 @@ describe("resumable Goal start operation", () => {
     await expect(startGoal(input)).rejects.toMatchObject({
       code: "active_window_repository_conflict",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(
       fetchMock.mock.calls.some(([url]) => pathOf(url) === "/api/goals"),
     ).toBe(false);
