@@ -5,7 +5,15 @@ import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { TasksPage } from "@/routes/tasks";
-import { useTasks } from "@/hooks/use-tasks";
+
+const taskReadState = vi.hoisted(() => ({
+  override: undefined as undefined | {
+    data: never[];
+    isLoading: boolean;
+    isError: boolean;
+    error?: Error;
+  },
+}));
 
 vi.mock("@/hooks/use-tasks", () => {
   const base = {
@@ -51,7 +59,7 @@ vi.mock("@/hooks/use-tasks", () => {
     },
   ];
   return {
-    useTasks: vi.fn(() => ({ data: tasks, isLoading: false, isError: false, error: null })),
+    useTasks: () => taskReadState.override ?? { data: tasks, isLoading: false, isError: false, error: null },
   };
 });
 
@@ -69,11 +77,11 @@ function sidebar(initialEntries = ["/"]) {
   return { onOpen };
 }
 
-afterEach(() => vi.mocked(useTasks).mockClear());
+afterEach(() => { taskReadState.override = undefined; });
 
 describe("sidebar task read states", () => {
   it("shows loading without claiming the database is empty", () => {
-    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: true, isError: false } as ReturnType<typeof useTasks>);
+    taskReadState.override = { data: [], isLoading: true, isError: false };
     sidebar();
     expect(screen.getByText("正在加载最近任务…")).toBeInTheDocument();
     expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
@@ -82,7 +90,7 @@ describe("sidebar task read states", () => {
   });
 
   it("reports a failed read without displaying raw errors or an empty result", () => {
-    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: false, isError: true, error: new Error("private diagnostic") } as ReturnType<typeof useTasks>);
+    taskReadState.override = { data: [], isLoading: false, isError: true, error: new Error("private diagnostic") };
     sidebar();
     expect(screen.getByRole("alert")).toHaveTextContent("最近任务读取失败，请检查服务连接");
     expect(screen.queryByText("暂无最近任务")).not.toBeInTheDocument();
@@ -91,7 +99,7 @@ describe("sidebar task read states", () => {
   });
 
   it("shows empty only after a successful empty read", () => {
-    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: false, isError: false } as ReturnType<typeof useTasks>);
+    taskReadState.override = { data: [], isLoading: false, isError: false };
     sidebar();
     expect(screen.getByText("暂无最近任务")).toBeInTheDocument();
     expect(screen.getByText("暂无项目")).toBeInTheDocument();
