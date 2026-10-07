@@ -59,17 +59,21 @@ test('actual broker exits when main page closes without browser disconnect and w
   let child; let exited; let timeout;
   try {
     await writeFile(sdk, `import { EventEmitter } from 'node:events';
+import assert from 'node:assert/strict';
 export const chromium = { async launch() {
   const browser = new EventEmitter();
   browser.close = async () => { process.stdout.write('fixture_browser_closed\\n'); };
-  browser.newContext = async () => ({
+  browser.newContext = async (options) => {
+    assert.deepEqual(options, { serviceWorkers: 'block', viewport: null });
+    return ({
     route: async () => {},
     newPage: async () => {
       const page = new EventEmitter();
       page.goto = async () => { setTimeout(() => page.emit('close'), 50); };
       return page;
     },
-  });
+    });
+  };
   return browser;
 } };
 `);
