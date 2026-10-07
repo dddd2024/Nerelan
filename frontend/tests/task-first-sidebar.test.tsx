@@ -1,10 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { TasksPage } from "@/routes/tasks";
+import { useTasks } from "@/hooks/use-tasks";
 
 vi.mock("@/hooks/use-tasks", () => {
   const base = {
@@ -50,7 +51,7 @@ vi.mock("@/hooks/use-tasks", () => {
     },
   ];
   return {
-    useTasks: () => ({ data: tasks, isLoading: false, isError: false, error: null }),
+    useTasks: vi.fn(() => ({ data: tasks, isLoading: false, isError: false, error: null })),
   };
 });
 
@@ -67,6 +68,36 @@ function sidebar(initialEntries = ["/"]) {
   );
   return { onOpen };
 }
+
+afterEach(() => vi.mocked(useTasks).mockClear());
+
+describe("sidebar task read states", () => {
+  it("shows loading without claiming the database is empty", () => {
+    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: true, isError: false } as ReturnType<typeof useTasks>);
+    sidebar();
+    expect(screen.getByText("正在加载最近任务…")).toBeInTheDocument();
+    expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
+    expect(screen.queryByText("暂无最近任务")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无项目")).not.toBeInTheDocument();
+  });
+
+  it("reports a failed read without displaying raw errors or an empty result", () => {
+    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: false, isError: true, error: new Error("private diagnostic") } as ReturnType<typeof useTasks>);
+    sidebar();
+    expect(screen.getByRole("alert")).toHaveTextContent("最近任务读取失败，请检查服务连接");
+    expect(screen.queryByText("暂无最近任务")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无项目")).not.toBeInTheDocument();
+    expect(screen.queryByText(/private diagnostic/)).not.toBeInTheDocument();
+  });
+
+  it("shows empty only after a successful empty read", () => {
+    vi.mocked(useTasks).mockReturnValueOnce({ data: [], isLoading: false, isError: false } as ReturnType<typeof useTasks>);
+    sidebar();
+    expect(screen.getByText("暂无最近任务")).toBeInTheDocument();
+    expect(screen.getByText("暂无项目")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
 
 describe("task-first sidebar IA", () => {
   it("uses the compact width and orders Recent by authoritative updatedAt", () => {

@@ -151,7 +151,7 @@ async function runClient() {
     const { chromium } = await import('playwright-core');
     browser = await chromium.launch({ headless: false, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
     if (stopped) return;
-    const context = await browser.newContext({ serviceWorkers: 'block' });
+    const context = await browser.newContext({ serviceWorkers: 'block', viewport: null });
     await context.route((url) => url.origin === config.api, (route) => handleRoute(route, config));
     const page = await context.newPage();
     // Closing the supported frontend page can leave Chromium connected with no
