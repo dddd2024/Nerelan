@@ -61,6 +61,15 @@ Vite's existing `runner` configuration loader avoids the bundle loader's
 temporary configuration files under shared `node_modules/.vite-temp`.
 Terminal broker failure or browser disconnect closes the private stdin handle
 after browser cleanup, so the host's open pipe cannot retain the broker process.
+Closing the supported main frontend page also terminates that private session.
+Chromium can remain connected after its last window closes, so browser disconnect
+alone cannot establish that the frontend is still open. The page-close event is
+registered before navigation and shares the same browser and stdin cleanup.
+The native child regression uses an SDK fixture that closes the page without
+disconnecting the browser while the parent keeps stdin open; it is source
+verification, not actual Windows browser acceptance. The recorded Windows
+failure showed a closed window with the broker still alive and readiness true;
+independent real-window exit and readiness evidence remains required.
 
 The original actual Windows attempt on source `1b99c23d` failed because Vite
 used port 4174 instead of the requested 18879. Its owned service groups were

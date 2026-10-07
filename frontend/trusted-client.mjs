@@ -154,9 +154,13 @@ async function runClient() {
     const context = await browser.newContext({ serviceWorkers: 'block' });
     await context.route((url) => url.origin === config.api, (route) => handleRoute(route, config));
     const page = await context.newPage();
+    // Closing the supported frontend page can leave Chromium connected with no
+    // windows. That page's lifetime, not only the browser connection, bounds
+    // this private client session. Observe it before navigation can close it.
+    const pageClosed = new Promise((resolve) => page.once('close', resolve));
     await page.goto(config.frontend);
     process.stdout.write(JSON.stringify({ state: 'ready', pid: process.pid }) + '\n');
-    await Promise.race([stopping, new Promise((resolve) => browser.once('disconnected', resolve))]);
+    await Promise.race([stopping, pageClosed, new Promise((resolve) => browser.once('disconnected', resolve))]);
   } catch {
     // Fixed diagnostics only; never dump private configuration or library errors.
     process.stderr.write('trusted_client_unavailable\n');

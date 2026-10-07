@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { PassThrough } from 'node:stream';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve, sep, basename } from 'node:path';
 import { validateConfiguration, forwardTaskRequest, handleRoute, privateConfiguration } from './trusted-client.mjs';
 
 const token = 'a'.repeat(64);
@@ -45,6 +48,68 @@ async function fixture(callback) {
   return { server, api, config: validateConfiguration({ frontend_url: frontend, task_api_url: api, capability: token }),
     close: () => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }) };
 }
+
+test('actual broker exits when main page closes without browser disconnect and with stdin open', async () => {
+  const parent = process.env.REVERSE_AGENT_TASK_DB_DIR || tmpdir();
+  await mkdir(parent, { recursive: true });
+  const directory = await mkdtemp(join(parent, 'broker-page-close-'));
+  const sdk = join(directory, 'sdk.mjs');
+  const loader = join(directory, 'loader.mjs');
+  const ready = await fixture((_request, response) => response.end('ready'));
+  let child; let exited; let timeout;
+  try {
+    await writeFile(sdk, `import { EventEmitter } from 'node:events';
+export const chromium = { async launch() {
+  const browser = new EventEmitter();
+  browser.close = async () => { process.stdout.write('fixture_browser_closed\\n'); };
+  browser.newContext = async () => ({
+    route: async () => {},
+    newPage: async () => {
+      const page = new EventEmitter();
+      page.goto = async () => { setTimeout(() => page.emit('close'), 50); };
+      return page;
+    },
+  });
+  return browser;
+} };
+`);
+    await writeFile(loader, `export async function resolve(specifier, context, nextResolve) {
+  if (specifier === 'playwright-core') return { url: new URL('./sdk.mjs', import.meta.url).href, shortCircuit: true };
+  return nextResolve(specifier, context);
+}
+`);
+    child = spawn(process.execPath, ['--no-warnings', '--experimental-loader', pathToFileURL(loader).href,
+      fileURLToPath(new URL('./trusted-client.mjs', import.meta.url))], { stdio: ['pipe', 'pipe', 'pipe'], env: {} });
+    let stdout = ''; let stderr = '';
+    child.stdout.setEncoding('utf8'); child.stdout.on('data', data => { stdout += data; });
+    child.stderr.setEncoding('utf8'); child.stderr.on('data', data => { stderr += data; });
+    child.stdin.on('error', () => {});
+    exited = new Promise((resolve, reject) => {
+      child.once('error', reject);
+      child.once('close', (code, signal) => resolve({ code, signal }));
+    });
+    child.stdin.write(JSON.stringify({ frontend_url: ready.api, task_api_url: 'http://127.0.0.1:1', capability: token }) + '\n');
+    const result = await Promise.race([exited, new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('broker retained stdin after main page closed')), 5000);
+    })]);
+    assert.deepEqual(result, { code: 0, signal: null }, stderr);
+    const lines = stdout.trim().split('\n');
+    assert.deepEqual(JSON.parse(lines[0]), { state: 'ready', pid: child.pid });
+    assert.deepEqual(lines.slice(1), ['fixture_browser_closed']);
+    assert.equal(stderr, '');
+    assert.ok(!stdout.includes(token));
+  } finally {
+    clearTimeout(timeout);
+    if (child) {
+      if (child.exitCode === null && child.signalCode === null) child.kill();
+      child.stdin.destroy();
+      await exited;
+    }
+    await ready.close();
+    assert.ok(resolve(directory).startsWith(resolve(parent) + sep) && basename(directory).startsWith('broker-page-close-'));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 function req(api, extra = {}) {
   return { url: api + '/api/tasks', frameUrl: frontend + '/settings', method: 'GET', headers: {}, ...extra };
 }
