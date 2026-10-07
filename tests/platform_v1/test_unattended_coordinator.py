@@ -181,6 +181,79 @@ def test_host_checker_reopen_only_completes_accepted_result_without_new_retry(tm
         reopened._conn.close()
 
 
+@pytest.mark.parametrize("checker_passes", [True, False])
+def test_terminal_host_effect_reopen_finalizes_original_claim_without_checker_or_counter_reset(
+    tmp_path, monkeypatch, checker_passes
+):
+    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+    class BeforeClaimCompletionCrash(BaseException):
+        pass
+    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(tmp_path, monkeypatch)
+    if not checker_passes:
+        (tmp_path / "repository" / "input.txt").write_bytes(b"actual trailing whitespace  \n")
+    actual_checks = []
+    original_check = LocalValidationRunner.run
+    def observed_check(self, **kwargs):
+        actual_checks.append(kwargs["task_id"])
+        return original_check(self, **kwargs)
+    def crash_before_claim_completion(**kwargs):
+        assert kwargs["task_id"] == task_id
+        actual = store.get_latest_durable_run_observation(task_id)
+        assert actual.accepted_checkpoint == "POST_VALIDATION"
+        raise BeforeClaimCompletionCrash("fixture producer exited before admission receipt")
+    monkeypatch.setattr(LocalValidationRunner, "run", observed_check)
+    monkeypatch.setattr(control, "complete_task_claim", crash_before_claim_completion)
+    with pytest.raises(BeforeClaimCompletionCrash):
+        coordinator.tick()
+    terminal = store.get_task(task_id)
+    expected_status = "READY_FOR_REVIEW" if checker_passes else "FAILED"
+    assert terminal.status == expected_status
+    assert (terminal.validation_exit_code == 0) is checker_passes
+    preserved_result = (terminal.validation_command_id, terminal.validation_exit_code, terminal.validation_output_digest)
+    before = control.get_window(window.id)
+    assert (before.tasks_started, before.tasks_completed, before.retries_used) == (1, 0, 0)
+    assert actual_checks == [task_id]
+    claim = store._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
+    original_epoch = claim["epoch"]
+    assert claim["status"] == "ACTIVE"
+    # Only the original admission lease timer expires. Terminal checker/run
+    # result and all spending remain exactly as the first producer wrote them.
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=1 WHERE task_id=?", (task_id,))
+    store._conn.close()
+    def forbidden_check(*args, **kwargs):
+        pytest.fail("Terminal-effect recovery reran checker")
+    monkeypatch.setattr(LocalValidationRunner, "run", forbidden_check)
+    reopened, resumed_control, resumed_autonomy, resumed_goals, same_window, same_task, restarted = _real_checker_fixture(
+        tmp_path, monkeypatch, reopen=True)
+    monkeypatch.setattr(restarted, "_execute_task", forbidden_check)
+    try:
+        restarted.reconcile()
+        assert same_task == task_id and same_window.id == window.id
+        linked_goal = resumed_control.list_window_goals(window.id)[0]
+        # An ordinary history read can already reconcile the Goal from the
+        # terminal Task. That read must not hide the unfinished original claim.
+        assert resumed_goals.detail(linked_goal.id)["status"] == ("COMPLETED" if checker_passes else "BLOCKED")
+        assert restarted.tick() == 1
+        final = reopened.get_task(task_id)
+        assert final.status == expected_status
+        assert (final.validation_command_id, final.validation_exit_code, final.validation_output_digest) == preserved_result
+        budget = resumed_control.get_window(window.id)
+        assert (budget.tasks_started, budget.tasks_completed, budget.retries_used) == (1, 1, 0)
+        assert budget.unknown_observation_count == 0
+        assert reopened.list_usage_observations(task_id) == ()
+        done = reopened._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
+        assert done["status"] == "COMPLETE" and done["epoch"] == original_epoch + 1
+        receipts = [row for row in resumed_control.list_receipts(window_id=window.id)
+                    if row.reason == "coordinator_claim_completed"]
+        assert len(receipts) == 1 and receipts[0].capability == "validate_task"
+        goal = resumed_control.list_window_goals(window.id)[0]
+        assert goal.status == ("COMPLETED" if checker_passes else "BLOCKED")
+        assert restarted.tick() == 0 and actual_checks == [task_id]
+        assert reopened._conn.execute("SELECT COUNT(*) FROM durable_runs WHERE task_id=?", (task_id,)).fetchone()[0] == 1
+    finally:
+        reopened._conn.close()
+
+
 def _ready_fixture(store: TaskStore, task_id: str):
     store.transition_to(task_id, "PREPARING_WORKSPACE")
     store.transition_to(task_id, "RUNNING_FIXTURE")

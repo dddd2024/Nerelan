@@ -86,6 +86,8 @@ def production_policy_server(tmp_path, monkeypatch):
     store = TaskStore(str(tmp_path / "production-policy.sqlite3"))
     router = ExecutorRouter()
     handler = _handler_factory(store, router, allowed_origin="http://localhost:5173",
+                                          execution_authority_sha="production-policy-fixture-authority",
+                                          planning_sha="production-policy-fixture-plan",
                                           local_client_session=client_session())
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -131,6 +133,35 @@ def test_production_direct_execute_cannot_bypass_missing_goal_authority(producti
     before = handler.store._conn.total_changes
     status, body = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
     assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.total_changes == before
+
+
+def test_production_manual_fixture_execution_remains_available_without_delegated_pins(production_policy_server):
+    base, server = production_policy_server
+    assert server.RequestHandlerClass.autonomy_service.authority_loader is None
+    status, created = _req(base, "POST", "/api/tasks", {
+        "title": "Ordinary manual fixture", "executor_kind": "deterministic_fixture",
+        "permission_profile": "ASK_FOR_APPROVAL"})
+    assert status == 201
+    status, executed = _req(base, "POST", f"/api/tasks/{created['id']}/execute", {})
+    assert status == 200 and executed["status"] == "READY_FOR_REVIEW_FIXTURE", executed
+    assert executed["validation_command_id"] == "git_diff_check" and executed["validation_exit_code"] == 0
+    assert executed["changed_files"]
+    assert server.RequestHandlerClass.control_store.active_window() is None
+
+
+def test_production_autonomous_task_cannot_use_manual_fallback_without_pins(production_policy_server, monkeypatch):
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    task = handler.store.create_task(title="Unbound autonomous task", executor_kind="deterministic_fixture",
+                                    permission_profile="AUTONOMOUS_WINDOW", policy_ref="caller-policy")
+    def forbidden(**kwargs):
+        pytest.fail("Autonomous request without pins reached manual executor")
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, refused = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
+    assert status == 409 and refused == {"error": "direct_execution_requires_approved_host_task"}
     assert handler.store.get_task(task.id).status == "QUEUED"
     assert handler.store._conn.total_changes == before
 

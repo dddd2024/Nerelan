@@ -262,6 +262,49 @@ def test_policy_evaluation_is_server_side_and_receipted():
     assert all(receipt["input_digest"] and "task_id" not in receipt for receipt in summary["receipts"])
 
 
+def test_unconfigured_delegation_preserves_manual_mode_but_denies_legacy_auto_window():
+    control = PlatformControlStore(TaskStore(":memory:"))
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry(),
+                              require_trusted_policy=True)
+    # The configured mode flag controls manual HTTP compatibility; AUTO
+    # admission independently requires a real host authority loader.
+    assert service.delegated_mode is False
+    window = service.activate(_payload())  # Explicit trusted in-process legacy fixture.
+    assert not service.authorize(window_id=window.id, operation="execute_task",
+                                 repository="dddd2024/reverse-agent", subject_id="legacy-task",
+                                 input_payload={"task_id": "legacy-task"})
+    receipt = control.list_receipts(window_id=window.id)[0]
+    assert receipt.decision == "denied" and receipt.reason == "delegated_policy_authority_unavailable"
+
+
+def test_completion_receipt_insert_failure_rolls_back_claim_and_budget_atomically(tmp_path):
+    database = tmp_path / "atomic-finalize.sqlite3"
+    store = TaskStore(str(database))
+    control = PlatformControlStore(store)
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = service.activate(_payload())
+    task = store.create_task(title="explicit fixture accounting", executor_kind="deterministic_fixture")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="fixture-owner", lease_ms=60000)
+    store._conn.executescript("CREATE TRIGGER reject_completion_receipt BEFORE INSERT ON platform_operation_receipts "
+                             "WHEN NEW.reason='coordinator_claim_completed' BEGIN SELECT RAISE(FAIL, 'receipt failure'); END;")
+    with pytest.raises(TaskStoreError, match="receipt_persistence_failed"):
+        control.complete_task_claim(window_id=window.id, task_id=task.id, owner="fixture-owner",
+                                    epoch=epoch, result="fixture accounting")
+    store._conn.close()
+    reopened = TaskStore(str(database))
+    durable = PlatformControlStore(reopened)
+    try:
+        saved = durable.get_window(window.id)
+        assert saved.status == "BLOCKED" and saved.stop_reason == "receipt_persistence_failed"
+        assert (saved.tasks_started, saved.tasks_completed, saved.retries_used, saved.unknown_observation_count) == (1, 0, 0, 0)
+        claim = reopened._conn.execute("SELECT status, epoch FROM platform_coordinator_claims WHERE task_id=?", (task.id,)).fetchone()
+        reservation = reopened._conn.execute("SELECT state FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+        assert (claim["status"], claim["epoch"], reservation["state"]) == ("ACTIVE", epoch, "ACTIVE")
+        assert not [row for row in durable.list_receipts(window_id=window.id) if row.reason == "coordinator_claim_completed"]
+    finally:
+        reopened._conn.close()
+
+
 def test_usage_budget_policy_is_explicit_and_hard_admission_is_reported():
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)

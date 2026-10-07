@@ -72,8 +72,12 @@ def test_disposable_fixture_commits_with_long_git_object_paths_and_lf_content(tm
     result = DeterministicFixtureExecutor().execute(task_id, TaskStore(":memory:"), workspace_root=str(workspace))
     assert result.success and result.validation_exit_code == 0
     worktree = Path(result.workspace)
-    objects = [path for path in (worktree / ".git" / "objects").glob("??/*") if path.is_file()]
-    assert objects and any(len(str(path)) > 260 for path in objects)
+    commit = subprocess.check_output(["git", "-C", str(worktree), "rev-parse", "--verify", "HEAD"], text=True).strip()
+    assert subprocess.check_output(["git", "-C", str(worktree), "cat-file", "-t", commit], text=True).strip() == "commit"
+    object_path = worktree / ".git" / "objects" / commit[:2] / commit[2:]
+    assert len(str(object_path)) > 260
+    observed_path = Path("\\\\?\\" + str(object_path)) if os.name == "nt" else object_path
+    assert observed_path.is_file()
     assert (worktree / "fixture.txt").read_bytes() == (
         b"provider-free task plane fixture\ndeterministic mutation applied\n")
     for name, expected in (("core.longpaths", "true"), ("core.autocrlf", "false"),

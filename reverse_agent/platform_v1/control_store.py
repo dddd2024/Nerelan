@@ -726,11 +726,20 @@ class PlatformControlStore:
             # Limit ready tasks, not queue positions: waiting dependencies must
             # not hide runnable work later in this or another Goal.
             rows = self._conn.execute(
-                "SELECT l.task_id "
+                "SELECT l.task_id, t.status "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED') "
+                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED')) "
+                "OR (g.status IN ('RUNNING', 'COMPLETED', 'BLOCKED') AND t.status IN ('READY_FOR_REVIEW', 'FAILED') AND EXISTS ("
+                "SELECT 1 FROM platform_coordinator_claims original_claim "
+                "JOIN platform_budget_reservations original_reservation "
+                "ON original_reservation.task_id = original_claim.task_id "
+                "AND original_reservation.claim_epoch = original_claim.epoch "
+                "AND original_reservation.window_id = original_claim.window_id "
+                "WHERE original_claim.task_id = t.id AND original_claim.window_id = g.window_id "
+                "AND original_claim.status = 'ACTIVE' AND original_claim.expires_at_ms <= ? "
+                "AND original_reservation.state = 'ACTIVE'))) "
                 "AND NOT EXISTS ("
                 "SELECT 1 FROM json_each(l.dependencies_json) dependency "
                 "WHERE NOT EXISTS ("
@@ -741,10 +750,18 @@ class PlatformControlStore:
                 "AND predecessor.plan_task_id = dependency.value "
                 "AND predecessor_task.status IN ('READY_FOR_REVIEW', 'READY_FOR_REVIEW_FIXTURE')"
                 ")) "
-                "ORDER BY g.created_at ASC, l.seq ASC LIMIT ?",
-                (window_id, max(1, min(limit, 500))),
+                "ORDER BY g.created_at ASC, l.seq ASC",
+                (window_id, _utc_now_ms()),
             ).fetchall()
-            return tuple(row["task_id"] for row in rows)
+            ready = []
+            for row in rows:
+                if row["status"] in {"READY_FOR_REVIEW", "FAILED"} and not self.can_complete_host_claim(
+                        window_id=window_id, task_id=row["task_id"]):
+                    continue
+                ready.append(row["task_id"])
+                if len(ready) >= max(1, min(limit, 500)):
+                    break
+            return tuple(ready)
 
     def refresh_goal_status(self, goal_id: str) -> GoalRecord:
         links = self.list_goal_tasks(goal_id)
@@ -1008,13 +1025,15 @@ class PlatformControlStore:
             if int(active_count) >= int(window["max_concurrent_tasks"]):
                 raise TaskStoreError("window_wip_limit_reached")
             task = cur.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            if task is None or task["status"] not in {"QUEUED", "INTERRUPTED"}:
+            if task is None:
                 raise TaskStoreError("task_not_claimable")
             completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
+            if task["status"] not in {"QUEUED", "INTERRUPTED"} and not completion_recovery:
+                raise TaskStoreError("task_not_claimable")
             if task["status"] == "INTERRUPTED" and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
-            elif task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
+            elif not completion_recovery and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
@@ -1122,24 +1141,15 @@ class PlatformControlStore:
         epoch: int,
         reason: str,
     ) -> None:
-        budget_result = self._finalize_task_claim(
+        self._finalize_task_claim(
             window_id=window_id,
             task_id=task_id,
             owner=owner,
             epoch=epoch,
             claim_status="FAILED",
             count_completion=False,
-        )
-        self.append_receipt(
-            window_id=window_id,
-            operation_type="task_execution",
-            capability=self._claim_operation(task_id),
-            repository=self.task_store.get_task(task_id).repository,
-            subject_id=task_id,
-            decision="allowed",
-            reason="coordinator_execution_failed",
-            input_payload={"task_id": task_id, "claim_epoch": epoch},
-            result=f"{reason[:220]}:{budget_result}",
+            receipt_reason="coordinator_execution_failed",
+            receipt_result=reason[:220],
         )
 
     def complete_task_claim(
@@ -1151,24 +1161,15 @@ class PlatformControlStore:
         epoch: int,
         result: str,
     ) -> None:
-        budget_result = self._finalize_task_claim(
+        self._finalize_task_claim(
             window_id=window_id,
             task_id=task_id,
             owner=owner,
             epoch=epoch,
             claim_status="COMPLETE",
             count_completion=True,
-        )
-        self.append_receipt(
-            window_id=window_id,
-            operation_type="task_execution",
-            capability=self._claim_operation(task_id),
-            repository=self.task_store.get_task(task_id).repository,
-            subject_id=task_id,
-            decision="allowed",
-            reason="coordinator_claim_completed",
-            input_payload={"task_id": task_id, "claim_epoch": epoch},
-            result=f"{result[:220]}:{budget_result}",
+            receipt_reason="coordinator_claim_completed",
+            receipt_result=result[:220],
         )
 
     def _claim_operation(self, task_id: str) -> str:
@@ -1181,8 +1182,16 @@ class PlatformControlStore:
             task = self.task_store.get_task(task_id)
             claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND window_id = ?",
                                        (task_id, window_id)).fetchone()
-            if task.status != "INTERRUPTED" or claim is None or claim["status"] == "COMPLETE":
+            if task.status not in {"INTERRUPTED", "READY_FOR_REVIEW", "FAILED"} or claim is None or claim["status"] == "COMPLETE":
                 return False
+            if task.status in {"READY_FOR_REVIEW", "FAILED"}:
+                reservation = self._conn.execute(
+                    "SELECT state FROM platform_budget_reservations WHERE task_id=? AND window_id=? AND claim_epoch=?",
+                    (task_id, window_id, claim["epoch"])).fetchone()
+                if (claim["status"] != "ACTIVE" or reservation is None or reservation["state"] != "ACTIVE"
+                        or (task.status == "READY_FOR_REVIEW" and task.validation_exit_code != 0)
+                        or (task.status == "FAILED" and task.validation_exit_code in {None, 0})):
+                    return False
             from .task_runtime import load_host_validation_contract
             contract = load_host_validation_contract(task)
             if contract is None or contract["window_id"] != window_id:
@@ -1227,6 +1236,8 @@ class PlatformControlStore:
         epoch: int,
         claim_status: str,
         count_completion: bool,
+        receipt_reason: str,
+        receipt_result: str,
     ) -> str:
         """Fence a claim and reconcile its reservation exactly once."""
 
@@ -1355,13 +1366,25 @@ class PlatformControlStore:
                     f"UPDATE platform_autonomous_windows SET {', '.join(assignments)} WHERE id = ?",
                     values,
                 )
+                self.append_receipt(
+                    window_id=window_id, operation_type="task_execution",
+                    capability=self._claim_operation(task_id),
+                    repository=self.task_store.get_task(task_id).repository,
+                    subject_id=task_id, decision="allowed", reason=receipt_reason,
+                    input_payload={"task_id": task_id, "claim_epoch": epoch},
+                    result=f"{receipt_result}:{reservation_state}",
+                )
                 cur.execute("COMMIT")
                 return reservation_state
-            except TaskStoreError:
+            except TaskStoreError as exc:
                 try:
                     cur.execute("ROLLBACK")
                 except Exception:
                     pass
+                if str(exc) == "receipt_persistence_failed":
+                    self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                                       "stop_reason='receipt_persistence_failed', updated_at=? WHERE id=?",
+                                       (_utc_now(), window_id))
                 raise
             except Exception as exc:
                 try:

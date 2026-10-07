@@ -212,7 +212,7 @@ class AutonomyService:
 
     @property
     def delegated_mode(self) -> bool:
-        return self.require_trusted_policy or self.authority_loader is not None
+        return self.authority_loader is not None
 
     def _authority(self) -> PolicyAuthority:
         if self.authority_loader is None:
@@ -395,7 +395,7 @@ class AutonomyService:
                 raise TaskStoreError("capability_outside_window")
             if operation not in KNOWN_OPERATIONS or not self.capabilities.supports_operation(operation):
                 raise TaskStoreError("capability_unavailable")
-            if self.delegated_mode:
+            if self.require_trusted_policy or self.delegated_mode:
                 authority = self._authority()
                 stored = self.control_store.window_policy_binding(window_id)
                 if (stored.get("policy_digest_sha256") != authority.binding["policy_digest_sha256"]

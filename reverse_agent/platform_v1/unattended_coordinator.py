@@ -14,7 +14,7 @@ from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService
 from .run_store import TaskStore, TaskStoreError
-from .task_execution import TaskExecutionService
+from .task_execution import TaskExecutionService, TaskExecutionOutcome
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
 from reverse_agent.architecture.contracts import (
     WorkerAssignment,
@@ -265,7 +265,21 @@ class UnattendedCoordinator:
             task_id = assignment.task_id
             epoch = claimed[task_id]
             try:
-                outcome = self._execute_task(task_id)
+                stored = self.store.get_task(task_id)
+                if stored.status in {"READY_FOR_REVIEW", "FAILED"} and self.control_store.can_complete_host_claim(
+                    window_id=window_id, task_id=task_id
+                ):
+                    # The previous producer already persisted the checker and
+                    # terminal Task, but died before completing its original
+                    # admission claim. Finalize that exact effect, never dispatch.
+                    self.autonomy.check_task_scope(task_id, "validate_task")
+                    outcome = TaskExecutionOutcome(task_id=task_id, execution_id=stored.execution_id,
+                        success=stored.status == "READY_FOR_REVIEW" and stored.validation_exit_code == 0,
+                        validation_command_id=stored.validation_command_id,
+                        validation_exit_code=int(stored.validation_exit_code),
+                        failure_classification=stored.failure_classification, failure_detail=stored.failure_detail)
+                else:
+                    outcome = self._execute_task(task_id)
                 final = self.store.get_task(task_id)
                 success = bool(getattr(outcome, "success", True)) and final.status in {
                     "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
