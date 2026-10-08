@@ -1,10 +1,10 @@
-# Delegated Goal admission store integration v2
+# Delegated Goal admission canonical reference correction v3
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_delegated_goal_admission_r2_v2",
-  "round_id": "round_20261008_issue118_delegated_goal_admission_r2_v2",
+  "decision_id": "decision_20261008_issue118_delegated_goal_admission_r2_v3",
+  "round_id": "round_20261008_issue118_delegated_goal_admission_r2_v3",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,14 +21,14 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; explicit controller approval of exact source slice using existing unmerged trusted-host planning base #1093, not an implicit main fallback.; controller approves narrowly adding existing control_store.py activation integration after actual 17 development failures rejected the new capability pair; preserve immutable v1 and failure/spending, same expiry.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; explicit controller approval of exact source slice using existing unmerged trusted-host planning base #1093, not an implicit main fallback.; controller approves narrowly adding existing control_store.py activation integration after actual 17 development failures rejected the new capability pair; preserve immutable v1 and failure/spending, same expiry.; separately allocated one metadata activation removes only canonical allowed/reference conflict. Original v2 immutable BLOCKED preflight preserved. Same implementation scope, spending and expiry.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "codex/issue118-current-candidate-profile-recovery-r3-20261008",
   "base_sha": "88a383b3d1f75935472b4eb27e4d30aba3ee44eb",
   "activation_base_sha": "88a383b3d1f75935472b4eb27e4d30aba3ee44eb",
-  "starting_head": "a860b23acfd84a83b9f90634a33d49f960c508f4",
+  "starting_head": "0117d44a4c4602900587301ef9ff23a59234071d",
   "required_branch": "codex/issue118-delegated-goal-admission-r2-20261008",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": true,
@@ -128,7 +128,6 @@
     "AGENTS.md",
     "docs/agents/governance-reference.md",
     ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "reverse_agent/platform_v1/control_store.py",
     "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/task_service.py",
     "reverse_agent/platform_v1/task_runtime.py",
@@ -281,8 +280,8 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T07:03:34.378634+00:00",
-  "owner_delegation_sha256": "f731f7471c416dc9ac66ec096caee09177cd6d9b6c66aaf294a46c679ef78b79",
+  "approval_event_or_time": "2026-10-08T07:04:52.376339+00:00",
+  "owner_delegation_sha256": "ad35b96cee06d69d6bdcc468ac11e807449e2bbc1bb434c5a9c483cf5b4d1316",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 3,
