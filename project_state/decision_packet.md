@@ -1,33 +1,35 @@
-# Approved current-candidate publication and real acceptance
+# Approved profile metadata recovery; original acceptance window unchanged
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_current_candidate_acceptance_r3_v1",
-  "round_id": "round_20261008_issue118_current_candidate_acceptance_r3_v1",
+  "decision_id": "decision_20261008_issue118_current_candidate_profile_recovery_r3_v1",
+  "round_id": "round_20261008_issue118_current_candidate_profile_recovery_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
-  "skill_profiles": []
+  "skill_profiles": [
+    "reverse-agent-iteration@v2"
+  ]
 }
 ```
 
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_CURRENT_CANDIDATE_DRAFT_CI_NATIVE_RESTART_ACCEPTANCE",
+  "decision_scope": "ISSUE118_CURRENT_CANDIDATE_PROFILE_METADATA_RECOVERY",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 Owner via explicit chat approval 批准",
-  "approval_basis": "Owner approved immutable proposal SHA256 ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f",
+  "approval_basis": "Owner explicit chat 批准 of metadata-only recovery proposal SHA256 e7dc8254562209221b23d5eeb519f298b025a8ae6d77c990acf55f76381620ae; inherits upper proposal ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "codex/issue118-delegated-native-recovery-r3-v1-20261007",
   "base_sha": "82c9b185a66561d17cf8a6857cd3add2d23215ca",
   "activation_base_sha": "82c9b185a66561d17cf8a6857cd3add2d23215ca",
-  "starting_head": "8ff92498f46a329d0f2bedd6ee83f9f1b330baa6",
-  "required_branch": "codex/issue118-current-candidate-acceptance-r3-20261008",
+  "starting_head": "948c2ad639fd9e5974e20041656b40d9cabedac8",
+  "required_branch": "codex/issue118-current-candidate-profile-recovery-r3-20261008",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
@@ -42,7 +44,7 @@
   "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 3,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 5,
+  "normal_push_attempt_limit": 4,
   "draft_pr_creation_limit": 2,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -75,7 +77,7 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "# 待批准：当前候选的 Draft、CI、独立复审与真实前端验收\n\n状态：PROPOSAL_ONLY，不是执行授权。未激活、未推送、未启动浏览器或系统任务。\n\n## 精确候选与目标\n\n仓库：dddd2024/Nerelan。当前候选 8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，本地全量2151通过、22跳过、4原有opt-in排除、1模拟崩溃线程警告；完整82c9..HEAD差异检查通过。\n明确接纳已提交候选作为只读起点，保留全部旧Decision/失败/额度/绝对截止时间。本方案是独立的新授权，不能重置或延长任何旧授权。\n集成分支：codex/issue118-delegated-native-recovery-r3-v1-20261007，必须仍等于 82c9b185a66561d17cf8a6857cd3add2d23215ca。新分支：codex/issue118-current-candidate-acceptance-r3-20261008，从当前候选8ff92498f46a329d0f2bedd6ee83f9f1b330baa6创建；承接已批准的既有历史，起始head为8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，审查/PR基线为82c9b185a66561d17cf8a6857cd3add2d23215ca，merge-base必须为82c9b185a66561d17cf8a6857cd3add2d23215ca。本阶段明确允许这种已有候选承接，不伪造从集成基线重新实现。\n首先提交新的不可变 APPROVED Path-B Decision，声明 starting_head、activation parent、集成基线、history reuse、精确路径和候选源码清单，再运行现有 canonical plan/preflight。只有 PRE_EXECUTION_AUTHORIZED 才可推进；任何不可满足的Gate停止，不能改Gate。\n\n## 新窗口与累计额度\n\n批准后首次激活时固定一个新的4小时绝对窗口，起止时间一次写入后不可延长。旧2026-10-07窗口和2026-10-08两次本地修复截止保持原值。\n追加：Decision激活1；源码修复2；开发检查4；必需检查8（最多2次完整pytest，各<=2400秒，focused<=900秒，静态<=120秒）；源码提交3；精确非main push5；新Draft最多1个（创建尝试2次，失败后先去重）；描述更新4；独立只读审计1名。\n运行额度：新拥有的克隆1、受控栈启动2、浏览器启动2、原生观察4（每次<=180秒）、身份绑定清理2（每次<=120秒）、真实provider-free窗口激活1、Task1、任务重试0。冷重启必须沿用原数据库、Goal/Task/window/slot与原支出，绝不以新任务、新窗口或重置预算替代恢复。\n所有尝试开始即累加/fsync，旧记录不可改。只允许在同一不可变授权及剩余额度内修复列明范围的实际错误；强制检查失败阻止发布/运行，直到授权内修正并重新通过。不得自动创建后继Decision、扩大范围或重置计数。\n\n## 源码与证据范围\n\n原候选携带的精确产品路径及额外既有启动器路径见 frozen-source-manifest.json。可修复仅为其中路径上的候选验收/启动/窗口/历史恢复故障，最多2次；不允许增加测试排除、跳过、放宽断言或Git空白策略。原候选的全部源码blob与SHA已冻结，其他文件不可改变。\n新的 project_state/decision_packet.md 为唯一可提交的治理入口；既有五个 generated gate 文件可生成但不可提交。复用现有Gate、SQLite、receipt、Goal/Task、private transport和外部证据目录，不新增 tracked Gate/receipt/verifier 家族。\n允许适配原有外部prepare/runtime/native observer/probe/cleanup脚本到当前精确候选及新授权；这些适配不能替代产品源码修复，必须经过授权内静态检查并保留哈希/身份记录。\n\n## 发布与独立验收\n\n只可推送上述新非main分支，并创建对上述冻结集成分支的精确Draft及更新描述。快照绑定当前Decision/源码/head/base，不能把旧CI或旧审计改称新head结果。\n等待原始自然CI run/job；允许限量只读查询与获取其原始日志/JUnit，不允许 rerun/dispatch/no-op commit。检查来源和实际checkout/commit必须匹配。继承已通过且源码表面不变的本地检查须明确原head，不无理由重跑。\n允许1名独立只读Codex审计员审查原集成基线到当前精确head的完整源码范围、实际检查和必需条件；该审计员不得改代码或审批自己的实现。报告写既有外部证据，不写PR/Issue评论。新head必须重新绑定审计。\n保持Draft。无Ready、merge、main push、auto-merge、tag/release、部署或发布产品权限。\n\n## 真实运行验收\n\n只有当前精确head的必需本地/自然CI检查通过且独立审计接受源码后才能运行。\n新拥有目录仅F:/nrl-118-accept-20261008；明确空闲loopback端口18917(Task)、18918(Model control但live调用0)、18919(frontend)。复用现有依赖只读，隔离Vite缓存；不安装依赖、不修改全局配置、不触碰历史Task数据库或其他人的栈。\n固定Node路径E:/Program Files/nodejs/node.exe，启动前重新验证已知SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f。Edge仅现安装路径C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe：启动前必须重新验证Microsoft有效签名并冻结当前版本/哈希；允许现安装Microsoft有效签名的自动更新导致版本变化，记录新指纹后继续，不安装或更换浏览器。其他可执行文件不能据此获权。\n真实新policy/window/activation-slot/host/database/Goal-idempotency/checker scope全部在新Decision里精确固定并由既有编译器验证；Owner批准只通过可信host映射成DELEGATED_CONTROLLER授权，不伪装个人GitHub验收，不靠renderer的local-owner/ACTIVATE/verified字段授权。\n仅固定 git_diff_check/validate_task：冻结frontend/src/components/sidebar.tsx和CHECK001，Task1、并发1、重试0、模型/Provider/GitHub写/发布预算0。这个Goal必须明确说明只检查差异，不能标记任意代码实现目标已完成。\n使用实际拥有的Edge/private broker观察小窗口→最大化→还原，依据实际native客户区与浏览器报告的inner/outer/viewport数据，不要求最大化必定增加固定100px；UIA重复同值去重、矛盾值失败。真实检查首页/任务/设置，侧栏底部设置可见、滚动与内容随视口变化；保存原始JSON/截图并实际查看。\n通过真实UI或既有private client创建该固定Goal，等原live handle；验证真实Goal/Task/evidence/receipt、模型调用0、原窗口预算及最近任务可见。随后关闭原拥有栈/浏览器并验证退出，再以相同数据库进行一次冷重启，验证同一Task/Goal/支出/receipt仍在、没有重复执行，刷新后最近任务仍显示。不能把SQLite close/reopen fixture、HTTP脚本或终端截图当作真实浏览器/冷重启证据。\n每次关闭必须核对原PID+creation time/原live handle，证明broker退出及readiness失效。只允许清理该新拥有目录和测试scratch，先验证解析后路径仍在该目录；不删除旧证据、工作树或历史数据。\n\n## 禁止与完成边界\n\n模型/API调用0、raw credentials/secrets0、main/Ready/merge/auto-merge0、tag/release/package/container/deploy0、workflow/dependency修改0、CI rerun/dispatch0、跨仓库写0。无未知二进制、全局配置改变、历史数据库迁移/覆盖、reset/clean/stash/restore/amend/rebase/force/bulk-stage。\n摘要必须分别报告本地实现、源码Draft/CI/独立审查、真实窗口/任务/冷重启证据与失败；即使本阶段通过，仍不是全部GitHub待办完成、不是完整Issue118所有适配器完成，也不是mainline landing。真正代码实现任务与后续GitHub/release/deploy适配器须另有适用授权，不能用固定checker Goal代替。\n\nFROZEN_NEW_START=2026-10-08T03:39:22.061791+00:00\nFROZEN_NEW_EXPIRES=2026-10-08T07:39:22.061791+00:00",
+    "specification": "# 待批准：当前候选的 Draft、CI、独立复审与真实前端验收\n\n状态：PROPOSAL_ONLY，不是执行授权。未激活、未推送、未启动浏览器或系统任务。\n\n## 精确候选与目标\n\n仓库：dddd2024/Nerelan。当前候选 8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，本地全量2151通过、22跳过、4原有opt-in排除、1模拟崩溃线程警告；完整82c9..HEAD差异检查通过。\n明确接纳已提交候选作为只读起点，保留全部旧Decision/失败/额度/绝对截止时间。本方案是独立的新授权，不能重置或延长任何旧授权。\n集成分支：codex/issue118-delegated-native-recovery-r3-v1-20261007，必须仍等于 82c9b185a66561d17cf8a6857cd3add2d23215ca。新分支：codex/issue118-current-candidate-acceptance-r3-20261008，从当前候选8ff92498f46a329d0f2bedd6ee83f9f1b330baa6创建；承接已批准的既有历史，起始head为8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，审查/PR基线为82c9b185a66561d17cf8a6857cd3add2d23215ca，merge-base必须为82c9b185a66561d17cf8a6857cd3add2d23215ca。本阶段明确允许这种已有候选承接，不伪造从集成基线重新实现。\n首先提交新的不可变 APPROVED Path-B Decision，声明 starting_head、activation parent、集成基线、history reuse、精确路径和候选源码清单，再运行现有 canonical plan/preflight。只有 PRE_EXECUTION_AUTHORIZED 才可推进；任何不可满足的Gate停止，不能改Gate。\n\n## 新窗口与累计额度\n\n批准后首次激活时固定一个新的4小时绝对窗口，起止时间一次写入后不可延长。旧2026-10-07窗口和2026-10-08两次本地修复截止保持原值。\n追加：Decision激活1；源码修复2；开发检查4；必需检查8（最多2次完整pytest，各<=2400秒，focused<=900秒，静态<=120秒）；源码提交3；精确非main push5；新Draft最多1个（创建尝试2次，失败后先去重）；描述更新4；独立只读审计1名。\n运行额度：新拥有的克隆1、受控栈启动2、浏览器启动2、原生观察4（每次<=180秒）、身份绑定清理2（每次<=120秒）、真实provider-free窗口激活1、Task1、任务重试0。冷重启必须沿用原数据库、Goal/Task/window/slot与原支出，绝不以新任务、新窗口或重置预算替代恢复。\n所有尝试开始即累加/fsync，旧记录不可改。只允许在同一不可变授权及剩余额度内修复列明范围的实际错误；强制检查失败阻止发布/运行，直到授权内修正并重新通过。不得自动创建后继Decision、扩大范围或重置计数。\n\n## 源码与证据范围\n\n原候选携带的精确产品路径及额外既有启动器路径见 frozen-source-manifest.json。可修复仅为其中路径上的候选验收/启动/窗口/历史恢复故障，最多2次；不允许增加测试排除、跳过、放宽断言或Git空白策略。原候选的全部源码blob与SHA已冻结，其他文件不可改变。\n新的 project_state/decision_packet.md 为唯一可提交的治理入口；既有五个 generated gate 文件可生成但不可提交。复用现有Gate、SQLite、receipt、Goal/Task、private transport和外部证据目录，不新增 tracked Gate/receipt/verifier 家族。\n允许适配原有外部prepare/runtime/native observer/probe/cleanup脚本到当前精确候选及新授权；这些适配不能替代产品源码修复，必须经过授权内静态检查并保留哈希/身份记录。\n\n## 发布与独立验收\n\n只可推送上述新非main分支，并创建对上述冻结集成分支的精确Draft及更新描述。快照绑定当前Decision/源码/head/base，不能把旧CI或旧审计改称新head结果。\n等待原始自然CI run/job；允许限量只读查询与获取其原始日志/JUnit，不允许 rerun/dispatch/no-op commit。检查来源和实际checkout/commit必须匹配。继承已通过且源码表面不变的本地检查须明确原head，不无理由重跑。\n允许1名独立只读Codex审计员审查原集成基线到当前精确head的完整源码范围、实际检查和必需条件；该审计员不得改代码或审批自己的实现。报告写既有外部证据，不写PR/Issue评论。新head必须重新绑定审计。\n保持Draft。无Ready、merge、main push、auto-merge、tag/release、部署或发布产品权限。\n\n## 真实运行验收\n\n只有当前精确head的必需本地/自然CI检查通过且独立审计接受源码后才能运行。\n新拥有目录仅F:/nrl-118-accept-20261008；明确空闲loopback端口18917(Task)、18918(Model control但live调用0)、18919(frontend)。复用现有依赖只读，隔离Vite缓存；不安装依赖、不修改全局配置、不触碰历史Task数据库或其他人的栈。\n固定Node路径E:/Program Files/nodejs/node.exe，启动前重新验证已知SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f。Edge仅现安装路径C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe：启动前必须重新验证Microsoft有效签名并冻结当前版本/哈希；允许现安装Microsoft有效签名的自动更新导致版本变化，记录新指纹后继续，不安装或更换浏览器。其他可执行文件不能据此获权。\n真实新policy/window/activation-slot/host/database/Goal-idempotency/checker scope全部在新Decision里精确固定并由既有编译器验证；Owner批准只通过可信host映射成DELEGATED_CONTROLLER授权，不伪装个人GitHub验收，不靠renderer的local-owner/ACTIVATE/verified字段授权。\n仅固定 git_diff_check/validate_task：冻结frontend/src/components/sidebar.tsx和CHECK001，Task1、并发1、重试0、模型/Provider/GitHub写/发布预算0。这个Goal必须明确说明只检查差异，不能标记任意代码实现目标已完成。\n使用实际拥有的Edge/private broker观察小窗口→最大化→还原，依据实际native客户区与浏览器报告的inner/outer/viewport数据，不要求最大化必定增加固定100px；UIA重复同值去重、矛盾值失败。真实检查首页/任务/设置，侧栏底部设置可见、滚动与内容随视口变化；保存原始JSON/截图并实际查看。\n通过真实UI或既有private client创建该固定Goal，等原live handle；验证真实Goal/Task/evidence/receipt、模型调用0、原窗口预算及最近任务可见。随后关闭原拥有栈/浏览器并验证退出，再以相同数据库进行一次冷重启，验证同一Task/Goal/支出/receipt仍在、没有重复执行，刷新后最近任务仍显示。不能把SQLite close/reopen fixture、HTTP脚本或终端截图当作真实浏览器/冷重启证据。\n每次关闭必须核对原PID+creation time/原live handle，证明broker退出及readiness失效。只允许清理该新拥有目录和测试scratch，先验证解析后路径仍在该目录；不删除旧证据、工作树或历史数据。\n\n## 禁止与完成边界\n\n模型/API调用0、raw credentials/secrets0、main/Ready/merge/auto-merge0、tag/release/package/container/deploy0、workflow/dependency修改0、CI rerun/dispatch0、跨仓库写0。无未知二进制、全局配置改变、历史数据库迁移/覆盖、reset/clean/stash/restore/amend/rebase/force/bulk-stage。\n摘要必须分别报告本地实现、源码Draft/CI/独立审查、真实窗口/任务/冷重启证据与失败；即使本阶段通过，仍不是全部GitHub待办完成、不是完整Issue118所有适配器完成，也不是mainline landing。真正代码实现任务与后续GitHub/release/deploy适配器须另有适用授权，不能用固定checker Goal代替。\n\nFROZEN_NEW_START=2026-10-08T03:39:22.061791+00:00\nFROZEN_NEW_EXPIRES=2026-10-08T07:39:22.061791+00:00\n\nEXPLICIT OWNER-APPROVED RECOVERY EXCEPTION (single successor only):\n# 待批准：#118 skill profile 元数据恢复\r\n\r\n状态：PROPOSAL_ONLY，未激活、未推送；不是执行授权。\r\n\r\n原始自然 State Gate 37723870299 在 head 948c2ad639fd9e5974e20041656b40d9cabedac8 失败：control-plane-mode: ERROR: missing_skill_profiles。原 Decision 的 skill_profiles=[] 是控制器准备授权时遗漏，全部失败和消费保留。不得改写原冻结 Decision，也不得绕过 State Gate。\r\n\r\n只追加一次新 Decision 激活、一份新 Draft（最多两次创建尝试，失败先去重），及原独立只读审计员对新元数据/head 的一次绑定复核。不增加源码修复、开发检查、必需检查、产品提交、push、运行或 Task 额度。不能由此扩大产品功能。\r\n\r\n仓库 dddd2024/Nerelan。新分支 codex/issue118-current-candidate-profile-recovery-r3-20261008 从原 head 948c2ad639fd9e5974e20041656b40d9cabedac8 创建；starting_head 为该 head，显式承接其既有历史。集成 ref 仍为 codex/issue118-delegated-native-recovery-r3-v1-20261007，base_sha/merge-base 必须仍为 82c9b185a66561d17cf8a6857cd3add2d23215ca。保留 Draft1092 及原失败，不改其历史。\r\n\r\n唯一新提交治理文件仍为 project_state/decision_packet.md。新 Decision 补齐现有通用工程 profile reverse-agent-iteration@v2，并更新其新身份、分支、starting_head、不可变绑定和明确的恢复授权引用；除此以外承接原已批准范围和限制，不改产品源码、Gate、workflow、依赖或测试。五个既有 generated gate 文件可按 canonical 流程生成但不可提交。原 40 路径冻结源码清单和所有旧检查原 head 标签保持原样。\r\n\r\n原批准方案 SHA256 ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f。绝对窗口起止仍为 2026-10-08T03:39:22.061791+00:00 至 2026-10-08T07:39:22.061791+00:00（北京时间15:39:22截止）；不能重置或延长。承接原实时账本，批准时重新核对实际已消费数。目前已消费 Decision激活1、push1、Draft尝试1，其余记账额度0。\r\n\r\n原累计 push 上限5，现剩4；描述更新4；源码修复2；开发检查4；必需检查8；产品提交3；克隆1；栈启动2；浏览器启动2；原生观察4；清理2；真实 provider-free window1、Task1、任务重试0，均不增加或重置。新激活、额外Draft和一次审计绑定复核记为本次明确增量；新 Draft 的 push 消费原剩余 push。固定 policy/window/slot/host/DB/Goal/CHECK001 身份、原 upper proposal SHA、原 policy digest、固定 checker scope及绝对截止时间全部不变，真实窗口尚未激活。\r\n\r\n复用原 canonical plan/preflight/publication readiness；新 exact head 的自然必需 CI 全部通过后才允许原已批准的真实前端及同数据库冷重启验收。独立复核仅检查新治理元数据及源码未变并绑定新 head；不把旧 CI/本地审计改称新 head 结果。等待原 CI handles，不 rerun/dispatch/no-op commit，不变更排除/断言/强制检查。任何必需失败继续阻止运行。不得自动创建进一步后继 Decision。\r\n\r\n保持 Draft；模型/Provider/GitHub运行写预算0，不 merge/Ready/main/tag/release/deploy、不触碰历史 DB 或其他工作树。恢复仍服务于原批准的验收范围，不意味着全部 GitHub 待办或完整 Issue118 已完成。\r\n",
     "completion_boundary": "Current-source Draft/CI/independent review plus real fixed checker Goal/native resize/cold restart; not arbitrary coding, mainline or full backlog completion."
   },
   "bootstrap_exception_files": [
@@ -269,7 +271,7 @@
       "Owned18917Task/18918ModelControl(live0)/18919Frontend and ephemeral provider-free fixture loopbacks only."
     ],
     "github_control_plane_network_exceptions": [
-      "Only <=5 pushes of codex/issue118-current-candidate-acceptance-r3-20261008, one Draft <=2 deduplicated attempts against codex/issue118-delegated-native-recovery-r3-v1-20261007@82c9b185a66561d17cf8a6857cd3add2d23215ca, <=4 descriptions and bounded original CI reads. No comments/landing/other writes."
+      "Only <=4 remaining original pushes of codex/issue118-current-candidate-profile-recovery-r3-20261008, one additional Draft <=2 deduplicated attempts against codex/issue118-delegated-native-recovery-r3-v1-20261007@82c9b185a66561d17cf8a6857cd3add2d23215ca, original remaining <=4 descriptions and bounded original CI reads. No comments/landing/other writes."
     ]
   },
   "path_risk_floor": [
@@ -396,7 +398,7 @@
     },
     {
       "command_id": "candidate.publication",
-      "command": "Exact non-main candidate publication, deduplicated Draft, bound description and original CI reads under approved proposal.",
+      "command": "Metadata-recovery exact branch codex/issue118-current-candidate-profile-recovery-r3-20261008 publication and one deduplicated Draft under explicitly approved recovery; original cumulative push budget remains 5.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -420,7 +422,7 @@
     "stage_allowed": false,
     "note": "Only explicitly owned runtime F:/nrl-118-accept-20261008 plus external test scratch; historical DB/worktrees untouched."
   },
-  "workstream_id": "issue118-current-candidate-acceptance-20261008",
+  "workstream_id": "issue118-current-candidate-profile-recovery-20261008",
   "source_issues": [
     118,
     384
@@ -430,7 +432,7 @@
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
   "runtime_host_launch_limit": 2,
   "frontend_launch_limit": 2,
-  "approval_event_or_time": "2026-10-08T03:39:22.061791+00:00",
+  "approval_event_or_time": "2026-10-08T04:05:24.088951+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 4,
@@ -448,7 +450,7 @@
   "development_check_run_limit": 4,
   "development_correction_round_limit": 2,
   "mandatory_pytest_process_limit": 2,
-  "owned_test_scratch_root": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-current-candidate-acceptance-20261008\\test-scratch",
+  "owned_test_scratch_root": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-current-candidate-profile-recovery-20261008\\test-scratch",
   "cumulative_prior_development_checks": 27,
   "cumulative_prior_correction_rounds": 23,
   "cumulative_development_check_limit": 31,
@@ -731,6 +733,35 @@
       "git_blob": "c0401c815d88452500c97008345f03d55f5d0b12",
       "committed_sha256": "760ce935ee42e7902a8400891e713ef6cc3c349924801bef5a2930deb68a0f72"
     }
+  },
+  "recovery_authority": {
+    "proposal_sha256": "e7dc8254562209221b23d5eeb519f298b025a8ae6d77c990acf55f76381620ae",
+    "previous_decision_sha256": "8151306e3068127e971bfcf20dde9830a7cf18fe3204d4447f7ab670b840bfe3",
+    "previous_head": "948c2ad639fd9e5974e20041656b40d9cabedac8",
+    "failed_run": 37723870299,
+    "original_upper_window_dir": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-current-candidate-acceptance-20261008",
+    "original_spending": {
+      "decision_activations": 1,
+      "source_corrections": 0,
+      "development_checks": 0,
+      "mandatory_checks": 0,
+      "product_commits": 0,
+      "pushes": 1,
+      "drafts": 1,
+      "description_updates": 0,
+      "runtime_clones": 0,
+      "stack_starts": 0,
+      "browser_starts": 0,
+      "native_observations": 0,
+      "cleanups": 0,
+      "real_provider_free_windows": 0
+    },
+    "additional_decision_activations": 1,
+    "additional_draft_prs": 1,
+    "additional_draft_attempts": 2,
+    "additional_independent_binding_reviews": 1,
+    "reset_counters": false,
+    "extend_expiry": false
   }
 }
 ```
