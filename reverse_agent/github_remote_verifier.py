@@ -85,7 +85,18 @@ class GitHubRemoteAcceptanceVerifier:
         expected_workflow_file: str,
         expected_event: str,
         expected_run_attempt: int = 1,
+        required_completed_job: str | None = None,
     ) -> dict[str, Any]:
+        # The formal landing job belongs to the Ready State Gate run it is
+        # checking. Only that premerge path may verify the completed ordinary
+        # state-gate job while the whole run is still executing. Every other
+        # caller retains whole-run completed/SUCCESS verification.
+        if required_completed_job is not None and (
+            required_completed_job != "state-gate"
+            or expected_workflow_file != ".github/workflows/state-gate.yml"
+            or expected_event != "pull_request"
+        ):
+            return {"verified": False, "reason": "invalid_completed_job_scope"}
         try:
             run = self._request_json(
                 f"/repos/{self.repository}/actions/runs/{int(run_id)}"
@@ -100,11 +111,41 @@ class GitHubRemoteAcceptanceVerifier:
                 "head_sha": run.get("head_sha") == expected_head_sha,
                 "run_attempt": int(run.get("run_attempt") or 0)
                 == int(expected_run_attempt),
-                "status": run.get("status") == "completed",
-                "conclusion": run.get("conclusion") == "success",
+                "status": run.get("status") == "completed"
+                or (required_completed_job is not None and run.get("status") == "in_progress"),
+                "conclusion": run.get("conclusion") == "success"
+                if run.get("status") == "completed"
+                else required_completed_job is not None
+                and run.get("conclusion") in (None, ""),
             }
             if not all(checks.values()):
                 return {"verified": False, "reason": f"workflow_mismatch:{checks}"}
+            if required_completed_job is not None:
+                jobs = self._request_json(
+                    f"/repos/{self.repository}/actions/runs/{int(run_id)}"
+                    f"/attempts/{int(expected_run_attempt)}/jobs?per_page=100"
+                )
+                rows = jobs.get("jobs") if isinstance(jobs, dict) else None
+                count = jobs.get("total_count") if isinstance(jobs, dict) else None
+                if (
+                    not isinstance(rows, list)
+                    or isinstance(count, bool)
+                    or not isinstance(count, int)
+                    or count != len(rows)
+                    or count > 100
+                ):
+                    return {"verified": False, "reason": "workflow_jobs_incomplete"}
+                matches = [
+                    job for job in rows
+                    if isinstance(job, dict) and job.get("name") == required_completed_job
+                ]
+                if len(matches) != 1 or not (
+                    matches[0].get("run_id") == int(run_id)
+                    and matches[0].get("status") == "completed"
+                    and matches[0].get("conclusion") == "success"
+                ):
+                    return {"verified": False, "reason": "workflow_completed_job_mismatch"}
+                return {"verified": True, "run": run, "completed_job": matches[0]}
             return {"verified": True, "run": run}
         except (GitHubEvidenceError, TypeError, ValueError) as exc:
             return {"verified": False, "reason": str(exc)}

@@ -36876,6 +36876,10 @@ def _check_landing_authority(
         if not _trusted_landing:
             return checks, ("landing_trusted_context_missing",)
 
+        run_id_text = os.environ.get("GITHUB_RUN_ID", "")
+        if re.fullmatch(r"[1-9][0-9]*", run_id_text) is None:
+            checks.append({"name": "false_none_current_run_identity", "status": "FAIL", "detail": "missing_or_invalid_GITHUB_RUN_ID"})
+            return checks, ("landing_current_run_identity_missing",)
         now = datetime.now(timezone.utc)
         premerge_checks, _ = validate_false_none_premerge_landing(
             repo_root=repo_root,
@@ -36884,6 +36888,7 @@ def _check_landing_authority(
             accepted_head=str(event_head),
             locked_base=str(locked_base_sha),
             now=now,
+            current_state_gate_run_id=int(run_id_text),
         )
         checks.extend(premerge_checks)
         if any(item.get("status") != "PASS" for item in premerge_checks):

@@ -1004,6 +1004,7 @@ def _validate_false_none_attestation(
     merged_time: datetime | None,
     now: datetime,
     premerge: bool = False,
+    current_state_gate_run_id: int = 0,
 ) -> list[dict[str, str]]:
     """Validate the single active Owner landing merge attestation and every
     remote truth it binds (authority PR/Decision/runs, Owner review, Ready
@@ -1367,14 +1368,34 @@ def _validate_false_none_attestation(
             )
         )
 
-    # Ready-triggered State Gate run on the exact target head.
+    # Ready-triggered State Gate run on the exact target head. The current
+    # formal landing job cannot require its own whole workflow to have finished.
+    # Bind its actual run ID and completed ordinary state-gate job before merge;
+    # after merge require the same entire run to have completed successfully.
     ready_run_id = int(att.get("ready_state_gate_run_id") or 0)
+    if premerge:
+        current_run_ok = (
+            isinstance(current_state_gate_run_id, int)
+            and not isinstance(current_state_gate_run_id, bool)
+            and current_state_gate_run_id > 0
+            and ready_run_id == current_state_gate_run_id
+        )
+        checks.append(
+            _check(
+                "false_none_ready_current_run_binding",
+                current_run_ok,
+                f"attested={ready_run_id} current={current_state_gate_run_id}",
+            )
+        )
+        if not current_run_ok:
+            return checks
     ready_result = verifier.verify_workflow_run(
         run_id=ready_run_id,
         expected_head_sha=second_parent,
         expected_workflow_file=".github/workflows/state-gate.yml",
         expected_event="pull_request",
         expected_run_attempt=1,
+        **({"required_completed_job": "state-gate"} if premerge else {}),
     )
     checks.append(
         _check(
@@ -1633,6 +1654,7 @@ def validate_false_none_premerge_landing(
     accepted_head: str,
     locked_base: str,
     now: datetime,
+    current_state_gate_run_id: int = 0,
 ) -> tuple[list[dict[str, str]], dict[str, Any]]:
     """Validate the false/none pre-merge Owner landing attestation.
 
@@ -1707,6 +1729,7 @@ def validate_false_none_premerge_landing(
                 merged_time=None,
                 now=now,
                 premerge=True,
+                current_state_gate_run_id=current_state_gate_run_id,
             )
         )
 

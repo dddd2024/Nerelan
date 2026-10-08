@@ -33785,6 +33785,7 @@ def test_v3_cutover_false_none_ready_event_not_blocked_by_intent_required(
     )
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_RUN_ID", "30001")
     monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, remote = _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
@@ -33816,6 +33817,7 @@ def test_v3_cutover_landing_check_list_is_read_only_candidate(
     )
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_RUN_ID", "30001")
     monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     checks, reasons = project_gate_module._check_landing_authority(
         contract=fx["contract"],
@@ -33911,6 +33913,7 @@ def test_v3_cutover_active_json_independence(
     assert not active.exists()
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_RUN_ID", "30001")
     monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     result, _ = _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch, action="ready_for_review", verifier=remote
@@ -33994,6 +33997,7 @@ def _run_v3_cutover_preflight(
     # Set trusted landing execution context env vars for premerge validation.
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_RUN_ID", "30001")
     monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     return _run_v3_landing_preflight(
         fx, tmp_path, monkeypatch,
@@ -34347,6 +34351,7 @@ def test_v3_false_none_acyclic_chronology_regression(
     # Set trusted landing execution context.
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_RUN_ID", "30001")
     monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
     monkeypatch.setattr(
         project_gate_module.GitHubRemoteAcceptanceVerifier,
@@ -34368,3 +34373,28 @@ def test_v3_false_none_acyclic_chronology_regression(
         event_path=str(event), write_result=False,
     )
     assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+
+
+@pytest.mark.parametrize("run_id", [None, "", "0", "-1", "invalid", "30002"])
+def test_v3_false_none_current_ready_run_identity_required(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: str | None,
+) -> None:
+    fx = _v3_cutover_fixture(tmp_path)
+    att = _v3_false_none_attestation(fx)
+    remote = _V3FakeRemoteVerifier(fx, false_none_attestations=[att],
+        review_commit=fx["head_sha"], check_names={"baseline", "state-gate"})
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("GITHUB_JOB", "landing-state-gate")
+    monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+    if run_id is None:
+        monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    else:
+        monkeypatch.setenv("GITHUB_RUN_ID", run_id)
+    result, _ = _run_v3_landing_preflight(fx, tmp_path, monkeypatch,
+        action="ready_for_review", verifier=remote)
+    assert result["gate_status"] == "BLOCKED", result
+    checks = {check["name"]: check for check in result["checks"]}
+    if run_id == "30002":
+        assert checks["false_none_ready_current_run_binding"]["status"] == "FAIL"
+    else:
+        assert checks["false_none_current_run_identity"]["status"] == "FAIL"

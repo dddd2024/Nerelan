@@ -20,6 +20,17 @@ Do not load the legacy Decision/state stack for this path. Ordinary R1 authoriza
 
 ## Path B
 
+The first false/none Ready run has two stages. Its ordinary `state-gate` job
+finishes before the formal `landing-state-gate` job starts. A controller records
+the actual Ready run ID in the existing landing attestation after GitHub creates
+that run; an earlier Draft run is not a substitute. Formal premerge validation
+binds the attested ID to trusted `GITHUB_RUN_ID`, verifies the exact repository,
+head, workflow, event and attempt, and requires that run's ordinary job to have
+completed successfully. It does not require its own entire workflow to have
+already finished. Postmerge validation still requires the same whole Ready run
+to be completed with SUCCESS. Missing evidence blocks landing; no rerun, bypass
+or retroactive acceptance is implied by this sequence.
+
 Use only when the task's risk or transition contract requires it. Resolve the bounded APPROVED Decision, its exact base/branch/path/operation grants, required surfaces and active skill profiles. The activated Decision is immutable; never repair an active contract in place or treat an Issue/comment as a replacement.
 
 The existing transition sequence is:

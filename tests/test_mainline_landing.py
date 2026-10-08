@@ -1101,6 +1101,92 @@ def test_production_verifier_rejects_wrong_workflow_identity() -> None:
     assert result["verified"] is False
 
 
+def _ready_run_verifier(
+    run_changes: dict[str, Any] | None = None,
+    job_changes: dict[str, Any] | None = None,
+) -> GitHubRemoteAcceptanceVerifier:
+    verifier = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    run = {"repository": {"full_name": "dddd2024/Nerelan"},
+           "path": ".github/workflows/state-gate.yml", "event": "pull_request",
+           "head_sha": "a" * 40, "run_attempt": 1,
+           "status": "in_progress", "conclusion": None}
+    run.update(run_changes or {})
+    job = {"run_id": 7, "name": "state-gate", "status": "completed", "conclusion": "success"}
+    job.update(job_changes or {})
+    def read(path: str) -> dict[str, Any]:
+        if path == "/repos/dddd2024/Nerelan/actions/runs/7":
+            return run
+        assert path == "/repos/dddd2024/Nerelan/actions/runs/7/attempts/1/jobs?per_page=100"
+        return {"total_count": 1, "jobs": [job]}
+    verifier._request_json = read  # type: ignore[method-assign]
+    return verifier
+
+
+def _verify_ready_job(verifier: GitHubRemoteAcceptanceVerifier) -> dict[str, Any]:
+    return verifier.verify_workflow_run(run_id=7, expected_head_sha="a" * 40,
+        expected_workflow_file=".github/workflows/state-gate.yml",
+        expected_event="pull_request", required_completed_job="state-gate")
+
+
+def test_production_verifier_accepts_completed_job_in_current_ready_run() -> None:
+    result = _verify_ready_job(_ready_run_verifier())
+    assert result["verified"] is True
+    assert result["run"]["status"] == "in_progress"
+    assert result["completed_job"]["conclusion"] == "success"
+
+
+@pytest.mark.parametrize("run_changes,job_changes", [
+    ({"head_sha": "b" * 40}, {}),
+    ({"repository": {"full_name": "other/repo"}}, {}),
+    ({"path": ".github/workflows/ci.yml"}, {}),
+    ({"event": "workflow_dispatch"}, {}),
+    ({"run_attempt": 2}, {}),
+    ({"status": "queued"}, {}),
+    ({"status": "completed", "conclusion": "failure"}, {}),
+    ({"conclusion": "cancelled"}, {}),
+    ({}, {"run_id": 8}),
+    ({}, {"name": "landing-state-gate-draft-inert"}),
+    ({}, {"status": "in_progress", "conclusion": None}),
+    ({}, {"conclusion": "failure"}),
+    ({}, {"conclusion": "skipped"}),
+])
+def test_production_verifier_ready_job_rejects_wrong_or_unfinished_evidence(
+    run_changes: dict[str, Any], job_changes: dict[str, Any],
+) -> None:
+    assert _verify_ready_job(_ready_run_verifier(run_changes, job_changes))["verified"] is False
+
+
+@pytest.mark.parametrize("jobs", [
+    {"total_count": 101, "jobs": []},
+    {"total_count": 1, "jobs": []},
+    {"total_count": True, "jobs": []},
+    {"total_count": 0, "jobs": []},
+    {"total_count": 2, "jobs": [
+        {"run_id": 7, "name": "state-gate", "status": "completed", "conclusion": "success"},
+        {"run_id": 7, "name": "state-gate", "status": "completed", "conclusion": "success"},
+    ]},
+])
+def test_production_verifier_ready_job_rejects_incomplete_or_ambiguous_jobs(jobs: dict[str, Any]) -> None:
+    verifier = _ready_run_verifier()
+    read = verifier._request_json
+    verifier._request_json = lambda path: jobs if "/jobs?" in path else read(path)  # type: ignore[method-assign]
+    assert _verify_ready_job(verifier)["verified"] is False
+
+
+def test_production_verifier_postmerge_still_requires_whole_ready_run_success() -> None:
+    verifier = _ready_run_verifier()
+    assert verifier.verify_workflow_run(run_id=7, expected_head_sha="a" * 40,
+        expected_workflow_file=".github/workflows/state-gate.yml",
+        expected_event="pull_request")["verified"] is False
+
+
+def test_production_verifier_job_mode_cannot_weaken_authority_ci() -> None:
+    verifier = _ready_run_verifier()
+    assert verifier.verify_workflow_run(run_id=7, expected_head_sha="a" * 40,
+        expected_workflow_file=".github/workflows/ci.yml", expected_event="pull_request",
+        required_completed_job="state-gate")["verified"] is False
+
+
 def test_load_merge_attestation_overwrites_all_runtime_comment_metadata() -> None:
     verifier = GitHubRemoteAcceptanceVerifier(
         repository="dddd2024/reverse-agent",
@@ -2953,6 +3039,7 @@ def _false_none_premerge_validate(
         accepted_head=bundle["head"],
         locked_base=bundle["base"],
         now=NOW,
+        current_state_gate_run_id=verifier.ready_run_id,
     )
 
 
@@ -2970,6 +3057,45 @@ def test_false_none_premerge_valid_attestation_passes(
     assert by_name["false_none_landing_context_is_formal"] == "PASS"
     assert all(c["status"] == "PASS" for c in checks), checks
     assert extra["landing_policy"] == "false_none_owner_landing_authority"
+
+
+@pytest.mark.parametrize("current_run", [0, True, 7999])
+def test_false_none_premerge_rejects_missing_or_pre_ready_run_identity(tmp_path: Path, current_run: int) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle)
+    checks, _ = validate_false_none_premerge_landing(repo_root=bundle["repo"],
+        verifier=verifier, source_pr=verifier.source_pr, accepted_head=bundle["head"],
+        locked_base=bundle["base"], now=NOW, current_state_gate_run_id=current_run)
+    by_name = {check["name"]: check["status"] for check in checks}
+    assert by_name["false_none_ready_current_run_binding"] == "FAIL"
+
+
+def test_false_none_first_ready_real_verifier_premerge_then_postmerge(tmp_path: Path) -> None:
+    bundle = _false_none_repo(tmp_path)
+    verifier, _ = _false_none_pair(bundle, ready_run_id=7)
+    ready = _ready_run_verifier({"head_sha": bundle["head"]})
+    original = verifier.verify_workflow_run
+    verifier.verify_workflow_run = lambda **kwargs: (  # type: ignore[method-assign]
+        ready.verify_workflow_run(**kwargs) if kwargs["run_id"] == 7 else original(**kwargs)
+    )
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    assert all(check["status"] == "PASS" for check in checks), checks
+    # The SAME attestation cannot authorize postmerge success while its
+    # real Ready run remains in progress, even with completed named contexts.
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "BLOCKED"
+    assert any(check["name"] == "false_none_ready_state_gate_run" and check["status"] == "FAIL"
+               for check in result["checks"])
+    run = ready._request_json("/repos/dddd2024/Nerelan/actions/runs/7")
+    run.update(status="completed", conclusion="success")
+    result = _false_none_validate(bundle, verifier)
+    assert result["gate_status"] == "PASSED", result
+
+
+def test_state_gate_formal_landing_waits_for_ordinary_job() -> None:
+    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(encoding="utf-8")
+    section = text.split("  landing-state-gate:\n", 1)[1].split("  bootstrap-authority:", 1)[0]
+    assert "    needs: state-gate\n" in section
 
 
 def test_false_none_premerge_zero_attestation_blocks(

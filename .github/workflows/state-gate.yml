@@ -225,6 +225,9 @@ jobs:
             ${{ runner.temp }}/mainline_integration_receipt.json
 
   landing-state-gate:
+    # Verify the completed ordinary job in this actual Ready run, rather than
+    # requiring this still-executing whole workflow to already be SUCCESS.
+    needs: state-gate
     # A conditionally skipped required job reports Success. Keep this job alive
     # and vary only its display context so a Draft cannot pre-satisfy landing.
     name: >-
