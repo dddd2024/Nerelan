@@ -144,6 +144,15 @@ class UnattendedCoordinator:
         window = self.control_store.active_window()
         if window is None:
             return 0
+        if getattr(self.autonomy, "delegated_mode", False) and "approve_goal" in window.capabilities:
+            from .goal_service import GoalService
+            try:
+                self.autonomy.admit_goals(GoalService(store=self.store, control_store=self.control_store), window_id=window.id)
+            except TaskStoreError as exc:
+                self._last_error = str(exc)
+                return 0
+            if self._stop.is_set():
+                return 0
         claimed: dict[str, int] = {}
         for task_id in self.control_store.runnable_tasks(
             window.id, limit=window.max_concurrent_tasks
