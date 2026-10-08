@@ -303,6 +303,28 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         return result
 
 
+def _report_accepted(report: Any, *, profile_id: str | None = None) -> bool:
+    """Check report consistency, not authenticity or task-obligation coverage.
+
+    Recompute the count predicate on readback as well as initial parsing. A
+    stored accepted flag is necessary but cannot override contradictory counts.
+    """
+    if not isinstance(report, Mapping) or report.get("accepted") is not True:
+        return False
+    kind = report.get("format")
+    if not isinstance(kind, str) or kind not in ("junit", "tap"):
+        return False
+    if profile_id is not None:
+        formats = {"python_pytest": ("junit",), "npm_test": ("junit", "tap")}
+        if not isinstance(profile_id, str) or kind not in formats.get(profile_id, ()):
+            return False
+    counts = [report.get(key) for key in ("tests", "passed", "failed", "skipped")]
+    if any(type(value) is not int or value < 0 for value in counts):
+        return False
+    tests, passed, failed, skipped = counts
+    return tests == passed + failed + skipped and passed > 0 and failed == 0
+
+
 def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     counts = {"tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     try:
@@ -318,16 +340,21 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
                 key = "failed" if case.find("failure") is not None or case.find("error") is not None else (
                     "skipped" if case.find("skipped") is not None else "passed")
                 counts[key] += 1
-        else:
+        elif kind == "tap":
             summary = tail.decode("utf-8", errors="replace")
-            observed = {key: int(value) for key, value in re.findall(
-                r"(?m)^# (tests|pass|fail|cancelled|skipped) (\d+)\s*$", summary)}
-            if set(observed) != {"tests", "pass", "fail", "cancelled", "skipped"}:
+            entries = re.findall(
+                r"(?m)^# (tests|pass|fail|cancelled|skipped)(?:[ \t]+([^\r\n]*))?\r?$", summary)
+            keys = {"tests", "pass", "fail", "cancelled", "skipped"}
+            if (len(entries) != len(keys) or {key for key, _ in entries} != keys
+                    or any(re.fullmatch(r"[0-9]+[ \t]*", value) is None for _, value in entries)):
                 raise ValueError
+            observed = {key: int(value) for key, value in entries}
             counts.update(tests=observed["tests"], passed=observed["pass"],
                           failed=observed["fail"] + observed["cancelled"], skipped=observed["skipped"])
-        complete = counts["tests"] == counts["passed"] + counts["failed"] + counts["skipped"]
-        return {"format": kind, **counts, "accepted": complete and counts["passed"] > 0 and counts["failed"] == 0}
+        else:
+            raise ValueError
+        parsed = {"format": kind, **counts, "accepted": True}
+        return {**parsed, "accepted": _report_accepted(parsed)}
     except (OSError, ValueError, ET.ParseError):
         return {"format": kind, **counts, "accepted": False}
 
@@ -426,7 +453,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         for check in contract["checks"]:
             observed = _run_check(check, root)
             result["checks"].append(observed)
-            if observed["timed_out"] or observed["exit_code"] != 0 or not observed["test_report"]["accepted"]:
+            if observed["timed_out"] or observed["exit_code"] != 0 or not _report_accepted(observed["test_report"], profile_id=check["profile_id"]):
                 break
         result["head_after"] = git_output(root, "rev-parse", "HEAD")
         _, after, _, after_hygiene = _snapshot_workspace(root, base_commit)
@@ -434,7 +461,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         if before != after or result["head_before"] != result["head_after"]:
             raise TaskStoreError("functional_artifact_changed_during_checks")
         if after_hygiene["exit_code"] != 0 or len(result["checks"]) != len(contract["checks"]) or any(
-            check["timed_out"] or check["exit_code"] != 0 or not check["test_report"]["accepted"] for check in result["checks"]
+            check["timed_out"] or check["exit_code"] != 0 or not _report_accepted(check["test_report"], profile_id=check["profile_id"]) for check in result["checks"]
         ):
             raise TaskStoreError("functional_check_failed")
         result.update(passed=True, verified=task.executor_kind != "deterministic_fixture",
@@ -539,7 +566,7 @@ def functional_evidence(task: Any) -> dict[str, Any]:
         identities = [{key: item[key] for key in ("profile_id", "working_directory")} for item in checks]
         consistent = (identities == contract["checks"]
                       and all(type(item["exit_code"]) is int and item["exit_code"] == 0
-                              and item["timed_out"] is False and item["test_report"]["accepted"] is True
+                              and item["timed_out"] is False and _report_accepted(item["test_report"], profile_id=item["profile_id"])
                               and digest(item["argv"]) == item["argv_digest"] for item in checks)
                       and _SHA40.fullmatch(result["head_before"]) is not None
                       and _SHA40.fullmatch(result["tree_before"]) is not None

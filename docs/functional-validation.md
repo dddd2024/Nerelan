@@ -145,3 +145,37 @@ See [Accepted artifact inputs](artifact-handoff.md) for selecting one checked
 dependency as a task's exact code input. Validation-only consumers run host checks
 without model edits; functional evidence retains both the original approved base
 and the consumed producer commit/tree identity.
+
+## Test-report consistency at admission and readback
+
+The existing parser and functional-evidence projection share a strict report
+predicate. `accepted: true` alone is not proof: `tests`, `passed`, `failed` and
+`skipped` must be nonnegative integers (not booleans, strings or floats), their
+sum must agree, at least one test must pass, and no test may fail. The stored
+acceptance flag must still be exactly `true`; recomputation cannot promote a
+missing or false flag. Valid reports with some skipped tests remain admissible;
+entirely skipped or zero-test reports do not.
+
+The report format must match the selected profile: Python/pytest requires JUnit;
+the supported npm scripts use JUnit or TAP. Unknown report kinds and repeated,
+contradictory or malformed TAP summary keys are rejected instead of taking the
+last reported value. The same checks run when reading persisted evidence, so a
+report with matching ordinary digests but contradictory counts cannot produce a
+positive Task/Run functional-verification projection. Historical evidence is not
+silently rewritten and validation is not rerun by the read path.
+
+This consistency check is not an authenticity signature, a protected-verifier
+execution environment or proof that every requested obligation was tested.
+Correct-looking fabricated records still require provenance protection at the
+existing trusted-host boundary. The change neither adds an evidence store nor
+authorizes publication, merge, deployment or modifications to the verifier's
+own authority. These remaining requirements stay under #653 and #379.
+
+The report-consistency regression suite includes malformed persisted records,
+positive controls, actual fixed pytest/JUnit subprocesses and disk-SQLite
+readback through the real Task/Run projections. Model execution and binding use
+the existing disclosed local test doubles. Persistence corruption is injected
+only by tests, with ordinary digests updated deliberately to exercise count
+validation rather than a pre-existing digest mismatch; this does not demonstrate
+an untrusted production write path. A generated all-skipped test suite is a
+negative input, not a skipped regression test.
