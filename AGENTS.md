@@ -69,13 +69,9 @@ For local staging/publication use the applicable [worktree guard](docs/agents/go
 
 ## Long-duration unattended work
 
-When the Owner explicitly delegates authorization decisions, the controller may select, approve and activate successor Work Items inside that recorded delegation without another interactive confirmation. Record the actual delegated approver and the Owner instruction in the existing Decision approval fields; never represent this as personal human acceptance or independent review. Apply [delegated controller authority](docs/agents/governance-reference.md#delegated-controller-authority) before compiling a successor. Ordinary Path A approval requirements remain intact; controller-approved transition work uses Path B.
+Explicit Owner delegation permits bounded successors without repeated confirmation. Follow [delegated controller authority](docs/agents/governance-reference.md#delegated-controller-authority); preserve identity, scope, expiry, spending and failures. Require preflight, advance charging and independent acceptance.
 
-Every successor needs exact scope, risk, branch/base/head, checks, operation and retry allowances, expiry and canonical preflight. Existing activated Decisions remain immutable. A new successor preserves prior failures and spending; it does not renew an old allowance by resetting counters. A standing delegation may authorize new allocations or renewal, but each allocation must be recorded separately before spending and evaluated against its aggregate limits and absolute expiry.
-
-Prefer real Goal/Task execution. Use Codex when the required platform capability is observed unavailable, preserving the reason and execution provenance. Advance the highest-priority eligible slice; park a blocked operation without stopping unrelated authorized work. Missing independent acceptance blocks landing, not authorized implementation or selection of another eligible task.
-
-Checkpoint authority, base/head, live handles, consumed allowances, evidence and next action in existing stores. On resume, refresh drifting facts and wait on the original live handles. Do not manufacture progress with unchanged polling or repeated plans. Report meaningful changes and prove completion against the whole goal.
+Prefer Goal/Task execution; use Codex after observed capability failure. Park blockers, advance eligible work, checkpoint original handles, refresh live facts and prove whole-goal completion.
 
 ## Work Item acceptance requirements
 
