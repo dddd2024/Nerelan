@@ -86,6 +86,7 @@ def test_replay_after_actual_expiry_returns_expired_history(tmp_path, monkeypatc
     store._conn.execute("UPDATE platform_autonomous_windows SET tasks_started=2 WHERE id=?", (original.id,))
     after_expiry = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     monkeypatch.setattr(module, "_utc_now", lambda: after_expiry)
+    monkeypatch.setattr(module, "_utc_now_precise", lambda: after_expiry)
     # Advance the trusted store clock past the original policy's real expiry;
     # do not create an EXPIRED row with a future expiry as the only evidence.
     normalized = service._validate_policy(data)
@@ -93,6 +94,25 @@ def test_replay_after_actual_expiry_returns_expired_history(tmp_path, monkeypatc
     assert replay.id == original.id and replay.policy_digest == original.policy_digest
     assert replay.status == "EXPIRED" and replay.tasks_started == 2
     assert replay.stop_reason == "window_expired" and control.active_window() is None
+
+
+@pytest.mark.parametrize("offset", [timezone.utc, timezone(timedelta(hours=8))])
+def test_active_window_compares_fractional_expiry_as_instant(tmp_path, offset):
+    store, control, service = host(tmp_path / "fractional-expiry.sqlite3")
+    original = service.activate(payload())
+    instant = datetime.now(timezone.utc).replace(microsecond=893263)
+    expiry = instant.astimezone(offset).isoformat().replace("+00:00", "Z")
+    start = (instant - timedelta(seconds=1)).astimezone(offset).isoformat().replace("+00:00", "Z")
+    store._conn.execute("UPDATE platform_autonomous_windows SET starts_at=?, expires_at=? WHERE id=?",
+                        (start, expiry, original.id))
+    # Both sides remain within the same second: lexicographic Z/fraction or
+    # offset comparisons would retire the window prematurely.
+    before = (instant - timedelta(milliseconds=1)).isoformat().replace("+00:00", "Z")
+    after = (instant + timedelta(milliseconds=1)).isoformat().replace("+00:00", "Z")
+    assert control.active_window(now=before).id == original.id
+    assert control.get_window(original.id).expires_at == expiry
+    assert control.active_window(now=after) is None
+    assert control.get_window(original.id).status == "EXPIRED"
 
 
 def test_restart_replay_preserves_identity_and_spent_budgets(tmp_path):

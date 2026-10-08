@@ -46,6 +46,7 @@ from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
 from .task_service import validate_bind_host
+from .task_service import _configured_autonomy
 from .durable_execution import DurableExecutionService
 from .autonomy import AutonomyService
 from .capability_registry import CapabilityRegistry
@@ -126,9 +127,8 @@ class CombinedTrustedHost:
         self._capability_registry = CapabilityRegistry(
             pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
         )
-        self._autonomy_service = AutonomyService(
-            control_store=self._control_store,
-            capabilities=self._capability_registry,
+        self._autonomy_service = _configured_autonomy(
+            self._task_store, self._control_store, self._capability_registry
         )
         self._goal_service = GoalService(
             store=self._task_store,
@@ -486,6 +486,7 @@ class CombinedTrustedHost:
 
 
 def _make_task_store(db_path: str | None) -> TaskStore:
+    db_path = db_path or os.environ.get("REVERSE_AGENT_TASK_DB_PATH", "")
     if db_path:
         return TaskStore(db_path=db_path)
     runtime_dir = os.environ.get(

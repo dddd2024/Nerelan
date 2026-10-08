@@ -1,10 +1,10 @@
-# Approved delegated source-identical resize phase4 recovery
+# Approved profile metadata recovery; original acceptance window unchanged
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261007_issue118_delegated_native_recovery_r3_v1",
-  "round_id": "round_20261007_issue118_delegated_native_recovery_r3_v1",
+  "decision_id": "decision_20261008_issue118_current_candidate_profile_recovery_r3_v1",
+  "round_id": "round_20261008_issue118_current_candidate_profile_recovery_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,22 +16,22 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_DELEGATED_NATIVE_RESIZE_AND_VIEWPORT_PROOF",
+  "decision_scope": "ISSUE118_CURRENT_CANDIDATE_PROFILE_METADATA_RECOVERY",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
-  "approved_by": "dddd2024 Owner via approved bounded-controller-delegation; phase selected by delegated Codex controller",
-  "approval_basis": "Owner explicitly replied \u6279\u51c6 to exact prospective 12-hour bounded-controller-delegation proposal on2026-10-07; frozen approved proposal SHA256 1285c0b7787ad010cba92f4b31260c138fe138e1d447b8d26a1307a242911b0b. No prior deadline/counter/failure rewritten.",
+  "approved_by": "dddd2024 Owner via explicit chat approval 批准",
+  "approval_basis": "Owner explicit chat 批准 of metadata-only recovery proposal SHA256 e7dc8254562209221b23d5eeb519f298b025a8ae6d77c990acf55f76381620ae; inherits upper proposal ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue118-delegated-resize-proof-r3-v1-20261007",
-  "base_sha": "1300e6e503af7a5f15a265fd429fe450768a2dee",
-  "activation_base_sha": "1300e6e503af7a5f15a265fd429fe450768a2dee",
-  "starting_head": "1300e6e503af7a5f15a265fd429fe450768a2dee",
-  "required_branch": "codex/issue118-delegated-native-recovery-r3-v1-20261007",
+  "integration_base_ref": "codex/issue118-delegated-native-recovery-r3-v1-20261007",
+  "base_sha": "82c9b185a66561d17cf8a6857cd3add2d23215ca",
+  "activation_base_sha": "82c9b185a66561d17cf8a6857cd3add2d23215ca",
+  "starting_head": "948c2ad639fd9e5974e20041656b40d9cabedac8",
+  "required_branch": "codex/issue118-current-candidate-profile-recovery-r3-20261008",
   "fresh_worktree_creation_required": false,
-  "history_reuse_allowed": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -42,10 +42,10 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 0,
+  "product_change_commit_limit": 3,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 1,
-  "draft_pr_creation_limit": 1,
+  "normal_push_attempt_limit": 4,
+  "draft_pr_creation_limit": 2,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
   "workflow_rerun_limit": 0,
@@ -77,8 +77,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Phase3 Draft creation failed HTTP499, scoped PR list confirmed no PR; no runtime clone/start/browser/observation occurred. Preserve consumed phase/activation/push/Draft-attempt and original failure. New delegated phase4 recovers publication with fresh exactbase1300e6Decision-only predecessor; product source b44 remains identical and verified, predecessor Decision is not full accepted runtime/CI. Source-identical native resize acceptance of verified product b44aaff9. No source/test edits or repeat local source suites. Preserve Phase2 ModelAccess failed head345a and invalid resize +100px assertion failure; original window was already1012px high and maximization only36px taller. This successor is permitted by same explicitly approved upper delegation and original expiry/remaining aggregate spending.\nExactly one fresh clone F:/nrl-auth118-owned-native7 at source b44aaff9 (not newDecision head), one dev-up<=180s, one known hashedNode/Microsoft-signedEdge; free ports18897/18898/18899. Existing dependency cache read-only with owned Vite cache location only, exact tracked source manifest, isolated fresh DB, no historical runtime/DB mutation. Three observations<=180s: (1) actual true home/tasks/settings, explicitly resize only identity-bound owned native normal window to1000x700 then maximize and restore; native screenshots, root/client rectangles and sidebar link rectangles, settings visible and near client bottom throughout. Height comparisons derived from actual window/client changes with explicit smaller starting geometry, not fixed assumption about user's original normal size; sidebar follows normalized client metrics. Negative native noidentity/noOrigin Task401 and readiness-onlyhealth200. (2) Actual topfrontend DevTools console via supported UIA or identity-guarded Unicode input, no system IME change: observe real innerWidth/innerHeight at smallnormal/max/restored and real frontend TaskAPI200, record actual console output and owned pixels; require innerwidth/height change consistently with client geometry and restoredmetrics nearinitial. Typedscript alone/hardcoded200/outerframe only is not acceptance. (3) originalidentity nativeclose, originalbrokerexits/readinessfalse<=25s. Observation3 and canonicalownedcleanup<=120s required even if diagnosticsfail. BothJobsactive0/ownedportsclosed/shareddependency metadata unchanged.\nExisting applicable checks and original productb44 CI verified are inheritedsource evidence, never relabeled checks on Decision-only newhead. Mandatory currentstartup-snapshot/plan/lint/preflight/PUBLICATION_READY/gitdiffcheck, original natural newheadCI and independent read-only acceptance. OneDecisioncommit, oneactivationpush/Draft, descriptions<=2, sourcecorrections0/development0/productcommits0. No startup/observation retries in consumed phase. No actualGoal/Task/window activation; model/provider/credential0; no rawcapability reads, foreignwindows/keyboard, dependencyinstall/workflowmutation/rerun/dispatch, Ready/merge/main/historyrewrite/tag/release/deploy. Root serializes upperledger; historical failrecords/countersunchanged; no claim118 architecture/fullgoal complete.\n\n# Prospective bounded controller delegation \u2014 approval required\n\nThis proposal is not execution authority and does not change any activated Decision, previous expiry, spending, failure or PR acceptance. It addresses repeated permission requests by preauthorizing phase-specific renewal within one finite allowance, rather than resetting counters. Existing Path-B Decision/command-plan/preflight/readiness mechanisms remain mandatory.\n\n## Exact proposed upper scope\n\nRepository: dddd2024/Nerelan only. Goal remains the full project/GitHub backlog; this grant covers the next #118 architecture execution window and its #384 native-client/#811 continuation prerequisites, not completion of the whole backlog.\n\nFirst integration ref: codex/issue118-client-page-close-r3-v1-20261007, exact base874cdfc7848e7ebff22ec2d6bc226cf0fef2e035. A fresh codex/issue118-* branch and immutable Decision-only activation precede each implementation phase and its exact Draft snapshot. Successor phases may use only the exact verified head of the preceding approved planning phase; no implicit main fallback or history rewrite. Current main97d766d7253378c093c31ed29c990cb6921f2ae4 is observed, not a permitted landing target under this proposal.\n\nClock: one12-hour absolute window frozen at the first new activation; all successors retain that same expiry. Expired/terminal prior packets remain unchanged. At window expiry, affected execution stops and evidence/cleanup follow the explicit phase plan; no renewal beyond this upper window.\n\nDelegated approval: within the named scope, the controller may select exact files/checks and approve fresh bounded phase Decisions under this recorded Owner delegation, with transparent approved_by provenance identifying delegated Agent action. That does not constitute personal human review or independent acceptance. No per-step confirmation for already-granted corrections/checks/phase renewal.\n\nSource envelope: existing reverse_agent/platform_v1/**, frontend/src/**, frontend/tests/**, frontend/e2e/**, frontend/trusted-client.mjs, frontend/trusted-client.node-test.mjs, tests/platform_v1/**, relevant existing tests/test_trust_authorization_adapter.py and tests/test_planning_and_github_adapters.py, docs/local-client-session.md, AGENTS.md and docs/agents/governance-reference.md. Each activated phase must enumerate its actual exact file allowlist and forbid unlisted files; the envelope alone is not a staging allowance. Canonical Decision/gate artifacts use the existing mechanisms, with explicit staging grants only for the selected Decision activation; preserve generated gate deltas and unknown/dirty work. No new Gate/verifier/receipt family to manufacture acceptance.\n\n## Work and acceptance\n\n1. Resolve the missing native positive TaskAPI200 evidence on exact existing source. Choose UI controls by actual identity-bound supported patterns; register precise failure step/diagnostic without credentials. Verify foreground identity immediately before any native keyboard use. Capture only owned pixels. Preserve already-proven home/tasks/settings and real page-close lifecycle evidence; no test fixture presented as browser evidence. Source instrumentation, if genuinely required, needs an exact phase source allowlist and focused verification.\n2. Implement full Issue118 Phase A canonical policy/validation, trusted exact-policy Owner confirmation, server-derived upper authority and durable immutable activation. The frontend must not confer authority by filling local-owner/ACTIVATE/verified flags. Reuse applicable existing authority validators through a thin adapter; never invent a merge intent for non-merge activation. Retain mature private transport/SQLite/coordinator boundaries. Each Issue118 canonical field and capability has an explicit enforced/unsupported classification. Unsupported privileged adapters remain unavailable until their own implementation phase; denial alone is not full-product acceptance.\n3. Complete the receipt/morning-summary contract and recovery: totals over the full window, bounded paginated history with stable snapshot/cursor, immutable policy/actor/input/precondition/result/budget/evidence bindings, original spending after restart, durable claims and partial-side-effect reconciliation. More than200 and1000 receipts must not silently change totals or lose accessible history. Reuse the current store and receipt primitives; no second state replica or runtime.\n4. Existing #118 later adapter phases can be designed and implemented provider-free within remaining scope/allowance, with their own exact Decisions/Drafts/tests. Real mark-ready/merge/tag/release/package/container/deployment side effects are outside this grant. No claim that mock adapter tests prove real publication/production operation.\n\nProvider-free mandatory negative acceptance includes Owner/digest/material-edit mismatch, unknown/extra policy fields, repository/branch/path/capability widening, expiry, revision replay, exhausted/corrupted allowance, receipt persistence failure, stale candidate head/check, restart/partial side effect and unsupported capability. Existing checks cannot be weakened. Source fixtures and synthetic Owner/adapter inputs are explicitly distinguished from real runtime acceptance.\n\nRequired phase checks: applicable existing deterministic pytest/frontend/native Node tests, git diff --check, existing transition-preflight PRE_EXECUTION_AUTHORIZED, publication-readiness PUBLICATION_READY, original natural exact-head CI logs/JUnit, independent exact-head review. No repeated passed checks without change/failure/concern; no CI rerun/dispatch. No source change after the exact-head mandatory freeze without a newly counted correction/check cycle. All attempts and failures consume cumulative allowances.\n\nPrefer actual project Goal/Task implementation only when its real trusted authority/runtime can represent the phase and operate within this grant. If it cannot, record the actual capability failure or missing trusted-authority seam, then use Codex. Do not activate an unsafe caller-declared window to make the project appear eligible.\n\n## Additional finite allowances (not resets)\n\nSource corrections24; optional development invocations32; mandatory check invocations36; source/Draft phases6; Decision activations6; product commits12; exact non-main pushes18; new Drafts6; description updates18. Each phase derives smaller limits from the remaining aggregate ledger. Full pytest<=2400s, focused pytest<=900s, frontend/native suite<=900s per invocation; other static/Path-A checks<=120s unless separately enumerated lower bounded command is required. Budget is charged at start, not success.\n\nOwned runtime clones4/stack starts4/browser starts4; total native observation invocations12<=180s each; canonical identity-bound cleanups4<=120s. Each runtime uses a fresh explicitly named F:/nrl-auth118-owned-* directory, explicit free loopback ports, existing dependency cache without install/modification, isolated Vite cache and exact verified source/config manifest. Known executable hashes/Microsoft signature must freshly match; change stops that launch. No repeated launch under a consumed phase slot.\n\nSynthetic/provider-free test windows may be activated only in owned test databases. At most2 real provider-free autonomous-window activations are permitted only after the trusted exact-policy Owner confirmation/upper-authority seam passes its tests and the real policy binds this grant. No live model calls from repository/runtime code or executor/provider dispatch. The repository/runtime model limit remains0; authorized Codex implementation/review agents are distinct from product provider calls.\n\nWith prior recorded totals, maximum cumulative source corrections33 (=9+24), development checks40 (=8+32), owned runtime stack starts8 (=4+4), browsers7 (=3+4), observations18 (=6+12). Previous fixed deadlines and failed records are untouched. New allowance is available only after explicit approval and fresh activation.\n\nParallel work: explicitly permit up to3 subagents for implementation/read-only audit, with one independent exact-head auditor barred from editing the assessed implementation. No agent can approve its own head as independent acceptance. Workers inherit narrower phase scope and remaining allowance, never raw secrets or unrestricted approval authority.\n\n## Forbidden throughout\n\nNo main push, history rewrite, mark-ready/merge/auto-merge, tag/release/publication/deployment, dependency installation/update, workflows/.github mutation, runner/workflow dispatch or rerun, cross-repository writes, raw credentials/secrets, model/provider calls, unknown/hostile binary execution, broad cleanup/delete/reset/stash/restore/bulk-stage, or touching an unrelated active owner's task/runtime. Existing GitHub CLI may perform scoped repository observation and exact non-main push/Draft/description operations only; no raw credential access or new credential store.\n\nAny unavailable mandatory check, mandatory failure, scope/identity drift, unknown sensitive delta, exhausted allowance or expiry stops the affected operation. Preauthorized successors may handle in-scope product/infrastructure failures only with fresh immutable authority, same upper absolute expiry and remaining cumulative allowance; no reset. Do not represent Draft/CI/self-review as landing or full Issue118/full-goal completion.\n\nFROZEN_UPPER_EXPIRES=2026-10-07T22:31:23.893263+00:00",
-    "completion_boundary": "Actual native resize/HTTP/lifecycle exactsource proof and currentDecision CI/audit, not architecture/landing/fullgoal completion."
+    "specification": "# 待批准：当前候选的 Draft、CI、独立复审与真实前端验收\n\n状态：PROPOSAL_ONLY，不是执行授权。未激活、未推送、未启动浏览器或系统任务。\n\n## 精确候选与目标\n\n仓库：dddd2024/Nerelan。当前候选 8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，本地全量2151通过、22跳过、4原有opt-in排除、1模拟崩溃线程警告；完整82c9..HEAD差异检查通过。\n明确接纳已提交候选作为只读起点，保留全部旧Decision/失败/额度/绝对截止时间。本方案是独立的新授权，不能重置或延长任何旧授权。\n集成分支：codex/issue118-delegated-native-recovery-r3-v1-20261007，必须仍等于 82c9b185a66561d17cf8a6857cd3add2d23215ca。新分支：codex/issue118-current-candidate-acceptance-r3-20261008，从当前候选8ff92498f46a329d0f2bedd6ee83f9f1b330baa6创建；承接已批准的既有历史，起始head为8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，审查/PR基线为82c9b185a66561d17cf8a6857cd3add2d23215ca，merge-base必须为82c9b185a66561d17cf8a6857cd3add2d23215ca。本阶段明确允许这种已有候选承接，不伪造从集成基线重新实现。\n首先提交新的不可变 APPROVED Path-B Decision，声明 starting_head、activation parent、集成基线、history reuse、精确路径和候选源码清单，再运行现有 canonical plan/preflight。只有 PRE_EXECUTION_AUTHORIZED 才可推进；任何不可满足的Gate停止，不能改Gate。\n\n## 新窗口与累计额度\n\n批准后首次激活时固定一个新的4小时绝对窗口，起止时间一次写入后不可延长。旧2026-10-07窗口和2026-10-08两次本地修复截止保持原值。\n追加：Decision激活1；源码修复2；开发检查4；必需检查8（最多2次完整pytest，各<=2400秒，focused<=900秒，静态<=120秒）；源码提交3；精确非main push5；新Draft最多1个（创建尝试2次，失败后先去重）；描述更新4；独立只读审计1名。\n运行额度：新拥有的克隆1、受控栈启动2、浏览器启动2、原生观察4（每次<=180秒）、身份绑定清理2（每次<=120秒）、真实provider-free窗口激活1、Task1、任务重试0。冷重启必须沿用原数据库、Goal/Task/window/slot与原支出，绝不以新任务、新窗口或重置预算替代恢复。\n所有尝试开始即累加/fsync，旧记录不可改。只允许在同一不可变授权及剩余额度内修复列明范围的实际错误；强制检查失败阻止发布/运行，直到授权内修正并重新通过。不得自动创建后继Decision、扩大范围或重置计数。\n\n## 源码与证据范围\n\n原候选携带的精确产品路径及额外既有启动器路径见 frozen-source-manifest.json。可修复仅为其中路径上的候选验收/启动/窗口/历史恢复故障，最多2次；不允许增加测试排除、跳过、放宽断言或Git空白策略。原候选的全部源码blob与SHA已冻结，其他文件不可改变。\n新的 project_state/decision_packet.md 为唯一可提交的治理入口；既有五个 generated gate 文件可生成但不可提交。复用现有Gate、SQLite、receipt、Goal/Task、private transport和外部证据目录，不新增 tracked Gate/receipt/verifier 家族。\n允许适配原有外部prepare/runtime/native observer/probe/cleanup脚本到当前精确候选及新授权；这些适配不能替代产品源码修复，必须经过授权内静态检查并保留哈希/身份记录。\n\n## 发布与独立验收\n\n只可推送上述新非main分支，并创建对上述冻结集成分支的精确Draft及更新描述。快照绑定当前Decision/源码/head/base，不能把旧CI或旧审计改称新head结果。\n等待原始自然CI run/job；允许限量只读查询与获取其原始日志/JUnit，不允许 rerun/dispatch/no-op commit。检查来源和实际checkout/commit必须匹配。继承已通过且源码表面不变的本地检查须明确原head，不无理由重跑。\n允许1名独立只读Codex审计员审查原集成基线到当前精确head的完整源码范围、实际检查和必需条件；该审计员不得改代码或审批自己的实现。报告写既有外部证据，不写PR/Issue评论。新head必须重新绑定审计。\n保持Draft。无Ready、merge、main push、auto-merge、tag/release、部署或发布产品权限。\n\n## 真实运行验收\n\n只有当前精确head的必需本地/自然CI检查通过且独立审计接受源码后才能运行。\n新拥有目录仅F:/nrl-118-accept-20261008；明确空闲loopback端口18917(Task)、18918(Model control但live调用0)、18919(frontend)。复用现有依赖只读，隔离Vite缓存；不安装依赖、不修改全局配置、不触碰历史Task数据库或其他人的栈。\n固定Node路径E:/Program Files/nodejs/node.exe，启动前重新验证已知SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f。Edge仅现安装路径C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe：启动前必须重新验证Microsoft有效签名并冻结当前版本/哈希；允许现安装Microsoft有效签名的自动更新导致版本变化，记录新指纹后继续，不安装或更换浏览器。其他可执行文件不能据此获权。\n真实新policy/window/activation-slot/host/database/Goal-idempotency/checker scope全部在新Decision里精确固定并由既有编译器验证；Owner批准只通过可信host映射成DELEGATED_CONTROLLER授权，不伪装个人GitHub验收，不靠renderer的local-owner/ACTIVATE/verified字段授权。\n仅固定 git_diff_check/validate_task：冻结frontend/src/components/sidebar.tsx和CHECK001，Task1、并发1、重试0、模型/Provider/GitHub写/发布预算0。这个Goal必须明确说明只检查差异，不能标记任意代码实现目标已完成。\n使用实际拥有的Edge/private broker观察小窗口→最大化→还原，依据实际native客户区与浏览器报告的inner/outer/viewport数据，不要求最大化必定增加固定100px；UIA重复同值去重、矛盾值失败。真实检查首页/任务/设置，侧栏底部设置可见、滚动与内容随视口变化；保存原始JSON/截图并实际查看。\n通过真实UI或既有private client创建该固定Goal，等原live handle；验证真实Goal/Task/evidence/receipt、模型调用0、原窗口预算及最近任务可见。随后关闭原拥有栈/浏览器并验证退出，再以相同数据库进行一次冷重启，验证同一Task/Goal/支出/receipt仍在、没有重复执行，刷新后最近任务仍显示。不能把SQLite close/reopen fixture、HTTP脚本或终端截图当作真实浏览器/冷重启证据。\n每次关闭必须核对原PID+creation time/原live handle，证明broker退出及readiness失效。只允许清理该新拥有目录和测试scratch，先验证解析后路径仍在该目录；不删除旧证据、工作树或历史数据。\n\n## 禁止与完成边界\n\n模型/API调用0、raw credentials/secrets0、main/Ready/merge/auto-merge0、tag/release/package/container/deploy0、workflow/dependency修改0、CI rerun/dispatch0、跨仓库写0。无未知二进制、全局配置改变、历史数据库迁移/覆盖、reset/clean/stash/restore/amend/rebase/force/bulk-stage。\n摘要必须分别报告本地实现、源码Draft/CI/独立审查、真实窗口/任务/冷重启证据与失败；即使本阶段通过，仍不是全部GitHub待办完成、不是完整Issue118所有适配器完成，也不是mainline landing。真正代码实现任务与后续GitHub/release/deploy适配器须另有适用授权，不能用固定checker Goal代替。\n\nFROZEN_NEW_START=2026-10-08T03:39:22.061791+00:00\nFROZEN_NEW_EXPIRES=2026-10-08T07:39:22.061791+00:00\n\nEXPLICIT OWNER-APPROVED RECOVERY EXCEPTION (single successor only):\n# 待批准：#118 skill profile 元数据恢复\r\n\r\n状态：PROPOSAL_ONLY，未激活、未推送；不是执行授权。\r\n\r\n原始自然 State Gate 37723870299 在 head 948c2ad639fd9e5974e20041656b40d9cabedac8 失败：control-plane-mode: ERROR: missing_skill_profiles。原 Decision 的 skill_profiles=[] 是控制器准备授权时遗漏，全部失败和消费保留。不得改写原冻结 Decision，也不得绕过 State Gate。\r\n\r\n只追加一次新 Decision 激活、一份新 Draft（最多两次创建尝试，失败先去重），及原独立只读审计员对新元数据/head 的一次绑定复核。不增加源码修复、开发检查、必需检查、产品提交、push、运行或 Task 额度。不能由此扩大产品功能。\r\n\r\n仓库 dddd2024/Nerelan。新分支 codex/issue118-current-candidate-profile-recovery-r3-20261008 从原 head 948c2ad639fd9e5974e20041656b40d9cabedac8 创建；starting_head 为该 head，显式承接其既有历史。集成 ref 仍为 codex/issue118-delegated-native-recovery-r3-v1-20261007，base_sha/merge-base 必须仍为 82c9b185a66561d17cf8a6857cd3add2d23215ca。保留 Draft1092 及原失败，不改其历史。\r\n\r\n唯一新提交治理文件仍为 project_state/decision_packet.md。新 Decision 补齐现有通用工程 profile reverse-agent-iteration@v2，并更新其新身份、分支、starting_head、不可变绑定和明确的恢复授权引用；除此以外承接原已批准范围和限制，不改产品源码、Gate、workflow、依赖或测试。五个既有 generated gate 文件可按 canonical 流程生成但不可提交。原 40 路径冻结源码清单和所有旧检查原 head 标签保持原样。\r\n\r\n原批准方案 SHA256 ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f。绝对窗口起止仍为 2026-10-08T03:39:22.061791+00:00 至 2026-10-08T07:39:22.061791+00:00（北京时间15:39:22截止）；不能重置或延长。承接原实时账本，批准时重新核对实际已消费数。目前已消费 Decision激活1、push1、Draft尝试1，其余记账额度0。\r\n\r\n原累计 push 上限5，现剩4；描述更新4；源码修复2；开发检查4；必需检查8；产品提交3；克隆1；栈启动2；浏览器启动2；原生观察4；清理2；真实 provider-free window1、Task1、任务重试0，均不增加或重置。新激活、额外Draft和一次审计绑定复核记为本次明确增量；新 Draft 的 push 消费原剩余 push。固定 policy/window/slot/host/DB/Goal/CHECK001 身份、原 upper proposal SHA、原 policy digest、固定 checker scope及绝对截止时间全部不变，真实窗口尚未激活。\r\n\r\n复用原 canonical plan/preflight/publication readiness；新 exact head 的自然必需 CI 全部通过后才允许原已批准的真实前端及同数据库冷重启验收。独立复核仅检查新治理元数据及源码未变并绑定新 head；不把旧 CI/本地审计改称新 head 结果。等待原 CI handles，不 rerun/dispatch/no-op commit，不变更排除/断言/强制检查。任何必需失败继续阻止运行。不得自动创建进一步后继 Decision。\r\n\r\n保持 Draft；模型/Provider/GitHub运行写预算0，不 merge/Ready/main/tag/release/deploy、不触碰历史 DB 或其他工作树。恢复仍服务于原批准的验收范围，不意味着全部 GitHub 待办或完整 Issue118 已完成。\r\n",
+    "completion_boundary": "Current-source Draft/CI/independent review plus real fixed checker Goal/native resize/cold restart; not arbitrary coding, mainline or full backlog completion."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -90,7 +90,47 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "docs/local-client-session.md",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/trusted-client.mjs",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -98,7 +138,47 @@
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json"
+    "project_state/gates/transition_preflight_result.json",
+    "docs/local-client-session.md",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/trusted-client.mjs",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -114,20 +194,15 @@
     "reverse_agent/platform_v1/local_client_session.py",
     "reverse_agent/platform_v1/run_store.py",
     "reverse_agent/platform_v1/opencode_executor.py",
-    "reverse_agent/platform_v1/unattended_coordinator.py",
     "reverse_agent/model_access/service.py",
     ".github/workflows/ci.yml",
-    "frontend/src/lib/platform-client.ts",
     "frontend/src/lib/task-client.ts",
-    "frontend/src/lib/repository-client.ts",
-    "frontend/src/lib/goal-start-operation.ts",
-    "frontend/src/lib/goal-continuation-operation.ts"
+    "frontend/src/lib/repository-client.ts"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/**",
     "dev-up.ps1",
     "dev-down.ps1",
     "pyproject.toml",
@@ -135,11 +210,7 @@
     "project_state/mainline_merge_intents/**",
     "**/secrets/**",
     "**/.env",
-    "**/auth.json",
-    "tests/**",
-    "docs/**",
-    "frontend/**",
-    "frontend/**"
+    "**/auth.json"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -177,9 +248,7 @@
     "raw_managed_session_access",
     "existing_task_or_runtime_mutation",
     "destructive_outside_new_owned_disposable_fixture_process_groups_or_scratch",
-    "self_independent_acceptance",
-    "source_or_test_mutation",
-    "source_or_test_mutation"
+    "self_independent_acceptance"
   ],
   "capability_policy": {
     "runner_dispatch_allowed": false,
@@ -199,10 +268,10 @@
     "ci_network_exceptions": [],
     "trusted_worker_network_exceptions": [],
     "user_local_network_exceptions": [
-      "Only owned18897Task/18898Model/18899Frontend/ephemeralrelay; model0/providers0/authprobes0."
+      "Owned18917Task/18918ModelControl(live0)/18919Frontend and ephemeral provider-free fixture loopbacks only."
     ],
     "github_control_plane_network_exceptions": [
-      "One exactactivationpush codex/issue118-delegated-native-recovery-r3-v1-20261007, oneDraft againstcodex/issue118-delegated-resize-proof-r3-v1-20261007@1300e6e503af7a5f15a265fd429fe450768a2dee, <=2 descriptions, scopedoriginalCIreads; nootherwrites."
+      "Only <=4 remaining original pushes of codex/issue118-current-candidate-profile-recovery-r3-20261008, one additional Draft <=2 deduplicated attempts against codex/issue118-delegated-native-recovery-r3-v1-20261007@82c9b185a66561d17cf8a6857cd3add2d23215ca, original remaining <=4 descriptions and bounded original CI reads. No comments/landing/other writes."
     ]
   },
   "path_risk_floor": [
@@ -247,7 +316,7 @@
     },
     {
       "command_id": "native.implementation",
-      "command": "Phase3 Draft creation failed HTTP499, scoped PR list confirmed no PR; no runtime clone/start/browser/observation occurred. Preserve consumed phase/activation/push/Draft-attempt and original failure. New delegated phase4 recovers publication with fresh exactbase1300e6Decision-only predecessor; product source b44 remains identical and verified, predecessor Decision is not full accepted runtime/CI. Source-identical native resize acceptance of verified product b44aaff9. No source/test edits or repeat local source suites. Preserve Phase2 ModelAccess failed head345a and invalid resize +100px assertion failure; original window was already1012px high and maximization only36px taller. This successor is permitted by same explicitly approved upper delegation and original expiry/remaining aggregate spending.\nExactly one fresh clone F:/nrl-auth118-owned-native7 at source b44aaff9 (not newDecision head), one dev-up<=180s, one known hashedNode/Microsoft-signedEdge; free ports18897/18898/18899. Existing dependency cache read-only with owned Vite cache location only, exact tracked source manifest, isolated fresh DB, no historical runtime/DB mutation. Three observations<=180s: (1) actual true home/tasks/settings, explicitly resize only identity-bound owned native normal window to1000x700 then maximize and restore; native screenshots, root/client rectangles and sidebar link rectangles, settings visible and near client bottom throughout. Height comparisons derived from actual window/client changes with explicit smaller starting geometry, not fixed assumption about user's original normal size; sidebar follows normalized client metrics. Negative native noidentity/noOrigin Task401 and readiness-onlyhealth200. (2) Actual topfrontend DevTools console via supported UIA or identity-guarded Unicode input, no system IME change: observe real innerWidth/innerHeight at smallnormal/max/restored and real frontend TaskAPI200, record actual console output and owned pixels; require innerwidth/height change consistently with client geometry and restoredmetrics nearinitial. Typedscript alone/hardcoded200/outerframe only is not acceptance. (3) originalidentity nativeclose, originalbrokerexits/readinessfalse<=25s. Observation3 and canonicalownedcleanup<=120s required even if diagnosticsfail. BothJobsactive0/ownedportsclosed/shareddependency metadata unchanged.\nExisting applicable checks and original productb44 CI verified are inheritedsource evidence, never relabeled checks on Decision-only newhead. Mandatory currentstartup-snapshot/plan/lint/preflight/PUBLICATION_READY/gitdiffcheck, original natural newheadCI and independent read-only acceptance. OneDecisioncommit, oneactivationpush/Draft, descriptions<=2, sourcecorrections0/development0/productcommits0. No startup/observation retries in consumed phase. No actualGoal/Task/window activation; model/provider/credential0; no rawcapability reads, foreignwindows/keyboard, dependencyinstall/workflowmutation/rerun/dispatch, Ready/merge/main/historyrewrite/tag/release/deploy. Root serializes upperledger; historical failrecords/countersunchanged; no claim118 architecture/fullgoal complete.",
+      "command": "# 待批准：当前候选的 Draft、CI、独立复审与真实前端验收\n\n状态：PROPOSAL_ONLY，不是执行授权。未激活、未推送、未启动浏览器或系统任务。\n\n## 精确候选与目标\n\n仓库：dddd2024/Nerelan。当前候选 8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，本地全量2151通过、22跳过、4原有opt-in排除、1模拟崩溃线程警告；完整82c9..HEAD差异检查通过。\n明确接纳已提交候选作为只读起点，保留全部旧Decision/失败/额度/绝对截止时间。本方案是独立的新授权，不能重置或延长任何旧授权。\n集成分支：codex/issue118-delegated-native-recovery-r3-v1-20261007，必须仍等于 82c9b185a66561d17cf8a6857cd3add2d23215ca。新分支：codex/issue118-current-candidate-acceptance-r3-20261008，从当前候选8ff92498f46a329d0f2bedd6ee83f9f1b330baa6创建；承接已批准的既有历史，起始head为8ff92498f46a329d0f2bedd6ee83f9f1b330baa6，审查/PR基线为82c9b185a66561d17cf8a6857cd3add2d23215ca，merge-base必须为82c9b185a66561d17cf8a6857cd3add2d23215ca。本阶段明确允许这种已有候选承接，不伪造从集成基线重新实现。\n首先提交新的不可变 APPROVED Path-B Decision，声明 starting_head、activation parent、集成基线、history reuse、精确路径和候选源码清单，再运行现有 canonical plan/preflight。只有 PRE_EXECUTION_AUTHORIZED 才可推进；任何不可满足的Gate停止，不能改Gate。\n\n## 新窗口与累计额度\n\n批准后首次激活时固定一个新的4小时绝对窗口，起止时间一次写入后不可延长。旧2026-10-07窗口和2026-10-08两次本地修复截止保持原值。\n追加：Decision激活1；源码修复2；开发检查4；必需检查8（最多2次完整pytest，各<=2400秒，focused<=900秒，静态<=120秒）；源码提交3；精确非main push5；新Draft最多1个（创建尝试2次，失败后先去重）；描述更新4；独立只读审计1名。\n运行额度：新拥有的克隆1、受控栈启动2、浏览器启动2、原生观察4（每次<=180秒）、身份绑定清理2（每次<=120秒）、真实provider-free窗口激活1、Task1、任务重试0。冷重启必须沿用原数据库、Goal/Task/window/slot与原支出，绝不以新任务、新窗口或重置预算替代恢复。\n所有尝试开始即累加/fsync，旧记录不可改。只允许在同一不可变授权及剩余额度内修复列明范围的实际错误；强制检查失败阻止发布/运行，直到授权内修正并重新通过。不得自动创建后继Decision、扩大范围或重置计数。\n\n## 源码与证据范围\n\n原候选携带的精确产品路径及额外既有启动器路径见 frozen-source-manifest.json。可修复仅为其中路径上的候选验收/启动/窗口/历史恢复故障，最多2次；不允许增加测试排除、跳过、放宽断言或Git空白策略。原候选的全部源码blob与SHA已冻结，其他文件不可改变。\n新的 project_state/decision_packet.md 为唯一可提交的治理入口；既有五个 generated gate 文件可生成但不可提交。复用现有Gate、SQLite、receipt、Goal/Task、private transport和外部证据目录，不新增 tracked Gate/receipt/verifier 家族。\n允许适配原有外部prepare/runtime/native observer/probe/cleanup脚本到当前精确候选及新授权；这些适配不能替代产品源码修复，必须经过授权内静态检查并保留哈希/身份记录。\n\n## 发布与独立验收\n\n只可推送上述新非main分支，并创建对上述冻结集成分支的精确Draft及更新描述。快照绑定当前Decision/源码/head/base，不能把旧CI或旧审计改称新head结果。\n等待原始自然CI run/job；允许限量只读查询与获取其原始日志/JUnit，不允许 rerun/dispatch/no-op commit。检查来源和实际checkout/commit必须匹配。继承已通过且源码表面不变的本地检查须明确原head，不无理由重跑。\n允许1名独立只读Codex审计员审查原集成基线到当前精确head的完整源码范围、实际检查和必需条件；该审计员不得改代码或审批自己的实现。报告写既有外部证据，不写PR/Issue评论。新head必须重新绑定审计。\n保持Draft。无Ready、merge、main push、auto-merge、tag/release、部署或发布产品权限。\n\n## 真实运行验收\n\n只有当前精确head的必需本地/自然CI检查通过且独立审计接受源码后才能运行。\n新拥有目录仅F:/nrl-118-accept-20261008；明确空闲loopback端口18917(Task)、18918(Model control但live调用0)、18919(frontend)。复用现有依赖只读，隔离Vite缓存；不安装依赖、不修改全局配置、不触碰历史Task数据库或其他人的栈。\n固定Node路径E:/Program Files/nodejs/node.exe，启动前重新验证已知SHA58e74bf02fc5bbacc41dcb8bef089961cd5bddd37830b87784e4fc624d145d1f。Edge仅现安装路径C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe：启动前必须重新验证Microsoft有效签名并冻结当前版本/哈希；允许现安装Microsoft有效签名的自动更新导致版本变化，记录新指纹后继续，不安装或更换浏览器。其他可执行文件不能据此获权。\n真实新policy/window/activation-slot/host/database/Goal-idempotency/checker scope全部在新Decision里精确固定并由既有编译器验证；Owner批准只通过可信host映射成DELEGATED_CONTROLLER授权，不伪装个人GitHub验收，不靠renderer的local-owner/ACTIVATE/verified字段授权。\n仅固定 git_diff_check/validate_task：冻结frontend/src/components/sidebar.tsx和CHECK001，Task1、并发1、重试0、模型/Provider/GitHub写/发布预算0。这个Goal必须明确说明只检查差异，不能标记任意代码实现目标已完成。\n使用实际拥有的Edge/private broker观察小窗口→最大化→还原，依据实际native客户区与浏览器报告的inner/outer/viewport数据，不要求最大化必定增加固定100px；UIA重复同值去重、矛盾值失败。真实检查首页/任务/设置，侧栏底部设置可见、滚动与内容随视口变化；保存原始JSON/截图并实际查看。\n通过真实UI或既有private client创建该固定Goal，等原live handle；验证真实Goal/Task/evidence/receipt、模型调用0、原窗口预算及最近任务可见。随后关闭原拥有栈/浏览器并验证退出，再以相同数据库进行一次冷重启，验证同一Task/Goal/支出/receipt仍在、没有重复执行，刷新后最近任务仍显示。不能把SQLite close/reopen fixture、HTTP脚本或终端截图当作真实浏览器/冷重启证据。\n每次关闭必须核对原PID+creation time/原live handle，证明broker退出及readiness失效。只允许清理该新拥有目录和测试scratch，先验证解析后路径仍在该目录；不删除旧证据、工作树或历史数据。\n\n## 禁止与完成边界\n\n模型/API调用0、raw credentials/secrets0、main/Ready/merge/auto-merge0、tag/release/package/container/deploy0、workflow/dependency修改0、CI rerun/dispatch0、跨仓库写0。无未知二进制、全局配置改变、历史数据库迁移/覆盖、reset/clean/stash/restore/amend/rebase/force/bulk-stage。\n摘要必须分别报告本地实现、源码Draft/CI/独立审查、真实窗口/任务/冷重启证据与失败；即使本阶段通过，仍不是全部GitHub待办完成、不是完整Issue118所有适配器完成，也不是mainline landing。真正代码实现任务与后续GitHub/release/deploy适配器须另有适用授权，不能用固定checker Goal代替。\n",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -262,12 +331,53 @@
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
+      "allowed_mutated_paths": [
+        "docs/local-client-session.md",
+        "frontend/src/components/autonomous-window-editor.tsx",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/hooks/use-platform.ts",
+        "frontend/src/lib/goal-continuation-operation.ts",
+        "frontend/src/lib/goal-start-operation.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/policy-serializer.ts",
+        "frontend/src/schemas/policy.ts",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "frontend/tests/goal-continuation-activation-errors.test.ts",
+        "frontend/tests/goal-start-recovery.test.ts",
+        "frontend/tests/policy-serialization.test.ts",
+        "frontend/tests/policy-validation.test.ts",
+        "frontend/trusted-client.mjs",
+        "reverse_agent/platform_v1/authority_adapter.py",
+        "reverse_agent/platform_v1/autonomy.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/publication_controller.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_runtime.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "tests/platform_v1/test_artifact_handoff_http.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_autonomy_window_lifecycle.py",
+        "tests/platform_v1/test_goal_completion_evidence.py",
+        "tests/platform_v1/test_goal_functional_checks.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_task_client_auth.py",
+        "tests/platform_v1/test_task_runtime.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_trusted_host.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+        "tests/test_trust_authorization_adapter.py"
+      ],
       "produced_artifacts": []
     },
     {
       "command_id": "native.validation",
-      "command": "Native observations/root+client+inner viewport metrics/HTTP/close/cleanup as specification; canonical gates/diff; inherited b44original sourceCI, no source test replay.",
+      "command": "Applicable scoped checks, exact committed-range diff, canonical gates, original natural exact-head CI/JUnit and independent read-only audit; only then owned native viewport/Goal/cold restart, within exact proposal limits.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -287,8 +397,8 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "native.publication",
-      "command": "Oneexactactivationpushcodex/issue118-delegated-native-recovery-r3-v1-20261007, oneDraft againstcodex/issue118-delegated-resize-proof-r3-v1-20261007@1300e6e503af7a5f15a265fd429fe450768a2dee, <=2descriptionupdates and scopedoriginalCIreads.",
+      "command_id": "candidate.publication",
+      "command": "Metadata-recovery exact branch codex/issue118-current-candidate-profile-recovery-r3-20261008 publication and one deduplicated Draft under explicitly approved recovery; original cumulative push budget remains 5.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -310,44 +420,348 @@
   "runtime_scratch_policy": {
     "paths": [],
     "stage_allowed": false,
-    "note": "Only new owned F:/nrl-auth118-owned-native7; exact source b44aaff9 plus isolated Vitecache-location delta; historicalDB/read-onlymetadata only."
+    "note": "Only explicitly owned runtime F:/nrl-118-accept-20261008 plus external test scratch; historical DB/worktrees untouched."
   },
-  "workstream_id": "issue118-delegation-phase4-native-publication-recovery-20261007",
+  "workstream_id": "issue118-current-candidate-profile-recovery-20261008",
   "source_issues": [
     118,
     384
   ],
-  "local_browser_launch_limit": 1,
-  "execution_window_hours": 12,
+  "local_browser_launch_limit": 2,
+  "execution_window_hours": 4,
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
-  "runtime_host_launch_limit": 1,
-  "frontend_launch_limit": 1,
-  "approval_event_or_time": "2026-10-07T10:31:23.893263+00:00",
+  "runtime_host_launch_limit": 2,
+  "frontend_launch_limit": 2,
+  "approval_event_or_time": "2026-10-08T04:05:24.088951+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
-  "pull_request_description_update_limit": 2,
+  "pull_request_description_update_limit": 4,
   "runtime_acceptance_limits": {
     "clone": 1,
-    "stack_start": 1,
-    "browser_start": 1,
-    "observations": 3,
-    "normal_cleanup": 1,
-    "source_corrections": 0,
-    "source_checks_replay": 0,
-    "prior_runtime_startups": 6,
-    "prior_browser_startups": 5,
-    "prior_observations_spent": 12,
-    "cumulative_runtime_startup_limit": 8,
-    "owned_runtime_root": "F:\\nrl-auth118-owned-native7",
-    "expires_at": "2026-10-07T22:31:23.893263+00:00"
+    "stack_start": 2,
+    "browser_start": 2,
+    "observations": 4,
+    "normal_cleanup": 2,
+    "real_provider_free_windows": 1,
+    "source_corrections": 2,
+    "expires_at": "2026-10-08T07:39:22.061791+00:00",
+    "owned_runtime_root": "F:/nrl-118-accept-20261008"
   },
-  "development_check_run_limit": 0,
-  "development_correction_round_limit": 0,
-  "mandatory_pytest_process_limit": 0,
-  "owned_test_scratch_root": "",
-  "cumulative_prior_development_checks": 8,
-  "cumulative_prior_correction_rounds": 9,
-  "cumulative_development_check_limit": 40,
-  "cumulative_correction_round_limit": 33
+  "development_check_run_limit": 4,
+  "development_correction_round_limit": 2,
+  "mandatory_pytest_process_limit": 2,
+  "owned_test_scratch_root": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-current-candidate-profile-recovery-20261008\\test-scratch",
+  "cumulative_prior_development_checks": 27,
+  "cumulative_prior_correction_rounds": 23,
+  "cumulative_development_check_limit": 31,
+  "cumulative_correction_round_limit": 25,
+  "mandatory_check_run_limit": 8,
+  "autonomy_policy_authority": {
+    "schema_version": 1,
+    "confirmation_mode": "DELEGATED_CONTROLLER",
+    "personally_human": false,
+    "controller_identity": "Codex/root under explicit Owner bounded-controller delegation",
+    "upper_proposal_sha256": "ead6fb5e342fb717ee37bef8d5c4df02a7553bf78ea874f3d13679ee7bb7365f",
+    "upper_expires_at": "2026-10-08T07:39:22.061791+00:00",
+    "phase_ordinal": 1,
+    "policy_id": "issue118-current-acceptance-policy1",
+    "policy_revision": 1,
+    "policy": {
+      "mode": "CONTROLLER_REVIEW",
+      "repository": "dddd2024/Nerelan",
+      "resourceAccess": {
+        "filesystem": {
+          "allowedPaths": [
+            "frontend/src/components/sidebar.tsx"
+          ],
+          "writablePaths": []
+        },
+        "network": {
+          "allowedDomains": [],
+          "allowWrite": false
+        },
+        "shell": {
+          "allowedCommands": [
+            "git_diff_check"
+          ],
+          "deniedCommands": []
+        },
+        "secrets": {
+          "access": "none",
+          "allowedKeys": []
+        },
+        "workerApproval": {
+          "required": false,
+          "approvers": []
+        }
+      },
+      "githubCapabilities": [],
+      "publicationCapabilities": [],
+      "publicationPolicy": {
+        "allowedArtifactOrPackage": [],
+        "allowedRegistry": [],
+        "allowedRepository": [],
+        "allowedEnvironment": []
+      },
+      "mergePolicy": {
+        "allowedRepositories": [],
+        "allowedBaseBranches": [],
+        "requiredChecks": [],
+        "allowedMergeMethods": [],
+        "requireExactHead": true
+      },
+      "autonomousWindow": {
+        "enabled": true,
+        "startsAt": "2026-10-08T03:39:22.061791Z",
+        "expiresAt": "2026-10-08T07:39:22.061791Z",
+        "maxPrsOpened": 0,
+        "maxMergesToMain": 0,
+        "maxReleasesCreated": 0,
+        "maxDeploysToEnvironment": 0,
+        "stopConditions": [
+          {
+            "type": "budget_exhausted",
+            "scope": "window"
+          },
+          {
+            "type": "window_expired",
+            "scope": "window"
+          },
+          {
+            "type": "manual_stop",
+            "scope": "window"
+          },
+          {
+            "type": "authority_revoked",
+            "scope": "window"
+          }
+        ]
+      },
+      "budgets": {
+        "maxPrsOpened": 0,
+        "maxMergesToMain": 0,
+        "maxReleasesCreated": 0,
+        "maxDeploysToEnvironment": 0
+      }
+    },
+    "policy_digest_sha256": "16a5d43bd8a552be99048c7e7a61bfc88ad714bddcd0ce906a31110cff58779e",
+    "window_id": "issue118-current-acceptance-window1",
+    "delegation_slot_id": "issue118-current-acceptance-20261008-slot1",
+    "slot_ordinal": 1,
+    "max_real_window_activations": 1,
+    "host_instance_id": "issue118-current-acceptance-host",
+    "runtime_instance_kind": "acceptance",
+    "database_path": "F:/nrl-118-accept-20261008/.platform_v1_runtime/tasks.sqlite3",
+    "workspace_path": "F:/nrl-118-accept-20261008",
+    "allowed_operations": [
+      "validate_task"
+    ],
+    "validation_command_ids": [
+      "git_diff_check"
+    ],
+    "validation_paths": [
+      "frontend/src/components/sidebar.tsx"
+    ],
+    "max_tasks": 1,
+    "max_retries": 0,
+    "max_concurrent_tasks": 1,
+    "model_call_limit": 0,
+    "provider_call_limit": 0,
+    "github_write_limit": 0,
+    "goal_idempotency_key": "issue118-current-acceptance-git-diff-check-goal1",
+    "plan_task_id": "CHECK001"
+  },
+  "adopted_candidate_head": "8ff92498f46a329d0f2bedd6ee83f9f1b330baa6",
+  "adopted_candidate_blobs": {
+    "docs/local-client-session.md": {
+      "git_blob": "d77cea05e99d0f0e05d8588c5416bba407077963",
+      "committed_sha256": "b135286aa71e105ad5752cadee470950fe24b5c909894df65971ae5c0fad3493"
+    },
+    "frontend/src/components/autonomous-window-editor.tsx": {
+      "git_blob": "6a114eba0881aa6451301fbfa4715500241b7e20",
+      "committed_sha256": "730d8957453685bbfd8eb969ba214ac1da4d6973c21f169ce71fbc4d3b3b8d54"
+    },
+    "frontend/src/components/goal-composer.tsx": {
+      "git_blob": "d04013ec20bf715c1ca60e94805730de2c8454a3",
+      "committed_sha256": "27b981369ae1cad7f478ef29866a6238bc977e5499bc5d5cb06b653ecff7c7e4"
+    },
+    "frontend/src/components/sidebar.tsx": {
+      "git_blob": "111e8b0777c12713936177679b1bf1c77de39c0e",
+      "committed_sha256": "521cdffe0d07da21cd1bc02fec03831060802d066b75033fbb2b5e931a57c1da"
+    },
+    "frontend/src/hooks/use-platform.ts": {
+      "git_blob": "bcd2a024328e817e887a4ab574e797baf74dbc92",
+      "committed_sha256": "d96a42049d809850c67463c44c99a0a7c7313667375cab9ad09a73d4c986eea5"
+    },
+    "frontend/src/lib/goal-continuation-operation.ts": {
+      "git_blob": "707feee19adfa31137852950d10d77346f3c00b7",
+      "committed_sha256": "487bc8c655bcb246d4502311ab197593c6b5d2502a2e8bdec60b4282025fdc6e"
+    },
+    "frontend/src/lib/goal-start-operation.ts": {
+      "git_blob": "9de59be17570b2c8cc774e84af4c669210a41bf3",
+      "committed_sha256": "d60fc322dfa5d211e052ab28ede0fb06646fb7f541069313b001f66df1e9543e"
+    },
+    "frontend/src/lib/platform-client.ts": {
+      "git_blob": "98500353434247a8b8e672cd3494af58b178cc8b",
+      "committed_sha256": "f5591e64901b50bb941d7060c8b4ee43a556e7b1874880469c77c7765f01c5f7"
+    },
+    "frontend/src/lib/policy-serializer.ts": {
+      "git_blob": "090bccc103288f54ffff73fd1fd63cdad0a94978",
+      "committed_sha256": "4fbba236a9c1bd3b38b6018a7ecb6a55e599e7636e637883b0b33610d097406e"
+    },
+    "frontend/src/schemas/policy.ts": {
+      "git_blob": "6b2066c34e083153e319ecbaf3cce50f3f143979",
+      "committed_sha256": "563c149197bdd38963f2c8f16ead46dd79e0487d4728b885f7fe5423322e0027"
+    },
+    "frontend/tests/approvals.test.tsx": {
+      "git_blob": "4f6814196ff11695030d86dd5ecf4374c1453edd",
+      "committed_sha256": "dc7bf479466f14838b55c3a4ed6f773f3a0615b6fb5db498d105114fdb3cf42f"
+    },
+    "frontend/tests/compact-goal-composer.test.tsx": {
+      "git_blob": "7d0baa91fbe25efa889af4d9b47d139feb51134e",
+      "committed_sha256": "adb3390887ff531f312d6c8d7d56814e5a7f87a5a357279019ec1eafe9d3898f"
+    },
+    "frontend/tests/goal-continuation-activation-errors.test.ts": {
+      "git_blob": "10d7a6bb6a9fb4f37bd145c932c4d9e6d4451542",
+      "committed_sha256": "56860df9b3014d75e964b303395e00a5fab55f21c49448e3571895bea9709359"
+    },
+    "frontend/tests/goal-start-recovery.test.ts": {
+      "git_blob": "66d7f3b7118f2ef103dce7030f7e9fbe70c764f2",
+      "committed_sha256": "fc71275769ca0585874d3463b08c1f0d3c0d15662a74bc8aec20584af3957643"
+    },
+    "frontend/tests/policy-serialization.test.ts": {
+      "git_blob": "d5d12b14d53128d718d7801a60f59bff28c31d49",
+      "committed_sha256": "940e825b23a54d225645104735bb77971bd36fc82b54fd1f4d0e0320080edbbd"
+    },
+    "frontend/tests/policy-validation.test.ts": {
+      "git_blob": "b7fc69e33dd9e79c3ba16737821f8f98142e31d9",
+      "committed_sha256": "4924e5ca42d7463aa1c054ecc747db68d60097ca7757670b4a7729d5c2223c41"
+    },
+    "frontend/trusted-client.mjs": {
+      "git_blob": "39bcb1d7b6b6ad01a9a87c688ffe5ccf85b11d80",
+      "committed_sha256": "36c006d2fd8824676db5971e4fea3fa2068425daa5d29a1fda2c48734b59de31"
+    },
+    "reverse_agent/platform_v1/authority_adapter.py": {
+      "git_blob": "c0045f9dfa9d54099cf8ea65e88be7bee6583a20",
+      "committed_sha256": "053b4e5c2c8619d8ac322cb5656e1ffdcefc1797056a5b63a368e411a39f4aaa"
+    },
+    "reverse_agent/platform_v1/autonomy.py": {
+      "git_blob": "3ff599b2cf791601747cfd04809c433bc6f08991",
+      "committed_sha256": "60c6efac833561ad7e419195e2911c47d2e0819fe32752a83a72525b1d567749"
+    },
+    "reverse_agent/platform_v1/control_store.py": {
+      "git_blob": "a29e385d0032c5478e50dc2c0b8722b92d1b5afa",
+      "committed_sha256": "a5da3129399cfa0b5cff1fdca37c9980889c371dd0afad2bbdc4c4594f8138af"
+    },
+    "reverse_agent/platform_v1/goal_service.py": {
+      "git_blob": "da61a1749cf37882df853b54e76754c43a4460fa",
+      "committed_sha256": "d656bb3472187739ca8ecf1dd1fbe2ad5de013cede22689ec98bfba0dc12ec3f"
+    },
+    "reverse_agent/platform_v1/publication_controller.py": {
+      "git_blob": "1fd04c9c024836c6fd89fb075d00bdafaad2e519",
+      "committed_sha256": "5aea326521e2ccc8f90ecad41374ad1c854d790266086ee73bffd93a3256c9d7"
+    },
+    "reverse_agent/platform_v1/task_execution.py": {
+      "git_blob": "96fd1d49d52be98d6b7506b5c563a08a3c5547e4",
+      "committed_sha256": "3f233ec08be7b93314a956b0f3257bd59c9043becd9de8067d4d7bc6cc6cc151"
+    },
+    "reverse_agent/platform_v1/task_runtime.py": {
+      "git_blob": "d06f14b9e2ce029f1546ba8eabb6d7c4418bc211",
+      "committed_sha256": "86ab5bb6e42e4a0cf7386e09d1e900cdb23ab2e5b6830bef5f24d2216081e4b0"
+    },
+    "reverse_agent/platform_v1/task_service.py": {
+      "git_blob": "2467a36e2ef525d09de91717adb41b203fb2eb77",
+      "committed_sha256": "1610baf13e3765fa1efbdd8e75aa9817630146e3019ab74c989de4c73557d159"
+    },
+    "reverse_agent/platform_v1/trusted_host.py": {
+      "git_blob": "77c69351f4fd26936f538a028e155ff6d15c0b9f",
+      "committed_sha256": "dc13dbd8a74b7142f011f1a96df85290c36f46378847a3e77f2b72c46d8036f0"
+    },
+    "reverse_agent/platform_v1/unattended_coordinator.py": {
+      "git_blob": "a3c5df583920f6d1dff26bc42d4dd485802112c6",
+      "committed_sha256": "859e4c0568ef6e8f171bb47d04b07f265906ea4a6e061b3638dfe687de0a872d"
+    },
+    "tests/platform_v1/test_artifact_handoff_http.py": {
+      "git_blob": "d20309368f1cd397c0c1fb2ecdd91882f06c474a",
+      "committed_sha256": "fafc99efa34848fd6632466832a58aae02f71f8bf29ca9967b02ea031921f46d"
+    },
+    "tests/platform_v1/test_autonomy.py": {
+      "git_blob": "dda730fa501eea0afbb11a254d1a770982407b04",
+      "committed_sha256": "8517946ec53cd0b9dcb8505fb50e6a6fc704c09025c02820999e01307b5195a5"
+    },
+    "tests/platform_v1/test_autonomy_window_lifecycle.py": {
+      "git_blob": "6e1f676c6a70b4f936504abb637c0ad2bae4890b",
+      "committed_sha256": "53c8f3120cff8776f98e898b3421fa052c78fc91bf537ae269ab7c70953f40e5"
+    },
+    "tests/platform_v1/test_goal_completion_evidence.py": {
+      "git_blob": "15ac1b5ee16b71470b07887d6c81cd1de86d7c01",
+      "committed_sha256": "6beb80853906d337a8c3f534fa74c6dca9311b8ab46cbfffce9fec160d6e5e29"
+    },
+    "tests/platform_v1/test_goal_functional_checks.py": {
+      "git_blob": "ee572f64e23ac7c76126f4280bfea0c19ecf9e3a",
+      "committed_sha256": "654ee7f8b743593435d9760c5f77b7a05187dfb53259e852c1c7f92b068c633b"
+    },
+    "tests/platform_v1/test_goal_service.py": {
+      "git_blob": "1983db59ba085b8eee000e3960f13450a9754414",
+      "committed_sha256": "52e21cd15fbeee13d9257884bff19c2026c84f18b89cb07378745b3a0788cdd8"
+    },
+    "tests/platform_v1/test_task_client_auth.py": {
+      "git_blob": "8c37f226786853d139e4eafa83f872156eec3b38",
+      "committed_sha256": "d05925ba110c33b21ba957fdbb9b62cc1ae09c2bdb7a00fd3a2f2c323e4ae04a"
+    },
+    "tests/platform_v1/test_task_runtime.py": {
+      "git_blob": "94f4fc12a27aa24b2cb96c94d7dd1fe3e4b4264e",
+      "committed_sha256": "29d570e1abbf92256b7777ae408e6397f28465bdabcf8eb7ec27742417a52bec"
+    },
+    "tests/platform_v1/test_task_service.py": {
+      "git_blob": "34eda7484367b3d81a8bd2eba17bc57a113c45d6",
+      "committed_sha256": "c4a9b8691c5fe7a2ba481fe323a3e8a14102d09b3414327749cd47885706572d"
+    },
+    "tests/platform_v1/test_trusted_host.py": {
+      "git_blob": "50a7a68abcdf3a882e45fb80671981bfc77b066f",
+      "committed_sha256": "ba6338f13c98ff1090ebd7f24da2803c8d8683a2925797e4d3b07b35e169fc6c"
+    },
+    "tests/platform_v1/test_unattended_coordinator.py": {
+      "git_blob": "5bee66c7c84829041e849c2fe193d660955d5f40",
+      "committed_sha256": "e372ee0f8260ebbbd6ee6ca7aec177ae413a5facc81990ee471fd17d1a9777b3"
+    },
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py": {
+      "git_blob": "8a0e77015a10e04966a540fcfff12d8ff24305cd",
+      "committed_sha256": "ac54b22e6b77490a82c7bf22732b7a3493e8890dee7b698415fb34b341ce3d99"
+    },
+    "tests/test_trust_authorization_adapter.py": {
+      "git_blob": "c0401c815d88452500c97008345f03d55f5d0b12",
+      "committed_sha256": "760ce935ee42e7902a8400891e713ef6cc3c349924801bef5a2930deb68a0f72"
+    }
+  },
+  "recovery_authority": {
+    "proposal_sha256": "e7dc8254562209221b23d5eeb519f298b025a8ae6d77c990acf55f76381620ae",
+    "previous_decision_sha256": "8151306e3068127e971bfcf20dde9830a7cf18fe3204d4447f7ab670b840bfe3",
+    "previous_head": "948c2ad639fd9e5974e20041656b40d9cabedac8",
+    "failed_run": 37723870299,
+    "original_upper_window_dir": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-current-candidate-acceptance-20261008",
+    "original_spending": {
+      "decision_activations": 1,
+      "source_corrections": 0,
+      "development_checks": 0,
+      "mandatory_checks": 0,
+      "product_commits": 0,
+      "pushes": 1,
+      "drafts": 1,
+      "description_updates": 0,
+      "runtime_clones": 0,
+      "stack_starts": 0,
+      "browser_starts": 0,
+      "native_observations": 0,
+      "cleanups": 0,
+      "real_provider_free_windows": 0
+    },
+    "additional_decision_activations": 1,
+    "additional_draft_prs": 1,
+    "additional_draft_attempts": 2,
+    "additional_independent_binding_reviews": 1,
+    "reset_counters": false,
+    "extend_expiry": false
+  }
 }
 ```
