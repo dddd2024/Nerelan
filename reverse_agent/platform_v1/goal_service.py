@@ -122,6 +122,108 @@ class GoalService:
             goal_id, expected_revision=expected_revision, policy_ref=policy_ref
         )
 
+    def admit_delegated(self, *, window_id: str, authority: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        """One SQLite commit covers delegated approval, enqueue and receipt.
+
+        The trusted host supplies PolicyAuthority. No renderer API accepts it.
+        Snapshot cardinality bounds admissions; task claims still charge the
+        original window execution allowance independently.
+        """
+        from .autonomy import AutonomyService, bound_goal_admission, goal_admission_snapshots
+        from .control_store import sha256_json
+        goal_id = str(snapshot.get("goal_id", ""))
+        with self.store._lock:
+            conn = self.store._conn
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                binding = authority.binding
+                if dict(snapshot) not in goal_admission_snapshots(binding) or "approve_goal" not in binding["allowed_operations"]:
+                    raise TaskStoreError("delegated_goal_outside_scope")
+                window = self.control_store.get_window(window_id)
+                persisted = self.control_store.window_policy_binding(window_id)
+                expected_authority = {**binding, "decision_id": authority.decision_id,
+                    "round_id": authority.round_id, "decision_content_sha256": authority.decision_content_sha256,
+                    "decision_commit_sha": authority.decision_commit_sha,
+                    "command_plan_sha256": authority.command_plan_sha256, "head_sha": authority.head_sha,
+                    "base_sha": authority.base_sha, "branch": authority.branch}
+                if (window.id != binding["window_id"] or window.status != "ACTIVE"
+                        or "approve_goal" not in window.capabilities
+                        or window.confirmation_mode != "DELEGATED_CONTROLLER"
+                        or persisted["authority"] != expected_authority
+                        or persisted["policy_digest_sha256"] != binding["policy_digest_sha256"]):
+                    raise TaskStoreError("delegated_goal_window_binding_mismatch")
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                if not AutonomyService._parse_time(window.starts_at) <= now < AutonomyService._parse_time(window.expires_at):
+                    raise TaskStoreError("delegated_goal_window_expired")
+                goal = self.control_store.get_goal(goal_id)
+                bound_goal_admission(binding, goal)
+                if goal.repository != authority.repository or goal.repository not in window.repositories:
+                    raise TaskStoreError("delegated_goal_repository_mismatch")
+                payload = {"snapshot": dict(snapshot), "decision_content_sha256": authority.decision_content_sha256,
+                           "controller_identity": binding["controller_identity"], "personally_human": False}
+                prior = conn.execute(
+                    "SELECT * FROM platform_operation_receipts WHERE window_id = ? AND operation_type = 'goal_admission' "
+                    "AND subject_id = ? AND decision = 'allowed'", (window_id, goal_id)).fetchone()
+                if prior is not None:
+                    if prior["input_digest"] != sha256_json(payload) or goal.window_id != window_id:
+                        raise TaskStoreError("delegated_goal_replay_conflict")
+                    conn.execute("COMMIT")
+                    return {"goal_id": goal_id, "admitted": True, "replayed": True}
+                if goal.status != "PLANNED" or goal.window_id not in {"", window_id}:
+                    raise TaskStoreError("delegated_goal_not_planned")
+                planned = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
+                if (len(planned) != 1 or planned[0].id != binding["plan_task_id"]
+                        or planned[0].capability != "validate_task" or planned[0].validation_command_id != "git_diff_check"
+                        or planned[0].dependencies or planned[0].validation_checks):
+                    raise TaskStoreError("delegated_goal_task_scope_mismatch")
+                spent = conn.execute(
+                    "SELECT COUNT(*) FROM platform_operation_receipts WHERE window_id = ? "
+                    "AND operation_type = 'goal_admission' AND decision = 'allowed'", (window_id,)).fetchone()[0]
+                if spent >= len(goal_admission_snapshots(binding)) or window.tasks_started >= window.max_tasks:
+                    raise TaskStoreError("delegated_goal_budget_exhausted")
+                self.control_store.approve_goal(goal_id, expected_revision=goal.revision, policy_ref=window.policy_id)
+                self._launch(goal_id, expected_revision=goal.revision, window_id=window_id)
+                self.control_store.append_receipt(
+                    window_id=window_id, operation_type="goal_admission", capability="approve_goal",
+                    repository=goal.repository, subject_id=goal_id, decision="allowed",
+                    reason="exact_delegated_goal_snapshot", input_payload=payload,
+                    external_id=goal_id, result="APPROVED_AND_ENQUEUED")
+                conn.execute("COMMIT")
+                return {"goal_id": goal_id, "admitted": True, "replayed": False}
+            except BaseException as exc:
+                conn.execute("ROLLBACK")
+                if isinstance(exc, TaskStoreError) and str(exc) == "receipt_persistence_failed":
+                    # Keep the window hard stop even though the admission rolled back.
+                    conn.execute("UPDATE platform_autonomous_windows SET status = 'BLOCKED', "
+                                 "stop_reason = 'receipt_persistence_failed' WHERE id = ?", (window_id,))
+                    raise
+                if not isinstance(exc, TaskStoreError):
+                    raise
+                # Record each stable denial once, so polling does not manufacture
+                # progress or consume unbounded receipt storage.
+                reason = str(exc)
+                identity = sha256_json({"snapshot": dict(snapshot), "reason": reason})
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    previous = conn.execute(
+                        "SELECT id FROM platform_operation_receipts WHERE window_id = ? "
+                        "AND operation_type = 'goal_admission' AND subject_id = ? AND decision = 'denied' "
+                        "AND input_digest = ?", (window_id, goal_id, identity)).fetchone()
+                    if previous is None:
+                        self.control_store.append_receipt(
+                            window_id=window_id, operation_type="goal_admission", capability="approve_goal",
+                            repository=authority.repository, subject_id=goal_id, decision="denied", reason=reason,
+                            input_payload={"snapshot": dict(snapshot), "reason": reason})
+                    conn.execute("COMMIT")
+                except BaseException as denial_error:
+                    conn.execute("ROLLBACK")
+                    if isinstance(denial_error, TaskStoreError) and str(denial_error) == "receipt_persistence_failed":
+                        conn.execute("UPDATE platform_autonomous_windows SET status = 'BLOCKED', "
+                                     "stop_reason = 'receipt_persistence_failed' WHERE id = ?", (window_id,))
+                    raise
+                return {"goal_id": goal_id, "admitted": False, "replayed": previous is not None, "reason": reason}
+
     def amend(
         self, goal_id: str, *, expected_revision: int, objective: str,
         repository: str | None = None, executor_kind: str | None = None,
@@ -215,9 +317,12 @@ class GoalService:
     def _freeze_host_validation(self, task: Any, goal: GoalRecord, plan_task: PlannedTask, window: Any) -> None:
         binding = self.control_store.window_policy_binding(window.id)
         authority = binding.get("authority", {})
+        from .autonomy import bound_goal_admission
+        admitted = bound_goal_admission(authority, goal)
+        expected_key = admitted["idempotency_key"] if admitted else authority.get("goal_idempotency_key")
         if (not binding.get("canonical_policy") or not isinstance(authority, Mapping)
                 or authority.get("plan_task_id") != plan_task.id
-                or authority.get("goal_idempotency_key") != goal.idempotency_key
+                or expected_key != goal.idempotency_key
                 or "git_diff_check" not in authority.get("validation_command_ids", ())):
             raise TaskStoreError("host_validation_requires_bound_authority")
         workspace = resolve_repository_workspace(goal.repository)

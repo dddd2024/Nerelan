@@ -786,7 +786,7 @@ class PlatformControlStore:
 
     def activate_policy_window(self, payload: Mapping[str, Any], *, authority: Mapping[str, Any]) -> AutonomousWindowRecord:
         """Trusted service entry; policy/slot creation shares the existing transaction."""
-        from .autonomy import validate_canonical_policy, policy_digest
+        from .autonomy import validate_canonical_policy, policy_digest, goal_admission_snapshots
         policy = validate_canonical_policy(payload.get("canonical_policy"))
         provenance = payload.get("confirmation_provenance")
         if (not isinstance(authority, Mapping) or not isinstance(provenance, Mapping)
@@ -808,9 +808,14 @@ class PlatformControlStore:
                     "expires_at": datetime.fromisoformat(policy["autonomousWindow"]["expiresAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
                     "max_tasks": authority.get("max_tasks"), "max_retries": authority.get("max_retries"),
                     "max_concurrent_tasks": authority.get("max_concurrent_tasks")}
+        admissions = goal_admission_snapshots(authority)
+        allowed_operations = ("approve_goal", "validate_task") if admissions else ("validate_task",)
+        if admissions and (type(authority.get("max_tasks")) is not int or authority["max_tasks"] != len(admissions)):
+            raise TaskStoreError("trusted_policy_store_goal_allowance_mismatch")
         if (any(payload.get(key) != value for key, value in expected.items())
                 or tuple(payload.get("repositories", ())) != (policy["repository"],)
-                or tuple(payload.get("capabilities", ())) != ("validate_task",)
+                or tuple(payload.get("capabilities", ())) != allowed_operations
+                or tuple(authority.get("allowed_operations", ())) != allowed_operations
                 or not isinstance(authority.get("delegation_slot_id"), str)
                 or not authority["delegation_slot_id"]
                 or type(authority.get("max_real_window_activations")) is not int):

@@ -36,3 +36,29 @@ idempotency and external-truth recovery, and separately governed GitHub,
 release and deployment adapters. Existing capability restrictions, secret
 isolation, provider-free startup, independent acceptance and landing controls
 remain in force.
+# Delegated Goal admission
+
+The trusted host may include `goal_admissions` in its existing immutable
+PolicyAuthority binding: at most 100 exact `{goal_id, revision, artifact_digest,
+idempotency_key}` snapshots. Such a binding explicitly grants `approve_goal` and
+`validate_task`, and `max_tasks` equals snapshot cardinality. Each admitted Goal
+contains one exact fixed `git_diff_check` task. The original single-checker
+binding remains supported. This does not enable arbitrary coding, models,
+GitHub writes, merge or deployment; those capabilities remain separate work.
+
+The coordinator reads preauthorized planned Goals and admits them without
+another interactive confirmation. Goal approval, task materialization and its
+delegated-identity receipt commit in one existing TaskStore SQLite transaction.
+Restart and concurrent connection replay use the original task/receipt; they
+do not reset admission or execution allowances. Revision/digest drift, expiry,
+revocation, missing authority and exhausted budgets reject. An isolated Goal
+denial does not stall another eligible Goal. Receipt persistence failure rolls
+back admission and persists a window hard stop.
+
+The browser cannot submit an authoritative snapshot list. A trusted loader
+must verify the activated Decision and complete binding. Capability metadata,
+executor prose, test doubles and self-issued reports are not grants. Unit
+composition uses actual temporary Git, disk SQLite and fixed host checks with
+an explicitly synthetic authority loader; it is not live policy activation or
+whole unattended-platform acceptance. Long-duration project selection, real
+coding and separately governed delivery remain unimplemented by this slice.

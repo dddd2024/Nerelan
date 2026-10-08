@@ -18,8 +18,45 @@ from .authority_adapter import AuthorityBundleError, PolicyAuthority
 
 MAX_WINDOW_DURATION = timedelta(days=7)
 KNOWN_OPERATIONS = frozenset(
-    {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"}
+    {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr", "approve_goal"}
 )
+
+
+def goal_admission_snapshots(binding: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Exact host-authorized snapshots in the existing immutable binding."""
+    if "goal_admissions" not in binding:
+        return ()
+    values = binding["goal_admissions"]
+    if not isinstance(values, list) or not 1 <= len(values) <= 100:
+        raise TaskStoreError("delegated_goal_admissions_invalid")
+    snapshots = []
+    for value in values:
+        if not isinstance(value, dict) or set(value) != {"goal_id", "revision", "artifact_digest", "idempotency_key"}:
+            raise TaskStoreError("delegated_goal_snapshot_invalid")
+        if (any(not isinstance(value[key], str) or not re.fullmatch(r"[A-Za-z0-9._:-]{3,160}", value[key])
+                for key in ("goal_id", "idempotency_key"))
+                or type(value["revision"]) is not int or not 1 <= value["revision"] <= 1_000_000
+                or not isinstance(value["artifact_digest"], str)
+                or not re.fullmatch(r"[0-9a-f]{64}", value["artifact_digest"])):
+            raise TaskStoreError("delegated_goal_snapshot_invalid")
+        snapshots.append(dict(value))
+    for key in ("goal_id", "idempotency_key"):
+        if len({value[key] for value in snapshots}) != len(snapshots):
+            raise TaskStoreError("delegated_goal_snapshot_duplicate")
+    return tuple(snapshots)
+
+
+def bound_goal_admission(binding: Mapping[str, Any], goal: Any) -> dict[str, Any] | None:
+    snapshots = goal_admission_snapshots(binding)
+    if not snapshots:
+        return None
+    for value in snapshots:
+        if value["goal_id"] == goal.id:
+            if (value["revision"] != goal.revision or value["artifact_digest"] != goal.artifact_digest
+                    or value["idempotency_key"] != goal.idempotency_key):
+                raise TaskStoreError("delegated_goal_snapshot_mismatch")
+            return value
+    raise TaskStoreError("delegated_goal_outside_scope")
 
 GITHUB_POLICY_CAPABILITIES = frozenset({
     "read_repository", "create_issue", "update_issue", "create_branch",
@@ -224,18 +261,25 @@ class AutonomyService:
         if not isinstance(authority, PolicyAuthority):
             raise TaskStoreError("delegated_policy_authority_invalid")
         binding = authority.binding
+        admissions = goal_admission_snapshots(binding)
+        operations = ["approve_goal", "validate_task"] if admissions else ["validate_task"]
         if (binding.get("schema_version") != 1
                 or binding.get("confirmation_mode") != "DELEGATED_CONTROLLER"
                 or binding.get("personally_human") is not False
                 or not isinstance(binding.get("controller_identity"), str)
                 or not binding["controller_identity"].strip()
-                or binding.get("allowed_operations") != ["validate_task"]
+                or binding.get("allowed_operations") != operations
                 or binding.get("validation_command_ids") != ["git_diff_check"]):
             raise TaskStoreError("delegated_policy_binding_invalid")
         for name in ("model_call_limit", "provider_call_limit", "github_write_limit", "max_retries"):
             if type(binding.get(name)) is not int or binding[name] != 0:
                 raise TaskStoreError("delegated_policy_zero_limit_required")
-        for name in ("max_tasks", "max_concurrent_tasks", "max_real_window_activations"):
+        if admissions:
+            if type(binding.get("max_tasks")) is not int or binding["max_tasks"] != len(admissions):
+                raise TaskStoreError("delegated_goal_task_allowance_mismatch")
+        elif type(binding.get("max_tasks")) is not int or binding["max_tasks"] != 1:
+            raise TaskStoreError("delegated_policy_single_allowance_required")
+        for name in ("max_concurrent_tasks", "max_real_window_activations"):
             if type(binding.get(name)) is not int or binding[name] != 1:
                 raise TaskStoreError("delegated_policy_single_allowance_required")
         if type(binding.get("slot_ordinal")) is not int or binding["slot_ordinal"] not in {1, 2}:
@@ -285,7 +329,8 @@ class AutonomyService:
             "policy_revision": binding["policy_revision"], "policy": json.loads(canonical_policy_json(binding["policy"])),
             "policy_digest": binding["policy_digest_sha256"], "window_id": binding["window_id"],
             "confirmation_provenance": self._provenance(authority),
-            "supported_operations": ["validate_task"], "validation_command_id": "git_diff_check",
+            "supported_operations": list(binding["allowed_operations"]), "validation_command_id": "git_diff_check",
+            "goal_admissions": list(goal_admission_snapshots(binding)),
             "instance": {"id": binding["host_instance_id"], "kind": binding.get("runtime_instance_kind", "acceptance")},
             "goal_idempotency_key": binding["goal_idempotency_key"], "plan_task_id": binding["plan_task_id"],
             "task_budget": {name: binding[name] for name in (
@@ -322,8 +367,8 @@ class AutonomyService:
             "policy_revision": binding["policy_revision"], "owner_identity": binding["controller_identity"],
             "starts_at": self._parse_time(policy["autonomousWindow"]["startsAt"]).isoformat().replace("+00:00", "Z"),
             "expires_at": self._parse_time(policy["autonomousWindow"]["expiresAt"]).isoformat().replace("+00:00", "Z"),
-            "repositories": (authority.repository,), "capabilities": ("validate_task",),
-            "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+            "repositories": (authority.repository,), "capabilities": tuple(binding["allowed_operations"]),
+            "max_concurrent_tasks": 1, "max_tasks": binding["max_tasks"], "max_retries": 0,
             "max_token_units": 0, "max_cost_micro_units": 0,
             "per_task_token_reservation": 0, "per_task_cost_reservation": 0,
             "provider_quota_state": "NOT_CONFIGURED", "enforcement_class": "HARD_ADMISSION_ENFORCED",
@@ -347,8 +392,15 @@ class AutonomyService:
         scope = self.task_scope_resolver(subject_id)
         if not isinstance(scope, Mapping):
             raise TaskStoreError("delegated_task_scope_unavailable")
+        key = binding["goal_idempotency_key"]
+        if goal_admission_snapshots(binding):
+            goal = self.control_store.get_goal(str(scope.get("goal_id", "")))
+            snapshot = bound_goal_admission(binding, goal)
+            if scope.get("goal_revision") != snapshot["revision"] or scope.get("goal_artifact_digest") != snapshot["artifact_digest"]:
+                raise TaskStoreError("delegated_task_goal_snapshot_mismatch")
+            key = snapshot["idempotency_key"]
         expected = {"capability": "validate_task", "validation_command_id": "git_diff_check",
-            "allowed_paths": binding["validation_paths"], "goal_idempotency_key": binding["goal_idempotency_key"],
+            "allowed_paths": binding["validation_paths"], "goal_idempotency_key": key,
             "plan_task_id": binding["plan_task_id"], "base_sha": authority.head_sha}
         if any(scope.get(name) != value for name, value in expected.items()):
             raise TaskStoreError("delegated_task_scope_mismatch")
@@ -363,6 +415,19 @@ class AutonomyService:
             if any(parent.is_symlink() for parent in candidate.parents if parent != root and parent.is_relative_to(root)):
                 raise TaskStoreError("delegated_task_symlink_unsupported")
         return dict(scope)
+
+    def admit_goals(self, goal_service: Any, *, window_id: str) -> tuple[dict[str, Any], ...]:
+        """Admit only immutable host-listed snapshots, never generated proposals."""
+        authority = self._authority()
+        outcomes = []
+        for snapshot in goal_admission_snapshots(authority.binding):
+            # Refresh the actual trusted loader at each operation boundary.
+            current = self._authority()
+            if current != authority:
+                raise TaskStoreError("delegated_goal_authority_changed")
+            outcomes.append(goal_service.admit_delegated(
+                window_id=window_id, authority=current, snapshot=snapshot))
+        return tuple(outcomes)
 
     def activate(self, payload: Mapping[str, Any]) -> AutonomousWindowRecord:
         """Legacy trusted in-process fixture API; production uses activate_policy."""
@@ -395,6 +460,8 @@ class AutonomyService:
                 raise TaskStoreError("capability_outside_window")
             if operation not in KNOWN_OPERATIONS or not self.capabilities.supports_operation(operation):
                 raise TaskStoreError("capability_unavailable")
+            if operation == "approve_goal" and not self.delegated_mode:
+                raise TaskStoreError("delegated_goal_authority_required")
             if self.require_trusted_policy or self.delegated_mode:
                 authority = self._authority()
                 stored = self.control_store.window_policy_binding(window_id)
@@ -402,8 +469,13 @@ class AutonomyService:
                         or stored.get("authority", {}).get("decision_content_sha256") != authority.decision_content_sha256
                         or stored.get("authority", {}).get("delegation_slot_id") != authority.binding["delegation_slot_id"]):
                     raise TaskStoreError("delegated_window_binding_mismatch")
-                self.check_task_scope(subject_id, operation)
-                if window.tasks_started >= window.max_tasks and not self.control_store.can_complete_host_claim(
+                if operation == "approve_goal":
+                    if operation not in authority.binding["allowed_operations"]:
+                        raise TaskStoreError("delegated_goal_capability_missing")
+                    bound_goal_admission(authority.binding, self.control_store.get_goal(subject_id))
+                else:
+                    self.check_task_scope(subject_id, operation)
+                if operation != "approve_goal" and window.tasks_started >= window.max_tasks and not self.control_store.can_complete_host_claim(
                         window_id=window_id, task_id=subject_id):
                     raise TaskStoreError("window_task_budget_exhausted")
         except TaskStoreError as exc:
