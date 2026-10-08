@@ -1,10 +1,10 @@
-# New validated review defects: bounded distinct remediation
+# Reference-conflict correction successor
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_reviewed_defects_r3_v1",
-  "round_id": "round_20261008_issue118_reviewed_defects_r3_v1",
+  "decision_id": "decision_20261008_issue118_reviewed_defects_r3_v2",
+  "round_id": "round_20261008_issue118_reviewed_defects_r3_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Root separately approves the exact NEW validated defect-remediation Work Item described in owner-delegation.json, not an expiry/spend reset or reclassification of prior failed attempts. Frozen63/57foundation manifestSHA256=11b566fb93c0f0ddb5a29c03a759caafff705ed9d2d08d2cb594dd9e29a5fd26. Old1104/1105 remain untouched, valid threads unclosed, old source13:43 and landing14:58 deadlines unchanged; no personally human or self-issued independent acceptance.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Root separately approves the exact NEW validated defect-remediation Work Item described in owner-delegation.json, not an expiry/spend reset or reclassification of prior failed attempts. Frozen63/57foundation manifestSHA256=11b566fb93c0f0ddb5a29c03a759caafff705ed9d2d08d2cb594dd9e29a5fd26. Old1104/1105 remain untouched, valid threads unclosed, old source13:43 and landing14:58 deadlines unchanged; no personally human or self-issued independent acceptance.; Root explicitly approves one bounded authority-only correction successor per owner-delegation.json, same original expiry and aggregate ledger; remove conflicting read-only reference only. Prior blocked Decision9430a7d2 and mandatory1 preserved.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
   "activation_base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
-  "starting_head": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "starting_head": "7da06520fafeee32b63e0c8763b6cc2e4878b905",
   "required_branch": "codex/issue118-reviewed-defects-r3-20261008",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -244,8 +244,7 @@
     "reverse_agent/mainline_landing.py",
     "reverse_agent/github_remote_verifier.py",
     "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    "tests/test_trust_authorization_adapter.py"
+    "tests/test_project_gate.py"
   ],
   "forbidden_mutated_paths": [
     ".github/**",
@@ -486,13 +485,13 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T14:46:22.774192+00:00",
-  "owner_delegation_sha256": "3e99aa5ce804eda382070916c4f047ecf81da666fee382161ce74e36bef61731",
+  "approval_event_or_time": "2026-10-08T14:48:19.561339+00:00",
+  "owner_delegation_sha256": "e3664485af70a76a58b9a22a2c9b0c9cfe7fc2bbf33a2d73ca97ff91d9fd5543",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 4,
   "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 12,
+  "mandatory_check_run_limit": 13,
   "execution_expires_at": "2026-10-08T16:46:22.774192+00:00"
 }
 ```
