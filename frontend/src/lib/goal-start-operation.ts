@@ -3,6 +3,10 @@ import {
   createGoalDraftRecord,
   fetchGoal,
   fetchPlatformStatus,
+  ensureApprovedWindow,
+  fetchApprovedPolicy,
+  approvedCheckerPlan,
+  type ApprovedPolicyTemplate,
   startGoal as legacyStartGoal,
   type PlatformGoal,
   type PlatformWindow,
@@ -11,6 +15,8 @@ import {
 
 export interface StartGoalInput extends PlatformStartGoalInput {
   operationId: string;
+  /** Requested draft configuration from a displayed host template; never authority. */
+  checkerDraft?: { idempotencyKey: string; executorKind: "opencode"; orchestrationMode: "single"; bindingRef: "" };
 }
 
 type GoalStartStage = "CREATE" | "DRAFT" | "PLANNED" | "APPROVED";
@@ -69,13 +75,23 @@ function journalKey(operationId: string) {
 }
 
 function fingerprintInput(input: StartGoalInput): string {
-  const canonical = JSON.stringify([
+  const fields: unknown[] = [
     input.objective,
     input.repository,
     input.executorKind,
     input.bindingRef,
     input.autonomyHours,
-  ]);
+  ];
+  if (input.checkerDraft) {
+    const descriptor = input.checkerDraft;
+    if (Object.keys(descriptor).sort().join(",") !== "bindingRef,executorKind,idempotencyKey,orchestrationMode"
+      || !/^[A-Za-z0-9._:-]{8,160}$/.test(descriptor.idempotencyKey)
+      || descriptor.executorKind !== "opencode" || descriptor.orchestrationMode !== "single" || descriptor.bindingRef !== "") {
+      throw new GoalStartOperationError("goal_start_operation_input_mismatch");
+    }
+    fields.push([descriptor.idempotencyKey, descriptor.executorKind, descriptor.orchestrationMode, descriptor.bindingRef]);
+  }
+  const canonical = JSON.stringify(fields);
   let hash = 0x811c9dc5;
   for (let index = 0; index < canonical.length; index += 1) {
     hash ^= canonical.charCodeAt(index);
@@ -246,44 +262,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function ensureWindow(input: StartGoalInput, goalId: string): Promise<PlatformWindow> {
-  const platform = await fetchPlatformStatus();
-  const active = platform.autonomy.active_window;
-  if (active) {
-    if (!active.repositories.includes(input.repository)) {
-      throw new GoalStartOperationError(
-        "active_window_repository_conflict",
-        goalId,
-      );
-    }
-    return active;
+  try { return await ensureApprovedWindow(input.repository); } catch (error) {
+    if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalStartOperationError("active_window_repository_conflict", goalId);
+    throw error;
   }
-
-  const starts = new Date();
-  const expires = new Date(
-    starts.getTime() + input.autonomyHours * 60 * 60 * 1000,
-  );
-  return request<PlatformWindow>("/api/windows/activate", {
-    method: "POST",
-    body: JSON.stringify({
-      policy_id: `owner-ui-${input.operationId}`,
-      policy_revision: 1,
-      owner_identity: "local-owner",
-      starts_at: starts.toISOString(),
-      expires_at: expires.toISOString(),
-      repositories: [input.repository],
-      capabilities: [
-        "execute_task",
-        "resume_task",
-        "reconcile_task",
-        "validate_task",
-        "open_draft_pr",
-      ],
-      max_concurrent_tasks: 2,
-      max_tasks: 20,
-      max_retries: 1,
-      confirmation: "ACTIVATE",
-    }),
-  });
 }
 
 async function runGoalStart(
@@ -293,6 +275,11 @@ async function runGoalStart(
 ): Promise<PlatformGoal> {
   let journal = ensureJournal(input, fingerprint);
   let goal: PlatformGoal;
+  let template: ApprovedPolicyTemplate | null = null;
+  if (!draftOnly) template = await fetchApprovedPolicy();
+  const checkerPlan = approvedCheckerPlan(template);
+  const checkerDraft = draftOnly ? input.checkerDraft : undefined;
+  if (template && template.policy.repository !== input.repository) throw new GoalStartOperationError("active_window_repository_conflict", journal.goal_id);
 
   if (journal.goal_id) {
     goal = await fetchGoal(journal.goal_id);
@@ -310,11 +297,11 @@ async function runGoalStart(
       body: JSON.stringify({
         objective: input.objective,
         repository: input.repository,
-        idempotency_key: journal.idempotency_key,
-        executor_kind: input.executorKind,
+        idempotency_key: checkerDraft?.idempotencyKey ?? (checkerPlan ? template!.goal_idempotency_key : journal.idempotency_key),
+        executor_kind: checkerDraft?.executorKind ?? (checkerPlan ? "opencode" : input.executorKind),
         orchestration_mode:
-          input.executorKind === "opencode" ? "sequential_team" : "single",
-        binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+          checkerDraft?.orchestrationMode ?? (checkerPlan ? "single" : input.executorKind === "opencode" ? "sequential_team" : "single"),
+        binding_ref: checkerDraft?.bindingRef ?? (checkerPlan ? "" : input.executorKind === "opencode" ? input.bindingRef : ""),
       }),
     });
     journal = updateJournalGoal(journal, goal);
@@ -338,7 +325,7 @@ async function runGoalStart(
         `/api/goals/${encodeURIComponent(goal.id)}/plan`,
         {
           method: "POST",
-          body: JSON.stringify({ expected_revision: goal.revision }),
+          body: JSON.stringify({ ...checkerPlan, expected_revision: goal.revision }),
         },
       );
       journal = updateJournalGoal(journal, goal);
