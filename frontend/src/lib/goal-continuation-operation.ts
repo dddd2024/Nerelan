@@ -3,7 +3,9 @@ import {
   __setMockGoalStatus,
   __launchMockGoal,
   fetchGoal,
-  fetchPlatformStatus,
+  ensureApprovedWindow,
+  fetchApprovedPolicy,
+  approvedCheckerPlan,
   type PlatformGoal,
   type PlatformWindow,
 } from "@/lib/platform-client";
@@ -111,76 +113,20 @@ async function mutateStage(
   }
 }
 
-async function ensureWindow(
-  goal: PlatformGoal,
-  autonomyHours: number,
-): Promise<PlatformWindow> {
-  if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) {
-    throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
-  }
-
-  const platform = await fetchPlatformStatus();
-  const active = platform.autonomy.active_window;
-  if (active) {
-    if (!active.repositories.includes(goal.repository)) {
-      throw new GoalContinuationError(
-        "active_window_repository_conflict",
-        goal.id,
-      );
-    }
-    return active;
-  }
-
-  const startMs = Date.now();
-  const starts = new Date(startMs);
-  const expires = new Date(
-    startMs + autonomyHours * 60 * 60 * 1000,
-  );
-  try {
-    return await request<PlatformWindow>("/api/windows/activate", {
-      method: "POST",
-      body: JSON.stringify({
-        policy_id: `owner-approval-${goal.id}-${goal.revision}-${startMs}-${expires.getTime()}`,
-        policy_revision: 1,
-        owner_identity: "local-owner",
-        starts_at: starts.toISOString(),
-        expires_at: expires.toISOString(),
-        repositories: [goal.repository],
-        capabilities: [
-          "execute_task",
-          "resume_task",
-          "reconcile_task",
-          "validate_task",
-          "open_draft_pr",
-        ],
-        max_concurrent_tasks: 2,
-        max_tasks: 20,
-        max_retries: 1,
-        confirmation: "ACTIVATE",
-      }),
-    });
-  } catch (error) {
-    if (
-      error instanceof PlatformClientError &&
-      (error.status === 409 || error.code.includes("active_window"))
-    ) {
-      const refreshed = await fetchPlatformStatus();
-      const refreshedWindow = refreshed.autonomy.active_window;
-      if (refreshedWindow) {
-        if (refreshedWindow.repositories.includes(goal.repository)) {
-          return refreshedWindow;
-        }
-        throw new GoalContinuationError(
-          "active_window_repository_conflict",
-          goal.id,
-        );
-      }
-    }
+async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<PlatformWindow> {
+  if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
+  try { return await ensureApprovedWindow(goal.repository); } catch (error) {
+    if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalContinuationError("active_window_repository_conflict", goal.id);
     throw error;
   }
 }
 
 export async function planExistingGoal(goal: PlatformGoal): Promise<PlatformGoal> {
+  if (!isMock()) {
+    const template = await fetchApprovedPolicy();
+    const plan = approvedCheckerPlan(template);
+    if (plan) return saveGoalPlan(goal, plan);
+  }
   return saveGoalPlan(goal, { tasks: goal.tasks, acceptance_criteria: goal.acceptance_criteria });
 }
 

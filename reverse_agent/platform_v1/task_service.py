@@ -19,7 +19,9 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
+import hashlib
 import os
+import re
 from threading import Thread
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote, urlsplit
@@ -40,6 +42,8 @@ from .task_runtime import (
 )
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
+from .authority_adapter import AuthorityBundleError, load_policy_authority
+from .task_runtime import load_host_validation_contract
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService, goal_to_dict
@@ -425,6 +429,19 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
                 )
                 return
+            if segments == ["api", "windows", "policy"]:
+                try:
+                    template = self.autonomy_service.policy_template()
+                except TaskStoreError:
+                    template = {"available": False, "reason": "trusted_policy_unavailable"}
+                self._send_json(HTTPStatus.OK, template)
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "windows"] and segments[3] == "receipts":
+                limit, cursor = parse_history_query(urlsplit(self.path).query)
+                page = self.control_store.list_receipts_page(window_id=segments[2], limit=limit, cursor=cursor)
+                self._send_json(HTTPStatus.OK, {"items": [item.__dict__ for item in page["items"]],
+                                               "next_cursor": page["next_cursor"]})
+                return
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "windows"]
@@ -665,7 +682,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
                     return
             if segments == ["api", "windows", "activate"]:
-                window = self.autonomy_service.activate(self._read_json())
+                window = self.autonomy_service.activate_policy(self._read_json())
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
             if (
@@ -705,6 +722,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "execute"
             ):
+                if self._dispatch_host_check(segments[2], resume=False):
+                    return
                 workspace_root = os.environ.get(
                     "REVERSE_AGENT_TASK_WORKSPACE_ROOT", ""
                 )
@@ -817,6 +836,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "resume"
             ):
+                if self._dispatch_host_check(segments[2], resume=True):
+                    return
                 try:
                     task = self.store.get_task(segments[2])
                 except TaskStoreError:
@@ -876,6 +897,26 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 {"error": "internal task service error"},
             )
 
+    def _dispatch_host_check(self, task_id: str, *, resume: bool) -> bool:
+        task = self.store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None:
+            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
+                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
+                raise TaskStoreError("direct_execution_requires_approved_host_task")
+            return False
+        self.autonomy_service.check_task_scope(task_id, "validate_task")
+        if resume:
+            # This selected policy grants zero retries; the coordinator owns
+            # original live handles and durable recovery admission.
+            raise TaskStoreError("delegated_policy_retry_not_granted")
+        coordinator = getattr(self, "coordinator", None)
+        if coordinator is None:
+            raise TaskStoreError("host_check_coordinator_unavailable")
+        coordinator.tick()
+        self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(task_id)))
+        return True
+
     def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
         if not title:
@@ -924,6 +965,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         coordinator = getattr(self, "coordinator", None)
         return {
             "service": "reverse-agent-platform-v2",
+            "instance": _instance_metadata(self.store, self.autonomy_service),
             "autonomy": self.autonomy_service.status(),
             "coordinator": coordinator.status() if coordinator is not None else {
                 "enabled": False,
@@ -1149,8 +1191,8 @@ def _handler_factory(
     configured_capabilities = capability_registry or CapabilityRegistry(
         pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
     )
-    configured_autonomy = autonomy_service or AutonomyService(
-        control_store=configured_control, capabilities=configured_capabilities
+    configured_autonomy = autonomy_service or _configured_autonomy(
+        store, configured_control, configured_capabilities
     )
     ConfiguredHandler.control_store = configured_control
     ConfiguredHandler.capability_registry = configured_capabilities
@@ -1170,6 +1212,68 @@ def _handler_factory(
     )
     ConfiguredHandler.coordinator = coordinator
     return ConfiguredHandler
+
+
+def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
+                         capabilities: CapabilityRegistry) -> AutonomyService:
+    raw = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "")
+    try:
+        pins = json.loads(raw) if raw else None
+    except ValueError:
+        pins = {}
+    source_dir = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_REPO_DIR", "") or os.environ.get("REVERSE_AGENT_REPO_DIR", "")
+
+    def authority_loader():
+        if not isinstance(pins, dict):
+            raise AuthorityBundleError("invalid_policy_host_pins")
+        return load_policy_authority(repo_dir=source_dir, pins=dict(pins),
+            database_path=store.db_path, host_instance_id=pins.get("host_instance_id", ""))
+
+    def task_scope(task_id: str) -> Mapping[str, Any]:
+        task = store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None:
+            raise TaskStoreError("approved_host_contract_required")
+        goal_id = control.goal_id_for_task(task_id)
+        goal = control.get_goal(goal_id)
+        links = [link for link in control.list_goal_tasks(goal_id) if link["task_id"] == task_id]
+        window = control.get_window(contract["window_id"])
+        if (len(links) != 1 or contract["goal_id"] != goal.id
+                or contract["goal_revision"] != goal.revision
+                or contract["goal_artifact_digest"] != goal.artifact_digest
+                or contract["goal_idempotency_key"] != goal.idempotency_key
+                or contract["plan_task_id"] != links[0]["plan_task_id"]
+                or goal.window_id != window.id or goal.repository != task.repository
+                or task.policy_ref != window.id or task.permission_profile != "AUTONOMOUS_WINDOW"
+                or contract["policy_digest"] != window.policy_digest):
+            raise TaskStoreError("approved_host_goal_link_mismatch")
+        planned = [item for item in goal.tasks if item.get("id") == contract["plan_task_id"]]
+        if (len(planned) != 1 or planned[0].get("capability") != "validate_task"
+                or planned[0].get("validation_command_id") != "git_diff_check"):
+            raise TaskStoreError("approved_host_plan_mismatch")
+        return contract
+
+    service = AutonomyService(control_store=control, capabilities=capabilities,
+        authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
+    service.require_trusted_policy = True
+    return service
+
+
+def _instance_metadata(store: TaskStore, autonomy: AutonomyService | None = None) -> dict[str, str]:
+    digest = hashlib.sha256(os.path.normcase(os.path.abspath(store.db_path)).encode("utf-8")).hexdigest()[:12]
+    metadata = {"id": f"workspace-{digest}", "kind": "workspace"}
+    try:
+        pins = json.loads(os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "null"))
+        if autonomy is not None and autonomy.delegated_mode and isinstance(pins, dict) and os.path.normcase(os.path.abspath(pins.get("database_path", ""))) == os.path.normcase(os.path.abspath(store.db_path)):
+            identity = pins.get("host_instance_id", "")
+            if isinstance(identity, str) and re.fullmatch(r"[A-Za-z0-9._:-]{3,160}", identity):
+                authority = autonomy._authority()
+                if authority.binding.get("host_instance_id") != identity:
+                    raise TaskStoreError("instance_authority_mismatch")
+                metadata = {"id": identity, "kind": "acceptance"}
+    except (ValueError, TypeError, TaskStoreError, OSError):
+        pass
+    return metadata
 
 
 def validate_bind_host(host: str) -> str:

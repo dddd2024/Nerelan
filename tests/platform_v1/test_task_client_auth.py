@@ -31,6 +31,7 @@ def authenticated_server(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "get_task", forbidden)
     monkeypatch.setattr(router, "dispatch_execute", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate", forbidden)
+    monkeypatch.setattr(handler.autonomy_service, "activate_policy", forbidden)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -69,6 +70,7 @@ def request(port, method, path, *, capability=None, origin=None, duplicate=False
     ("POST", "/api/tasks"), ("POST", "/api/windows/activate"),
     ("POST", "/api/goals/unknown/launch"), ("POST", "/api/inbox"),
     ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/goals"),
+    ("GET", "/api/windows/policy"),
 ])
 def test_missing_capability_rejected_before_body_lookup_or_dispatch(authenticated_server, method, path):
     port, _, _, actions, store = authenticated_server

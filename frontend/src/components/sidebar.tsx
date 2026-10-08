@@ -15,6 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useTasks } from "@/hooks/use-tasks";
+import { usePlatformStatus } from "@/hooks/use-platform";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
@@ -138,6 +139,7 @@ export function Sidebar({
   const location = useLocation();
   const navigate = useNavigate();
   const { data: tasks = [], isLoading, isError } = useTasks();
+  const platformQuery = usePlatformStatus();
 
   useEffect(() => {
     onConversationPanelClose();
@@ -238,6 +240,9 @@ export function Sidebar({
 
       <section aria-label="最近任务">
         <SectionLabel testId="sidebar-section-recent">最近任务</SectionLabel>
+        {platformQuery.data?.instance && <p className="px-2.5 py-1 text-[11px] text-ra-text-tertiary" data-testid="sidebar-instance">
+          {platformQuery.data.instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · {platformQuery.data.instance.id}
+        </p>}
         {isError && (
           <p role="alert" className="px-2.5 py-1 text-[11px] text-ra-text-secondary">
             最近任务读取失败，请检查服务连接

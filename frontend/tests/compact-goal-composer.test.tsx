@@ -5,6 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalComposer } from "@/components/goal-composer";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
 
+const approvedPolicyState = vi.hoisted(() => ({ data: undefined as undefined | {
+  supported_operations: string[]; validation_command_id: string;
+  goal_idempotency_key?: string;
+  policy: { autonomousWindow: { expiresAt: string } };
+} }));
+vi.mock("@/hooks/use-platform", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/hooks/use-platform")>(),
+  useApprovedPolicy: () => ({ data: approvedPolicyState.data, isError: false }),
+}));
+
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>((resolvePromise) => {
@@ -20,6 +30,19 @@ describe("GoalComposer compact progressive disclosure", () => {
 
   afterEach(() => {
     window.sessionStorage.clear();
+    approvedPolicyState.data = undefined;
+  });
+
+  it("describes the real checker instead of promising model code repair", async () => {
+    approvedPolicyState.data = { supported_operations: ["validate_task"], validation_command_id: "git_diff_check", goal_idempotency_key: "approved-frozen-checker-goal", policy: { autonomousWindow: { expiresAt: "2030-12-31T08:00:00Z" } } };
+    const onSubmit = vi.fn(async () => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
+    await user.type(screen.getByLabelText("描述最终目标"), "检查冻结范围内的差异格式");
+    expect(screen.getByTestId("approved-policy-summary")).toHaveTextContent("不实现代码或修复目标");
+    expect(screen.queryByLabelText("模型绑定")).not.toBeInTheDocument();
+    await user.click(screen.getByLabelText("创建并审阅目标"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));
   });
 
   it("starts compact and keeps secondary configuration out of the empty idle surface", async () => {

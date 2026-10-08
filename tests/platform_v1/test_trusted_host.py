@@ -65,6 +65,36 @@ def _make_store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
 
 
+def test_combined_host_without_owner_pins_exposes_no_policy_activation(tmp_path, monkeypatch):
+    """Actual local HTTP host; no provider, OS vault or delegated fixture adapter."""
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    task_store = _make_store(tmp_path)
+    host = CombinedTrustedHost(task_store=task_store, vault=None, auth_list_probe=lambda: {},
+                               local_client_session=client_session(activate=False))
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        parsed = urlsplit(host.task_api_url)
+        connection = HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+        try:
+            connection.request("GET", "/api/windows/policy", headers=client_headers())
+            response = connection.getresponse()
+            assert response.status == 200
+            assert json.loads(response.read()) == {"available": False, "reason": "trusted_policy_unavailable"}
+            body = json.dumps({"policy_id": "caller", "policy_revision": 1, "policy": {},
+                               "owner_identity": "local-owner", "confirmation": "ACTIVATE"})
+            connection.request("POST", "/api/windows/activate", body=body,
+                               headers=client_headers({"Content-Type": "application/json"}))
+            response = connection.getresponse()
+            assert response.status == 409
+            assert json.loads(response.read()) == {"error": "canonical_policy_fields_invalid"}
+        finally:
+            connection.close()
+        assert host._control_store.active_window() is None
+    finally:
+        host.stop()
+        task_store._conn.close()
+
+
 @pytest.fixture(autouse=True)
 def _matching_source_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
