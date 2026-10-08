@@ -1,10 +1,10 @@
-# Existing trusted-host delegated Goal admission
+# Delegated Goal admission store integration v2
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_delegated_goal_admission_r2_v1",
-  "round_id": "round_20261008_issue118_delegated_goal_admission_r2_v1",
+  "decision_id": "decision_20261008_issue118_delegated_goal_admission_r2_v2",
+  "round_id": "round_20261008_issue118_delegated_goal_admission_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; explicit controller approval of exact source slice using existing unmerged trusted-host planning base #1093, not an implicit main fallback.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; explicit controller approval of exact source slice using existing unmerged trusted-host planning base #1093, not an implicit main fallback.; controller approves narrowly adding existing control_store.py activation integration after actual 17 development failures rejected the new capability pair; preserve immutable v1 and failure/spending, same expiry.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "codex/issue118-current-candidate-profile-recovery-r3-20261008",
   "base_sha": "88a383b3d1f75935472b4eb27e4d30aba3ee44eb",
   "activation_base_sha": "88a383b3d1f75935472b4eb27e4d30aba3ee44eb",
-  "starting_head": "88a383b3d1f75935472b4eb27e4d30aba3ee44eb",
+  "starting_head": "a860b23acfd84a83b9f90634a33d49f960c508f4",
   "required_branch": "codex/issue118-delegated-goal-admission-r2-20261008",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -78,7 +78,7 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Add exact preauthorized Goal admission to existing trusted delegated windows. Immutable host PolicyAuthority binding may list bounded Goal id/revision/artifact digest/idempotency snapshots for fixed host validation, with approve_goal and validate_task capabilities and cumulative max_tasks. Existing legacy fixed-checker single Goal mode stays valid. Coordinator must admit matching PLANNED Goals, approve and materialize tasks and append delegated-identity receipt atomically in the existing TaskStore transaction, replay without duplicates across restart/concurrent connections, continue unaffected eligible snapshots on isolated denial, and reject drift/revocation/expiry/missing authority or spent allowance. Preserve zero model/provider/GitHub writes and fixed check/path enforcement; do not remove R2/R3 execution rejection, create a new DB/authority schema/Gate, or claim arbitrary coding/merge implemented.",
+    "specification": "Add exact preauthorized Goal admission to existing trusted delegated windows. Immutable host PolicyAuthority binding may list bounded Goal id/revision/artifact digest/idempotency snapshots for fixed host validation, with approve_goal and validate_task capabilities and cumulative max_tasks. Existing legacy fixed-checker single Goal mode stays valid. Coordinator must admit matching PLANNED Goals, approve and materialize tasks and append delegated-identity receipt atomically in the existing TaskStore transaction, replay without duplicates across restart/concurrent connections, continue unaffected eligible snapshots on isolated denial, and reject drift/revocation/expiry/missing authority or spent allowance. Preserve zero model/provider/GitHub writes and fixed check/path enforcement; do not remove R2/R3 execution rejection, create a new DB/authority schema/Gate, or claim arbitrary coding/merge implemented. Extend only existing store activation capability check to validate the same bounded host manifest and approve_goal/validate_task pairing; arbitrary capabilities, mismatched task budgets and duplicate/invalid snapshots still reject.",
     "reuse": "Existing #1093 trusted PolicyAuthority loader, canonical policy binding, TaskStore SQLite, GoalService, window budgets, append-only operation receipts, task claims and unattended coordinator. No parallel store or framework.",
     "execution_surface_note": "Fresh full exact approved planning-base worktree; Decision-only activation then canonical preflight before edits. Precharged provider-free development/final checks only; owned unique short external test scratch. All earlier Decisions/failures/spending/expiry retained.",
     "completion_boundary": "Exact scoped source and immutable Decision, focused existing+new tests, natural exact-head CI and independent acceptance, Draft against exact planning branch only. Real live host/browser/model/window deployment and mainline landing require separate bounded authority; full unattended/backlog remains open."
@@ -99,7 +99,8 @@
     "reverse_agent/platform_v1/goal_service.py",
     "reverse_agent/platform_v1/unattended_coordinator.py",
     "tests/platform_v1/test_delegated_goal_admission.py",
-    "docs/unattended-window-lifecycle.md"
+    "docs/unattended-window-lifecycle.md",
+    "reverse_agent/platform_v1/control_store.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -113,7 +114,8 @@
     "reverse_agent/platform_v1/goal_service.py",
     "reverse_agent/platform_v1/unattended_coordinator.py",
     "tests/platform_v1/test_delegated_goal_admission.py",
-    "docs/unattended-window-lifecycle.md"
+    "docs/unattended-window-lifecycle.md",
+    "reverse_agent/platform_v1/control_store.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -144,7 +146,6 @@
     "docs/agents/**",
     "reverse_agent/control_plane/**",
     "reverse_agent/model_access/**",
-    "reverse_agent/platform_v1/control_store.py",
     "reverse_agent/platform_v1/authority_adapter.py",
     "reverse_agent/platform_v1/policy_adapter.py",
     "reverse_agent/platform_v1/task_runtime.py",
@@ -206,12 +207,16 @@
     {
       "pattern": "reverse_agent/platform_v1/unattended_coordinator.py",
       "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/control_store.py",
+      "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
       "command_id": "goaladmission.implementation",
-      "command": "Add exact preauthorized Goal admission to existing trusted delegated windows. Immutable host PolicyAuthority binding may list bounded Goal id/revision/artifact digest/idempotency snapshots for fixed host validation, with approve_goal and validate_task capabilities and cumulative max_tasks. Existing legacy fixed-checker single Goal mode stays valid. Coordinator must admit matching PLANNED Goals, approve and materialize tasks and append delegated-identity receipt atomically in the existing TaskStore transaction, replay without duplicates across restart/concurrent connections, continue unaffected eligible snapshots on isolated denial, and reject drift/revocation/expiry/missing authority or spent allowance. Preserve zero model/provider/GitHub writes and fixed check/path enforcement; do not remove R2/R3 execution rejection, create a new DB/authority schema/Gate, or claim arbitrary coding/merge implemented.",
+      "command": "Add exact preauthorized Goal admission to existing trusted delegated windows. Immutable host PolicyAuthority binding may list bounded Goal id/revision/artifact digest/idempotency snapshots for fixed host validation, with approve_goal and validate_task capabilities and cumulative max_tasks. Existing legacy fixed-checker single Goal mode stays valid. Coordinator must admit matching PLANNED Goals, approve and materialize tasks and append delegated-identity receipt atomically in the existing TaskStore transaction, replay without duplicates across restart/concurrent connections, continue unaffected eligible snapshots on isolated denial, and reject drift/revocation/expiry/missing authority or spent allowance. Preserve zero model/provider/GitHub writes and fixed check/path enforcement; do not remove R2/R3 execution rejection, create a new DB/authority schema/Gate, or claim arbitrary coding/merge implemented. Extend only existing store activation capability check to validate the same bounded host manifest and approve_goal/validate_task pairing; arbitrary capabilities, mismatched task budgets and duplicate/invalid snapshots still reject.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -231,7 +236,8 @@
         "reverse_agent/platform_v1/goal_service.py",
         "reverse_agent/platform_v1/unattended_coordinator.py",
         "tests/platform_v1/test_delegated_goal_admission.py",
-        "docs/unattended-window-lifecycle.md"
+        "docs/unattended-window-lifecycle.md",
+        "reverse_agent/platform_v1/control_store.py"
       ],
       "produced_artifacts": []
     },
@@ -275,8 +281,8 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T06:52:03.975991+00:00",
-  "owner_delegation_sha256": "5a6e9fcc94e1f413ea50b71e22831cbfa395876bc3051fb97abfe9eab7bcb3c5",
+  "approval_event_or_time": "2026-10-08T07:03:34.378634+00:00",
+  "owner_delegation_sha256": "f731f7471c416dc9ac66ec096caee09177cd6d9b6c66aaf294a46c679ef78b79",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 3,
