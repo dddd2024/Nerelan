@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 import shlex
 import subprocess
+from pathlib import Path
 from typing import Any, Protocol, Sequence
 
 from .authority_adapter import AuthorityBundle
@@ -114,6 +115,31 @@ class LiveGitAdapter:
         if result.returncode != 0:
             raise EvidenceCollectionError("git_rev_parse_failed", f"exit={result.returncode}")
         return result.stdout.strip()
+
+
+    def get_repository_root(self) -> str:
+        """Resolve the actual worktree, not the command runner's default cwd."""
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=self.repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                raise EvidenceCollectionError("git_worktree_root_failed")
+            value = result.stdout.rstrip("\r\n")
+            if (not value or len(value) > 8192
+                    or any(char in value for char in "\r\n\x00")
+                    or not Path(value).is_absolute()):
+                raise EvidenceCollectionError("git_worktree_root_invalid")
+            root = Path(value).resolve(strict=True)
+            if not root.is_dir():
+                raise EvidenceCollectionError("git_worktree_root_invalid")
+            return str(root)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            raise EvidenceCollectionError("git_worktree_root_failed") from exc
 
 
 class FakeGitAdapter:
@@ -226,6 +252,7 @@ class FakeCommandRunner:
 # Trusted live evidence factory (F27)
 # ---------------------------------------------------------------------------
 
+
 def _create_trusted_evidence(
     *,
     execution_id: str,
@@ -271,6 +298,7 @@ def _create_trusted_evidence(
 # Legacy function-based Git evidence (kept for backward compatibility)
 # ---------------------------------------------------------------------------
 
+
 def get_changed_paths(base_sha: str, head_sha: str = "HEAD", repo_dir: str = ".") -> tuple[str, ...]:
     return LiveGitAdapter(repo_dir).get_changed_paths(base_sha, head_sha)
 
@@ -286,6 +314,7 @@ def get_head_sha(repo_dir: str = ".") -> str:
 # ---------------------------------------------------------------------------
 # Trusted live evidence collection (F14/F19/F20/F26)
 # ---------------------------------------------------------------------------
+
 
 def _select_required_test_commands(bundle: AuthorityBundle) -> list[dict[str, Any]]:
     """Select required test commands from the Authority Bundle.
@@ -324,6 +353,49 @@ def _parse_command_to_argv(command_str: str) -> list[str]:
     if not argv:
         raise EvidenceCollectionError("empty_command", command_str)
     return argv
+
+
+def _prepare_required_tests(
+    bundle: AuthorityBundle,
+) -> tuple[list[tuple[str, str, list[str]]], list[dict[str, Any]]]:
+    """Validate the complete selected batch before any test can execute.
+
+    Bundle loading remains the authority boundary. This consistency check does
+    not authenticate an arbitrary in-process object claiming to be a bundle.
+    """
+    prepared: list[tuple[str, str, list[str]]] = []
+    errors: list[dict[str, Any]] = []
+    selected = _select_required_test_commands(bundle)
+    admitted = bundle.allowed_command_ids
+    if not isinstance(admitted, tuple) or any(not isinstance(item, str) for item in admitted):
+        return [], [{"passed": False, "error": "allowed_command_ids_invalid"}]
+    seen: set[str] = set()
+    for index, cmd in enumerate(selected):
+        command_id = cmd.get("command_id")
+        command_str = cmd.get("command")
+        error = ""
+        argv: list[str] = []
+        if not isinstance(command_id, str) or not command_id.strip():
+            error = "test_command_id_missing_or_invalid"
+        elif command_id in seen:
+            error = "test_command_id_duplicate"
+        elif command_id not in admitted:
+            error = "test_command_id_not_admitted"
+        elif not isinstance(command_str, str) or "\x00" in command_str:
+            error = "test_command_text_invalid"
+        else:
+            try:
+                argv = _parse_command_to_argv(command_str)
+            except EvidenceCollectionError as exc:
+                error = exc.code
+        if isinstance(command_id, str):
+            seen.add(command_id)
+        if error:
+            # No caller object/command text is copied into a diagnostic.
+            errors.append({"index": index, "passed": False, "error": error})
+        else:
+            prepared.append((command_id, command_str, argv))
+    return ([] if errors else prepared), errors
 
 
 def collect_live_evidence(
@@ -369,44 +441,55 @@ def collect_live_evidence(
             f"local={local_head} pr_head={expected_head}",
         )
 
+    # A production runner must execute in the same Git worktree we observe.
+    # Injected adapters remain trusted-host test seams, not sandbox boundaries.
+    validation_cwd = git_adapter.get_repository_root() if isinstance(git_adapter, LiveGitAdapter) else ""
+
+    def reobserve_checkout() -> None:
+        if validation_cwd and git_adapter.get_repository_root() != validation_cwd:
+            raise EvidenceCollectionError("worktree_changed_during_collection")
+        if git_adapter.get_head_sha() != expected_head:
+            raise EvidenceCollectionError("head_changed_during_collection")
+
     changed_paths = git_adapter.get_changed_paths(bundle.base_sha, expected_head)
     diff_ok = git_adapter.check_git_diff(bundle.base_sha, expected_head)
 
-    # 2. Collect test results (only from approved command_id selections)
+    # 2. Collect test results (only from approved command_id selections).
+    # Validate the whole batch first: a bad later command cannot authorize an
+    # earlier side effect. No selection/missing runner is never a passing test.
     test_results: dict[str, Any] = {}
     if command_runner is not None:
-        test_commands = _select_required_test_commands(bundle)
-        all_passed = True
+        prepared, errors = _prepare_required_tests(bundle)
         command_results: list[dict[str, Any]] = []
-        for cmd in test_commands:
-            command_id = str(cmd.get("command_id", ""))
-            command_str = str(cmd.get("command", ""))
-            try:
-                argv = _parse_command_to_argv(command_str)
-            except EvidenceCollectionError as exc:
+        if errors:
+            test_results = {"passed": False, "commands": errors,
+                            "reason": "required_test_commands_invalid"}
+        elif not prepared:
+            test_results = {"passed": False, "commands": [],
+                            "reason": "required_test_commands_missing"}
+        else:
+            all_passed = True
+            for command_id, command_str, argv in prepared:
+                reobserve_checkout()
+                outcome = (command_runner.run(argv, cwd=validation_cwd) if validation_cwd
+                           else command_runner.run(argv))
+                reobserve_checkout()
+                if (not isinstance(outcome, tuple) or len(outcome) != 3
+                        or type(outcome[0]) is not int
+                        or not isinstance(outcome[1], str) or not isinstance(outcome[2], str)):
+                    raise EvidenceCollectionError("test_runner_result_invalid")
+                exit_code, _stdout, _stderr = outcome
+                passed = exit_code == 0
                 command_results.append({
                     "command_id": command_id,
                     "command": command_str,
-                    "passed": False,
-                    "error": exc.code,
+                    "argv": argv,
+                    "passed": passed,
+                    "exit_code": exit_code,
                 })
-                all_passed = False
-                continue
-            exit_code, stdout, _stderr = command_runner.run(argv)
-            passed = exit_code == 0
-            command_results.append({
-                "command_id": command_id,
-                "command": command_str,
-                "argv": argv,
-                "passed": passed,
-                "exit_code": exit_code,
-            })
-            if not passed:
-                all_passed = False
-        test_results = {
-            "passed": all_passed,
-            "commands": command_results,
-        }
+                if not passed:
+                    all_passed = False
+            test_results = {"passed": all_passed, "commands": command_results}
 
     # 3. Collect CI workflow runs via structured GitHub adapter
     workflow_runs = github_adapter.get_workflow_runs(
@@ -425,6 +508,11 @@ def collect_live_evidence(
             "workflow_validation_failed",
             ";".join(blocking),
         )
+
+    # A workflow observation is not a lock on the local checkout. Recheck after
+    # external observation, including no-runner/invalid-selection paths. This
+    # detects observed drift; it is not an atomic snapshot or ABA protection.
+    reobserve_checkout()
 
     # 5. Build live evidence using the trusted factory
     ci_checks = checks_to_ci_tuples(workflow_runs)
@@ -447,6 +535,7 @@ def collect_live_evidence(
 # ---------------------------------------------------------------------------
 # Legacy assemble_evidence (F27: deprecated — produces fixture evidence only)
 # ---------------------------------------------------------------------------
+
 
 def assemble_evidence(
     execution_id: str,
@@ -493,6 +582,7 @@ def assemble_evidence(
 # ---------------------------------------------------------------------------
 # merge_evidence (F15: no untrusted fallback)
 # ---------------------------------------------------------------------------
+
 
 def merge_evidence(
     untrusted: ExecutionEvidence,
