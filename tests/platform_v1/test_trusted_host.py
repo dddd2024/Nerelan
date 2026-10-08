@@ -51,6 +51,40 @@ from reverse_agent.model_access.os_vault import (
 
 from _local_client_fixture import client_session, client_headers
 
+
+@pytest.mark.parametrize("relative,ignored", [
+    ("unknown.py", False), ("nested/unknown.py", False),
+    ("literal space.py", False), ("unicode-文件.py", False),
+    ("ignored-source.py", True),
+    pytest.param("literal\nnewline.py", False, marks=pytest.mark.skipif(os.name == "nt", reason="Windows forbids newline filenames")),
+])
+def test_policy_loader_rejects_real_untracked_workspace_source(tmp_path, monkeypatch, relative, ignored):
+    """Real immutable Decision, canonical Gate and Git fixture, not live authority."""
+    import importlib.util
+    from reverse_agent.platform_v1 import authority_adapter
+    fixture_file = Path(__file__).parents[1] / "test_trust_authorization_adapter.py"
+    spec = importlib.util.spec_from_file_location("policy_git_fixture", fixture_file)
+    fixture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixture)
+    original = authority_adapter.load_policy_authority
+    calls = []
+    def observe_then_inject(**kwargs):
+        accepted = original(**kwargs)
+        calls.append(accepted)
+        workspace = Path(kwargs["pins"]["workspace_path"])
+        if ignored:
+            (workspace / ".git" / "info" / "exclude").write_text(relative + "\n", encoding="utf-8")
+        path = workspace / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"untracked source\n")
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            original(**kwargs)
+        assert path.read_bytes() == b"untracked source\n"
+        return accepted
+    monkeypatch.setattr(authority_adapter, "load_policy_authority", observe_then_inject)
+    fixture.test_policy_loader_accepts_real_immutable_git_decision_and_canonical_preflight(tmp_path)
+    assert len(calls) == 1
+
 def _make_git_worktree(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=path, capture_output=True, check=True)

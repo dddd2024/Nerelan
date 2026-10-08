@@ -806,6 +806,31 @@ def load_policy_authority(
         if (original.returncode or expected_vite == original.stdout
                 or _read_blob(workspace, "frontend/vite.config.ts") != expected_vite):
             raise AuthorityBundleError("policy_runtime_config_drift")
+    # Untracked source is invisible to diff HEAD, including Git-ignored
+    # source. Observe both sets; .gitignore is not a source authority grant.
+    untracked = _policy_git_result(workspace, "ls-files", "--others", "--exclude-standard", "-z").stdout
+    ignored = _policy_git_result(
+        workspace, "ls-files", "--others", "--ignored", "--exclude-standard",
+        "--directory", "--no-empty-directory", "-z",
+    ).stdout
+    def names(raw: bytes) -> set[str]:
+        if raw and not raw.endswith(b"\x00"):
+            raise AuthorityBundleError("policy_git_observation_failed")
+        try:
+            return {entry.decode("utf-8") for entry in raw.split(b"\x00") if entry}
+        except UnicodeDecodeError as exc:
+            raise AuthorityBundleError("policy_git_observation_failed") from exc
+    # The canonical Gate already reads/validates the exact skill registry.
+    # Its generated observations are runtime artifacts, never stageable source.
+    known_ignored = {"task_workspaces/", ".platform_v1_runtime/", "frontend/node_modules/"}
+    if "frontend/vite.config.ts" in deltas:
+        known_ignored.add("frontend/.vite-native-owned/")
+    allowed_files = gate_paths | {".codex-skills/registry.json"}
+    if any(path not in allowed_files and not any(path.startswith(prefix) for prefix in known_ignored)
+           for path in names(untracked)):
+        raise AuthorityBundleError("policy_workspace_source_drift")
+    if names(ignored) - known_ignored:
+        raise AuthorityBundleError("policy_workspace_source_drift")
     try:
         expiry = datetime.fromisoformat(binding["upper_expires_at"].replace("Z", "+00:00"))
         pinned_expiry = datetime.fromisoformat(pins["upper_expires_at"].replace("Z", "+00:00"))

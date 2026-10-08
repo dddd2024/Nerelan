@@ -274,17 +274,29 @@ async function runGoalStart(
   draftOnly = false,
 ): Promise<PlatformGoal> {
   let journal = ensureJournal(input, fingerprint);
-  let goal: PlatformGoal;
+  let goal: PlatformGoal | undefined;
   let template: ApprovedPolicyTemplate | null = null;
+  if (journal.goal_id) {
+    goal = await fetchGoal(journal.goal_id);
+    if (goal.id !== journal.goal_id || goal.repository !== input.repository || goal.objective !== input.objective) {
+      throw new GoalStartOperationError("goal_start_unexpected_state", journal.goal_id);
+    }
+    if (draftOnly) return goal;
+    // Reconcile an already committed launch through an authenticated read.
+    // RUNNING means launched, not that execution has completed.
+    if (goal.status === "RUNNING" || goal.status === "COMPLETED") {
+      clearJournal(input.operationId);
+      return goal;
+    }
+    if (goal.status === "BLOCKED") throw new GoalStartOperationError("goal_start_blocked", goal.id);
+    if (goal.status === "INVALIDATED") throw new GoalStartOperationError("goal_start_invalidated", goal.id);
+  }
   if (!draftOnly) template = await fetchApprovedPolicy();
   const checkerPlan = approvedCheckerPlan(template);
   const checkerDraft = draftOnly ? input.checkerDraft : undefined;
   if (template && template.policy.repository !== input.repository) throw new GoalStartOperationError("active_window_repository_conflict", journal.goal_id);
 
-  if (journal.goal_id) {
-    goal = await fetchGoal(journal.goal_id);
-    if (goal.id !== journal.goal_id) throw new GoalStartOperationError("goal_start_unexpected_state", journal.goal_id);
-  } else {
+  if (!goal) {
     if (!draftOnly) {
       const platform = await fetchPlatformStatus();
       const active = platform.autonomy.active_window;

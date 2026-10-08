@@ -106,6 +106,41 @@ def test_fixed_host_check_disables_configured_external_diff_and_textconv(tmp_pat
     assert not marker.exists()
 
 
+@pytest.mark.parametrize("relative", ["new.txt", "nested/new.txt", "literal space.txt", "unicode-文件.txt", "literal[ab].txt", pytest.param("literal\nnewline.txt", marks=pytest.mark.skipif(os.name == "nt", reason="Windows forbids newline filenames"))])
+@pytest.mark.parametrize("ignored", [False, True])
+def test_fixed_host_check_rejects_untracked_selected_literal_paths(tmp_path, relative, ignored):
+    from reverse_agent.platform_v1.task_runtime import ValidationCommandError
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Fixture"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "fixture@example.invalid"], check=True)
+    (tmp_path / "tracked.txt").write_bytes(b"tracked\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "tracked.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-qm", "fixture"], check=True)
+    if ignored:
+        (tmp_path / ".git" / "info" / "exclude").write_text("*\n", encoding="utf-8")
+    path = tmp_path / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"new content\n")
+    selected = "nested" if relative.startswith("nested/") else relative
+    with pytest.raises(ValidationCommandError, match="host_validation_untracked_paths"):
+        LocalValidationRunner().run(task_id="fixture", command_id="git_diff_check",
+                                    cwd=str(tmp_path), allowed_paths=[selected])
+    assert path.read_bytes() == b"new content\n"
+
+
+def test_fixed_host_check_fails_closed_on_untracked_git_observation_error(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.task_runtime import ValidationCommandError
+    real_run = subprocess.run
+    def failed_observation(argv, **kwargs):
+        if "ls-files" in argv:
+            return subprocess.CompletedProcess(argv, 128, b"", b"observation failed")
+        return real_run(argv, **kwargs)
+    monkeypatch.setattr(subprocess, "run", failed_observation)
+    with pytest.raises(ValidationCommandError, match="host_validation_git_observation_failed"):
+        LocalValidationRunner().run(task_id="fixture", command_id="git_diff_check",
+                                    cwd=str(tmp_path), allowed_paths=["source.txt"])
+
+
 def test_executor_router_create_executor_opencode_returns_open_code_executor() -> None:
     from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
 

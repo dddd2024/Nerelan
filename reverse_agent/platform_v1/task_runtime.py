@@ -234,6 +234,20 @@ class LocalValidationRunner:
                                           text=True, timeout=10, check=False)
                 if observed.returncode or observed.stdout.strip() != expected_head:
                     raise ExecutorRuntimeError("host_validation_base_drift")
+            # diff HEAD cannot inspect new files: observe selected literal
+            # paths separately, including ignored files, before claiming PASS.
+            try:
+                untracked = subprocess.run(
+                    [*prefix, "ls-files", "--others", "-z", "--", *allowed_paths],
+                    cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
+                    capture_output=True, timeout=10, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise ValidationCommandError("host_validation_git_observation_failed") from exc
+            if untracked.returncode or (untracked.stdout and not untracked.stdout.endswith(b"\x00")):
+                raise ValidationCommandError("host_validation_git_observation_failed")
+            if untracked.stdout:
+                raise ValidationCommandError("host_validation_untracked_paths")
             argv = [*prefix, "diff", "--check", "--no-ext-diff", "--no-textconv", "HEAD", "--", *allowed_paths]
         try:
             proc = subprocess.run(

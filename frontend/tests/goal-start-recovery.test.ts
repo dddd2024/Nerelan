@@ -96,6 +96,78 @@ function operationStorageKey(operationId = input.operationId) {
 }
 
 describe("resumable Goal start operation", () => {
+  it("requires live policy before creating a new Goal", async () => {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL) => json({ available: false, error: "policy_expired_or_revoked" }, 409));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(startGoal(input)).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pathOf(fetchMock.mock.calls[0][0])).toBe("/api/windows/policy");
+  });
+
+  it.each(["id", "repository", "objective"] as const)("rejects a recovered launched Goal with mismatched %s", async (field) => {
+    let recovering = false;
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") return json(approvedTemplate());
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: windowFor() } });
+      if (path === "/api/goals") return json(goal("DRAFT"));
+      if (path.endsWith("/plan")) throw new TypeError("lost_plan_response");
+      if (recovering && path === "/api/goals/goal-recovery-1") return json({ ...goal("RUNNING"), [field]: "different" });
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(startGoal(input)).rejects.toThrow("lost_plan_response");
+    recovering = true;
+    fetchMock.mockClear();
+    await expect(startGoal(input)).rejects.toMatchObject({ code: "goal_start_unexpected_state" });
+    expect(fetchMock.mock.calls.map(([url]) => pathOf(url))).toEqual(["/api/goals/goal-recovery-1"]);
+    expect(window.localStorage.getItem(operationStorageKey())).not.toBeNull();
+  });
+  it.each(["RUNNING", "COMPLETED"] as const)("recovers %s after a lost launch response without requesting expired policy", async (status) => {
+    let serverGoal = goal("DRAFT");
+    let recovering = false;
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") return json(recovering ? { available: false, error: "policy_expired_or_revoked" } : approvedTemplate(), recovering ? 409 : 200);
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: windowFor() } });
+      if (path === "/api/goals") return json(serverGoal);
+      if (path.endsWith("/plan")) return json(serverGoal = goal("PLANNED"));
+      if (path.endsWith("/approve")) return json(serverGoal = goal("APPROVED"));
+      if (path.endsWith("/launch")) { serverGoal = goal(status); throw new TypeError("lost_launch_response"); }
+      if (path === `/api/goals/${serverGoal.id}` && !init?.method) return json(serverGoal);
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(startGoal(input)).rejects.toThrow("lost_launch_response");
+    expect(window.localStorage.getItem(operationStorageKey())).not.toBeNull();
+    recovering = true;
+    fetchMock.mockClear();
+    await expect(startGoal(input)).resolves.toMatchObject({ status });
+    expect(fetchMock.mock.calls.map(([url]) => pathOf(url))).toEqual([`/api/goals/${serverGoal.id}`]);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(window.localStorage.getItem(operationStorageKey())).toBeNull();
+  });
+
+  it.each(["DRAFT", "PLANNED", "APPROVED"] as const)("still requires live policy before mutating recovered %s", async (status) => {
+    let recovering = false;
+    const fetchMock = vi.fn(async (url: RequestInfo | URL, _init?: RequestInit) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") return json(recovering ? { available: false, error: "policy_expired_or_revoked" } : approvedTemplate(), recovering ? 409 : 200);
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: windowFor() } });
+      if (path === "/api/goals") return json(goal("DRAFT"));
+      if (path.endsWith("/plan")) throw new TypeError("lost_plan_response");
+      if (path === "/api/goals/goal-recovery-1") return json(goal(status));
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(startGoal(input)).rejects.toThrow("lost_plan_response");
+    recovering = true;
+    fetchMock.mockClear();
+    await expect(startGoal(input)).rejects.toMatchObject({ status: 409 });
+    expect(fetchMock.mock.calls.map(([url]) => pathOf(url))).toEqual(["/api/goals/goal-recovery-1", "/api/windows/policy"]);
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    expect(window.localStorage.getItem(operationStorageKey())).not.toBeNull();
+  });
   it("saves a checker draft without reading policy and binds recovery to its actual key", async () => {
     const draftInput: StartGoalInput = { ...input, operationId: "checker-draft-recovery", executorKind: "opencode", checkerDraft: {
       idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "",
