@@ -27,8 +27,8 @@ def test_native_node_transport_suite_is_blocking_and_provider_free():
 
 
 def test_production_dependency_is_exact_and_existing_lock_is_consistent():
-    package = json.loads((ROOT / "frontend/package.json").read_text())
-    lock = json.loads((ROOT / "frontend/package-lock.json").read_text())
+    package = json.loads((ROOT / "frontend/package.json").read_text(encoding="utf-8"))
+    lock = json.loads((ROOT / "frontend/package-lock.json").read_text(encoding="utf-8"))
     assert package["dependencies"]["playwright-core"] == "1.62.1"
     assert lock["packages"][""]["dependencies"]["playwright-core"] == "1.62.1"
     installed = lock["packages"]["node_modules/playwright-core"]
