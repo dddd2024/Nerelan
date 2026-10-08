@@ -1,10 +1,10 @@
-# Delegated controller authority orchestration v2
+# Delegated controller footprint repair v3
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_delegated_controller_r2_v2",
-  "round_id": "round_20261008_issue118_delegated_controller_r2_v2",
+  "decision_id": "decision_20261008_issue118_delegated_controller_r2_v3_footprint",
+  "round_id": "round_20261008_issue118_delegated_controller_r2_v3_footprint",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,14 +21,14 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Controller-authorized compile repair under the same explicit Owner delegation. Prior immutable a105fc3 decision and blocked plan preserved; original absolute expiry and product restrictions unchanged.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Controller-authorized compile repair under the same explicit Owner delegation. Prior immutable a105fc3 decision and blocked plan preserved; original absolute expiry and product restrictions unchanged. Controller-authorized v3 successor repairs observed unchanged footprint test failure at 6072309 (13282 bytes > 12000). Preserve immutable v2, CI diagnostic and all prior spending; append separate check allowance, retain original absolute expiry.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
   "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "a105fc3477da16e5369ab6f41880bd07367ce120",
+  "starting_head": "607230915e892c64b8bced7772c90ba34282e7f3",
   "required_branch": "codex/issue118-delegated-controller-authority-r2-v2-20261008",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": true,
@@ -42,10 +42,10 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 3,
-  "draft_pr_creation_limit": 1,
+  "normal_push_attempt_limit": 1,
+  "draft_pr_creation_limit": 0,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
   "workflow_rerun_limit": 0,
@@ -78,9 +78,9 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Record explicit Owner-to-controller authority delegation; the controller compiles bounded successor Work Items without repeated interactive approvals, preserving immutable prior Decisions, cumulative history, exact scope/base/head, canonical preflight, independent acceptance and publication boundaries. Fix missing-approval stop semantics for covered authorization decisions, not failing tests or side effects. Reuse the current Path B compiler and evidence stores. This is governance integration, not a claim that autonomous coding/merge is implemented or deployed.",
+    "specification": "Compress only the AGENTS.md Long-duration unattended section to a bounded linked entry. All delegated workflow semantics remain in existing docs/agents/governance-reference.md. Do not alter reference, tests, byte ceiling, compiler or runtime. Repair observed footprint failure and verify unchanged tests.",
     "reuse": "Existing AGENTS entry, conditional governance reference, transition parser/compiler/preflight and exact-head CI. No new Gate or authority schema.",
-    "execution_surface_note": "Fresh full worktree; Decision-only activation before implementation. Provider-free deterministic checks only. New additional phase bounds are recorded separately and do not reset any old phase counters.",
+    "execution_surface_note": "Reuse the same existing branch and full worktree at exact starting_head 6072309. One new Decision-only activation, canonical preflight before AGENTS edit. Prior history immutable; no history rewrite.",
     "completion_boundary": "Draft only, exact source diff, deterministic checks, natural exact-head CI, independent acceptance required before separately authorized landing. No runtime/model/provider/credential/merge/Ready/release/deploy."
   },
   "bootstrap_exception_files": [
@@ -119,7 +119,8 @@
     "tests/test_decision_preflight.py",
     "tests/test_control_plane_transition.py",
     "tests/test_codex_skills.py",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "tests/test_agent_instruction_context.py"
   ],
   "forbidden_mutated_paths": [
     ".github/**",
@@ -177,7 +178,7 @@
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
-      "command": "Record explicit Owner-to-controller authority delegation; the controller compiles bounded successor Work Items without repeated interactive approvals, preserving immutable prior Decisions, cumulative history, exact scope/base/head, canonical preflight, independent acceptance and publication boundaries. Fix missing-approval stop semantics for covered authorization decisions, not failing tests or side effects. Reuse the current Path B compiler and evidence stores. This is governance integration, not a claim that autonomous coding/merge is implemented or deployed.",
+      "command": "Compress only the AGENTS.md Long-duration unattended section to a bounded linked entry. All delegated workflow semantics remain in existing docs/agents/governance-reference.md. Do not alter reference, tests, byte ceiling, compiler or runtime. Repair observed footprint failure and verify unchanged tests.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -191,14 +192,13 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "AGENTS.md",
-        "docs/agents/governance-reference.md"
+        "AGENTS.md"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "delegation.validation",
-      "command": "python -m pytest tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
+      "command": "python -m pytest tests/test_agent_instruction_context.py tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -236,12 +236,12 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T05:24:28.707552+00:00",
-  "owner_delegation_sha256": "e8ace4b16f725edda778ed088086f115e4fdb60bf68b971b6d9e59ef6c07b650",
+  "approval_event_or_time": "2026-10-08T06:09:32.343629+00:00",
+  "owner_delegation_sha256": "f93f274e6c64d5da0ce72f3dab2ebb4227ec638e04183f57a3342dee6a5364ee",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
-  "development_check_run_limit": 3,
-  "development_correction_round_limit": 2,
+  "development_check_run_limit": 1,
+  "development_correction_round_limit": 1,
   "mandatory_check_run_limit": 4,
   "execution_expires_at": "2026-10-08T09:22:21.386602+00:00"
 }
