@@ -16,6 +16,8 @@ from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import _handler_factory
+from reverse_agent.platform_v1.autonomy import AutonomyService
+from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 
 
 from _local_client_fixture import client_session, client_headers
@@ -26,6 +28,8 @@ def api(store, router, tmp_path, monkeypatch):
     monkeypatch.setenv("REVERSE_AGENT_TASK_WORKSPACE_ROOT", str(tmp_path / "worktrees"))
     server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_factory(
         store, router, allowed_origin="http://localhost:5173", binding_resolver=LocalBinding(),
+        # Explicit legacy in-process fixture; the production factory remains strict.
+        autonomy_service=AutonomyService(control_store=PlatformControlStore(store), capabilities=CapabilityRegistry()),
         execution_authority_sha="goal-evidence-test-authority", planning_sha="goal-evidence-test-plan", local_client_session=client_session(),))
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
