@@ -1,10 +1,10 @@
-# Windows owned fixture lifecycle repair
+# Exact delegated controller mainline landing authority
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261001_issue1047_windows_owned_shutdown_r3_v1",
-  "round_id": "round_20261001_issue1047_windows_owned_shutdown_r3_v1",
+  "decision_id": "decision_20261008_issue118_controller_exact_landing_r2_v1",
+  "round_id": "round_20261008_issue118_controller_exact_landing_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,21 +16,21 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "WINDOWS_OWNED_FIXTURE_LIFECYCLE_REPAIR",
-  "source_issue": 1047,
-  "parent_issue": 289,
+  "decision_scope": "ISSUE118_DELEGATED_CONTROLLER_EXACT_MAINLINE_LANDING",
+  "source_issue": 118,
+  "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
-  "approved_by": "dddd2024 via explicit user approval 2026-10-01T04:02:30Z Sentinel_738c3b494528819196b021a484258575",
-  "approval_basis": "User approved the assistant proposal: isolated reproduction, edits to dev-up/dev-down and corresponding tests, stop ONLY identity-verified test-created processes; no other processes. User confirmed continuing responsibility at 2026-10-01T04:02:53Z Sentinel_06d2a4e71b988191a4f73f5274609416. This is a fresh bounded Decision, not reuse of #1042 or #1044. Issue comments are tracking, not authority.",
-  "risk_tier": "R3",
-  "authorized_risk_tier": "R3",
+  "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; New separate exact R2 landing phase under explicit Owner delegation. Source Decision remains immutable and source grant Ready/merge=false unchanged. This Authority PR must remain Draft/unmerged. No personal human R1 carve-out. Actual independent source acceptance required and retained.",
+  "risk_tier": "R2",
+  "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "activation_base_sha": "9092911f41a089e249f27c883526904299be1d17",
-  "starting_head": "9092911f41a089e249f27c883526904299be1d17",
-  "required_branch": "owner/20261001-windows-owned-shutdown-r3-v1",
-  "fresh_worktree_creation_required": false,
+  "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "required_branch": "codex/issue118-controller-landing-authority-r2-20261008",
+  "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
@@ -42,12 +42,12 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 5,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 7,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
-  "mark_ready_attempt_limit": 0,
-  "merge_attempt_limit": 0,
+  "mark_ready_attempt_limit": 1,
+  "merge_attempt_limit": 1,
   "workflow_rerun_limit": 0,
   "runner_dispatch_limit": 0,
   "workflow_dispatch_limit": 0,
@@ -55,10 +55,10 @@
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
   "pr_creation_allowed": true,
-  "issue_comment_allowed": true,
+  "issue_comment_allowed": false,
   "pull_request_comment_allowed": true,
-  "merge_allowed": false,
-  "mark_ready_allowed": false,
+  "merge_allowed": true,
+  "mark_ready_allowed": true,
   "workflow_rerun_allowed": false,
   "workflow_dispatch_allowed": false,
   "runner_dispatch_allowed": false,
@@ -73,15 +73,15 @@
   "model_api_invocation_allowed": false,
   "external_reverse_tool_invocation_allowed": false,
   "unknown_binary_execution_allowed": false,
-  "destructive_operations_allowed": true,
+  "destructive_operations_allowed": false,
   "provider_free_acceptance_required": true,
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Reproduce the four historical Windows launcher failures using actual current main scripts and fixture functions. Capture taskkill returncode/stdout/stderr and exact PID, executable and start-time before stop; never stop live/user/unknown/reused processes. Establish actual cause before repair. Fix only the necessary dev-up/dev-down lifecycle and corresponding tests; preserve strict identity refusal, unknown-port refusal and launcher semantics. Record process exit, owned LISTEN disappearance and restart readiness separately. Socket timeout/unreachable is not evidence of port free. Windows PowerShell 5.1 and PowerShell 7 must exercise actual script behavior. #1004 timestamp coercion is distinct until demonstrated; no unrelated framework replacement.",
-    "reuse": "Existing scripts, Process identity APIs, native taskkill and provider-free Windows fixture. No copied verifier, no governance/check changes, no dependencies.",
-    "execution_surface_note": "Fresh full isolated checkout on hostname dd under authorized Temp. Bootstrap Decision-only activation precedes generated plan, lint and actual PRE_EXECUTION_AUTHORIZED. After preflight, at most 16 focused scenario/probe executions, 2 Platform suite runs and 2 repository suite runs, within 4 hours. Known existing Python, PowerShell, cmd and taskkill only. Loopback fixture listeners only. Destructive permission means solely termination of newly created fixture processes whose exact PID/executable/start-time and fixture ownership have been verified immediately before stop, and documented descendants created by that fixture. No files deleted or moved; no unknown or user processes terminated. Evidence may be written only within this isolated Temp work/evidence area and external pytest basetemp under authorized Temp. Record failures and preserve evidence.",
-    "completion_boundary": "One Draft, three product paths, immutable Decision bootstrap only; generated artifacts not committed. Author tests are not independent acceptance. Natural exact-head CI, no reruns/dispatch. Update #1047/#1010/#289/#1004/#1041 with factual progress; fresh-read and surgically update stale #1010 current status, preserve history/concurrent modifications. No source issue closure, Ready, merge, deploy, settings, credentials or payment."
+    "specification": "Decision-only exact landing authorization. Independently accepted PR1094 at95c6e9f against97d766d main may be marked Ready once, then merged once with merge method and expected-head protection only after exact required baseline/state-gate/landing-state-gate all SUCCESS, no unresolved review, live main/base/head unchanged, canonical false/none authority attestation and independent authority audit. Publish one Authority Draft on the exact branch; it must never be merged. Actual delegated account review must be truthful and distinct from prior independent audit. No product implementation in this phase.",
+    "reuse": "Existing Path-B compiler/preflight, immutable Decision, false/none owner_landing_merge_attestation, GitHub actual workflows/review/ruleset and existing TaskStore. No new Gate, schema or verifier.",
+    "completion_boundary": "Exact sourcePR1094 merged commit verified against remote main and actual postmerge mainline validation; full unattended/backlog goal remains incomplete. If predicates fail park only landing and select another useful slice; no bypass/retry budget reset.",
+    "execution_surface_note": "Real Goal/Task adapter currently exposes fixed git_diff_check and lacks GitHub Ready/merge capability, as accepted real-host evidence shows; supervised Codex uses existing bounded GitHub control plane as authorized alternate executor."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -93,10 +93,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -104,10 +101,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
-    "project_state/gates/transition_preflight_result.json",
-    "dev-up.ps1",
-    "dev-down.ps1",
-    "tests/platform_v1/test_dev_up_contract.py"
+    "project_state/gates/transition_preflight_result.json"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -117,35 +111,28 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    "AGENTS.md",
-    "docs/agents/governance-reference.md",
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/control_plane/command_authority.py",
     "tests/test_mainline_landing.py",
-    ".github/workflows/ci.yml"
+    ".github/workflows/state-gate.yml",
+    "AGENTS.md",
+    "docs/agents/governance-reference.md"
   ],
   "forbidden_mutated_paths": [
     "AGENTS.md",
-    "docs/agents/**",
+    "docs/**",
+    "reverse_agent/**",
+    "tests/**",
+    "frontend/**",
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/model_access/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/platform_v1/**",
-    "tests/test_mainline_landing.py",
-    "frontend/**",
-    "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
-    "launch_nerelan.bat",
-    "launch_reverse_agent.bat",
+    "project_state/rounds/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
-    "**/.env",
-    "reverse_agent/github_remote_verifier.py",
-    "tests/platform_v1/test_check_producer_binding.py",
-    "docs/check-producer-binding.md"
+    "**/.env"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -155,8 +142,6 @@
     "squash",
     "amend",
     "history_rewrite",
-    "mark_ready",
-    "merge",
     "workflow_rerun",
     "workflow_dispatch",
     "runner_dispatch",
@@ -168,120 +153,32 @@
     "tag_or_release",
     "dependency_install",
     "local_browser_execution",
-    "generated_governance_commit"
+    "generated_governance_commit",
+    "active_json_rewrite",
+    "ruleset_change",
+    "bypass_required_checks",
+    "merge_authority_pr",
+    "issue_close"
   ],
   "capability_policy": {
-    "runner_dispatch_allowed": false,
-    "workflow_dispatch_allowed": false,
-    "model_api_invocation_allowed": false,
-    "external_reverse_tool_invocation_allowed": false,
-    "unknown_binary_execution_allowed": false,
-    "destructive_operations_allowed": true,
-    "network_access_default_allowed": false,
-    "direct_push_to_main_allowed": false,
-    "force_push_allowed": false,
-    "rebase_during_execution_allowed": false,
-    "tag_or_release_allowed": false,
-    "merge_allowed": false,
-    "remote_observation_read_only_allowed": true,
-    "local_network_exceptions": [],
-    "ci_network_exceptions": [
-      "Unchanged natural CI dependency setup and provider-free tests only. No rerun or dispatch."
-    ],
-    "trusted_worker_network_exceptions": [
-      "Within isolated dd Temp checkout, run the four exact retained Windows launcher tests/scenarios and narrow lifecycle probes using existing installed PS5/PS7/Python, actual scripts and fixture helpers. Capture exact identity, taskkill returncode/stdout/stderr, process exit, owned LISTEN and readiness. Stop only freshly created identity-verified fixture processes/descendants; never unknown/live/user processes. Bounded loopback only; preserve evidence and do not erase fixtures.",
-      "Run focused Windows launcher regressions on actual PS5 and PS7, tests/test_mainline_landing.py, applicable Platform V1 and repository deterministic pytest, git diff --check, within declared budgets. Test fixture process cleanup uses the same exact ownership constraint; no model/provider calls, installs or unknown binary."
-    ],
-    "user_local_network_exceptions": [],
     "github_control_plane_network_exceptions": [
-      "Publish only owner/20261001-windows-owned-shutdown-r3-v1 and one Draft against main@9092911f41a089e249f27c883526904299be1d17. Update exact head binding and factual tracking #1047/#1010/#289/#1004/#1041, preserving concurrent/history content. No Ready/merge/closure/settings/deployment."
+      "Publish only exact authority branch codex/issue118-controller-landing-authority-r2-20261008 and create/update one Draft against main; record one truthful delegated exact-head COMMENTED review and one existing owner_landing_merge_attestation evidence comment on PR1094. Mark Ready and expected-head merge PR1094 only under separately bound predicates; no bypass or authority PR merge."
     ]
   },
   "path_risk_floor": [
     {
-      "pattern": "project_state/**",
+      "pattern": "AGENTS.md",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "dev-up.ps1",
-      "minimum_risk": "R3"
-    },
-    {
-      "pattern": "dev-down.ps1",
-      "minimum_risk": "R3"
+      "pattern": "docs/agents/governance-reference.md",
+      "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
-      "command_id": "windows.bootstrap",
-      "command": "Run existing startup-snapshot, transition-command-plan, transition-lint and transition-preflight --mode pre; require PRE_EXECUTION_AUTHORIZED before fixture execution or implementation. Worktree-publication-readiness before scoped staging/publication. Preserve gates uncommitted.",
-      "phase": "bootstrap",
-      "required": false,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "code_read",
-        "local_static_check",
-        "command_plan_generation"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/startup_snapshot.json",
-        "project_state/gates/bootstrap_state.json",
-        "project_state/gates/transition_command_plan_preview.json",
-        "project_state/gates/transition_preflight_result.json"
-      ]
-    },
-    {
-      "command_id": "windows.reproduce",
-      "command": "Within isolated dd Temp checkout, run the four exact retained Windows launcher tests/scenarios and narrow lifecycle probes using existing installed PS5/PS7/Python, actual scripts and fixture helpers. Capture exact identity, taskkill returncode/stdout/stderr, process exit, owned LISTEN and readiness. Stop only freshly created identity-verified fixture processes/descendants; never unknown/live/user processes. Bounded loopback only; preserve evidence and do not erase fixtures.",
-      "phase": "diagnosis",
-      "required": false,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "unit_test",
-        "local_static_check",
-        "destructive",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "windows.implement",
-      "command": "After actual preflight and causal reproduction, minimally repair dev-up.ps1/dev-down.ps1 and corresponding actual-function tests only. Preserve identity and unknown-port fail-closed semantics. Do not alter judges, governance, workflows, dependencies or other candidates.",
-      "phase": "implementation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "trusted_worker",
-      "operations": [
-        "source_edit",
-        "local_static_check"
-      ],
-      "network_access": false,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "dev-up.ps1",
-        "dev-down.ps1",
-        "tests/platform_v1/test_dev_up_contract.py"
-      ],
-      "produced_artifacts": []
-    },
-    {
-      "command_id": "windows.validate",
-      "command": "Run focused Windows launcher regressions on actual PS5 and PS7, tests/test_mainline_landing.py, applicable Platform V1 and repository deterministic pytest, git diff --check, within declared budgets. Test fixture process cleanup uses the same exact ownership constraint; no model/provider calls, installs or unknown binary.",
+      "command_id": "landing.validation",
+      "command": "python -m pytest tests/test_mainline_landing.py -q -p no:cacheprovider; git diff --check",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -289,20 +186,18 @@
       ],
       "execution_surface": "trusted_worker",
       "operations": [
+        "code_read",
         "unit_test",
-        "local_static_check",
-        "diff_validation",
-        "destructive",
-        "network_access"
+        "diff_validation"
       ],
-      "network_access": true,
+      "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
-      "command_id": "windows.publish",
-      "command": "Publish only owner/20261001-windows-owned-shutdown-r3-v1 and one Draft against main@9092911f41a089e249f27c883526904299be1d17. Update exact head binding and factual tracking #1047/#1010/#289/#1004/#1041, preserving concurrent/history content. No Ready/merge/closure/settings/deployment.",
+      "command_id": "landing.authority_publication",
+      "command": "Publish exact authority branch and one Draft after PUBLICATION_READY; preserve exact body Decision binding.",
       "phase": "publication",
       "required": true,
       "expected_exit_codes": [
@@ -311,10 +206,7 @@
       "execution_surface": "github_control_plane",
       "operations": [
         "push",
-        "draft_pr",
-        "pull_request_comment",
-        "issue_comment",
-        "network_access"
+        "draft_pr"
       ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
@@ -322,24 +214,69 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "windows.observe",
-      "command": "Read exact remote head/base, scoped diff, immutable Decision and natural CI until terminal. Disclose actual local vs CI results and remaining independent acceptance.",
-      "phase": "final_evidence",
+      "command_id": "landing.evidence",
+      "command": "Record truthful delegated exact-head COMMENTED review and existing canonical attestation binding independent source audit and actual Authority natural CI.",
+      "phase": "publication",
       "required": true,
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "remote_observation",
+      "execution_surface": "github_control_plane",
       "operations": [
-        "read_only_audit",
-        "code_read"
+        "pull_request_comment"
       ],
-      "network_access": false,
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "landing.ready",
+      "command": "After independent source and Authority acceptance plus actual natural CI, mark only PR1094 Ready once; keep Authority Draft.",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "mark_ready"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
+    },
+    {
+      "command_id": "landing.merge",
+      "command": "After Ready-triggered State Gate and formal landing-state-gate succeed, observe exact unchanged main/base/head and unresolved reviews, merge only PR1094 with expected head 95c6e9fbefc39eefc375350daa51e2dc5aa382bb and merge method; verify remote main equals merge commit.",
+      "phase": "publication",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "merge"
+      ],
+      "network_access": true,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
     }
   ],
-  "issue_completion_close_allowed": []
+  "issue_completion_close_allowed": [],
+  "approval_event_or_time": "2026-10-08T08:42:16.965642+00:00",
+  "owner_delegation_sha256": "7d108785c5bda386588ddc2c91d3bee7620d2eac06a0fa8ac51ebb4702eedfd9",
+  "confirmation_mode": "DELEGATED_CONTROLLER",
+  "personally_human": false,
+  "development_check_run_limit": 0,
+  "development_correction_round_limit": 0,
+  "mandatory_check_run_limit": 2,
+  "execution_expires_at": "2026-10-08T09:22:21.386602+00:00",
+  "target_pr": 1094,
+  "accepted_exact_head_sha": "95c6e9fbefc39eefc375350daa51e2dc5aa382bb",
+  "expected_head_protection_required": true,
+  "allowed_merge_method": "merge"
 }
 ```
