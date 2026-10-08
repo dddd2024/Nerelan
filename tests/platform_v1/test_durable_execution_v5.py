@@ -51,6 +51,8 @@ from reverse_agent.platform_v1.opencode_executor import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
 _OPENCODE_SOURCE_ORIGIN = "https://github.com/dddd2024/reverse-agent.git"
 
 
@@ -1166,6 +1168,7 @@ def test_task_api_exposes_validation(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls.store = store
     handler_cls.router = router
@@ -1184,7 +1187,7 @@ def test_task_api_exposes_validation(tmp_path) -> None:
         req = urllib.request.Request(
             f"http://127.0.0.1:{port}/api/tasks/{task.id}/execute",
             data=b"{}",
-            headers={"Content-Type": "application/json"},
+            headers=client_headers({"Content-Type": "application/json"}),
             method="POST",
         )
         urllib.request.urlopen(req, timeout=10)
