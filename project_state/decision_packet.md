@@ -1,10 +1,10 @@
-# Existing EBA-1a current-main recovery
+# EBA-1a unchanged-source short-scratch validation successor
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue1037_current_base_recovery_r2_v1",
-  "round_id": "round_20261008_issue1037_current_base_recovery_r2_v1",
+  "decision_id": "decision_20261008_issue1037_current_base_recovery_r2_v2_short_scratch",
+  "round_id": "round_20261008_issue1037_current_base_recovery_r2_v2_short_scratch",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 118,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; delegated selection and bounded approval of existing #1037 current-base source recovery.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; delegated selection and bounded approval of existing #1037 current-base source recovery.; delegated controller separately allocates one immutable test-only successor and two additional check slots after original 240s TIMEOUT and complete 187PASS/43FAIL; source/tests/ceiling/expiry unchanged, short owned external scratch counterfactual only.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
   "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "starting_head": "e8996bdeb5647adf29e827dc960e543f05ff345e",
   "required_branch": "codex/issue1037-current-base-recovery-r2-20261008",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -42,7 +42,7 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 1,
+  "product_change_commit_limit": 0,
   "generated_governance_commit_limit": 0,
   "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
@@ -80,7 +80,7 @@
   "semantic_implementation_contract": {
     "specification": "Restore the three original EBA-1a files from Draft #1038@3bb5548270e0560b0ef13fc9fe9f2500e850c621 at current main. Reuse existing functional validation, TaskStore and tests. Strict count/format report consistency must reject zero-test, all-skipped, failing, malformed, duplicate TAP and contradictory stored evidence. Existing execution/environment, contract/artifact bindings, lifecycle and original tests unchanged. This establishes report consistency, not trusted producer/collector provenance or full autonomous acceptance.",
     "reuse": "Exact original three source blobs, existing functional_validation and disk SQLite/Task/Run integration regressions; canonical transition kernel and publication guard. No additional store, judge, workflow or authority schema.",
-    "execution_surface_note": "Full fresh main checkout, immutable Decision-only activation and PRE_EXECUTION_AUTHORIZED before source import. Precharge all spending. Model/provider/browser calls zero. Old candidate and failed/spent phase evidence remain unchanged.",
+    "execution_surface_note": "Reuse original branch at exact existing e8996 source head. One Decision-only validation successor; verify unchanged original source blobs, run canonical preflight, then identical full suite in fresh short F:/nrl-t1037-v2 external scratch. Preserve prior failure reports and all aggregate spending. No source/test edit or product commit.",
     "completion_boundary": "Exact three source blobs plus Decision, actual focused/full-checkout checks, natural exact-head CI and independent scoped review. Draft only; full unattended, provenance, landing or deployment not claimed."
   },
   "bootstrap_exception_files": [
@@ -183,25 +183,19 @@
   "allowed_commands": [
     {
       "command_id": "eba1.implementation",
-      "command": "Restore the three original EBA-1a files from Draft #1038@3bb5548270e0560b0ef13fc9fe9f2500e850c621 at current main. Reuse existing functional validation, TaskStore and tests. Strict count/format report consistency must reject zero-test, all-skipped, failing, malformed, duplicate TAP and contradictory stored evidence. Existing execution/environment, contract/artifact bindings, lifecycle and original tests unchanged. This establishes report consistency, not trusted producer/collector provenance or full autonomous acceptance.",
+      "command": "Read and verify identical original three product blobs; no source edits or product commits in this validation successor.",
       "phase": "implementation",
-      "required": true,
+      "required": false,
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "trusted_worker",
       "operations": [
-        "code_read",
-        "source_edit",
-        "commit"
+        "code_read"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [
-        "reverse_agent/platform_v1/functional_validation.py",
-        "tests/platform_v1/test_functional_report_consistency.py",
-        "docs/functional-validation.md"
-      ],
+      "allowed_mutated_paths": [],
       "produced_artifacts": []
     },
     {
@@ -244,13 +238,13 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T06:14:34.519416+00:00",
-  "owner_delegation_sha256": "477db715d0ad35f9330670d55da90b2c4905187f30edab34e4c1e198cfcdfa7d",
+  "approval_event_or_time": "2026-10-08T06:30:27.479296+00:00",
+  "owner_delegation_sha256": "50f4528862516f60d13876d5260eb12dfa8b25038dcd7a83858a8e8011e5c990",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 1,
-  "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 4,
+  "development_correction_round_limit": 3,
+  "mandatory_check_run_limit": 6,
   "execution_expires_at": "2026-10-08T09:22:21.386602+00:00",
   "reference_implementation": {
     "repository": "dddd2024/Nerelan",
