@@ -49,6 +49,8 @@ from reverse_agent.model_access.os_vault import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
 def _make_git_worktree(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=path, capture_output=True, check=True)
@@ -61,6 +63,36 @@ def _make_git_worktree(path: Path) -> None:
 
 def _make_store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+
+
+def test_combined_host_without_owner_pins_exposes_no_policy_activation(tmp_path, monkeypatch):
+    """Actual local HTTP host; no provider, OS vault or delegated fixture adapter."""
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    task_store = _make_store(tmp_path)
+    host = CombinedTrustedHost(task_store=task_store, vault=None, auth_list_probe=lambda: {},
+                               local_client_session=client_session(activate=False))
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        parsed = urlsplit(host.task_api_url)
+        connection = HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+        try:
+            connection.request("GET", "/api/windows/policy", headers=client_headers())
+            response = connection.getresponse()
+            assert response.status == 200
+            assert json.loads(response.read()) == {"available": False, "reason": "trusted_policy_unavailable"}
+            body = json.dumps({"policy_id": "caller", "policy_revision": 1, "policy": {},
+                               "owner_identity": "local-owner", "confirmation": "ACTIVATE"})
+            connection.request("POST", "/api/windows/activate", body=body,
+                               headers=client_headers({"Content-Type": "application/json"}))
+            response = connection.getresponse()
+            assert response.status == 409
+            assert json.loads(response.read()) == {"error": "canonical_policy_fields_invalid"}
+        finally:
+            connection.close()
+        assert host._control_store.active_window() is None
+    finally:
+        host.stop()
+        task_store._conn.close()
 
 
 @pytest.fixture(autouse=True)
@@ -159,6 +191,7 @@ def test_account_auth_http_lifecycle_delegates_and_refreshes_openai_session(
         auth_list_probe=lambda: {"openai": "oauth"} if available[0] else {},
         auth_refresh_ttl_seconds=0,
         account_auth_server_factory=factory,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection(
         {
@@ -229,6 +262,7 @@ def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_sha_xyz789",
         planning_sha="planning_sha_abc123",
+        local_client_session=client_session(activate=False),
     )
     handler_cls = _handler_factory(
         host.task_store,
@@ -236,6 +270,7 @@ def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha=host._execution_authority_sha,
         planning_sha=host._planning_sha,
+        local_client_session=client_session(),
     )
     assert handler_cls.execution_authority_sha == "auth_sha_xyz789"
     assert handler_cls.planning_sha == "planning_sha_abc123"
@@ -247,6 +282,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_sha_xyz789",
         planning_sha="planning_sha_abc123",
+        local_client_session=client_session(activate=False),
     )
     handler_cls = _handler_factory(
         host.task_store,
@@ -254,6 +290,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha=host._execution_authority_sha,
         planning_sha=host._planning_sha,
+        local_client_session=client_session(),
     )
     assert handler_cls.planning_sha == "planning_sha_abc123"
 
@@ -261,7 +298,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
 def test_stop_closes_all_server_sockets_and_allows_exact_port_reuse(tmp_path) -> None:
     first_dir = tmp_path / "first"
     first_dir.mkdir()
-    first = CombinedTrustedHost(task_store=_make_store(first_dir))
+    first = CombinedTrustedHost(task_store=_make_store(first_dir), local_client_session=client_session(activate=False),)
     first.start(model_control_port=0, task_api_port=0)
     assert first._model_server is not None
     assert first._task_server is not None
@@ -279,7 +316,7 @@ def test_stop_closes_all_server_sockets_and_allows_exact_port_reuse(tmp_path) ->
 
     second_dir = tmp_path / "second"
     second_dir.mkdir()
-    second = CombinedTrustedHost(task_store=_make_store(second_dir))
+    second = CombinedTrustedHost(task_store=_make_store(second_dir), local_client_session=client_session(activate=False),)
     try:
         second.start(
             model_control_port=model_port,
@@ -415,6 +452,7 @@ def test_startup_stale_reconciliation_no_role_calls(tmp_path) -> None:
         task_store=store,
         execution_authority_sha="auth_xyz",
         planning_sha="plan_abc",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(
@@ -457,6 +495,7 @@ def test_startup_zero_role_model_calls(tmp_path) -> None:
         task_store=store,
         execution_authority_sha="auth_xyz",
         planning_sha="plan_abc",
+        local_client_session=client_session(activate=False),
     )
     host._router = RR()
 
@@ -479,6 +518,7 @@ def test_handler_receives_trusted_identity(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha="auth_test_value",
         planning_sha="plan_test_value",
+        local_client_session=client_session(),
     )
     assert handler_cls.execution_authority_sha == "auth_test_value"
     assert handler_cls.planning_sha == "plan_test_value"
@@ -492,6 +532,7 @@ def test_binding_resolver_preserved_in_trusted_host(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_v",
         planning_sha="planning_v",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -511,6 +552,7 @@ def test_binding_resolver_preserved_in_trusted_host(tmp_path) -> None:
         execution_authority_sha="auth_v",
         planning_sha="planning_v",
         binding_resolver=resolver,
+        local_client_session=client_session(),
     )
     assert handler_cls.binding_resolver is resolver
 
@@ -521,6 +563,7 @@ def test_credential_relay_preserved_in_trusted_host(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -804,6 +847,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host1",
         planning_sha="plan_host1",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     raw_secret = "HOST1-RAW-SECRET-NEVER-PERSIST"
@@ -844,6 +888,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host2",
         planning_sha="plan_host2",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     conn2_public = host2.store.list_connections_public()
@@ -894,6 +939,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host3",
         planning_sha="plan_host3",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
     conn3_public = host3.store.list_connections_public()
     assert conn3_public[0]["secret_status"] == "stored"
@@ -939,6 +985,7 @@ def test_explicit_injected_store_bypasses_auto_persistence(tmp_path) -> None:
         store=injected,
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
 
     host.store.upsert_connection({
@@ -971,6 +1018,7 @@ def test_host_startup_refreshes_external_session_from_injected_auth_probe(tmp_pa
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
 
     host.store.upsert_connection({
@@ -1012,6 +1060,7 @@ def test_host_startup_marks_external_session_missing_when_probe_empty(tmp_path) 
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host1.store.upsert_connection({
         "connection_id": "sensetime-external-conn",
@@ -1035,6 +1084,7 @@ def test_host_startup_marks_external_session_missing_when_probe_empty(tmp_path) 
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {},
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1065,6 +1115,7 @@ def test_host_startup_proceeds_when_auth_probe_fails(tmp_path) -> None:
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=failing_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-external-conn",
@@ -1098,6 +1149,7 @@ def test_host_skips_auth_probe_when_no_external_session_connections(tmp_path) ->
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=counting_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "api-key-conn",
@@ -1131,6 +1183,7 @@ def test_external_session_available_rejected_when_probe_returns_empty(tmp_path) 
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-ext",
@@ -1155,6 +1208,7 @@ def test_external_session_available_rejected_when_probe_returns_empty(tmp_path) 
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: probe_switched["return_value"],
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1180,6 +1234,7 @@ def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-ext",
@@ -1203,6 +1258,7 @@ def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=failing_probe,
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1222,6 +1278,7 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
         task_store=store,
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
     assert host._auth_list_probe is None
 
@@ -1271,6 +1328,7 @@ def test_external_session_get_refreshes_after_ttl_and_fails_closed(
         auth_list_probe=controlled_probe,
         auth_refresh_ttl_seconds=5.0,
         auth_refresh_clock=lambda: clock["now"],
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1342,6 +1400,7 @@ def test_concurrent_external_session_reads_coalesce_one_probe(tmp_path) -> None:
         auth_list_probe=blocking_probe,
         auth_refresh_ttl_seconds=5.0,
         auth_refresh_clock=lambda: 0.0,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1383,6 +1442,7 @@ def test_connection_upsert_forces_external_refresh_before_response(tmp_path) -> 
     host = CombinedTrustedHost(
         task_store=_make_store(tmp_path),
         auth_list_probe=counting_probe,
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -1447,6 +1507,7 @@ def test_api_key_and_none_connection_reads_do_not_probe(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         auth_list_probe=counting_probe,
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     for connection_id, auth_method in (
         ("api-key-conn", "api_key"),
@@ -1493,6 +1554,7 @@ def test_dispatch_forces_external_session_revalidation(tmp_path) -> None:
     host = CombinedTrustedHost(
         task_store=_make_store(tmp_path),
         auth_list_probe=controlled_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1533,7 +1595,7 @@ def test_dispatch_forces_external_session_revalidation(tmp_path) -> None:
 
 
 def test_dispatch_rejects_unprobed_executor_managed_session(tmp_path) -> None:
-    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path), local_client_session=client_session(activate=False),)
     host.store.upsert_connection({
         "connection_id": "external-conn",
         "name": "External",
@@ -1622,6 +1684,7 @@ def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(t
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth-platform-v2",
         planning_sha="plan-platform-v2",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -1662,6 +1725,7 @@ def test_trusted_host_default_vault_wiring_is_platform_scoped(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_vault",
         planning_sha="plan_vault",
+        local_client_session=client_session(activate=False),
     )
     try:
         if _sys.platform == "win32":
@@ -1679,6 +1743,7 @@ def test_explicit_none_vault_keeps_legacy_process_local_store(tmp_path) -> None:
         execution_authority_sha="auth_legacy",
         planning_sha="plan_legacy",
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     try:
         assert host.store._vault is None
@@ -1746,6 +1811,7 @@ def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> 
         execution_authority_sha="auth_vault_exec",
         planning_sha="plan_vault_exec",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     secret_a = "VAULT-SECRET-CONNECTION-A-ONLY"
@@ -1841,6 +1907,7 @@ def test_locked_vault_fails_execution_lease_creation_closed(tmp_path) -> None:
         execution_authority_sha="auth_vault_lock",
         planning_sha="plan_vault_lock",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "conn-locked",

@@ -17,12 +17,54 @@ It does NOT access model APIs, provider credentials, or the network.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
+
+HOST_VALIDATION_CONTRACT = "HostValidationContract"
+
+
+def load_host_validation_contract(task: Any) -> dict[str, Any] | None:
+    """Load the immutable host-check intent frozen when a Goal is materialized."""
+    rows = [row for row in task.evidence_refs if row.get("category") == HOST_VALIDATION_CONTRACT]
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise ExecutorRuntimeError("host_validation_contract_ambiguous")
+    row = rows[0]
+    try:
+        value = json.loads(row["detail"])
+        identity = hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
+                                             separators=(",", ":")).encode("utf-8")).hexdigest()
+        fields = {"version", "task_id", "repository", "goal_id", "goal_revision",
+                  "goal_artifact_digest", "plan_task_id", "capability", "validation_command_id",
+                  "window_id", "policy_digest", "workspace_path", "base_sha", "allowed_paths",
+                  "goal_idempotency_key"}
+        if (not isinstance(value, dict) or set(value) != fields or type(value["version"]) is not int or value["version"] != 1
+                or row["status"] != "APPROVED" or row["value"] != identity
+                or row["raw_json_digest"] != identity or value["task_id"] != task.id
+                or value["repository"] != task.repository or value["capability"] != "validate_task"
+                or value["validation_command_id"] != "git_diff_check"
+                or type(value["goal_revision"]) is not int or value["goal_revision"] < 1
+                or not re.fullmatch(r"[0-9a-f]{40}", value["base_sha"])
+                or not re.fullmatch(r"[0-9a-f]{64}", value["goal_artifact_digest"])
+                or not re.fullmatch(r"[0-9a-f]{64}", value["policy_digest"])
+                or not isinstance(value["allowed_paths"], list) or not value["allowed_paths"]
+                or any(not isinstance(value[key], str) or not value[key]
+                       for key in ("workspace_path", "window_id", "goal_id", "plan_task_id", "goal_idempotency_key"))):
+            raise ValueError
+        return value
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ExecutorRuntimeError("host_validation_contract_invalid") from exc
+
+
+def task_operation(task: Any) -> str:
+    return "validate_task" if load_host_validation_contract(task) is not None else "execute_task"
 
 # ---------------------------------------------------------------------------
 # Result contract
@@ -147,12 +189,52 @@ class LocalValidationRunner:
         task_id: str,
         command_id: str,
         cwd: str,
+        allowed_paths: list[str] | None = None,
+        expected_head: str = "",
     ) -> tuple[int, str, str]:
         argv = _approved_argv(command_id, _APPROVED_VALIDATION_COMMANDS)
         if not cwd:
             raise ExecutorRuntimeError("validation_requires_cwd")
         if not os.path.isdir(cwd):
             raise ExecutorRuntimeError(f"workspace_not_found:{cwd}")
+        environment = None
+        if allowed_paths is not None:
+            if command_id != "git_diff_check":
+                raise ExecutorRuntimeError("host_validation_command_unapproved")
+            root = Path(cwd)
+            if root.is_symlink() or str(root.resolve(strict=True)) != str(root.absolute()):
+                raise ExecutorRuntimeError("host_validation_workspace_indirect")
+            metadata = root / ".git"
+            if metadata.is_symlink() or (hasattr(metadata, "is_junction") and metadata.is_junction()):
+                raise ExecutorRuntimeError("host_validation_metadata_indirect")
+            if not allowed_paths or len(allowed_paths) > 128:
+                raise ExecutorRuntimeError("host_validation_paths_required")
+            for relative in allowed_paths:
+                if (not isinstance(relative, str) or not relative or "\\" in relative
+                        or ":" in relative or "\x00" in relative or relative.startswith("/")
+                        or any(part in {"", ".", "..", ".git"} for part in relative.split("/"))):
+                    raise ExecutorRuntimeError("host_validation_path_invalid")
+                candidate = root
+                for part in relative.split("/"):
+                    candidate = candidate / part
+                    if candidate.is_symlink() or (hasattr(candidate, "is_junction") and candidate.is_junction()):
+                        raise ExecutorRuntimeError("host_validation_path_indirect")
+                if not candidate.resolve().is_relative_to(root):
+                    raise ExecutorRuntimeError("host_validation_path_outside_workspace")
+            environment = {key: os.environ[key] for key in
+                           ("PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "PATHEXT") if key in os.environ}
+            environment.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull,
+                               GIT_CONFIG_SYSTEM=os.devnull, GIT_TERMINAL_PROMPT="0",
+                               GIT_OPTIONAL_LOCKS="0", GIT_LITERAL_PATHSPECS="1")
+            prefix = ["git", "--no-pager", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.devnull,
+                      "-c", "core.pager=cat", "-c", "diff.external=", "-c", "core.attributesFile=" + os.devnull]
+            if expected_head:
+                observed = subprocess.run([*prefix, "rev-parse", "--verify", "HEAD"], cwd=cwd,
+                                          env=environment, stdin=subprocess.DEVNULL, capture_output=True,
+                                          text=True, timeout=10, check=False)
+                if observed.returncode or observed.stdout.strip() != expected_head:
+                    raise ExecutorRuntimeError("host_validation_base_drift")
+            argv = [*prefix, "diff", "--check", "--no-ext-diff", "--no-textconv", "HEAD", "--", *allowed_paths]
         try:
             proc = subprocess.run(
                 argv,
@@ -161,6 +243,8 @@ class LocalValidationRunner:
                 text=True,
                 timeout=30,
                 check=False,
+                env=environment,
+                stdin=subprocess.DEVNULL,
             )
         except (FileNotFoundError, PermissionError, subprocess.TimeoutExpired) as exc:
             raise ValidationCommandError(
@@ -230,7 +314,7 @@ class DeterministicFixtureExecutor:
             _git_init(worktree)
             initial_content = "provider-free task plane fixture\n"
             fixture_file = worktree / self._fixture_path
-            fixture_file.write_text(initial_content, encoding="utf-8")
+            fixture_file.write_text(initial_content, encoding="utf-8", newline="\n")
             _git_add_and_commit(worktree, "init: fixture")
 
             _apply_mutation(self._mutation_command_id, fixture_file)
@@ -318,11 +402,11 @@ def _emit(
 
 def _apply_mutation(command_id: str, fixture_file: Path) -> None:
     if command_id == "append_to_file":
-        with fixture_file.open("a", encoding="utf-8") as fh:
+        with fixture_file.open("a", encoding="utf-8", newline="\n") as fh:
             fh.write("deterministic mutation applied\n")
         return
     if command_id == "write_file":
-        fixture_file.write_text("provider-free task plane fixture\nrewritten content\n", encoding="utf-8")
+        fixture_file.write_text("provider-free task plane fixture\nrewritten content\n", encoding="utf-8", newline="\n")
         return
     raise ExecutorRuntimeError(f"unknown_mutation_command:{command_id}")
 
@@ -332,7 +416,13 @@ def _apply_mutation(command_id: str, fixture_file: Path) -> None:
 # ---------------------------------------------------------------------------
 
 def _git_init(worktree: Path) -> None:
-    _run(["git", "init", "-q"], cwd=worktree)
+    _run(["git", "-c", "core.longpaths=true", "init", "-q"], cwd=worktree)
+    # Only this disposable fixture repository is configured. Windows object
+    # paths exceed the worktree path by .git/objects/<2>/<38>; user-global
+    # defaults must not make a bounded provider-free fixture fail or run hooks.
+    for name, value in (("core.longpaths", "true"), ("core.autocrlf", "false"),
+                        ("core.hooksPath", os.devnull), ("commit.gpgsign", "false")):
+        _run(["git", "config", "--local", name, value], cwd=worktree)
     _run(["git", "config", "user.email", "fixture@provider-free.local"], cwd=worktree)
     _run(["git", "config", "user.name", "ProviderFree Fixture"], cwd=worktree)
 
