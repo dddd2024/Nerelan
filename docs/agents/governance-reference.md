@@ -35,6 +35,25 @@ Follow the actual bounded contract and generated plan, including bootstrap excep
 
 Do not universally substitute the older `preflight`/`command-plan` legacy sequence for the transition kernel. Legacy report/closeout requirements apply only when the active task selects that contract; see [legacy project-state reference](../prompts/legacy-project-state-reference.md).
 
+## Delegated controller authority
+
+An explicit Owner-to-controller handoff can include authority to select and approve the next Work Item. An ordinary request to implement a feature, an Issue comment, a roadmap or an Agent's own plan does not establish that delegation. Preserve the original Owner instruction and its identity in existing execution evidence. Record the repository/goal/capability envelope, expiry or renewal rules, aggregate operation/retry/cost allowances and revocation conditions before using it. An absent capability or budget is not permission to infer a privileged side effect.
+
+The controller acts as a delegated approver, not as the human Owner or the independent auditor. Use the existing `approved_by`, `approval_basis` and `approval_event_or_time` fields to make that distinction explicit. Do not add a new authority store, approval Gate or self-issued independent acceptance receipt. Path A's reviewed Issue/label/digest rules are unchanged; use Path B for a delegated transition authorization.
+
+For each selected slice:
+
+1. Observe live ownership, repository, integration ref and exact base. Reuse existing work without taking another active owner's task. Base drift requires a separately scoped recovery; it never silently changes an old snapshot or licenses history rewriting.
+2. Bind exact allowed paths, operation/surface capabilities, required checks, branch/base/head, expiry and cumulative retry/spending limits in a new Decision. Cite the recorded delegation as the approval basis and identify the actual controller approver. A successor of failed work retains that failure and consumes the applicable correction allowance.
+3. Commit only the permitted Decision bootstrap, generate the existing command plan and obtain `PRE_EXECUTION_AUTHORIZED` before implementation. A compiler rejection is a real failure. Preserve its immutable Decision and evidence; a corrected successor is permitted only within the recorded delegation and allowances. Never modify the compiler or judge merely to admit a rejected request.
+4. Charge operations before executing them. Carry forward the original absolute expiry and aggregate spending when renewing the same grant. If the standing delegation permits a new allocation, append its distinct authorization and allowance without resetting or relabeling prior consumption. Otherwise park the affected slice.
+5. Execute and verify through the real platform where the needed capability is available. If unavailable, retain observed capability/runtime evidence and use the authorized alternate executor. Keep Task/Goal data, model use, actual runtime provenance and functional acceptance separate.
+6. Publish only through the exact permitted path. Delegated authorization does not supply an independent review, turn a Draft into Ready, or invoke the personal human R1 merge carve-out. Agent landing still needs separately applicable Path-B capabilities, exact-head checks, independent acceptance and immediate external-state observations.
+
+Failure or exhaustion of one operation does not automatically exhaust unrelated Work Items inside the delegation. Select the next eligible slice, checkpoint a blocked one, and resume only after its relevant condition changes. If no authorized useful action remains, record the exact blocker without repeated confirmation requests, unchanged polling or claims of background execution. Owner revocation and window-wide hard stops take precedence over successor selection.
+
+This workflow removes repeated interactive approval for covered authorization decisions. It does not assert that a durable unattended scheduler, arbitrary coding executor, GitHub merge/release adapter or deployment adapter has been implemented or accepted. Those product capabilities remain separately testable Work Items under #118.
+
 ## Worktree guards
 
 Observe the startup baseline before edits. Do not delete, restore, hide or stage anything while classifying it.

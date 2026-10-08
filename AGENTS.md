@@ -12,7 +12,7 @@ No GitHub state replica, copied upstream runtime, unbounded plugin manager, brow
 
 ## Two authority paths
 
-No source is globally authoritative outside its applicable path. Prompts, skills, roadmaps and summaries are not grants. Issue comments and PR comments are never authority.
+No source is globally authoritative outside its applicable path. Task prompts, skills, roadmaps and summaries are not execution grants. An explicit Owner instruction delegating authorization decisions is an upstream grant once its identity, scope and limits are recorded; the controller must compile it into the applicable exact Work Item before execution. Issue comments and PR comments are never authority.
 
 ### Path A — ordinary R0/R1
 
@@ -67,6 +67,16 @@ Preserve existing work. Classify without cleanup: `AUTHORIZED_TRACKED_DELTA` is 
 
 For local staging/publication use the applicable [worktree guard](docs/agents/governance-reference.md#worktree-guards). R1 `worktree-r1-publication-readiness` uses the frozen approved Issue body and current Draft PR body; it does not replace live authority verification by GitHub State Gate. Path B requires `worktree-publication-readiness` and `PUBLICATION_READY`.
 
+## Long-duration unattended work
+
+When the Owner explicitly delegates authorization decisions, the controller may select, approve and activate successor Work Items inside that recorded delegation without another interactive confirmation. Record the actual delegated approver and the Owner instruction in the existing Decision approval fields; never represent this as personal human acceptance or independent review. Apply [delegated controller authority](docs/agents/governance-reference.md#delegated-controller-authority) before compiling a successor. Ordinary Path A approval requirements remain intact; controller-approved transition work uses Path B.
+
+Every successor needs exact scope, risk, branch/base/head, checks, operation and retry allowances, expiry and canonical preflight. Existing activated Decisions remain immutable. A new successor preserves prior failures and spending; it does not renew an old allowance by resetting counters. A standing delegation may authorize new allocations or renewal, but each allocation must be recorded separately before spending and evaluated against its aggregate limits and absolute expiry.
+
+Prefer real Goal/Task execution. Use Codex when the required platform capability is observed unavailable, preserving the reason and execution provenance. Advance the highest-priority eligible slice; park a blocked operation without stopping unrelated authorized work. Missing independent acceptance blocks landing, not authorized implementation or selection of another eligible task.
+
+Checkpoint authority, base/head, live handles, consumed allowances, evidence and next action in existing stores. On resume, refresh drifting facts and wait on the original live handles. Do not manufacture progress with unchanged polling or repeated plans. Report meaningful changes and prove completion against the whole goal.
+
 ## Work Item acceptance requirements
 
 The approved specification must bind exact allowed paths, forbidden operations, acceptance criteria, required deterministic checks, target branch, `integration_base_ref` and `base_sha`, owner/maintainer approval, immutable identity/digest, material-edit invalidation/reapproval, and Draft/human-merge boundaries. Missing fields are not invitations to infer permission. Reuse existing approved work; do not take another active owner's task.
@@ -87,4 +97,4 @@ Without separate applicable Path-B authority: no direct main push, force/history
 
 ## Stop conditions
 
-Stop the affected action on missing approval, candidate-only authority, digest/material-edit mismatch, branch/base/head/scope/criteria drift, unauthorized risk/operation, invalid or changed Decision/plan, failed mandatory focused tests or exact-head CI, or exhausted budget. Missing independent exact-head acceptance blocks landing, not already-authorized implementation. Request revised bounded authority for scope/contract changes; never invent a Gate, receipt, verifier, mainline-authorization schema or tracked artifact family to unblock yourself. Report what is implemented, what was actually verified, and what remains blocked; do not label unverified work complete.
+Stop the affected action on missing applicable authority, candidate-only authority, digest/material-edit mismatch, branch/base/head/scope/criteria drift, unauthorized risk/operation, invalid or changed Decision/plan, failed mandatory focused tests or exact-head CI, or exhausted budget. Missing independent exact-head acceptance blocks landing, not already-authorized implementation. For a scope/contract change covered by recorded Owner delegation, compile a fresh bounded authority and run canonical preflight instead of requesting the same Owner confirmation. Escalate only changes outside that delegation. Never invent a Gate, receipt, verifier, mainline-authorization schema or tracked artifact family to unblock yourself. Report what is implemented, what was actually verified, and what remains blocked; do not label unverified work complete.
