@@ -1,10 +1,10 @@
-# Existing A2aa current-main recovery
+# Existing collector-binding current-main recovery v2
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue1039_current_base_recovery_r2_v1",
-  "round_id": "round_20261008_issue1039_current_base_recovery_r2_v1",
+  "decision_id": "decision_20261008_issue1039_current_base_recovery_r2_v2",
+  "round_id": "round_20261008_issue1039_current_base_recovery_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 118,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; delegated selection and bounded approval of existing #1039 current-base source recovery.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; delegated selection and bounded approval of existing #1039 current-base source recovery.; Controller-approved precise collector-scope description successor before source import, preserving initial immutable activation and all spending.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
   "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
+  "starting_head": "1f67c7c18afb3e2666f892ffd718d99a162414d1",
   "required_branch": "codex/issue1039-current-base-recovery-r2-20261008",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -79,8 +79,8 @@
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
     "specification": "Restore the three original A2a collector execution binding files from Draft #1040@3fb22f620fa3c91009b4b8ae7f46e463f91561cb at current main. Reuse existing evidence adapter and command parser. Required test selection must be nonempty, entire batch validated before execution, runner exit a true integer, target worktree cwd explicit, and HEAD/root reobserved around commands and workflows. Preserve existing original tests, authority, TaskStore and lifecycle. This establishes scoped execution binding, not protected verifier identity, atomic snapshot/ABA protection or full autonomous acceptance.",
-    "reuse": "Exact original three source blobs, existing functional_validation and disk SQLite/Task/Run integration regressions; canonical transition kernel and publication guard. No additional store, judge, workflow or authority schema.",
-    "execution_surface_note": "Full fresh main checkout, immutable Decision-only activation and PRE_EXECUTION_AUTHORIZED before source import. Precharge all spending. Model/provider/browser calls zero. Old candidate and failed/spent phase evidence remain unchanged.",
+    "reuse": "Exact original three collector source blobs; existing evidence adapter, AuthorityBundle, command parsing and Git/GitHub fixtures, production target-root runner, original test_evidence_adapter regressions and canonical transition kernel. No second authority engine, collector or data store.",
+    "execution_surface_note": "Reuse original full main-based branch and worktree at explicit starting_head, fresh immutable Decision-only successor before canonical preflight/source import. Advance charging, preserved old activation/description error, unchanged expiry and aggregate spending.",
     "completion_boundary": "Exact three source blobs plus Decision, actual focused/full-checkout checks, natural exact-head CI and independent scoped review. Draft only; full unattended, provenance, landing or deployment not claimed."
   },
   "bootstrap_exception_files": [
@@ -243,8 +243,8 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T06:21:31.220369+00:00",
-  "owner_delegation_sha256": "47b8f83df14cc81308eaf6e331f7b5b5e396c6b96bf640df2511890c99f6c301",
+  "approval_event_or_time": "2026-10-08T06:24:25.214388+00:00",
+  "owner_delegation_sha256": "dac20e5c1b5b397823af3bbb960438e0f8aa440318a800ad364bc55eecb627fd",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 1,
