@@ -1,10 +1,10 @@
-# Approved two-file local fixture continuation
+# Approved single-file line-ending repair
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_two_http_fixture_continuation_r2_v1",
-  "round_id": "round_20261008_issue118_two_http_fixture_continuation_r2_v1",
+  "decision_id": "decision_20261008_issue118_single_file_line_ending_repair_r2_v1",
+  "round_id": "round_20261008_issue118_single_file_line_ending_repair_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": []
@@ -14,20 +14,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_TWO_HTTP_FIXTURE_LOCAL_CONTINUATION",
+  "decision_scope": "ISSUE118_SINGLE_FILE_LINE_ENDING_REPAIR",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "dddd2024 Owner via explicit chat approval 批准继续",
-  "approval_basis": "User approval on 2026-10-08 of the immediately preceding two-file additional correction/check request.",
+  "approval_basis": "User explicitly approved immediately preceding one-file line-ending proposal and finite additional checks.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
-  "integration_base_ref": "codex/issue118-delegated-policy-recovery-r3-v1-20261007",
-  "base_sha": "e0f12c1e1d9e5893e835f14ad6ade345f57f5f40",
-  "activation_base_sha": "e0f12c1e1d9e5893e835f14ad6ade345f57f5f40",
-  "starting_head": "e0f12c1e1d9e5893e835f14ad6ade345f57f5f40",
-  "required_branch": "codex/issue118-fixture-continuation-r2-20261008",
+  "integration_base_ref": "codex/issue118-fixture-continuation-r2-20261008",
+  "base_sha": "7bd146b0d32c71792c566626a9d3a7ccbaf697bf",
+  "activation_base_sha": "7bd146b0d32c71792c566626a9d3a7ccbaf697bf",
+  "starting_head": "7bd146b0d32c71792c566626a9d3a7ccbaf697bf",
+  "required_branch": "codex/issue118-line-endings-r2-20261008",
   "fresh_worktree_creation_required": false,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -40,7 +40,7 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
   "normal_push_attempt_limit": 0,
   "draft_pr_creation_limit": 0,
@@ -75,8 +75,8 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Owner replied 批准继续 on 2026-10-08 after a concrete request for two extra fixture paths and additional bounded correction/check allowance. New local-only continuation, not a reset or extension of the expired 2026-10-07 authority. Preserve every prior Decision, failure, spending ledger, commit, Draft and absolute expiry. Exact local planning base e0f12c1e1d9e5893e835f14ad6ade345f57f5f40 already contains the reviewed product candidate; do not edit its product/backend/frontend files. Only the two named HTTP fixture modules may change, by explicit in-process legacy AutonomyService injection, retaining all assertions and strict production defaults. Frozen proposal is unapplied-fixture-alignment-proposal.patch in the prior external evidence store. No additional exclusions, skips or weakened assertions. Project fallback remains Codex because the trusted runtime was not accepted and its prior real execution authority expired; do not activate a caller-declared window.\nAdditional allowances: one Decision activation/fresh local branch, at most two two-file correction cycles, two development pytest invocations <=900s each, six mandatory check invocations including at most two full pytest processes <=2400s each, two source commits. Bootstrap canonical gates are one bounded sequence; final canonical gates one mandatory invocation. Required checks: focused two HTTP files together with task service production strict negatives, full platform plus the two original root adapter modules with only the same four original provider opt-ins deselected, git diff --check against both the new local base and original phase6 integration base82c9, canonical preflight and publication-readiness. Count every attempt at start in an append-only external ledger with inherited totals; original ledgers never change. Expiry is a fresh two-hour local repair window, not a renewal of original native/browser/model authority. Stop on mandatory failure, scope/hash drift, expiry or exhausted added allowance. No automatic successor. Commit only named source paths, never generated gates.\nNo GitHub writes/push/Draft/comments/mark-ready/merge/main/tag/release, CI rerun/dispatch, models/providers/credentials, installs/workflows, browser/native/runtime startup, real Task/Goal/window activation, destructive cleanup or historical DB mutation. Synthetic provider-free localhost fixtures only. Full Issue118/backlog/native/persistence acceptance remains unproven. Independent exact-head review and remote CI are deferred, not waived or claimed by these local checks.",
-    "completion_boundary": "Local two-fixture repair and deterministic exact-head verification only; no native/remote/mainline/full-goal acceptance."
+    "specification": "Owner replied 批准继续 on 2026-10-08 to the concrete one-file CRLF-to-LF proposal and one correction, one development check, four mandatory checks. Preserve all prior Decisions, failures and cumulative spending; do not reset any counter or extend any original deadline. Fresh exact local planning branch from7bd146b0d32c71792c566626a9d3a7ccbaf697bf, which contains the two HTTP fixture repairs and earlier product candidate. Only frontend/src/components/goal-composer.tsx may change, by replacing CRLF with LF while retaining every other byte. Original/proposed worktree SHA256 are frozen in the prior unapplied-line-ending-proposal.json. No behavior, test, assertion, config, whitespace-policy or exclusion weakening. Codex fallback because trusted project runtime remains unaccepted and expired; no real Task/Goal/window activation.\nAdditional finite local allowance: one immutable Decision activation, one source correction, one development typecheck <=120s, four mandatory invocations (canonical precommit and postcommit gate sequences, committed-range git diff --check from82c9b185a66561d17cf8a6857cd3add2d23215ca, and full provider-free platform/root-adapter pytest <=2400s with only the four original opt-in exclusions), one product commit. No repeated passed frontend suite or focused checks because only line endings change; prior unit evidence is historical and full exact-head pytest provides current backend acceptance. Append/fsync new spending, retaining prior ledgers and consumed attempts. Original absolute repair deadline remains2026-10-08T03:21:27.885456+00:00, no renewal. Stop on any mandatory failure, unavailable capability, source/hash/scope drift, expiry or exhaustion; no automatic successor. All gate deltas remain unstageable.\nNo remote writes/push/Draft/comments/mark-ready/merge/main/tag/release, no CI rerun/dispatch, models/providers/secrets, installs/workflows, real runtime/browser/native startup, destructive cleanup or historical database writes. Only owned disposable provider-free pytest localhost fixtures. Canonical PUBLICATION_READY is a local guard result, not independent acceptance or publication authority. Remote CI, independent acceptance, native resizing, actual Goal execution and cold-service restart remain incomplete and deferred, never claimed completed by this local-only repair.",
+    "completion_boundary": "Local CRLF normalization and exact-head deterministic checks only; no remote/native/mainline/full-goal acceptance."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -89,8 +89,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_goal_completion_evidence.py"
+    "frontend/src/components/goal-composer.tsx"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -99,8 +98,7 @@
     "project_state/gates/startup_snapshot.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "tests/platform_v1/test_artifact_handoff_http.py",
-    "tests/platform_v1/test_goal_completion_evidence.py"
+    "frontend/src/components/goal-composer.tsx"
   ],
   "generated_artifact_paths": [
     "project_state/gates/bootstrap_state.json",
@@ -238,7 +236,7 @@
     },
     {
       "command_id": "native.implementation",
-      "command": "Owner replied 批准继续 on 2026-10-08 after a concrete request for two extra fixture paths and additional bounded correction/check allowance. New local-only continuation, not a reset or extension of the expired 2026-10-07 authority. Preserve every prior Decision, failure, spending ledger, commit, Draft and absolute expiry. Exact local planning base e0f12c1e1d9e5893e835f14ad6ade345f57f5f40 already contains the reviewed product candidate; do not edit its product/backend/frontend files. Only the two named HTTP fixture modules may change, by explicit in-process legacy AutonomyService injection, retaining all assertions and strict production defaults. Frozen proposal is unapplied-fixture-alignment-proposal.patch in the prior external evidence store. No additional exclusions, skips or weakened assertions. Project fallback remains Codex because the trusted runtime was not accepted and its prior real execution authority expired; do not activate a caller-declared window.\nAdditional allowances: one Decision activation/fresh local branch, at most two two-file correction cycles, two development pytest invocations <=900s each, six mandatory check invocations including at most two full pytest processes <=2400s each, two source commits. Bootstrap canonical gates are one bounded sequence; final canonical gates one mandatory invocation. Required checks: focused two HTTP files together with task service production strict negatives, full platform plus the two original root adapter modules with only the same four original provider opt-ins deselected, git diff --check against both the new local base and original phase6 integration base82c9, canonical preflight and publication-readiness. Count every attempt at start in an append-only external ledger with inherited totals; original ledgers never change. Expiry is a fresh two-hour local repair window, not a renewal of original native/browser/model authority. Stop on mandatory failure, scope/hash drift, expiry or exhausted added allowance. No automatic successor. Commit only named source paths, never generated gates.\nNo GitHub writes/push/Draft/comments/mark-ready/merge/main/tag/release, CI rerun/dispatch, models/providers/credentials, installs/workflows, browser/native/runtime startup, real Task/Goal/window activation, destructive cleanup or historical DB mutation. Synthetic provider-free localhost fixtures only. Full Issue118/backlog/native/persistence acceptance remains unproven. Independent exact-head review and remote CI are deferred, not waived or claimed by these local checks.",
+      "command": "Owner replied 批准继续 on 2026-10-08 to the concrete one-file CRLF-to-LF proposal and one correction, one development check, four mandatory checks. Preserve all prior Decisions, failures and cumulative spending; do not reset any counter or extend any original deadline. Fresh exact local planning branch from7bd146b0d32c71792c566626a9d3a7ccbaf697bf, which contains the two HTTP fixture repairs and earlier product candidate. Only frontend/src/components/goal-composer.tsx may change, by replacing CRLF with LF while retaining every other byte. Original/proposed worktree SHA256 are frozen in the prior unapplied-line-ending-proposal.json. No behavior, test, assertion, config, whitespace-policy or exclusion weakening. Codex fallback because trusted project runtime remains unaccepted and expired; no real Task/Goal/window activation.\nAdditional finite local allowance: one immutable Decision activation, one source correction, one development typecheck <=120s, four mandatory invocations (canonical precommit and postcommit gate sequences, committed-range git diff --check from82c9b185a66561d17cf8a6857cd3add2d23215ca, and full provider-free platform/root-adapter pytest <=2400s with only the four original opt-in exclusions), one product commit. No repeated passed frontend suite or focused checks because only line endings change; prior unit evidence is historical and full exact-head pytest provides current backend acceptance. Append/fsync new spending, retaining prior ledgers and consumed attempts. Original absolute repair deadline remains2026-10-08T03:21:27.885456+00:00, no renewal. Stop on any mandatory failure, unavailable capability, source/hash/scope drift, expiry or exhaustion; no automatic successor. All gate deltas remain unstageable.\nNo remote writes/push/Draft/comments/mark-ready/merge/main/tag/release, no CI rerun/dispatch, models/providers/secrets, installs/workflows, real runtime/browser/native startup, destructive cleanup or historical database writes. Only owned disposable provider-free pytest localhost fixtures. Canonical PUBLICATION_READY is a local guard result, not independent acceptance or publication authority. Remote CI, independent acceptance, native resizing, actual Goal execution and cold-service restart remain incomplete and deferred, never claimed completed by this local-only repair.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -254,14 +252,13 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "tests/platform_v1/test_artifact_handoff_http.py",
-        "tests/platform_v1/test_goal_completion_evidence.py"
+        "frontend/src/components/goal-composer.tsx"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "native.validation",
-      "command": "Bounded local focused/full provider-free pytest, scoped committed-range git diff --check and canonical gates, per exact specification; no runtime or GitHub writes.",
+      "command": "One development frontend typecheck; four mandatory gate/diff/full-pytest invocations per specification. No runtime or remote write.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -287,7 +284,7 @@
     "stage_allowed": false,
     "note": "Owned external test scratch only, no historical DB writes or actual runtime."
   },
-  "workstream_id": "issue118-fixture-continuation-20261008",
+  "workstream_id": "issue118-line-ending-continuation-20261008",
   "source_issues": [
     118,
     384
@@ -297,7 +294,7 @@
   "integration_observation_surface": "user_local_exact_planning_base_fresh_branch",
   "runtime_host_launch_limit": 0,
   "frontend_launch_limit": 0,
-  "approval_event_or_time": "2026-10-08T01:21:27.885456+00:00",
+  "approval_event_or_time": "2026-10-08T01:33:32.140547+00:00",
   "credential_status_probe_limit": 0,
   "provider_network_call_limit": 0,
   "pull_request_description_update_limit": 0,
@@ -308,17 +305,17 @@
     "observations": 0,
     "normal_cleanup": 0,
     "real_provider_free_windows": 0,
-    "source_corrections": 2,
+    "source_corrections": 1,
     "expires_at": "2026-10-08T03:21:27.885456+00:00"
   },
-  "development_check_run_limit": 2,
-  "development_correction_round_limit": 2,
-  "mandatory_pytest_process_limit": 2,
-  "owned_test_scratch_root": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-fixture-continuation-20261008\\test-scratch",
-  "cumulative_prior_development_checks": 24,
-  "cumulative_prior_correction_rounds": 20,
-  "cumulative_development_check_limit": 26,
-  "cumulative_correction_round_limit": 22,
-  "mandatory_check_run_limit": 6
+  "development_check_run_limit": 1,
+  "development_correction_round_limit": 1,
+  "mandatory_pytest_process_limit": 1,
+  "owned_test_scratch_root": "F:\\reverse-agent-artifacts\\worktree-audit-20261002-56c5\\issue118-line-ending-continuation-20261008\\test-scratch",
+  "cumulative_prior_development_checks": 26,
+  "cumulative_prior_correction_rounds": 22,
+  "cumulative_development_check_limit": 27,
+  "cumulative_correction_round_limit": 23,
+  "mandatory_check_run_limit": 4
 }
 ```
