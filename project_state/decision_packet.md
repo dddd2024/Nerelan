@@ -1,10 +1,10 @@
-# First Ready workflow bootstrap coherence
+# Delegated controller current-main recovery
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue891_ready_run_bootstrap_r2_v1",
-  "round_id": "round_20261008_issue891_ready_run_bootstrap_r2_v1",
+  "decision_id": "decision_20261008_issue118_controller_mainline_recovery_r2_v1",
+  "round_id": "round_20261008_issue118_controller_mainline_recovery_r2_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE891_FIRST_READY_WORKFLOW_BOOTSTRAP_COHERENCE",
-  "source_issue": 891,
-  "parent_issue": 156,
+  "decision_scope": "ISSUE118_DELEGATED_CONTROLLER_CURRENT_MAINLINE_RECOVERY",
+  "source_issue": 118,
+  "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Distinct exact product-repair Work Item after independent P1 cyclic first-Ready evidence finding in independent-authority-audit-764ae3b.json. Controller approval under standing Owner delegation; no new personal human approval or independent acceptance fabricated. Existing landing parked, old expiry/counters unchanged.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Distinct current-main recovery of independently accepted delegated-controller docs1094 after actual corrective landing1100 changed main to32ac. Preserve all original source/landing failures, budgets and expired deadlines, no history rewrite or old1094/1099 writes. Controller approver under standing explicit Owner delegation, personally_human=false.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "required_branch": "codex/issue891-ready-run-bootstrap-r2-20261008",
+  "base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
+  "activation_base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
+  "starting_head": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
+  "required_branch": "codex/issue118-controller-mainline-recovery-r2-20261008",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -41,7 +41,7 @@
     "transition_reconcile",
     "worktree_publication_readiness"
   ],
-  "decision_activation_commit_limit": 2,
+  "decision_activation_commit_limit": 1,
   "product_change_commit_limit": 2,
   "generated_governance_commit_limit": 0,
   "normal_push_attempt_limit": 2,
@@ -78,10 +78,10 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Repair first actual Ready-run self-dependency using existing verifier/attestation. Before merge, require attestation ready run equal actual trusted current GITHUB_RUN_ID, exact repository/workflow/head/pull_request/attempt, real completed successful state-gate job in that same current in-progress State Gate run; formal landing job depends on ordinary state-gate. No pre-Ready Draft run substitution. Postmerge still requires the whole actual Ready run completed SUCCESS. Other Authority runs remain whole-run SUCCESS. Preserve all exact head/base/required-context/review/ruleset/time/digest restrictions and fail-closed semantics. Add negative actual verifier regressions and entrypoint tests; document bootstrap sequence and limits. No new Gate/schema/receipt/verifier family; fix existing owned architectural defect, never just weaken checks to admit PR1094.",
-    "reuse": "Existing GitHubRemoteEvidenceVerifier.verify_workflow_run, false/none canonical attestation validator, trusted formal project_gate context and existing State Gate workflow jobs. No model or new runtime.",
-    "completion_boundary": "One bounded corrective Draft only; independent exact-head source/CI acceptance required. No Ready/merge or retroactive cure of historical failures, and no full unattended/backlog completion claimed.",
-    "execution_surface_note": "Actual platform fixed-check executor has no source/governance/workflow editing capability; use supervised Codex alternate after accepted real-host capability evidence. Provider-free source/local/naturalCI only."
+    "specification": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
+    "reuse": "Existing AGENTS entry, conditional governance reference, transition parser/compiler/preflight and exact-head CI. No new Gate or authority schema.",
+    "execution_surface_note": "Fresh exact-base worktree from main32ac, Decision-only activation and canonical preflight before two documentation edits. Actual system fixedchecker runtime lacks governance-document coding executor; existing independently accepted real-host capability evidence supports supervised Codex alternate.",
+    "completion_boundary": "Documentation source/local/original natural exact-head CI and independent acceptance, Draft only. Real platform authority compiler/scheduler/GitHub operation executor and full unattended backlog remain incomplete; no Ready/merge under this source allocation."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -94,12 +94,7 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    ".github/workflows/state-gate.yml",
+    "AGENTS.md",
     "docs/agents/governance-reference.md"
   ],
   "authorized_risk_paths": [
@@ -109,12 +104,7 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_mainline_landing.py",
-    "tests/test_project_gate.py",
-    ".github/workflows/state-gate.yml",
+    "AGENTS.md",
     "docs/agents/governance-reference.md"
   ],
   "generated_artifact_paths": [
@@ -125,22 +115,27 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    "AGENTS.md",
-    "reverse_agent/control_plane/command_authority.py",
+    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    "tests/test_decision_preflight.py",
+    "tests/test_control_plane_transition.py",
+    "tests/test_codex_skills.py",
     ".github/workflows/ci.yml",
-    ".github/workflows/decision-preflight.yml"
+    "tests/test_agent_instruction_context.py"
   ],
   "forbidden_mutated_paths": [
+    ".github/**",
+    ".codex-skills/**",
+    "reverse_agent/**",
+    "tests/**",
     "frontend/**",
-    "reverse_agent/platform_v1/**",
-    "project_state/mainline_merge_intents/**",
     "project_state/rounds/**",
+    "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "AGENTS.md",
-    ".codex-skills/**"
+    "dev-up.ps1",
+    "dev-down.ps1"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -150,6 +145,8 @@
     "squash",
     "amend",
     "history_rewrite",
+    "mark_ready",
+    "merge",
     "workflow_rerun",
     "workflow_dispatch",
     "runner_dispatch",
@@ -161,43 +158,16 @@
     "tag_or_release",
     "dependency_install",
     "local_browser_execution",
-    "generated_governance_commit",
-    "active_json_rewrite",
-    "ruleset_change",
-    "bypass_required_checks",
-    "issue_close",
-    "mark_ready",
-    "merge",
-    "issue_close"
+    "generated_governance_commit"
   ],
   "capability_policy": {
     "github_control_plane_network_exceptions": [
-      "Push only codex/issue891-ready-run-bootstrap-r2-20261008 and create/update its single corrective Draft against exact current main97d766d; natural pull_request CI permitted. No rerun, dispatch, comments, Ready, merge, ruleset edits or bypass."
+      "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider."
     ]
   },
   "path_risk_floor": [
     {
-      "pattern": "reverse_agent/mainline_landing.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/github_remote_verifier.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "reverse_agent/project_gate.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/test_mainline_landing.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": "tests/test_project_gate.py",
-      "minimum_risk": "R2"
-    },
-    {
-      "pattern": ".github/workflows/state-gate.yml",
+      "pattern": "AGENTS.md",
       "minimum_risk": "R2"
     },
     {
@@ -207,8 +177,8 @@
   ],
   "allowed_commands": [
     {
-      "command_id": "bootstrap.implementation",
-      "command": "Repair first actual Ready-run self-dependency using existing verifier/attestation. Before merge, require attestation ready run equal actual trusted current GITHUB_RUN_ID, exact repository/workflow/head/pull_request/attempt, real completed successful state-gate job in that same current in-progress State Gate run; formal landing job depends on ordinary state-gate. No pre-Ready Draft run substitution. Postmerge still requires the whole actual Ready run completed SUCCESS. Other Authority runs remain whole-run SUCCESS. Preserve all exact head/base/required-context/review/ruleset/time/digest restrictions and fail-closed semantics. Add negative actual verifier regressions and entrypoint tests; document bootstrap sequence and limits. No new Gate/schema/receipt/verifier family; fix existing owned architectural defect, never just weaken checks to admit PR1094.",
+      "command_id": "delegation.implementation",
+      "command": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -222,19 +192,14 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "reverse_agent/mainline_landing.py",
-        "reverse_agent/github_remote_verifier.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_mainline_landing.py",
-        "tests/test_project_gate.py",
-        ".github/workflows/state-gate.yml",
+        "AGENTS.md",
         "docs/agents/governance-reference.md"
       ],
       "produced_artifacts": []
     },
     {
-      "command_id": "bootstrap.validation",
-      "command": "python -m pytest tests/test_mainline_landing.py tests/test_project_gate.py -k \"false_none or workflow or landing\" -q -p no:cacheprovider; git diff --check",
+      "command_id": "delegation.validation",
+      "command": "python -m pytest tests/test_agent_instruction_context.py tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -242,6 +207,7 @@
       ],
       "execution_surface": "trusted_worker",
       "operations": [
+        "code_read",
         "unit_test",
         "diff_validation"
       ],
@@ -251,17 +217,18 @@
       "produced_artifacts": []
     },
     {
-      "command_id": "bootstrap.publication",
-      "command": "Push only the exact approved branch and create/update its single Draft against main after PUBLICATION_READY.",
+      "command_id": "delegation.publication",
+      "command": "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider.",
       "phase": "publication",
-      "required": true,
+      "required": false,
       "expected_exit_codes": [
         0
       ],
       "execution_surface": "github_control_plane",
       "operations": [
         "push",
-        "draft_pr"
+        "draft_pr",
+        "network_access"
       ],
       "network_access": true,
       "required_evidence_source": "repository_state_attestation",
@@ -270,13 +237,13 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T08:59:33.368369+00:00",
-  "owner_delegation_sha256": "d6a94b6062bb9baa924751815c98db305d9ea17a18b3fc06e1a774a2b082fec4",
+  "approval_event_or_time": "2026-10-08T10:14:45.972872+00:00",
+  "owner_delegation_sha256": "73658b07d420847e5e06ff31b0cfb4c0c2d07c504b288d7d2a9e858a38ed27a8",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
-  "development_check_run_limit": 2,
+  "development_check_run_limit": 1,
   "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 3,
-  "execution_expires_at": "2026-10-08T10:29:33.368369+00:00"
+  "mandatory_check_run_limit": 4,
+  "execution_expires_at": "2026-10-08T11:44:45.972872+00:00"
 }
 ```
