@@ -1,10 +1,10 @@
-# Delegated controller authority orchestration
+# Delegated controller authority orchestration v2
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_delegated_controller_r2_v1",
-  "round_id": "round_20261008_issue118_delegated_controller_r2_v1",
+  "decision_id": "decision_20261008_issue118_delegated_controller_r2_v2",
+  "round_id": "round_20261008_issue118_delegated_controller_r2_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Controller-authorized compile repair under the same explicit Owner delegation. Prior immutable a105fc3 decision and blocked plan preserved; original absolute expiry and product restrictions unchanged.",
   "risk_tier": "R2",
   "authorized_risk_tier": "R2",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
   "activation_base_sha": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "starting_head": "97d766d7253378c093c31ed29c990cb6921f2ae4",
-  "required_branch": "codex/issue118-delegated-controller-authority-r2-20261008",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "starting_head": "a105fc3477da16e5369ab6f41880bd07367ce120",
+  "required_branch": "codex/issue118-delegated-controller-authority-r2-v2-20261008",
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -159,11 +159,21 @@
     "local_browser_execution",
     "generated_governance_commit"
   ],
-  "capability_policy": {},
-  "path_risk_floor": {
-    "AGENTS.md": "R2",
-    "docs/agents/governance-reference.md": "R2"
+  "capability_policy": {
+    "github_control_plane_network_exceptions": [
+      "Publish only the exact codex/issue118-delegated-controller-authority-r2-v2-20261008 branch to dddd2024/Nerelan and create/update its single Draft PR against main after canonical publication readiness."
+    ]
   },
+  "path_risk_floor": [
+    {
+      "pattern": "AGENTS.md",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "docs/agents/governance-reference.md",
+      "minimum_risk": "R2"
+    }
+  ],
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
@@ -173,10 +183,10 @@
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "user_local",
+      "execution_surface": "trusted_worker",
       "operations": [
         "code_read",
-        "repo_write"
+        "source_edit"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
@@ -194,20 +204,39 @@
       "expected_exit_codes": [
         0
       ],
-      "execution_surface": "user_local",
+      "execution_surface": "trusted_worker",
       "operations": [
         "code_read",
-        "pytest",
+        "unit_test",
         "diff_validation"
       ],
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
+    },
+    {
+      "command_id": "delegation.publication",
+      "command": "Publish only the exact codex/issue118-delegated-controller-authority-r2-v2-20261008 branch to dddd2024/Nerelan and create/update its single Draft PR against main after canonical publication readiness.",
+      "phase": "publication",
+      "required": false,
+      "expected_exit_codes": [
+        0
+      ],
+      "execution_surface": "github_control_plane",
+      "operations": [
+        "push",
+        "draft_pr",
+        "network_access"
+      ],
+      "network_access": true,
+      "required_evidence_source": "repository_state_attestation",
+      "allowed_mutated_paths": [],
+      "produced_artifacts": []
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T05:22:21.386602+00:00",
+  "approval_event_or_time": "2026-10-08T05:24:28.707552+00:00",
   "owner_delegation_sha256": "e8ace4b16f725edda778ed088086f115e4fdb60bf68b971b6d9e59ef6c07b650",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
