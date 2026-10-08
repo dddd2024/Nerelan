@@ -1172,8 +1172,8 @@ def test_I1_valid_implementation_draft_remains_authorized(
     assert result["gate_status"] == "PATH_A_R1_AUTHORIZED"
     assert result["lifecycle_stage"] == "IMPLEMENTATION_DRAFT"
     assert result["implementation_authority"] is True
-    assert result["product_accepted"] is True
-    assert result["implementation_complete"] is True
+    assert result["product_accepted"] is False
+    assert result["implementation_complete"] is False
     assert result["merge_authority"] is False
     assert result["ready_authority"] is False
     assert result["no_task_checks"] is False
@@ -1325,7 +1325,7 @@ def test_D2_converted_to_draft_with_delta_is_implementation() -> None:
     assert result["lifecycle_stage"] == "IMPLEMENTATION_DRAFT"
     assert result["empty_delta"] is False
     assert result["implementation_authority"] is True
-    assert result["product_accepted"] is True
+    assert result["product_accepted"] is False
 
 
 def test_L1_ready_recomputes_authority_revision_on_live_pr_state() -> None:
