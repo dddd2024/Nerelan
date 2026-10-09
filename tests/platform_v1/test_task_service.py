@@ -2751,3 +2751,137 @@ def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> Non
     assert links[other.id] == "QUEUED"
     assert server.RequestHandlerClass.store.get_task(task_id).status == "CANCELLED"
     assert server.RequestHandlerClass.store.get_task(other.id).status == "QUEUED"
+
+
+@pytest.mark.parametrize("action", ["execute", "resume"])
+def test_host_admission_rejection_reads_bounded_body_without_parsing_or_execution(production_policy_server, monkeypatch, action):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="reject raw body before execution", executor_kind="deterministic_fixture")
+    discarded = []
+    original_discard = handler._discard_bounded_request_body
+
+    def observe_discard(request):
+        original_discard(request)
+        discarded.append(True)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("rejected request must not parse JSON or construct/dispatch an executor")
+
+    monkeypatch.setattr(handler, "_discard_bounded_request_body", observe_discard)
+    monkeypatch.setattr(handler, "_read_json", forbidden)
+    monkeypatch.setattr(handler.router, "create_executor", forbidden)
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, body = _req(base, "POST", f"/api/tasks/{task.id}/{action}", {})
+    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
+    assert discarded == [True]
+    assert handler.store._conn.total_changes == before
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.execute("SELECT count(*) FROM durable_runs").fetchone()[0] == 0
+
+
+def test_host_admission_partial_body_timeout_still_returns_rejection(production_policy_server, monkeypatch):
+    import time
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="bounded wait for rejected body", executor_kind="deterministic_fixture")
+    host, port = base.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=3)
+    before = handler.store._conn.total_changes
+    try:
+        start = time.monotonic()
+        conn.request("POST", f"/api/tasks/{task.id}/execute", body=b"{", headers=client_headers({
+            "Content-Length": "2", "Origin": "http://localhost:5173",
+        }))
+        response = conn.getresponse()
+        assert response.status == 409
+        assert json.loads(response.read()) == {"error": "direct_execution_requires_approved_host_task"}
+        assert time.monotonic() - start < 3
+        assert handler.store._conn.total_changes == before
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("command,lengths,transfer", [
+    ("GET", ["2"], None), ("POST", [], None), ("POST", ["2", "2"], None),
+    ("POST", [""], None), ("POST", ["2,2"], None), ("POST", ["２"], None),
+    ("POST", ["-1"], None), ("POST", ["0"], None), ("POST", ["262145"], None),
+    ("POST", ["9999999"], None), ("POST", ["2"], "chunked"),
+])
+def test_rejected_body_discard_refuses_ambiguous_or_unbounded_reads(command, lengths, transfer):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.task_service import _TaskHandler
+    headers = Message()
+    for length in lengths:
+        headers.add_header("Content-Length", length)
+    if transfer is not None:
+        headers.add_header("Transfer-Encoding", transfer)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid framing must not touch socket timeout, body or JSON")
+
+    request = SimpleNamespace(command=command, headers=headers,
+        connection=SimpleNamespace(gettimeout=forbidden, settimeout=forbidden),
+        rfile=SimpleNamespace(read=forbidden, read1=forbidden), _read_json=forbidden)
+    _TaskHandler._discard_bounded_request_body(request)
+
+
+@pytest.mark.parametrize("length,times_out", [(2, False), (262144, False), (2, True)])
+def test_rejected_body_discard_bounds_raw_read_and_restores_timeout(length, times_out):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.task_service import _TaskHandler
+    headers = Message()
+    headers.add_header("Content-Length", str(length))
+    timeouts, reads = [], []
+
+    def raw_read(size):
+        reads.append(size)
+        if times_out:
+            raise TimeoutError("bounded body read")
+        return b"\xff" * size
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("rejected raw bytes must not be parsed")
+
+    request = SimpleNamespace(command="POST", headers=headers,
+        connection=SimpleNamespace(gettimeout=lambda: 7, settimeout=timeouts.append),
+        rfile=SimpleNamespace(read1=raw_read), _read_json=forbidden)
+    _TaskHandler._discard_bounded_request_body(request)
+    assert reads and all(0 < size <= 64 * 1024 for size in reads)
+    assert sum(reads) == length
+    assert len(timeouts) == len(reads) + 1 and timeouts[-1] == 7
+    assert all(0 < timeout <= 0.25 for timeout in timeouts[:-1])
+
+
+def test_rejected_body_discard_has_total_deadline_during_continued_progress(monkeypatch):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import task_service as module
+    headers = Message()
+    headers.add_header("Content-Length", "8")
+    clock, reads, timeouts = [0.0], [], []
+
+    def raw_read(size):
+        reads.append(size)
+        clock[0] += 0.1
+        return b"x"
+
+    # A clock/reader double verifies total-deadline logic without relying on
+    # scheduler timing or launching a network workload.
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    request = SimpleNamespace(command="POST", headers=headers,
+        connection=SimpleNamespace(gettimeout=lambda: None, settimeout=timeouts.append),
+        rfile=SimpleNamespace(read1=raw_read))
+    module._TaskHandler._discard_bounded_request_body(request)
+    assert reads == [8, 7, 6]
+    assert timeouts[:-1] == pytest.approx([0.25, 0.15, 0.05])
+    assert timeouts[-1] is None

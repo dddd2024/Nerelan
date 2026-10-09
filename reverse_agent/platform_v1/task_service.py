@@ -21,6 +21,7 @@ from ipaddress import ip_address
 import json
 import hashlib
 import os
+import time
 import re
 from threading import Thread
 from typing import Any, Mapping, Sequence
@@ -903,15 +904,22 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if contract is None:
             if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
                                                        and task.permission_profile == "AUTONOMOUS_WINDOW"):
+                self._discard_bounded_request_body()
                 raise TaskStoreError("direct_execution_requires_approved_host_task")
             return False
-        self.autonomy_service.check_task_scope(task_id, "validate_task")
+        try:
+            self.autonomy_service.check_task_scope(task_id, "validate_task")
+        except Exception:
+            self._discard_bounded_request_body()
+            raise
         if resume:
             # This selected policy grants zero retries; the coordinator owns
             # original live handles and durable recovery admission.
+            self._discard_bounded_request_body()
             raise TaskStoreError("delegated_policy_retry_not_granted")
         coordinator = getattr(self, "coordinator", None)
         if coordinator is None:
+            self._discard_bounded_request_body()
             raise TaskStoreError("host_check_coordinator_unavailable")
         coordinator.tick()
         self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(task_id)))
@@ -1118,23 +1126,37 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "error": "请通过 Nerelan 启动器重新打开客户端。",
             "code": "local_client_session_required",
         })
-        # Admission has already failed; discard only a small, explicitly sized
-        # body without parsing it. Closing a socket with unread POST bytes can
-        # reset the connection on Windows and hide the fixed 401 response.
-        if self.command == "POST":
-            lengths = self.headers.get_all("Content-Length", [])
-            if len(lengths) == 1 and lengths[0].isascii() and lengths[0].isdigit():
-                length = int(lengths[0]) if len(lengths[0]) <= 6 else -1
-                if 0 < length <= _MAX_BODY_BYTES:
-                    previous = self.connection.gettimeout()
-                    try:
-                        self.connection.settimeout(0.25)
-                        self.rfile.read(length)
-                    except (OSError, TimeoutError):
-                        pass
-                    finally:
-                        self.connection.settimeout(previous)
+        self._discard_bounded_request_body()
         return False
+
+    def _discard_bounded_request_body(self) -> None:
+        # Only pre-read rejection paths call this. Do not parse rejected bytes
+        # or wait for EOF. Unread POST data can hide the response on Windows.
+        if self.command != "POST" or self.headers.get_all("Transfer-Encoding", []):
+            return
+        lengths = self.headers.get_all("Content-Length", [])
+        if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit():
+            return
+        length = int(lengths[0]) if len(lengths[0]) <= 6 else -1
+        if not 0 < length <= _MAX_BODY_BYTES:
+            return
+        previous = self.connection.gettimeout()
+        deadline = time.monotonic() + 0.25
+        remaining = length
+        try:
+            while remaining > 0:
+                wait = deadline - time.monotonic()
+                if wait <= 0:
+                    break
+                self.connection.settimeout(wait)
+                chunk = self.rfile.read1(min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except (OSError, TimeoutError):
+            pass
+        finally:
+            self.connection.settimeout(previous)
 
     def _send_cors_headers(self) -> None:
         origin = self.headers.get("Origin")
