@@ -1,4 +1,78 @@
-import type { FunctionalCheckInput, FunctionalValidation } from "@/types";
+import type { FunctionalCheckInput, FunctionalValidation, PolicyContract } from "@/types";
+import { policySchema } from "@/schemas/policy";
+import { serializePolicy } from "@/lib/policy-serializer";
+
+export interface ApprovedPolicyTemplate {
+  available: true;
+  policy_id: string;
+  policy_revision: number;
+  policy: PolicyContract;
+  policy_digest: string;
+  window_id: string;
+  confirmation_provenance: { confirmation_mode: string; personally_human: boolean; controller_identity: string };
+  supported_operations: string[];
+  validation_command_id: string;
+  instance: { id: string; kind: string };
+  goal_idempotency_key: string;
+  plan_task_id: string;
+  task_budget: { max_tasks: number; max_retries: number; max_concurrent_tasks: number; model_call_limit: number; provider_call_limit: number; github_write_limit: number };
+}
+
+export async function fetchApprovedPolicy(): Promise<ApprovedPolicyTemplate> {
+  const template = await request<ApprovedPolicyTemplate | { available: false; reason: string }>("/api/windows/policy");
+  if (!template.available) throw new PlatformClientError(409, template.reason || "delegated_policy_authority_unavailable");
+  policySchema.parse(template.policy);
+  if (!template.policy_id || !Number.isInteger(template.policy_revision) || template.policy_revision < 1 || !/^[a-f0-9]{64}$/.test(template.policy_digest)
+    || template.confirmation_provenance?.confirmation_mode !== "DELEGATED_CONTROLLER" || template.confirmation_provenance.personally_human !== false) {
+    throw new PlatformClientError(409, "delegated_policy_template_invalid");
+  }
+  return template;
+}
+
+export async function ensureApprovedWindow(repository: string): Promise<PlatformWindow> {
+  const template = await fetchApprovedPolicy();
+  if (template.policy.repository !== repository) throw new PlatformClientError(409, "active_window_repository_conflict");
+  const startsAt = Date.parse(template.policy.autonomousWindow.startsAt);
+  const expiresAt = Date.parse(template.policy.autonomousWindow.expiresAt);
+  const matches = (window: PlatformWindow) => window.id === template.window_id
+    && window.policy_id === template.policy_id && window.policy_revision === template.policy_revision
+    && (window.canonical_policy_digest ?? window.policy_digest_sha256 ?? window.policy_digest) === template.policy_digest
+    && window.repositories.length === 1 && window.repositories[0] === repository
+    && window.status === "ACTIVE" && Number.isFinite(startsAt) && Number.isFinite(expiresAt)
+    && startsAt <= Date.now() && Date.now() < expiresAt
+    && Number.isFinite(Date.parse(window.expires_at)) && Date.parse(window.expires_at) === expiresAt;
+  const current = (await fetchPlatformStatus()).autonomy.active_window;
+  if (current) {
+    if (!matches(current)) throw new PlatformClientError(409, current.repositories.includes(repository) ? "active_window_policy_conflict" : "active_window_repository_conflict");
+    return current;
+  }
+  try {
+    const window = await request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
+      policy_id: template.policy_id, policy_revision: template.policy_revision,
+      policy: JSON.parse(serializePolicy(template.policy)),
+    }) });
+    if (!matches(window)) throw new PlatformClientError(409, "active_window_policy_conflict");
+    return window;
+  } catch (error) {
+    if (error instanceof PlatformClientError && (error.status === 409 || error.code.includes("active_window"))) {
+      const refreshed = (await fetchPlatformStatus()).autonomy.active_window;
+      if (refreshed) {
+        if (!matches(refreshed)) throw new PlatformClientError(409, refreshed.repositories.includes(repository) ? "active_window_policy_conflict" : "active_window_repository_conflict");
+        return refreshed;
+      }
+    }
+    throw error;
+  }
+}
+
+export function approvedCheckerPlan(template: ApprovedPolicyTemplate | null) {
+  if (!template || template.supported_operations.length !== 1 || template.supported_operations[0] !== "validate_task") return null;
+  if (!template.goal_idempotency_key || !template.plan_task_id || template.validation_command_id !== "git_diff_check") throw new PlatformClientError(409, "delegated_policy_template_invalid");
+  return {
+    tasks: [{ id: template.plan_task_id, title: "检查批准路径的补丁格式", instruction: "仅运行固定 git_diff_check；这是补丁卫生检查，不是编码或功能验收", capability: "validate_task", validation_command_id: template.validation_command_id, dependencies: [] }],
+    acceptance_criteria: ["固定 git_diff_check 成功；仅证明批准路径的补丁格式检查，不代表编码、功能验收或发布"],
+  };
+}
 
 export type GoalStatus =
   | "DRAFT"
@@ -18,7 +92,7 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "deterministic_fixture";
@@ -45,6 +119,10 @@ export interface PlatformGoalTaskLink {
 export interface PlatformWindow {
   id: string;
   policy_id: string;
+  policy_revision?: number;
+  canonical_policy_digest?: string;
+  policy_digest?: string;
+  policy_digest_sha256?: string;
   status: string;
   expires_at: string;
   repositories: string[];
@@ -116,6 +194,7 @@ export interface PlatformBudgetSummary {
 
 export interface PlatformStatus {
   service: string;
+  instance?: { id: string; kind: string };
   autonomy: {
     autonomy_enabled: boolean;
     active_window: PlatformWindow | null;
@@ -1018,46 +1097,27 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
     return goal;
   }
 
-  const idempotencyKey = `ui-goal-${Date.now()}-${crypto.randomUUID()}`;
+  const template = await fetchApprovedPolicy();
+  const checkerPlan = approvedCheckerPlan(template);
+  const idempotencyKey = checkerPlan ? template.goal_idempotency_key : `ui-goal-${crypto.randomUUID()}`;
   const created = await request<PlatformGoal>("/api/goals", {
     method: "POST",
     body: JSON.stringify({
       objective: input.objective,
       repository: input.repository,
       idempotency_key: idempotencyKey,
-      executor_kind: input.executorKind,
-      orchestration_mode: input.executorKind === "opencode" ? "sequential_team" : "single",
-      binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+      executor_kind: checkerPlan ? "opencode" : input.executorKind,
+      orchestration_mode: checkerPlan ? "single" : input.executorKind === "opencode" ? "sequential_team" : "single",
+      binding_ref: checkerPlan ? "" : input.executorKind === "opencode" ? input.bindingRef : "",
     }),
   });
   await request<PlatformGoal>(`/api/goals/${created.id}/plan`, {
-    method: "POST", body: JSON.stringify({ expected_revision: created.revision }),
+    method: "POST", body: JSON.stringify({ ...checkerPlan, expected_revision: created.revision }),
   });
   await request<PlatformGoal>(`/api/goals/${created.id}/approve`, {
     method: "POST", body: JSON.stringify({ expected_revision: created.revision }),
   });
-  const status = await fetchPlatformStatus();
-  let window = status.autonomy.active_window;
-  if (!window || !window.repositories.includes(input.repository)) {
-    const starts = new Date();
-    const expires = new Date(starts.getTime() + input.autonomyHours * 60 * 60 * 1000);
-    window = await request<PlatformWindow>("/api/windows/activate", {
-      method: "POST",
-      body: JSON.stringify({
-        policy_id: `owner-ui-${Date.now()}`,
-        policy_revision: 1,
-        owner_identity: "local-owner",
-        starts_at: starts.toISOString(),
-        expires_at: expires.toISOString(),
-        repositories: [input.repository],
-        capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
-        max_concurrent_tasks: 2,
-        max_tasks: 20,
-        max_retries: 1,
-        confirmation: "ACTIVATE",
-      }),
-    });
-  }
+  const window = await ensureApprovedWindow(input.repository);
   await request<PlatformGoal>(`/api/goals/${created.id}/launch`, {
     method: "POST", body: JSON.stringify({ expected_revision: created.revision, window_id: window.id }),
   });

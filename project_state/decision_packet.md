@@ -1,10 +1,10 @@
-# Delegated controller current-main recovery
+# Bounded ignored runtime cache classification repair
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_controller_mainline_recovery_r2_v1",
-  "round_id": "round_20261008_issue118_controller_mainline_recovery_r2_v1",
+  "decision_id": "decision_20261009_issue118_runtime_cache_classification_r3_v1",
+  "round_id": "round_20261009_issue118_runtime_cache_classification_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_DELEGATED_CONTROLLER_CURRENT_MAINLINE_RECOVERY",
+  "decision_scope": "ISSUE118_BOUNDED_RUNTIME_CACHE_CLASSIFICATION",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Distinct current-main recovery of independently accepted delegated-controller docs1094 after actual corrective landing1100 changed main to32ac. Preserve all original source/landing failures, budgets and expired deadlines, no history rewrite or old1094/1099 writes. Controller approver under standing explicit Owner delegation, personally_human=false.",
-  "risk_tier": "R2",
-  "authorized_risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Root approves the independently valid ignored runtime-cache P1 thread PRRT_kwDOSCDj_s6qxr88 on source1113; frozen69+editable2 manifestSHA256=9db9dd78360b87f1b2546684b989c0db557f6aae09a3ee2f0d1d3980e5211dc1; preserves12 distinct prior grants, all SUCCESS/FAIL/BLOCKED outcomes, spending and every original expiry; E15 Ready still accepted but P1 blocks merge; not renewal of1114; no unused old allowance reuse, judge bypass, human impersonation or self-independent acceptance.",
+  "risk_tier": "R3",
+  "authorized_risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
   "integration_base_ref": "main",
-  "base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "activation_base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "starting_head": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "required_branch": "codex/issue118-controller-mainline-recovery-r2-20261008",
+  "base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "activation_base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "starting_head": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "required_branch": "codex/issue118-runtime-cache-classification-r3-20261009",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,9 +42,9 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
+  "normal_push_attempt_limit": 1,
   "draft_pr_creation_limit": 1,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
@@ -78,10 +78,10 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
-    "reuse": "Existing AGENTS entry, conditional governance reference, transition parser/compiler/preflight and exact-head CI. No new Gate or authority schema.",
-    "execution_surface_note": "Fresh exact-base worktree from main32ac, Decision-only activation and canonical preflight before two documentation edits. Actual system fixedchecker runtime lacks governance-document coding executor; existing independently accepted real-host capability evidence supports supervised Codex alternate.",
-    "completion_boundary": "Documentation source/local/original natural exact-head CI and independent acceptance, Draft only. Real platform authority compiler/scheduler/GitHub operation executor and full unattended backlog remain incomplete; no Ready/merge under this source allocation."
+    "specification": "Repair the independently valid ignored runtime cache classification P1 at source1113/E15, unresolved thread PRRT_kwDOSCDj_s6qxr88. Decision-only plus existing five generated Gate paths before initial five canonical checks and independent actual activation/preflight acceptance. Advancecharged correction1 then imports69 immutable E15 paths and both original editable E15 seeds; only authority_adapter.py and tests/platform_v1/test_trusted_host.py may be repaired within two total correction rounds. Observe confined NUL-safe strictly decoded cache leaves rather than collapsed directories; recognize only standard Python bytecode with tracked source companions and narrow standard Pytest metadata/cache filenames and types. Reject symbolic/reparse components, escapes, unknown .py/.pyd/executables/sensitive files, unknown bytecode without tracked companions and unknown Pytest leaves. Preserve tracked drift and nonignored/ignored source rejection, exact existing Gate/validated skill registry, known owned runtime prefixes and narrowly validated Vite configuration exceptions. All other69 product paths and protected5 actual-main surfaces remain byte-identical. No blanket cache-prefix/ignored-directory exemption, new Gate/schema/receipt, test weakening, oldPR edits/resolution/bypass, runtime/model/browser/install or Ready/merge.",
+    "reuse": "Existing NUL-safe Git observations, source drift error, strict runtime classification, immutable imports/compiler/preflight and mature check/publication adapters; no new Gate/schema/receipt/runtime.",
+    "execution_surface_note": "Three separately precharged local mandatory slots: slot1 initial existing five canonical checks before import; slot2 exact-head entire tests/platform_v1/test_trusted_host.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py; slot3 scoped committed git diff --check and final existing five canonical checks together, preserving initial raw. At most3 provider-free development checks and2 correction rounds; one product commit. Meaningful disposable real Git, immutable Decision/canonical preflight and host admission fixtures: root/nested Python/Pytest caches, tracked companions, literal-space/Unicode/NUL-safe observations, unknown .py/sensitive/executable/unknown cache leaves, no tracked companion, symlink/reparse confinement, existing runtime/Vite exceptions. No live production runtime/window/model/browser execution; test-only disposable loopback/SQLite/thread fixtures retain their existing allowed provider-free scope. Local full Python remains unexecuted under this explicit M3 split; independent exact local focused/diff/canonical acceptance permits only one exact source push/newDraft, with full coverage PENDING original natural CI. Complete provider-free original exact-head CI before independent Source/fullCI acceptance: all required workflows and unchanged blocking Platform V1 step SUCCESS, attempt1/event/PR/base/head and same-job exact Checkout/log proofs. Nonblocking repository diagnostic must actually exit0, with step SUCCESS, Summary env PYTEST_EXIT_CODE0, full command and unique real completed pytest summary matching nonempty closed complete-scope XML zeroFAIL/ERROR. Full CI XML must contain all original85 regression keys and31 previously failed keys PASS, plus every newly added runtime-cache case PASS. No workflow/exclusion/marker/validator/assertion weakening, reruns or old evidence substitution. Old Ed31FAIL and old failedReady remain FAIL; E15 local/CI/actualReady remain SUCCESS but actualP1 mergeBLOCKED, merge unexecuted. Root approval is delegated, neither personally human nor independent audit. No Ready/review/attestation/merge/newmain/native/full-platform/whole-goal acceptance under this Source grant. Existing fixed-check platform lacks the governed coding capability; bounded Codex fallback.",
+    "completion_boundary": "New exact Source/local/originalCI/independent acceptance and Draft only. Existing E15 local/CI/actualReady are accepted, but source1113 P1 blocks merge and oldAuthority1114 merge remains unspent. Runtime/new Ready/landing/full unattended remain incomplete."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -89,23 +89,161 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    ".github/workflows/state-gate.yml",
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/project_gate.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    ".github/workflows/state-gate.yml",
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/project_gate.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -115,27 +253,27 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "tests/test_decision_preflight.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_codex_skills.py",
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
     ".github/workflows/ci.yml",
-    "tests/test_agent_instruction_context.py"
+    "reverse_agent/mainline_landing.py"
   ],
   "forbidden_mutated_paths": [
-    ".github/**",
     ".codex-skills/**",
-    "reverse_agent/**",
-    "tests/**",
-    "frontend/**",
+    "AGENTS.md",
+    "docs/agents/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/model_access/**",
+    "reverse_agent/mainline_landing.py",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "dev-up.ps1",
-    "dev-down.ps1"
+    "dev-down.ps1",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -162,23 +300,103 @@
   ],
   "capability_policy": {
     "github_control_plane_network_exceptions": [
-      "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider."
+      "Publish only exact codex/issue118-runtime-cache-classification-r3-20261009 and one newDraft against main@dec321721ab9c33a0107a0b2283839654d569a88 after PUBLICATION_READY and independent exact source/local acceptance. No oldPR writes, Ready/merge/mainpush/historyrewrite/rerun/dispatch/model/provider/native/runtime/install/release/deploy."
     ]
   },
   "path_risk_floor": [
     {
-      "pattern": "AGENTS.md",
+      "pattern": "dev-up.ps1",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/trusted-client.mjs",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/authority_adapter.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/autonomy.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/capability_registry.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/control_store.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/goal_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/local_client_session.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/publication_controller.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_execution.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_runtime.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_client.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_host.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/unattended_coordinator.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/package.json",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "docs/agents/governance-reference.md",
+      "pattern": "frontend/package-lock.json",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/project_gate.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_project_gate.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": ".github/workflows/state-gate.yml",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/github_remote_verifier.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_mainline_landing.py",
       "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
-      "command": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
+      "command": "Repair the independently valid ignored runtime cache classification P1 at source1113/E15, unresolved thread PRRT_kwDOSCDj_s6qxr88. Decision-only plus existing five generated Gate paths before initial five canonical checks and independent actual activation/preflight acceptance. Advancecharged correction1 then imports69 immutable E15 paths and both original editable E15 seeds; only authority_adapter.py and tests/platform_v1/test_trusted_host.py may be repaired within two total correction rounds. Observe confined NUL-safe strictly decoded cache leaves rather than collapsed directories; recognize only standard Python bytecode with tracked source companions and narrow standard Pytest metadata/cache filenames and types. Reject symbolic/reparse components, escapes, unknown .py/.pyd/executables/sensitive files, unknown bytecode without tracked companions and unknown Pytest leaves. Preserve tracked drift and nonignored/ignored source rejection, exact existing Gate/validated skill registry, known owned runtime prefixes and narrowly validated Vite configuration exceptions. All other69 product paths and protected5 actual-main surfaces remain byte-identical. No blanket cache-prefix/ignored-directory exemption, new Gate/schema/receipt, test weakening, oldPR edits/resolution/bypass, runtime/model/browser/install or Ready/merge.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -192,14 +410,83 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "AGENTS.md",
-        "docs/agents/governance-reference.md"
+        ".github/workflows/state-gate.yml",
+        "dev-up.ps1",
+        "docs/local-client-session.md",
+        "docs/unattended-window-lifecycle.md",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/components/autonomous-window-editor.tsx",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/hooks/use-platform.ts",
+        "frontend/src/lib/goal-continuation-operation.ts",
+        "frontend/src/lib/goal-start-operation.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/policy-serializer.ts",
+        "frontend/src/schemas/policy.ts",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "frontend/tests/goal-continuation-activation-errors.test.ts",
+        "frontend/tests/goal-start-recovery.test.ts",
+        "frontend/tests/policy-serialization.test.ts",
+        "frontend/tests/policy-validation.test.ts",
+        "frontend/tests/task-first-sidebar.test.tsx",
+        "frontend/trusted-client.mjs",
+        "frontend/trusted-client.node-test.mjs",
+        "reverse_agent/github_remote_verifier.py",
+        "reverse_agent/platform_v1/authority_adapter.py",
+        "reverse_agent/platform_v1/autonomy.py",
+        "reverse_agent/platform_v1/capability_registry.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/durable_execution.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/local_client_session.py",
+        "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/publication_controller.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_runtime.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/trusted_client.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "reverse_agent/project_gate.py",
+        "tests/platform_v1/_local_client_fixture.py",
+        "tests/platform_v1/test_artifact_handoff_http.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_autonomy_window_lifecycle.py",
+        "tests/platform_v1/test_delegated_goal_admission.py",
+        "tests/platform_v1/test_dev_up_contract.py",
+        "tests/platform_v1/test_durable_execution.py",
+        "tests/platform_v1/test_durable_execution_v5.py",
+        "tests/platform_v1/test_execution_runtime_budget.py",
+        "tests/platform_v1/test_goal_completion_evidence.py",
+        "tests/platform_v1/test_goal_functional_checks.py",
+        "tests/platform_v1/test_goal_plan_revision.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_local_client_session.py",
+        "tests/platform_v1/test_provider_free_task_plane.py",
+        "tests/platform_v1/test_system_doctor.py",
+        "tests/platform_v1/test_task3c_v4_repairs.py",
+        "tests/platform_v1/test_task3c_v6_production_relay.py",
+        "tests/platform_v1/test_task_client_auth.py",
+        "tests/platform_v1/test_task_runtime.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_trusted_client_bootstrap.py",
+        "tests/platform_v1/test_trusted_host.py",
+        "tests/platform_v1/test_trusted_host_lifecycle.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_project_gate.py",
+        "tests/test_trust_authorization_adapter.py"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "delegation.validation",
-      "command": "python -m pytest tests/test_agent_instruction_context.py tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
+      "command": "Three separately precharged local mandatory slots: slot1 initial existing five canonical checks before import; slot2 exact-head entire tests/platform_v1/test_trusted_host.py tests/platform_v1/test_contracts.py tests/test_mainline_landing.py; slot3 scoped committed git diff --check and final existing five canonical checks together, preserving initial raw. At most3 provider-free development checks and2 correction rounds; one product commit. Meaningful disposable real Git, immutable Decision/canonical preflight and host admission fixtures: root/nested Python/Pytest caches, tracked companions, literal-space/Unicode/NUL-safe observations, unknown .py/sensitive/executable/unknown cache leaves, no tracked companion, symlink/reparse confinement, existing runtime/Vite exceptions. No live production runtime/window/model/browser execution; test-only disposable loopback/SQLite/thread fixtures retain their existing allowed provider-free scope. Local full Python remains unexecuted under this explicit M3 split; independent exact local focused/diff/canonical acceptance permits only one exact source push/newDraft, with full coverage PENDING original natural CI. Complete provider-free original exact-head CI before independent Source/fullCI acceptance: all required workflows and unchanged blocking Platform V1 step SUCCESS, attempt1/event/PR/base/head and same-job exact Checkout/log proofs. Nonblocking repository diagnostic must actually exit0, with step SUCCESS, Summary env PYTEST_EXIT_CODE0, full command and unique real completed pytest summary matching nonempty closed complete-scope XML zeroFAIL/ERROR. Full CI XML must contain all original85 regression keys and31 previously failed keys PASS, plus every newly added runtime-cache case PASS. No workflow/exclusion/marker/validator/assertion weakening, reruns or old evidence substitution. Old Ed31FAIL and old failedReady remain FAIL; E15 local/CI/actualReady remain SUCCESS but actualP1 mergeBLOCKED, merge unexecuted. Root approval is delegated, neither personally human nor independent audit. No Ready/review/attestation/merge/newmain/native/full-platform/whole-goal acceptance under this Source grant.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -218,7 +505,7 @@
     },
     {
       "command_id": "delegation.publication",
-      "command": "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider.",
+      "command": "Publish only exact codex/issue118-runtime-cache-classification-r3-20261009 and one newDraft against main@dec321721ab9c33a0107a0b2283839654d569a88 after PUBLICATION_READY and independent exact source/local acceptance. No oldPR writes, Ready/merge/mainpush/historyrewrite/rerun/dispatch/model/provider/native/runtime/install/release/deploy.",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [
@@ -237,13 +524,13 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T10:14:45.972872+00:00",
-  "owner_delegation_sha256": "73658b07d420847e5e06ff31b0cfb4c0c2d07c504b288d7d2a9e858a38ed27a8",
+  "approval_event_or_time": "2026-10-09T13:05:49.390394+00:00",
+  "owner_delegation_sha256": "232410d68624f2dc201ac55bfa6cad1d9ea9974683435848842e516cf13b1518",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
-  "development_check_run_limit": 1,
+  "development_check_run_limit": 3,
   "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 4,
-  "execution_expires_at": "2026-10-08T11:44:45.972872+00:00"
+  "mandatory_check_run_limit": 3,
+  "execution_expires_at": "2026-10-10T02:57:41.348356+00:00"
 }
 ```

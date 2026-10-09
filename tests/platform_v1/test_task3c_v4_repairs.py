@@ -49,6 +49,8 @@ from reverse_agent.platform_v1.task_service import _handler_factory
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
+from _local_client_fixture import client_session, client_headers
+
 _TRUSTED_HOST_FAKE_EXEC_AUTH = "test-trusted-host-fake-execution-authority-sha"
 _TRUSTED_HOST_FAKE_PLANNING_SHA = "test-trusted-host-fake-planning-sha"
 
@@ -183,7 +185,7 @@ class TestTrustedHostLeaseRelease:
             "connection_id": "th-conn",
             "model_id": "gpt-4o",
         })
-        host = CombinedTrustedHost(store=store)
+        host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
         return host
 
@@ -474,7 +476,7 @@ class TestTaskApiApiKeyWiring:
 
         fake_srv, received = _start_fake_provider(port)
         try:
-            host = CombinedTrustedHost(store=store, model_control_port=0, task_api_port=0)
+            host = CombinedTrustedHost(store=store, model_control_port=0, task_api_port=0, local_client_session=client_session(activate=False),)
             host.start()
             try:
                 task_store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
@@ -588,6 +590,7 @@ class TestTaskApiApiKeyWiring:
                 store=store,
                 execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
                 planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
+                local_client_session=client_session(activate=False),
             )
             host.start(model_control_port=mc_port, task_api_port=task_port)
             assert host.model_control_url == f"http://127.0.0.1:{mc_port}"
@@ -695,6 +698,7 @@ class TestTaskApiApiKeyWiring:
                     binding_resolver=resolver,
                     execution_authority_sha=_TRUSTED_HOST_FAKE_EXEC_AUTH,
                     planning_sha=_TRUSTED_HOST_FAKE_PLANNING_SHA,
+                    local_client_session=client_session(),
                 )
                 assert handler_cls.lease_provider is not None
 
@@ -716,7 +720,7 @@ class TestTaskApiApiKeyWiring:
                     "POST",
                     "/api/tasks",
                     body=body,
-                    headers={"Content-Type": "application/json"},
+                    headers=client_headers({"Content-Type": "application/json"}),
                 )
                 resp = conn.getresponse()
                 data = json.loads(resp.read().decode("utf-8"))
@@ -729,7 +733,7 @@ class TestTaskApiApiKeyWiring:
                     "POST",
                     f"/api/tasks/{task_id}/execute",
                     body=b"{}",
-                    headers={"Content-Type": "application/json"},
+                    headers=client_headers({"Content-Type": "application/json"}),
                 )
                 resp = conn.getresponse()
                 resp.read()
@@ -772,7 +776,7 @@ class TestTOCTOUComparison:
             "connection_id": "toc-conn",
             "model_id": "gpt-4o",
         })
-        host = CombinedTrustedHost(store=store)
+        host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
         return host
 
@@ -897,7 +901,7 @@ class TestTOCTOUComparison:
             "connection_id": "norm-conn",
             "model_id": "gpt-4o",
         })
-        host = CombinedTrustedHost(store=store)
+        host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
         try:
             resolution = _make_binding_resolution(

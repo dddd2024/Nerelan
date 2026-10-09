@@ -10,16 +10,23 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import http.client
 import json
+import math
 import os
 import re
+import time
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
 
 OWNER_LANDING_ATTESTATION_MARKER = "OWNER_LANDING_MERGE_ATTESTATION"
 OWNER_LANDING_ATTESTATION_BLOCK = "owner_landing_merge_attestation"
+READY_ATTESTATION_WAIT_SECONDS = 180
+READY_ATTESTATION_MAX_POLLS = 18
+READY_ATTESTATION_POLL_SECONDS = 10
+_READY_COMMENTS_MAX_BYTES = 2 * 1024 * 1024
 
 
 class GitHubEvidenceError(RuntimeError):
@@ -58,7 +65,21 @@ class GitHubRemoteAcceptanceVerifier:
         token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
         return cls(repository=repository, token=token)
 
-    def _request_json(self, path: str) -> Any:
+    def _request_json(
+        self, path: str, *, timeout: float = 30,
+        deadline: float | None = None, clock: Callable[[], float] = time.monotonic,
+    ) -> Any:
+        if (isinstance(timeout, bool) or not isinstance(timeout, (int, float))
+                or not math.isfinite(timeout) or not 0 < timeout <= 30):
+            raise GitHubEvidenceError("github_request_timeout_invalid")
+        if deadline is not None:
+            if (isinstance(deadline, bool) or not isinstance(deadline, (int, float))
+                    or not math.isfinite(deadline)):
+                raise GitHubEvidenceError("github_request_deadline_invalid")
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise GitHubEvidenceError("ready_attestation_wait_timeout")
+            timeout = min(timeout, remaining)
         request = urllib.request.Request(
             f"{self.api_url}{path}",
             headers={
@@ -70,11 +91,43 @@ class GitHubRemoteAcceptanceVerifier:
             method="GET",
         )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 if response.status != 200:
                     raise GitHubEvidenceError(f"github_http_status:{response.status}")
-                return json.loads(response.read().decode("utf-8"))
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+                if deadline is None:
+                    raw = response.read()
+                else:
+                    # Readiness-only deadline and body bound. urllib timeouts
+                    # are per blocking phase, not a whole-request wall clock;
+                    # the workflow step also has a hard three-minute timeout.
+                    chunks: list[bytes] = []
+                    size = 0
+                    while True:
+                        remaining = deadline - clock()
+                        if remaining <= 0:
+                            raise GitHubEvidenceError("ready_attestation_wait_timeout")
+                        if callable(getattr(response, "isclosed", None)) and response.isclosed():
+                            if getattr(response, "length", None) not in (None, 0):
+                                raise GitHubEvidenceError("ready_comments_response_incomplete")
+                            break
+                        sock = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
+                        if sock is None or not callable(getattr(response, "read1", None)):
+                            raise GitHubEvidenceError("ready_comments_deadline_transport_unsupported")
+                        sock.settimeout(min(timeout, remaining))
+                        chunk = response.read1(65536)
+                        if not chunk:
+                            if getattr(response, "length", None) not in (None, 0):
+                                raise GitHubEvidenceError("ready_comments_response_incomplete")
+                            break
+                        size += len(chunk)
+                        if size > _READY_COMMENTS_MAX_BYTES:
+                            raise GitHubEvidenceError("ready_comments_response_too_large")
+                        chunks.append(chunk)
+                    raw = b"".join(chunks)
+                    if clock() >= deadline:
+                        raise GitHubEvidenceError("ready_attestation_wait_timeout")
+                return json.loads(raw.decode("utf-8"))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError, http.client.HTTPException) as exc:
             raise GitHubEvidenceError(f"github_api_failure:{type(exc).__name__}") from exc
 
     def verify_workflow_run(
@@ -342,7 +395,9 @@ class GitHubRemoteAcceptanceVerifier:
             raise GitHubEvidenceError(f"resolve_merged_pr_failed:{exc}") from exc
 
     def load_owner_landing_merge_attestations(
-        self, *, pr_number: int
+        self, *, pr_number: int, request_timeout: float | None = None,
+        deadline: float | None = None, clock: Callable[[], float] = time.monotonic,
+        strict_absence: bool = False,
     ) -> list[dict[str, Any]]:
         """Return every OWNER_LANDING_MERGE_ATTESTATION payload on a PR.
 
@@ -353,13 +408,22 @@ class GitHubRemoteAcceptanceVerifier:
         """
 
         try:
-            comments = self._request_json(
-                f"/repos/{self.repository}/issues/{int(pr_number)}/comments?per_page=100"
-            )
+            path = f"/repos/{self.repository}/issues/{int(pr_number)}/comments?per_page=100"
+            # Preserve ordinary callers' immediate, default-30s call shape.
+            if request_timeout is None and deadline is None:
+                comments = self._request_json(path)
+            else:
+                comments = self._request_json(path, timeout=30 if request_timeout is None else request_timeout,
+                                              deadline=deadline, clock=clock)
         except GitHubEvidenceError as exc:
             raise GitHubEvidenceError(
                 f"load_owner_landing_attestation_failed:{exc}"
             ) from exc
+        if strict_absence:
+            if not isinstance(comments, list) or any(not isinstance(comment, dict) for comment in comments):
+                raise GitHubEvidenceError("ready_comments_response_invalid")
+            if len(comments) >= 100:
+                raise GitHubEvidenceError("ready_comments_response_truncated")
         pattern = re.compile(
             r"```json\s+owner_landing_merge_attestation\s*\n"
             r"(?P<payload>\{.*?\})\s*\n```",
@@ -370,7 +434,10 @@ class GitHubRemoteAcceptanceVerifier:
             body = str(comment.get("body") or "")
             if OWNER_LANDING_ATTESTATION_MARKER not in body:
                 continue
-            match = pattern.search(body)
+            blocks = list(pattern.finditer(body)) if strict_absence else []
+            match = blocks[0] if blocks else pattern.search(body)
+            if strict_absence and len(blocks) != 1:
+                raise GitHubEvidenceError("ready_attestation_marker_malformed")
             if not match:
                 continue
             try:
@@ -392,6 +459,72 @@ class GitHubRemoteAcceptanceVerifier:
             payload["_remote_comment_body"] = body
             matches.append(payload)
         return matches
+
+    def wait_for_owner_landing_merge_attestation(
+        self, *, pr_number: int, expected_head_sha: str, expected_base_sha: str,
+        current_state_gate_run_id: int,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> dict[str, Any]:
+        """Wait only for true absence, never for invalid evidence to become valid.
+
+        This opt-in workflow handshake is availability, not landing acceptance.
+        Formal preflight must freshly reload and validate every canonical fact.
+        """
+        if (type(pr_number) is not int or pr_number <= 0
+                or type(current_state_gate_run_id) is not int or current_state_gate_run_id <= 0
+                or not isinstance(expected_head_sha, str) or re.fullmatch(r"[0-9a-f]{40}", expected_head_sha) is None
+                or not isinstance(expected_base_sha, str) or re.fullmatch(r"[0-9a-f]{40}", expected_base_sha) is None):
+            raise GitHubEvidenceError("ready_attestation_wait_identity_invalid")
+        # Reuse existing canonical fields, digest and Owner set; no new schema.
+        from .mainline_landing import (
+            _OWNER_LANDING_ATTESTATION_FIELDS, FALSE_NONE_ALLOWED_OWNERS,
+            owner_landing_content_digest,
+        )
+        started = clock()
+        deadline = started + READY_ATTESTATION_WAIT_SECONDS
+        for attempt in range(1, READY_ATTESTATION_MAX_POLLS + 1):
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise GitHubEvidenceError("ready_attestation_wait_timeout")
+            attestations = self.load_owner_landing_merge_attestations(
+                pr_number=pr_number, request_timeout=min(30, remaining), deadline=deadline,
+                clock=clock, strict_absence=True)
+            if clock() >= deadline:
+                raise GitHubEvidenceError("ready_attestation_wait_timeout")
+            if not isinstance(attestations, list):
+                raise GitHubEvidenceError("ready_attestation_response_invalid")
+            if attestations:
+                candidates = [att for att in attestations if isinstance(att, dict)
+                              and att.get("source_pr") == pr_number
+                              and att.get("accepted_exact_head_sha") == expected_head_sha
+                              and att.get("authorization_status") == "active"]
+                if len(candidates) != 1:
+                    raise GitHubEvidenceError("ready_attestation_not_unique_or_stale")
+                att = candidates[0]
+                if (set(att) != _OWNER_LANDING_ATTESTATION_FIELDS
+                        or att.get("schema_version") != 1
+                        or att.get("repository") != self.repository
+                        or self.repository != "dddd2024/Nerelan"
+                        or att.get("locked_base_sha") != expected_base_sha
+                        or type(att.get("ready_state_gate_run_id")) is not int
+                        or att["ready_state_gate_run_id"] != current_state_gate_run_id
+                        or att.get("_remote_author") not in FALSE_NONE_ALLOWED_OWNERS
+                        or att.get("superseded_by")
+                        or att.get("mainline_merge_intent_required") is not False
+                        or att.get("active_pr_binding_mode") != "none"
+                        or att.get("content_digest") != owner_landing_content_digest(att)):
+                    raise GitHubEvidenceError("ready_attestation_binding_invalid")
+                return {"evidence_available": True, "poll_attempts": attempt,
+                        "elapsed_seconds": clock() - started,
+                        "ready_run_id": current_state_gate_run_id}
+            if attempt == READY_ATTESTATION_MAX_POLLS:
+                raise GitHubEvidenceError("ready_attestation_poll_limit")
+            remaining = deadline - clock()
+            if remaining <= 0:
+                raise GitHubEvidenceError("ready_attestation_wait_timeout")
+            sleeper(min(READY_ATTESTATION_POLL_SECONDS, remaining))
+        raise GitHubEvidenceError("ready_attestation_poll_limit")
 
     def verify_pull_request_review(
         self,
