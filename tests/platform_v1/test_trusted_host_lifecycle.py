@@ -16,6 +16,8 @@ from reverse_agent.platform_v1.trusted_host import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
 def _make_store(tmp_path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
 
@@ -174,7 +176,7 @@ def test_partial_cleanup_shutdowns_only_started_servers_and_closes_all_created(
         def release_all(self) -> None:
             self.release_calls += 1
 
-    host = CombinedTrustedHost(task_store=_make_store(tmp_path), vault=None)
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path), vault=None, local_client_session=client_session(activate=False),)
     started = FakeServer()
     never_started = FakeServer()
     relay_never_started = FakeServer()
@@ -210,6 +212,7 @@ def test_real_host_stop_allows_exact_model_and_task_port_reuse(tmp_path) -> None
     first = CombinedTrustedHost(
         task_store=_make_store(first_dir),
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     first.start(model_control_port=0, task_api_port=0)
     assert first._model_server is not None
@@ -230,6 +233,7 @@ def test_real_host_stop_allows_exact_model_and_task_port_reuse(tmp_path) -> None
     second = CombinedTrustedHost(
         task_store=_make_store(second_dir),
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     try:
         second.start(

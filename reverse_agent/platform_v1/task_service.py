@@ -19,7 +19,10 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
+import hashlib
 import os
+import time
+import re
 from threading import Thread
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote, urlsplit
@@ -40,6 +43,8 @@ from .task_runtime import (
 )
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
+from .authority_adapter import AuthorityBundleError, load_policy_authority
+from .task_runtime import load_host_validation_contract
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService, goal_to_dict
@@ -335,6 +340,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
     coordinator: Any | None = None
 
     server_version = "reverse-agent-task-service/1"
+    local_client_session = None
+
+    def setup(self) -> None:
+        super().setup()
+        self.connection.settimeout(5.0)
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -349,6 +359,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if not self._check_origin():
+            return
+        if self.path.split("?", 1)[0] == "/api/health":
+            self._send_json(HTTPStatus.OK, {"ready": True})
+            return
+        if not self._check_local_client():
             return
         try:
             segments = self._segments()
@@ -414,6 +429,19 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
                 )
+                return
+            if segments == ["api", "windows", "policy"]:
+                try:
+                    template = self.autonomy_service.policy_template()
+                except TaskStoreError:
+                    template = {"available": False, "reason": "trusted_policy_unavailable"}
+                self._send_json(HTTPStatus.OK, template)
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "windows"] and segments[3] == "receipts":
+                limit, cursor = parse_history_query(urlsplit(self.path).query)
+                page = self.control_store.list_receipts_page(window_id=segments[2], limit=limit, cursor=cursor)
+                self._send_json(HTTPStatus.OK, {"items": [item.__dict__ for item in page["items"]],
+                                               "next_cursor": page["next_cursor"]})
                 return
             if (
                 len(segments) == 4
@@ -511,6 +539,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         if not self._check_origin():
+            return
+        if not self._check_local_client():
             return
         try:
             segments = self._segments()
@@ -653,7 +683,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
                     return
             if segments == ["api", "windows", "activate"]:
-                window = self.autonomy_service.activate(self._read_json())
+                window = self.autonomy_service.activate_policy(self._read_json())
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
             if (
@@ -693,6 +723,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "execute"
             ):
+                if self._dispatch_host_check(segments[2], resume=False):
+                    return
                 workspace_root = os.environ.get(
                     "REVERSE_AGENT_TASK_WORKSPACE_ROOT", ""
                 )
@@ -805,6 +837,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "resume"
             ):
+                if self._dispatch_host_check(segments[2], resume=True):
+                    return
                 try:
                     task = self.store.get_task(segments[2])
                 except TaskStoreError:
@@ -864,6 +898,33 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 {"error": "internal task service error"},
             )
 
+    def _dispatch_host_check(self, task_id: str, *, resume: bool) -> bool:
+        task = self.store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None:
+            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
+                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
+                self._discard_bounded_request_body()
+                raise TaskStoreError("direct_execution_requires_approved_host_task")
+            return False
+        try:
+            self.autonomy_service.check_task_scope(task_id, "validate_task")
+        except Exception:
+            self._discard_bounded_request_body()
+            raise
+        if resume:
+            # This selected policy grants zero retries; the coordinator owns
+            # original live handles and durable recovery admission.
+            self._discard_bounded_request_body()
+            raise TaskStoreError("delegated_policy_retry_not_granted")
+        coordinator = getattr(self, "coordinator", None)
+        if coordinator is None:
+            self._discard_bounded_request_body()
+            raise TaskStoreError("host_check_coordinator_unavailable")
+        coordinator.tick()
+        self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(task_id)))
+        return True
+
     def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
         if not title:
@@ -912,6 +973,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         coordinator = getattr(self, "coordinator", None)
         return {
             "service": "reverse-agent-platform-v2",
+            "instance": _instance_metadata(self.store, self.autonomy_service),
             "autonomy": self.autonomy_service.status(),
             "coordinator": coordinator.status() if coordinator is not None else {
                 "enabled": False,
@@ -1055,6 +1117,47 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self._send_forbidden()
         return False
 
+    def _check_local_client(self) -> bool:
+        values = self.headers.get_all("X-Nerelan-Client-Capability", [])
+        session = self.local_client_session
+        if len(values) == 1 and session is not None and session.accepts(values[0]):
+            return True
+        self._send_json(HTTPStatus.UNAUTHORIZED, {
+            "error": "请通过 Nerelan 启动器重新打开客户端。",
+            "code": "local_client_session_required",
+        })
+        self._discard_bounded_request_body()
+        return False
+
+    def _discard_bounded_request_body(self) -> None:
+        # Only pre-read rejection paths call this. Do not parse rejected bytes
+        # or wait for EOF. Unread POST data can hide the response on Windows.
+        if self.command != "POST" or self.headers.get_all("Transfer-Encoding", []):
+            return
+        lengths = self.headers.get_all("Content-Length", [])
+        if len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit():
+            return
+        length = int(lengths[0]) if len(lengths[0]) <= 6 else -1
+        if not 0 < length <= _MAX_BODY_BYTES:
+            return
+        previous = self.connection.gettimeout()
+        deadline = time.monotonic() + 0.25
+        remaining = length
+        try:
+            while remaining > 0:
+                wait = deadline - time.monotonic()
+                if wait <= 0:
+                    break
+                self.connection.settimeout(wait)
+                chunk = self.rfile.read1(min(remaining, 64 * 1024))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+        except (OSError, TimeoutError):
+            pass
+        finally:
+            self.connection.settimeout(previous)
+
     def _send_cors_headers(self) -> None:
         origin = self.headers.get("Origin")
         if origin and origin == self.allowed_origin:
@@ -1089,6 +1192,7 @@ def _handler_factory(
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
     coordinator: Any | None = None,
+    local_client_session: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
@@ -1096,6 +1200,7 @@ def _handler_factory(
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
+    ConfiguredHandler.local_client_session = local_client_session
     ConfiguredHandler.live_enabled = False
     ConfiguredHandler.lease_provider = (
         _CallableWrapper(lease_provider) if lease_provider else None
@@ -1108,8 +1213,8 @@ def _handler_factory(
     configured_capabilities = capability_registry or CapabilityRegistry(
         pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
     )
-    configured_autonomy = autonomy_service or AutonomyService(
-        control_store=configured_control, capabilities=configured_capabilities
+    configured_autonomy = autonomy_service or _configured_autonomy(
+        store, configured_control, configured_capabilities
     )
     ConfiguredHandler.control_store = configured_control
     ConfiguredHandler.capability_registry = configured_capabilities
@@ -1129,6 +1234,68 @@ def _handler_factory(
     )
     ConfiguredHandler.coordinator = coordinator
     return ConfiguredHandler
+
+
+def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
+                         capabilities: CapabilityRegistry) -> AutonomyService:
+    raw = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "")
+    try:
+        pins = json.loads(raw) if raw else None
+    except ValueError:
+        pins = {}
+    source_dir = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_REPO_DIR", "") or os.environ.get("REVERSE_AGENT_REPO_DIR", "")
+
+    def authority_loader():
+        if not isinstance(pins, dict):
+            raise AuthorityBundleError("invalid_policy_host_pins")
+        return load_policy_authority(repo_dir=source_dir, pins=dict(pins),
+            database_path=store.db_path, host_instance_id=pins.get("host_instance_id", ""))
+
+    def task_scope(task_id: str) -> Mapping[str, Any]:
+        task = store.get_task(task_id)
+        contract = load_host_validation_contract(task)
+        if contract is None:
+            raise TaskStoreError("approved_host_contract_required")
+        goal_id = control.goal_id_for_task(task_id)
+        goal = control.get_goal(goal_id)
+        links = [link for link in control.list_goal_tasks(goal_id) if link["task_id"] == task_id]
+        window = control.get_window(contract["window_id"])
+        if (len(links) != 1 or contract["goal_id"] != goal.id
+                or contract["goal_revision"] != goal.revision
+                or contract["goal_artifact_digest"] != goal.artifact_digest
+                or contract["goal_idempotency_key"] != goal.idempotency_key
+                or contract["plan_task_id"] != links[0]["plan_task_id"]
+                or goal.window_id != window.id or goal.repository != task.repository
+                or task.policy_ref != window.id or task.permission_profile != "AUTONOMOUS_WINDOW"
+                or contract["policy_digest"] != window.policy_digest):
+            raise TaskStoreError("approved_host_goal_link_mismatch")
+        planned = [item for item in goal.tasks if item.get("id") == contract["plan_task_id"]]
+        if (len(planned) != 1 or planned[0].get("capability") != "validate_task"
+                or planned[0].get("validation_command_id") != "git_diff_check"):
+            raise TaskStoreError("approved_host_plan_mismatch")
+        return contract
+
+    service = AutonomyService(control_store=control, capabilities=capabilities,
+        authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
+    service.require_trusted_policy = True
+    return service
+
+
+def _instance_metadata(store: TaskStore, autonomy: AutonomyService | None = None) -> dict[str, str]:
+    digest = hashlib.sha256(os.path.normcase(os.path.abspath(store.db_path)).encode("utf-8")).hexdigest()[:12]
+    metadata = {"id": f"workspace-{digest}", "kind": "workspace"}
+    try:
+        pins = json.loads(os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "null"))
+        if autonomy is not None and autonomy.delegated_mode and isinstance(pins, dict) and os.path.normcase(os.path.abspath(pins.get("database_path", ""))) == os.path.normcase(os.path.abspath(store.db_path)):
+            identity = pins.get("host_instance_id", "")
+            if isinstance(identity, str) and re.fullmatch(r"[A-Za-z0-9._:-]{3,160}", identity):
+                authority = autonomy._authority()
+                if authority.binding.get("host_instance_id") != identity:
+                    raise TaskStoreError("instance_authority_mismatch")
+                metadata = {"id": identity, "kind": "acceptance"}
+    except (ValueError, TypeError, TaskStoreError, OSError):
+        pass
+    return metadata
 
 
 def validate_bind_host(host: str) -> str:
@@ -1162,8 +1329,22 @@ def _ensure_db_path(db_path: str) -> str:
     return db_path
 
 
+class _ClientTaskServer(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def server_close(self) -> None:
+        session = self.RequestHandlerClass.local_client_session
+        if session is not None:
+            session.revoke()
+        super().server_close()
+
+
 class TaskService:
-    """Convenience wrapper that starts the trusted loopback Task API."""
+    """Task API with private delivery to an explicitly trusted in-process client.
+
+    An injected session remains caller-owned, but each start rotates it; that
+    caller must deliver it after start or supply ``trusted_client_receiver``.
+    """
 
     def __init__(
         self,
@@ -1174,7 +1355,13 @@ class TaskService:
         github_adapter: Any | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
+        local_client_session: Any | None = None,
+        trusted_client_receiver: Callable[[str], None] | None = None,
     ) -> None:
+        if trusted_client_receiver is not None and not callable(trusted_client_receiver):
+            raise TypeError("invalid_trusted_client_receiver")
+        if local_client_session is None and trusted_client_receiver is None:
+            raise ValueError("trusted_client_receiver_required")
         if store is not None:
             self.store = store
         else:
@@ -1185,6 +1372,12 @@ class TaskService:
         self.github_adapter = github_adapter
         self.execution_authority_sha = execution_authority_sha
         self.planning_sha = planning_sha
+        from .local_client_session import LocalClientSession
+        self._local_client_session = (
+            local_client_session if local_client_session is not None else LocalClientSession()
+        )
+        self._trusted_client_receiver = trusted_client_receiver
+        self._server: ThreadingHTTPServer | None = None
 
     def start(
         self,
@@ -1192,11 +1385,16 @@ class TaskService:
         host: str | None = None,
         port: int | None = None,
     ) -> tuple[ThreadingHTTPServer, Thread]:
+        if self._server is not None and self._server.socket.fileno() != -1:
+            raise RuntimeError("task_service_already_started")
         bind_host = validate_bind_host(
             host or os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1")
         )
-        bind_port = port or int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766"))
-        server = ThreadingHTTPServer(
+        bind_port = (
+            port if port is not None
+            else int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766"))
+        )
+        server = _ClientTaskServer(
             (bind_host, bind_port),
             _handler_factory(
                 self.store,
@@ -1205,10 +1403,29 @@ class TaskService:
                 github_adapter=self.github_adapter,
                 execution_authority_sha=self.execution_authority_sha,
                 planning_sha=self.planning_sha,
+                local_client_session=self._local_client_session,
             ),
         )
-        thread = Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        try:
+            self._local_client_session.rotate()
+            if self._trusted_client_receiver is not None:
+                # Do not propagate even a BaseException supplied by a receiver:
+                # its text/context could contain the private capability.
+                delivery_failed = False
+                try:
+                    self._local_client_session.deliver(self._trusted_client_receiver)
+                except BaseException:
+                    delivery_failed = True
+                if delivery_failed:
+                    raise RuntimeError("client_session_bootstrap_failed")
+            server.daemon_threads = True
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+        except BaseException:
+            server.server_close()
+            self._local_client_session.revoke()
+            raise
+        self._server = server
         return server, thread
 
 
@@ -1232,16 +1449,25 @@ def run_task_service(
     else:
         db_path = _ensure_db_path(_default_task_db_path())
         svc_store = TaskStore(db_path=db_path)
-    server = ThreadingHTTPServer(
+    from .local_client_session import LocalClientSession
+    session = LocalClientSession()
+    server = _ClientTaskServer(
         (bind_host, bind_port),
         _handler_factory(
             svc_store,
             ExecutorRouter(),
             allowed_origin=origin,
             github_adapter=github_adapter,
+            local_client_session=session,
         ),
     )
-    server.serve_forever()
+    try:
+        session.rotate()
+        server.daemon_threads = True
+        server.serve_forever()
+    finally:
+        session.revoke()
+        server.server_close()
 
 
 if __name__ == "__main__":

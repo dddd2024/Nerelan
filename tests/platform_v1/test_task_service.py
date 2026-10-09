@@ -18,6 +18,17 @@ from reverse_agent.platform_v1.task_service import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
+
+def _legacy_fixture_autonomy(store):
+    """Explicit in-process adapter for preexisting fixture-executor HTTP tests."""
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    return AutonomyService(control_store=PlatformControlStore(store), capabilities=CapabilityRegistry())
+
+
 @pytest.fixture()
 def task_server(tmp_path):
     db_path = str(tmp_path / "tasks.sqlite3")
@@ -25,9 +36,11 @@ def task_server(tmp_path):
     router = ExecutorRouter()
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -50,10 +63,135 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     if body is not None:
         headers["Content-Type"] = "application/json"
         body = json.dumps(body).encode()
-    conn.request(method, path, body=body, headers=headers)
+    conn.request(method, path, body=body, headers=client_headers(headers))
     resp = conn.getresponse()
     data = resp.read()
     return resp.status, json.loads(data.decode()) if data else None
+
+
+def _enable_legacy_window_fixture(server):
+    """Only old lifecycle fixtures use the in-process activation adapter.
+
+    Production HTTP still invokes activate_policy and never accepts this old
+    Owner/ACTIVATE shape. This adapter does not prove delegated authority.
+    """
+    service = server.RequestHandlerClass.autonomy_service
+    service.activate_policy = service.activate
+
+
+@pytest.fixture
+def production_policy_server(tmp_path, monkeypatch):
+    from http.server import ThreadingHTTPServer
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    store = TaskStore(str(tmp_path / "production-policy.sqlite3"))
+    router = ExecutorRouter()
+    handler = _handler_factory(store, router, allowed_origin="http://localhost:5173",
+                                          execution_authority_sha="production-policy-fixture-authority",
+                                          planning_sha="production-policy-fixture-plan",
+                                          local_client_session=client_session())
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_address[1]}", server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        store._conn.close()
+
+
+def test_production_http_has_no_renderer_owner_activation_fallback(production_policy_server):
+    base, server = production_policy_server
+    before = server.RequestHandlerClass.store._conn.total_changes
+    status, template = _req(base, "GET", "/api/windows/policy")
+    assert status == 200 and template == {"available": False, "reason": "trusted_policy_unavailable"}
+    for payload, error in (
+        ({"owner_identity": "local-owner", "confirmation": "ACTIVATE"}, "canonical_policy_fields_invalid"),
+        ({"policy_id": "caller", "policy_revision": 1, "policy": {}, "confirmation": "ACTIVATE"},
+         "canonical_policy_fields_invalid"),
+        ({"policy_id": "caller", "policy_revision": 1, "policy": {}}, "delegated_policy_authority_unavailable"),
+    ):
+        status, body = _req(base, "POST", "/api/windows/activate", payload)
+        assert status == 409 and body == {"error": error}
+    assert server.RequestHandlerClass.control_store.active_window() is None
+    assert server.RequestHandlerClass.store._conn.total_changes == before
+
+
+def test_production_direct_execute_cannot_bypass_missing_goal_authority(production_policy_server, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    # A configured delegated host must never fall back to the ordinary fixture
+    # execution path when its pin is malformed or the Task lacks Goal authority.
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="Unbound task", executor_kind="deterministic_fixture")
+    def forbidden(**unused):
+        pytest.fail("Unapproved direct request reached executor")
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, body = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
+    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.total_changes == before
+
+
+def test_production_manual_fixture_execution_remains_available_without_delegated_pins(production_policy_server):
+    base, server = production_policy_server
+    assert server.RequestHandlerClass.autonomy_service.authority_loader is None
+    status, created = _req(base, "POST", "/api/tasks", {
+        "title": "Ordinary manual fixture", "executor_kind": "deterministic_fixture",
+        "permission_profile": "ASK_FOR_APPROVAL"})
+    assert status == 201
+    status, executed = _req(base, "POST", f"/api/tasks/{created['id']}/execute", {})
+    assert status == 200 and executed["status"] == "READY_FOR_REVIEW_FIXTURE", executed
+    assert executed["validation_command_id"] == "git_diff_check" and executed["validation_exit_code"] == 0
+    assert executed["changed_files"]
+    assert server.RequestHandlerClass.control_store.active_window() is None
+
+
+def test_production_autonomous_task_cannot_use_manual_fallback_without_pins(production_policy_server, monkeypatch):
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    task = handler.store.create_task(title="Unbound autonomous task", executor_kind="deterministic_fixture",
+                                    permission_profile="AUTONOMOUS_WINDOW", policy_ref="caller-policy")
+    def forbidden(**kwargs):
+        pytest.fail("Autonomous request without pins reached manual executor")
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, refused = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
+    assert status == 409 and refused == {"error": "direct_execution_requires_approved_host_task"}
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.total_changes == before
+
+
+def test_same_database_reopen_preserves_history_and_instance_without_path_disclosure(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _instance_metadata
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    path = str(tmp_path / "persistent.sqlite3")
+    first = TaskStore(path)
+    control = PlatformControlStore(first)
+    task = first.create_task(title="Durable history", executor_kind="deterministic_fixture")
+    goal = control.create_goal(title="Persistent goal", objective="Keep history", repository="owner/repo",
+                               idempotency_key="persistent-goal")
+    identity = _instance_metadata(first)
+    first._conn.close()
+    reopened = TaskStore(path)
+    reopened_control = PlatformControlStore(reopened)
+    other = TaskStore(str(tmp_path / "other.sqlite3"))
+    try:
+        assert reopened.get_task(task.id).title == "Durable history"
+        assert reopened_control.get_goal(goal.id).idempotency_key == "persistent-goal"
+        assert _instance_metadata(reopened) == identity
+        assert _instance_metadata(other)["id"] != identity["id"]
+        assert identity["kind"] == "workspace"
+        assert str(tmp_path) not in json.dumps(identity)
+        assert "persistent.sqlite3" not in json.dumps(identity)
+    finally:
+        reopened._conn.close()
+        other._conn.close()
 
 
 @pytest.mark.parametrize("kind", ["goals", "runs"])
@@ -193,7 +331,8 @@ def test_create_and_read_task(task_server) -> None:
 
 
 def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
-    base, _ = task_server
+    base, server = task_server
+    _enable_legacy_window_fixture(server)
     status, platform = _req(base, "GET", "/api/platform/status")
     assert status == 200
     assert platform["service"] == "reverse-agent-platform-v2"
@@ -749,10 +888,10 @@ def test_queue_cancel_http_rejects_non_empty_or_non_object_body(task_server, bod
         conn = http.client.HTTPConnection(host, int(port), timeout=10)
         conn.request(
             "POST", f"/api/runs/{task_id}/cancel", body=raw_body,
-            headers={
+            headers=client_headers({
                 "Accept": "application/json", "Origin": "http://localhost:5173",
                 "Content-Type": "application/json",
-            },
+            }),
         )
         response = conn.getresponse()
         status = response.status
@@ -1074,11 +1213,212 @@ def test_validate_bind_host_loopback_only() -> None:
         validate_bind_host("192.168.1.1")
 
 
-def test_task_service_wrapper_starts_and_serves(task_server) -> None:
-    base, _ = task_server
-    status, body = _req(base, "GET", "/api/tasks")
+def _private_wrapper_request(server, *, capability=None, origin="http://localhost:4173",
+                             method="GET", body=None, path="/api/tasks"):
+    headers = {"Origin": origin, "Accept": "application/json"}
+    if capability is not None:
+        headers["X-Nerelan-Client-Capability"] = capability
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(body).encode()
+    conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+    try:
+        conn.request(method, path, body=body, headers=headers)
+        response = conn.getresponse()
+        return response.status, json.loads(response.read())
+    finally:
+        conn.close()
+
+
+@pytest.fixture
+def private_wrapper(tmp_path):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "private-wrapper.sqlite3"))
+    session = LocalClientSession()
+    delivered = []
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    server, thread = service.start(host="127.0.0.1", port=0)
+    try:
+        yield service, server, session, delivered
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+        store._conn.close()
+
+
+def test_task_service_wrapper_starts_and_serves(private_wrapper) -> None:
+    _, server, _, delivered = private_wrapper
+    status, body = _private_wrapper_request(server, capability=delivered[0])
     assert status == 200
     assert "tasks" in body
+
+
+@pytest.mark.parametrize("capability", [None, "wrong", "0" * 64])
+def test_actual_wrapper_rejects_missing_or_wrong_identity(private_wrapper, capability):
+    _, server, _, _ = private_wrapper
+    assert _private_wrapper_request(server, capability=capability)[0] == 401
+    assert _private_wrapper_request(server, capability=capability, method="POST",
+                                    body={"title": "must not create"})[0] == 401
+
+
+def test_actual_wrapper_identity_does_not_bypass_origin(private_wrapper):
+    _, server, _, delivered = private_wrapper
+    assert _private_wrapper_request(server, capability=delivered[0],
+                                    origin="https://external.example")[0] == 403
+
+
+def test_actual_wrapper_client_identity_does_not_supply_execution_pins(private_wrapper):
+    service, server, _, delivered = private_wrapper
+    status, task = _private_wrapper_request(
+        server, capability=delivered[0], method="POST",
+        body={"title": "no execution authority", "executor_kind": "deterministic_fixture"},
+    )
+    assert status == 201
+    status, rejection = _private_wrapper_request(
+        server, capability=delivered[0], method="POST", body={},
+        path="/api/tasks/%s/execute" % task["id"],
+    )
+    assert status == 409 and rejection["error"].startswith("durable_trusted_identity_missing:")
+    unchanged = service.store.get_task(task["id"])
+    assert unchanged.status == "QUEUED" and not unchanged.changed_files
+    assert service.store._conn.execute("SELECT count(*) FROM durable_runs").fetchone()[0] == 0
+
+
+def test_actual_wrapper_requires_private_receiver_before_database(tmp_path, monkeypatch):
+    db = tmp_path / "never-opened" / "tasks.sqlite3"
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_PATH", str(db))
+    with pytest.raises(ValueError, match="^trusted_client_receiver_required$"):
+        TaskService()
+    with pytest.raises(TypeError, match="^invalid_trusted_client_receiver$"):
+        TaskService(trusted_client_receiver="not callable")
+    assert not db.parent.exists()
+
+
+@pytest.mark.parametrize("injected", [False, True])
+def test_actual_wrapper_restart_rotates_and_delivers_before_thread(tmp_path, monkeypatch, injected):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "restart.sqlite3"))
+    session = LocalClientSession() if injected else None
+    delivered = []
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    original_start = threading.Thread.start
+
+    def checked_start(thread):
+        assert delivered
+        assert service._local_client_session.accepts(delivered[-1])
+        return original_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", checked_start)
+    # Invalid fallback proves explicit zero was respected, without reserving
+    # a shared fixed port or a race-prone find-free-port step.
+    monkeypatch.setenv("REVERSE_AGENT_TASK_SERVICE_PORT", "invalid fallback")
+    server = thread = None
+    try:
+        server, thread = service.start(port=0)
+        old = delivered[-1]
+        with pytest.raises(RuntimeError, match="task_service_already_started"):
+            service.start(port=0)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not service._local_client_session.accepts(old)
+        server, thread = service.start(port=0)
+        assert len(delivered) == 2 and delivered[-1] != old
+        assert _private_wrapper_request(server, capability=old)[0] == 401
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 200
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+        store._conn.close()
+
+
+def test_actual_wrapper_injected_session_needs_delivery_after_each_start(tmp_path):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "caller-owned.sqlite3"))
+    session = LocalClientSession()
+    delivered = []
+    session.rotate()
+    session.deliver(delivered.append)
+    service = TaskService(store=store, local_client_session=session)
+    server, thread = service.start(port=0)
+    try:
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 401
+        session.deliver(delivered.append)
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        store._conn.close()
+
+
+@pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
+def test_actual_wrapper_failed_delivery_closes_revokes_and_redacts(tmp_path, monkeypatch, failure):
+    import traceback
+    from reverse_agent.platform_v1 import task_service as module
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "failed-delivery.sqlite3"))
+    session = LocalClientSession()
+    delivered, servers, starts = [], [], []
+    original_server = module._ClientTaskServer
+
+    def capture_server(*args, **kwargs):
+        server = original_server(*args, **kwargs)
+        servers.append(server)
+        return server
+
+    def reject(value):
+        delivered.append(value)
+        raise failure(value)
+
+    monkeypatch.setattr(module, "_ClientTaskServer", capture_server)
+    monkeypatch.setattr(threading.Thread, "start", lambda thread: starts.append(thread))
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=reject)
+    try:
+        with pytest.raises(RuntimeError, match="^client_session_bootstrap_failed$") as error:
+            service.start(port=0)
+        assert delivered and not session.accepts(delivered[0])
+        assert len(servers) == 1 and servers[0].socket.fileno() == -1
+        assert not starts and service._server is None
+        assert delivered[0] not in "".join(traceback.format_exception(error.value))
+    finally:
+        store._conn.close()
+
+
+def test_actual_wrapper_thread_start_failure_closes_and_revokes(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import task_service as module
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "failed-thread.sqlite3"))
+    session = LocalClientSession()
+    delivered, servers = [], []
+    original_server = module._ClientTaskServer
+
+    def capture_server(*args, **kwargs):
+        server = original_server(*args, **kwargs)
+        servers.append(server)
+        return server
+
+    def reject_start(thread):
+        raise RuntimeError("thread_start_failed")
+
+    monkeypatch.setattr(module, "_ClientTaskServer", capture_server)
+    monkeypatch.setattr(threading.Thread, "start", reject_start)
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    try:
+        with pytest.raises(RuntimeError, match="^thread_start_failed$"):
+            service.start(port=0)
+        assert delivered and not session.accepts(delivered[0])
+        assert servers[0].socket.fileno() == -1 and service._server is None
+    finally:
+        store._conn.close()
 
 
 def test_router_injection_http_execute(task_server) -> None:
@@ -1108,9 +1448,11 @@ def test_router_injection_http_execute(task_server) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
@@ -1159,9 +1501,11 @@ def test_task_service_executor_runs_while_state_is_running_not_validating(tmp_pa
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -1215,9 +1559,11 @@ def test_task_service_validator_runs_after_executor(tmp_path) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
 
@@ -1384,6 +1730,7 @@ def task_server_with_github(tmp_path):
         store, router,
         allowed_origin="http://localhost:5173",
         github_adapter=adapter,
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
@@ -1418,7 +1765,7 @@ def test_opencode_task_without_repository_rejected_without_origin(tmp_path) -> N
     db_path = str(tmp_path / "tasks_no_origin.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     from http.server import ThreadingHTTPServer as _Srv
     server = _Srv(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
@@ -1434,7 +1781,7 @@ def test_opencode_task_without_repository_rejected_without_origin(tmp_path) -> N
             "POST",
             "/api/tasks",
             body=body_bytes,
-            headers={"Content-Type": "application/json"},
+            headers=client_headers({"Content-Type": "application/json"}),
         )
         resp = conn.getresponse()
         data = resp.read().decode("utf-8")
@@ -1516,6 +1863,7 @@ def test_repository_catalog_endpoint_adapter_error_sanitized(task_server_with_gi
         store2, ExecutorRouter(),
         allowed_origin="http://localhost:5173",
         github_adapter=failing_adapter,
+        local_client_session=client_session(),
     )
     from http.server import ThreadingHTTPServer
     s2 = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls2)
@@ -1563,7 +1911,7 @@ def test_combined_trusted_host_wires_live_github_adapter(tmp_path) -> None:
     from reverse_agent.platform_v1.task_service import _handler_factory
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
-    host = CombinedTrustedHost()
+    host = CombinedTrustedHost( local_client_session=client_session(activate=False),)
     assert host.github_adapter is None
 
     db_path = str(tmp_path / "ctw.db")
@@ -1572,6 +1920,7 @@ def test_combined_trusted_host_wires_live_github_adapter(tmp_path) -> None:
         model_control_port=0,
         task_api_port=0,
         allowed_origin="http://localhost:5173",
+        local_client_session=client_session(activate=False),
     )
     host.start()
     try:
@@ -1609,6 +1958,7 @@ def test_combined_trusted_host_allows_fake_adapter_injection(tmp_path) -> None:
         task_api_port=0,
         allowed_origin="http://localhost:5173",
         github_adapter=fake,
+        local_client_session=client_session(activate=False),
     )
     assert host.github_adapter is fake
     host.start()
@@ -1789,9 +2139,11 @@ def test_http_resume_sequential_routes_to_durable_recovery_once(
     handler_cls = _handler_factory(
         store,
         ExecutorRouter(),
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1860,7 +2212,7 @@ def test_http_execute_uses_persisted_mode_not_request_override(tmp_path) -> None
     db_path = str(tmp_path / "persist_mode.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -1926,7 +2278,7 @@ def test_http_execute_mode_dispatches_correctly_for_sequential_team(
     db_path = str(tmp_path / "http-seq-dispatch.sqlite3")
     store = TaskStore(db_path=db_path)
     router = ExecutorRouter()
-    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173")
+    handler_cls = _handler_factory(store, router, allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -2003,9 +2355,11 @@ def test_single_mode_execute_backward_compatible_http(tmp_path) -> None:
 
     handler_cls = _handler_factory(
         store, router,
+        autonomy_service=_legacy_fixture_autonomy(store),
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler_cls)
     port = server.server_address[1]
@@ -2157,7 +2511,8 @@ def test_roadmap_phase_lifecycle_and_derived_status_over_http(task_server) -> No
 
 
 def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
-    base, _ = task_server
+    base, server = task_server
+    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "runs goal",
         "idempotency_key": "runs-http-1",
@@ -2228,6 +2583,7 @@ def test_new_read_model_routes_fail_closed_on_unknown_paths(task_server) -> None
 
 def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     base, server = task_server
+    _enable_legacy_window_fixture(server)
     store = server.RequestHandlerClass.store
 
     status, goal = _req(base, "POST", "/api/goals", {
@@ -2278,7 +2634,8 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     ]
 
 
-def _launch_http_goal(base, goal_key_suffix):
+def _launch_http_goal(base, goal_key_suffix, server):
+    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "HTTP convergence " + goal_key_suffix,
         "repository": "dddd2024/reverse-agent",
@@ -2311,7 +2668,7 @@ def _launch_http_goal(base, goal_key_suffix):
 def test_goal_http_converges_to_blocked_on_failed_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "failed")
+    goal_id, launched = _launch_http_goal(base, "failed", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "FAILED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2327,7 +2684,7 @@ def test_goal_http_converges_to_blocked_on_failed_task(task_server) -> None:
 def test_goal_http_converges_to_blocked_on_blocked_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "blocked")
+    goal_id, launched = _launch_http_goal(base, "blocked", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "BLOCKED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2343,7 +2700,7 @@ def test_goal_http_converges_to_blocked_on_blocked_task(task_server) -> None:
 def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
     base, server = task_server
     store = server.RequestHandlerClass.store
-    goal_id, launched = _launch_http_goal(base, "cancelled")
+    goal_id, launched = _launch_http_goal(base, "cancelled", server)
     links = launched["task_links"]
     store.set_state(links[0]["task_id"], "CANCELLED")
     status, listed = _req(base, "GET", "/api/goals")
@@ -2360,7 +2717,7 @@ def test_goal_http_converges_to_blocked_on_cancelled_task(task_server) -> None:
 
 def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> None:
     base, server = task_server
-    goal_id, launched = _launch_http_goal(base, "queue-cancel-convergence")
+    goal_id, launched = _launch_http_goal(base, "queue-cancel-convergence", server)
     task_id = launched["task_links"][0]["task_id"]
     store = server.RequestHandlerClass.store
     control = server.RequestHandlerClass.control_store
@@ -2394,3 +2751,137 @@ def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> Non
     assert links[other.id] == "QUEUED"
     assert server.RequestHandlerClass.store.get_task(task_id).status == "CANCELLED"
     assert server.RequestHandlerClass.store.get_task(other.id).status == "QUEUED"
+
+
+@pytest.mark.parametrize("action", ["execute", "resume"])
+def test_host_admission_rejection_reads_bounded_body_without_parsing_or_execution(production_policy_server, monkeypatch, action):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="reject raw body before execution", executor_kind="deterministic_fixture")
+    discarded = []
+    original_discard = handler._discard_bounded_request_body
+
+    def observe_discard(request):
+        original_discard(request)
+        discarded.append(True)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("rejected request must not parse JSON or construct/dispatch an executor")
+
+    monkeypatch.setattr(handler, "_discard_bounded_request_body", observe_discard)
+    monkeypatch.setattr(handler, "_read_json", forbidden)
+    monkeypatch.setattr(handler.router, "create_executor", forbidden)
+    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
+    before = handler.store._conn.total_changes
+    status, body = _req(base, "POST", f"/api/tasks/{task.id}/{action}", {})
+    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
+    assert discarded == [True]
+    assert handler.store._conn.total_changes == before
+    assert handler.store.get_task(task.id).status == "QUEUED"
+    assert handler.store._conn.execute("SELECT count(*) FROM durable_runs").fetchone()[0] == 0
+
+
+def test_host_admission_partial_body_timeout_still_returns_rejection(production_policy_server, monkeypatch):
+    import time
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    task = handler.store.create_task(title="bounded wait for rejected body", executor_kind="deterministic_fixture")
+    host, port = base.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=3)
+    before = handler.store._conn.total_changes
+    try:
+        start = time.monotonic()
+        conn.request("POST", f"/api/tasks/{task.id}/execute", body=b"{", headers=client_headers({
+            "Content-Length": "2", "Origin": "http://localhost:5173",
+        }))
+        response = conn.getresponse()
+        assert response.status == 409
+        assert json.loads(response.read()) == {"error": "direct_execution_requires_approved_host_task"}
+        assert time.monotonic() - start < 3
+        assert handler.store._conn.total_changes == before
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize("command,lengths,transfer", [
+    ("GET", ["2"], None), ("POST", [], None), ("POST", ["2", "2"], None),
+    ("POST", [""], None), ("POST", ["2,2"], None), ("POST", ["２"], None),
+    ("POST", ["-1"], None), ("POST", ["0"], None), ("POST", ["262145"], None),
+    ("POST", ["9999999"], None), ("POST", ["2"], "chunked"),
+])
+def test_rejected_body_discard_refuses_ambiguous_or_unbounded_reads(command, lengths, transfer):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.task_service import _TaskHandler
+    headers = Message()
+    for length in lengths:
+        headers.add_header("Content-Length", length)
+    if transfer is not None:
+        headers.add_header("Transfer-Encoding", transfer)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid framing must not touch socket timeout, body or JSON")
+
+    request = SimpleNamespace(command=command, headers=headers,
+        connection=SimpleNamespace(gettimeout=forbidden, settimeout=forbidden),
+        rfile=SimpleNamespace(read=forbidden, read1=forbidden), _read_json=forbidden)
+    _TaskHandler._discard_bounded_request_body(request)
+
+
+@pytest.mark.parametrize("length,times_out", [(2, False), (262144, False), (2, True)])
+def test_rejected_body_discard_bounds_raw_read_and_restores_timeout(length, times_out):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.task_service import _TaskHandler
+    headers = Message()
+    headers.add_header("Content-Length", str(length))
+    timeouts, reads = [], []
+
+    def raw_read(size):
+        reads.append(size)
+        if times_out:
+            raise TimeoutError("bounded body read")
+        return b"\xff" * size
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("rejected raw bytes must not be parsed")
+
+    request = SimpleNamespace(command="POST", headers=headers,
+        connection=SimpleNamespace(gettimeout=lambda: 7, settimeout=timeouts.append),
+        rfile=SimpleNamespace(read1=raw_read), _read_json=forbidden)
+    _TaskHandler._discard_bounded_request_body(request)
+    assert reads and all(0 < size <= 64 * 1024 for size in reads)
+    assert sum(reads) == length
+    assert len(timeouts) == len(reads) + 1 and timeouts[-1] == 7
+    assert all(0 < timeout <= 0.25 for timeout in timeouts[:-1])
+
+
+def test_rejected_body_discard_has_total_deadline_during_continued_progress(monkeypatch):
+    from email.message import Message
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import task_service as module
+    headers = Message()
+    headers.add_header("Content-Length", "8")
+    clock, reads, timeouts = [0.0], [], []
+
+    def raw_read(size):
+        reads.append(size)
+        clock[0] += 0.1
+        return b"x"
+
+    # A clock/reader double verifies total-deadline logic without relying on
+    # scheduler timing or launching a network workload.
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    request = SimpleNamespace(command="POST", headers=headers,
+        connection=SimpleNamespace(gettimeout=lambda: None, settimeout=timeouts.append),
+        rfile=SimpleNamespace(read1=raw_read))
+    module._TaskHandler._discard_bounded_request_body(request)
+    assert reads == [8, 7, 6]
+    assert timeouts[:-1] == pytest.approx([0.25, 0.15, 0.05])
+    assert timeouts[-1] is None

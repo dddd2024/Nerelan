@@ -3043,6 +3043,334 @@ def _false_none_premerge_validate(
     )
 
 
+class _AttestationReadinessClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def _attestation_readiness_comment(att: dict[str, Any]) -> dict[str, Any]:
+    payload = {key: value for key, value in att.items() if not key.startswith("_remote_")}
+    return {"id": att["_remote_comment_id"], "user": {"login": att["_remote_author"]},
+            "created_at": att["_remote_comment_created_at"], "updated_at": att["_remote_comment_updated_at"],
+            "body": "OWNER_LANDING_MERGE_ATTESTATION\n```json owner_landing_merge_attestation\n"
+                    + json.dumps(payload) + "\n```"}
+
+
+def _attestation_readiness_fixture():
+    # Explicit synthetic authority fixture, not observed GitHub acceptance.
+    bundle = {"base": "b" * 40, "head": "a" * 40, "decision_id": "decision_readiness_test",
+              "decision_digest": "sha256:" + "c" * 64}
+    remote = FalseNoneVerifier(bundle)
+    return bundle, remote, _false_none_attestation(bundle, remote)
+
+
+def _attestation_readiness_client(responses, clock, *, durations=None):
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    requests = []
+    def request(path, **kwargs):
+        requests.append((path, kwargs))
+        index = len(requests) - 1
+        if durations:
+            clock.now += durations[index]
+        response = responses[min(index, len(responses) - 1)]
+        if isinstance(response, BaseException):
+            raise response
+        return deepcopy(response)
+    client._request_json = request
+    return client, requests
+
+
+def _attestation_readiness_wait(client, clock):
+    return client.wait_for_owner_landing_merge_attestation(
+        pr_number=809, expected_head_sha="a" * 40, expected_base_sha="b" * 40,
+        current_state_gate_run_id=7001, clock=clock.clock, sleeper=clock.sleep)
+
+
+@pytest.mark.parametrize("empty_first", [False, True])
+def test_attestation_readiness_waits_only_for_absence(empty_first):
+    _, _, att = _attestation_readiness_fixture()
+    clock = _AttestationReadinessClock()
+    present = [_attestation_readiness_comment(att)]
+    client, requests = _attestation_readiness_client([[], present] if empty_first else [present], clock)
+    result = _attestation_readiness_wait(client, clock)
+    assert result["evidence_available"] is True
+    assert result["ready_run_id"] == 7001
+    assert result["poll_attempts"] == (2 if empty_first else 1)
+    assert clock.sleeps == ([10] if empty_first else [])
+    assert len(requests) == result["poll_attempts"]
+    assert all(call[1]["timeout"] == 30 for call in requests)
+    assert all(call[1]["deadline"] == 180 for call in requests)
+
+
+def test_attestation_readiness_absence_has_finite_poll_cap():
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[]], clock)
+    with pytest.raises(GitHubEvidenceError, match="ready_attestation_poll_limit"):
+        _attestation_readiness_wait(client, clock)
+    assert len(requests) == 18
+    assert clock.sleeps == [10] * 17
+    assert clock.now == 170
+
+
+def test_attestation_readiness_remaining_http_timeout_and_no_extra_get():
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[]], clock, durations=[30, 30, 30, 30, 20])
+    with pytest.raises(GitHubEvidenceError, match="ready_attestation_wait_timeout"):
+        _attestation_readiness_wait(client, clock)
+    assert [call[1]["timeout"] for call in requests] == [30, 30, 30, 30, 20]
+    assert clock.sleeps == [10] * 4
+    assert clock.now == 180
+
+
+def test_attestation_readiness_sleep_reaching_deadline_never_gets_again():
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[]], clock, durations=[179])
+    with pytest.raises(GitHubEvidenceError, match="ready_attestation_wait_timeout"):
+        _attestation_readiness_wait(client, clock)
+    assert len(requests) == 1
+    assert clock.sleeps == [1]
+    assert clock.now == 180
+
+
+@pytest.mark.parametrize("field,value", [
+    ("source_pr", 808), ("accepted_exact_head_sha", "f" * 40),
+    ("locked_base_sha", "f" * 40), ("repository", "dddd2024/other"),
+    ("ready_state_gate_run_id", 7000), ("ready_state_gate_run_id", "7001"),
+    ("ready_state_gate_run_id", True), ("authorization_status", "revoked"),
+    ("superseded_by", "newer"), ("_remote_author", "attacker"),
+    ("schema_version", 9), ("active_pr_binding_mode", "legacy"),
+    ("content_digest", "sha256:" + "0" * 64),
+])
+def test_attestation_readiness_present_wrong_evidence_never_waits(field, value):
+    _, _, att = _attestation_readiness_fixture()
+    att[field] = value
+    if field != "content_digest":
+        att["content_digest"] = owner_landing_content_digest(att)
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[_attestation_readiness_comment(att)], []], clock)
+    with pytest.raises(GitHubEvidenceError, match="ready_attestation_"):
+        _attestation_readiness_wait(client, clock)
+    assert len(requests) == 1
+    assert clock.sleeps == []
+
+
+def test_attestation_readiness_duplicate_current_candidates_not_filtered_by_run_id():
+    _, _, att = _attestation_readiness_fixture()
+    wrong_run = deepcopy(att)
+    wrong_run["ready_state_gate_run_id"] = 7000
+    wrong_run["content_digest"] = owner_landing_content_digest(wrong_run)
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client(
+        [[_attestation_readiness_comment(att), _attestation_readiness_comment(wrong_run)]], clock)
+    with pytest.raises(GitHubEvidenceError, match="not_unique"):
+        _attestation_readiness_wait(client, clock)
+    assert len(requests) == 1 and clock.sleeps == []
+
+
+@pytest.mark.parametrize("response", [
+    {}, None, [None], [{"body": "OWNER_LANDING_MERGE_ATTESTATION"}],
+    [{"body": "OWNER_LANDING_MERGE_ATTESTATION\n```json owner_landing_merge_attestation\n{bad}\n```"}],
+    [{"body": "ordinary comment"}] * 100,
+    GitHubEvidenceError("github_http_status:403"), GitHubEvidenceError("github_http_status:429"),
+    GitHubEvidenceError("github_http_status:500"), GitHubEvidenceError("github_api_failure:TimeoutError"),
+])
+def test_attestation_readiness_invalid_response_or_network_error_is_not_absence(response):
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([response], clock)
+    with pytest.raises(GitHubEvidenceError):
+        _attestation_readiness_wait(client, clock)
+    assert len(requests) == 1 and clock.sleeps == []
+
+
+@pytest.mark.parametrize("value", [0, True, "7001", None])
+def test_attestation_readiness_current_run_malformed_rejected_before_get(value):
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[]], clock)
+    with pytest.raises(GitHubEvidenceError, match="identity_invalid"):
+        client.wait_for_owner_landing_merge_attestation(
+            pr_number=809, expected_head_sha="a" * 40, expected_base_sha="b" * 40,
+            current_state_gate_run_id=value, clock=clock.clock, sleeper=clock.sleep)
+    assert requests == [] and clock.sleeps == []
+
+
+def test_attestation_readiness_ordinary_loader_keeps_immediate_default_call_shape():
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    paths = []
+    # Existing one-positional-argument mock still works; no implicit wait.
+    client._request_json = lambda path: paths.append(path) or []
+    assert client.load_owner_landing_merge_attestations(pr_number=809) == []
+    assert paths == ["/repos/dddd2024/Nerelan/issues/809/comments?per_page=100"]
+
+
+@pytest.mark.parametrize("timeout", [0, -1, True, None, "30", 31, float("inf"), float("nan")])
+def test_attestation_readiness_invalid_request_timeout_has_no_http(monkeypatch, timeout):
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    def forbidden(*args, **kwargs):
+        pytest.fail("invalid timeout must not open HTTP")
+    monkeypatch.setattr("reverse_agent.github_remote_verifier.urllib.request.urlopen", forbidden)
+    with pytest.raises(GitHubEvidenceError, match="timeout_invalid"):
+        client._request_json("/fixture", timeout=timeout)
+
+
+def test_attestation_readiness_http_body_phases_clip_remaining_budget(monkeypatch):
+    from types import SimpleNamespace
+    clock = _AttestationReadinessClock()
+    connect_timeouts = []
+    read_timeouts = []
+    class Response:
+        status = 200
+        fp = SimpleNamespace(raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=read_timeouts.append)))
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read1(self, size):
+            clock.now += 3
+            return b"["
+    monkeypatch.setattr("reverse_agent.github_remote_verifier.urllib.request.urlopen",
+                        lambda request, timeout: connect_timeouts.append(timeout) or Response())
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    with pytest.raises(GitHubEvidenceError, match="wait_timeout"):
+        client._request_json("/fixture", timeout=30, deadline=5, clock=clock.clock)
+    assert connect_timeouts == [5]
+    assert read_timeouts == [5, 2]
+
+
+@pytest.mark.parametrize("remaining_length", [6, -1])
+def test_attestation_readiness_premature_eof_cannot_accept_valid_json_prefix(monkeypatch, remaining_length):
+    from types import SimpleNamespace
+    clock = _AttestationReadinessClock()
+    class Response:
+        status = 200
+        def __init__(self):
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=lambda _: None)))
+            self.length = remaining_length
+            self.reads = 0
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def isclosed(self):
+            return self.fp is None
+        def read1(self, size):
+            self.reads += 1
+            if self.reads == 1:
+                return b"[]"  # Parseable prefix, but HTTP body is incomplete.
+            self.fp = None
+            return b""
+    response = Response()
+    monkeypatch.setattr("reverse_agent.github_remote_verifier.urllib.request.urlopen", lambda *args, **kwargs: response)
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    with pytest.raises(GitHubEvidenceError, match="response_incomplete"):
+        client._request_json("/fixture", deadline=180, clock=clock.clock)
+    assert response.reads == 2
+
+
+def test_attestation_readiness_normal_closed_http_body_and_ordinary_default(monkeypatch):
+    from types import SimpleNamespace
+    clock = _AttestationReadinessClock()
+    timeouts = []
+    class Response:
+        status = 200
+        def __init__(self):
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=lambda _: None)))
+            self.length = 2
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def isclosed(self):
+            return self.fp is None
+        def read1(self, size):
+            self.length = 0
+            self.fp = None
+            return b"[]"
+        def read(self):
+            return b"[]"
+    monkeypatch.setattr("reverse_agent.github_remote_verifier.urllib.request.urlopen",
+                        lambda request, timeout: timeouts.append(timeout) or Response())
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    assert client._request_json("/fixture", deadline=180, clock=clock.clock) == []
+    assert client._request_json("/ordinary") == []
+    assert timeouts == [30, 30]
+
+
+def test_attestation_readiness_chunked_http_failure_is_not_absence(monkeypatch):
+    import http.client
+    from types import SimpleNamespace
+    clock = _AttestationReadinessClock()
+    class Response:
+        status = 200
+        fp = SimpleNamespace(raw=SimpleNamespace(_sock=SimpleNamespace(settimeout=lambda _: None)))
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read1(self, size):
+            raise http.client.IncompleteRead(b"[]", 1)
+    monkeypatch.setattr("reverse_agent.github_remote_verifier.urllib.request.urlopen", lambda *args, **kwargs: Response())
+    client = GitHubRemoteAcceptanceVerifier(repository="dddd2024/Nerelan", token="fixture")
+    with pytest.raises(GitHubEvidenceError, match="github_api_failure:IncompleteRead"):
+        client._request_json("/fixture", deadline=180, clock=clock.clock)
+
+
+@pytest.mark.parametrize("after_handshake", ["valid_control", "missing", "duplicate", "wrong_authority", "wrong_review", "ruleset"])
+def test_attestation_readiness_is_not_cached_canonical_preflight_acceptance(tmp_path, after_handshake):
+    bundle = _false_none_repo(tmp_path)
+    verifier, att = _false_none_pair(bundle)
+    clock = _AttestationReadinessClock()
+    client, requests = _attestation_readiness_client([[_attestation_readiness_comment(att)]], clock)
+    available = client.wait_for_owner_landing_merge_attestation(
+        pr_number=verifier.source_pr, expected_head_sha=bundle["head"], expected_base_sha=bundle["base"],
+        current_state_gate_run_id=verifier.ready_run_id, clock=clock.clock, sleeper=clock.sleep)
+    assert available["evidence_available"] is True
+    if after_handshake == "missing":
+        verifier.attestations = []
+    elif after_handshake == "duplicate":
+        verifier.attestations = [att, deepcopy(att)]
+    elif after_handshake == "wrong_authority":
+        verifier.authority_head = "f" * 40
+    elif after_handshake == "wrong_review":
+        verifier.review_commit = "f" * 40
+    elif after_handshake == "ruleset":
+        verifier.ruleset_ok = False
+    checks, _ = _false_none_premerge_validate(bundle, verifier)
+    if after_handshake == "valid_control":
+        assert all(check["status"] == "PASS" for check in checks), checks
+    else:
+        assert any(check["status"] == "FAIL" for check in checks), checks
+    assert len(requests) == 1 and clock.sleeps == []
+
+
+def test_attestation_readiness_workflow_is_formal_only_and_fresh_preflight():
+    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(encoding="utf-8")
+    ordinary, formal = text.split("  landing-state-gate:", 1)
+    formal = formal.split("  bootstrap-authority:", 1)[0]
+    assert "wait_for_owner_landing_merge_attestation" not in ordinary
+    assert "needs: state-gate" in formal
+    handshake = formal.split("      - name: Wait for current Ready attestation availability", 1)[1]
+    handshake, final = handshake.split("      - name: Landing transition preflight", 1)
+    assert "timeout-minutes: 3" in handshake
+    assert "github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'" in handshake
+    assert 'intent_mode != "cutover"' in handshake and 'intent_mode == "legacy"' in handshake
+    assert 'os.environ.get("GITHUB_JOB") != "landing-state-gate"' in handshake
+    assert 'os.environ.get("GITHUB_RUN_ID", "")' in handshake
+    assert 'os.environ.get("GITHUB_RUN_ATTEMPT") != "1"' in handshake
+    assert "current_state_gate_run_id=int(run_id)" in handshake
+    assert 'from reverse_agent.project_gate import _read_transition_event, resolve_landing_intent_contract' in handshake
+    assert "transition-preflight" not in handshake
+    assert 'python -m reverse_agent.project_gate transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in final
+    assert "continue-on-error" not in handshake
+
+
 def test_false_none_premerge_valid_attestation_passes(
     tmp_path: Path,
 ) -> None:
