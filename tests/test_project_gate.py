@@ -32907,6 +32907,10 @@ def _v3_transition_fixture(
     source_pr: int = 369,
     workflow_profile: str = "baseline",
     binding_mode: str | None = None,
+    double_base: bool = False,
+    contract_overrides: dict[str, Any] | None = None,
+    legacy_base: bool = False,
+    divergent_activation: bool = False,
 ) -> dict[str, Any]:
     repo = tmp_path / "repo"
     state = tmp_path / "state"
@@ -32920,13 +32924,21 @@ def _v3_transition_fixture(
     _decision_test_git(repo, "commit", "-qm", "base")
     base_sha = _decision_test_git(repo, "rev-parse", "HEAD")
     _decision_test_git(repo, "checkout", "-qb", "test-branch")
+    if double_base:
+        _decision_test_git(repo, "commit", "--allow-empty", "-qm", "implementation activation base")
+    activation_base_sha = _decision_test_git(repo, "rev-parse", "HEAD")
+    if divergent_activation:
+        _decision_test_git(repo, "checkout", "-qb", "divergent-activation", base_sha)
+        _decision_test_git(repo, "commit", "--allow-empty", "-qm", "unrelated activation candidate")
+        divergent_base = _decision_test_git(repo, "rev-parse", "HEAD")
+        _decision_test_git(repo, "checkout", "test-branch")
     decision_id = "decision_v3_test"
     round_id = "round_v3_test"
     contract = {
         "transition_kernel_required": True,
         "mainline_merge_intent_required": intent_required,
         "required_branch": "test-branch",
-        "activation_base_sha": base_sha,
+        "activation_base_sha": activation_base_sha,
         "allowed_paths": [
             "project_state/decision_packet.md",
             "project_state/mainline_merge_intents/active.json",
@@ -32971,6 +32983,18 @@ def _v3_transition_fixture(
     }
     if binding_mode is not None:
         contract["active_pr_binding_mode"] = binding_mode
+    if double_base:
+        contract.update(base_sha=base_sha, starting_head=activation_base_sha,
+                        decision_content_immutable_after_activation=True,
+                        decision_immutability_required=True)
+        contract["allowed_paths"].append("implementation.py")
+        contract["allowed_mutated_paths"].append("implementation.py")
+    if contract_overrides is not None:
+        contract.update(contract_overrides)
+    if divergent_activation:
+        contract["activation_base_sha"] = divergent_base
+    if legacy_base:
+        contract.pop("base_sha", None)
     decision_text = (
         "```json decision_meta\n"
         + json.dumps({
@@ -33007,6 +33031,7 @@ def _v3_transition_fixture(
         "repo": repo,
         "state": state,
         "base_sha": base_sha,
+        "activation_base_sha": activation_base_sha,
         "decision_id": decision_id,
         "round_id": round_id,
         "contract": contract,
@@ -33742,6 +33767,190 @@ def test_v3_intent_binding_and_digest_shape_fail_closed(
 # mode validates the landing candidate read-only (never as ownership/mutation
 # authority) while the legacy merge-intent mode keeps its exact behavior.
 # ---------------------------------------------------------------------------
+
+
+def _v3_double_base_fixture(tmp_path: Path, **options: Any) -> dict[str, Any]:
+    """Actual I -> A -> sealed Decision -> product history, not SHA doubles."""
+    fx = _v3_transition_fixture(tmp_path, binding_mode="none", double_base=True, **options)
+    repo = fx["repo"]
+    fx["decision_commit"] = _decision_test_git(repo, "rev-parse", "HEAD")
+    (repo / "implementation.py").write_text("value = 2\n", encoding="utf-8", newline="\n")
+    _decision_test_git(repo, "add", "implementation.py")
+    _decision_test_git(repo, "commit", "-qm", "bounded product implementation")
+    fx["head_sha"] = _decision_test_git(repo, "rev-parse", "HEAD")
+    assert fx["base_sha"] != fx["activation_base_sha"]
+    for older, newer in ((fx["base_sha"], fx["activation_base_sha"]),
+                         (fx["activation_base_sha"], fx["decision_commit"]),
+                         (fx["decision_commit"], fx["head_sha"])):
+        _decision_test_git(repo, "merge-base", "--is-ancestor", older, newer)
+    return fx
+
+
+@pytest.mark.parametrize("surface", ["local", "draft", "ordinary_ready", "formal_landing"])
+def test_v3_double_base_real_history_keeps_integration_and_activation_distinct(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, surface: str,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda _: ("test-skill",))
+    if surface == "local":
+        def forbidden_remote(cls):
+            pytest.fail("local preflight must not collect landing evidence")
+        monkeypatch.setattr(project_gate_module.GitHubRemoteAcceptanceVerifier, "from_env", classmethod(forbidden_remote))
+        result = project_gate_module.transition_preflight(
+            state_dir=fx["state"], repo_root=fx["repo"], write_result=False)
+    elif surface == "formal_landing":
+        result, remote = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch)
+        assert remote.verify_pr_calls[0]["expected_base_sha"] == fx["base_sha"]
+    else:
+        remote = _V3FakeRemoteVerifier(fx, false_none_attestations=[],
+                                      review_commit=fx["head_sha"], check_names={"baseline", "state-gate"})
+        monkeypatch.setenv("GITHUB_ACTIONS", "true")
+        monkeypatch.setenv("GITHUB_JOB", "state-gate")
+        monkeypatch.setenv("GITHUB_WORKFLOW", "State Gate")
+        result, remote = _run_v3_landing_preflight(
+            fx, tmp_path, monkeypatch, draft=surface == "draft", verifier=remote)
+        assert bool(remote.verify_pr_calls) is (surface == "ordinary_ready")
+        if surface == "ordinary_ready":
+            assert remote.verify_pr_calls[0]["expected_base_sha"] == fx["base_sha"]
+            assert "landing_attestation_required" not in result["blocking_reasons"]
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    seal = result["decision_immutability"]
+    assert seal["passed"] is True
+    assert seal["starting_head"] == fx["activation_base_sha"]
+    assert seal["decision_commit"] == fx["decision_commit"]
+
+
+def test_v3_double_base_event_activation_is_not_integration_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    result, remote = _run_v3_cutover_preflight(
+        fx, tmp_path, monkeypatch, base_sha=fx["activation_base_sha"])
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+    assert remote.verify_pr_calls == []
+
+
+def test_v3_double_base_stale_remote_activation_base_is_rejected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    stale = dict(fx, base_sha=fx["activation_base_sha"])
+    remote = _V3FakeRemoteVerifier(stale)
+    result, remote = _run_v3_landing_preflight(fx, tmp_path, monkeypatch, verifier=remote)
+    assert result["gate_status"] == "BLOCKED"
+    assert "landing_remote_pr_mismatch" in result["blocking_reasons"]
+    assert remote.verify_pr_calls[0]["expected_base_sha"] == fx["base_sha"]
+
+
+@pytest.mark.parametrize("defect", ["missing_attestation", "activation_attestation", "wrong_authority", "wrong_review", "ruleset"])
+def test_v3_double_base_formal_landing_keeps_independent_evidence_denials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, defect: str,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    options = {}
+    if defect == "missing_attestation":
+        options["attestation_count"] = 0
+    elif defect == "activation_attestation":
+        options["attestation_overrides"] = {"locked_base_sha": fx["activation_base_sha"]}
+    elif defect == "wrong_authority":
+        options["attestation_overrides"] = {"authority_head_sha": "0" * 40}
+    elif defect == "wrong_review":
+        options["review_commit"] = fx["activation_base_sha"]
+    else:
+        options["ruleset_ok"] = False
+    result, remote = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch, **options)
+    assert result["gate_status"] == "BLOCKED", result
+    assert result["blocking_reasons"]
+    assert "landing_event_base_mismatch" not in result["blocking_reasons"]
+    assert remote.verify_pr_calls[0]["expected_base_sha"] == fx["base_sha"]
+    if defect == "missing_attestation":
+        assert "landing_attestation_required" in result["blocking_reasons"]
+
+
+@pytest.mark.parametrize("value", [None, "", " ", 0, True, [], {}, "a" * 39, "a" * 41, "g" * 40, " a" + "a" * 39, "a" * 40 + "\n"])
+@pytest.mark.parametrize("surface", ["local", "draft", "ready"])
+def test_v3_double_base_present_malformed_integration_never_uses_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: Any, surface: str,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path, contract_overrides={"base_sha": value})
+    monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda _: ("test-skill",))
+    def forbidden_remote(cls):
+        pytest.fail("malformed authority must fail before remote collection")
+    monkeypatch.setattr(project_gate_module.GitHubRemoteAcceptanceVerifier, "from_env", classmethod(forbidden_remote))
+    event = "" if surface == "local" else str(_v3_event(
+        tmp_path, head_sha=fx["head_sha"], base_sha=fx["activation_base_sha"], draft=surface == "draft"))
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"], event_path=event, write_result=False)
+    assert result["gate_status"] == "BLOCKED"
+    assert result["blocking_reasons"] == ["invalid_transition_authority:missing_or_invalid_contract_field:base_sha"]
+
+
+def test_v3_double_base_absent_legacy_field_uses_validated_activation_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path, legacy_base=True)
+    integration = fx["base_sha"]
+    fx["base_sha"] = fx["activation_base_sha"]
+    assert "base_sha" not in fx["contract"]
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch)
+    assert result["gate_status"] == "PRE_EXECUTION_AUTHORIZED", result
+    result, _ = _run_v3_cutover_preflight(fx, tmp_path, monkeypatch, base_sha=integration)
+    assert "landing_event_base_mismatch" in result["blocking_reasons"]
+
+
+@pytest.mark.parametrize("value", [None, "", "a" * 39, "g" * 40])
+def test_v3_double_base_invalid_activation_is_not_repaired_by_integration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, value: Any,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path, contract_overrides={"activation_base_sha": value})
+    monkeypatch.setattr(project_gate_module, "_active_transition_skills", lambda _: ("test-skill",))
+    result = project_gate_module.transition_preflight(
+        state_dir=fx["state"], repo_root=fx["repo"], write_result=False)
+    assert result["gate_status"] == "BLOCKED"
+    assert any("activation_base_sha" in reason for reason in result["blocking_reasons"])
+
+
+def test_v3_double_base_modified_decision_seal_remains_blocking(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    path = fx["repo"] / "project_state" / "decision_packet.md"
+    path.write_bytes(path.read_bytes() + b"\nUnauthorized edit\n")
+    result, _ = _run_v3_landing_preflight(fx, tmp_path, monkeypatch, draft=True)
+    assert result["gate_status"] == "BLOCKED"
+    assert result["decision_immutability"]["passed"] is False
+
+
+def test_v3_double_base_real_divergent_activation_ancestry_still_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path, divergent_activation=True)
+    wrong_activation = fx["contract"]["activation_base_sha"]
+    assert _decision_test_git(fx["repo"], "merge-base", "HEAD", wrong_activation) == fx["base_sha"]
+    result, _ = _run_v3_landing_preflight(fx, tmp_path, monkeypatch, draft=True)
+    assert result["gate_status"] == "BLOCKED"
+    assert result["decision_immutability"]["passed"] is True
+    checks = {check["name"]: check for check in result["checks"]}
+    assert checks["base_ancestry"]["status"] == "FAIL"
+    assert f"base={wrong_activation}" in checks["base_ancestry"]["detail"]
+
+
+def test_v3_double_base_out_of_scope_product_diff_still_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fx = _v3_double_base_fixture(tmp_path)
+    path = fx["repo"] / "docs" / "forbidden.md"
+    path.parent.mkdir()
+    path.write_text("out of scope\n", encoding="utf-8", newline="\n")
+    _decision_test_git(fx["repo"], "add", "docs/forbidden.md")
+    _decision_test_git(fx["repo"], "commit", "-qm", "unauthorized product delta")
+    fx["head_sha"] = _decision_test_git(fx["repo"], "rev-parse", "HEAD")
+    result, _ = _run_v3_landing_preflight(fx, tmp_path, monkeypatch, draft=True)
+    assert result["gate_status"] == "BLOCKED"
+    assert result["decision_immutability"]["passed"] is True
+    assert any(check["status"] == "FAIL" and "docs/forbidden.md" in check["detail"]
+               for check in result["checks"])
 
 
 def _v3_cutover_fixture(tmp_path: Path) -> dict[str, Any]:

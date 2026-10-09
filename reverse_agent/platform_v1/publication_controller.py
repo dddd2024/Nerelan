@@ -54,6 +54,14 @@ class PublicationController:
         body: str = "",
     ) -> PublicationRecord:
         task = self.store.get_task(task_id)
+        if self.autonomy.delegated_mode or getattr(self.autonomy, "require_trusted_policy", False):
+            # The current trusted adapter proves only the fixed local checker.
+            # Reject before replay, Git, credentials or a publication side effect.
+            self.autonomy.authorize(window_id=window_id, operation="open_draft_pr",
+                repository=task.repository, subject_id=task_id,
+                input_payload={"task_id": task_id, "base_branch": base_branch,
+                               "allowed_paths": list(allowed_paths) if isinstance(allowed_paths, (list, tuple)) else []})
+            raise TaskStoreError("trusted_publication_adapter_not_supported")
         if task.status not in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
             raise TaskStoreError(f"publication_requires_validated_task:{task.status}")
         if base_branch in {"", "HEAD"} or not re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", base_branch):
