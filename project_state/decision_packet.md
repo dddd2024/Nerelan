@@ -1,10 +1,10 @@
-# New validated TaskService client session remediation
+# Bounded TaskService caller and durable-start event successor
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261009_issue118_task_api_client_session_r3_v1",
-  "round_id": "round_20261009_issue118_task_api_client_session_r3_v1",
+  "decision_id": "decision_20261009_issue118_task_api_client_session_r3_v2",
+  "round_id": "round_20261009_issue118_task_api_client_session_r3_v2",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -21,17 +21,17 @@
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Root approves NEW exact defect4226029820 WorkItem with65/59 baseline manifestSHA256=eeeb067f90fc70d8603f894a343e343d89b6af7df689d237ced543ef933b15fd. Original Source/landing expiries and all consumed slots remain unchanged; old1106 Ready proof is preserved but merge stopped beforecharge. Newbounded24hour window/finite source-only slots, no human/self-independent acceptance.",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; explicit Root additional finite correction allocation2 after observed dev1/dev2 failures, aggregate4; same original expiry and all other counters, no reset. manifestSHA256=c3c4190c163e3ba71880fb525911223da8155d3192931c8d2bf59a77431e8780. Additional grantSHA256=4465398005b3645c1411d4be3bbc098c6395784f3cfcf209e14ba6b604b07414.",
   "risk_tier": "R3",
   "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
   "base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
-  "activation_base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
-  "starting_head": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "activation_base_sha": "18548506e00ce77d8b472d4cc4e2bfe6467f229f",
+  "starting_head": "18548506e00ce77d8b472d4cc4e2bfe6467f229f",
   "required_branch": "codex/issue118-task-api-client-session-r3-20261009",
-  "fresh_worktree_creation_required": true,
-  "history_reuse_allowed": false,
+  "fresh_worktree_creation_required": false,
+  "history_reuse_allowed": true,
   "decision_commit_must_precede_implementation": true,
   "decision_commit_must_precede_execution": true,
   "decision_content_immutable_after_activation": true,
@@ -78,7 +78,7 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "NEW independently validated defect4226029820 at1106@7a: trusted in-process TaskService session delivery and actual caller compatibility. FreshmainDec source imports65 baseline blobs from7a; only6 declared paths may change, other59 including all priorP1/P2 fixes remain exact7a, and8main governance/verifier paths remain exactDec. Preserve all old grants/deadlines/failures/spending/PRs/reviewthreads. No oldPR writes, resolution or landing. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix.",
+    "specification": "Same TaskService caller repair now includes independently validated durable single fixture EXECUTOR_RUNNING omission. 66 allowed/8 editable/58 frozen. Real fenced event before actual executor call, no event fabrication or CLI assertion weakening. Update CLI injected-router observation to record actual executor.execute through existing create_executor interface (durable no longer uses generic dispatch_execute). Existing auth candidate preserved, no production/model/Ready/merge/oldPR/thread writes. Only current original grant remaining non-correction slots usable. Original24h deadline retained. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix. Missing/invalid auth, absent executionpins409, admission and executorcreation failures must never claim actual executorstart. Existing owner/epoch fenced write must fail closed before dispatch; terminal recovery must not duplicate start/dispatch. Use real fixture executor and exact run/execution metadata; no real OpenCode/model execution.",
     "reuse": "Existing TaskService, LocalClientSession.deliver, actual CLI callers and existing TaskStore/fixtureExecutor; no new authentication authority/Gate/schema/receipt/runtime/secret store.",
     "execution_surface_note": "Provider-free meaningful actual disposable TaskService loopback HTTP fixtures only: trusted receiver delivery before thread, authenticated requests, absent/wrong/oldtoken401, restart rotation, receiver failure revocation/socket closure, port0 ephemeral binding. Complete provider-free acceptance CLI once per new unique owned Fscratch, never existing workspace/database, preserve artifacts; fixture execution is not real model acceptance. Do not run OpenCode acceptance CLI: source auth helper tests/import/static checks only, no OpenCode probe/model/provider. Final existing full Python CI-installed-OpenCode exclusions unchanged, scoped diff and canonical gates, original naturalCI and independent exacthead acceptance required. Frozen frontend bytes and historical519/type0/Node19 evidence may be reused only as unchanged surface, never claimed newly executed. No native browser/production TrustedHost/unattended runtime/installs/external credentials. Accepted real platform profile is still a fixedchecker, not coding; use supervised Codex alternate after observed capability limitation.",
     "completion_boundary": "Exact newsource/local/original naturalCI/independent acceptance and newDraft only; oldvalidthread/PR unchanged. No Ready/merge, realOpenCode/model/native or fullplatform/backlog acceptance."
@@ -121,6 +121,7 @@
     "reverse_agent/platform_v1/autonomy.py",
     "reverse_agent/platform_v1/capability_registry.py",
     "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
     "reverse_agent/platform_v1/goal_service.py",
     "reverse_agent/platform_v1/local_client_session.py",
     "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
@@ -194,6 +195,7 @@
     "reverse_agent/platform_v1/autonomy.py",
     "reverse_agent/platform_v1/capability_registry.py",
     "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
     "reverse_agent/platform_v1/goal_service.py",
     "reverse_agent/platform_v1/local_client_session.py",
     "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
@@ -369,7 +371,7 @@
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
-      "command": "NEW independently validated defect4226029820 at1106@7a: trusted in-process TaskService session delivery and actual caller compatibility. FreshmainDec source imports65 baseline blobs from7a; only6 declared paths may change, other59 including all priorP1/P2 fixes remain exact7a, and8main governance/verifier paths remain exactDec. Preserve all old grants/deadlines/failures/spending/PRs/reviewthreads. No oldPR writes, resolution or landing. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix.",
+      "command": "Same TaskService caller repair now includes independently validated durable single fixture EXECUTOR_RUNNING omission. 66 allowed/8 editable/58 frozen. Real fenced event before actual executor call, no event fabrication or CLI assertion weakening. Update CLI injected-router observation to record actual executor.execute through existing create_executor interface (durable no longer uses generic dispatch_execute). Existing auth candidate preserved, no production/model/Ready/merge/oldPR/thread writes. Only current original grant remaining non-correction slots usable. Original24h deadline retained. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix. Missing/invalid auth, absent executionpins409, admission and executorcreation failures must never claim actual executorstart. Existing owner/epoch fenced write must fail closed before dispatch; terminal recovery must not duplicate start/dispatch. Use real fixture executor and exact run/execution metadata; no real OpenCode/model execution.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -410,6 +412,7 @@
         "reverse_agent/platform_v1/autonomy.py",
         "reverse_agent/platform_v1/capability_registry.py",
         "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/durable_execution.py",
         "reverse_agent/platform_v1/goal_service.py",
         "reverse_agent/platform_v1/local_client_session.py",
         "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
@@ -491,12 +494,12 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-09T02:57:41.348356+00:00",
-  "owner_delegation_sha256": "9d37d346412a586664dd194916f3e39a941f44785dd3d6d92f11cec026654a78",
+  "approval_event_or_time": "2026-10-09T03:27:39.511433+00:00",
+  "owner_delegation_sha256": "4465398005b3645c1411d4be3bbc098c6395784f3cfcf209e14ba6b604b07414",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
   "development_check_run_limit": 4,
-  "development_correction_round_limit": 2,
+  "development_correction_round_limit": 4,
   "mandatory_check_run_limit": 8,
   "execution_expires_at": "2026-10-10T02:57:41.348356+00:00"
 }
