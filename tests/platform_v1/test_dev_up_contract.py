@@ -63,6 +63,47 @@ def test_task_api_origin_is_frontend() -> None:
     assert '"REVERSE_AGENT_TASK_SERVICE_ORIGIN"' in _DEV_UP
 
 
+def test_launcher_uses_public_health_and_owned_private_browser_bootstrap() -> None:
+    assert '/api/health' in _DEV_UP
+    assert 'Start-Process $FrontendUrl' not in _DEV_UP
+    assert 'Test-TrustedClientReady' in _DEV_UP
+    assert 'client_process_start_filetime' in _DEV_UP
+    assert 'client_process_executable' in _DEV_UP
+    assert 'client_transport_revision' in _DEV_UP
+    assert '"REVERSE_AGENT_TRUSTED_CLIENT_UI"' in _DEV_UP
+
+
+@requires_powershell
+def test_actual_frontend_invocation_forwards_selected_strict_loopback_port() -> None:
+    # Evaluate only the actual frontend command AST against a capture stub;
+    # never run dev-up, npm, a service or a browser.
+    source_path = str(DEV_UP).replace("'", "''")
+    script = """
+$errors = $null; $tokens = $null
+$tree = [System.Management.Automation.Language.Parser]::ParseFile('__SOURCE__', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'launcher parse failed' }
+$commands = @($tree.FindAll({ param($node)
+  $node -is [System.Management.Automation.Language.CommandAst] -and
+  $node.GetCommandName() -eq 'Start-ServiceProcess' -and
+  $node.Extent.Text.Contains('"frontend-vite"')
+}, $true))
+if ($commands.Count -ne 1) { throw 'expected one frontend invocation' }
+function Start-ServiceProcess { param($name, $cmd, [object[]]$serviceArgs, $env, $cwd, $logDir)
+  return $serviceArgs
+}
+$npm = 'capture-only'; $repoDir = 'capture-only'; $runtimeDir = 'capture-only'; $frontendEnv = @{}
+$FrontendPort = 18879
+$arguments = @(& ([scriptblock]::Create($commands[0].Extent.Text)))
+ConvertTo-Json -InputObject $arguments -Compress
+""".replace("__SOURCE__", source_path)
+    result = _run_ps(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == [
+        "--prefix", "frontend", "run", "dev", "--", "--host", "127.0.0.1",
+        "--port", "18879", "--strictPort", "--configLoader", "runner",
+    ]
+
+
 def test_repo_dir_is_provided() -> None:
     assert '"REVERSE_AGENT_REPO_DIR"' in _DEV_UP
 
