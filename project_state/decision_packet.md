@@ -1,10 +1,10 @@
-# Delegated controller current-main recovery
+# New validated TaskService client session remediation
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_controller_mainline_recovery_r2_v1",
-  "round_id": "round_20261008_issue118_controller_mainline_recovery_r2_v1",
+  "decision_id": "decision_20261009_issue118_task_api_client_session_r3_v1",
+  "round_id": "round_20261009_issue118_task_api_client_session_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_DELEGATED_CONTROLLER_CURRENT_MAINLINE_RECOVERY",
+  "decision_scope": "ISSUE118_NEW_VALIDATED_TASK_API_SESSION_DEFECT4226029820",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Distinct current-main recovery of independently accepted delegated-controller docs1094 after actual corrective landing1100 changed main to32ac. Preserve all original source/landing failures, budgets and expired deadlines, no history rewrite or old1094/1099 writes. Controller approver under standing explicit Owner delegation, personally_human=false.",
-  "risk_tier": "R2",
-  "authorized_risk_tier": "R2",
+  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Root approves NEW exact defect4226029820 WorkItem with65/59 baseline manifestSHA256=eeeb067f90fc70d8603f894a343e343d89b6af7df689d237ced543ef933b15fd. Original Source/landing expiries and all consumed slots remain unchanged; old1106 Ready proof is preserved but merge stopped beforecharge. Newbounded24hour window/finite source-only slots, no human/self-independent acceptance.",
+  "risk_tier": "R3",
+  "authorized_risk_tier": "R3",
   "governance_artifact_risk_tier": "R2",
   "integration_base_ref": "main",
-  "base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "activation_base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "starting_head": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "required_branch": "codex/issue118-controller-mainline-recovery-r2-20261008",
+  "base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "activation_base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "starting_head": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "required_branch": "codex/issue118-task-api-client-session-r3-20261009",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,7 +42,7 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
+  "product_change_commit_limit": 3,
   "generated_governance_commit_limit": 0,
   "normal_push_attempt_limit": 2,
   "draft_pr_creation_limit": 1,
@@ -78,10 +78,10 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
-    "reuse": "Existing AGENTS entry, conditional governance reference, transition parser/compiler/preflight and exact-head CI. No new Gate or authority schema.",
-    "execution_surface_note": "Fresh exact-base worktree from main32ac, Decision-only activation and canonical preflight before two documentation edits. Actual system fixedchecker runtime lacks governance-document coding executor; existing independently accepted real-host capability evidence supports supervised Codex alternate.",
-    "completion_boundary": "Documentation source/local/original natural exact-head CI and independent acceptance, Draft only. Real platform authority compiler/scheduler/GitHub operation executor and full unattended backlog remain incomplete; no Ready/merge under this source allocation."
+    "specification": "NEW independently validated defect4226029820 at1106@7a: trusted in-process TaskService session delivery and actual caller compatibility. FreshmainDec source imports65 baseline blobs from7a; only6 declared paths may change, other59 including all priorP1/P2 fixes remain exact7a, and8main governance/verifier paths remain exactDec. Preserve all old grants/deadlines/failures/spending/PRs/reviewthreads. No oldPR writes, resolution or landing. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix.",
+    "reuse": "Existing TaskService, LocalClientSession.deliver, actual CLI callers and existing TaskStore/fixtureExecutor; no new authentication authority/Gate/schema/receipt/runtime/secret store.",
+    "execution_surface_note": "Provider-free meaningful actual disposable TaskService loopback HTTP fixtures only: trusted receiver delivery before thread, authenticated requests, absent/wrong/oldtoken401, restart rotation, receiver failure revocation/socket closure, port0 ephemeral binding. Complete provider-free acceptance CLI once per new unique owned Fscratch, never existing workspace/database, preserve artifacts; fixture execution is not real model acceptance. Do not run OpenCode acceptance CLI: source auth helper tests/import/static checks only, no OpenCode probe/model/provider. Final existing full Python CI-installed-OpenCode exclusions unchanged, scoped diff and canonical gates, original naturalCI and independent exacthead acceptance required. Frozen frontend bytes and historical519/type0/Node19 evidence may be reused only as unchanged surface, never claimed newly executed. No native browser/production TrustedHost/unattended runtime/installs/external credentials. Accepted real platform profile is still a fixedchecker, not coding; use supervised Codex alternate after observed capability limitation.",
+    "completion_boundary": "Exact newsource/local/original naturalCI/independent acceptance and newDraft only; oldvalidthread/PR unchanged. No Ready/merge, realOpenCode/model/native or fullplatform/backlog acceptance."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -94,8 +94,71 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
@@ -104,8 +167,71 @@
     "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -115,26 +241,31 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "tests/test_decision_preflight.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_codex_skills.py",
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
     ".github/workflows/ci.yml",
-    "tests/test_agent_instruction_context.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py"
   ],
   "forbidden_mutated_paths": [
     ".github/**",
     ".codex-skills/**",
-    "reverse_agent/**",
-    "tests/**",
-    "frontend/**",
+    "AGENTS.md",
+    "docs/agents/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/model_access/**",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/mainline_landing.py",
+    "reverse_agent/github_remote_verifier.py",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "dev-up.ps1",
     "dev-down.ps1"
   ],
   "forbidden_operations": [
@@ -162,23 +293,83 @@
   ],
   "capability_policy": {
     "github_control_plane_network_exceptions": [
-      "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider."
+      "Publish only exact codex/issue118-task-api-client-session-r3-20261009 and one newDraft against main@dec321721ab9c33a0107a0b2283839654d569a88 after PUBLICATION_READY and independent exacthead source/local acceptance. No old1104/1105/1106/1107/1108 writes, resolve, Ready/merge/mainpush/rerun/install/native/productionhost/models/providers."
     ]
   },
   "path_risk_floor": [
     {
-      "pattern": "AGENTS.md",
+      "pattern": "dev-up.ps1",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/trusted-client.mjs",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/authority_adapter.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/autonomy.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/capability_registry.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/control_store.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/goal_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/local_client_session.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/publication_controller.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_execution.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_runtime.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_client.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_host.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/unattended_coordinator.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/package.json",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "docs/agents/governance-reference.md",
+      "pattern": "frontend/package-lock.json",
       "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
-      "command": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
+      "command": "NEW independently validated defect4226029820 at1106@7a: trusted in-process TaskService session delivery and actual caller compatibility. FreshmainDec source imports65 baseline blobs from7a; only6 declared paths may change, other59 including all priorP1/P2 fixes remain exact7a, and8main governance/verifier paths remain exactDec. Preserve all old grants/deadlines/failures/spending/PRs/reviewthreads. No oldPR writes, resolution or landing. TaskService requires a trusted in-process receiver when creating its private session; rotate and use existing LocalClientSession.deliver before starting thread. Explicit injected-session mode retains caller ownership but start still rotates: caller must deliver privately AFTER each start, or provide the same trusted receiver; injection alone does not deliver the new token. Failures close/revoke and cannot leak capability. Honor explicit port0 for disposable fixtures. Update all3 provider-free services and OpenCode caller to carry their own delivered capability; no token HTTPbootstrap/property/environment/log/database or weakened Origin/operation authority. Meaningful tests must call actual TaskService, not only _handler_factory. Docs describe trusted delivery. Frozen oldsource mechanical checks remain true but do not accept newquality fix.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -192,14 +383,77 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "AGENTS.md",
-        "docs/agents/governance-reference.md"
+        "dev-up.ps1",
+        "docs/local-client-session.md",
+        "docs/unattended-window-lifecycle.md",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/components/autonomous-window-editor.tsx",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/hooks/use-platform.ts",
+        "frontend/src/lib/goal-continuation-operation.ts",
+        "frontend/src/lib/goal-start-operation.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/policy-serializer.ts",
+        "frontend/src/schemas/policy.ts",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "frontend/tests/goal-continuation-activation-errors.test.ts",
+        "frontend/tests/goal-start-recovery.test.ts",
+        "frontend/tests/policy-serialization.test.ts",
+        "frontend/tests/policy-validation.test.ts",
+        "frontend/tests/task-first-sidebar.test.tsx",
+        "frontend/trusted-client.mjs",
+        "frontend/trusted-client.node-test.mjs",
+        "reverse_agent/platform_v1/authority_adapter.py",
+        "reverse_agent/platform_v1/autonomy.py",
+        "reverse_agent/platform_v1/capability_registry.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/local_client_session.py",
+        "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/publication_controller.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_runtime.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/trusted_client.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "tests/platform_v1/_local_client_fixture.py",
+        "tests/platform_v1/test_artifact_handoff_http.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_autonomy_window_lifecycle.py",
+        "tests/platform_v1/test_delegated_goal_admission.py",
+        "tests/platform_v1/test_dev_up_contract.py",
+        "tests/platform_v1/test_durable_execution.py",
+        "tests/platform_v1/test_durable_execution_v5.py",
+        "tests/platform_v1/test_execution_runtime_budget.py",
+        "tests/platform_v1/test_goal_completion_evidence.py",
+        "tests/platform_v1/test_goal_functional_checks.py",
+        "tests/platform_v1/test_goal_plan_revision.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_local_client_session.py",
+        "tests/platform_v1/test_provider_free_task_plane.py",
+        "tests/platform_v1/test_system_doctor.py",
+        "tests/platform_v1/test_task3c_v4_repairs.py",
+        "tests/platform_v1/test_task3c_v6_production_relay.py",
+        "tests/platform_v1/test_task_client_auth.py",
+        "tests/platform_v1/test_task_runtime.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_trusted_client_bootstrap.py",
+        "tests/platform_v1/test_trusted_host.py",
+        "tests/platform_v1/test_trusted_host_lifecycle.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+        "tests/test_trust_authorization_adapter.py"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "delegation.validation",
-      "command": "python -m pytest tests/test_agent_instruction_context.py tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
+      "command": "Provider-free meaningful actual disposable TaskService loopback HTTP fixtures only: trusted receiver delivery before thread, authenticated requests, absent/wrong/oldtoken401, restart rotation, receiver failure revocation/socket closure, port0 ephemeral binding. Complete provider-free acceptance CLI once per new unique owned Fscratch, never existing workspace/database, preserve artifacts; fixture execution is not real model acceptance. Do not run OpenCode acceptance CLI: source auth helper tests/import/static checks only, no OpenCode probe/model/provider. Final existing full Python CI-installed-OpenCode exclusions unchanged, scoped diff and canonical gates, original naturalCI and independent exacthead acceptance required. Frozen frontend bytes and historical519/type0/Node19 evidence may be reused only as unchanged surface, never claimed newly executed. No native browser/production TrustedHost/unattended runtime/installs/external credentials.; scoped committed git diff --check and canonical PRE_EXECUTION_AUTHORIZED/PUBLICATION_READY.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -218,7 +472,7 @@
     },
     {
       "command_id": "delegation.publication",
-      "command": "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider.",
+      "command": "Publish only exact codex/issue118-task-api-client-session-r3-20261009 and one newDraft against main@dec321721ab9c33a0107a0b2283839654d569a88 after PUBLICATION_READY and independent exacthead source/local acceptance. No old1104/1105/1106/1107/1108 writes, resolve, Ready/merge/mainpush/rerun/install/native/productionhost/models/providers.",
       "phase": "publication",
       "required": false,
       "expected_exit_codes": [
@@ -237,13 +491,13 @@
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T10:14:45.972872+00:00",
-  "owner_delegation_sha256": "73658b07d420847e5e06ff31b0cfb4c0c2d07c504b288d7d2a9e858a38ed27a8",
+  "approval_event_or_time": "2026-10-09T02:57:41.348356+00:00",
+  "owner_delegation_sha256": "9d37d346412a586664dd194916f3e39a941f44785dd3d6d92f11cec026654a78",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
-  "development_check_run_limit": 1,
+  "development_check_run_limit": 4,
   "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 4,
-  "execution_expires_at": "2026-10-08T11:44:45.972872+00:00"
+  "mandatory_check_run_limit": 8,
+  "execution_expires_at": "2026-10-10T02:57:41.348356+00:00"
 }
 ```
