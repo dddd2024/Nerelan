@@ -19,6 +19,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import _handler_factory
 
 
+from _local_client_fixture import client_session, client_headers
+
 @pytest.fixture
 def services():
     store = TaskStore(":memory:")
@@ -203,7 +205,7 @@ def test_revision_and_artifact_survive_reopen_and_objective_amendment(tmp_path):
 
 def test_http_review_rejects_old_plan_and_accepts_refreshed_revision():
     store = TaskStore(":memory:")
-    handler = _handler_factory(store, ExecutorRouter(), allowed_origin="http://localhost:5173")
+    handler = _handler_factory(store, ExecutorRouter(), allowed_origin="http://localhost:5173", local_client_session=client_session(),)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     worker = Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -212,7 +214,7 @@ def test_http_review_rejects_old_plan_and_accepts_refreshed_revision():
         request = Request(
             f"http://127.0.0.1:{server.server_port}{path}",
             data=json.dumps(payload).encode(),
-            headers={"Content-Type": "application/json", "Origin": "http://localhost:5173"},
+            headers=client_headers({"Content-Type": "application/json", "Origin": "http://localhost:5173"}),
             method="POST",
         )
         try:
