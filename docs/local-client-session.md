@@ -16,6 +16,31 @@ The value has no environment variable, command-line argument, URL, HTTP
 bootstrap endpoint, persistent file, TaskStore field or browser storage.
 Its representation and public errors contain fixed messages only.
 
+`TaskService` callers supply an explicitly trusted in-process
+`trusted_client_receiver`. A service creating its own session requires that
+receiver before opening a database or socket. Each start rotates the session
+and calls the existing private `deliver` seam before starting its HTTP thread;
+failed delivery revokes the capability and closes the socket. Thread-start
+failure also closes and revokes. Explicit `port=0` requests an ephemeral port.
+An injected `LocalClientSession` can remain caller-owned without a receiver,
+but `start` still rotates it: the caller must privately deliver the new value
+after every successful start. A value delivered before start is stale.
+
+The provider-free acceptance CLI gives each of its three TaskService instances
+its own receiver and sends that instance's capability header. The OpenCode
+acceptance caller uses the same private delivery seam. Its HTTP client can be
+tested against a disposable TaskService without running the OpenCode CLI or
+calling a model. These in-process fixture checks do not prove production
+browser, OpenCode execution or unattended coding acceptance.
+
+The provider-free fixture CLI explicitly supplies synthetic execution and plan
+identities to exercise the existing durable-run fences. They are fixture data,
+not canonical Owner authority, and apply only to its deterministic fixture
+tasks. TaskService defaults and durable identity checks remain unchanged;
+an authenticated client without execution pins still receives 409 before a
+durable run or workspace mutation. OpenCode and production callers require
+their own applicable execution authority and are not given fixture identities.
+
 `deliver` is an in-process seam for trusted native launcher code, not a
 public API or proof that an arbitrary callback is trusted. The Windows launcher
 starts the host's owned Node browser broker with private anonymous stdin IPC.

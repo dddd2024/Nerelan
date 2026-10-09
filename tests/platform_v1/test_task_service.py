@@ -1213,11 +1213,212 @@ def test_validate_bind_host_loopback_only() -> None:
         validate_bind_host("192.168.1.1")
 
 
-def test_task_service_wrapper_starts_and_serves(task_server) -> None:
-    base, _ = task_server
-    status, body = _req(base, "GET", "/api/tasks")
+def _private_wrapper_request(server, *, capability=None, origin="http://localhost:4173",
+                             method="GET", body=None, path="/api/tasks"):
+    headers = {"Origin": origin, "Accept": "application/json"}
+    if capability is not None:
+        headers["X-Nerelan-Client-Capability"] = capability
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(body).encode()
+    conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1], timeout=5)
+    try:
+        conn.request(method, path, body=body, headers=headers)
+        response = conn.getresponse()
+        return response.status, json.loads(response.read())
+    finally:
+        conn.close()
+
+
+@pytest.fixture
+def private_wrapper(tmp_path):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "private-wrapper.sqlite3"))
+    session = LocalClientSession()
+    delivered = []
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    server, thread = service.start(host="127.0.0.1", port=0)
+    try:
+        yield service, server, session, delivered
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not thread.is_alive()
+        store._conn.close()
+
+
+def test_task_service_wrapper_starts_and_serves(private_wrapper) -> None:
+    _, server, _, delivered = private_wrapper
+    status, body = _private_wrapper_request(server, capability=delivered[0])
     assert status == 200
     assert "tasks" in body
+
+
+@pytest.mark.parametrize("capability", [None, "wrong", "0" * 64])
+def test_actual_wrapper_rejects_missing_or_wrong_identity(private_wrapper, capability):
+    _, server, _, _ = private_wrapper
+    assert _private_wrapper_request(server, capability=capability)[0] == 401
+    assert _private_wrapper_request(server, capability=capability, method="POST",
+                                    body={"title": "must not create"})[0] == 401
+
+
+def test_actual_wrapper_identity_does_not_bypass_origin(private_wrapper):
+    _, server, _, delivered = private_wrapper
+    assert _private_wrapper_request(server, capability=delivered[0],
+                                    origin="https://external.example")[0] == 403
+
+
+def test_actual_wrapper_client_identity_does_not_supply_execution_pins(private_wrapper):
+    service, server, _, delivered = private_wrapper
+    status, task = _private_wrapper_request(
+        server, capability=delivered[0], method="POST",
+        body={"title": "no execution authority", "executor_kind": "deterministic_fixture"},
+    )
+    assert status == 201
+    status, rejection = _private_wrapper_request(
+        server, capability=delivered[0], method="POST", body={},
+        path="/api/tasks/%s/execute" % task["id"],
+    )
+    assert status == 409 and rejection["error"].startswith("durable_trusted_identity_missing:")
+    unchanged = service.store.get_task(task["id"])
+    assert unchanged.status == "QUEUED" and not unchanged.changed_files
+    assert service.store._conn.execute("SELECT count(*) FROM durable_runs").fetchone()[0] == 0
+
+
+def test_actual_wrapper_requires_private_receiver_before_database(tmp_path, monkeypatch):
+    db = tmp_path / "never-opened" / "tasks.sqlite3"
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_PATH", str(db))
+    with pytest.raises(ValueError, match="^trusted_client_receiver_required$"):
+        TaskService()
+    with pytest.raises(TypeError, match="^invalid_trusted_client_receiver$"):
+        TaskService(trusted_client_receiver="not callable")
+    assert not db.parent.exists()
+
+
+@pytest.mark.parametrize("injected", [False, True])
+def test_actual_wrapper_restart_rotates_and_delivers_before_thread(tmp_path, monkeypatch, injected):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "restart.sqlite3"))
+    session = LocalClientSession() if injected else None
+    delivered = []
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    original_start = threading.Thread.start
+
+    def checked_start(thread):
+        assert delivered
+        assert service._local_client_session.accepts(delivered[-1])
+        return original_start(thread)
+
+    monkeypatch.setattr(threading.Thread, "start", checked_start)
+    # Invalid fallback proves explicit zero was respected, without reserving
+    # a shared fixed port or a race-prone find-free-port step.
+    monkeypatch.setenv("REVERSE_AGENT_TASK_SERVICE_PORT", "invalid fallback")
+    server = thread = None
+    try:
+        server, thread = service.start(port=0)
+        old = delivered[-1]
+        with pytest.raises(RuntimeError, match="task_service_already_started"):
+            service.start(port=0)
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        assert not service._local_client_session.accepts(old)
+        server, thread = service.start(port=0)
+        assert len(delivered) == 2 and delivered[-1] != old
+        assert _private_wrapper_request(server, capability=old)[0] == 401
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 200
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+        store._conn.close()
+
+
+def test_actual_wrapper_injected_session_needs_delivery_after_each_start(tmp_path):
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "caller-owned.sqlite3"))
+    session = LocalClientSession()
+    delivered = []
+    session.rotate()
+    session.deliver(delivered.append)
+    service = TaskService(store=store, local_client_session=session)
+    server, thread = service.start(port=0)
+    try:
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 401
+        session.deliver(delivered.append)
+        assert _private_wrapper_request(server, capability=delivered[-1])[0] == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        store._conn.close()
+
+
+@pytest.mark.parametrize("failure", [RuntimeError, KeyboardInterrupt])
+def test_actual_wrapper_failed_delivery_closes_revokes_and_redacts(tmp_path, monkeypatch, failure):
+    import traceback
+    from reverse_agent.platform_v1 import task_service as module
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "failed-delivery.sqlite3"))
+    session = LocalClientSession()
+    delivered, servers, starts = [], [], []
+    original_server = module._ClientTaskServer
+
+    def capture_server(*args, **kwargs):
+        server = original_server(*args, **kwargs)
+        servers.append(server)
+        return server
+
+    def reject(value):
+        delivered.append(value)
+        raise failure(value)
+
+    monkeypatch.setattr(module, "_ClientTaskServer", capture_server)
+    monkeypatch.setattr(threading.Thread, "start", lambda thread: starts.append(thread))
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=reject)
+    try:
+        with pytest.raises(RuntimeError, match="^client_session_bootstrap_failed$") as error:
+            service.start(port=0)
+        assert delivered and not session.accepts(delivered[0])
+        assert len(servers) == 1 and servers[0].socket.fileno() == -1
+        assert not starts and service._server is None
+        assert delivered[0] not in "".join(traceback.format_exception(error.value))
+    finally:
+        store._conn.close()
+
+
+def test_actual_wrapper_thread_start_failure_closes_and_revokes(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import task_service as module
+    from reverse_agent.platform_v1.local_client_session import LocalClientSession
+    store = TaskStore(str(tmp_path / "failed-thread.sqlite3"))
+    session = LocalClientSession()
+    delivered, servers = [], []
+    original_server = module._ClientTaskServer
+
+    def capture_server(*args, **kwargs):
+        server = original_server(*args, **kwargs)
+        servers.append(server)
+        return server
+
+    def reject_start(thread):
+        raise RuntimeError("thread_start_failed")
+
+    monkeypatch.setattr(module, "_ClientTaskServer", capture_server)
+    monkeypatch.setattr(threading.Thread, "start", reject_start)
+    service = TaskService(store=store, local_client_session=session,
+                          trusted_client_receiver=delivered.append)
+    try:
+        with pytest.raises(RuntimeError, match="^thread_start_failed$"):
+            service.start(port=0)
+        assert delivered and not session.accepts(delivered[0])
+        assert servers[0].socket.fileno() == -1 and service._server is None
+    finally:
+        store._conn.close()
 
 
 def test_router_injection_http_execute(task_server) -> None:

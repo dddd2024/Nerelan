@@ -1318,7 +1318,11 @@ class _ClientTaskServer(ThreadingHTTPServer):
 
 
 class TaskService:
-    """Convenience wrapper that starts the trusted loopback Task API."""
+    """Task API with private delivery to an explicitly trusted in-process client.
+
+    An injected session remains caller-owned, but each start rotates it; that
+    caller must deliver it after start or supply ``trusted_client_receiver``.
+    """
 
     def __init__(
         self,
@@ -1330,7 +1334,12 @@ class TaskService:
         execution_authority_sha: str = "",
         planning_sha: str = "",
         local_client_session: Any | None = None,
+        trusted_client_receiver: Callable[[str], None] | None = None,
     ) -> None:
+        if trusted_client_receiver is not None and not callable(trusted_client_receiver):
+            raise TypeError("invalid_trusted_client_receiver")
+        if local_client_session is None and trusted_client_receiver is None:
+            raise ValueError("trusted_client_receiver_required")
         if store is not None:
             self.store = store
         else:
@@ -1342,7 +1351,10 @@ class TaskService:
         self.execution_authority_sha = execution_authority_sha
         self.planning_sha = planning_sha
         from .local_client_session import LocalClientSession
-        self._local_client_session = local_client_session or LocalClientSession()
+        self._local_client_session = (
+            local_client_session if local_client_session is not None else LocalClientSession()
+        )
+        self._trusted_client_receiver = trusted_client_receiver
         self._server: ThreadingHTTPServer | None = None
 
     def start(
@@ -1356,7 +1368,10 @@ class TaskService:
         bind_host = validate_bind_host(
             host or os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1")
         )
-        bind_port = port or int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766"))
+        bind_port = (
+            port if port is not None
+            else int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766"))
+        )
         server = _ClientTaskServer(
             (bind_host, bind_port),
             _handler_factory(
@@ -1371,14 +1386,24 @@ class TaskService:
         )
         try:
             self._local_client_session.rotate()
+            if self._trusted_client_receiver is not None:
+                # Do not propagate even a BaseException supplied by a receiver:
+                # its text/context could contain the private capability.
+                delivery_failed = False
+                try:
+                    self._local_client_session.deliver(self._trusted_client_receiver)
+                except BaseException:
+                    delivery_failed = True
+                if delivery_failed:
+                    raise RuntimeError("client_session_bootstrap_failed")
+            server.daemon_threads = True
+            thread = Thread(target=server.serve_forever, daemon=True)
+            thread.start()
         except BaseException:
             server.server_close()
             self._local_client_session.revoke()
             raise
-        server.daemon_threads = True
         self._server = server
-        thread = Thread(target=server.serve_forever, daemon=True)
-        thread.start()
         return server, thread
 
 
