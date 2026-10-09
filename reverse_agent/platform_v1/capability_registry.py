@@ -33,6 +33,11 @@ class Capability:
 
 BUILTIN_CAPABILITIES = (
     Capability(
+        "delegated-goal-admission", "Delegated Goal admission", "controller", "Nerelan", "1",
+        "Atomic admission of exact host-authorized Goal snapshots; no proposal self-approval.",
+        ("approve_goal",), "guarded",
+    ),
+    Capability(
         "spec-kit-planning", "Spec Kit planning", "planner", "GitHub Spec Kit", "compatible",
         "Persistent Goal to Specification, Plan and Tasks artifacts.", ("plan_goal",), "stable",
     ),

@@ -58,6 +58,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 # Test infrastructure: FakeExecutor
 # ---------------------------------------------------------------------------
 
+from _local_client_fixture import client_session, client_headers
+
 @pytest.fixture(autouse=True)
 def _setup_repo_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Automatically set up REVERSE_AGENT_REPO_DIR for tests that need it."""
@@ -949,6 +951,7 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls.store = store
     handler_cls.router = RR()
@@ -983,7 +986,7 @@ def test_normal_execute_uses_durable_path(tmp_path) -> None:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/tasks/{task.id}/execute",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1029,6 +1032,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
         store, RR(), allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls.store = store
     handler_cls.router = RR()
@@ -1047,7 +1051,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
     req = urllib.request.Request(
         f"http://127.0.0.1:{port}/api/tasks/{task.id}/execute",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1078,6 +1082,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
         store, RR2(), allowed_origin="http://localhost:4173",
         execution_authority_sha="test_authority_sha",
         planning_sha="test_planning_sha",
+        local_client_session=client_session(),
     )
     handler_cls2.store = store
     handler_cls2.router = RR2()
@@ -1094,7 +1099,7 @@ def test_resume_api_uses_same_run(tmp_path) -> None:
     req2 = urllib.request.Request(
         f"http://127.0.0.1:{port2}/api/tasks/{task.id}/resume",
         data=b"{}",
-        headers={"Content-Type": "application/json"},
+        headers=client_headers({"Content-Type": "application/json"}),
         method="POST",
     )
     try:
@@ -1139,6 +1144,7 @@ def test_binding_resolver_preserved(tmp_path) -> None:
         store, ExecutorRouter(),
         allowed_origin="http://localhost:4173",
         binding_resolver=fake_resolver,
+        local_client_session=client_session(),
     )
     handler_cls.binding_resolver = fake_resolver
 
@@ -4143,3 +4149,115 @@ def test_v4_ambiguous_external_op_zero_dispatch(tmp_path) -> None:
 
     final_task = store.get_task(task.id)
     assert final_task.status == "FAILED"
+
+
+@pytest.mark.parametrize("resume_from_pre_planner", [False, True])
+def test_fixture_single_running_event_precedes_real_call_and_terminal_recovery(tmp_path, resume_from_pre_planner):
+    from reverse_agent.platform_v1.task_runtime import DeterministicFixtureExecutor
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="persist real fixture activity", executor_kind="deterministic_fixture")
+    calls = []
+
+    class ObservedFixture:
+        def __init__(self, **kwargs):
+            self.inner = DeterministicFixtureExecutor(**kwargs)
+
+        def execute(self, task_id, facade, **kwargs):
+            started = [event for event in store.get_events(task_id) if event.type == "EXECUTOR_RUNNING"]
+            assert len(started) == 1
+            row = store._conn.execute(
+                "SELECT run_id,execution_id FROM durable_runs WHERE task_id=?", (task_id,),
+            ).fetchone()
+            assert started[0].metadata == {
+                "execution_id": row["execution_id"], "run_id": row["run_id"],
+                "executor_kind": "deterministic_fixture",
+            }
+            calls.append(task_id)
+            return self.inner.execute(task_id, facade, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self.inner, name)
+
+    router = ExecutorRouter()
+    router.replace("deterministic_fixture", ObservedFixture)
+    service = DurableExecutionService(store=store, router=router,
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    try:
+        if resume_from_pre_planner:
+            set_crash_after_checkpoint("PRE_PLANNER")
+            with pytest.raises(_CrashSimulated):
+                service.execute_durable_single(task.id, workspace_root=str(tmp_path / "workspace"), lease_owner="first")
+            reset_crash_seam()
+            assert not calls and not any(event.type == "EXECUTOR_RUNNING" for event in store.get_events(task.id))
+            _expire_and_reconcile(store, task.id)
+            outcome = service.resume_single(task_id=task.id, workspace_root=str(tmp_path / "workspace"), lease_owner="resumed")
+        else:
+            outcome = service.execute_durable_single(task.id, workspace_root=str(tmp_path / "workspace"), lease_owner="first")
+        assert outcome.success and calls == [task.id]
+        events = store.get_events(task.id)
+        started = [event for event in events if event.type == "EXECUTOR_RUNNING"]
+        finished = [event for event in events if event.type == "EXECUTOR_FINISHED"
+                    and event.metadata.get("execution_id") == task.execution_id]
+        assert len(started) == len(finished) == 1
+        assert events.index(started[0]) < events.index(finished[0])
+        interrupted = [event for event in events
+                       if event.metadata.get("recovery_classification") == "orphan_stale_lease"]
+        if resume_from_pre_planner:
+            assert len(interrupted) == 1 and events.index(interrupted[0]) < events.index(started[0])
+        else:
+            assert not interrupted
+        before = [event.id for event in store.get_events(task.id)]
+        recovered = service.resume_single(task_id=task.id, lease_owner="terminal-readback")
+        assert recovered.success and calls == [task.id]
+        assert [event.id for event in store.get_events(task.id)] == before
+    finally:
+        reset_crash_seam()
+        store._conn.close()
+
+
+def test_fixture_single_stale_epoch_before_call_emits_no_running_and_does_not_dispatch(tmp_path):
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="fenced before executor call", executor_kind="deterministic_fixture")
+    calls = []
+
+    class StaleRouter(ExecutorRouter):
+        def create_executor(self, *, executor_kind, **kwargs):
+            store._conn.execute("UPDATE durable_runs SET lease_epoch=lease_epoch+1 WHERE task_id=?", (task.id,))
+
+            class NeverExecuted:
+                def execute(self, *args, **kwargs):
+                    calls.append(True)
+                    raise AssertionError("stale executor must not be invoked")
+
+            return NeverExecuted()
+
+    service = DurableExecutionService(store=store, router=StaleRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    try:
+        with pytest.raises(TaskStoreError, match="lease_fenced"):
+            service.execute_durable_single(task.id, workspace_root=str(tmp_path / "workspace"), lease_owner="stale")
+        assert not calls
+        assert not any(event.type == "EXECUTOR_RUNNING" for event in store.get_events(task.id))
+    finally:
+        store._conn.close()
+
+
+def test_fixture_single_executor_creation_failure_does_not_claim_running(tmp_path):
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="cannot construct executor", executor_kind="deterministic_fixture")
+
+    class UnavailableRouter(ExecutorRouter):
+        def create_executor(self, **kwargs):
+            raise RuntimeError("fixture_executor_unavailable")
+
+    service = DurableExecutionService(store=store, router=UnavailableRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    try:
+        result = service.execute_durable_single(task.id, workspace_root=str(tmp_path / "workspace"))
+        assert not result.success and result.failure_classification == "blocked"
+        assert not any(event.type == "EXECUTOR_RUNNING" for event in store.get_events(task.id))
+    finally:
+        store._conn.close()

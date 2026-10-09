@@ -34,6 +34,8 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 # Virtual clock / synthetic credentials
 # ---------------------------------------------------------------------------
 
+from _local_client_fixture import client_session, client_headers
+
 _SYNTHETIC_SECRET = "synthetic-upstream-secret"
 
 
@@ -429,6 +431,7 @@ def test_actual_host_provider_binds_bounded_deadline_and_releases(clock):
         store=store,
         task_store=TaskStore(":memory:"),
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     host.relay_url = "http://127.0.0.1:1"
 
