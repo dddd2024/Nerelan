@@ -62,7 +62,7 @@ function NumberField({
       <span className="text-xs text-ra-text-tertiary">{label}</span>
       <input
         type="number"
-        min={1}
+        min={0}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className={cn(
