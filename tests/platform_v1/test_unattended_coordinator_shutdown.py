@@ -19,6 +19,26 @@ def _ready_fixture(store: TaskStore, task_id: str):
     return SimpleNamespace(success=True)
 
 
+def test_stopped_real_host_checker_coordinator_never_claims_or_spends_allowance(tmp_path, monkeypatch):
+    from test_unattended_coordinator import _real_checker_fixture
+    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(tmp_path, monkeypatch)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Stopped coordinator dispatched its checker")
+    monkeypatch.setattr(LocalValidationRunner, "run", forbidden)
+    try:
+        coordinator.stop()
+        assert coordinator.tick() == 0
+        assert store.get_task(task_id).status == "QUEUED"
+        budget = control.get_window(window.id)
+        assert (budget.tasks_started, budget.tasks_completed, budget.retries_used) == (0, 0, 0)
+        assert store.get_latest_durable_run_observation(task_id) is None
+        assert store._conn.execute("SELECT COUNT(*) FROM platform_coordinator_claims WHERE task_id=?",
+                                  (task_id,)).fetchone()[0] == 0
+    finally:
+        store._conn.close()
+
+
 def _runtime_with_one_task(tmp_path, *, task_executor=None):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)

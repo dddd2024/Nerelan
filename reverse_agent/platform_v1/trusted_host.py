@@ -45,6 +45,9 @@ from .opencode_executor import (
 from .run_store import TaskStore
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
+from .task_service import validate_bind_host
+from .task_service import _configured_autonomy
+from .task_service import _default_task_db_path, _ensure_db_path
 from .durable_execution import DurableExecutionService
 from .autonomy import AutonomyService
 from .capability_registry import CapabilityRegistry
@@ -52,6 +55,7 @@ from .control_store import PlatformControlStore
 from .goal_service import GoalService
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
+from .local_client_session import LocalClientSession
 
 
 class CombinedTrustedHost:
@@ -82,6 +86,7 @@ class CombinedTrustedHost:
         auth_refresh_clock: Callable[[], float] = time.monotonic,
         account_auth_server_factory: ServerFactory | None = None,
         vault: Any = _PLATFORM_VAULT,
+        local_client_session: LocalClientSession | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
@@ -123,9 +128,8 @@ class CombinedTrustedHost:
         self._capability_registry = CapabilityRegistry(
             pack_dir=os.environ.get("REVERSE_AGENT_CAPABILITY_PACK_DIR") or None
         )
-        self._autonomy_service = AutonomyService(
-            control_store=self._control_store,
-            capabilities=self._capability_registry,
+        self._autonomy_service = _configured_autonomy(
+            self._task_store, self._control_store, self._capability_registry
         )
         self._goal_service = GoalService(
             store=self._task_store,
@@ -134,9 +138,9 @@ class CombinedTrustedHost:
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
 
-        self._model_control_host = model_control_host
+        self._model_control_host = validate_bind_host(model_control_host)
         self._model_control_port = model_control_port
-        self._task_api_host = task_api_host
+        self._task_api_host = validate_bind_host(task_api_host)
         self._task_api_port = task_api_port
         self._allowed_origin = allowed_origin
 
@@ -146,6 +150,10 @@ class CombinedTrustedHost:
         self._relay_server_inner: ThreadingHTTPServer | None = None
         self._threads: list[threading.Thread] = []
         self._started_servers: list[ThreadingHTTPServer] = []
+        # Private lifecycle identity foundation. HTTP admission is unchanged
+        # until the separately governed guard and native bootstrap are wired.
+        self._local_client_session = local_client_session or LocalClientSession()
+        self._trusted_client = None
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -311,6 +319,8 @@ class CombinedTrustedHost:
         model_control_port: int | None = None,
         task_api_port: int | None = None,
     ) -> None:
+        if self._started_servers:
+            raise RuntimeError("trusted_host_already_started")
         self._refresh_external_session_auth(True)
 
         # Startup reconciliation: find expired durable runs, mark stale
@@ -395,12 +405,16 @@ class CombinedTrustedHost:
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,
                 coordinator=self._coordinator,
+                local_client_session=self._local_client_session,
             )
             self._task_server = ThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
             )
+            self._task_server.daemon_threads = True
             actual_task_port = self._task_server.server_address[1]
             self.task_api_url = f"http://{self._task_api_host}:{actual_task_port}"
+
+            self._local_client_session.rotate()
 
             for server in (self._model_server, self._task_server, relay_srv):
                 t = threading.Thread(target=server.serve_forever, daemon=True)
@@ -414,6 +428,14 @@ class CombinedTrustedHost:
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        self._local_client_session.revoke()
+        if self._trusted_client is not None:
+            try:
+                self._trusted_client.stop()
+            except Exception:
+                pass
+            finally:
+                self._trusted_client = None
         if close_account_auth:
             try:
                 self._account_auth.close()
@@ -465,16 +487,7 @@ class CombinedTrustedHost:
 
 
 def _make_task_store(db_path: str | None) -> TaskStore:
-    if db_path:
-        return TaskStore(db_path=db_path)
-    runtime_dir = os.environ.get(
-        "REVERSE_AGENT_TASK_DB_DIR",
-        os.path.join(os.getcwd(), ".platform_v1_runtime"),
-    )
-    os.makedirs(runtime_dir, exist_ok=True)
-    return TaskStore(
-        db_path=os.path.join(runtime_dir, "tasks.sqlite3")
-    )
+    return TaskStore(db_path=_ensure_db_path(db_path or _default_task_db_path()))
 
 
 def _resolve_store_state_path(task_store: TaskStore) -> str:
@@ -573,17 +586,35 @@ def run_combined_trusted_host() -> None:
     host = CombinedTrustedHost(
         execution_authority_sha=auth_sha,
         planning_sha=planning_sha,
+        model_control_host=os.environ.get("REVERSE_AGENT_MODEL_CONTROL_HOST", "127.0.0.1"),
+        model_control_port=int(os.environ.get("REVERSE_AGENT_MODEL_CONTROL_PORT", "8765")),
+        task_api_host=os.environ.get("REVERSE_AGENT_TASK_SERVICE_HOST", "127.0.0.1"),
+        task_api_port=int(os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766")),
+        allowed_origin=os.environ.get("REVERSE_AGENT_TASK_SERVICE_ORIGIN", "http://127.0.0.1:4173"),
         auth_list_probe=execute_opencode_auth_list_probe,
         account_auth_server_factory=start_opencode_account_auth_server,
     )
     try:
         host.start()
+        if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
+            from .trusted_client import TrustedClient
+            host._trusted_client = TrustedClient(
+                node_executable=os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_NODE", ""),
+                frontend_url=os.environ.get("REVERSE_AGENT_TASK_SERVICE_ORIGIN", "http://127.0.0.1:4173"),
+                task_api_url=host.task_api_url,
+            )
+            host._local_client_session.deliver(host._trusted_client.start)
         metadata = {
             "model_control_url": host.model_control_url,
             "task_api_url": host.task_api_url,
             "relay_url": host.relay_url,
             "execution_authority_sha": auth_sha,
             "planning_sha": planning_sha,
+            "client_ui_enabled": os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1",
+            "client_process_pid": host._trusted_client.pid if getattr(host, "_trusted_client", None) else None,
+            "client_ui_ready": False,
+            "client_process_start_filetime": None,
+            "client_process_executable": None,
         }
         runtime_dir = os.environ.get(
             "REVERSE_AGENT_TASK_DB_DIR",
@@ -593,6 +624,23 @@ def run_combined_trusted_host() -> None:
         meta_path = os.path.join(runtime_dir, "trusted_host_meta.json")
         with open(meta_path, "w", encoding="utf-8") as fh:
             json.dump(metadata, fh, indent=2)
+        client = getattr(host, "_trusted_client", None)
+        if client is not None:
+            metadata_lock = threading.Lock()
+            def publish_client_status() -> None:
+                with metadata_lock:
+                    metadata["client_ui_ready"] = client.ready
+                    metadata["client_process_pid"] = client.pid
+                    metadata["client_process_start_filetime"] = client.start_filetime
+                    metadata["client_process_executable"] = client.executable
+                    try:
+                        temporary = meta_path + ".client-status.tmp"
+                        with open(temporary, "w", encoding="utf-8") as fh:
+                            json.dump(metadata, fh, indent=2)
+                        os.replace(temporary, meta_path)
+                    except OSError:
+                        pass
+            client.observe_status(publish_client_status)
 
         print("Combined Trusted Host started")
         print(f"  Model Control: {host.model_control_url}")
