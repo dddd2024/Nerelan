@@ -1,10 +1,10 @@
-# Delegated controller current-main recovery
+# Bounded functional Source consolidation
 
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20261008_issue118_controller_mainline_recovery_r2_v1",
-  "round_id": "round_20261008_issue118_controller_mainline_recovery_r2_v1",
+  "decision_id": "decision_20261010_issue118_functional_consolidation_r3_v1",
+  "round_id": "round_20261010_issue118_functional_consolidation_r3_v1",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": [
@@ -16,20 +16,20 @@
 ```json decision_contract
 {
   "transition_kernel_required": true,
-  "decision_scope": "ISSUE118_DELEGATED_CONTROLLER_CURRENT_MAINLINE_RECOVERY",
+  "decision_scope": "ISSUE118_BOUNDED_FUNCTIONAL_CONSOLIDATION",
   "source_issue": 118,
   "parent_issue": 90,
   "repository": "dddd2024/Nerelan",
   "approved_by": "Codex/root acting under explicit dddd2024 Owner delegation",
-  "approval_basis": "\u8fd9\u4e9b\u6388\u6743\u4e5f\u662f\u4f60\u6765\u505a\uff0c\u73b0\u5728\u76ee\u6807\u662f\u957f\u671f\u65e0\u4eba\u5e72\u9884\u7684\u5e73\u53f0\uff0c\u8fd9\u6837\u4e00\u76f4\u505c\u4e5f\u662f\u95ee\u9898\u9700\u8981\u4fee\u6b63; Distinct current-main recovery of independently accepted delegated-controller docs1094 after actual corrective landing1100 changed main to32ac. Preserve all original source/landing failures, budgets and expired deadlines, no history rewrite or old1094/1099 writes. Controller approver under standing explicit Owner delegation, personally_human=false.",
-  "risk_tier": "R2",
-  "authorized_risk_tier": "R2",
-  "governance_artifact_risk_tier": "R2",
+  "approval_basis": "Root explicitly authorized preparing independent bounded functional consolidation; activation requires Root reviewed --root-approved invocation; fixed 05:26--06:56 UTC independent Source phase;16 finalized Source raw ledgers preserved; manifestSHA256=f40fdbedced056c487c7f890635c46c03c3c4b830eb31d73134f529cf8b9b442; no Native renewal, failure relabel or publication.",
+  "risk_tier": "R3",
+  "authorized_risk_tier": "R3",
+  "governance_artifact_risk_tier": "R3",
   "integration_base_ref": "main",
-  "base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "activation_base_sha": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "starting_head": "32ac46ee788aca07f68bffd568c8664b4b074b1c",
-  "required_branch": "codex/issue118-controller-mainline-recovery-r2-20261008",
+  "base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "activation_base_sha": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "starting_head": "dec321721ab9c33a0107a0b2283839654d569a88",
+  "required_branch": "codex/issue118-functional-consolidation-r3-20261010",
   "fresh_worktree_creation_required": true,
   "history_reuse_allowed": false,
   "decision_commit_must_precede_implementation": true,
@@ -42,10 +42,10 @@
     "worktree_publication_readiness"
   ],
   "decision_activation_commit_limit": 1,
-  "product_change_commit_limit": 2,
+  "product_change_commit_limit": 1,
   "generated_governance_commit_limit": 0,
-  "normal_push_attempt_limit": 2,
-  "draft_pr_creation_limit": 1,
+  "normal_push_attempt_limit": 0,
+  "draft_pr_creation_limit": 0,
   "mark_ready_attempt_limit": 0,
   "merge_attempt_limit": 0,
   "workflow_rerun_limit": 0,
@@ -54,7 +54,7 @@
   "live_model_call_limit": 0,
   "provider_network_call_limit": 0,
   "credential_access_limit": 0,
-  "pr_creation_allowed": true,
+  "pr_creation_allowed": false,
   "issue_comment_allowed": false,
   "pull_request_comment_allowed": false,
   "merge_allowed": false,
@@ -78,10 +78,10 @@
   "mainline_merge_intent_required": false,
   "active_pr_binding_mode": "none",
   "semantic_implementation_contract": {
-    "specification": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
-    "reuse": "Existing AGENTS entry, conditional governance reference, transition parser/compiler/preflight and exact-head CI. No new Gate or authority schema.",
-    "execution_surface_note": "Fresh exact-base worktree from main32ac, Decision-only activation and canonical preflight before two documentation edits. Actual system fixedchecker runtime lacks governance-document coding executor; existing independently accepted real-host capability evidence supports supervised Codex alternate.",
-    "completion_boundary": "Documentation source/local/original natural exact-head CI and independent acceptance, Draft only. Real platform authority compiler/scheduler/GitHub operation executor and full unattended backlog remain incomplete; no Ready/merge under this source allocation."
+    "specification": "Integrate exactly 71 existing product paths onto freshly observed main Dec321: 69 complete frozen Git blobs from e77 stable TaskStore source, authority_adapter full a11 source and e77 test_trusted_host plus only the existing a11 111-line/19-case append. Only authority_adapter.py and test_trusted_host.py may receive bounded follow-up correction; every other imported product byte remains e77-exact. Preserve all five main authority/workflow paths and fresh immutable Decision. Reuse mature adapter/cache classifier/TaskStore and existing gates/ledger; no new runtime, Gate, store, authority schema, bytecode deserialization, assertion weakening or GitHub replica. One fixed new owned frontend/node_modules Junction to existing donor is allowed only after resolved containment/target/nonexistence verification; no donor modification, install, other reparse or cleanup. Static frontend adapter is the frozen external issue118-runtime-cache-consistency-20261009/frontend_owned_checks_UNEXECUTED_v2.mjs SHA256 4da039e754b357b2ee56e374f4df0c975071fd7150754d12e3143c9b24d37644; it is not authority and cannot run before independent activation acceptance and the existing phase guard/finite charged check. Models/providers/credentials/native/production hosts/new tasks/publication/GitHub writes/main push/merge remain zero.",
+    "reuse": "Existing e77/a11 product blobs and mature platform adapter, TaskStore, tests, authority compiler/gates and ledger only.",
+    "execution_surface_note": "M1 existing five canonical checks on Decision-only activation; independent exact activation acceptance before Corr1 product import. Dev1 four concretely selected cache cases with -vv --tb=long --showlocals -rA and closed XML; Root fixes selector before invocation, no filtering of mandatory suite. Dev2 at most one provider-free corrected cache regression batch. Both use -p no:cacheprovider and unique external basetemp/XML/logs; fixture Git/SQLite/owned loopback only. One product commit after independent exact precommit audit, then M2 entire test_trusted_host.py, test_task_service.py, test_contracts.py and tests/test_mainline_landing.py with no test filtering, closed per-module zero-FAIL/ERROR XML, all 19 imported cache cases and stable persistence cases PASS or truthful existing platform skip. M2 also complete frontend Vitest (minWorkers=1/maxWorkers=1; no e2e), full original project/reference strict TS typecheck plus Vite build (compiler-API noEmit diagnostics, not original npm/tsc-b build), existing trusted-client node-test, scoped committed git diff --check and final existing five canonical checks under the same charged finite batch. Use pinned absolute Node and existing package bin JS, no npm PATH/install. Original TS configs/references are parsed with the existing compiler API; all original include/fileNames/references/strict/module/baseUrl/paths/types semantics are retained without emitting source or donor buildInfo/declarations; external Vite/Vitest configuration imports actual newWT original configuration, preserves the complete suite/plugins/setup/excludes/oracle and changes only root/cache/output confinement, with optimizer web/ssr disabled to prevent donor cache writes. Existing esbuild bundles the real source configuration in memory and writes only owned Out original-config.mjs; Vite/Vitest receive it through supported APIs with configFile false, avoiding source/donor config bundle temp. All optimizer/result caches, TS build info, declarations, TEMP/TMP and wrapper/config bundle files must stay owned Out/newFrontend build output, never donor node_modules/.tmp/.vite/.vite-temp. No lowering strict/type checks, assertion/marker changes or partial-suite acceptance. Pytest timeout1200, existing gates240, all blocking waits clipped to fixed expiry; preserve initial raw checks before final regeneration. Any mandatory failure stops publication, which is separately forbidden here. Prior actual failures/spending remain unchanged; local Source acceptance is not CI/landing/native/full goal acceptance.",
+    "completion_boundary": "Independent exact local functional Source acceptance only; original exact-head CI/publication/landing/native/whole Goal remain unaccepted here."
   },
   "bootstrap_exception_files": [
     "project_state/decision_packet.md"
@@ -89,23 +89,161 @@
   "bootstrap_exception_commands": [],
   "allowed_mutated_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    ".github/workflows/state-gate.yml",
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/project_gate.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "authorized_risk_paths": [
     "project_state/decision_packet.md",
+    "project_state/gates/bootstrap_state.json",
     "project_state/gates/command_plan.json",
     "project_state/gates/startup_snapshot.json",
-    "project_state/gates/bootstrap_state.json",
     "project_state/gates/transition_command_plan_preview.json",
     "project_state/gates/transition_preflight_result.json",
-    "AGENTS.md",
-    "docs/agents/governance-reference.md"
+    ".github/workflows/state-gate.yml",
+    "dev-up.ps1",
+    "docs/local-client-session.md",
+    "docs/unattended-window-lifecycle.md",
+    "frontend/package-lock.json",
+    "frontend/package.json",
+    "frontend/src/components/autonomous-window-editor.tsx",
+    "frontend/src/components/goal-composer.tsx",
+    "frontend/src/components/sidebar.tsx",
+    "frontend/src/hooks/use-platform.ts",
+    "frontend/src/lib/goal-continuation-operation.ts",
+    "frontend/src/lib/goal-start-operation.ts",
+    "frontend/src/lib/platform-client.ts",
+    "frontend/src/lib/policy-serializer.ts",
+    "frontend/src/schemas/policy.ts",
+    "frontend/tests/approvals.test.tsx",
+    "frontend/tests/compact-goal-composer.test.tsx",
+    "frontend/tests/goal-continuation-activation-errors.test.ts",
+    "frontend/tests/goal-start-recovery.test.ts",
+    "frontend/tests/policy-serialization.test.ts",
+    "frontend/tests/policy-validation.test.ts",
+    "frontend/tests/task-first-sidebar.test.tsx",
+    "frontend/trusted-client.mjs",
+    "frontend/trusted-client.node-test.mjs",
+    "reverse_agent/github_remote_verifier.py",
+    "reverse_agent/platform_v1/authority_adapter.py",
+    "reverse_agent/platform_v1/autonomy.py",
+    "reverse_agent/platform_v1/capability_registry.py",
+    "reverse_agent/platform_v1/control_store.py",
+    "reverse_agent/platform_v1/durable_execution.py",
+    "reverse_agent/platform_v1/goal_service.py",
+    "reverse_agent/platform_v1/local_client_session.py",
+    "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+    "reverse_agent/platform_v1/publication_controller.py",
+    "reverse_agent/platform_v1/task_execution.py",
+    "reverse_agent/platform_v1/task_runtime.py",
+    "reverse_agent/platform_v1/task_service.py",
+    "reverse_agent/platform_v1/trusted_client.py",
+    "reverse_agent/platform_v1/trusted_host.py",
+    "reverse_agent/platform_v1/unattended_coordinator.py",
+    "reverse_agent/project_gate.py",
+    "tests/platform_v1/_local_client_fixture.py",
+    "tests/platform_v1/test_artifact_handoff_http.py",
+    "tests/platform_v1/test_autonomy.py",
+    "tests/platform_v1/test_autonomy_window_lifecycle.py",
+    "tests/platform_v1/test_delegated_goal_admission.py",
+    "tests/platform_v1/test_dev_up_contract.py",
+    "tests/platform_v1/test_durable_execution.py",
+    "tests/platform_v1/test_durable_execution_v5.py",
+    "tests/platform_v1/test_execution_runtime_budget.py",
+    "tests/platform_v1/test_goal_completion_evidence.py",
+    "tests/platform_v1/test_goal_functional_checks.py",
+    "tests/platform_v1/test_goal_plan_revision.py",
+    "tests/platform_v1/test_goal_service.py",
+    "tests/platform_v1/test_local_client_session.py",
+    "tests/platform_v1/test_provider_free_task_plane.py",
+    "tests/platform_v1/test_system_doctor.py",
+    "tests/platform_v1/test_task3c_v4_repairs.py",
+    "tests/platform_v1/test_task3c_v6_production_relay.py",
+    "tests/platform_v1/test_task_client_auth.py",
+    "tests/platform_v1/test_task_runtime.py",
+    "tests/platform_v1/test_task_service.py",
+    "tests/platform_v1/test_trusted_client_bootstrap.py",
+    "tests/platform_v1/test_trusted_host.py",
+    "tests/platform_v1/test_trusted_host_lifecycle.py",
+    "tests/platform_v1/test_unattended_coordinator.py",
+    "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+    "tests/test_mainline_landing.py",
+    "tests/test_project_gate.py",
+    "tests/test_trust_authorization_adapter.py"
   ],
   "generated_artifact_paths": [
     "project_state/gates/command_plan.json",
@@ -115,27 +253,28 @@
     "project_state/gates/transition_preflight_result.json"
   ],
   "reference_paths": [
-    ".codex-skills/reverse-agent-iteration/SKILL.md",
-    "tests/test_decision_preflight.py",
-    "tests/test_control_plane_transition.py",
-    "tests/test_codex_skills.py",
+    "AGENTS.md",
+    "docs/agents/governance-reference.md",
+    "reverse_agent/mainline_landing.py",
     ".github/workflows/ci.yml",
-    "tests/test_agent_instruction_context.py"
+    ".github/workflows/decision-preflight.yml"
   ],
   "forbidden_mutated_paths": [
-    ".github/**",
     ".codex-skills/**",
-    "reverse_agent/**",
-    "tests/**",
-    "frontend/**",
+    "AGENTS.md",
+    "docs/agents/**",
+    "reverse_agent/control_plane/**",
+    "reverse_agent/model_access/**",
+    "reverse_agent/mainline_landing.py",
     "project_state/rounds/**",
     "project_state/mainline_merge_intents/**",
     "pyproject.toml",
     "requirements*.txt",
     "**/secrets/**",
     "**/.env",
-    "dev-up.ps1",
-    "dev-down.ps1"
+    "dev-down.ps1",
+    ".github/workflows/ci.yml",
+    ".github/workflows/decision-preflight.yml"
   ],
   "forbidden_operations": [
     "direct_push_main",
@@ -161,24 +300,102 @@
     "generated_governance_commit"
   ],
   "capability_policy": {
-    "github_control_plane_network_exceptions": [
-      "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider."
-    ]
+    "github_control_plane_network_exceptions": []
   },
   "path_risk_floor": [
     {
-      "pattern": "AGENTS.md",
+      "pattern": "dev-up.ps1",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/trusted-client.mjs",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/authority_adapter.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/autonomy.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/capability_registry.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/control_store.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/goal_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/local_client_session.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/publication_controller.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_execution.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_runtime.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/task_service.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_client.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/trusted_host.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "reverse_agent/platform_v1/unattended_coordinator.py",
+      "minimum_risk": "R3"
+    },
+    {
+      "pattern": "frontend/package.json",
       "minimum_risk": "R2"
     },
     {
-      "pattern": "docs/agents/governance-reference.md",
+      "pattern": "frontend/package-lock.json",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/project_gate.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_project_gate.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": ".github/workflows/state-gate.yml",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "reverse_agent/github_remote_verifier.py",
+      "minimum_risk": "R2"
+    },
+    {
+      "pattern": "tests/test_mainline_landing.py",
       "minimum_risk": "R2"
     }
   ],
   "allowed_commands": [
     {
       "command_id": "delegation.implementation",
-      "command": "Recover exact accepted AGENTS.md blob95c6e9f and only its delegated-controller reference section onto fresh main32ac. Preserve the new actual Ready-run/mainline verifier documentation and all other current-main content. Bind Owner delegation as upstream source for fresh bounded Decisions, original expiry/aggregate spending/no repeat confirmation, preflight, real-system-first/Codex capability fallback and independent exact-head acceptance; no runtime/compiler/gate/schema changes.",
+      "command": "Integrate exactly 71 existing product paths onto freshly observed main Dec321: 69 complete frozen Git blobs from e77 stable TaskStore source, authority_adapter full a11 source and e77 test_trusted_host plus only the existing a11 111-line/19-case append. Only authority_adapter.py and test_trusted_host.py may receive bounded follow-up correction; every other imported product byte remains e77-exact. Preserve all five main authority/workflow paths and fresh immutable Decision. Reuse mature adapter/cache classifier/TaskStore and existing gates/ledger; no new runtime, Gate, store, authority schema, bytecode deserialization, assertion weakening or GitHub replica. One fixed new owned frontend/node_modules Junction to existing donor is allowed only after resolved containment/target/nonexistence verification; no donor modification, install, other reparse or cleanup. Static frontend adapter is the frozen external issue118-runtime-cache-consistency-20261009/frontend_owned_checks_UNEXECUTED_v2.mjs SHA256 4da039e754b357b2ee56e374f4df0c975071fd7150754d12e3143c9b24d37644; it is not authority and cannot run before independent activation acceptance and the existing phase guard/finite charged check. Models/providers/credentials/native/production hosts/new tasks/publication/GitHub writes/main push/merge remain zero.",
       "phase": "implementation",
       "required": true,
       "expected_exit_codes": [
@@ -192,14 +409,83 @@
       "network_access": false,
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [
-        "AGENTS.md",
-        "docs/agents/governance-reference.md"
+        ".github/workflows/state-gate.yml",
+        "dev-up.ps1",
+        "docs/local-client-session.md",
+        "docs/unattended-window-lifecycle.md",
+        "frontend/package-lock.json",
+        "frontend/package.json",
+        "frontend/src/components/autonomous-window-editor.tsx",
+        "frontend/src/components/goal-composer.tsx",
+        "frontend/src/components/sidebar.tsx",
+        "frontend/src/hooks/use-platform.ts",
+        "frontend/src/lib/goal-continuation-operation.ts",
+        "frontend/src/lib/goal-start-operation.ts",
+        "frontend/src/lib/platform-client.ts",
+        "frontend/src/lib/policy-serializer.ts",
+        "frontend/src/schemas/policy.ts",
+        "frontend/tests/approvals.test.tsx",
+        "frontend/tests/compact-goal-composer.test.tsx",
+        "frontend/tests/goal-continuation-activation-errors.test.ts",
+        "frontend/tests/goal-start-recovery.test.ts",
+        "frontend/tests/policy-serialization.test.ts",
+        "frontend/tests/policy-validation.test.ts",
+        "frontend/tests/task-first-sidebar.test.tsx",
+        "frontend/trusted-client.mjs",
+        "frontend/trusted-client.node-test.mjs",
+        "reverse_agent/github_remote_verifier.py",
+        "reverse_agent/platform_v1/authority_adapter.py",
+        "reverse_agent/platform_v1/autonomy.py",
+        "reverse_agent/platform_v1/capability_registry.py",
+        "reverse_agent/platform_v1/control_store.py",
+        "reverse_agent/platform_v1/durable_execution.py",
+        "reverse_agent/platform_v1/goal_service.py",
+        "reverse_agent/platform_v1/local_client_session.py",
+        "reverse_agent/platform_v1/opencode_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/provider_free_task_plane_acceptance.py",
+        "reverse_agent/platform_v1/publication_controller.py",
+        "reverse_agent/platform_v1/task_execution.py",
+        "reverse_agent/platform_v1/task_runtime.py",
+        "reverse_agent/platform_v1/task_service.py",
+        "reverse_agent/platform_v1/trusted_client.py",
+        "reverse_agent/platform_v1/trusted_host.py",
+        "reverse_agent/platform_v1/unattended_coordinator.py",
+        "reverse_agent/project_gate.py",
+        "tests/platform_v1/_local_client_fixture.py",
+        "tests/platform_v1/test_artifact_handoff_http.py",
+        "tests/platform_v1/test_autonomy.py",
+        "tests/platform_v1/test_autonomy_window_lifecycle.py",
+        "tests/platform_v1/test_delegated_goal_admission.py",
+        "tests/platform_v1/test_dev_up_contract.py",
+        "tests/platform_v1/test_durable_execution.py",
+        "tests/platform_v1/test_durable_execution_v5.py",
+        "tests/platform_v1/test_execution_runtime_budget.py",
+        "tests/platform_v1/test_goal_completion_evidence.py",
+        "tests/platform_v1/test_goal_functional_checks.py",
+        "tests/platform_v1/test_goal_plan_revision.py",
+        "tests/platform_v1/test_goal_service.py",
+        "tests/platform_v1/test_local_client_session.py",
+        "tests/platform_v1/test_provider_free_task_plane.py",
+        "tests/platform_v1/test_system_doctor.py",
+        "tests/platform_v1/test_task3c_v4_repairs.py",
+        "tests/platform_v1/test_task3c_v6_production_relay.py",
+        "tests/platform_v1/test_task_client_auth.py",
+        "tests/platform_v1/test_task_runtime.py",
+        "tests/platform_v1/test_task_service.py",
+        "tests/platform_v1/test_trusted_client_bootstrap.py",
+        "tests/platform_v1/test_trusted_host.py",
+        "tests/platform_v1/test_trusted_host_lifecycle.py",
+        "tests/platform_v1/test_unattended_coordinator.py",
+        "tests/platform_v1/test_unattended_coordinator_shutdown.py",
+        "tests/test_mainline_landing.py",
+        "tests/test_project_gate.py",
+        "tests/test_trust_authorization_adapter.py"
       ],
       "produced_artifacts": []
     },
     {
       "command_id": "delegation.validation",
-      "command": "python -m pytest tests/test_agent_instruction_context.py tests/test_decision_preflight.py tests/test_control_plane_transition.py tests/test_codex_skills.py -q -p no:cacheprovider",
+      "command": "M1 existing five canonical checks on Decision-only activation; independent exact activation acceptance before Corr1 product import. Dev1 four concretely selected cache cases with -vv --tb=long --showlocals -rA and closed XML; Root fixes selector before invocation, no filtering of mandatory suite. Dev2 at most one provider-free corrected cache regression batch. Both use -p no:cacheprovider and unique external basetemp/XML/logs; fixture Git/SQLite/owned loopback only. One product commit after independent exact precommit audit, then M2 entire test_trusted_host.py, test_task_service.py, test_contracts.py and tests/test_mainline_landing.py with no test filtering, closed per-module zero-FAIL/ERROR XML, all 19 imported cache cases and stable persistence cases PASS or truthful existing platform skip. M2 also complete frontend Vitest (minWorkers=1/maxWorkers=1; no e2e), full original project/reference strict TS typecheck plus Vite build (compiler-API noEmit diagnostics, not original npm/tsc-b build), existing trusted-client node-test, scoped committed git diff --check and final existing five canonical checks under the same charged finite batch. Use pinned absolute Node and existing package bin JS, no npm PATH/install. Original TS configs/references are parsed with the existing compiler API; all original include/fileNames/references/strict/module/baseUrl/paths/types semantics are retained without emitting source or donor buildInfo/declarations; external Vite/Vitest configuration imports actual newWT original configuration, preserves the complete suite/plugins/setup/excludes/oracle and changes only root/cache/output confinement, with optimizer web/ssr disabled to prevent donor cache writes. Existing esbuild bundles the real source configuration in memory and writes only owned Out original-config.mjs; Vite/Vitest receive it through supported APIs with configFile false, avoiding source/donor config bundle temp. All optimizer/result caches, TS build info, declarations, TEMP/TMP and wrapper/config bundle files must stay owned Out/newFrontend build output, never donor node_modules/.tmp/.vite/.vite-temp. No lowering strict/type checks, assertion/marker changes or partial-suite acceptance. Pytest timeout1200, existing gates240, all blocking waits clipped to fixed expiry; preserve initial raw checks before final regeneration. Any mandatory failure stops publication, which is separately forbidden here. Prior actual failures/spending remain unchanged; local Source acceptance is not CI/landing/native/full goal acceptance.",
       "phase": "validation",
       "required": true,
       "expected_exit_codes": [
@@ -215,35 +501,16 @@
       "required_evidence_source": "repository_state_attestation",
       "allowed_mutated_paths": [],
       "produced_artifacts": []
-    },
-    {
-      "command_id": "delegation.publication",
-      "command": "Publish only exact codex/issue118-controller-mainline-recovery-r2-20261008 and one Draft against main after PUBLICATION_READY; update its bounded body only. No old source/authority writes or main/Ready/merge/rerun/model/provider.",
-      "phase": "publication",
-      "required": false,
-      "expected_exit_codes": [
-        0
-      ],
-      "execution_surface": "github_control_plane",
-      "operations": [
-        "push",
-        "draft_pr",
-        "network_access"
-      ],
-      "network_access": true,
-      "required_evidence_source": "repository_state_attestation",
-      "allowed_mutated_paths": [],
-      "produced_artifacts": []
     }
   ],
   "issue_completion_close_allowed": [],
-  "approval_event_or_time": "2026-10-08T10:14:45.972872+00:00",
-  "owner_delegation_sha256": "73658b07d420847e5e06ff31b0cfb4c0c2d07c504b288d7d2a9e858a38ed27a8",
+  "approval_event_or_time": "2026-10-10T05:26:00+00:00",
+  "owner_delegation_sha256": "e9b00f3514ccc1a86e529259e1f45333b00083cbb80db8f24fb6d3cb294da373",
   "confirmation_mode": "DELEGATED_CONTROLLER",
   "personally_human": false,
-  "development_check_run_limit": 1,
+  "development_check_run_limit": 2,
   "development_correction_round_limit": 2,
-  "mandatory_check_run_limit": 4,
-  "execution_expires_at": "2026-10-08T11:44:45.972872+00:00"
+  "mandatory_check_run_limit": 2,
+  "execution_expires_at": "2026-10-10T06:56:00+00:00"
 }
 ```
