@@ -49,6 +49,392 @@ from reverse_agent.model_access.os_vault import (
 )
 
 
+from _local_client_fixture import client_session, client_headers
+
+
+@pytest.fixture(autouse=True)
+def _isolated_default_task_store_home(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "user-data"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "user-data"))
+
+
+def test_stable_task_store_constructor_path_directory_and_memory_precedence(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.trusted_host import _make_task_store
+    explicit = tmp_path / "explicit" / "tasks.sqlite3"
+    env_path = tmp_path / "environment" / "tasks.sqlite3"
+    env_dir = tmp_path / "directory"
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_PATH", str(env_path))
+    monkeypatch.setenv("REVERSE_AGENT_TASK_DB_DIR", str(env_dir))
+    first = _make_task_store(str(explicit))
+    memory = _make_task_store(":memory:")
+    try:
+        assert first.db_path == str(explicit)
+        assert memory.db_path == ":memory:"
+        task = memory.create_task(title="memory only", executor_kind="deterministic_fixture")
+        assert memory.get_task(task.id).title == "memory only"
+        assert not env_path.exists() and not env_dir.exists()
+    finally:
+        first._conn.close()
+        memory._conn.close()
+    selected = _make_task_store(None)
+    try:
+        assert selected.db_path == str(env_path)
+        assert not env_dir.exists()
+    finally:
+        selected._conn.close()
+    monkeypatch.delenv("REVERSE_AGENT_TASK_DB_PATH")
+    directory = _make_task_store(None)
+    try:
+        assert directory.db_path == str(env_dir / "tasks.sqlite3")
+    finally:
+        directory._conn.close()
+
+
+def test_stable_task_store_default_is_same_across_worktrees_and_does_not_adopt_old_database(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.trusted_host import _make_task_store
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    for key in ("REVERSE_AGENT_TASK_DB_PATH", "REVERSE_AGENT_TASK_DB_DIR"):
+        monkeypatch.delenv(key, raising=False)
+    a, b = tmp_path / "checkout-a", tmp_path / "checkout-b"
+    a.mkdir(); b.mkdir()
+    legacy = a / ".platform_v1_runtime" / "tasks.sqlite3"
+    legacy.parent.mkdir()
+    legacy.write_bytes(b"old database must not be adopted or modified")
+    monkeypatch.chdir(a)
+    first = _make_task_store(None)
+    path = first.db_path
+    task = first.create_task(title="history across checkout", executor_kind="deterministic_fixture")
+    goal = PlatformControlStore(first).create_goal(title="history goal", objective="persist", repository="owner/repo",
+                                                  idempotency_key="stable-default-goal")
+    first._conn.close()
+    monkeypatch.chdir(b)
+    reopened = _make_task_store(None)
+    try:
+        assert reopened.db_path == path
+        assert reopened.get_task(task.id).title == "history across checkout"
+        assert PlatformControlStore(reopened).get_goal(goal.id).idempotency_key == "stable-default-goal"
+        assert legacy.read_bytes() == b"old database must not be adopted or modified"
+        assert not (b / ".platform_v1_runtime").exists()
+    finally:
+        reopened._conn.close()
+
+
+@pytest.mark.parametrize("relative,ignored", [
+    ("unknown.py", False), ("nested/unknown.py", False),
+    ("literal space.py", False), ("unicode-文件.py", False),
+    ("ignored-source.py", True),
+    pytest.param("literal\nnewline.py", False, marks=pytest.mark.skipif(os.name == "nt", reason="Windows forbids newline filenames")),
+])
+def test_policy_loader_rejects_real_untracked_workspace_source(tmp_path, monkeypatch, relative, ignored):
+    """Real immutable Decision, canonical Gate and Git fixture, not live authority."""
+    import importlib.util
+    from reverse_agent.platform_v1 import authority_adapter
+    fixture_file = Path(__file__).parents[1] / "test_trust_authorization_adapter.py"
+    spec = importlib.util.spec_from_file_location("policy_git_fixture", fixture_file)
+    fixture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixture)
+    original = authority_adapter.load_policy_authority
+    calls = []
+    def observe_then_inject(**kwargs):
+        accepted = original(**kwargs)
+        calls.append(accepted)
+        workspace = Path(kwargs["pins"]["workspace_path"])
+        if ignored:
+            (workspace / ".git" / "info" / "exclude").write_text(relative + "\n", encoding="utf-8")
+        path = workspace / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"untracked source\n")
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            original(**kwargs)
+        assert path.read_bytes() == b"untracked source\n"
+        return accepted
+    monkeypatch.setattr(authority_adapter, "load_policy_authority", observe_then_inject)
+    fixture.test_policy_loader_accepts_real_immutable_git_decision_and_canonical_preflight(tmp_path)
+    assert len(calls) == 1
+
+def _exercise_runtime_cache_policy(tmp_path, monkeypatch, observation):
+    """Reuse a real Git/immutable Decision/Gate fixture, with tracked Python seeds."""
+    import importlib.util
+    from reverse_agent.platform_v1 import authority_adapter
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+
+    fixture_file = Path(__file__).parents[1] / "test_trust_authorization_adapter.py"
+    spec = importlib.util.spec_from_file_location("cache_policy_git_fixture", fixture_file)
+    fixture = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fixture)
+    actual_run = subprocess.run
+    seeded = []
+    def seed_before_real_base_commit(argv, **kwargs):
+        if argv == ["git", "commit", "-qm", "base"]:
+            repo = Path(kwargs["cwd"])
+            for relative in ("module.py", "nested/module.py", "nested/文件 space.py"):
+                path = repo / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"VALUE = 1\n")
+                actual_run(["git", "add", "--", relative], cwd=repo, check=True, capture_output=True)
+            seeded.append(repo)
+        return actual_run(argv, **kwargs)
+    monkeypatch.setattr(subprocess, "run", seed_before_real_base_commit)
+    original = authority_adapter.load_policy_authority
+    calls = []
+    def observe_real_policy(**kwargs):
+        accepted = original(**kwargs)
+        workspace = Path(kwargs["pins"]["workspace_path"])
+        monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_REPO_DIR", str(workspace))
+        monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", json.dumps(kwargs["pins"]))
+        store = TaskStore(db_path=kwargs["database_path"])
+        service = _configured_autonomy(store, PlatformControlStore(store), CapabilityRegistry())
+        assert service.policy_template()["available"] is True
+        observation(workspace, original, kwargs, service)
+        calls.append(accepted)
+        return accepted
+    monkeypatch.setattr(authority_adapter, "load_policy_authority", observe_real_policy)
+    fixture.test_policy_loader_accepts_real_immutable_git_decision_and_canonical_preflight(tmp_path)
+    assert len(seeded) == len(calls) == 1
+
+
+@pytest.mark.parametrize("companion,optimize", [
+    ("module.py", 0), ("nested/module.py", 1), ("nested/文件 space.py", 2),
+])
+def test_runtime_cache_policy_accepts_real_tracked_python_cache(tmp_path, monkeypatch, companion, optimize):
+    import py_compile
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        cached = Path(py_compile.compile(str(workspace / companion), doraise=True, optimize=optimize))
+        before = cached.read_bytes()
+        assert loader(**kwargs).head_sha == kwargs["pins"]["expected_head_sha"]
+        template = service.policy_template()
+        window = service.activate_policy({key: template[key] for key in ("policy_id", "policy_revision", "policy")})
+        assert window.id == "fixture-window"
+        assert cached.read_bytes() == before
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("name,value", [
+    ("nodeids", []), ("nodeids", ["tests/test_example.py::test_one"]),
+    ("lastfailed", {}), ("lastfailed", {"tests/test_example.py::test_one": True}),
+    ("stepwise", []), ("stepwise", None), ("stepwise", "tests/test_example.py::test_one"),
+    ("stepwise", {"last_failed": None, "last_test_count": None, "last_cache_date_str": "2026-10-09T13:00:00"}),
+    ("stepwise", {"last_failed": "tests/test_example.py::test_one", "last_test_count": 2,
+                  "last_cache_date_str": "2026-10-09T13:00:00+00:00"}),
+])
+@pytest.mark.parametrize("cache_dir", [".pytest_cache", "nested/.pytest_cache"])
+def test_runtime_cache_policy_accepts_standard_pytest_json(tmp_path, monkeypatch, name, value, cache_dir):
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text(cache_dir + "/\n", encoding="utf-8")
+        leaf = workspace / cache_dir / "v/cache" / name
+        leaf.parent.mkdir(parents=True)
+        raw = json.dumps(value).encode("utf-8")
+        leaf.write_bytes(raw)
+        assert loader(**kwargs).head_sha == kwargs["pins"]["expected_head_sha"]
+        assert service.policy_template()["available"] is True
+        assert leaf.read_bytes() == raw
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("cache_dir", [".pytest_cache", "nested/.pytest_cache"])
+def test_runtime_cache_policy_accepts_actual_pytest_metadata(tmp_path, monkeypatch, cache_dir):
+    from _pytest.cacheprovider import README_CONTENT, CACHEDIR_TAG_CONTENT
+    def observe(workspace, loader, kwargs, service):
+        cache = workspace / cache_dir
+        cache.mkdir()
+        (cache / ".gitignore").write_text("# Created by pytest automatically.\n*\n", encoding="utf-8")
+        (cache / "README.md").write_text(README_CONTENT, encoding="utf-8")
+        (cache / "CACHEDIR.TAG").write_bytes(CACHEDIR_TAG_CONTENT)
+        assert loader(**kwargs).head_sha == kwargs["pins"]["expected_head_sha"]
+        assert service.policy_template()["available"] is True
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("relative,raw", [
+    ("__pycache__/unknown.py", b"VALUE=2\n"),
+    ("__pycache__/.env", b"SECRET=not-a-real-secret\n"),
+    ("__pycache__/unknown.exe", b"MZ"),
+    ("__pycache__/missing.cpython-313.pyc", b"xx\r\n" + b"\0" * 12),
+    ("__pycache__/module.pyc", b"xx\r\n" + b"\0" * 12),
+    ("__pycache__/module.cpython-313.pyc", b"not bytecode"),
+    ("nested/__pycache__/unknown.py", b"VALUE=2\n"),
+    (".pytest_cache/v/cache/unknown", b"[]"),
+    (".pytest_cache/v/cache/secret.json", b'{"token":"not-real"}'),
+    ("nested/.pytest_cache/v/cache/unknown.py", b"VALUE=2\n"),
+    ("nested/.pytest_cache/v/cache/.env", b"SECRET=not-a-real-secret\n"),
+    (".pytest_cache/v/cache/unknown.py", b"VALUE=2\n"),
+    (".pytest_cache/v/cache/nodeids", b'[1]'),
+    (".pytest_cache/v/cache/nodeids", b'\xff'),
+    (".pytest_cache/v/cache/nodeids", b'["bad\\nnode"]'),
+    (".pytest_cache/v/cache/lastfailed", b'{"a":1}'),
+    (".pytest_cache/v/cache/lastfailed", b'{"a":true,"a":false}'),
+    (".pytest_cache/v/cache/stepwise", b'{"unknown":true}'),
+    (".pytest_cache/v/cache/stepwise", b'{"last_failed":null,"last_test_count":true,"last_cache_date_str":"2026-10-09"}'),
+    (".pytest_cache/v/cache/stepwise", b'{"last_failed":null,"last_test_count":0,"last_cache_date_str":"not-date"}'),
+    (".pytest_cache/README.md", b"arbitrary ignored source"),
+    (".pytest_cache/.gitignore", b"*\n"),
+    (".pytest_cache/CACHEDIR.TAG", b"wrong signature"),
+])
+def test_runtime_cache_policy_rejects_unknown_or_malformed_ignored_leaf(tmp_path, monkeypatch, relative, raw):
+    import py_compile
+    from reverse_agent.platform_v1 import authority_adapter
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    def observe(workspace, loader, kwargs, service):
+        template = service.policy_template()
+        confirmation = {key: template[key] for key in ("policy_id", "policy_revision", "policy")}
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n.pytest_cache/\n", encoding="utf-8")
+        # A legitimate sibling must never make the entire directory exempt.
+        py_compile.compile(str(workspace / "module.py"), doraise=True)
+        leaf = workspace / relative
+        leaf.parent.mkdir(parents=True, exist_ok=True)
+        leaf.write_bytes(raw)
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        with pytest.raises(TaskStoreError, match="policy_workspace_source_drift"):
+            service.policy_template()
+        with pytest.raises(TaskStoreError, match="policy_workspace_source_drift"):
+            service.activate_policy(confirmation)
+        assert leaf.read_bytes() == raw
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+def test_runtime_cache_policy_rejects_untracked_python_companion(tmp_path, monkeypatch):
+    import py_compile
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text("untracked.py\n__pycache__/\n", encoding="utf-8")
+        source = workspace / "untracked.py"
+        source.write_bytes(b"VALUE=2\n")
+        py_compile.compile(str(source), doraise=True)
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert source.read_bytes() == b"VALUE=2\n"
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("malformation", ["no_companion", "header_only", "foreign_tag"])
+def test_runtime_cache_policy_rejects_valid_magic_without_required_pyc_provenance(tmp_path, monkeypatch, malformation):
+    import importlib.util
+    import py_compile
+    import sys
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        cache = workspace / "__pycache__"
+        cache.mkdir()
+        module = "missing" if malformation == "no_companion" else "module"
+        tag = "cpython-999" if malformation == "foreign_tag" else sys.implementation.cache_tag
+        leaf = cache / f"{module}.{tag}.pyc"
+        py_compile.compile(str(workspace / "module.py"), cfile=str(leaf), doraise=True)
+        raw = leaf.read_bytes()
+        assert raw[:4] == importlib.util.MAGIC_NUMBER and len(raw) > 16
+        if malformation == "no_companion":
+            assert not (workspace / "missing.py").exists()
+        if malformation == "header_only":
+            raw = raw[:16]
+            leaf.write_bytes(raw)
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert leaf.read_bytes() == raw
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+def test_runtime_cache_policy_still_rejects_nonignored_recognizable_cache(tmp_path, monkeypatch):
+    import py_compile
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        cached = Path(py_compile.compile(str(workspace / "module.py"), doraise=True))
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert cached.is_file()
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("prefix", ["task_workspaces", ".platform_v1_runtime", "frontend/node_modules"])
+def test_runtime_cache_policy_preserves_owned_runtime_exceptions(tmp_path, monkeypatch, prefix):
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text(prefix + "/\n", encoding="utf-8")
+        leaf = workspace / prefix / "nested" / "runtime.py"
+        leaf.parent.mkdir(parents=True)
+        leaf.write_bytes(b"owned runtime scratch\n")
+        assert loader(**kwargs).head_sha == kwargs["pins"]["expected_head_sha"]
+        assert service.policy_template()["available"] is True
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+def test_runtime_cache_policy_rejects_actual_platform_executable_leaf(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text(".pytest_cache/\n", encoding="utf-8")
+        leaf = workspace / ".pytest_cache/v/cache" / ("nodeids.exe" if os.name == "nt" else "nodeids")
+        leaf.parent.mkdir(parents=True)
+        raw = b"MZ" if os.name == "nt" else b"[]"
+        leaf.write_bytes(raw)
+        if os.name == "nt":
+            assert leaf.suffix == ".exe" and leaf.read_bytes().startswith(b"MZ")
+        else:
+            leaf.chmod(0o755)
+            assert leaf.lstat().st_mode & 0o111
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert leaf.read_bytes() == raw
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+def test_runtime_cache_policy_rejects_actual_platform_directory_indirection(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text(".pytest_cache/\n", encoding="utf-8")
+        outside = tmp_path / "outside-junction"
+        target = outside / "v/cache/nodeids"
+        target.parent.mkdir(parents=True)
+        target.write_bytes(b"[]")
+        junction = workspace / ".pytest_cache"
+        if os.name == "nt":
+            result = subprocess.run(["cmd.exe", "/d", "/c", "mklink", "/J", str(junction), str(outside)],
+                                    cwd=workspace, capture_output=True, check=False)
+            assert result.returncode == 0, result.stderr
+            assert junction.lstat().st_file_attributes & 0x400
+        else:
+            junction.symlink_to(outside, target_is_directory=True)
+            assert junction.is_symlink()
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert target.read_bytes() == b"[]"
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("component", ["leaf", "directory"])
+def test_runtime_cache_policy_rejects_actual_symlink_components(tmp_path, monkeypatch, component):
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text(".pytest_cache/\n", encoding="utf-8")
+        outside = tmp_path / "outside-cache"
+        outside.mkdir()
+        target = outside / ("nodeids" if component == "leaf" else "v/cache/nodeids")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"[]")
+        leaf = workspace / ".pytest_cache/v/cache/nodeids"
+        if component == "leaf":
+            leaf.parent.mkdir(parents=True)
+            link, destination = leaf, target
+        else:
+            link, destination = workspace / ".pytest_cache", outside
+        try:
+            link.symlink_to(destination, target_is_directory=component == "directory")
+        except OSError as exc:
+            pytest.skip(f"actual symlink creation unavailable: {exc}")
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert target.read_bytes() == b"[]"
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("raw", [b"not-nul-terminated", b"\xff\0", b"one\0\0", b"one\0one\0"])
+def test_runtime_cache_policy_rejects_invalid_git_name_observation(raw):
+    from reverse_agent.platform_v1 import authority_adapter
+    with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_git_observation_failed"):
+        authority_adapter._policy_git_names(raw)
+
+
 def _make_git_worktree(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=path, capture_output=True, check=True)
@@ -61,6 +447,36 @@ def _make_git_worktree(path: Path) -> None:
 
 def _make_store(tmp_path: Path) -> TaskStore:
     return TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+
+
+def test_combined_host_without_owner_pins_exposes_no_policy_activation(tmp_path, monkeypatch):
+    """Actual local HTTP host; no provider, OS vault or delegated fixture adapter."""
+    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
+    task_store = _make_store(tmp_path)
+    host = CombinedTrustedHost(task_store=task_store, vault=None, auth_list_probe=lambda: {},
+                               local_client_session=client_session(activate=False))
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        parsed = urlsplit(host.task_api_url)
+        connection = HTTPConnection(parsed.hostname, parsed.port, timeout=3)
+        try:
+            connection.request("GET", "/api/windows/policy", headers=client_headers())
+            response = connection.getresponse()
+            assert response.status == 200
+            assert json.loads(response.read()) == {"available": False, "reason": "trusted_policy_unavailable"}
+            body = json.dumps({"policy_id": "caller", "policy_revision": 1, "policy": {},
+                               "owner_identity": "local-owner", "confirmation": "ACTIVATE"})
+            connection.request("POST", "/api/windows/activate", body=body,
+                               headers=client_headers({"Content-Type": "application/json"}))
+            response = connection.getresponse()
+            assert response.status == 409
+            assert json.loads(response.read()) == {"error": "canonical_policy_fields_invalid"}
+        finally:
+            connection.close()
+        assert host._control_store.active_window() is None
+    finally:
+        host.stop()
+        task_store._conn.close()
 
 
 @pytest.fixture(autouse=True)
@@ -159,6 +575,7 @@ def test_account_auth_http_lifecycle_delegates_and_refreshes_openai_session(
         auth_list_probe=lambda: {"openai": "oauth"} if available[0] else {},
         auth_refresh_ttl_seconds=0,
         account_auth_server_factory=factory,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection(
         {
@@ -229,6 +646,7 @@ def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_sha_xyz789",
         planning_sha="planning_sha_abc123",
+        local_client_session=client_session(activate=False),
     )
     handler_cls = _handler_factory(
         host.task_store,
@@ -236,6 +654,7 @@ def test_trusted_authority_sha_propagated_non_empty(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha=host._execution_authority_sha,
         planning_sha=host._planning_sha,
+        local_client_session=client_session(),
     )
     assert handler_cls.execution_authority_sha == "auth_sha_xyz789"
     assert handler_cls.planning_sha == "planning_sha_abc123"
@@ -247,6 +666,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_sha_xyz789",
         planning_sha="planning_sha_abc123",
+        local_client_session=client_session(activate=False),
     )
     handler_cls = _handler_factory(
         host.task_store,
@@ -254,6 +674,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha=host._execution_authority_sha,
         planning_sha=host._planning_sha,
+        local_client_session=client_session(),
     )
     assert handler_cls.planning_sha == "planning_sha_abc123"
 
@@ -261,7 +682,7 @@ def test_trusted_planning_sha_propagated_non_empty(tmp_path) -> None:
 def test_stop_closes_all_server_sockets_and_allows_exact_port_reuse(tmp_path) -> None:
     first_dir = tmp_path / "first"
     first_dir.mkdir()
-    first = CombinedTrustedHost(task_store=_make_store(first_dir))
+    first = CombinedTrustedHost(task_store=_make_store(first_dir), local_client_session=client_session(activate=False),)
     first.start(model_control_port=0, task_api_port=0)
     assert first._model_server is not None
     assert first._task_server is not None
@@ -279,7 +700,7 @@ def test_stop_closes_all_server_sockets_and_allows_exact_port_reuse(tmp_path) ->
 
     second_dir = tmp_path / "second"
     second_dir.mkdir()
-    second = CombinedTrustedHost(task_store=_make_store(second_dir))
+    second = CombinedTrustedHost(task_store=_make_store(second_dir), local_client_session=client_session(activate=False),)
     try:
         second.start(
             model_control_port=model_port,
@@ -415,6 +836,7 @@ def test_startup_stale_reconciliation_no_role_calls(tmp_path) -> None:
         task_store=store,
         execution_authority_sha="auth_xyz",
         planning_sha="plan_abc",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(
@@ -457,6 +879,7 @@ def test_startup_zero_role_model_calls(tmp_path) -> None:
         task_store=store,
         execution_authority_sha="auth_xyz",
         planning_sha="plan_abc",
+        local_client_session=client_session(activate=False),
     )
     host._router = RR()
 
@@ -479,6 +902,7 @@ def test_handler_receives_trusted_identity(tmp_path) -> None:
         allowed_origin="http://localhost:4173",
         execution_authority_sha="auth_test_value",
         planning_sha="plan_test_value",
+        local_client_session=client_session(),
     )
     assert handler_cls.execution_authority_sha == "auth_test_value"
     assert handler_cls.planning_sha == "plan_test_value"
@@ -492,6 +916,7 @@ def test_binding_resolver_preserved_in_trusted_host(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_v",
         planning_sha="planning_v",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -511,6 +936,7 @@ def test_binding_resolver_preserved_in_trusted_host(tmp_path) -> None:
         execution_authority_sha="auth_v",
         planning_sha="planning_v",
         binding_resolver=resolver,
+        local_client_session=client_session(),
     )
     assert handler_cls.binding_resolver is resolver
 
@@ -521,6 +947,7 @@ def test_credential_relay_preserved_in_trusted_host(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -804,6 +1231,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host1",
         planning_sha="plan_host1",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     raw_secret = "HOST1-RAW-SECRET-NEVER-PERSIST"
@@ -844,6 +1272,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host2",
         planning_sha="plan_host2",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     conn2_public = host2.store.list_connections_public()
@@ -894,6 +1323,7 @@ def test_combined_trusted_host_restart_restores_sanitized_metadata(tmp_path) -> 
         execution_authority_sha="auth_host3",
         planning_sha="plan_host3",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
     conn3_public = host3.store.list_connections_public()
     assert conn3_public[0]["secret_status"] == "stored"
@@ -939,6 +1369,7 @@ def test_explicit_injected_store_bypasses_auto_persistence(tmp_path) -> None:
         store=injected,
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
 
     host.store.upsert_connection({
@@ -971,6 +1402,7 @@ def test_host_startup_refreshes_external_session_from_injected_auth_probe(tmp_pa
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
 
     host.store.upsert_connection({
@@ -1012,6 +1444,7 @@ def test_host_startup_marks_external_session_missing_when_probe_empty(tmp_path) 
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host1.store.upsert_connection({
         "connection_id": "sensetime-external-conn",
@@ -1035,6 +1468,7 @@ def test_host_startup_marks_external_session_missing_when_probe_empty(tmp_path) 
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=lambda: {},
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1065,6 +1499,7 @@ def test_host_startup_proceeds_when_auth_probe_fails(tmp_path) -> None:
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=failing_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-external-conn",
@@ -1098,6 +1533,7 @@ def test_host_skips_auth_probe_when_no_external_session_connections(tmp_path) ->
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
         auth_list_probe=counting_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "api-key-conn",
@@ -1131,6 +1567,7 @@ def test_external_session_available_rejected_when_probe_returns_empty(tmp_path) 
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-ext",
@@ -1155,6 +1592,7 @@ def test_external_session_available_rejected_when_probe_returns_empty(tmp_path) 
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: probe_switched["return_value"],
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1180,6 +1618,7 @@ def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=lambda: {"sensetime": "api"},
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "sensetime-ext",
@@ -1203,6 +1642,7 @@ def test_external_session_available_rejected_when_probe_raises(tmp_path) -> None
         execution_authority_sha="auth_v5",
         planning_sha="plan_v5",
         auth_list_probe=failing_probe,
+        local_client_session=client_session(activate=False),
     )
     try:
         host2.start(model_control_port=0, task_api_port=0)
@@ -1222,6 +1662,7 @@ def test_host_default_startup_does_not_probe_and_keeps_executor_managed(tmp_path
         task_store=store,
         execution_authority_sha="auth_v",
         planning_sha="plan_v",
+        local_client_session=client_session(activate=False),
     )
     assert host._auth_list_probe is None
 
@@ -1271,6 +1712,7 @@ def test_external_session_get_refreshes_after_ttl_and_fails_closed(
         auth_list_probe=controlled_probe,
         auth_refresh_ttl_seconds=5.0,
         auth_refresh_clock=lambda: clock["now"],
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1342,6 +1784,7 @@ def test_concurrent_external_session_reads_coalesce_one_probe(tmp_path) -> None:
         auth_list_probe=blocking_probe,
         auth_refresh_ttl_seconds=5.0,
         auth_refresh_clock=lambda: 0.0,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1383,6 +1826,7 @@ def test_connection_upsert_forces_external_refresh_before_response(tmp_path) -> 
     host = CombinedTrustedHost(
         task_store=_make_store(tmp_path),
         auth_list_probe=counting_probe,
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -1447,6 +1891,7 @@ def test_api_key_and_none_connection_reads_do_not_probe(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         auth_list_probe=counting_probe,
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     for connection_id, auth_method in (
         ("api-key-conn", "api_key"),
@@ -1493,6 +1938,7 @@ def test_dispatch_forces_external_session_revalidation(tmp_path) -> None:
     host = CombinedTrustedHost(
         task_store=_make_store(tmp_path),
         auth_list_probe=controlled_probe,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "external-conn",
@@ -1533,7 +1979,7 @@ def test_dispatch_forces_external_session_revalidation(tmp_path) -> None:
 
 
 def test_dispatch_rejects_unprobed_executor_managed_session(tmp_path) -> None:
-    host = CombinedTrustedHost(task_store=_make_store(tmp_path))
+    host = CombinedTrustedHost(task_store=_make_store(tmp_path), local_client_session=client_session(activate=False),)
     host.store.upsert_connection({
         "connection_id": "external-conn",
         "name": "External",
@@ -1622,6 +2068,7 @@ def test_host_starts_inert_unattended_coordinator_only_when_explicitly_enabled(t
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth-platform-v2",
         planning_sha="plan-platform-v2",
+        local_client_session=client_session(activate=False),
     )
     try:
         host.start(model_control_port=0, task_api_port=0)
@@ -1662,6 +2109,7 @@ def test_trusted_host_default_vault_wiring_is_platform_scoped(tmp_path) -> None:
         task_store=_make_store(tmp_path),
         execution_authority_sha="auth_vault",
         planning_sha="plan_vault",
+        local_client_session=client_session(activate=False),
     )
     try:
         if _sys.platform == "win32":
@@ -1679,6 +2127,7 @@ def test_explicit_none_vault_keeps_legacy_process_local_store(tmp_path) -> None:
         execution_authority_sha="auth_legacy",
         planning_sha="plan_legacy",
         vault=None,
+        local_client_session=client_session(activate=False),
     )
     try:
         assert host.store._vault is None
@@ -1746,6 +2195,7 @@ def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> 
         execution_authority_sha="auth_vault_exec",
         planning_sha="plan_vault_exec",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
 
     secret_a = "VAULT-SECRET-CONNECTION-A-ONLY"
@@ -1841,6 +2291,7 @@ def test_locked_vault_fails_execution_lease_creation_closed(tmp_path) -> None:
         execution_authority_sha="auth_vault_lock",
         planning_sha="plan_vault_lock",
         vault=vault,
+        local_client_session=client_session(activate=False),
     )
     host.store.upsert_connection({
         "connection_id": "conn-locked",
@@ -1876,3 +2327,114 @@ def test_locked_vault_fails_execution_lease_creation_closed(tmp_path) -> None:
         host._lease_provider_factory()(resolution)
     assert host.relay_manager.lease_count() == 0
     host.stop()
+
+
+@pytest.mark.parametrize("optimize", [0, 1, 2])
+@pytest.mark.parametrize("invalidation", ["CHECKED_HASH", "UNCHECKED_HASH"])
+def test_runtime_cache_policy_accepts_complete_real_hash_cache(tmp_path, monkeypatch, optimize, invalidation):
+    import marshal
+    import py_compile
+    def observe(workspace, loader, kwargs, service):
+        from reverse_agent.platform_v1 import authority_adapter
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        cached = Path(py_compile.compile(str(workspace / "nested/文件 space.py"), doraise=True,
+                                        optimize=optimize,
+                                        invalidation_mode=getattr(py_compile.PycInvalidationMode, invalidation)))
+        before = cached.read_bytes()
+        def forbidden_deserialization(*args, **kwargs):
+            raise AssertionError("untrusted bytecode must never be deserialized")
+        relative = cached.relative_to(workspace).as_posix()
+        with monkeypatch.context() as no_deserialization:
+            no_deserialization.setattr(marshal, "loads", forbidden_deserialization)
+            assert authority_adapter._policy_runtime_cache_leaf(workspace, relative, {"nested/文件 space.py"})
+        assert loader(**kwargs).head_sha == kwargs["pins"]["expected_head_sha"]
+        assert service.policy_template()["available"] is True
+        assert cached.read_bytes() == before
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("mutation", [
+    "forged_code", "different_filename", "truncated_payload",
+    "trailing_payload", "one_byte_payload", "timestamp", "source_size", "invalid_flags",
+    "checked_hash", "unchecked_hash", "companion_bytes", "oversized_leaf",
+])
+def test_runtime_cache_policy_rejects_unbound_complete_cache(tmp_path, monkeypatch, mutation):
+    import importlib.util
+    import marshal
+    import py_compile
+    from reverse_agent.platform_v1 import authority_adapter
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        source = workspace / "module.py"
+        cached = Path(py_compile.compile(str(source), doraise=True, optimize=0,
+                                        invalidation_mode=py_compile.PycInvalidationMode.TIMESTAMP))
+        raw = cached.read_bytes()
+        if mutation == "forged_code":
+            raw = raw[:16] + marshal.dumps(compile(b"raise RuntimeError('must never execute')\n", str(source),
+                                                  "exec", dont_inherit=True, optimize=0))
+        elif mutation == "different_filename":
+            raw = raw[:16] + marshal.dumps(compile(source.read_bytes(), "foreign-source.py", "exec",
+                                                  dont_inherit=True, optimize=0))
+        elif mutation == "truncated_payload":
+            raw = raw[:-1]
+        elif mutation == "trailing_payload":
+            raw += b"\x00"
+        elif mutation == "one_byte_payload":
+            raw = raw[:16] + b"x"
+        elif mutation == "timestamp":
+            raw = raw[:8] + ((int.from_bytes(raw[8:12], "little") + 1) & 0xffffffff).to_bytes(4, "little") + raw[12:]
+        elif mutation == "source_size":
+            raw = raw[:12] + (len(source.read_bytes()) + 1).to_bytes(4, "little") + raw[16:]
+        elif mutation == "invalid_flags":
+            raw = raw[:4] + (2).to_bytes(4, "little") + raw[8:]
+        elif mutation in {"checked_hash", "unchecked_hash"}:
+            flags = 3 if mutation == "checked_hash" else 1
+            wrong_hash = bytearray(importlib.util.source_hash(source.read_bytes()))
+            wrong_hash[0] ^= 1
+            raw = raw[:4] + flags.to_bytes(4, "little") + bytes(wrong_hash) + raw[16:]
+        elif mutation == "companion_bytes":
+            source.write_bytes(b"VALUE = 2\n")
+        elif mutation == "oversized_leaf":
+            raw += b"x" * (8 * 1024 * 1024 + 1 - len(raw))
+        cached.write_bytes(raw)
+        relative = cached.relative_to(workspace).as_posix()
+        assert not authority_adapter._policy_runtime_cache_leaf(workspace, relative, {"module.py"})
+        expected_code = "policy_current_preflight_invalid" if mutation == "companion_bytes" else "policy_workspace_source_drift"
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="^" + expected_code + "$") as rejected:
+            loader(**kwargs)
+        assert rejected.value.code == expected_code
+        from reverse_agent.platform_v1.run_store import TaskStoreError
+        with pytest.raises(TaskStoreError, match="^delegated_policy_authority_invalid:" + expected_code + "$"):
+            service.policy_template()
+        assert cached.read_bytes() == raw
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+def test_runtime_cache_policy_rejects_actual_wrong_optimization_payload(tmp_path, monkeypatch):
+    import py_compile
+    from reverse_agent.platform_v1 import authority_adapter
+    actual_run = subprocess.run
+    def seed_optimization_source(argv, **kwargs):
+        if argv == ["git", "commit", "-qm", "base"]:
+            repo = Path(kwargs["cwd"])
+            (repo / "optimization.py").write_bytes(b'"""Tracked docstring."""\nassert True\nVALUE = 1\n')
+            actual_run(["git", "add", "--", "optimization.py"], cwd=repo, check=True, capture_output=True)
+        return actual_run(argv, **kwargs)
+    monkeypatch.setattr(subprocess, "run", seed_optimization_source)
+    def observe(workspace, loader, kwargs, service):
+        (workspace / ".git/info/exclude").write_text("__pycache__/\n", encoding="utf-8")
+        source = workspace / "optimization.py"
+        correct = Path(py_compile.compile(str(source), doraise=True, optimize=2))
+        before = correct.read_bytes()
+        assert authority_adapter._policy_runtime_cache_leaf(workspace, correct.relative_to(workspace).as_posix(),
+                                                           {"optimization.py"})
+        other = Path(py_compile.compile(str(source), doraise=True, optimize=0))
+        assert before[16:] != other.read_bytes()[16:]
+        wrong = before[:16] + other.read_bytes()[16:]
+        correct.write_bytes(wrong)
+        assert not authority_adapter._policy_runtime_cache_leaf(workspace, correct.relative_to(workspace).as_posix(),
+                                                               {"optimization.py"})
+        with pytest.raises(authority_adapter.AuthorityBundleError, match="policy_workspace_source_drift"):
+            loader(**kwargs)
+        assert correct.read_bytes() == wrong
+    _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)

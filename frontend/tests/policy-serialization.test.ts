@@ -8,6 +8,19 @@ import { profileToPolicy } from "@/lib/profile-mapper";
 import type { PolicyContract } from "@/types";
 
 describe("policy serialization", () => {
+  it("canonical encoding uses sorted compact JSON and preserves Unicode", () => {
+    const policy = profileToPolicy("ASK_FOR_APPROVAL");
+    policy.resourceAccess.filesystem.allowedPaths = ["前端/设置.tsx"];
+    const json = serializePolicy(policy);
+    expect(json).toContain("前端/设置.tsx");
+    expect(json).not.toContain("\n");
+    expect(json.startsWith('{"autonomousWindow":')).toBe(true);
+  });
+  it("rejects extra fields on serialization and deserialization", () => {
+    const policy = { ...profileToPolicy("ASK_FOR_APPROVAL"), inventedAuthority: true };
+    expect(() => serializePolicy(policy)).toThrow();
+    expect(() => deserializePolicy(JSON.stringify(policy))).toThrow();
+  });
   it("round-trips an OWNER_CONTROL policy", () => {
     const policy = profileToPolicy("OWNER_CONTROL");
     const back = roundTripPolicy(policy);
