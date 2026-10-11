@@ -81,8 +81,9 @@ jobs:
           echo "Landing context revoked by conversion to Draft." >&2
           exit 1
 
-      # The verdict checker runs from the trusted base commit, so a candidate
-      # cannot weaken the check that admits it.
+      # The verdict checker module runs from the base commit. This workflow file
+      # itself still comes from the candidate, so workflow edits are R2 and the
+      # reviewer reads them directly (see docs/agents/governance-reference.md).
       - name: Checkout trusted base
         if: github.event.pull_request.draft == false
         uses: actions/checkout@v4

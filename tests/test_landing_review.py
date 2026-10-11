@@ -46,6 +46,33 @@ def test_marker_must_start_a_line_and_head_is_case_insensitive() -> None:
     assert evaluate_review(HEAD, [entry(f"**Nerelan-Review: ACCEPT {HEAD.upper()}**")]).accepted
 
 
+def test_quoted_fenced_and_suffixed_verdicts_do_not_count() -> None:
+    assert not evaluate_review(HEAD, [entry(f"> Nerelan-Review: ACCEPT {HEAD}")]).accepted
+    assert not evaluate_review(HEAD, [entry(f"```text\nNerelan-Review: ACCEPT {HEAD}\n```")]).accepted
+    assert not evaluate_review(HEAD, [entry(f"Nerelan-Review: ACCEPT {HEAD}-not")]).accepted
+    assert evaluate_review(HEAD, [entry(f"Nerelan-Review: ACCEPT {HEAD}\r\n")]).accepted
+
+
+def test_entry_without_timestamp_is_ignored() -> None:
+    reject = entry(f"Nerelan-Review: REJECT {HEAD}", at="2026-10-11T11:00:00Z")
+    undated_accept = entry(f"Nerelan-Review: ACCEPT {HEAD}", at="")
+    assert evaluate_review(HEAD, [reject, undated_accept]).reason == "latest_review_verdict_rejects_head"
+
+
+def test_fetch_skips_dismissed_and_pending_reviews(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_get_all(url: str, _token: str):
+        if url.endswith("/comments"):
+            return []
+        body = f"Nerelan-Review: ACCEPT {HEAD}"
+        return [
+            {"body": body, "user": {"login": "a"}, "author_association": "OWNER", "state": "DISMISSED", "submitted_at": "2026-10-11T10:00:00Z"},
+            {"body": body, "user": {"login": "b"}, "author_association": "OWNER", "state": "PENDING", "submitted_at": None},
+        ]
+
+    monkeypatch.setattr(landing_review, "_api_get_all", fake_get_all)
+    assert landing_review.fetch_review_entries("o/r", 1, "t") == []
+
+
 def test_invalid_head_fails_closed() -> None:
     assert evaluate_review("not-a-sha", [entry(f"Nerelan-Review: ACCEPT {HEAD}")]).reason == "invalid_head_sha"
 
@@ -55,6 +82,7 @@ def test_invalid_head_fails_closed() -> None:
     "frontend/node_modules/x/index.js",
     "reverse_agent/__pycache__/a.cpython-313.pyc",
     "data/store.sqlite3-wal",
+    "frontend/vite.config.ts.timestamp-1790668472090-88843cecd186.mjs",
 ])
 def test_runtime_paths_are_forbidden(path: str) -> None:
     assert check_paths([path]) == [path]

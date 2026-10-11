@@ -14,8 +14,10 @@ Two deterministic commands back the repository's required status checks:
 
     posted as a PR comment or review by an OWNER/MEMBER/COLLABORATOR. The most
     recent verdict for that head wins, so a later ``REJECT`` withdraws an
-    earlier ``ACCEPT``. A verdict for any other commit is ignored, which makes a
-    new push invalidate the previous acceptance.
+    earlier ``ACCEPT`` the next time the gate runs. A verdict for any other
+    commit is ignored, which makes a new push invalidate the previous
+    acceptance. The gate re-runs only on pull_request events, so whoever merges
+    re-checks the verdict immediately before merging (``verdict`` command).
 
 The verdict logic is pure (:func:`evaluate_review`) so it is testable without
 network access; the CLI only gathers GitHub REST data with the workflow token.
@@ -35,10 +37,14 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
+# A verdict is the author's own line: optional indent/emphasis, never a quote
+# ("> ..."), and nothing but closing emphasis after the sha.
 VERDICT_RE = re.compile(
-    r"^[ \t>*_`]*Nerelan-Review:[ \t]*(ACCEPT|REJECT)[ \t]+([0-9a-fA-F]{40})\b",
+    r"^[ \t*_`]*Nerelan-Review:[ \t]*(ACCEPT|REJECT)[ \t]+([0-9a-fA-F]{40})[ \t*_`]*\r?$",
     re.MULTILINE,
 )
+FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", re.MULTILINE | re.DOTALL)
+IGNORED_REVIEW_STATES = frozenset({"PENDING", "DISMISSED"})
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
 # Runtime state, caches and local scratch that must never be committed.
@@ -50,6 +56,7 @@ FORBIDDEN_PATH_PARTS = frozenset({
     ".vite-native-owned",
 })
 FORBIDDEN_SUFFIXES = (".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".pyc")
+VITE_TIMESTAMP_RE = re.compile(r"\.timestamp-\d+-[0-9a-f]+\.mjs$")
 MAX_ADDED_FILE_BYTES = 5 * 1024 * 1024
 
 
@@ -80,9 +87,9 @@ def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
         return Verdict(False, "invalid_head_sha")
     latest: tuple[str, str, str] | None = None  # (created_at, decision, author)
     for entry in entries:
-        if entry.association not in TRUSTED_ASSOCIATIONS:
+        if entry.association not in TRUSTED_ASSOCIATIONS or not entry.created_at:
             continue
-        for decision, sha in VERDICT_RE.findall(entry.body or ""):
+        for decision, sha in VERDICT_RE.findall(FENCE_RE.sub("", entry.body or "")):
             if sha.lower() != head:
                 continue
             if latest is None or entry.created_at >= latest[0]:
@@ -99,7 +106,8 @@ def check_paths(paths: Sequence[str]) -> list[str]:
     bad = []
     for path in paths:
         parts = PurePosixPath(path).parts
-        if FORBIDDEN_PATH_PARTS.intersection(parts) or path.endswith(FORBIDDEN_SUFFIXES):
+        if (FORBIDDEN_PATH_PARTS.intersection(parts) or path.endswith(FORBIDDEN_SUFFIXES)
+                or VITE_TIMESTAMP_RE.search(path)):
             bad.append(path)
     return bad
 
@@ -156,10 +164,12 @@ def fetch_review_entries(repository: str, number: int, token: str,
     entries = []
     for item in _api_get_all(f"{base}/issues/{number}/comments", token):
         entries.append(ReviewEntry(str(item.get("body") or ""), str((item.get("user") or {}).get("login", "")),
-                                   str(item.get("author_association", "")), str(item.get("created_at", ""))))
+                                   str(item.get("author_association", "")), str(item.get("created_at") or "")))
     for item in _api_get_all(f"{base}/pulls/{number}/reviews", token):
+        if str(item.get("state", "")).upper() in IGNORED_REVIEW_STATES:
+            continue
         entries.append(ReviewEntry(str(item.get("body") or ""), str((item.get("user") or {}).get("login", "")),
-                                   str(item.get("author_association", "")), str(item.get("submitted_at", ""))))
+                                   str(item.get("author_association", "")), str(item.get("submitted_at") or "")))
     return entries
 
 
@@ -184,11 +194,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     review = sub.add_parser("review", help="require an exact-head independent review verdict")
     review.add_argument("--event-path", required=True)
     review.add_argument("--repository", required=True)
+    verdict = sub.add_parser("verdict", help="re-check the verdict right before merging")
+    verdict.add_argument("--repository", required=True)
+    verdict.add_argument("--pr", type=int, required=True)
+    verdict.add_argument("--head", required=True)
     args = parser.parse_args(argv)
 
     try:
         if args.command == "hygiene":
             result = run_hygiene(args.base, args.head)
+        elif args.command == "verdict":
+            token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
+            if not token:
+                result = {"gate": "verdict", "passed": False, "reason": "missing_github_token"}
+            else:
+                found = evaluate_review(args.head, fetch_review_entries(args.repository, args.pr, token))
+                result = {"gate": "verdict", "head": args.head, "passed": found.accepted, **found.to_dict()}
         else:
             with open(args.event_path, encoding="utf-8") as handle:
                 event = json.load(handle)

@@ -35,8 +35,11 @@ Rules:
 
 - Only authors whose association is OWNER, MEMBER or COLLABORATOR count.
 - Only verdicts naming the exact current head count, so a new push needs a new review.
-- The most recent verdict for that head wins, so REJECT after ACCEPT blocks again.
-- The checker runs from the PR's base commit, so a PR cannot weaken the check that admits it. The single exception is the bootstrap PR that introduces the checker.
+- The most recent verdict for that head wins, so REJECT after ACCEPT blocks again the next time the gate runs. The gate runs only on `pull_request` events (push, edit, Ready, Draft), not on new comments. An ACCEPT posted after marking Ready therefore needs a re-run, and a REJECT posted after a green gate only takes effect on the next run. That is why the merger re-checks with `python -m reverse_agent.landing_review verdict` immediately before merging.
+- Quoted lines (`> ...`), lines inside fenced code blocks, dismissed or pending reviews, and entries without a timestamp never count.
+- The checker module (`landing_review.py`) runs from the PR's base commit. The bootstrap PR that introduced it is the one exception: the base has no checker, so the candidate's checker runs.
+- The **workflow file itself runs from the candidate** (GitHub uses the PR's version on `pull_request` events). A PR could therefore edit `state-gate.yml` to skip the verdict step. This is why `.github/workflows/**` changes are R2 and the reviewer must read the workflow diff. Closing the gap mechanically needs a ruleset change (require workflows from `main`, or pin required checks to the GitHub Actions app), and ruleset changes need a fresh Owner instruction.
+- Only PRs into `main` can land. The ruleset still lists `owner/repository-modernization-v2-planning`, but that v1 planning branch is retired; PRs into it fail `landing-state-gate` by design.
 
 In a single-account repository the gate cannot prove who the reviewer was. It is a process control that leaves an auditable record, not a cryptographic one. The independence requirement is procedural: the reviewer must be a fresh context that did not author the change and must review the exact diff.
 
@@ -49,7 +52,7 @@ What a reviewer does:
 
 ## Landing
 
-After ACCEPT and green checks: mark Ready, wait for `landing-state-gate`, then run `gh pr merge <n> --merge --match-head-commit <sha>`. If `main` moved, update the branch with a merge from `main` (never a rebase of a shared branch), let CI rerun, and get a fresh verdict for the new head. After merging, verify `main` points to the merge commit.
+After ACCEPT and green checks: mark Ready, wait for `landing-state-gate`, re-check with `python -m reverse_agent.landing_review verdict --repository dddd2024/Nerelan --pr <n> --head <sha>`, then run `gh pr merge <n> --merge --match-head-commit <sha>`. If `main` moved, update the branch with a merge from `main` (never a rebase of a shared branch), let CI rerun, and get a fresh verdict for the new head. After merging, verify `main` points to the merge commit.
 
 ## Delegation record
 
