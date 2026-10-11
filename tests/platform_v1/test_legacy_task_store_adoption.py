@@ -54,8 +54,8 @@ def test_uncheckpointed_wal_content_is_included(tmp_path):
     writer = sqlite3.connect(legacy)
     writer.execute("PRAGMA journal_mode=WAL")
     writer.execute("PRAGMA wal_autocheckpoint=0")
-    writer.execute("CREATE TABLE t (v TEXT)")
-    writer.execute("INSERT INTO t VALUES ('only-in-wal')")
+    writer.execute("CREATE TABLE tasks (v TEXT)")
+    writer.execute("INSERT INTO tasks VALUES ('only-in-wal')")
     writer.commit()
     assert Path(str(legacy) + "-wal").stat().st_size > 0
     target = tmp_path / "out" / "tasks.sqlite3"
@@ -65,7 +65,7 @@ def test_uncheckpointed_wal_content_is_included(tmp_path):
         writer.close()
     reader = sqlite3.connect(target)
     try:
-        assert reader.execute("SELECT v FROM t").fetchall() == [("only-in-wal",)]
+        assert reader.execute("SELECT v FROM tasks").fetchall() == [("only-in-wal",)]
     finally:
         reader.close()
 
@@ -175,3 +175,58 @@ def test_host_store_factory_fails_closed_on_unreadable_legacy(tmp_path, monkeypa
 
 def test_launcher_names_its_checkout_store_as_adoption_source():
     assert '"REVERSE_AGENT_LEGACY_TASK_DB_PATH" = (Join-Path $runtimeDir "tasks.sqlite3")' in _DEV_UP
+
+
+def test_empty_existing_target_is_set_aside_and_legacy_adopted(tmp_path):
+    legacy = tmp_path / "checkout" / ".platform_v1_runtime" / "tasks.sqlite3"
+    task_id = _legacy_store_with_task(legacy)
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+    target.parent.mkdir(parents=True)
+    TaskStore(db_path=str(target))._conn.close()  # schema only, no history
+
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    store = TaskStore(db_path=str(target))
+    try:
+        assert store.get_task(task_id).title == "legacy history"
+    finally:
+        store._conn.close()
+    assert len(list(target.parent.glob("tasks.sqlite3.empty-*.bak"))) == 1
+
+
+def test_model_setup_state_is_carried_once_and_never_overwritten(tmp_path):
+    legacy = tmp_path / "checkout" / ".platform_v1_runtime" / "tasks.sqlite3"
+    _legacy_store_with_task(legacy)
+    (legacy.parent / "model_setup_state.json").write_bytes(b'{"schema_version": 1, "connections": []}')
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    carried = target.parent / "model_setup_state.json"
+    assert carried.read_bytes() == b'{"schema_version": 1, "connections": []}'
+
+    carried.write_bytes(b'{"schema_version": 1, "connections": ["edited"]}')
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "target_exists"
+    assert carried.read_bytes() == b'{"schema_version": 1, "connections": ["edited"]}'
+    assert not list(target.parent.glob("*.adopting-*"))
+
+
+def test_empty_legacy_is_not_adopted_and_does_not_churn_backups(tmp_path):
+    legacy = tmp_path / "checkout" / "tasks.sqlite3"
+    legacy.parent.mkdir(parents=True)
+    TaskStore(db_path=str(legacy))._conn.close()  # schema only, no history
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+    target.parent.mkdir(parents=True)
+    TaskStore(db_path=str(target))._conn.close()
+    for _ in range(3):
+        assert adopt_legacy_task_store(str(target), str(legacy)) == "legacy_empty"
+    assert not list(target.parent.glob("*.bak*"))
+
+
+def test_model_setup_is_not_restored_after_owner_reset(tmp_path):
+    legacy = tmp_path / "checkout" / "tasks.sqlite3"
+    _legacy_store_with_task(legacy)
+    (legacy.parent / "model_setup_state.json").write_bytes(b"{}")
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    (target.parent / "model_setup_state.json").unlink()  # owner resets Model Control
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "target_exists"
+    assert not (target.parent / "model_setup_state.json").exists()
