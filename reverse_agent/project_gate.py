@@ -36993,6 +36993,13 @@ def transition_preflight(
         plan = load_legacy_command_plan(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
         capability_policy = load_capability_policy(contract)
         path_risk_floor = load_path_risk_floor(contract)
+        # Landing locks the integration branch, while implementation ancestry
+        # remains rooted at activation_base_sha. Only old contracts omitting
+        # base_sha may use the already validated activation base as fallback.
+        landing_base_sha = contract["base_sha"] if "base_sha" in contract else scope["activation_base_sha"]
+        if not isinstance(landing_base_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", landing_base_sha):
+            raise ValueError("missing_or_invalid_contract_field:base_sha")
+        landing_base_sha = landing_base_sha.lower()
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         result = {
             "schema_version": 1,
@@ -37074,7 +37081,7 @@ def transition_preflight(
             event_payload=event_payload,
             decision_id=decision.decision_id,
             decision_sha256=decision_sha256,
-            locked_base_sha=str(scope["activation_base_sha"]),
+            locked_base_sha=landing_base_sha,
             state_dir=state_dir,
             repo_root=repo_root,
         )

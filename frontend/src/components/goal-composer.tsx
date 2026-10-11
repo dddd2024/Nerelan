@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBindings } from "@/hooks/use-model-access";
+import { useApprovedPolicy } from "@/hooks/use-platform";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
@@ -126,6 +127,9 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const bindingsQuery = useBindings();
+  const approvedPolicyQuery = useApprovedPolicy();
+  const approvedPolicy = approvedPolicyQuery.data;
+  const checkerOnly = approvedPolicy?.supported_operations.length === 1 && approvedPolicy.supported_operations[0] === "validate_task";
   const usableBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
@@ -139,11 +143,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
    * Runs once, and never overwrites a binding the user typed themselves.
    */
   useEffect(() => {
-    if (bindingTouched || bindingsQuery.data === undefined) return;
+    if (checkerOnly || bindingTouched || bindingsQuery.data === undefined) return;
     const usable = usableBindings[0];
     if (!usable || draftRef.current.bindingRef) return;
     replaceDraft({ ...draftRef.current, bindingRef: usable.bindingId });
-  }, [bindingTouched, bindingsQuery.data, usableBindings]);
+  }, [checkerOnly, bindingTouched, bindingsQuery.data, usableBindings]);
 
   function replaceDraft(next: GoalComposerDraft, persist = true) {
     draftRef.current = next;
@@ -160,7 +164,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   }
 
   const showOptions = optionsOpen || draft.objective.trim().length > 0;
-  const needsBinding = draft.executorKind === "opencode";
+  const needsBinding = draft.executorKind === "opencode" && !checkerOnly;
   const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
   const objectiveLength = draft.objective.trim().length;
   const repositoryReady = draft.repository.includes("/");
@@ -199,10 +203,14 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         const submitted: StartGoalInput = {
           objective: draftRef.current.objective.trim(),
           repository: draftRef.current.repository.trim(),
-          executorKind: draftRef.current.executorKind,
-          bindingRef: draftRef.current.bindingRef,
+          executorKind: checkerOnly ? "opencode" : draftRef.current.executorKind,
+          bindingRef: checkerOnly ? "" : draftRef.current.bindingRef,
           autonomyHours: 2,
           operationId: draftRef.current.operationId,
+          ...(checkerOnly && approvedPolicy?.goal_idempotency_key ? { checkerDraft: {
+            idempotencyKey: approvedPolicy.goal_idempotency_key,
+            executorKind: "opencode" as const, orchestrationMode: "single" as const, bindingRef: "" as const,
+          } } : {}),
         };
 
         try {
@@ -301,11 +309,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
-                  <option value="opencode">OpenCode 多 Agent</option>
+                  <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode 多 Agent"}</option>
                   <option value="deterministic_fixture">无模型验证</option>
                 </select>
               </label>
-              {draft.executorKind === "opencode" && (
+              {needsBinding && (
                 <>
                   <input
                     aria-label="模型绑定"
@@ -336,6 +344,12 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
 
             <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
           </div>
+          {approvedPolicy && <p role="status" className="mt-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
+            已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
+            {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
+            {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
+          </p>}
+          {approvedPolicyQuery.isError && <p role="status" className="mt-2 text-xs text-ra-status-warning">当前没有可验证的已批准运行窗口；可以保存草稿，不能据此获得执行授权。</p>}
           {bindingMissing ? (
             <p
               role="status"

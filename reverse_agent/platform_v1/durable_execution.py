@@ -1241,6 +1241,19 @@ class DurableExecutionService:
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
+    def _record_fixture_single_start(self, task_id: str, run: Any, lease: LeaseHandle) -> None:
+        # Persist activity at the dispatch boundary with the same owner/epoch
+        # fence as other durable writes. A stale writer must not call execute.
+        self.store._fenced_add_event(
+            lease.run_id, task_id,
+            event_type="EXECUTOR_RUNNING",
+            title="Durable fixture execution",
+            description="Provider-free single executor dispatch",
+            metadata={"execution_id": run.execution_id, "run_id": lease.run_id,
+                      "executor_kind": "deterministic_fixture"},
+            owner=lease.owner, epoch=lease.epoch,
+        )
+
     def _dispatch_fixture_durable_single(
         self,
         *,
@@ -1297,6 +1310,7 @@ class DurableExecutionService:
             lease.owner, lease.epoch,
         )
 
+        self._record_fixture_single_start(task_id, run, lease)
         try:
             exec_raw = executor.execute(
                 task_id,
@@ -2983,6 +2997,8 @@ class DurableExecutionService:
             lease.owner, lease.epoch,
         )
 
+        if executor_kind == "deterministic_fixture":
+            self._record_fixture_single_start(task_id, run, lease)
         try:
             if executor_kind == "opencode":
                 from .opencode_executor import OpenCodeExecutor, RoleContext

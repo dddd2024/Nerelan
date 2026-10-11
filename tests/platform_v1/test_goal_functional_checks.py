@@ -18,7 +18,12 @@ def goal_checks(tmp_path, monkeypatch):
     root.mkdir()
     def git(*args):
         return subprocess.check_output(["git", "-C", str(root), *args], encoding="utf-8").strip()
-    git("init", "-q")
+    git("-c", "core.longpaths=true", "init", "-q")
+    # Owned acceptance worktrees share this local config. Retention deliberately
+    # clears ambient Git configuration, so Windows paths and fixture-generated
+    # CRLF must remain supported without changing the user's Git configuration.
+    git("config", "--local", "core.longpaths", "true")
+    git("config", "--local", "core.autocrlf", "true")
     git("config", "user.name", "Functional acceptance")
     git("config", "user.email", "fixture@example.invalid")
     git("remote", "add", "origin", "https://github.com/owner/functional.git")
