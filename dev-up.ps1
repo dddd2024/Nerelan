@@ -565,6 +565,9 @@ $combinedTrustedHostEnv = [ordered]@{
   "REVERSE_AGENT_AUTONOMOUS" = "1"
   "REVERSE_AGENT_TRUSTED_CLIENT_UI" = $(if ($NoBrowser) { "0" } else { "1" })
   "REVERSE_AGENT_TRUSTED_CLIENT_NODE" = $node
+  # One-time adoption source for the pre-host-owned checkout TaskStore. The
+  # host copies it only while the user-data store is absent and never edits it.
+  "REVERSE_AGENT_LEGACY_TASK_DB_PATH" = (Join-Path $runtimeDir "tasks.sqlite3")
 }
 
 $combinedProc = Start-ServiceProcess `

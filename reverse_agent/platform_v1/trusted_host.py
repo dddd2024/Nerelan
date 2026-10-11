@@ -47,7 +47,7 @@ from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
 from .task_service import validate_bind_host
 from .task_service import _configured_autonomy
-from .task_service import _default_task_db_path, _ensure_db_path
+from .task_service import _default_task_db_path, _ensure_db_path, adopt_legacy_task_store
 from .durable_execution import DurableExecutionService
 from .autonomy import AutonomyService
 from .capability_registry import CapabilityRegistry
@@ -487,7 +487,15 @@ class CombinedTrustedHost:
 
 
 def _make_task_store(db_path: str | None) -> TaskStore:
-    return TaskStore(db_path=_ensure_db_path(db_path or _default_task_db_path()))
+    resolved = db_path or _default_task_db_path()
+    explicit = bool(db_path) or any(
+        os.environ.get(name) for name in ("REVERSE_AGENT_TASK_DB_PATH", "REVERSE_AGENT_TASK_DB_DIR")
+    )
+    if not explicit:
+        # Only the launcher may name the pre-#1117 checkout store; adoption is
+        # a one-time copy into the absent host-owned store and fails closed.
+        adopt_legacy_task_store(resolved, os.environ.get("REVERSE_AGENT_LEGACY_TASK_DB_PATH", ""))
+    return TaskStore(db_path=_ensure_db_path(resolved))
 
 
 def _resolve_store_state_path(task_store: TaskStore) -> str:

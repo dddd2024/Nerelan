@@ -1339,6 +1339,74 @@ def _default_task_db_path() -> str:
     return os.path.join(data_home, _DEFAULT_TASK_DB_PATH)
 
 
+class LegacyTaskStoreAdoptionError(RuntimeError):
+    """The explicitly named legacy store could not be adopted safely."""
+
+
+def adopt_legacy_task_store(target: str, legacy: str) -> str:
+    """Copy an explicitly named legacy TaskStore into an absent target once.
+
+    Only the launcher names ``legacy``; nothing is discovered. The legacy
+    database is opened read-only and never modified. SQLite's online backup
+    produces a consistent snapshot that includes committed WAL content. The
+    copy is integrity-checked and then linked into place without overwriting
+    a target that appeared concurrently. A failure leaves the target absent,
+    so the caller must fail closed instead of creating an empty store that
+    would prevent any later adoption.
+    """
+    import sqlite3
+    from pathlib import Path
+
+    if not legacy or not target or target == ":memory:":
+        return "not_requested"
+    if os.path.lexists(target):
+        return "target_exists"
+    if not os.path.isfile(legacy):
+        return "legacy_absent"
+    if os.path.normcase(os.path.realpath(legacy)) == os.path.normcase(os.path.realpath(target)):
+        return "same_store"
+    _ensure_db_path(target)
+    staging = f"{target}.adopting-{os.getpid()}"
+    try:
+        for leftover in (staging, staging + "-journal"):
+            if os.path.lexists(leftover):
+                os.remove(leftover)
+        source = sqlite3.connect(f"{Path(os.path.abspath(legacy)).as_uri()}?mode=ro", uri=True)
+        try:
+            destination = sqlite3.connect(staging)
+            try:
+                source.backup(destination)
+                verdict = destination.execute("PRAGMA quick_check").fetchone()
+                destination.execute("PRAGMA journal_mode=DELETE")
+            finally:
+                destination.close()
+        finally:
+            source.close()
+        if verdict is None or verdict[0] != "ok":
+            raise LegacyTaskStoreAdoptionError("legacy_task_store_integrity_failed")
+        try:
+            os.link(staging, target)
+        except FileExistsError:
+            return "target_exists"
+        except OSError:
+            if os.path.lexists(target):
+                return "target_exists"
+            os.rename(staging, target)
+        return "adopted"
+    except LegacyTaskStoreAdoptionError:
+        raise
+    except (OSError, sqlite3.Error) as exc:
+        raise LegacyTaskStoreAdoptionError(
+            f"legacy_task_store_adoption_failed:{type(exc).__name__}"
+        ) from None
+    finally:
+        if os.path.lexists(staging):
+            try:
+                os.remove(staging)
+            except OSError:
+                pass
+
+
 def _ensure_db_path(db_path: str) -> str:
     parent = os.path.dirname(os.path.abspath(db_path))
     if parent:
