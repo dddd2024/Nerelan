@@ -262,9 +262,12 @@ def test_production_manual_fixture_execution_remains_available_without_delegated
     assert server.RequestHandlerClass.control_store.active_window() is None
 
 
-def test_production_autonomous_task_cannot_use_manual_fallback_without_pins(production_policy_server, monkeypatch):
+def test_pinned_autonomous_task_cannot_use_manual_fallback(production_policy_server, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
     base, server = production_policy_server
     handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
     task = handler.store.create_task(title="Unbound autonomous task", executor_kind="deterministic_fixture",
                                     permission_profile="AUTONOMOUS_WINDOW", policy_ref="caller-policy")
     def forbidden(**kwargs):

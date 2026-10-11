@@ -106,8 +106,12 @@ shared dependency state was unchanged during that original attempt.
 ## Bounded delegated checker
 
 The native browser identity admits HTTP requests; it does not confirm a policy.
-Production window activation accepts exactly `policy_id`, `policy_revision` and
-the complete canonical `policy` returned by `GET /api/windows/policy`.
+When the host pins a delegated authority, production window activation accepts
+exactly `policy_id`, `policy_revision` and the complete canonical `policy`
+returned by `GET /api/windows/policy`. Without pins (the default launcher run),
+`GET /api/windows/policy` reports `trusted_policy_unavailable` and the
+launcher-authenticated local owner confirms a bounded window instead
+(`confirmation: "ACTIVATE"`), as before #1117.
 The host obtains immutable Decision, candidate-head and command-plan pins from
 the owner-controlled `REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON` environment,
 never from Vite variables, browser storage or the HTTP body. Missing or changed

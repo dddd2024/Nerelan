@@ -907,9 +907,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
         task = self.store.get_task(task_id)
         contract = load_host_validation_contract(task)
         if contract is None:
-            # Autonomous-window tasks run only through the coordinator, which
-            # enforces the window budget; direct HTTP execution would bypass it.
-            if self.autonomy_service.delegated_mode or task.permission_profile == "AUTONOMOUS_WINDOW":
+            # With a pinned authority, autonomous-window tasks run only as approved
+            # host tasks. The default owner launch keeps main's direct execution.
+            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
+                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
                 self._discard_bounded_request_body()
                 raise TaskStoreError("direct_execution_requires_approved_host_task")
             return False
@@ -1371,7 +1372,9 @@ def adopt_legacy_task_store(target: str, legacy: str) -> str:
         return "legacy_absent"
     if os.path.lexists(target) and os.path.normcase(os.path.realpath(legacy)) == os.path.normcase(os.path.realpath(target)):
         return "same_store"
-    _adopt_model_setup_state(target, legacy)
+    if not _store_has_history(legacy):
+        # Nothing to carry over; adopting would only churn an empty copy.
+        return "legacy_empty"
     if os.path.lexists(target):
         # A store created before adoption ever ran (for example by a standalone
         # service start) holds no history; set it aside so adoption can proceed.
@@ -1404,6 +1407,7 @@ def adopt_legacy_task_store(target: str, legacy: str) -> str:
             if os.path.lexists(target):
                 return "target_exists"
             os.rename(staging, target)
+        _adopt_model_setup_state(target, legacy)
         return "adopted"
     except LegacyTaskStoreAdoptionError:
         raise
@@ -1419,7 +1423,25 @@ def adopt_legacy_task_store(target: str, legacy: str) -> str:
                 pass
 
 
-_HISTORY_TABLES = ("tasks", "platform_goals", "platform_autonomous_windows", "platform_inbox_items")
+_HISTORY_TABLES = ("tasks", "platform_goals", "platform_autonomous_windows", "platform_inbox_items",
+                   "platform_roadmap_phases", "platform_roadmap_phase_goals")
+
+
+def _store_has_history(path: str, *, unreadable: bool = True) -> bool:
+    """True when any history table has a row; ``unreadable`` is returned on errors."""
+    import sqlite3
+    from pathlib import Path
+
+    try:
+        connection = sqlite3.connect(f"{Path(os.path.abspath(path)).as_uri()}?mode=ro", uri=True)
+        try:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            return any(table in tables and connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone()
+                       for table in _HISTORY_TABLES)
+        finally:
+            connection.close()
+    except sqlite3.Error:
+        return unreadable
 
 
 def _set_aside_empty_store(target: str) -> bool:
@@ -1434,14 +1456,8 @@ def _set_aside_empty_store(target: str) -> bool:
 
     moved: list[tuple[str, str]] = []
     try:
-        connection = sqlite3.connect(f"{Path(os.path.abspath(target)).as_uri()}?mode=ro", uri=True)
-        try:
-            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            for table in _HISTORY_TABLES:
-                if table in tables and connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone():
-                    return False
-        finally:
-            connection.close()
+        if _store_has_history(target, unreadable=True):
+            return False
         stamp = time.strftime("%Y%m%dT%H%M%S")
         for suffix in ("", "-wal", "-shm", "-journal"):
             if os.path.lexists(target + suffix):
