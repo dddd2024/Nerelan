@@ -236,8 +236,8 @@ def test_shared_pr_routing_both_workflows_use_same_event_aware_contract() -> Non
     repository-state-only inspection). The Detect control-plane mode block must
     never branch on a PR number."""
 
-    for name in ("state-gate.yml", "decision-preflight.yml"):
-        workflow = (REPO_ROOT / ".github" / "workflows" / name).read_text(encoding="utf-8")
+    for path in (REPO_ROOT / "docs/agents/legacy-state-gate-v1.yml", REPO_ROOT / ".github" / "workflows" / "decision-preflight.yml"):
+        workflow = path.read_text(encoding="utf-8")
         assert 'control-plane-mode --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in workflow
         detect_block = workflow.split("Detect control-plane mode", 1)[1].split("      - name:", 1)[0]
         assert "github.event.pull_request.number" not in detect_block

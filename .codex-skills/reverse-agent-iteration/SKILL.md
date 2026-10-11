@@ -12,7 +12,7 @@ last_reviewed: "2026-09-14"
 
 Use the repository's current `AGENTS.md` and the named Work Item; this skill is guidance, not authority. Verify the live repository, approval, branch/base/head, exact scope, role and execution surface before mutation. Do not take another active owner's work.
 
-For ordinary R0/R1, use Path A's approved Issue snapshot. For transition/R2-R3, use Path B's immutable Decision and generated plan/preflight. Do not load historical project-state reports for every engineering task.
+Follow the Governance v2 change flow and risk tiers in `AGENTS.md` (Draft PR, exact-head CI, independent review verdict, controlled merge); legacy Path A / Path B applies only when a task explicitly selects it. Do not load historical project-state reports for every engineering task.
 
 Only when the active task explicitly uses the project-state round/report contract, read [project-state round details](references/project-state-round.md). Only explicit sample work selects the separate sample profile; engineering does not implicitly authorize probes or solving.
 

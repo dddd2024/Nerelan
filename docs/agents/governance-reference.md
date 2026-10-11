@@ -1,104 +1,64 @@
-# Conditional operating reference
+# Governance v2 reference
 
-Companion to [AGENTS.md](../../AGENTS.md), not new execution authority. Read the section for the current action; do not preload the whole document for a small edit. The existing approval, risk, validation and landing predicates are unchanged.
+Companion to [AGENTS.md](../../AGENTS.md). Read only the section the current action needs.
 
 ## Product boundaries
 
 Nerelan's thin adapter layer is `reverse_agent/platform_v1/`. Reuse GitHub Spec Kit-compatible planning, LangGraph topology/checkpoints, OpenCode repository execution/model bindings and OpenHands presentation patterns; do not copy their runtimes or replicate GitHub Issue/PR state.
 
-The trusted host owns one TaskStore database for task, goal, window, receipt, claim, run and publication truth. The unattended coordinator requires `REVERSE_AGENT_AUTONOMOUS=1` and an owner-activated bounded window before doing work. Live model/API probes require separate explicit R3 authority. Provider-free startup and CI make zero model calls. The runtime/module/environment names above remain compatibility identifiers, not a request for a broader rename.
+The trusted host owns one TaskStore database for task, goal, window, receipt, claim, run and publication truth. The unattended coordinator requires `REVERSE_AGENT_AUTONOMOUS=1` and an owner-activated bounded window before doing work. Live model/API probes require an explicit Owner instruction. Provider-free startup and CI make zero model calls. Runtime/module/environment names such as `reverse_agent` remain compatibility identifiers, not a request for a broader rename.
 
-## Path A
+## Why v2
 
-Use only for ordinary R0/R1. A template-created Issue is CANDIDATE until a repository owner/maintainer reviews it and applies `r1-approved`. Verify who applied the label, not just its presence. Normalize the approved Issue body and compute its SHA-256; record repository, Issue, approval state/approver/event, digest, immutable observation reference, Work Item identity, exact branch/base and current head in the Draft PR body.
+Under v1 every change needed an approved Issue digest or an immutable Decision packet, a generated command plan, transition preflight, an authority snapshot in the PR body and rebinding after every push. Any movement of `main` invalidated the snapshot. By 2026-10-11 about 95 PRs were open and nearly nothing was landing. The Owner chose to simplify governance first and then let verified changes land automatically. v2 keeps the controls that protect `main`: required CI, exact-head binding, independent review, merge-commit history, no force push. It drops the per-PR paperwork.
 
-The approved body, exact digest, allowed paths, forbidden operations, acceptance criteria, target branch, `integration_base_ref` and `base_sha` jointly define the snapshot. The immutable observation reference is the body digest unless a stronger GitHub immutable revision exists. A planning branch is valid only when explicitly approved; never silently substitute main. Comments do not override the snapshot. Material Issue-body edits invalidate it and require owner/maintainer reapproval plus a new snapshot.
+## Required checks
 
-Activation is a fresh exact-base branch, one tree-identical empty activation commit, then exact-branch push and a Draft with the complete snapshot before any product/source/test change. Arbitrary seed-file changes are not bootstrap. Rebind `exact_head_sha` after each implementation push; a transient synchronization check against the old head is not final evidence. Verify the live PR base ref, base SHA and merge-base against the snapshot. If the base differs, stop; obtain a revised/reapproved Work Item and a fresh branch. No Path-A history rewrite.
+| Check | Workflow | What it proves |
+| --- | --- | --- |
+| `baseline` | `ci.yml` | Focused governance, platform and integration suites pass on the exact head. |
+| `state-gate` | `state-gate.yml` | `git diff --check` is clean for the exact PR range; no runtime/scratch paths (`.platform_v1_runtime/`, `node_modules/`, `*.sqlite3`, `__pycache__/`) and no files over 5 MB are committed; governance unit tests pass. |
+| `landing-state-gate` | `state-gate.yml` | On a Ready PR, the latest trusted review verdict for the exact head is ACCEPT. On a Draft the job reports as `landing-state-gate-draft-inert`, so a Draft can never satisfy it. |
 
-Do not load the legacy Decision/state stack for this path. Ordinary R1 authorization does not permit workflow, dependency, authority-surface, provider, credential, binary, destructive or unbounded publication changes merely because their diff is small.
+The ruleset requires the branch to be up to date with `main` before merging, so the checks always describe the exact merge candidate.
 
-## Path B
+## Review verdicts
 
-The first false/none Ready run has two stages. Its ordinary `state-gate` job
-finishes before the formal `landing-state-gate` job starts. A controller records
-the actual Ready run ID in the existing landing attestation after GitHub creates
-that run; an earlier Draft run is not a substitute. Formal premerge validation
-binds the attested ID to trusted `GITHUB_RUN_ID`, verifies the exact repository,
-head, workflow, event and attempt, and requires that run's ordinary job to have
-completed successfully. It does not require its own entire workflow to have
-already finished. Postmerge validation still requires the same whole Ready run
-to be completed with SUCCESS. Missing evidence blocks landing; no rerun, bypass
-or retroactive acceptance is implied by this sequence.
-
-Use only when the task's risk or transition contract requires it. Resolve the bounded APPROVED Decision, its exact base/branch/path/operation grants, required surfaces and active skill profiles. The activated Decision is immutable; never repair an active contract in place or treat an Issue/comment as a replacement.
-
-The existing transition sequence is:
+The landing gate (`python -m reverse_agent.landing_review review`) reads PR comments and reviews. A verdict is a line of the form:
 
 ```text
-python -m reverse_agent.project_gate startup-snapshot --state-dir project_state
-python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
-python -m reverse_agent.project_gate transition-lint --state-dir project_state
-python -m reverse_agent.project_gate transition-preflight --state-dir project_state --mode pre
+Nerelan-Review: ACCEPT <40-hex sha>
+Nerelan-Review: REJECT <40-hex sha>
 ```
 
-Follow the actual bounded contract and generated plan, including bootstrap exceptions and evidence provenance. Require `PRE_EXECUTION_AUTHORIZED` before implementation; do not execute omitted or unauthorized commands. Generated artifacts are evidence, not an independent grant. Failed validation, inconsistent authority or unavailable required capability blocks the affected action. A different execution surface must itself be authorized; a local failure cannot be renamed CI success.
+Rules:
 
-Do not universally substitute the older `preflight`/`command-plan` legacy sequence for the transition kernel. Legacy report/closeout requirements apply only when the active task selects that contract; see [legacy project-state reference](../prompts/legacy-project-state-reference.md).
+- Only authors whose association is OWNER, MEMBER or COLLABORATOR count.
+- Only verdicts naming the exact current head count, so a new push needs a new review.
+- The most recent verdict for that head wins, so REJECT after ACCEPT blocks again.
+- The checker runs from the PR's base commit, so a PR cannot weaken the check that admits it. The single exception is the bootstrap PR that introduces the checker.
 
-## Delegated controller authority
+In a single-account repository the gate cannot prove who the reviewer was. It is a process control that leaves an auditable record, not a cryptographic one. The independence requirement is procedural: the reviewer must be a fresh context that did not author the change and must review the exact diff.
 
-An explicit Owner-to-controller handoff can include authority to select and approve the next Work Item. An ordinary request to implement a feature, an Issue comment, a roadmap or an Agent's own plan does not establish that delegation. Preserve the original Owner instruction and its identity in existing execution evidence. Record the repository/goal/capability envelope, expiry or renewal rules, aggregate operation/retry/cost allowances and revocation conditions before using it. An absent capability or budget is not permission to infer a privileged side effect.
+What a reviewer does:
 
-The controller acts as a delegated approver, not as the human Owner or the independent auditor. Use the existing `approved_by`, `approval_basis` and `approval_event_or_time` fields to make that distinction explicit. Do not add a new authority store, approval Gate or self-issued independent acceptance receipt. Path A's reviewed Issue/label/digest rules are unchanged; use Path B for a delegated transition authorization.
-
-For each selected slice:
-
-1. Observe live ownership, repository, integration ref and exact base. Reuse existing work without taking another active owner's task. Base drift requires a separately scoped recovery; it never silently changes an old snapshot or licenses history rewriting.
-2. Bind exact allowed paths, operation/surface capabilities, required checks, branch/base/head, expiry and cumulative retry/spending limits in a new Decision. Cite the recorded delegation as the approval basis and identify the actual controller approver. A successor of failed work retains that failure and consumes the applicable correction allowance.
-3. Commit only the permitted Decision bootstrap, generate the existing command plan and obtain `PRE_EXECUTION_AUTHORIZED` before implementation. A compiler rejection is a real failure. Preserve its immutable Decision and evidence; a corrected successor is permitted only within the recorded delegation and allowances. Never modify the compiler or judge merely to admit a rejected request.
-4. Charge operations before executing them. Carry forward the original absolute expiry and aggregate spending when renewing the same grant. If the standing delegation permits a new allocation, append its distinct authorization and allowance without resetting or relabeling prior consumption. Otherwise park the affected slice.
-5. Execute and verify through the real platform where the needed capability is available. If unavailable, retain observed capability/runtime evidence and use the authorized alternate executor. Keep Task/Goal data, model use, actual runtime provenance and functional acceptance separate.
-6. Publish only through the exact permitted path. Delegated authorization does not supply an independent review, turn a Draft into Ready, or invoke the personal human R1 merge carve-out. Agent landing still needs separately applicable Path-B capabilities, exact-head checks, independent acceptance and immediate external-state observations.
-
-Failure or exhaustion of one operation does not automatically exhaust unrelated Work Items inside the delegation. Select the next eligible slice, checkpoint a blocked one, and resume only after its relevant condition changes. If no authorized useful action remains, record the exact blocker without repeated confirmation requests, unchanged polling or claims of background execution. Owner revocation and window-wide hard stops take precedence over successor selection.
-
-This workflow removes repeated interactive approval for covered authorization decisions. It does not assert that a durable unattended scheduler, arbitrary coding executor, GitHub merge/release adapter or deployment adapter has been implemented or accepted. Those product capabilities remain separately testable Work Items under #118.
-
-## Worktree guards
-
-Observe the startup baseline before edits. Do not delete, restore, hide or stage anything while classifying it.
-
-| Class | Meaning and action |
-| --- | --- |
-| AUTHORIZED_TRACKED_DELTA | Tracked change inside the exact approved allowlist; only normally stageable class. |
-| KNOWN_RUNTIME_SCRATCH | Untracked `task_workspaces/` or `.platform_v1_runtime/` content; non-blocking and non-stageable. |
-| GENERATED_GOVERNANCE_ARTIFACT | Generated `project_state/gates/` content; non-stageable without an explicit separate grant. |
-| UNKNOWN_UNTRACKED | Preserve it; read-only bootstrap is allowed, publication waits for owner/authority resolution. |
-| UNAUTHORIZED_TRACKED_OR_SENSITIVE | Stop immediately; never stage it. |
-
-Classification grants no reset, clean, stash, restore, deletion or broad staging. `startup-snapshot` machine-enforces bootstrap classification.
-
-For ordinary R1 local readiness:
-
-```text
-python -m reverse_agent.project_gate worktree-r1-publication-readiness --issue-body-file <approved-issue-body-file> --pr-body-file <draft-pr-body-file>
-```
-
-Store these frozen inputs outside the repository. The guard derives allowed paths from the approved Issue body and checks its digest, branch/base/head/merge-base and worktree classes. It does not replace live label provenance, owner permission, Issue/PR state, auto-merge or authority-revision checks; GitHub State Gate remains the final live verification.
-
-For applicable Path-B product staging/publication:
-
-```text
-python -m reverse_agent.project_gate worktree-publication-readiness --state-dir project_state
-```
-
-Require `PUBLICATION_READY`. An authorized remote/CI checkout and its real evidence must be distinguished from user-local work and from a partial materialization.
+1. Read the full diff of the exact head against `main`, plus the PR's claims.
+2. Check correctness, scope, test adequacy and the risk tier. For R2, confirm the change matches the cited Owner decision and does not weaken controls beyond it.
+3. Confirm CI is green on that head, or run the relevant suites.
+4. Post findings, then the verdict line.
 
 ## Landing
 
-The personal owner/maintainer R1 carve-out in AGENTS requires every snapshot/digest/approval, fresh-base, allowed-path, local exact-head check, successful exact-head Actions, independent audit and resolved-thread predicate. Immediately reobserve remote integration ref and `baseRefOid` against `base_sha`, `headRefOid` against the audited head, MERGEABLE, CLEAN, CI SUCCESS and no concurrent publication/mutation.
+After ACCEPT and green checks: mark Ready, wait for `landing-state-gate`, then run `gh pr merge <n> --merge --match-head-commit <sha>`. If `main` moved, update the branch with a merge from `main` (never a rebase of a shared branch), let CI rerun, and get a fresh verdict for the new head. After merging, verify `main` points to the merge commit.
 
-Then personally mark-ready and immediately merge with merge method `merge` and expected-head protection; verify merged state, recorded merge commit and new remote integration ref before closing the source Issue. GitHub UI use has no universal local clean-tree requirement; an owner-controlled CLI must prevent accidental commit, push, branch mutation or unrelated changes. Personal `gh pr merge` can qualify, but an Agent invoking the same account/CLI does not.
+## Delegation record
 
-Agent-, automation-, workflow-, scheduled-, delegated- and service-initiated landing remains Path B, as do auto-merge and every R2/R3 landing. Any failed personal R1 predicate excludes the carve-out. A self-audit or a Draft with passing tests is not independent acceptance.
+- 2026-10-11, Owner `dddd2024` in chat: Claude becomes sole developer; Codex no longer participates; Claude may use Nerelan itself for development and acts as supervisor.
+- 2026-10-11, Owner `dddd2024` in chat, choosing between explicit options: "先简化治理再自动合并" (simplify governance first, then merge automatically), and permission to close superseded PRs.
+- Earlier Owner delegation to the Codex controller, recorded under v1, is superseded by the above for development work.
+
+Delegation never covers R3 actions: secrets, tags/releases, deployment, destructive user-data operations, untrusted binaries. Those need a fresh Owner instruction.
+
+## Worktree guards
+
+Before staging, list the tree and stage only the files the change owns. Untracked runtime scratch stays untracked. Before removing a stale worktree or clone, preserve its uncommitted diff (for example `git stash create` plus a `backup/*` ref, or a patch file) and keep its branch. Never use `git clean`, `reset --hard` or bare `git stash`, which uses the stack shared across worktrees, to make a tree look clean.

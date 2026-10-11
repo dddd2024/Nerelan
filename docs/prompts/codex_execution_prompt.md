@@ -9,9 +9,9 @@ Outcome: <requested result and acceptance target>
 Optional stale-detection hints: <branch / base / head>
 
 This prompt is a locator, not execution authority. Fresh-read the named Work Item,
-current repository AGENTS.md and live branch/base/head before mutation. Use Path A's
-approved Issue snapshot for ordinary R0/R1; use Path B's immutable Decision and
-generated plan/preflight for transition/R2-R3. Hints never override current truth.
+current repository AGENTS.md and live branch/base/head before mutation. Follow the
+Governance v2 change flow and risk tiers; legacy Path A / Path B applies only when the
+task explicitly selects it. Hints never override current truth.
 Read only the task-relevant code and conditional references. No fixed drive or
 historical project-state stack is required by this prompt.
 
