@@ -63,6 +63,27 @@ def test_unclosed_fence_and_indented_code_do_not_count() -> None:
     assert not evaluate_review(HEAD, [entry(f"~~~\n```\nNerelan-Review: ACCEPT {HEAD}\n")]).accepted
 
 
+@pytest.mark.parametrize("reject_body", [
+    # Line starting with an inline code span: not a fence on GitHub.
+    f"```x``` is wrong here.\n\nNerelan-Review: REJECT {HEAD}",
+    # Bullet item opening a fenced block on its marker line.
+    f"- Finding:\n  ```python\n  x = 1\n  ```\n\nNerelan-Review: REJECT {HEAD}",
+    # Ordered item opening a fenced block on its marker line.
+    f"1. ```\n   code\n   ```\n\nNerelan-Review: REJECT {HEAD}",
+    # Even a genuinely unclosed fence cannot hide a REJECT.
+    f"```\nunclosed\nNerelan-Review: REJECT {HEAD}",
+])
+def test_no_markdown_shape_can_hide_a_later_reject(reject_body: str) -> None:
+    accept = entry(f"Nerelan-Review: ACCEPT {HEAD}", at="2026-10-11T10:00:00Z")
+    reject = entry(reject_body, at="2026-10-11T11:00:00Z")
+    assert evaluate_review(HEAD, [accept, reject]).reason == "latest_review_verdict_rejects_head"
+
+
+def test_entry_with_both_verdicts_counts_as_reject() -> None:
+    body = f"Nerelan-Review: ACCEPT {HEAD}\nNerelan-Review: REJECT {HEAD}"
+    assert evaluate_review(HEAD, [entry(body)]).reason == "latest_review_verdict_rejects_head"
+
+
 def test_reject_after_closed_fence_still_counts() -> None:
     accept = entry(f"Nerelan-Review: ACCEPT {HEAD}", at="2026-10-11T10:00:00Z")
     reject = entry(f"```\nx\n```\nNerelan-Review: REJECT {HEAD}", at="2026-10-11T11:00:00Z")

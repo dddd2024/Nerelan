@@ -82,13 +82,18 @@ class Verdict:
 
 
 def strip_code_fences(body: str) -> str:
-    """Drop fenced code blocks; an unclosed fence runs to the end, as GitHub renders it."""
+    """Drop fenced code blocks; an unclosed fence runs to the end, as GitHub renders it.
+
+    Only used to decide which ACCEPT lines count. REJECT lines are read from the
+    raw body, so a parsing mistake here can never hide a REJECT.
+    """
     kept: list[str] = []
     fence: str | None = None
-    for line in body.splitlines():
+    for line in body.split("\n"):
         match = FENCE_OPEN_RE.match(line)
         if fence is None:
-            if match:
+            # A backtick fence's info string may not contain a backtick (CommonMark).
+            if match and not (match.group(1)[0] == "`" and "`" in line[match.end():]):
                 fence = match.group(1)
             else:
                 kept.append(line)
@@ -96,6 +101,15 @@ def strip_code_fences(body: str) -> str:
                 and not line.strip().lstrip(fence[0]):
             fence = None
     return "\n".join(kept)
+
+
+def _entry_decisions(body: str, head: str) -> set[str]:
+    """Verdicts an entry gives ``head``: REJECT from the raw body, ACCEPT only outside code."""
+    decisions = {"REJECT" for decision, sha in VERDICT_RE.findall(body)
+                 if decision == "REJECT" and sha.lower() == head}
+    decisions |= {"ACCEPT" for decision, sha in VERDICT_RE.findall(strip_code_fences(body))
+                  if decision == "ACCEPT" and sha.lower() == head}
+    return decisions
 
 
 def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
@@ -107,11 +121,13 @@ def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
     for entry in entries:
         if entry.association not in TRUSTED_ASSOCIATIONS or not entry.created_at:
             continue
-        for decision, sha in VERDICT_RE.findall(strip_code_fences(entry.body or "")):
-            if sha.lower() != head:
-                continue
-            if latest is None or entry.created_at >= latest[0]:
-                latest = (entry.created_at, decision, entry.author)
+        decisions = _entry_decisions(entry.body or "", head)
+        if not decisions:
+            continue
+        # An entry that both accepts and rejects the head counts as a REJECT.
+        decision = "REJECT" if "REJECT" in decisions else "ACCEPT"
+        if latest is None or entry.created_at >= latest[0]:
+            latest = (entry.created_at, decision, entry.author)
     if latest is None:
         return Verdict(False, "no_review_verdict_for_exact_head")
     if latest[1] != "ACCEPT":
