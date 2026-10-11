@@ -631,7 +631,7 @@ def test_pr60_recovery_rejects_unknown_field(tmp_path: Path) -> None:
 
 
 def test_state_gate_routes_branch_and_main_lifecycles() -> None:
-    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(
+    text = (REPO_ROOT / "docs/agents/legacy-state-gate-v1.yml").read_text(
         encoding="utf-8"
     )
     assert "github.ref != 'refs/heads/main'" in text
@@ -1056,7 +1056,7 @@ def test_production_pre_merge_simulation(tmp_path: Path) -> None:
 
 
 def test_state_gate_permissions_are_read_only_and_complete() -> None:
-    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(
+    text = (REPO_ROOT / "docs/agents/legacy-state-gate-v1.yml").read_text(
         encoding="utf-8"
     )
     for permission in (
@@ -3351,7 +3351,7 @@ def test_attestation_readiness_is_not_cached_canonical_preflight_acceptance(tmp_
 
 
 def test_attestation_readiness_workflow_is_formal_only_and_fresh_preflight():
-    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(encoding="utf-8")
+    text = (REPO_ROOT / "docs/agents/legacy-state-gate-v1.yml").read_text(encoding="utf-8")
     ordinary, formal = text.split("  landing-state-gate:", 1)
     formal = formal.split("  bootstrap-authority:", 1)[0]
     assert "wait_for_owner_landing_merge_attestation" not in ordinary
@@ -3421,7 +3421,7 @@ def test_false_none_first_ready_real_verifier_premerge_then_postmerge(tmp_path: 
 
 
 def test_state_gate_formal_landing_waits_for_ordinary_job() -> None:
-    text = (REPO_ROOT / ".github/workflows/state-gate.yml").read_text(encoding="utf-8")
+    text = (REPO_ROOT / "docs/agents/legacy-state-gate-v1.yml").read_text(encoding="utf-8")
     section = text.split("  landing-state-gate:\n", 1)[1].split("  bootstrap-authority:", 1)[0]
     assert "    needs: state-gate\n" in section
 

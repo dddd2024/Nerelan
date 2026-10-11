@@ -31981,8 +31981,10 @@ def test_transition_packaging_and_workflow_boundary() -> None:
     }
     workflows = {
         name: (repo_root / ".github" / "workflows" / name).read_text(encoding="utf-8")
-        for name in ("ci.yml", "state-gate.yml", "decision-preflight.yml")
+        for name in ("ci.yml", "decision-preflight.yml")
     }
+    # Governance v2 replaced the live State Gate; the transition contract is the archived v1 workflow.
+    workflows["state-gate.yml"] = (repo_root / "docs" / "agents" / "legacy-state-gate-v1.yml").read_text(encoding="utf-8")
     for text in workflows.values():
         assert f"run: {contract['install_command']}" in text
     ci = workflows["ci.yml"]

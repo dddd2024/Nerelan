@@ -13,7 +13,9 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-AGENTS_MD = REPO_ROOT / "AGENTS.md"
+# Governance v2 (2026-10-11) replaced AGENTS.md. These semantic contracts keep
+# validating the archived v1 entry that the roadmap and template still describe.
+AGENTS_MD = REPO_ROOT / "docs" / "agents" / "legacy-AGENTS-v1.md"
 ROADMAP_MD = REPO_ROOT / "docs" / "roadmap" / "MINIMAL_AI_DEVELOPMENT_INTEGRATION_PLAN.md"
 SOURCE_OF_TRUTH_MD = REPO_ROOT / "docs" / "architecture" / "SOURCE_OF_TRUTH_MATRIX.md"
 CONTAINMENT_MD = REPO_ROOT / "docs" / "architecture" / "LEGACY_GOVERNANCE_CONTAINMENT.md"

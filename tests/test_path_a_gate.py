@@ -919,7 +919,7 @@ def test_state_gate_pull_request_trigger_reaches_every_risk_only_change(
     only_changed_path: str,
 ) -> None:
     state_gate = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+        Path(__file__).resolve().parents[1] / "docs/agents/legacy-state-gate-v1.yml"
     ).read_text(encoding="utf-8")
     pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
         "\n\npermissions:",
@@ -931,7 +931,7 @@ def test_state_gate_pull_request_trigger_reaches_every_risk_only_change(
 
 def test_state_gate_revalidates_on_pr_authority_metadata_changes() -> None:
     state_gate = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+        Path(__file__).resolve().parents[1] / "docs/agents/legacy-state-gate-v1.yml"
     ).read_text(encoding="utf-8")
     pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
         "\n\npermissions:",
@@ -961,7 +961,7 @@ def test_feature_push_is_not_path_a_authority_and_main_push_keeps_decision_mode(
     assert detect_control_plane_mode(decision, event=push_event) == "transition"
 
     state_gate = (
-        Path(__file__).resolve().parents[1] / ".github" / "workflows" / "state-gate.yml"
+        Path(__file__).resolve().parents[1] / "docs/agents/legacy-state-gate-v1.yml"
     ).read_text(encoding="utf-8")
     push_block = state_gate.split("  pull_request:", 1)[0]
     assert "push:\n    branches:\n      - main" in push_block
@@ -1408,9 +1408,7 @@ def test_M1c_auto_merge_blocks_in_activation_draft() -> None:
 def test_G1_state_gate_pull_request_triggers_cover_every_lifecycle_transition() -> None:
     state_gate = (
         Path(__file__).resolve().parents[1]
-        / ".github"
-        / "workflows"
-        / "state-gate.yml"
+        / "docs/agents/legacy-state-gate-v1.yml"
     ).read_text(encoding="utf-8")
     pull_request_block = state_gate.split("  pull_request:", 1)[1].split(
         "\n\npermissions:",

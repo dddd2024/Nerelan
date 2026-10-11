@@ -1457,7 +1457,7 @@ SEMANTIC_PATHS = (
 
 def _workflow_semantic_guard():
     workflow = (
-        Path(__file__).resolve().parents[2] / ".github" / "workflows" / "state-gate.yml"
+        Path(__file__).resolve().parents[2] / "docs" / "agents" / "legacy-state-gate-v1.yml"
     ).read_text(encoding="utf-8")
     inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
     module = ast.parse(textwrap.dedent(inline))
@@ -1858,9 +1858,9 @@ def _bootstrap_authority_inline_source(workflow: str | None = None) -> str:
     if workflow is None:
         workflow = (
             Path(__file__).resolve().parents[2]
-            / ".github"
-            / "workflows"
-            / "state-gate.yml"
+            / "docs"
+            / "agents"
+            / "legacy-state-gate-v1.yml"
         ).read_text(encoding="utf-8")
     inline = workflow.split("python - <<'PY'\n", 1)[1].split("\n          PY", 1)[0]
     return textwrap.dedent(inline)
@@ -2004,7 +2004,7 @@ class TestStateGateBootstrapPathTreeSealV6:
             return ast.dump(matches[0], include_attributes=False)
 
         current_workflow = (
-            repo_root / ".github" / "workflows" / "state-gate.yml"
+            repo_root / "docs" / "agents" / "legacy-state-gate-v1.yml"
         ).read_text(encoding="utf-8")
         assert validator_dump(old_workflow) == validator_dump(current_workflow)
 

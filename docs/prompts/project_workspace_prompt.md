@@ -9,8 +9,8 @@ Outcome: <decision or audit result requested>
 Optional stale-detection hints: <branch / base / head>
 
 This prompt is a non-authoritative locator. Fresh-read current repository truth,
-AGENTS.md and the named work before using a summary. Distinguish Path A's approved
-Issue snapshot from Path B's immutable Decision/plan; planning is not approval.
+AGENTS.md and the named work before using a summary. Apply the Governance v2 risk
+tiers (legacy Path A / Path B only when explicitly selected); planning is not approval.
 Read only the relevant implementation, requirements, tests and conditional references.
 Check existing ownership and reuse options before creating another task or design.
 

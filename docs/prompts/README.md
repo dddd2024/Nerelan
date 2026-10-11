@@ -4,7 +4,7 @@ These templates are short, non-authoritative locators for `dddd2024/Nerelan`, no
 
 Use [the execution prompt](codex_execution_prompt.md) for implementing a named task and [the workspace prompt](project_workspace_prompt.md) for planning/auditing. Supply the work-item/PR locator, role, actual execution surface and requested outcome. Optional base/head hints detect staleness; they do not replace a fresh read. Do not paste the full Issue, Decision, repository map or historical state stack as the routine bootstrap.
 
-Resolve current authority, then read only the relevant code and conditional instructions in `AGENTS.md`. Path A and Path B remain distinct. Read [legacy project-state details](legacy-project-state-reference.md) only if the active task selects that report/round contract; those rules are not the ordinary R1 default.
+Resolve current authority, then read only the relevant code and conditional instructions in `AGENTS.md`. Changes follow the Governance v2 change flow (Draft PR, exact-head CI, independent review verdict, controlled merge); legacy Path A / Path B applies only when a task explicitly selects it. Read [legacy project-state details](legacy-project-state-reference.md) only if the active task selects that report/round contract; those rules are not the ordinary R1 default.
 
 These documents remain subject to the existing `policy-lint`. Do not weaken lint or existing acceptance rules to shorten a prompt. Keep dynamic facts in current task/evidence stores and preserve historical evidence. Skill registry identifiers and installed skill versions remain compatible; this repair does not install or sync anything onto a user's machine.
 
