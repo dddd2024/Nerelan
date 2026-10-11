@@ -115,10 +115,20 @@ describe("activation error reconciliation", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/activate"))).toBe(false);
   });
 
-  it("does not fabricate activation when no approved host template exists", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(response({ available: false, reason: "delegated_policy_authority_unavailable" }));
-    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({ code: "delegated_policy_authority_unavailable" });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+  it("falls back to an owner-confirmed window when no delegated template is pinned", async () => {
+    const window = { ...approvedWindow(), id: "owner-window" };
+    const running = { ...goal, status: "RUNNING", window_id: window.id };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(response({ available: false, reason: "trusted_policy_unavailable" }))
+      .mockResolvedValueOnce(response({ autonomy: { active_window: null } }))
+      .mockResolvedValueOnce(response(window, 201))
+      .mockImplementation(async () => response(running));
+    await launchExistingGoal(goal, 2);
+    const activation = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/windows/activate"));
+    expect(activation).toBeDefined();
+    const body = JSON.parse(String((activation![1] as RequestInit).body));
+    expect(body).toMatchObject({ confirmation: "ACTIVATE", owner_identity: "local-owner", repositories: [goal.repository] });
+    expect(Date.parse(body.expires_at) - Date.parse(body.starts_at)).toBe(2 * 60 * 60 * 1000);
   });
 
   it("reuses an equivalent offset expiry without creating another window", async () => {

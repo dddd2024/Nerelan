@@ -683,7 +683,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
                     return
             if segments == ["api", "windows", "activate"]:
-                window = self.autonomy_service.activate_policy(self._read_json())
+                # A pinned delegated authority admits only its exact policy. Without
+                # pins, the launcher-authenticated local owner confirms the window.
+                payload = self._read_json()
+                window = (self.autonomy_service.activate_policy(payload)
+                          if self.autonomy_service.delegated_mode
+                          else self.autonomy_service.activate(payload))
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
             if (
@@ -902,8 +907,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
         task = self.store.get_task(task_id)
         contract = load_host_validation_contract(task)
         if contract is None:
-            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
-                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
+            # Autonomous-window tasks run only through the coordinator, which
+            # enforces the window budget; direct HTTP execution would bypass it.
+            if self.autonomy_service.delegated_mode or task.permission_profile == "AUTONOMOUS_WINDOW":
                 self._discard_bounded_request_body()
                 raise TaskStoreError("direct_execution_requires_approved_host_task")
             return False
@@ -1277,7 +1283,9 @@ def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
 
     service = AutonomyService(control_store=control, capabilities=capabilities,
         authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
-    service.require_trusted_policy = True
+    # Trusted-policy enforcement applies when the host pins a delegated authority;
+    # the default owner launch keeps owner-confirmed windows (local client auth).
+    service.require_trusted_policy = bool(raw)
     return service
 
 
@@ -1359,12 +1367,16 @@ def adopt_legacy_task_store(target: str, legacy: str) -> str:
 
     if not legacy or not target or target == ":memory:":
         return "not_requested"
-    if os.path.lexists(target):
-        return "target_exists"
     if not os.path.isfile(legacy):
         return "legacy_absent"
-    if os.path.normcase(os.path.realpath(legacy)) == os.path.normcase(os.path.realpath(target)):
+    if os.path.lexists(target) and os.path.normcase(os.path.realpath(legacy)) == os.path.normcase(os.path.realpath(target)):
         return "same_store"
+    _adopt_model_setup_state(target, legacy)
+    if os.path.lexists(target):
+        # A store created before adoption ever ran (for example by a standalone
+        # service start) holds no history; set it aside so adoption can proceed.
+        if not _set_aside_empty_store(target):
+            return "target_exists"
     _ensure_db_path(target)
     staging = f"{target}.adopting-{os.getpid()}"
     try:
@@ -1399,6 +1411,74 @@ def adopt_legacy_task_store(target: str, legacy: str) -> str:
         raise LegacyTaskStoreAdoptionError(
             f"legacy_task_store_adoption_failed:{type(exc).__name__}"
         ) from None
+    finally:
+        if os.path.lexists(staging):
+            try:
+                os.remove(staging)
+            except OSError:
+                pass
+
+
+_HISTORY_TABLES = ("tasks", "platform_goals", "platform_autonomous_windows", "platform_inbox_items")
+
+
+def _set_aside_empty_store(target: str) -> bool:
+    """Rename an existing store without any history aside; True if it was moved.
+
+    Anything unreadable, non-empty or still open (rename fails on Windows) is
+    left untouched and treated as an existing store.
+    """
+    import sqlite3
+    import time
+    from pathlib import Path
+
+    moved: list[tuple[str, str]] = []
+    try:
+        connection = sqlite3.connect(f"{Path(os.path.abspath(target)).as_uri()}?mode=ro", uri=True)
+        try:
+            tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            for table in _HISTORY_TABLES:
+                if table in tables and connection.execute(f'SELECT 1 FROM "{table}" LIMIT 1').fetchone():
+                    return False
+        finally:
+            connection.close()
+        stamp = time.strftime("%Y%m%dT%H%M%S")
+        for suffix in ("", "-wal", "-shm", "-journal"):
+            if os.path.lexists(target + suffix):
+                aside = f"{target}.empty-{stamp}.bak{suffix}"
+                os.rename(target + suffix, aside)
+                moved.append((aside, target + suffix))
+        return True
+    except (OSError, sqlite3.Error):
+        for aside, original in reversed(moved):
+            try:
+                os.rename(aside, original)
+            except OSError:
+                pass
+        return False
+
+
+def _adopt_model_setup_state(target: str, legacy: str) -> None:
+    """Carry the legacy model setup (credential refs only, no secrets) along once."""
+    import shutil
+
+    source = os.path.join(os.path.dirname(os.path.abspath(legacy)), "model_setup_state.json")
+    destination = os.path.join(os.path.dirname(os.path.abspath(target)), "model_setup_state.json")
+    if not os.path.isfile(source) or os.path.lexists(destination):
+        return
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    staging = f"{destination}.adopting-{os.getpid()}"
+    try:
+        shutil.copyfile(source, staging)
+        try:
+            os.link(staging, destination)
+        except FileExistsError:
+            pass
+        except OSError:
+            if not os.path.lexists(destination):
+                os.rename(staging, destination)
+    except OSError:
+        pass
     finally:
         if os.path.lexists(staging):
             try:

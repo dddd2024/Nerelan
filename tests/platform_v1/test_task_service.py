@@ -185,21 +185,48 @@ def production_policy_server(tmp_path, monkeypatch):
         store._conn.close()
 
 
-def test_production_http_has_no_renderer_owner_activation_fallback(production_policy_server):
+def test_default_launch_activates_owner_confirmed_window_without_pins(production_policy_server):
+    # Without a pinned delegated authority, the launcher-authenticated local owner
+    # confirms the window (the pre-#1117 behaviour the product depends on).
     base, server = production_policy_server
-    before = server.RequestHandlerClass.store._conn.total_changes
     status, template = _req(base, "GET", "/api/windows/policy")
     assert status == 200 and template == {"available": False, "reason": "trusted_policy_unavailable"}
-    for payload, error in (
-        ({"owner_identity": "local-owner", "confirmation": "ACTIVATE"}, "canonical_policy_fields_invalid"),
-        ({"policy_id": "caller", "policy_revision": 1, "policy": {}, "confirmation": "ACTIVATE"},
-         "canonical_policy_fields_invalid"),
-        ({"policy_id": "caller", "policy_revision": 1, "policy": {}}, "delegated_policy_authority_unavailable"),
+    for payload in (
+        {"owner_identity": "local-owner", "confirmation": "ACTIVATE"},
+        {"policy_id": "caller", "policy_revision": 1, "policy": {}},
     ):
         status, body = _req(base, "POST", "/api/windows/activate", payload)
-        assert status == 409 and body == {"error": error}
+        assert status == 409, body
     assert server.RequestHandlerClass.control_store.active_window() is None
-    assert server.RequestHandlerClass.store._conn.total_changes == before
+    now = datetime.now(timezone.utc)
+    status, window = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "owner-ui-test", "policy_revision": 1, "owner_identity": "local-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=2)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task", "validate_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 20, "max_retries": 1, "confirmation": "ACTIVATE",
+    })
+    assert status == 201, window
+    assert server.RequestHandlerClass.control_store.active_window().id == window["id"]
+
+
+def test_pinned_authority_never_falls_back_to_owner_activation(production_policy_server, monkeypatch):
+    from reverse_agent.platform_v1.task_service import _configured_autonomy
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
+    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
+    assert handler.autonomy_service.delegated_mode and handler.autonomy_service.require_trusted_policy
+    now = datetime.now(timezone.utc)
+    status, body = _req(base, "POST", "/api/windows/activate", {
+        "policy_id": "owner-ui-test", "policy_revision": 1, "owner_identity": "local-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=2)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0, "confirmation": "ACTIVATE",
+    })
+    assert status == 409, body
+    assert handler.control_store.active_window() is None
 
 
 def test_production_direct_execute_cannot_bypass_missing_goal_authority(production_policy_server, monkeypatch):

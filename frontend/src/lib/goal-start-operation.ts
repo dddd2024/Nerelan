@@ -4,7 +4,7 @@ import {
   fetchGoal,
   fetchPlatformStatus,
   ensureApprovedWindow,
-  fetchApprovedPolicy,
+  fetchApprovedPolicyIfConfigured,
   approvedCheckerPlan,
   type ApprovedPolicyTemplate,
   startGoal as legacyStartGoal,
@@ -262,7 +262,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function ensureWindow(input: StartGoalInput, goalId: string): Promise<PlatformWindow> {
-  try { return await ensureApprovedWindow(input.repository); } catch (error) {
+  try { return await ensureApprovedWindow(input.repository, { autonomyHours: input.autonomyHours, operationId: input.operationId }); } catch (error) {
     if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalStartOperationError("active_window_repository_conflict", goalId);
     throw error;
   }
@@ -291,7 +291,7 @@ async function runGoalStart(
     if (goal.status === "BLOCKED") throw new GoalStartOperationError("goal_start_blocked", goal.id);
     if (goal.status === "INVALIDATED") throw new GoalStartOperationError("goal_start_invalidated", goal.id);
   }
-  if (!draftOnly) template = await fetchApprovedPolicy();
+  if (!draftOnly) template = await fetchApprovedPolicyIfConfigured();
   const checkerPlan = approvedCheckerPlan(template);
   const checkerDraft = draftOnly ? input.checkerDraft : undefined;
   if (template && template.policy.repository !== input.repository) throw new GoalStartOperationError("active_window_repository_conflict", journal.goal_id);

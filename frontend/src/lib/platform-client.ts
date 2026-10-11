@@ -29,8 +29,43 @@ export async function fetchApprovedPolicy(): Promise<ApprovedPolicyTemplate> {
   return template;
 }
 
-export async function ensureApprovedWindow(repository: string): Promise<PlatformWindow> {
-  const template = await fetchApprovedPolicy();
+const POLICY_UNAVAILABLE_CODES = new Set(["delegated_policy_authority_unavailable", "trusted_policy_unavailable"]);
+
+/** The delegated template when the host pins one; null for the default owner launch. */
+export async function fetchApprovedPolicyIfConfigured(): Promise<ApprovedPolicyTemplate | null> {
+  try {
+    return await fetchApprovedPolicy();
+  } catch (error) {
+    if (error instanceof PlatformClientError && error.status === 409 && POLICY_UNAVAILABLE_CODES.has(error.code)) return null;
+    throw error;
+  }
+}
+
+export interface OwnerWindowRequest {
+  autonomyHours: number;
+  operationId: string;
+}
+
+/** Owner-confirmed window for the default launch, as on main before delegated pins existed. */
+async function ensureOwnerWindow(repository: string, owner: OwnerWindowRequest): Promise<PlatformWindow> {
+  const current = (await fetchPlatformStatus()).autonomy.active_window;
+  if (current) {
+    if (!current.repositories.includes(repository)) throw new PlatformClientError(409, "active_window_repository_conflict");
+    return current;
+  }
+  const starts = new Date();
+  const expires = new Date(starts.getTime() + owner.autonomyHours * 60 * 60 * 1000);
+  return request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
+    policy_id: `owner-ui-${owner.operationId}`, policy_revision: 1, owner_identity: "local-owner",
+    starts_at: starts.toISOString(), expires_at: expires.toISOString(), repositories: [repository],
+    capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
+    max_concurrent_tasks: 2, max_tasks: 20, max_retries: 1, confirmation: "ACTIVATE",
+  }) });
+}
+
+export async function ensureApprovedWindow(repository: string, owner?: OwnerWindowRequest): Promise<PlatformWindow> {
+  const template = owner ? await fetchApprovedPolicyIfConfigured() : await fetchApprovedPolicy();
+  if (!template) return ensureOwnerWindow(repository, owner!);
   if (template.policy.repository !== repository) throw new PlatformClientError(409, "active_window_repository_conflict");
   const startsAt = Date.parse(template.policy.autonomousWindow.startsAt);
   const expiresAt = Date.parse(template.policy.autonomousWindow.expiresAt);
@@ -1097,9 +1132,9 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
     return goal;
   }
 
-  const template = await fetchApprovedPolicy();
+  const template = await fetchApprovedPolicyIfConfigured();
   const checkerPlan = approvedCheckerPlan(template);
-  const idempotencyKey = checkerPlan ? template.goal_idempotency_key : `ui-goal-${crypto.randomUUID()}`;
+  const idempotencyKey = checkerPlan ? template!.goal_idempotency_key : `ui-goal-${crypto.randomUUID()}`;
   const created = await request<PlatformGoal>("/api/goals", {
     method: "POST",
     body: JSON.stringify({
@@ -1117,7 +1152,7 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
   await request<PlatformGoal>(`/api/goals/${created.id}/approve`, {
     method: "POST", body: JSON.stringify({ expected_revision: created.revision }),
   });
-  const window = await ensureApprovedWindow(input.repository);
+  const window = await ensureApprovedWindow(input.repository, { autonomyHours: input.autonomyHours, operationId: idempotencyKey });
   await request<PlatformGoal>(`/api/goals/${created.id}/launch`, {
     method: "POST", body: JSON.stringify({ expected_revision: created.revision, window_id: window.id }),
   });

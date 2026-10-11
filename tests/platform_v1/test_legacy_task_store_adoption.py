@@ -175,3 +175,35 @@ def test_host_store_factory_fails_closed_on_unreadable_legacy(tmp_path, monkeypa
 
 def test_launcher_names_its_checkout_store_as_adoption_source():
     assert '"REVERSE_AGENT_LEGACY_TASK_DB_PATH" = (Join-Path $runtimeDir "tasks.sqlite3")' in _DEV_UP
+
+
+def test_empty_existing_target_is_set_aside_and_legacy_adopted(tmp_path):
+    legacy = tmp_path / "checkout" / ".platform_v1_runtime" / "tasks.sqlite3"
+    task_id = _legacy_store_with_task(legacy)
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+    target.parent.mkdir(parents=True)
+    TaskStore(db_path=str(target))._conn.close()  # schema only, no history
+
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    store = TaskStore(db_path=str(target))
+    try:
+        assert store.get_task(task_id).title == "legacy history"
+    finally:
+        store._conn.close()
+    assert len(list(target.parent.glob("tasks.sqlite3.empty-*.bak"))) == 1
+
+
+def test_model_setup_state_is_carried_once_and_never_overwritten(tmp_path):
+    legacy = tmp_path / "checkout" / ".platform_v1_runtime" / "tasks.sqlite3"
+    _legacy_store_with_task(legacy)
+    (legacy.parent / "model_setup_state.json").write_bytes(b'{"schema_version": 1, "connections": []}')
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    carried = target.parent / "model_setup_state.json"
+    assert carried.read_bytes() == b'{"schema_version": 1, "connections": []}'
+
+    carried.write_bytes(b'{"schema_version": 1, "connections": ["edited"]}')
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "target_exists"
+    assert carried.read_bytes() == b'{"schema_version": 1, "connections": ["edited"]}'
+    assert not list(target.parent.glob("*.adopting-*"))

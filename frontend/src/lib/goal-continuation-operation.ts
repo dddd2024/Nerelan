@@ -4,7 +4,7 @@ import {
   __launchMockGoal,
   fetchGoal,
   ensureApprovedWindow,
-  fetchApprovedPolicy,
+  fetchApprovedPolicyIfConfigured,
   approvedCheckerPlan,
   type PlatformGoal,
   type PlatformWindow,
@@ -115,7 +115,7 @@ async function mutateStage(
 
 async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<PlatformWindow> {
   if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
-  try { return await ensureApprovedWindow(goal.repository); } catch (error) {
+  try { return await ensureApprovedWindow(goal.repository, { autonomyHours, operationId: `continue-${goal.id}-r${goal.revision}` }); } catch (error) {
     if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalContinuationError("active_window_repository_conflict", goal.id);
     throw error;
   }
@@ -123,7 +123,7 @@ async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<
 
 export async function planExistingGoal(goal: PlatformGoal): Promise<PlatformGoal> {
   if (!isMock()) {
-    const template = await fetchApprovedPolicy();
+    const template = await fetchApprovedPolicyIfConfigured();
     const plan = approvedCheckerPlan(template);
     if (plan) return saveGoalPlan(goal, plan);
   }

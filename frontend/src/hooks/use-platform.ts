@@ -3,7 +3,7 @@ import {
   fetchGoal,
   fetchGoals,
   fetchPlatformStatus,
-  fetchApprovedPolicy,
+  fetchApprovedPolicyIfConfigured,
 } from "@/lib/platform-client";
 import {
   startGoal,
@@ -13,7 +13,7 @@ import {
 
 export function useApprovedPolicy() {
   return useQuery({
-    queryKey: ["platform", "approved-policy"], queryFn: fetchApprovedPolicy,
+    queryKey: ["platform", "approved-policy"], queryFn: fetchApprovedPolicyIfConfigured,
     enabled: import.meta.env.MODE !== "mock" && (import.meta.env.MODE !== "test" || Boolean(import.meta.env.VITE_TASK_CLIENT_USE_HTTP)),
     staleTime: 3_000, retry: false, refetchOnWindowFocus: true,
   });
