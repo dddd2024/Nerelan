@@ -19,6 +19,8 @@ from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.task_service import _handler_factory
 
 
+from _local_client_fixture import client_session, client_headers
+
 def _check(state: str, *, required: bool = True, check_id: str = "check") -> DoctorCheck:
     return DoctorCheck(
         id=check_id,
@@ -148,7 +150,7 @@ def _request(base_url: str, *, origin: str) -> tuple[int, dict]:
     conn.request(
         "GET",
         "/api/platform/doctor",
-        headers={"Accept": "application/json", "Origin": origin},
+        headers=client_headers({"Accept": "application/json", "Origin": origin}),
     )
     response = conn.getresponse()
     payload = json.loads(response.read().decode("utf-8"))
@@ -164,6 +166,7 @@ def test_http_doctor_route_is_read_only_structured_and_origin_fail_closed(tmp_pa
         allowed_origin="http://localhost:5173",
         execution_authority_sha="test_authority",
         planning_sha="test_planning",
+        local_client_session=client_session(),
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

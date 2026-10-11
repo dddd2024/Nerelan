@@ -1,4 +1,5 @@
 import type { PolicyContract } from "@/types";
+import { policySchema } from "@/schemas/policy";
 
 /**
  * Serialize a PolicyContract to a canonical JSON string.
@@ -6,13 +7,14 @@ import type { PolicyContract } from "@/types";
  * produce identical strings (useful for digesting delegation requests).
  */
 export function serializePolicy(policy: PolicyContract): string {
-  return JSON.stringify(sortKeys(policy), null, 2);
+  policySchema.parse(policy);
+  return JSON.stringify(sortKeys(policy));
 }
 
 /** Deserialize a JSON string into a PolicyContract (throws on invalid JSON). */
 export function deserializePolicy(json: string): PolicyContract {
   const parsed = JSON.parse(json) as unknown;
-  return parsed as PolicyContract;
+  return policySchema.parse(parsed) as PolicyContract;
 }
 
 /** Round-trip a policy through JSON and back. */

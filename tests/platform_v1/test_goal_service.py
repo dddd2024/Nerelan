@@ -18,6 +18,75 @@ def _services():
     return store, control, autonomy, GoalService(store=store, control_store=control)
 
 
+@pytest.mark.parametrize("durable", [False, True])
+def test_explicit_host_check_goal_freezes_intent_and_never_dispatches_model(tmp_path, monkeypatch, durable):
+    """Synthetic authority fixture; the checker itself operates on a real Git repository."""
+    import subprocess
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter, load_host_validation_contract
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "core.autocrlf", "false"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Fixture"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "fixture@example.invalid"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
+                    "https://github.com/dddd2024/reverse-agent.git"], check=True)
+    (tmp_path / "source.txt").write_bytes(b"baseline\n")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "source.txt"], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "fixture"], check=True, capture_output=True)
+    head = subprocess.check_output(["git", "-C", str(tmp_path), "rev-parse", "HEAD"], text=True).strip()
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(tmp_path))
+    store, control, autonomy, goals = _services()
+    payload = _window_payload()
+    payload["capabilities"] = ["validate_task"]
+    window = autonomy.activate(payload)
+    monkeypatch.setattr(control, "window_policy_binding", lambda unused: {
+        "canonical_policy": {"fixture_only": True}, "authority": {
+            "workspace_path": str(tmp_path), "head_sha": head, "validation_paths": ["source.txt"],
+            "validation_command_ids": ["git_diff_check"], "plan_task_id": "CHECK001",
+            "goal_idempotency_key": "host-check-fixture"}}, raising=False)
+    goal = goals.create({"objective": "Check patch hygiene", "idempotency_key": "host-check-fixture",
+                         "orchestration_mode": "single", "executor_kind": "opencode"})
+    planned = goals.plan(goal.id, expected_revision=1, tasks=[{
+        "id": "CHECK001", "title": "Host checker", "instruction": "Check pinned source only",
+        "capability": "validate_task", "validation_command_id": "git_diff_check"}]).goal
+    assert planned.tasks[0]["validation_command_id"] == "git_diff_check"
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    frozen = load_host_validation_contract(store.get_task(task_id))
+    assert frozen["allowed_paths"] == ["source.txt"] and frozen["base_sha"] == head
+    router = ExecutorRouter()
+    monkeypatch.setattr(router, "dispatch_execute", lambda **unused: pytest.fail("model executor reached"))
+    monkeypatch.setattr(router, "create_executor", lambda **unused: pytest.fail("model binding reached"))
+    service = TaskExecutionService(store=store, router=router)
+    if durable:
+        task = store.get_task(task_id)
+        lease = store._acquire_durable_lease(task_id=task_id, execution_id=task.execution_id,
+            lease_owner="fixture-owner", execution_authority_sha=head, planning_sha=head, task_status="QUEUED")
+        outcome = service.execute_host_validation(task_id, lease=lease)
+        observed = store.get_latest_durable_run_observation(task_id)
+        assert observed.accepted_checkpoint == "POST_VALIDATION"
+        store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+    else:
+        outcome = service.execute(task_id, workspace_root=str(tmp_path))
+    assert outcome.success and outcome.validation_command_id == "git_diff_check"
+    final = store.get_task(task_id)
+    assert final.status == "READY_FOR_REVIEW"
+    assert any(row["value"] == "host_validation" for row in final.evidence_refs)
+    assert any(event.metadata.get("model_execution_skipped") for event in store.get_events(task_id))
+    assert goals.detail(goal.id)["completion_scope"] == "EXECUTION_ONLY"
+
+
+@pytest.mark.parametrize("command,capability", [("shell echo hello", "validate_task"), ("git_diff_check", "execute_task")])
+def test_goal_rejects_caller_selected_non_fixed_host_command(command, capability):
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Check", "idempotency_key": "invalid-command"})
+    with pytest.raises(TaskStoreError, match="unsupported_standalone_validation_command"):
+        goals.plan(goal.id, expected_revision=1, tasks=[{
+            "id": "CHECK001", "title": "Check", "instruction": "Check", "capability": capability,
+            "validation_command_id": command}])
+
+
 def _window_payload():
     now = datetime.now(timezone.utc)
     return {

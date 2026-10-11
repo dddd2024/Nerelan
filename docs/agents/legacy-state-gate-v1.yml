@@ -289,6 +289,49 @@ jobs:
         if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
         run: python -m reverse_agent.project_gate transition-command-plan --state-dir project_state
 
+      - name: Wait for current Ready attestation availability
+        if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
+        timeout-minutes: 3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          python - <<'READY_ATTESTATION_PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+          from reverse_agent.control_plane.legacy_adapter import load_transition_decision, load_transition_scope
+          from reverse_agent.github_remote_verifier import GitHubEvidenceError, GitHubRemoteAcceptanceVerifier
+          from reverse_agent.project_gate import _read_transition_event, resolve_landing_intent_contract
+
+          decision, contract = load_transition_decision(Path("project_state/decision_packet.md"))
+          intent_mode, _ = resolve_landing_intent_contract(contract)
+          if intent_mode == "legacy":
+              print("Legacy intent: immediate formal preflight, no readiness wait.")
+          else:
+              if (intent_mode != "cutover" or os.environ.get("GITHUB_ACTIONS") != "true"
+                      or os.environ.get("GITHUB_JOB") != "landing-state-gate"
+                      or os.environ.get("GITHUB_WORKFLOW") != "State Gate"
+                      or os.environ.get("GITHUB_RUN_ATTEMPT") != "1"):
+                  raise GitHubEvidenceError("ready_attestation_workflow_context_invalid")
+              event, error = _read_transition_event(os.environ["GITHUB_EVENT_PATH"])
+              run_id = os.environ.get("GITHUB_RUN_ID", "")
+              scope = load_transition_scope(decision, contract)
+              base = contract["base_sha"] if "base_sha" in contract else scope["activation_base_sha"]
+              if (error or event.get("draft") is not False
+                      or re.fullmatch(r"[1-9][0-9]{0,31}", run_id) is None
+                      or not isinstance(base, str) or re.fullmatch(r"[0-9a-fA-F]{40}", base) is None
+                      or event.get("base_sha") != base.lower()
+                      or contract.get("repository") != os.environ.get("GITHUB_REPOSITORY")):
+                  raise GitHubEvidenceError("ready_attestation_workflow_binding_invalid")
+              availability = GitHubRemoteAcceptanceVerifier.from_env().wait_for_owner_landing_merge_attestation(
+                  pr_number=event["pr_number"], expected_head_sha=event["head_sha"],
+                  expected_base_sha=base.lower(), current_state_gate_run_id=int(run_id))
+              print(json.dumps(availability, sort_keys=True))
+          READY_ATTESTATION_PY
+
       - name: Landing transition preflight
         if: github.event.pull_request.draft == false && steps.landing_control_plane.outputs.mode == 'transition'
         env:

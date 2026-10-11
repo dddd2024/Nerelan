@@ -37,6 +37,8 @@ Stop only the processes recorded by this launch:
 .\dev-down.ps1
 ```
 
+Task history lives in a host-owned store (`%LOCALAPPDATA%\Nerelan\platform-v1\tasks.sqlite3` on Windows, `$XDG_DATA_HOME/Nerelan/platform-v1/` elsewhere), so it no longer depends on which checkout or worktree started the launcher. On the first start after upgrading, `dev-up.ps1` names the previous `.platform_v1_runtime/tasks.sqlite3`; the host copies it once with SQLite's online backup while the new store is absent and never modifies the original. If that copy cannot be verified, startup fails instead of opening an empty history. `REVERSE_AGENT_TASK_DB_PATH` / `REVERSE_AGENT_TASK_DB_DIR` still select an explicit store and skip adoption.
+
 ## Product workflow
 
 ```text

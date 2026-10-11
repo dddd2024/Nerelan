@@ -8,6 +8,27 @@ function ownerPolicy(): PolicyContract {
 }
 
 describe("policy validation", () => {
+  it("accepts zero budgets only for inactive publication capabilities", () => {
+    const policy = profileToPolicy("ASK_FOR_APPROVAL");
+    policy.githubCapabilities = [];
+    policy.publicationCapabilities = [];
+    for (const key of Object.keys(policy.budgets) as Array<keyof typeof policy.budgets>) {
+      policy.budgets[key] = 0;
+      policy.autonomousWindow[key] = 0;
+    }
+    expect(validatePolicy(policy).success).toBe(true);
+    policy.publicationCapabilities = ["create_tag"];
+    expect(validatePolicy(policy).success).toBe(false);
+  });
+
+  it.each(["root", "filesystem", "network", "shell", "secrets", "workerApproval", "mergePolicy", "publicationPolicy", "autonomousWindow", "budgets", "stopCondition"])("rejects unknown %s fields without stripping", (surface) => {
+    const policy = ownerPolicy();
+    const target = surface === "root" ? policy : surface === "stopCondition" ? policy.autonomousWindow.stopConditions[0]
+      : surface in policy.resourceAccess ? policy.resourceAccess[surface as keyof typeof policy.resourceAccess]
+      : policy[surface as keyof PolicyContract];
+    Object.assign(target, { unapprovedGrant: true });
+    expect(validatePolicy(policy).success).toBe(false);
+  });
   it("accepts the built-in OWNER_CONTROL profile", () => {
     const result = validatePolicy(ownerPolicy());
     expect(result.success).toBe(true);

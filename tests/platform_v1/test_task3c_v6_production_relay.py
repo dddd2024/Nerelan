@@ -45,6 +45,8 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 # Shared helpers
 # ---------------------------------------------------------------------------
 
+from _local_client_fixture import client_session, client_headers
+
 def _free_port() -> int:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(("127.0.0.1", 0))
@@ -84,7 +86,7 @@ def _http_json_post(url: str, path: str, body: bytes, timeout: float = 120.0) ->
     p = int(parsed[1])
     conn = HTTPConnection(h, p, timeout=timeout)
     conn.request("POST", path, body=body,
-                 headers={"Content-Type": "application/json"})
+                 headers=client_headers({"Content-Type": "application/json"}))
     resp = conn.getresponse()
     data = resp.read()
     conn.close()
@@ -228,6 +230,7 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                         task_api_port=0,
                         execution_authority_sha=trusted_sha,
                         planning_sha=trusted_sha,
+                        local_client_session=client_session(activate=False),
                     )
                     host.start()
 

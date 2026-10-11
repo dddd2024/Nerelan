@@ -40,6 +40,30 @@ def _json_now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
+def _task_api_client(base_url: str, capability: str):
+    """Private HTTP client seam; testing it does not start OpenCode or a model."""
+    from urllib.request import Request, urlopen
+
+    def _http(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
+        data = json.dumps(body).encode("utf-8") if body else None
+        req = Request(
+            "%s%s" % (base_url, path),
+            data=data,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Origin": "http://localhost:4173",
+                "X-Nerelan-Client-Capability": capability,
+            },
+            method=method,
+        )
+        with urlopen(req, timeout=600) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return int(resp.status), payload
+
+    return _http
+
+
 def _run(
     *,
     repo_dir: str,
@@ -132,30 +156,15 @@ def _run(
     os.environ["REVERSE_AGENT_OPENCODE_MODEL"] = model
     os.environ["REVERSE_AGENT_REPO_DIR"] = repo_dir
 
-    service = TaskService(store=store, router=router)
+    delivered: list[str] = []
+    service = TaskService(store=store, router=router, trusted_client_receiver=delivered.append)
     server, thread = service.start(host="127.0.0.1", port=0)
     port = server.server_address[1]
     base_url = "http://127.0.0.1:%d" % port
 
-    from urllib.request import Request, urlopen
     from urllib.error import HTTPError
 
-    def _http(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
-        url = "%s%s" % (base_url, path)
-        data = json.dumps(body).encode("utf-8") if body else None
-        req = Request(
-            url,
-            data=data,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "Origin": "http://localhost:4173",
-            },
-            method=method,
-        )
-        with urlopen(req, timeout=600) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-            return int(resp.status), payload
+    _http = _task_api_client(base_url, delivered.pop())
 
     # ---- Step 1: POST /api/tasks ----
     create_body = {

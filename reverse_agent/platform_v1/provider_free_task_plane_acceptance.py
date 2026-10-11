@@ -66,8 +66,28 @@ def _run(
         "repo_dir": os.path.abspath(repo_dir),
         "workspace_root": workspace_root,
         "db_path": db_path,
+        "execution_identity_provenance": "synthetic deterministic_fixture only; not Owner authority",
         "chain": [],
     }
+
+    # Each service owns a distinct session, delivered only in process. Keep
+    # capabilities out of results, environment and persistent fixture data.
+    capabilities: dict[int, str] = {}
+
+    def _start_service(**kwargs: Any) -> tuple[Any, Any, Any]:
+        delivered: list[str] = []
+        # This disposable acceptance entry executes deterministic fixtures
+        # exclusively. Synthetic identities exercise durable fencing; they
+        # are not canonical authorization for production or model execution.
+        service = TaskService(
+            **kwargs,
+            trusted_client_receiver=delivered.append,
+            execution_authority_sha="provider-free-fixture-authority",
+            planning_sha="provider-free-fixture-plan",
+        )
+        server, thread = service.start(host="127.0.0.1", port=0)
+        capabilities[server.server_address[1]] = delivered.pop()
+        return service, server, thread
 
     def _http(
         method: str,
@@ -84,6 +104,7 @@ def _run(
                 "Accept": "application/json",
                 "Content-Type": "application/json",
                 "Origin": "http://localhost:4173",
+                "X-Nerelan-Client-Capability": capabilities[port],
             },
             method=method,
         )
@@ -98,8 +119,7 @@ def _run(
     os.environ["REVERSE_AGENT_TASK_DB_PATH"] = db_path
     os.environ["REVERSE_AGENT_TASK_WORKSPACE_ROOT"] = workspace_root_env
 
-    service = TaskService(store=store, router=router)
-    server, thread = service.start(host="127.0.0.1", port=0)
+    service, server, thread = _start_service(store=store, router=router)
     port = server.server_address[1]
     results["task_api"] = {
         "host": "127.0.0.1",
@@ -239,6 +259,7 @@ def _run(
     server.shutdown()
     server.server_close()
     thread.join(timeout=3)
+    capabilities.pop(port)
 
     # =========================================================================
     # PHASE 2: Restart/readback persistence proof
@@ -275,20 +296,28 @@ def _run(
     dispatched_kinds: list[str] = []
 
     class _FakeRouter(ExecutorRouter):
-        def dispatch_execute(self, **kwargs: Any) -> Any:
-            dispatched_kinds.append(kwargs.get("executor_kind", ""))
-            return super().dispatch_execute(**kwargs)
+        def create_executor(self, *, executor_kind: str, **kwargs: Any) -> Any:
+            executor = super().create_executor(executor_kind=executor_kind, **kwargs)
+
+            class _ObservedExecutor:
+                def execute(self, *args: Any, **execute_kwargs: Any) -> Any:
+                    dispatched_kinds.append(executor_kind)
+                    return executor.execute(*args, **execute_kwargs)
+
+                def __getattr__(self, name: str) -> Any:
+                    return getattr(executor, name)
+
+            return _ObservedExecutor()
 
     fake_router = _FakeRouter()
     injection_db_path = os.path.join(workspace_root, "injection_tasks.sqlite3")
     if os.path.exists(injection_db_path):
         os.remove(injection_db_path)
     injection_store = TaskStore(db_path=injection_db_path)
-    injection_service = TaskService(
+    injection_service, inj_server, inj_thread = _start_service(
         store=injection_store,
         router=fake_router,
     )
-    inj_server, inj_thread = injection_service.start(host="127.0.0.1", port=0)
     inj_port = inj_server.server_address[1]
 
     _, inj_create = _http(
@@ -316,6 +345,7 @@ def _run(
     inj_server.shutdown()
     inj_server.server_close()
     inj_thread.join(timeout=3)
+    capabilities.pop(inj_port)
     injection_store._conn.close()
 
     # Idempotency token test: same key + same request -> same task ID
@@ -324,8 +354,7 @@ def _run(
         os.remove(same_db)
     idem_store = TaskStore(db_path=same_db)
     idem_router = ExecutorRouter()
-    idem_service = TaskService(store=idem_store, router=idem_router)
-    idem_server, idem_thread = idem_service.start(host="127.0.0.1", port=0)
+    idem_service, idem_server, idem_thread = _start_service(store=idem_store, router=idem_router)
     idem_port = idem_server.server_address[1]
 
     _, first = _http(
@@ -351,9 +380,11 @@ def _run(
     idem_server.shutdown()
     idem_server.server_close()
     idem_thread.join(timeout=3)
+    capabilities.pop(idem_port)
     idem_store._conn.close()
 
     results["chain"].append("provider_free_acceptance_complete")
+    store._conn.close()
     return results
 
 
