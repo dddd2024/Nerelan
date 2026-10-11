@@ -637,7 +637,7 @@ class PlatformControlStore:
                 if configuration["orchestration_mode"] not in {"single", "sequential_team"}:
                     raise TaskStoreError("unsupported_orchestration_mode")
                 if configuration["executor_kind"] in {"codex", "claude_code"} and configuration["orchestration_mode"] != "single":
-                    raise TaskStoreError("codex_single_mode_only")
+                    raise TaskStoreError(f"{configuration['executor_kind']}_single_mode_only")
                 if configuration["executor_kind"] == "deterministic_fixture":
                     if configuration["orchestration_mode"] != "single" or configuration["binding_ref"]:
                         raise TaskStoreError("fixture_configuration_invalid")

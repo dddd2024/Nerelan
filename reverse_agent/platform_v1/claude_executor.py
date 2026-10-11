@@ -24,18 +24,13 @@ from .claude_protocol import ClaudeStreamJson
 from .codex_executor import CodexExecutor, validate_codex_model
 from .task_runtime import ExecutorRuntimeError
 
-# Read-only exploration plus a bounded set of local checks. Anything else
-# (network, git commit/push, gh, package installs, arbitrary shell) is denied:
-# with --permission-mode dontAsk an unlisted tool is refused, never prompted.
-READ_TOOLS = ("Read", "Glob", "Grep", "LS", "TodoWrite")
-WRITE_TOOLS = ("Edit", "MultiEdit", "Write", "NotebookEdit")
-CHECK_COMMANDS = (
-    "Bash(git status *)", "Bash(git diff *)", "Bash(git log *)", "Bash(git show *)",
-    "Bash(python -m pytest *)", "Bash(pytest *)", "Bash(npm test *)", "Bash(npx vitest *)",
-    "Bash(npx tsc *)", "Bash(ls *)",
-)
-DENIED_TOOLS = ("WebFetch", "WebSearch", "Bash(git push *)", "Bash(git commit *)", "Bash(gh *)",
-                "Bash(curl *)", "Bash(pip install *)", "Bash(npm install *)")
+# Claude Code has no OS sandbox here, so the model gets no tool that runs
+# commands or code at all. --restricted removes Bash/PowerShell/REPL-style tools
+# and WebFetch, ignores every settings file and confines file tools to the
+# working directory; --tools then names the only built-ins that exist. Running
+# tests is the host's job after the turn (git_diff_check, functional checks).
+READ_TOOLS = ("Read", "Glob", "Grep")
+WRITE_TOOLS = ("Edit", "Write")
 
 
 def validate_claude_model(value: Any) -> str:
@@ -50,6 +45,8 @@ def claude_child_env(parent: Mapping[str, str]) -> dict[str, str]:
     allowed = {
         "path", "systemroot", "pathext", "home", "userprofile", "localappdata",
         "appdata", "temp", "tmp", "claude_config_dir", "lang", "lc_all",
+        # Proxy variables stay out: their URLs can carry credentials.
+        "systemdrive", "comspec", "windir", "programfiles", "programfiles(x86)", "programdata",
     }
     return {k: v for k, v in parent.items() if k.casefold() in allowed}
 
@@ -82,7 +79,7 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
             outputs.append(result.stdout)
         if not all(flag in outputs[0] for flag in (
                 "--print", "--output-format", "--permission-mode", "--strict-mcp-config",
-                "--setting-sources", "--no-session-persistence")):
+                "--restricted", "--tools", "--no-session-persistence")):
             return "cli_incompatible"
         try:
             status = json.loads(outputs[1])
@@ -101,15 +98,15 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
 
 def build_claude_argv(cli: str, model: str, sandbox: str) -> list[str]:
     if sandbox == "read-only":
-        allowed = READ_TOOLS
+        tools, mode = READ_TOOLS, "dontAsk"
     elif sandbox == "workspace-write":
-        allowed = READ_TOOLS + WRITE_TOOLS + CHECK_COMMANDS
+        # acceptEdits approves edits to files inside the working directory only.
+        tools, mode = READ_TOOLS + WRITE_TOOLS, "acceptEdits"
     else:
         raise ExecutorRuntimeError("claude_code_sandbox_invalid")
     return [cli, "-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
-            "--model", validate_claude_model(model), "--permission-mode", "dontAsk",
-            "--setting-sources", "user", "--strict-mcp-config",
-            "--allowedTools", *allowed, "--disallowedTools", *DENIED_TOOLS]
+            "--model", validate_claude_model(model), "--restricted", "--strict-mcp-config",
+            "--tools", ",".join(tools), "--permission-mode", mode]
 
 
 def claude_executor_kwargs(task, *, binding_resolver, artifact_input=None):
@@ -124,13 +121,18 @@ class ClaudeCodeExecutor(CodexExecutor):
     KIND = "claude_code"
     LABEL = "Claude Code"
     PROVIDER_ID = "claude-code"
-    # --setting-sources user and --strict-mcp-config already ignore project
-    # settings and MCP servers, so repository files cannot add hooks or tools.
+    # --restricted ignores every settings file and --strict-mcp-config skips MCP
+    # servers, so repository files cannot add hooks, permissions or tools.
     PROJECT_CONFIG: tuple[str, ...] = ()
     default_readiness_probe = staticmethod(probe_claude_code_readiness)
 
     def __init__(self, *, claude_exe: str | None = None, **kwargs):
-        super().__init__(codex_exe=claude_exe, **kwargs)
+        try:
+            super().__init__(codex_exe=claude_exe, **kwargs)
+        except ExecutorRuntimeError as exc:
+            if str(exc) == "codex_model_id_invalid":
+                raise ExecutorRuntimeError("claude_code_model_id_invalid") from None
+            raise
 
     def _validate_options(self) -> None:
         build_claude_argv("claude", self._model_id, self._sandbox)

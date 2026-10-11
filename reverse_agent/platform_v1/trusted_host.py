@@ -26,7 +26,7 @@ import threading
 import time
 from typing import Any
 
-from ..model_access.contracts import ExecutionSnapshot
+from ..model_access.contracts import NATIVE_CLI_PROVIDERS, ExecutionSnapshot
 from ..model_access.credential_relay import (
     CredentialRelayManager,
     ExecutionLease,
@@ -221,7 +221,7 @@ class CombinedTrustedHost:
             connection = self._store.get_connection_public(connection_id)
         except KeyError:
             return False
-        return connection["executor_provider_id"] not in {"codex", "claude-code"} and connection["auth_method"] in {
+        return connection["executor_provider_id"] not in NATIVE_CLI_PROVIDERS and connection["auth_method"] in {
             "account_login",
             "external_cli_session",
         }

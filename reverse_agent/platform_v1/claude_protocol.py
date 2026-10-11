@@ -31,8 +31,8 @@ class ClaudeStreamJson:
         self,
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
-        max_frame_bytes: int = 512 * 1024,
-        max_stream_bytes: int = 4 * 1024 * 1024,
+        max_frame_bytes: int = 4 * 1024 * 1024,
+        max_stream_bytes: int = 8 * 1024 * 1024,
         max_events: int = 4000,
     ) -> None:
         if not (0 < max_frame_bytes <= max_stream_bytes <= 8 * 1024 * 1024):

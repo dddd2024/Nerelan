@@ -10,7 +10,7 @@ import pytest
 
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.platform_v1.claude_executor import (
-    DENIED_TOOLS, ClaudeCodeExecutor, build_claude_argv, claude_child_env, probe_claude_code_readiness,
+    ClaudeCodeExecutor, build_claude_argv, claude_child_env, probe_claude_code_readiness,
 )
 from reverse_agent.platform_v1.claude_protocol import ClaudeProtocolError, ClaudeStreamJson
 from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError, ExecutorRouter
@@ -51,7 +51,7 @@ def fixture_executor(repo, base, script, *, timeout=5):
 
     def factory(argv, **kwargs):
         assert argv[1:4] == ["-p", "--output-format", "stream-json"]
-        assert "--permission-mode" in argv and argv[argv.index("--permission-mode") + 1] == "dontAsk"
+        assert "--restricted" in argv and argv[argv.index("--permission-mode") + 1] == "acceptEdits"
         assert kwargs["shell"] is False
         for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"):
             assert name not in kwargs["env"]
@@ -107,34 +107,37 @@ def test_process_and_protocol_failures_remain_failures(repository, tmp_path, scr
     assert not result.success and result.failure_classification == classification
 
 
-def test_argv_allows_only_bounded_tools_and_ignores_project_configuration():
+def test_argv_grants_no_code_running_tool_and_ignores_all_settings():
     write = build_claude_argv("claude", "claude-sonnet-5-5", "workspace-write")
     assert write[:3] == ["claude", "-p", "--output-format"]
-    assert "--no-session-persistence" in write and "--strict-mcp-config" in write
-    assert write[write.index("--setting-sources") + 1] == "user"
-    allowed = write[write.index("--allowedTools") + 1:write.index("--disallowedTools")]
-    assert "Edit" in allowed and "Bash(python -m pytest *)" in allowed
-    assert not any(tool in ("Bash", "Bash(*)") for tool in allowed)
-    assert tuple(write[write.index("--disallowedTools") + 1:]) == DENIED_TOOLS
+    for flag in ("--restricted", "--strict-mcp-config", "--no-session-persistence"):
+        assert flag in write
+    assert write[write.index("--tools") + 1] == "Read,Glob,Grep,Edit,Write"
+    assert write[write.index("--permission-mode") + 1] == "acceptEdits"
+    assert "--setting-sources" not in write and "--allowedTools" not in write
+    assert not any(part.startswith(("Bash", "PowerShell", "WebFetch")) for part in write)
     read_only = build_claude_argv("claude", "opus", "read-only")
-    allowed_ro = read_only[read_only.index("--allowedTools") + 1:read_only.index("--disallowedTools")]
-    assert "Edit" not in allowed_ro and not any(tool.startswith("Bash") for tool in allowed_ro)
+    assert read_only[read_only.index("--tools") + 1] == "Read,Glob,Grep"
+    assert read_only[read_only.index("--permission-mode") + 1] == "dontAsk"
     with pytest.raises(ExecutorRuntimeError, match="claude_code_sandbox_invalid"):
         build_claude_argv("claude", "opus", "danger-full-access")
     with pytest.raises(ExecutorRuntimeError, match="claude_code_model_id_invalid"):
         build_claude_argv("claude", "--dangerously-skip-permissions", "read-only")
+    with pytest.raises(ExecutorRuntimeError, match="claude_code_model_id_invalid"):
+        ClaudeCodeExecutor(model_id="--bad", claude_exe=sys.executable)
 
 
 def test_child_environment_strips_api_credentials():
     env = claude_child_env({"PATH": "p", "USERPROFILE": "u", "ANTHROPIC_API_KEY": "k",
                             "ANTHROPIC_AUTH_TOKEN": "t", "ANTHROPIC_BASE_URL": "b", "OPENAI_API_KEY": "o",
-                            "CLAUDE_CONFIG_DIR": "c"})
-    assert env == {"PATH": "p", "USERPROFILE": "u", "CLAUDE_CONFIG_DIR": "c"}
+                            "CLAUDE_CODE_USE_BEDROCK": "1", "CLAUDE_CODE_USE_VERTEX": "1",
+                            "CLAUDE_CONFIG_DIR": "c", "HTTPS_PROXY": "h", "SystemRoot": "s"})
+    assert env == {"PATH": "p", "USERPROFILE": "u", "CLAUDE_CONFIG_DIR": "c", "SystemRoot": "s"}
 
 
 def _runner(status_payload, *, help_text=None, status_code=0):
     help_text = help_text or ("--print --output-format --permission-mode --strict-mcp-config "
-                              "--setting-sources --no-session-persistence")
+                              "--restricted --tools --no-session-persistence")
 
     def run(argv, **kwargs):
         assert "ANTHROPIC_API_KEY" not in kwargs["env"]

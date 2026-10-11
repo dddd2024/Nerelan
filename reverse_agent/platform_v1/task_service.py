@@ -942,6 +942,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
         repository = str(payload.get("repository", "")).strip()
         if require_repository_for_opencode and executor_kind == "opencode" and not repository:
             raise TaskStoreError("repository_required_for_opencode")
+        if executor_kind in {"codex", "claude_code"} and (not repository or not payload.get("binding_ref")):
+            # Checked before the legacy default so a native task never targets it silently.
+            raise TaskStoreError(f"{executor_kind}_repository_and_binding_required")
         if not repository:
             repository = "dddd2024/reverse-agent"
         orchestration_mode = str(payload.get("orchestration_mode", "single"))
