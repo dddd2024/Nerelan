@@ -498,11 +498,13 @@ class ExecutorRouter:
     def __init__(self) -> None:
         from .opencode_executor import OpenCodeExecutor
         from .codex_executor import CodexExecutor
+        from .claude_executor import ClaudeCodeExecutor
 
         self._registry: dict[str, Callable[..., Executor]] = {
             "deterministic_fixture": lambda **_: DeterministicFixtureExecutor(),
             "opencode": lambda **kwargs: OpenCodeExecutor(**kwargs),
             "codex": lambda **kwargs: CodexExecutor(**kwargs),
+            "claude_code": lambda **kwargs: ClaudeCodeExecutor(**kwargs),
         }
 
     def register(self, kind: str, factory: Callable[..., Executor]) -> None:

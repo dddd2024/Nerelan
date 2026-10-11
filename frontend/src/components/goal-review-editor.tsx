@@ -103,7 +103,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
         <label className="block text-sm">执行器<select aria-label="目标执行器" className={fieldClass} value={draft.executor_kind} disabled={busy}
           onChange={(event) => { const executor = event.target.value as PlatformGoal["executor_kind"];
             setDraft({ ...draft, executor_kind: executor, orchestration_mode: executor === "opencode" ? "sequential_team" : "single", binding_ref: "" }); }}>
-          <option value="deterministic_fixture">确定性测试（无模型）</option><option value="opencode">OpenCode</option><option value="codex">Codex（单任务）</option>
+          <option value="deterministic_fixture">确定性测试（无模型）</option><option value="opencode">OpenCode</option><option value="codex">Codex（单任务）</option><option value="claude_code">Claude Code（单任务）</option>
         </select></label>
         {isOpenCode ? <>
           <label className="block text-sm">仓库<select aria-label="目标仓库" className={fieldClass} value={draft.repository} disabled={busy || repositoriesQuery.isPending}

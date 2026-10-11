@@ -46,6 +46,8 @@ class BindingResolutionError(ExecutorRuntimeError):
     """Finite, sanitized failure raised before OpenCode process launch."""
 
 
+from ..model_access.contracts import NATIVE_CLI_PROVIDER_FOR_EXECUTOR, NATIVE_CLI_PROVIDERS
+
 @dataclass(frozen=True, slots=True)
 class OpenCodeBindingResolution:
     binding_ref: str
@@ -93,7 +95,7 @@ class BindingResolver:
         task_executor: str,
     ) -> OpenCodeBindingResolution | CodexBindingResolution:
         binding_id = _required_text(binding_ref, "binding_ref", maximum=200)
-        if task_executor not in {"opencode", "codex"}:
+        if task_executor not in {"opencode", "codex", "claude_code"}:
             raise BindingResolutionError("binding_requires_opencode_executor")
 
         binding = self._get_object("binding", "/api/bindings", binding_id)
@@ -130,13 +132,17 @@ class BindingResolver:
         raw_model_id = _required_text(
             binding.get("model_id"), "binding_model_id", maximum=200
         )
-        if task_executor == "codex":
+        if task_executor in NATIVE_CLI_PROVIDER_FOR_EXECUTOR:
             from .codex_executor import validate_codex_model
             model_id = validate_codex_model(raw_model_id)
-            if provider_id != "codex" or connection.get("upstream_provider_id") != "openai" or connection.get("protocol_family") != "codex-cli":
-                raise BindingResolutionError("codex_requires_openai_managed_connection")
+            native_provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR[task_executor]
+            upstream, protocol, _ = NATIVE_CLI_PROVIDERS[native_provider]
+            if (provider_id != native_provider or connection.get("upstream_provider_id") != upstream
+                    or connection.get("protocol_family") != protocol):
+                raise BindingResolutionError("codex_requires_openai_managed_connection" if task_executor == "codex"
+                                             else f"{task_executor}_requires_managed_connection")
             if connection.get("auth_method") != "external_cli_session":
-                raise BindingResolutionError("codex_requires_managed_session_binding")
+                raise BindingResolutionError(f"{task_executor}_requires_managed_session_binding")
         else:
             model_id = _normalize_model_id(provider_id, raw_model_id)
         base_url = _validate_provider_base_url(connection.get("base_url"))
@@ -160,7 +166,7 @@ class BindingResolver:
         else:
             relay_required = False
 
-        resolution_type = CodexBindingResolution if task_executor == "codex" else OpenCodeBindingResolution
+        resolution_type = CodexBindingResolution if task_executor in NATIVE_CLI_PROVIDER_FOR_EXECUTOR else OpenCodeBindingResolution
         return resolution_type(
             binding_ref=binding_id,
             connection_id=connection_id,

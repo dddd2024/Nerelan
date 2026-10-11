@@ -86,6 +86,7 @@ class CombinedTrustedHost:
         auth_refresh_clock: Callable[[], float] = time.monotonic,
         account_auth_server_factory: ServerFactory | None = None,
         codex_readiness_probe: Callable[[], str] | None = None,
+        claude_code_readiness_probe: Callable[[], str] | None = None,
         vault: Any = _PLATFORM_VAULT,
         local_client_session: LocalClientSession | None = None,
     ) -> None:
@@ -111,6 +112,8 @@ class CombinedTrustedHost:
         self._task_store = task_store
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
+        if claude_code_readiness_probe is not None:
+            self._store.set_native_readiness("claude_code", claude_code_readiness_probe())
         self._relay_manager = relay_manager or CredentialRelayManager()
         self._router = ExecutorRouter()
         self._github_adapter = github_adapter
@@ -218,7 +221,7 @@ class CombinedTrustedHost:
             connection = self._store.get_connection_public(connection_id)
         except KeyError:
             return False
-        return connection["executor_provider_id"] != "codex" and connection["auth_method"] in {
+        return connection["executor_provider_id"] not in {"codex", "claude-code"} and connection["auth_method"] in {
             "account_login",
             "external_cli_session",
         }
@@ -593,6 +596,7 @@ def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) ->
 
 def run_combined_trusted_host() -> None:
     from .codex_executor import probe_codex_readiness
+    from .claude_executor import probe_claude_code_readiness
     auth_sha = _resolve_trusted_authority_sha()
     planning_sha = _resolve_trusted_planning_sha()
     host = CombinedTrustedHost(
@@ -606,6 +610,8 @@ def run_combined_trusted_host() -> None:
         auth_list_probe=execute_opencode_auth_list_probe,
         account_auth_server_factory=start_opencode_account_auth_server,
         codex_readiness_probe=probe_codex_readiness if os.environ.get("REVERSE_AGENT_CODEX_ENABLED") == "1" else None,
+        claude_code_readiness_probe=(probe_claude_code_readiness
+                                     if os.environ.get("REVERSE_AGENT_CLAUDE_CODE_ENABLED") == "1" else None),
     )
     try:
         host.start()

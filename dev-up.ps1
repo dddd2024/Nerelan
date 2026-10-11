@@ -568,6 +568,10 @@ $combinedTrustedHostEnv = [ordered]@{
   # One-time adoption source for the pre-host-owned checkout TaskStore. The
   # host copies it only while the user-data store is absent and never edits it.
   "REVERSE_AGENT_LEGACY_TASK_DB_PATH" = (Join-Path $runtimeDir "tasks.sqlite3")
+  # Native account executors: the host only probes CLI help and login status
+  # (no model call); the CLIs keep owning their ChatGPT / Claude logins.
+  "REVERSE_AGENT_CODEX_ENABLED" = "1"
+  "REVERSE_AGENT_CLAUDE_CODE_ENABLED" = "1"
 }
 
 $combinedProc = Start-ServiceProcess `

@@ -710,7 +710,7 @@ class DurableExecutionService:
             raise TaskExecutionError(
                 f"durable_single_wrong_mode:{task_id}:actual={task.orchestration_mode}"
             )
-        if task.executor_kind in {"opencode", "codex"}:
+        if task.executor_kind in {"opencode", "codex", "claude_code"}:
             try:
                 resolve_repository_workspace(task.repository)
             except RepositoryWorkspaceError as exc:
@@ -807,7 +807,7 @@ class DurableExecutionService:
         # --- External dispatch via the same router path as TaskExecutionService ---
         # For deterministic_fixture, the executor creates its own worktree internally.
         # For opencode, prepare_worktree_once is used to establish identity first.
-        use_prepare = executor_kind in {"opencode", "codex"}
+        use_prepare = executor_kind in {"opencode", "codex", "claude_code"}
 
         if use_prepare:
             try:
@@ -2106,9 +2106,10 @@ class DurableExecutionService:
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
-        if getattr(task, "executor_kind", "") == "codex":
+        if getattr(task, "executor_kind", "") in {"codex", "claude_code"}:
             from .codex_executor import codex_executor_kwargs
-            return codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input)
+            return codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
+                                         kind=task.executor_kind)
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
@@ -2462,7 +2463,7 @@ class DurableExecutionService:
 
         stored_task = self.store.get_task(task_id)
 
-        if stored_task.executor_kind in {"opencode", "codex"}:
+        if stored_task.executor_kind in {"opencode", "codex", "claude_code"}:
             try:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
@@ -2682,7 +2683,7 @@ class DurableExecutionService:
                 f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
             )
 
-        if stored_task.executor_kind in {"opencode", "codex"}:
+        if stored_task.executor_kind in {"opencode", "codex", "claude_code"}:
             try:
                 resolve_repository_workspace(stored_task.repository)
             except RepositoryWorkspaceError as exc:
@@ -3003,9 +3004,9 @@ class DurableExecutionService:
         if executor_kind == "deterministic_fixture":
             self._record_fixture_single_start(task_id, run, lease)
         try:
-            if executor_kind in {"opencode", "codex"}:
+            if executor_kind in {"opencode", "codex", "claude_code"}:
                 from .opencode_executor import OpenCodeExecutor, RoleContext
-                reconstruct = (executor.reconstruct_prepared_context if executor_kind == "codex"
+                reconstruct = (executor.reconstruct_prepared_context if executor_kind in {"codex", "claude_code"}
                                else OpenCodeExecutor.reconstruct_prepared_context)
                 prepared = reconstruct(
                     worktree_path=str(run.worktree_path or prepared_path),

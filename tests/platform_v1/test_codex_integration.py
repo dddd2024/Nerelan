@@ -15,6 +15,8 @@ from urllib.request import Request, urlopen
 
 import pytest
 
+from _local_client_fixture import client_headers, client_session
+
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.binding_resolver import BindingResolver
@@ -90,7 +92,7 @@ def resolver(store):
 
 def request(url, payload=None):
     req = Request(url, data=None if payload is None else json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"})
+        headers=client_headers({"Content-Type": "application/json"}))
     with urlopen(req, timeout=30) as response:
         return response.status, json.load(response)
 
@@ -136,7 +138,7 @@ def test_real_http_native_task_freezes_base_and_preserves_executor_and_result(so
         model_control_port=0, task_api_port=0, vault=None,
         execution_authority_sha="fixture-authority", planning_sha="fixture-plan",
         auth_list_probe=lambda: pytest.fail("native must not probe OpenCode auth"),
-        codex_readiness_probe=lambda: "managed_login_ready")
+        codex_readiness_probe=lambda: "managed_login_ready", local_client_session=client_session(activate=False))
     host._router.replace("codex", native_factory(calls))
     try:
         host.start()

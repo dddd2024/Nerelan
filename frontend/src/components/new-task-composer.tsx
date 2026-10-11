@@ -11,7 +11,7 @@ import { profileToPolicy } from "@/lib/profile-mapper";
 import type { PolicyContract, PermissionMode } from "@/types";
 import { cn } from "@/lib/cn";
 
-export type ExecutorChoice = "opencode" | "codex" | "deterministic_fixture";
+export type ExecutorChoice = "opencode" | "codex" | "claude_code" | "deterministic_fixture";
 
 interface ExecutorOption {
   value: ExecutorChoice;
@@ -26,9 +26,14 @@ const EXECUTOR_OPTIONS: ExecutorOption[] = [
     description: "OpenCode · 通过绑定选择模型",
   },
   {
+    value: "claude_code",
+    label: "Claude Code (Claude 账号)",
+    description: "Claude Code · 使用已登录的 Claude 账号，仅单任务模式",
+  },
+  {
     value: "codex",
-    label: "Codex (原生执行)",
-    description: "Codex · 独立 CLI 会话，仅单任务模式",
+    label: "Codex (ChatGPT 账号)",
+    description: "Codex · 使用已登录的 ChatGPT 账号，仅单任务模式",
   },
   {
     value: "deterministic_fixture",
@@ -270,7 +275,7 @@ export function NewTaskComposer({
                 data-testid="opencode-model-note"
                 className="mb-3 rounded-md border border-ra-border bg-ra-base/40 px-3 py-2 text-xs leading-5 text-ra-text-tertiary"
               >
-                {executorChoice === "codex" ? "实际模型由所选 Codex 绑定决定，使用已有 CLI 登录；不自动切换其他执行器。" : "实际模型由所选 OpenCode 绑定决定；启动参数仅用于空绑定兼容。"}
+                {executorChoice === "codex" || executorChoice === "claude_code" ? "实际模型由所选绑定决定，使用已有 CLI 账号登录；不自动切换其他执行器。" : "实际模型由所选 OpenCode 绑定决定；启动参数仅用于空绑定兼容。"}
               </p>
               <div className="w-full mb-3">
                 <label
@@ -426,7 +431,7 @@ export function NewTaskComposer({
                   title: title.trim(),
                   executorKind: executorChoice,
                   bindingRef: isOpenCode ? selectedBindingId : undefined,
-                  repository: executorChoice === "codex" ? selectedRepository?.full_name : (isOpenCode ? selectedRepositoryUrl : undefined),
+                  repository: executorChoice === "codex" || executorChoice === "claude_code" ? selectedRepository?.full_name : (isOpenCode ? selectedRepositoryUrl : undefined),
                   permissionProfile: permissionMode,
                   policy,
                   idempotencyKey,

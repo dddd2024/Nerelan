@@ -326,7 +326,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         <h1 className="text-lg font-semibold leading-6 text-ra-text">
           {displayTitle(displayTask.title)}
         </h1>
-        {displayTask.executor === "codex" && displayTask.state === "READY_FOR_HUMAN" && (
+        {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (
           <p className="mt-2 text-sm text-ra-text-secondary">
             等待独立模型审查。执行完成和本地检查通过，不代表不同模型审查或最终验收已完成。
           </p>

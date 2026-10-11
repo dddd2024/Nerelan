@@ -13,7 +13,7 @@ export interface CreateTaskInput {
   title: string;
   modelProfileId?: string;
   bindingRef?: string;
-  executorKind?: "deterministic_fixture" | "opencode" | "codex";
+  executorKind?: "deterministic_fixture" | "opencode" | "codex" | "claude_code";
   permissionProfile?: string;
   policy?: PolicyContract;
   repository?: string;
@@ -286,7 +286,7 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
   return useMutation<Task, Error, CreateTaskInput>({
     mutationFn: async (input) => {
-      const isOpencode = input.executorKind === "opencode" || input.executorKind === "codex";
+      const isOpencode = input.executorKind === "opencode" || input.executorKind === "codex" || input.executorKind === "claude_code";
       const payload: Record<string, unknown> = {
         title: input.title,
         executor_kind: input.executorKind ?? "deterministic_fixture",

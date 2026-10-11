@@ -83,10 +83,22 @@ def _provider_alias(value: Any) -> str:
     return ProviderIdentity.from_legacy_provider(value).executor_provider_id
 
 
+# Native CLI executors own their account login (ChatGPT for Codex, a Claude
+# account for Claude Code); Nerelan never reads or relays their credentials.
+# executor provider id -> (upstream provider, protocol family, executor id)
+NATIVE_CLI_PROVIDERS: dict[str, tuple[str, str, str]] = {
+    "codex": ("openai", "codex-cli", "codex"),
+    "claude-code": ("anthropic", "claude-code-cli", "claude_code"),
+}
+NATIVE_CLI_EXECUTORS = frozenset(spec[2] for spec in NATIVE_CLI_PROVIDERS.values())
+NATIVE_CLI_PROVIDER_FOR_EXECUTOR = {spec[2]: provider for provider, spec in NATIVE_CLI_PROVIDERS.items()}
+
+
 def _connection_provider_identity(value: Any) -> ProviderIdentity:
     identity = ProviderIdentity.from_legacy_provider(value)
-    if identity.executor_provider_id == "codex":
-        return ProviderIdentity("openai", "codex-cli", "codex")
+    spec = NATIVE_CLI_PROVIDERS.get(identity.executor_provider_id)
+    if spec is not None:
+        return ProviderIdentity(spec[0], spec[1], identity.executor_provider_id)
     return identity
 
 
@@ -139,11 +151,13 @@ class Connection:
         object.__setattr__(self, "upstream_provider_id", identity.upstream_provider_id)
         object.__setattr__(self, "protocol_family", identity.protocol_family)
         object.__setattr__(self, "executor_provider_id", identity.executor_provider_id)
-        if identity.executor_provider_id == "codex" and (
-            identity.upstream_provider_id != "openai" or identity.protocol_family != "codex-cli"
+        native = NATIVE_CLI_PROVIDERS.get(identity.executor_provider_id)
+        if native is not None and (
+            identity.upstream_provider_id != native[0] or identity.protocol_family != native[1]
             or self.auth_method != "external_cli_session"
         ):
-            raise ValueError("codex_requires_managed_session_connection")
+            prefix = native[2]
+            raise ValueError(f"{prefix}_requires_managed_session_connection")
 
     @property
     def provider_identity(self) -> ProviderIdentity:

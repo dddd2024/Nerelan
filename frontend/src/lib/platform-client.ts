@@ -130,7 +130,7 @@ export interface PlatformGoal {
   tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null }>;
   acceptance_criteria: string[];
   artifact_digest: string;
-  executor_kind: "opencode" | "codex" | "deterministic_fixture";
+  executor_kind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
   orchestration_mode: "single" | "sequential_team";
   binding_ref: string;
   window_id: string;
@@ -250,7 +250,7 @@ export interface PlatformStatus {
 export interface StartGoalInput {
   objective: string;
   repository: string;
-  executorKind: "opencode" | "codex" | "deterministic_fixture";
+  executorKind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
   bindingRef: string;
   autonomyHours: number;
 }

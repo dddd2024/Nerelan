@@ -341,8 +341,9 @@ export function ConnectionBindingEditor({
                     ...d,
                     provider: event.target.value as ConnectionProvider,
                     ...(event.target.value === "codex" ? { authMethod: "external_cli_session" as const, baseUrl: "https://chatgpt.com" } : {}),
+                    ...(event.target.value === "claude-code" ? { authMethod: "external_cli_session" as const, baseUrl: "https://claude.ai" } : {}),
                   }));
-                  if (event.target.value === "codex") {
+                  if (event.target.value === "codex" || event.target.value === "claude-code") {
                     setConnApiKey("");
                     setConnClearSecret(false);
                   }
@@ -354,7 +355,8 @@ export function ConnectionBindingEditor({
               <datalist id="connection-provider-presets">
                 <option value="litellm-proxy">LiteLLM Proxy</option>
                 <option value="openai-compatible">OpenAI Compatible</option>
-                <option value="codex">Codex CLI 登录</option>
+                <option value="codex">ChatGPT 账号（Codex CLI 登录）</option>
+                <option value="claude-code">Claude 账号（Claude Code 登录）</option>
               </datalist>
             </Field>
             <Field label="认证方式">
@@ -760,6 +762,11 @@ export function ConnectionBindingEditor({
               {bindDraft.executorId === "codex" && (
                 <p className="mt-2 text-xs text-ra-text-secondary">
                   使用已有 Codex CLI 登录和原生模型名称，仅支持单任务。登录就绪不代表模型额度或执行结果已经验收。
+                </p>
+              )}
+              {bindDraft.executorId === "claude_code" && (
+                <p className="mt-2 text-xs text-ra-text-secondary">
+                  使用本机已登录的 Claude 账号（claude auth status）和模型名称（如 claude-sonnet-5-5、opus），仅支持单任务；Nerelan 不读取也不保存账号凭据。登录就绪不代表额度或执行结果已经验收。
                 </p>
               )}
             </Field>
