@@ -258,6 +258,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       data-testid="task-detail"
       className="flex flex-col h-full gap-3 p-3 md:p-0"
     >
+      <header className="flex flex-col gap-3 md:px-6 md:pt-5 md:pb-2" data-testid="task-detail-header">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="group relative flex-shrink-0">
@@ -465,6 +466,8 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             : "发布草稿 PR 失败"}
         </p>
       ) : null}
+
+      </header>
 
       {isDesktop ? (
         <AgentCanvasWorkbenchFrame
