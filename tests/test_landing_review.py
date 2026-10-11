@@ -53,6 +53,51 @@ def test_quoted_fenced_and_suffixed_verdicts_do_not_count() -> None:
     assert evaluate_review(HEAD, [entry(f"Nerelan-Review: ACCEPT {HEAD}\r\n")]).accepted
 
 
+def test_unclosed_fence_and_indented_code_do_not_count() -> None:
+    assert not evaluate_review(HEAD, [entry(f"Findings:\n```\nNerelan-Review: ACCEPT {HEAD}")]).accepted
+    assert not evaluate_review(HEAD, [entry(f"Findings:\n\n    Nerelan-Review: ACCEPT {HEAD}")]).accepted
+    assert not evaluate_review(HEAD, [entry(f"\tNerelan-Review: ACCEPT {HEAD}")]).accepted
+    assert evaluate_review(HEAD, [entry(f"```\ncode\n```\n   Nerelan-Review: ACCEPT {HEAD}")]).accepted
+    # A shorter or different closing fence does not end a longer fence.
+    assert not evaluate_review(HEAD, [entry(f"````\n```\nNerelan-Review: ACCEPT {HEAD}\n")]).accepted
+    assert not evaluate_review(HEAD, [entry(f"~~~\n```\nNerelan-Review: ACCEPT {HEAD}\n")]).accepted
+
+
+def test_reject_after_closed_fence_still_counts() -> None:
+    accept = entry(f"Nerelan-Review: ACCEPT {HEAD}", at="2026-10-11T10:00:00Z")
+    reject = entry(f"```\nx\n```\nNerelan-Review: REJECT {HEAD}", at="2026-10-11T11:00:00Z")
+    assert evaluate_review(HEAD, [accept, reject]).reason == "latest_review_verdict_rejects_head"
+
+
+def _verdict_fixture(monkeypatch: pytest.MonkeyPatch, pr: dict) -> None:
+    monkeypatch.setattr(landing_review, "_api_get", lambda *_a, **_k: pr)
+    monkeypatch.setattr(landing_review, "fetch_review_entries",
+                        lambda *_a, **_k: [entry(f"Nerelan-Review: ACCEPT {HEAD}")])
+
+
+def test_verdict_requires_live_head_ready_and_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    ready = {"head": {"sha": HEAD}, "draft": False, "base": {"ref": "main"}}
+    _verdict_fixture(monkeypatch, ready)
+    assert landing_review.run_verdict("o/r", 1, HEAD, "t")["passed"] is True
+    assert landing_review.run_verdict("o/r", 1, OTHER, "t")["reason"] == "live_head_differs_from_expected"
+    _verdict_fixture(monkeypatch, {**ready, "draft": True})
+    assert landing_review.run_verdict("o/r", 1, HEAD, "t")["reason"] == "draft_pull_request"
+    _verdict_fixture(monkeypatch, {**ready, "base": {"ref": "dev"}})
+    assert landing_review.run_verdict("o/r", 1, HEAD, "t")["reason"] == "base_is_not_main"
+
+
+def test_verdict_cli_without_token_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    assert landing_review.main(["verdict", "--repository", "o/r", "--pr", "1", "--head", HEAD]) == 1
+
+
+def test_checker_module_is_present_for_base_checkout() -> None:
+    # landing-state-gate falls back to the candidate's checker when the base
+    # lacks this file, so it must never be deleted from main.
+    assert (Path(__file__).resolve().parents[1] / "reverse_agent" / "landing_review.py").is_file()
+
+
 def test_entry_without_timestamp_is_ignored() -> None:
     reject = entry(f"Nerelan-Review: REJECT {HEAD}", at="2026-10-11T11:00:00Z")
     undated_accept = entry(f"Nerelan-Review: ACCEPT {HEAD}", at="")
