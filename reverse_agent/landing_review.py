@@ -37,13 +37,14 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
-# A verdict is the author's own line: optional indent/emphasis, never a quote
+# A verdict is the author's own line, as GitHub renders it: at most three
+# spaces of indent (four is a code block), optional emphasis, never a quote
 # ("> ..."), and nothing but closing emphasis after the sha.
 VERDICT_RE = re.compile(
-    r"^[ \t*_`]*Nerelan-Review:[ \t]*(ACCEPT|REJECT)[ \t]+([0-9a-fA-F]{40})[ \t*_`]*\r?$",
+    r"^ {0,3}[*_`]*Nerelan-Review:[ \t]*(ACCEPT|REJECT)[ \t]+([0-9a-fA-F]{40})[ \t*_`]*\r?$",
     re.MULTILINE,
 )
-FENCE_RE = re.compile(r"^[ \t]*(```|~~~).*?^[ \t]*\1[ \t]*$", re.MULTILINE | re.DOTALL)
+FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 IGNORED_REVIEW_STATES = frozenset({"PENDING", "DISMISSED"})
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 
@@ -80,6 +81,37 @@ class Verdict:
         return {"accepted": self.accepted, "reason": self.reason, "reviewer": self.reviewer}
 
 
+def strip_code_fences(body: str) -> str:
+    """Drop fenced code blocks; an unclosed fence runs to the end, as GitHub renders it.
+
+    Only used to decide which ACCEPT lines count. REJECT lines are read from the
+    raw body, so a parsing mistake here can never hide a REJECT.
+    """
+    kept: list[str] = []
+    fence: str | None = None
+    for line in body.split("\n"):
+        match = FENCE_OPEN_RE.match(line)
+        if fence is None:
+            # A backtick fence's info string may not contain a backtick (CommonMark).
+            if match and not (match.group(1)[0] == "`" and "`" in line[match.end():]):
+                fence = match.group(1)
+            else:
+                kept.append(line)
+        elif match and match.group(1)[0] == fence[0] and len(match.group(1)) >= len(fence) \
+                and not line.strip().lstrip(fence[0]):
+            fence = None
+    return "\n".join(kept)
+
+
+def _entry_decisions(body: str, head: str) -> set[str]:
+    """Verdicts an entry gives ``head``: REJECT from the raw body, ACCEPT only outside code."""
+    decisions = {"REJECT" for decision, sha in VERDICT_RE.findall(body)
+                 if decision == "REJECT" and sha.lower() == head}
+    decisions |= {"ACCEPT" for decision, sha in VERDICT_RE.findall(strip_code_fences(body))
+                  if decision == "ACCEPT" and sha.lower() == head}
+    return decisions
+
+
 def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
     """Return the landing verdict for ``head_sha`` from trusted review entries."""
     head = head_sha.lower()
@@ -89,11 +121,13 @@ def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
     for entry in entries:
         if entry.association not in TRUSTED_ASSOCIATIONS or not entry.created_at:
             continue
-        for decision, sha in VERDICT_RE.findall(FENCE_RE.sub("", entry.body or "")):
-            if sha.lower() != head:
-                continue
-            if latest is None or entry.created_at >= latest[0]:
-                latest = (entry.created_at, decision, entry.author)
+        decisions = _entry_decisions(entry.body or "", head)
+        if not decisions:
+            continue
+        # An entry that both accepts and rejects the head counts as a REJECT.
+        decision = "REJECT" if "REJECT" in decisions else "ACCEPT"
+        if latest is None or entry.created_at >= latest[0]:
+            latest = (entry.created_at, decision, entry.author)
     if latest is None:
         return Verdict(False, "no_review_verdict_for_exact_head")
     if latest[1] != "ACCEPT":
@@ -140,6 +174,32 @@ def run_hygiene(base: str, head: str) -> dict[str, Any]:
         problems.append("oversized_files: " + ", ".join(oversized))
     return {"gate": "hygiene", "merge_base": merge_base, "head": head,
             "changed_files": len(added), "passed": not problems, "problems": problems}
+
+
+def _api_get(url: str, token: str) -> Mapping[str, Any]:
+    request = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def run_verdict(repository: str, number: int, expected_head: str, token: str,
+                api_url: str = "https://api.github.com") -> dict[str, Any]:
+    """Pre-merge re-check: the PR's live head must equal ``expected_head`` and be accepted."""
+    pr = _api_get(f"{api_url.rstrip('/')}/repos/{repository}/pulls/{number}", token)
+    head = str((pr.get("head") or {}).get("sha", ""))
+    base = {"gate": "verdict", "head": head}
+    if head.lower() != expected_head.lower():
+        return {**base, "passed": False, "reason": "live_head_differs_from_expected"}
+    if pr.get("draft"):
+        return {**base, "passed": False, "reason": "draft_pull_request"}
+    if (pr.get("base") or {}).get("ref") != "main":
+        return {**base, "passed": False, "reason": "base_is_not_main"}
+    found = evaluate_review(head, fetch_review_entries(repository, number, token, api_url))
+    return {**base, "passed": found.accepted, **found.to_dict()}
 
 
 def _api_get_all(url: str, token: str) -> list[Mapping[str, Any]]:
@@ -208,8 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not token:
                 result = {"gate": "verdict", "passed": False, "reason": "missing_github_token"}
             else:
-                found = evaluate_review(args.head, fetch_review_entries(args.repository, args.pr, token))
-                result = {"gate": "verdict", "head": args.head, "passed": found.accepted, **found.to_dict()}
+                result = run_verdict(args.repository, args.pr, args.head, token)
         else:
             with open(args.event_path, encoding="utf-8") as handle:
                 event = json.load(handle)
