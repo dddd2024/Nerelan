@@ -11,7 +11,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
-STATE_GATE_PATH = WORKFLOWS_DIR / "state-gate.yml"
+# Governance v2 replaced the live State Gate; these contracts cover the archived
+# v1 workflow that the Path A / Path B library is designed around.
+STATE_GATE_PATH = WORKFLOWS_DIR.parents[1] / "docs" / "agents" / "legacy-state-gate-v1.yml"
 CI_PATH = WORKFLOWS_DIR / "ci.yml"
 FRONTEND_PLAYWRIGHT_PATH = WORKFLOWS_DIR / "frontend-playwright.yml"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
