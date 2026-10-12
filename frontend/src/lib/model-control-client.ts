@@ -39,6 +39,34 @@ import {
  */
 export const DEFAULT_MODEL_CONTROL_API_BASE = "http://127.0.0.1:8765/api";
 
+/** Multi-agent team roles; each is filled by one saved Binding. */
+export const AGENT_ROLES = ["planner", "complex", "coder", "simple", "reviewer"] as const;
+export type AgentRole = (typeof AGENT_ROLES)[number];
+
+export interface AgentRosterEntry {
+  bindingId: string;
+  available: boolean;
+  executorId: string;
+  modelId: string;
+}
+
+export type AgentRoster = Record<AgentRole, AgentRosterEntry>;
+
+function normalizeAgentRoster(payload: unknown): AgentRoster {
+  const roles = ((payload as { roles?: Record<string, Record<string, unknown>> } | null)?.roles ?? {});
+  const roster = {} as AgentRoster;
+  for (const role of AGENT_ROLES) {
+    const entry = roles[role] ?? {};
+    roster[role] = {
+      bindingId: typeof entry.binding_id === "string" ? entry.binding_id : "",
+      available: entry.available === true,
+      executorId: typeof entry.executor_id === "string" ? entry.executor_id : "",
+      modelId: typeof entry.model_id === "string" ? entry.model_id : "",
+    };
+  }
+  return roster;
+}
+
 export interface ModelControlClient {
   listProfiles(): Promise<ModelProfile[]>;
   upsertProfile(input: ModelProfileInput): Promise<ModelProfile>;
@@ -60,6 +88,8 @@ export interface ModelControlClient {
   listBindings(): Promise<Binding[]>;
   upsertBinding(input: BindingInput): Promise<Binding>;
   deleteBinding(bindingId: string): Promise<void>;
+  getAgentRoster(): Promise<AgentRoster>;
+  putAgentRoster(roles: Partial<Record<AgentRole, string>>): Promise<AgentRoster>;
 }
 
 const DEFAULT_MOCK_PROFILES: ModelProfile[] = [
@@ -282,6 +312,7 @@ export function createHttpModelControlClient(
   const connectionsUrl = `${baseUrl}/connections`;
   const executorsUrl = `${baseUrl}/executors`;
   const bindingsUrl = `${baseUrl}/bindings`;
+  const rosterUrl = `${baseUrl}/agent-roster`;
 
   return {
     async listProfiles() {
@@ -474,6 +505,17 @@ export function createHttpModelControlClient(
         method: "DELETE",
       });
     },
+
+    async getAgentRoster() {
+      return normalizeAgentRoster(await requestJson(rosterUrl));
+    },
+
+    async putAgentRoster(roles) {
+      return normalizeAgentRoster(await requestJson(rosterUrl, {
+        method: "PUT",
+        body: JSON.stringify({ roles }),
+      }));
+    },
   };
 }
 
@@ -492,6 +534,16 @@ export function createMockModelControlClient(
     ExecutorSchema.parse(structuredClone(e)),
   );
 
+  let rosterAssignments: Partial<Record<AgentRole, string>> = {};
+  const mockRoster = (): AgentRoster => {
+    const roster = {} as AgentRoster;
+    for (const role of AGENT_ROLES) {
+      const binding = bindings.find((b) => b.bindingId === rosterAssignments[role]);
+      roster[role] = { bindingId: rosterAssignments[role] ?? "", available: Boolean(binding?.enabled),
+        executorId: binding?.executorId ?? "", modelId: binding?.modelId ?? "" };
+    }
+    return roster;
+  };
   let bindings = DEFAULT_MOCK_BINDINGS.map((b) =>
     BindingSchema.parse(structuredClone(b)),
   );
@@ -781,6 +833,19 @@ export function createMockModelControlClient(
 
     async listBindings() {
       return structuredClone(bindings);
+    },
+
+    async getAgentRoster() {
+      return mockRoster();
+    },
+
+    async putAgentRoster(roles) {
+      for (const [role, bindingId] of Object.entries(roles)) {
+        if (!(AGENT_ROLES as readonly string[]).includes(role)) throw new Error(`未知角色（${role}）。`);
+        if (bindingId && !bindings.some((b) => b.bindingId === bindingId)) throw new Error(`未知的模型绑定（${bindingId}）。`);
+      }
+      rosterAssignments = { ...roles };
+      return mockRoster();
     },
 
     async upsertBinding(input) {

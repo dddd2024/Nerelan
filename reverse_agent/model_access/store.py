@@ -12,6 +12,7 @@ from typing import Any, Mapping
 import tempfile
 
 from .contracts import (
+    AGENT_ROLES,
     NATIVE_CLI_PROVIDER_FOR_EXECUTOR,
     NATIVE_CLI_PROVIDERS,
     Binding,
@@ -388,11 +389,17 @@ class ModelProfileStore:
             ),
         }
         self._bindings: dict[str, Binding] = {}
+        self._agent_roster: dict[str, str] = {}
         self._lock = RLock()
         self._connection_binding_poison: StoreError | None = None
 
         if self._state_path is not None:
             self._load_from_disk()
+            try:
+                self._load_agent_roster()
+            except StoreError:
+                # A damaged roster never blocks connections/bindings; roles start unfilled.
+                self._agent_roster = {}
 
     def _connection_secret_status(self, stored: _StoredConnection) -> str:
         """Compute the live public secret status for one Connection.
@@ -938,6 +945,69 @@ class ModelProfileStore:
                     lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
                 )
             return result
+
+    # ---- multi-agent team roster -------------------------------------------------
+
+    def _roster_path(self) -> Path | None:
+        return None if self._state_path is None else self._state_path.with_name("agent_roster.json")
+
+    def _load_agent_roster(self) -> None:
+        path = self._roster_path()
+        if path is None or not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise StoreError(f"invalid agent roster file: {type(exc).__name__}") from exc
+        roles = data.get("roles") if isinstance(data, dict) else None
+        if data.get("schema_version") != 1 or not isinstance(roles, dict):
+            raise StoreError("invalid agent roster file")
+        self._agent_roster = {role: binding for role, binding in roles.items()
+                              if role in AGENT_ROLES and isinstance(binding, str) and binding}
+
+    def get_agent_roster_public(self) -> dict[str, Any]:
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            roles = {}
+            for role in AGENT_ROLES:
+                binding_id = self._agent_roster.get(role, "")
+                binding = self._bindings.get(binding_id)
+                roles[role] = {
+                    "binding_id": binding_id,
+                    # A deleted or disabled binding leaves the role unfilled, never silently remapped.
+                    "available": bool(binding and binding.enabled),
+                    "executor_id": binding.executor_id if binding else "",
+                    "model_id": binding.model_id if binding else "",
+                }
+            return {"roles": roles, "role_order": list(AGENT_ROLES)}
+
+    def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        roles = payload.get("roles") if isinstance(payload, Mapping) else None
+        if not isinstance(roles, Mapping):
+            raise ValueError("agent_roster_roles_required")
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            roster: dict[str, str] = {}
+            for role, binding_id in roles.items():
+                if role not in AGENT_ROLES:
+                    raise ValueError(f"unknown_agent_role:{role}")
+                if binding_id in (None, ""):
+                    continue
+                if not isinstance(binding_id, str) or binding_id not in self._bindings:
+                    raise ValueError(f"agent_role_binding_unknown:{role}")
+                if not self._bindings[binding_id].enabled:
+                    raise ValueError(f"agent_role_binding_disabled:{role}")
+                roster[role] = binding_id
+            reviewer, coder = roster.get("reviewer"), roster.get("coder")
+            if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
+                # Independent review needs a different underlying model, not just another label.
+                raise ValueError("agent_reviewer_must_differ_from_coder")
+            path = self._roster_path()
+            if path is not None:
+                _write_atomic(json.dumps({"schema_version": 1, "roles": roster}, sort_keys=True,
+                                         separators=(",", ":")).encode("utf-8"), path)
+            self._agent_roster = roster
+        return self.get_agent_roster_public()
 
     def delete_binding(self, binding_id: str) -> None:
         with self._lock:

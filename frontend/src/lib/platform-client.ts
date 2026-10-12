@@ -127,11 +127,11 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null; agent_role?: string }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
-  orchestration_mode: "single" | "sequential_team";
+  orchestration_mode: "single" | "sequential_team" | "agent_team";
   binding_ref: string;
   window_id: string;
   created_at: string;
@@ -253,6 +253,8 @@ export interface StartGoalInput {
   executorKind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
   bindingRef: string;
   autonomyHours: number;
+  /** Multi-agent team: each task routes to its role's agent from the team roster. */
+  teamMode?: boolean;
 }
 
 export interface PlatformInboxItem {

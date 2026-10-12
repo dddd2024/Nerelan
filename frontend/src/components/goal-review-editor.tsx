@@ -39,10 +39,12 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
   const isOpenCode = draft.executor_kind !== "deterministic_fixture";
   // Native CLI executors (Codex, Claude Code) run single-mode only; the store rejects anything else.
   const nativeSingleOnly = draft.executor_kind === "codex" || draft.executor_kind === "claude_code";
+  // In a multi-agent team every task routes through the Agent team roster by role.
+  const teamMode = draft.orchestration_mode === "agent_team";
   const configurationValid = draft.objective.trim().length > 0 && draft.repository.includes("/")
-    && (!nativeSingleOnly || draft.orchestration_mode === "single")
+    && (!nativeSingleOnly || draft.orchestration_mode !== "sequential_team")
     && (!isOpenCode || (!bindingsQuery.isError && !repositoriesQuery.isError
-      && bindings.some((binding) => binding.bindingId === draft.binding_ref)
+      && (teamMode || bindings.some((binding) => binding.bindingId === draft.binding_ref))
       && repositories.some((repository) => repository.full_name === draft.repository)));
   const planValid = tasks.length > 0 && tasks.every((task) => task.title.trim() && task.instruction?.trim())
     && tasks.every((task) => !functionalChecksError(task.validation_checks))
@@ -126,6 +128,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
           <label className="block text-sm">协作方式<select aria-label="目标协作方式" className={fieldClass} value={draft.orchestration_mode} disabled={busy}
             onChange={(event) => setDraft({ ...draft, orchestration_mode: event.target.value as PlatformGoal["orchestration_mode"] })}>
             {!nativeSingleOnly && <option value="sequential_team">同一任务中的多 Agent 协作</option>}<option value="single">单 Agent</option>
+            <option value="agent_team">多 Agent 分工（按 Agent 团队派发）</option>
           </select></label>
           {repositoriesQuery.isError && <p role="alert">仓库列表读取失败。<button type="button" onClick={() => void repositoriesQuery.refetch()}>重试仓库列表</button></p>}
           {bindingsQuery.isError && <p role="alert">模型绑定读取失败。<button type="button" onClick={() => void bindingsQuery.refetch()}>重试模型绑定</button></p>}
@@ -141,6 +144,16 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, title: event.target.value } : entry))} /></label>
           <label className="block text-sm">任务说明<textarea aria-label={`任务 ${task.id} 说明`} className={fieldClass} value={task.instruction ?? ""} disabled={busy} rows={4}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, instruction: event.target.value } : entry))} /></label>
+          {goal.orchestration_mode === "agent_team" && <label className="block text-sm">负责 Agent<select aria-label={`任务 ${task.id} 负责 Agent`} className={fieldClass}
+            value={task.agent_role ?? ""} disabled={busy}
+            onChange={(event) => setTasks(tasks.map((entry, item) => {
+              if (item !== index) return entry;
+              const { agent_role: _previous, ...rest } = entry;
+              return event.target.value ? { ...rest, agent_role: event.target.value } : rest;
+            }))}>
+            <option value="">默认（常规编码）</option><option value="planner">规划者</option><option value="complex">复杂编码</option>
+            <option value="coder">常规编码</option><option value="simple">简单任务</option><option value="reviewer">审查者</option>
+          </select></label>}
           <label className="block text-sm">输入产物<select aria-label={`任务 ${task.id} 输入产物`} className={fieldClass}
             value={task.artifact_input?.plan_task_id ?? ""} disabled={busy}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry,

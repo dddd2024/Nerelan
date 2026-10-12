@@ -446,10 +446,12 @@ class PlatformControlStore:
             raise TaskStoreError("invalid_goal_identity")
         if executor_kind not in {"opencode", "deterministic_fixture", "codex", "claude_code"}:
             raise TaskStoreError(f"unsupported_executor_kind:{executor_kind}")
-        if orchestration_mode not in {"single", "sequential_team"}:
+        if orchestration_mode not in {"single", "sequential_team", "agent_team"}:
             raise TaskStoreError(f"unsupported_orchestration_mode:{orchestration_mode}")
         if orchestration_mode == "sequential_team" and executor_kind != "opencode":
             raise TaskStoreError("sequential_team_requires_opencode_executor")
+        if orchestration_mode == "agent_team" and executor_kind == "deterministic_fixture":
+            raise TaskStoreError("agent_team_requires_model_executor")
         with self._lock:
             existing = self._conn.execute(
                 "SELECT * FROM platform_goals WHERE idempotency_key = ?", (idempotency_key,)
@@ -634,13 +636,17 @@ class PlatformControlStore:
                     raise TaskStoreError("invalid_goal_repository") from exc
                 if configuration["executor_kind"] not in {"opencode", "deterministic_fixture", "codex", "claude_code"}:
                     raise TaskStoreError("unsupported_executor_kind")
-                if configuration["orchestration_mode"] not in {"single", "sequential_team"}:
+                if configuration["orchestration_mode"] not in {"single", "sequential_team", "agent_team"}:
                     raise TaskStoreError("unsupported_orchestration_mode")
-                if configuration["executor_kind"] in {"codex", "claude_code"} and configuration["orchestration_mode"] != "single":
+                agent_team = configuration["orchestration_mode"] == "agent_team"
+                if (configuration["executor_kind"] in {"codex", "claude_code"}
+                        and configuration["orchestration_mode"] not in {"single", "agent_team"}):
                     raise TaskStoreError(f"{configuration['executor_kind']}_single_mode_only")
                 if configuration["executor_kind"] == "deterministic_fixture":
                     if configuration["orchestration_mode"] != "single" or configuration["binding_ref"]:
                         raise TaskStoreError("fixture_configuration_invalid")
+                elif agent_team and not configuration["binding_ref"]:
+                    pass  # every task routes through the agent roster by role
                 elif not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,79}", configuration["binding_ref"]):
                     raise TaskStoreError("goal_binding_required")
                 if objective == current.objective and all(

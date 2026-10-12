@@ -69,7 +69,8 @@ function readDraft(): GoalComposerDraft {
       parsed.autonomyHours !== 2 ||
       typeof parsed.operationId !== "string" ||
       !OPERATION_ID_PATTERN.test(parsed.operationId) ||
-      typeof parsed.confirmed !== "boolean"
+      typeof parsed.confirmed !== "boolean" ||
+      (parsed.teamMode !== undefined && typeof parsed.teamMode !== "boolean")
     ) {
       throw new Error("invalid_goal_composer_draft");
     }
@@ -81,6 +82,7 @@ function readDraft(): GoalComposerDraft {
       autonomyHours: 2,
       operationId: parsed.operationId,
       confirmed: parsed.confirmed,
+      teamMode: parsed.teamMode === true,
     };
   } catch {
     try {
@@ -166,7 +168,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
   }
 
   const showOptions = optionsOpen || draft.objective.trim().length > 0;
-  const needsBinding = draft.executorKind !== "deterministic_fixture" && !checkerOnly;
+  const needsBinding = draft.executorKind !== "deterministic_fixture" && !checkerOnly && !draft.teamMode;
   const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
   const objectiveLength = draft.objective.trim().length;
   const repositoryReady = draft.repository.includes("/");
@@ -209,6 +211,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           bindingRef: checkerOnly ? "" : draftRef.current.bindingRef,
           autonomyHours: 2,
           operationId: draftRef.current.operationId,
+          ...(!checkerOnly && draftRef.current.teamMode ? { teamMode: true } : {}),
           ...(checkerOnly && approvedPolicy?.goal_idempotency_key ? { checkerDraft: {
             idempotencyKey: approvedPolicy.goal_idempotency_key,
             executorKind: "opencode" as const, orchestrationMode: "single" as const, bindingRef: "" as const,
@@ -303,16 +306,16 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                 <Bot className="h-3.5 w-3.5" aria-hidden="true" />
                 <select
                   aria-label="执行模式"
-                  value={draft.executorKind}
+                  value={draft.teamMode && !checkerOnly ? "agent_team" : draft.executorKind}
                   onChange={(event) =>
-                    editDraft({
-                      executorKind: event.target.value as StartGoalInput["executorKind"],
-                      bindingRef: "",
-                    })
+                    editDraft(event.target.value === "agent_team"
+                      ? { executorKind: "opencode", teamMode: true, bindingRef: "" }
+                      : { executorKind: event.target.value as StartGoalInput["executorKind"], teamMode: false, bindingRef: "" })
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
                   <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode 多 Agent"}</option>
+                  {!checkerOnly && <option value="agent_team">多 Agent 分工（按 Agent 团队派发）</option>}
                   {!checkerOnly && <option value="claude_code">Claude Code 单任务（Claude 账号）</option>}
                   {!checkerOnly && <option value="codex">Codex 单任务（ChatGPT 账号）</option>}
                   <option value="deterministic_fixture">无模型验证</option>
