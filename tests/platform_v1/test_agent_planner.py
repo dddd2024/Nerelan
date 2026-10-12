@@ -228,3 +228,4 @@ def test_planned_artifact_without_checks_is_rejected_by_plan_validation():
 def test_prompt_explains_artifact_handoff_and_check_catalog():
     prompt = build_planner_prompt(objective="x", repository="o/r")
     assert "artifact_input" in prompt and "python_pytest" in prompt and "npm_test" in prompt
+    assert "targets" in prompt and "within 600 seconds" in prompt  # fast, focused checks
