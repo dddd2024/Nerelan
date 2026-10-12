@@ -464,7 +464,7 @@ class GoalService:
         if publication is not None and publication.repository != task.repository:
             publication = None
         return {
-            **link, "executor_kind": task.executor_kind,
+            **link, "executor_kind": task.executor_kind, "binding_ref": task.binding_ref,
             "functional_validation": proof,
             "publication": publication_projection(publication),
         }
