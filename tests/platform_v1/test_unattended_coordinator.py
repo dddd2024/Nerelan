@@ -944,3 +944,28 @@ def test_unknown_or_overrun_usage_blocks_future_dispatch(
         assert stopped.enforcement_class == "USAGE_UNKNOWN"
         assert stopped.unknown_observation_count == 1
     assert control.active_window() is None
+
+
+def test_unknown_usage_in_an_unbudgeted_window_is_counted_but_does_not_stop_it():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "post-run-observed", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 3, "max_retries": 0, "confirmation": "ACTIVATE",
+    })
+    assert window.enforcement_class == "POST_RUN_OBSERVED"
+    first, second = (store.create_task(title=f"native {i}", executor_kind="codex", binding_ref="chatgpt-gpt")
+                     for i in range(2))
+    epoch, _ = control.claim_task(window_id=window.id, task_id=first.id, owner="owner", lease_ms=60_000)
+    store.append_usage_observation(first.id, observation_id="usage-native", execution_id="exec-native",
+                                   role="executor", model_id="gpt", provider_id="codex",
+                                   source_kind="assistant_message", source_id="codex-turn-1", status="UNKNOWN")
+    control.complete_task_claim(window_id=window.id, task_id=first.id, owner="owner", epoch=epoch, result="terminal")
+    current = control.get_window(window.id)
+    assert (current.status, current.stop_reason, current.unknown_observation_count) == ("ACTIVE", "", 1)
+    assert current.enforcement_class == "POST_RUN_OBSERVED"
+    control.claim_task(window_id=window.id, task_id=second.id, owner="owner", lease_ms=60_000)  # still dispatches

@@ -1417,7 +1417,10 @@ class PlatformControlStore:
                 ]
                 if count_completion:
                     assignments.append("tasks_completed = tasks_completed + 1")
-                if usage_unknown:
+                if usage_unknown and (token_enforced or cost_enforced):
+                    # Unknown usage cannot be checked against a budget, so a budgeted window stops.
+                    # A POST_RUN_OBSERVED window (no token/cost budget; account CLIs never report
+                    # cost) only counts the unknown observation and stays bounded by its task limits.
                     assignments.extend(
                         ["status = 'BLOCKED'", "stop_reason = 'usage_unknown'", "enforcement_class = 'USAGE_UNKNOWN'"]
                     )
