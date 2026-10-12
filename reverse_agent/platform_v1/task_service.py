@@ -1518,12 +1518,21 @@ def _set_aside_empty_store(target: str) -> bool:
         return False
 
 
+# Model setup (credential refs only, no secrets) and the Agent team roster live next to the store.
+_ADOPTED_SIDECARS = ("model_setup_state.json", "agent_roster.json")
+
+
 def _adopt_model_setup_state(target: str, legacy: str) -> None:
-    """Carry the legacy model setup (credential refs only, no secrets) along once."""
+    """Carry the legacy model setup and Agent roster along once, never overwriting."""
+    for name in _ADOPTED_SIDECARS:
+        _adopt_sidecar(target, legacy, name)
+
+
+def _adopt_sidecar(target: str, legacy: str, name: str) -> None:
     import shutil
 
-    source = os.path.join(os.path.dirname(os.path.abspath(legacy)), "model_setup_state.json")
-    destination = os.path.join(os.path.dirname(os.path.abspath(target)), "model_setup_state.json")
+    source = os.path.join(os.path.dirname(os.path.abspath(legacy)), name)
+    destination = os.path.join(os.path.dirname(os.path.abspath(target)), name)
     if not os.path.isfile(source) or os.path.lexists(destination):
         return
     os.makedirs(os.path.dirname(destination), exist_ok=True)
