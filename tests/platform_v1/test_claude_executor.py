@@ -114,6 +114,7 @@ def test_argv_grants_no_code_running_tool_and_ignores_all_settings():
         assert flag in write
     assert write[write.index("--tools") + 1] == "Read,Glob,Grep,Edit,Write"
     assert write[write.index("--permission-mode") + 1] == "acceptEdits"
+    assert write[write.index("--permission-prompts") + 1] == "none"
     assert "--setting-sources" not in write and "--allowedTools" not in write
     assert not any(part.startswith(("Bash", "PowerShell", "WebFetch")) for part in write)
     read_only = build_claude_argv("claude", "opus", "read-only")
@@ -137,7 +138,7 @@ def test_child_environment_strips_api_credentials():
 
 def _runner(status_payload, *, help_text=None, status_code=0):
     help_text = help_text or ("--print --output-format --permission-mode --strict-mcp-config "
-                              "--restricted --tools --no-session-persistence")
+                              "--restricted --tools --permission-prompts --no-session-persistence")
 
     def run(argv, **kwargs):
         assert "ANTHROPIC_API_KEY" not in kwargs["env"]

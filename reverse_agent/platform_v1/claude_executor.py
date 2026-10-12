@@ -79,7 +79,7 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
             outputs.append(result.stdout)
         if not all(flag in outputs[0] for flag in (
                 "--print", "--output-format", "--permission-mode", "--strict-mcp-config",
-                "--restricted", "--tools", "--no-session-persistence")):
+                "--restricted", "--tools", "--permission-prompts", "--no-session-persistence")):
             return "cli_incompatible"
         try:
             status = json.loads(outputs[1])
@@ -106,7 +106,9 @@ def build_claude_argv(cli: str, model: str, sandbox: str) -> list[str]:
         raise ExecutorRuntimeError("claude_code_sandbox_invalid")
     return [cli, "-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
             "--model", validate_claude_model(model), "--restricted", "--strict-mcp-config",
-            "--tools", ",".join(tools), "--permission-mode", mode]
+            "--tools", ",".join(tools), "--permission-mode", mode,
+            # Nobody answers prompts in an unattended run: deny instead of waiting.
+            "--permission-prompts", "none"]
 
 
 def claude_executor_kwargs(task, *, binding_resolver, artifact_input=None):
