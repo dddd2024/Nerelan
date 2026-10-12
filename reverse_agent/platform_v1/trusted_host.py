@@ -299,6 +299,36 @@ class CombinedTrustedHost:
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
         )
 
+    def _agent_policy(self) -> Any:
+        from .policy_configurator import PolicyConfigurator, binding_health
+
+        def bindings() -> list[dict[str, Any]]:
+            connections = {item["connection_id"]: item for item in self._store.list_connections_public()}
+            result = []
+            for item in self._store.list_bindings_public():
+                connection = connections.get(item["connection_id"], {})
+                native = connection.get("auth_method") == "external_cli_session" and item["executor_id"] != "opencode"
+                result.append({**item, "connection_name": connection.get("name", ""),
+                               "cost_class": "subscription account" if native else f'api ({connection.get("name", "")})'})
+            return result
+
+        def interpreter() -> tuple[str, str, str]:
+            # Prefer the configured planner; otherwise the first enabled, ready native account binding.
+            try:
+                executor_kind, binding_id = self._resolve_agent_role("planner")
+                if executor_kind in {"claude_code", "codex"}:
+                    return executor_kind, binding_id, self._store.get_binding_public(binding_id)["model_id"]
+            except TaskStoreError:
+                pass
+            ready = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
+            for item in sorted(self._store.list_bindings_public(), key=lambda b: b["executor_id"] != "claude_code"):
+                if item["enabled"] and item["executor_id"] in {"claude_code", "codex"} and item["executor_id"] in ready:
+                    return item["executor_id"], item["binding_id"], item["model_id"]
+            raise TaskStoreError("agent_policy_requires_native_interpreter")
+
+        return PolicyConfigurator(bindings=bindings, health=lambda: binding_health(self._task_store),
+                                  interpreter=interpreter, apply_roster=self._store.put_agent_roster)
+
     def _resolve_agent_role(self, role: str) -> tuple[str, str]:
         """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
         entry = self._store.get_agent_roster_public()["roles"].get(role)
@@ -427,6 +457,7 @@ class CombinedTrustedHost:
                 control_store=self._control_store,
                 goal_service=self._goal_service,
                 agent_planner=self._agent_planner(),
+                agent_policy=self._agent_policy(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,

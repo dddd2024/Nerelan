@@ -50,11 +50,25 @@ export interface AgentRosterEntry {
   modelId: string;
 }
 
-export type AgentRoster = Record<AgentRole, AgentRosterEntry>;
+export interface AgentPolicy {
+  text: string;
+  explanation: string;
+  excluded: string[];
+}
+
+export type AgentRoster = Record<AgentRole, AgentRosterEntry> & { policy?: AgentPolicy };
 
 function normalizeAgentRoster(payload: unknown): AgentRoster {
   const roles = ((payload as { roles?: Record<string, Record<string, unknown>> } | null)?.roles ?? {});
   const roster = {} as AgentRoster;
+  const policy = (payload as { policy?: Record<string, unknown> } | null)?.policy;
+  if (policy && typeof policy.text === "string" && policy.text) {
+    roster.policy = {
+      text: policy.text,
+      explanation: typeof policy.explanation === "string" ? policy.explanation : "",
+      excluded: Array.isArray(policy.excluded) ? policy.excluded.filter((item): item is string => typeof item === "string") : [],
+    };
+  }
   for (const role of AGENT_ROLES) {
     const entry = roles[role] ?? {};
     roster[role] = {

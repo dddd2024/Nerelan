@@ -147,6 +147,8 @@ export interface PlatformGoalTaskLink {
   status: string;
   title: string;
   executor_kind?: PlatformGoal["executor_kind"];
+  /** Saved Binding that ran this task (multi-agent goals mix several). */
+  binding_ref?: string;
   functional_validation?: FunctionalValidation;
   publication?: PlatformAgentRun["publication"];
 }
@@ -494,9 +496,9 @@ const mockGoal: PlatformGoal = {
   created_at: new Date(now.getTime() - 25 * 60_000).toISOString(),
   updated_at: new Date(now.getTime() - 2 * 60_000).toISOString(),
   task_links: [
-    { task_id: "task-demo-1", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "分析目标与代码库" },
-    { task_id: "task-demo-2", plan_task_id: "T002", status: "RUNNING", title: "实现协调与恢复链路" },
-    { task_id: "task-demo-3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据" },
+    { task_id: "task-demo-1", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "分析目标与代码库", executor_kind: "claude_code", binding_ref: "claude-opus" },
+    { task_id: "task-demo-2", plan_task_id: "T002", status: "RUNNING", title: "实现协调与恢复链路", executor_kind: "opencode", binding_ref: "coding-glm" },
+    { task_id: "task-demo-3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据", executor_kind: "opencode", binding_ref: "coding-default" },
   ],
 };
 
@@ -1060,6 +1062,27 @@ export async function fetchGoals(): Promise<PlatformGoal[]> {
   if (isMock()) return mockGoals;
   const result = await request<{ goals: PlatformGoal[] }>("/api/goals");
   return result.goals;
+}
+
+export interface AgentPolicyJob {
+  id: string;
+  text: string;
+  status: "RUNNING" | "PROPOSED" | "FAILED" | "APPLIED";
+  error: string;
+  proposal: { roles?: Record<string, string>; excluded?: string[]; explanation?: string };
+  interpreter?: { executor_kind?: string; binding_id?: string };
+}
+
+export async function interpretAgentPolicy(text: string): Promise<AgentPolicyJob> {
+  return request<AgentPolicyJob>("/api/agent-policy/interpret", { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export async function fetchAgentPolicyJob(jobId: string): Promise<AgentPolicyJob> {
+  return request<AgentPolicyJob>(`/api/agent-policy/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export async function applyAgentPolicy(jobId: string): Promise<{ job: AgentPolicyJob }> {
+  return request<{ job: AgentPolicyJob }>(`/api/agent-policy/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST", body: "{}" });
 }
 
 export interface AgentPlanStatus {

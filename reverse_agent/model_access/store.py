@@ -161,6 +161,18 @@ def _sanitize_credential_ref(value: Any) -> str | None:
     return normalized
 
 
+def _sanitize_agent_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
+    """The Owner's preference sentence, the interpreter's explanation and exclusions; text only."""
+    text = policy.get("text", "")
+    explanation = policy.get("explanation", "")
+    excluded = policy.get("excluded", [])
+    return {
+        "text": text[:2000] if isinstance(text, str) else "",
+        "explanation": explanation[:1000] if isinstance(explanation, str) else "",
+        "excluded": [item for item in excluded if isinstance(item, str)][:50] if isinstance(excluded, list) else [],
+    }
+
+
 def _write_atomic(data: bytes, target: Path) -> None:
     parent = target.parent
     os.makedirs(parent, exist_ok=True)
@@ -390,6 +402,7 @@ class ModelProfileStore:
         }
         self._bindings: dict[str, Binding] = {}
         self._agent_roster: dict[str, str] = {}
+        self._agent_policy: dict[str, Any] = {}
         self._lock = RLock()
         self._connection_binding_poison: StoreError | None = None
 
@@ -966,6 +979,8 @@ class ModelProfileStore:
             raise StoreError("invalid agent roster file")
         self._agent_roster = {role: binding for role, binding in roles.items()
                               if role in AGENT_ROLES and isinstance(binding, str) and binding}
+        policy = data.get("policy")
+        self._agent_policy = _sanitize_agent_policy(policy) if isinstance(policy, dict) else {}
 
     def get_agent_roster_public(self) -> dict[str, Any]:
         with self._lock:
@@ -981,7 +996,7 @@ class ModelProfileStore:
                     "executor_id": binding.executor_id if binding else "",
                     "model_id": binding.model_id if binding else "",
                 }
-            return {"roles": roles, "role_order": list(AGENT_ROLES)}
+            return {"roles": roles, "role_order": list(AGENT_ROLES), "policy": dict(self._agent_policy)}
 
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
@@ -1004,11 +1019,18 @@ class ModelProfileStore:
             if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
                 # Independent review needs a different underlying model, not just another label.
                 raise ValueError("agent_reviewer_must_differ_from_coder")
+            policy_raw = payload.get("policy") if isinstance(payload, Mapping) else None
+            policy = _sanitize_agent_policy(policy_raw) if isinstance(policy_raw, Mapping) else {}
             path = self._roster_path()
             if path is not None:
-                _write_atomic(json.dumps({"schema_version": 1, "roles": roster}, sort_keys=True,
-                                         separators=(",", ":")).encode("utf-8"), path)
+                document: dict[str, Any] = {"schema_version": 1, "roles": roster}
+                if policy:
+                    document["policy"] = policy
+                _write_atomic(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                              .encode("utf-8"), path)
             self._agent_roster = roster
+            # A manual role edit drops the stored natural-language policy it no longer reflects.
+            self._agent_policy = policy
         return self.get_agent_roster_public()
 
     def delete_binding(self, binding_id: str) -> None:

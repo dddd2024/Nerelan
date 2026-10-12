@@ -332,6 +332,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     control_store: PlatformControlStore
     goal_service: GoalService
     agent_planner: Any | None = None
+    agent_policy: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
@@ -434,6 +435,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
             if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":
                 from .agent_planner import planner_status_payload
                 self._send_json(HTTPStatus.OK, dict(planner_status_payload(self.agent_planner, segments[2])))
+                return
+            if len(segments) == 4 and segments[:3] == ["api", "agent-policy", "jobs"]:
+                if self.agent_policy is None:
+                    raise TaskStoreError("agent_policy_unavailable")
+                self._send_json(HTTPStatus.OK, self.agent_policy.get(segments[3]))
                 return
             if segments == ["api", "windows", "policy"]:
                 try:
@@ -692,6 +698,17 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         window_id=str(payload.get("window_id", "")),
                     )
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
+                    return
+            if segments[:2] == ["api", "agent-policy"]:
+                if self.agent_policy is None:
+                    raise TaskStoreError("agent_policy_unavailable")
+                if segments == ["api", "agent-policy", "interpret"]:
+                    payload = self._read_json()
+                    self._send_json(HTTPStatus.ACCEPTED, self.agent_policy.interpret(str(payload.get("text", ""))))
+                    return
+                if len(segments) == 5 and segments[2] == "jobs" and segments[4] == "apply":
+                    self._discard_bounded_request_body()
+                    self._send_json(HTTPStatus.OK, self.agent_policy.apply(segments[3]))
                     return
             if segments == ["api", "windows", "activate"]:
                 # A pinned delegated authority admits only its exact policy. Without
@@ -1219,6 +1236,7 @@ def _handler_factory(
     control_store: PlatformControlStore | None = None,
     goal_service: GoalService | None = None,
     agent_planner: Any | None = None,
+    agent_policy: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
@@ -1254,6 +1272,7 @@ def _handler_factory(
         store=store, control_store=configured_control
     )
     ConfiguredHandler.agent_planner = agent_planner
+    ConfiguredHandler.agent_policy = agent_policy
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
     )
