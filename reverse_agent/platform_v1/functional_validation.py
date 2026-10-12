@@ -56,7 +56,8 @@ MAX_CHECK_TARGETS = 16
 def _relative_path_invalid(value: Any) -> bool:
     return (not isinstance(value, str) or not value or len(value) > 240
             or "\\" in value or ":" in value or "\x00" in value
-            or value.startswith(("/", "-")) or value != value.strip()
+            # "-" would be a pytest option and "@" an argument file pytest expands.
+            or value.startswith(("/", "-", "@")) or value != value.strip()
             or any(part in {"", ".."} for part in value.split("/"))
             or (value != "." and "." in value.split("/")))
 

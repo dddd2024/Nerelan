@@ -22,7 +22,7 @@ export function functionalChecksError(checks: FunctionalCheckInput[] = []): stri
     if (check.targets !== undefined) {
       if (check.profile_id !== "python_pytest" || check.targets.length < 1 || check.targets.length > 16
         || new Set(check.targets).size !== check.targets.length
-        || check.targets.some((target) => !target || target === "." || target.length > 240 || target !== target.trim() || target.startsWith("-")
+        || check.targets.some((target) => !target || target === "." || target.length > 240 || target !== target.trim() || /^[-@]/.test(target)
           || /[\\:]/.test(target) || target.split("/").some((part) => !part || part === "." || part === ".."))) {
         return "测试文件须为检查目录内的相对路径（最多 16 个），仅 pytest 检查可以指定。";
       }
