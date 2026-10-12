@@ -127,6 +127,9 @@ def test_coordinator_runs_the_escalator_after_refreshing_goals(monkeypatch):
     coordinator.goal_escalator = broken
     coordinator._refresh_claimed_goals((_link(control, goal.id, "T001")["task_id"],))
     assert coordinator._last_error == "goal_escalation_failed:RuntimeError"
+    coordinator.goal_escalator = calls.append
+    coordinator._refresh_claimed_goals((_link(control, goal.id, "T001")["task_id"],))
+    assert coordinator._last_error == ""  # a later clean refresh reports its own outcome
 
 
 def test_escalated_task_keeps_the_launch_base_when_head_moves(monkeypatch):

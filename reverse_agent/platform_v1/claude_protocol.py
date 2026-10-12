@@ -142,6 +142,10 @@ class ClaudeStreamJson:
                 self.turn.final_text = public_text(event.get("result"), 64 * 1024)
             else:
                 reason = subtype if isinstance(subtype, str) and subtype.replace("_", "").isalnum() else "error"
+                if reason == "success":
+                    # A "successful" turn flagged is_error is an API-side error (auth, quota, overload).
+                    status = event.get("api_error_status")
+                    reason = f"api_error_{status}" if type(status) is int and 100 <= status <= 599 else "api_error"
                 self.turn.failure_classification = f"claude_code_turn_failed:{reason[:60]}"
             usage = event.get("usage")
             if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in _USAGE_KEYS):
