@@ -1,9 +1,10 @@
-import { screen, fireEvent, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, fireEvent, waitFor, renderHook, act } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NewTaskComposer } from "@/components/new-task-composer";
 import { resetDefaultModelControlClientForTests } from "@/lib/model-control-client";
 import { renderWithProviders } from "./test-utils";
+import { useCreateTask } from "@/hooks/use-tasks";
 
 const FAKE_REPOS = [
   {
@@ -43,6 +44,31 @@ function ComposerMount({
 describe("real-executor task plane with Connection/Binding architecture", () => {
   beforeEach(() => {
     resetDefaultModelControlClientForTests();
+  });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+  it("keeps native Codex and its binding through the actual Task Hook HTTP serializer", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const bodies: Record<string, unknown>[] = [];
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(url)).pathname;
+      requests.push(path);
+      if (path === "/api/tasks" && init?.method === "POST") bodies.push(JSON.parse(String(init.body)));
+      return new Response(JSON.stringify({ id: "native-http-task", title: "Native HTTP task", executor_kind: "codex",
+        repository: FAKE_REPOS[0].full_name, status: "READY_FOR_REVIEW", state: "READY_FOR_HUMAN", events: [], evidence: [], changed_files: [] }),
+        { status: 200, headers: { "Content-Type": "application/json" } });
+    }));
+    const queryClient = makeQueryClient();
+    const hook = renderHook(() => useCreateTask(), { wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider> });
+    await act(async () => {
+      await hook.result.current.mutateAsync({ title: "Native HTTP task", executorKind: "codex", bindingRef: "native-binding",
+        repository: FAKE_REPOS[0].full_name, idempotencyKey: "native-http-serializer" });
+    });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({ executor_kind: "codex", binding_ref: "native-binding", model_profile_ref: "", repository: FAKE_REPOS[0].full_name });
+    expect(requests).toContain("/api/tasks/native-http-task/execute");
+    expect(requests).toContain("/api/tasks/native-http-task");
   });
 
   it("Test A: OpenCode submission requires an enabled OpenCode Binding and includes bindingRef and repository", async () => {

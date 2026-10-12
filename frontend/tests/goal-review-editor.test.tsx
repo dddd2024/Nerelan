@@ -70,6 +70,26 @@ it("saves explicitly selected executor, repository and Binding on the observed G
   expect(current.onSavePlan).not.toHaveBeenCalled();
 });
 
+it("keeps native Claude Code goals single-mode and saves them with their own binding", async () => {
+  const current = props();
+  queries.bindings.mockReturnValue({ data: [binding, { ...binding, bindingId: "claude-default", name: "Claude", executorId: "claude_code" }],
+    isPending: false, isError: false, refetch: vi.fn() });
+  render(<GoalReviewEditor {...current} />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "编辑目标配置" }));
+  await user.selectOptions(screen.getByLabelText("目标执行器"), "claude_code");
+  const mode = screen.getByLabelText("目标协作方式");
+  expect(Array.from(mode.querySelectorAll("option")).map((option) => option.getAttribute("value"))).toEqual(["single"]);
+  expect(screen.getByLabelText("目标模型绑定").querySelectorAll("option[value='coding-selected']")).toHaveLength(0);
+  await user.selectOptions(screen.getByLabelText("目标仓库"), "owner/selected");
+  await user.selectOptions(screen.getByLabelText("目标模型绑定"), "claude-default");
+  await user.click(screen.getByRole("button", { name: "保存目标配置" }));
+  await waitFor(() => expect(current.onSaveConfiguration).toHaveBeenCalledWith(current.goal, {
+    objective: fixture.objective, repository: "owner/selected", executor_kind: "claude_code",
+    orchestration_mode: "single", binding_ref: "claude-default",
+  }));
+});
+
 it("retains edits on failure and newer server revisions until an explicit reload", async () => {
   const current = props();
   current.onSaveConfiguration.mockRejectedValue(new Error("Connection lost; retry after reading state"));

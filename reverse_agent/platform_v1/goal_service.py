@@ -268,7 +268,7 @@ class GoalService:
             if item.validation_command_id and (goal.orchestration_mode != "single" or item.artifact_input
                                                or item.validation_checks):
                 raise TaskStoreError("host_validation_requires_standalone_single_task")
-        if goal.executor_kind == "opencode":
+        if goal.executor_kind in {"opencode", "codex", "claude_code"}:
             try:
                 resolve_repository_workspace(goal.repository)
             except RepositoryWorkspaceError as exc:
@@ -276,7 +276,7 @@ class GoalService:
                     str(exc)
                 )
 
-        functional_base = repository_base(goal.repository) if any(
+        functional_base = repository_base(goal.repository) if goal.executor_kind in {"codex", "claude_code"} or any(
             raw.get("validation_checks") for raw in goal.tasks
         ) else ""
         for seq, raw in enumerate(goal.tasks):
@@ -286,6 +286,7 @@ class GoalService:
                 repository=goal.repository,
                 executor_kind=goal.executor_kind,
                 binding_ref=goal.binding_ref,
+                branch=functional_base if goal.executor_kind in {"codex", "claude_code"} else "",
                 permission_profile="AUTONOMOUS_WINDOW",
                 policy_ref=window.id if plan_task.validation_command_id else window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",

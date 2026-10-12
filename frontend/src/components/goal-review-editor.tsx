@@ -31,13 +31,16 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
   const [criteria, setCriteria] = useState(goal.acceptance_criteria.join("\n"));
   const [error, setError] = useState("");
   const bindingsQuery = useBindings();
-  const repositoriesQuery = useRepositories({ enabled: goal.executor_kind === "opencode" || (mode === "configuration" && draft.executor_kind === "opencode") });
-  const bindings = (bindingsQuery.data ?? []).filter((binding) => binding.enabled && binding.executorId === "opencode");
+  const repositoriesQuery = useRepositories({ enabled: goal.executor_kind !== "deterministic_fixture" || (mode === "configuration" && draft.executor_kind !== "deterministic_fixture") });
+  const bindings = (bindingsQuery.data ?? []).filter((binding) => binding.enabled && binding.executorId === draft.executor_kind);
   const repositories = repositoriesQuery.data ?? [];
   const editable = ["DRAFT", "PLANNED", "APPROVED"].includes(goal.status) && !goal.task_links?.length;
   const stale = base.revision !== goal.revision || base.status !== goal.status;
-  const isOpenCode = draft.executor_kind === "opencode";
+  const isOpenCode = draft.executor_kind !== "deterministic_fixture";
+  // Native CLI executors (Codex, Claude Code) run single-mode only; the store rejects anything else.
+  const nativeSingleOnly = draft.executor_kind === "codex" || draft.executor_kind === "claude_code";
   const configurationValid = draft.objective.trim().length > 0 && draft.repository.includes("/")
+    && (!nativeSingleOnly || draft.orchestration_mode === "single")
     && (!isOpenCode || (!bindingsQuery.isError && !repositoriesQuery.isError
       && bindings.some((binding) => binding.bindingId === draft.binding_ref)
       && repositories.some((repository) => repository.full_name === draft.repository)));
@@ -103,7 +106,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
         <label className="block text-sm">执行器<select aria-label="目标执行器" className={fieldClass} value={draft.executor_kind} disabled={busy}
           onChange={(event) => { const executor = event.target.value as PlatformGoal["executor_kind"];
             setDraft({ ...draft, executor_kind: executor, orchestration_mode: executor === "opencode" ? "sequential_team" : "single", binding_ref: "" }); }}>
-          <option value="deterministic_fixture">确定性测试（无模型）</option><option value="opencode">OpenCode</option>
+          <option value="deterministic_fixture">确定性测试（无模型）</option><option value="opencode">OpenCode</option><option value="codex">Codex（单任务）</option><option value="claude_code">Claude Code（单任务）</option>
         </select></label>
         {isOpenCode ? <>
           <label className="block text-sm">仓库<select aria-label="目标仓库" className={fieldClass} value={draft.repository} disabled={busy || repositoriesQuery.isPending}
@@ -122,7 +125,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
           </select></label>
           <label className="block text-sm">协作方式<select aria-label="目标协作方式" className={fieldClass} value={draft.orchestration_mode} disabled={busy}
             onChange={(event) => setDraft({ ...draft, orchestration_mode: event.target.value as PlatformGoal["orchestration_mode"] })}>
-            <option value="sequential_team">同一任务中的多 Agent 协作</option><option value="single">单 Agent</option>
+            {!nativeSingleOnly && <option value="sequential_team">同一任务中的多 Agent 协作</option>}<option value="single">单 Agent</option>
           </select></label>
           {repositoriesQuery.isError && <p role="alert">仓库列表读取失败。<button type="button" onClick={() => void repositoriesQuery.refetch()}>重试仓库列表</button></p>}
           {bindingsQuery.isError && <p role="alert">模型绑定读取失败。<button type="button" onClick={() => void bindingsQuery.refetch()}>重试模型绑定</button></p>}

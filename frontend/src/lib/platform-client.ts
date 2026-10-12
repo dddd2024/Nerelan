@@ -130,7 +130,7 @@ export interface PlatformGoal {
   tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null }>;
   acceptance_criteria: string[];
   artifact_digest: string;
-  executor_kind: "opencode" | "deterministic_fixture";
+  executor_kind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
   orchestration_mode: "single" | "sequential_team";
   binding_ref: string;
   window_id: string;
@@ -250,7 +250,7 @@ export interface PlatformStatus {
 export interface StartGoalInput {
   objective: string;
   repository: string;
-  executorKind: "opencode" | "deterministic_fixture";
+  executorKind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
   bindingRef: string;
   autonomyHours: number;
 }
@@ -1076,7 +1076,7 @@ export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKe
       repository: input.repository, status: "DRAFT", revision: 1,
       executor_kind: input.executorKind,
       orchestration_mode: input.executorKind === "opencode" ? "sequential_team" : "single",
-      binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+      binding_ref: input.executorKind !== "deterministic_fixture" ? input.bindingRef : "",
       spec_markdown: "", plan_markdown: "", tasks: [], acceptance_criteria: [],
       artifact_digest: "", task_links: [], window_id: "", created_at: timestamp, updated_at: timestamp,
     };
@@ -1087,7 +1087,7 @@ export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKe
     objective: input.objective, repository: input.repository, idempotency_key: idempotencyKey,
     executor_kind: input.executorKind,
     orchestration_mode: input.executorKind === "opencode" ? "sequential_team" : "single",
-    binding_ref: input.executorKind === "opencode" ? input.bindingRef : "",
+    binding_ref: input.executorKind !== "deterministic_fixture" ? input.bindingRef : "",
   }) });
 }
 
@@ -1143,7 +1143,7 @@ export async function startGoal(input: StartGoalInput): Promise<PlatformGoal> {
       idempotency_key: idempotencyKey,
       executor_kind: checkerPlan ? "opencode" : input.executorKind,
       orchestration_mode: checkerPlan ? "single" : input.executorKind === "opencode" ? "sequential_team" : "single",
-      binding_ref: checkerPlan ? "" : input.executorKind === "opencode" ? input.bindingRef : "",
+      binding_ref: checkerPlan ? "" : input.executorKind !== "deterministic_fixture" ? input.bindingRef : "",
     }),
   });
   await request<PlatformGoal>(`/api/goals/${created.id}/plan`, {

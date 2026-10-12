@@ -83,6 +83,25 @@ def _provider_alias(value: Any) -> str:
     return ProviderIdentity.from_legacy_provider(value).executor_provider_id
 
 
+# Native CLI executors own their account login (ChatGPT for Codex, a Claude
+# account for Claude Code); Nerelan never reads or relays their credentials.
+# executor provider id -> (upstream provider, protocol family, executor id)
+NATIVE_CLI_PROVIDERS: dict[str, tuple[str, str, str]] = {
+    "codex": ("openai", "codex-cli", "codex"),
+    "claude-code": ("anthropic", "claude-code-cli", "claude_code"),
+}
+NATIVE_CLI_EXECUTORS = frozenset(spec[2] for spec in NATIVE_CLI_PROVIDERS.values())
+NATIVE_CLI_PROVIDER_FOR_EXECUTOR = {spec[2]: provider for provider, spec in NATIVE_CLI_PROVIDERS.items()}
+
+
+def _connection_provider_identity(value: Any) -> ProviderIdentity:
+    identity = ProviderIdentity.from_legacy_provider(value)
+    spec = NATIVE_CLI_PROVIDERS.get(identity.executor_provider_id)
+    if spec is not None:
+        return ProviderIdentity(spec[0], spec[1], identity.executor_provider_id)
+    return identity
+
+
 @dataclass(frozen=True, slots=True)
 class Connection:
     """Sanitized provider/service access metadata.
@@ -117,7 +136,7 @@ class Connection:
                 raise ValueError(
                     "executor_provider_id is required when explicit provider identity is supplied"
                 )
-            identity = ProviderIdentity.from_legacy_provider(provider_alias)
+            identity = _connection_provider_identity(provider_alias)
         else:
             identity = ProviderIdentity(
                 upstream_provider_id=self.upstream_provider_id,
@@ -132,6 +151,13 @@ class Connection:
         object.__setattr__(self, "upstream_provider_id", identity.upstream_provider_id)
         object.__setattr__(self, "protocol_family", identity.protocol_family)
         object.__setattr__(self, "executor_provider_id", identity.executor_provider_id)
+        native = NATIVE_CLI_PROVIDERS.get(identity.executor_provider_id)
+        if native is not None and (
+            identity.upstream_provider_id != native[0] or identity.protocol_family != native[1]
+            or self.auth_method != "external_cli_session"
+        ):
+            prefix = native[2]
+            raise ValueError(f"{prefix}_requires_managed_session_connection")
 
     @property
     def provider_identity(self) -> ProviderIdentity:
@@ -188,7 +214,7 @@ class Connection:
         else:
             if provider_raw is None:
                 raise ValueError("provider is required")
-            identity = ProviderIdentity.from_legacy_provider(provider_raw)
+            identity = _connection_provider_identity(provider_raw)
             provider = identity.executor_provider_id
 
         return cls(
@@ -245,14 +271,18 @@ class ExecutorDescriptor:
     name: str
     operational: bool
     capabilities: tuple[str, ...]
+    readiness_status: str = ""
 
     def to_public_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "executor_id": self.executor_id,
             "name": self.name,
             "operational": self.operational,
             "capabilities": list(self.capabilities),
         }
+        if self.readiness_status:
+            result["readiness_status"] = self.readiness_status
+        return result
 
 
 @dataclass(frozen=True, slots=True)
