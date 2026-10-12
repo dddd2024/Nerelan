@@ -1062,6 +1062,27 @@ export async function fetchGoals(): Promise<PlatformGoal[]> {
   return result.goals;
 }
 
+export interface AgentPolicyJob {
+  id: string;
+  text: string;
+  status: "RUNNING" | "PROPOSED" | "FAILED" | "APPLIED";
+  error: string;
+  proposal: { roles?: Record<string, string>; excluded?: string[]; explanation?: string };
+  interpreter?: { executor_kind?: string; binding_id?: string };
+}
+
+export async function interpretAgentPolicy(text: string): Promise<AgentPolicyJob> {
+  return request<AgentPolicyJob>("/api/agent-policy/interpret", { method: "POST", body: JSON.stringify({ text }) });
+}
+
+export async function fetchAgentPolicyJob(jobId: string): Promise<AgentPolicyJob> {
+  return request<AgentPolicyJob>(`/api/agent-policy/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export async function applyAgentPolicy(jobId: string): Promise<{ job: AgentPolicyJob }> {
+  return request<{ job: AgentPolicyJob }>(`/api/agent-policy/jobs/${encodeURIComponent(jobId)}/apply`, { method: "POST", body: "{}" });
+}
+
 export interface AgentPlanStatus {
   goal_id: string;
   status: "NONE" | "RUNNING" | "PLANNED" | "FAILED" | "UNAVAILABLE";
