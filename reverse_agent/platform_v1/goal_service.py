@@ -686,7 +686,9 @@ class GoalService:
                     *([f"Host check: `{item.validation_command_id}` (patch hygiene only)"]
                       if item.validation_command_id else []),
                     "Functional checks: " + (", ".join(
-                        f"`{check['profile_id']}` in `{check['working_directory']}`" for check in item.validation_checks
+                        f"`{check['profile_id']}` in `{check['working_directory']}`"
+                        + (" on " + ", ".join(f"`{target}`" for target in check["targets"]) if check.get("targets") else "")
+                        for check in item.validation_checks
                     ) or "not selected (patch hygiene alone is not functional verification)"),
                     *([f"Accepted artifact input: `{item.artifact_input['plan_task_id']}`"]
                       if item.artifact_input else []),

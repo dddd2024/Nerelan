@@ -169,3 +169,12 @@ def test_artifact_contract_failure_rolls_back_tasks_and_functional_proof(goal_ch
     assert store.count_tasks() == 0 and control.list_goal_tasks(goal.id) == ()
     assert control.get_goal(goal.id).status == "APPROVED"
     assert store._conn.execute("SELECT count(*) FROM task_evidence").fetchone()[0] == 0
+
+
+def test_targeted_checks_are_visible_in_the_plan_the_owner_approves(goal_checks):
+    _, _, _, _, service, goal, _ = goal_checks
+    task = {**planned_check(), "validation_checks": [
+        {"profile_id": "python_pytest", "working_directory": ".", "targets": ["test_app.py"]}]}
+    planned = service.plan(goal.id, expected_revision=goal.revision, tasks=[task]).goal
+    assert "`python_pytest` in `.` on `test_app.py`" in planned.plan_markdown
+    assert planned.tasks[0]["validation_checks"][0]["targets"] == ["test_app.py"]

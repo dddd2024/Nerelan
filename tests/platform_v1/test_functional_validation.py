@@ -105,6 +105,8 @@ def test_mutation_during_tests_invalidates_the_proof(implementation):
     [{"profile_id": "python_pytest", "targets": "test_app.py"}],
     [{"profile_id": "python_pytest", "targets": ["-k", "x"]}],
     [{"profile_id": "python_pytest", "targets": ["@opts"]}],
+    [{"profile_id": "python_pytest", "targets": [["test_app.py"]]}],
+    [{"profile_id": "python_pytest", "targets": [{"path": "test_app.py"}]}],
     [{"profile_id": "python_pytest", "working_directory": "@opts"}],
     [{"profile_id": "python_pytest", "targets": ["../test_app.py"]}],
     [{"profile_id": "python_pytest", "targets": ["."]}],

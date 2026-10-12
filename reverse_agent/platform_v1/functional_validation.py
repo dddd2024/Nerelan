@@ -81,8 +81,9 @@ def normalize_checks(raw: Any) -> tuple[dict[str, Any], ...]:
         targets = item.get("targets")
         if targets is not None:
             if (profile != "python_pytest" or not isinstance(targets, (list, tuple))
-                    or not 1 <= len(targets) <= MAX_CHECK_TARGETS or len(set(targets)) != len(targets)
-                    or any(_relative_path_invalid(target) or target == "." for target in targets)):
+                    or not 1 <= len(targets) <= MAX_CHECK_TARGETS
+                    or any(_relative_path_invalid(target) or target == "." for target in targets)
+                    or len(set(targets)) != len(targets)):
                 raise TaskStoreError("functional_targets_invalid")
         identity = (profile, directory, tuple(targets or ()))
         if identity in seen:
