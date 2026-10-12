@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .functional_validation import _CATALOG as _CHECK_CATALOG
 from .run_store import TaskStoreError
 
 ROLE_GUIDE = {
@@ -33,6 +34,9 @@ MAX_PLAN_TASKS = 12
 # Approved host-run functional check profiles a planner may attach (see functional_validation).
 CHECK_PROFILES = ("python_pytest", "npm_test")
 PLAN_TIMEOUT_SECONDS = 600
+
+
+CHECK_TIMEOUT_SECONDS = min(profile["timeout_seconds"] for profile in _CHECK_CATALOG.values())
 
 
 def build_planner_prompt(*, objective: str, repository: str) -> str:
@@ -55,6 +59,8 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         'working_directory, up to 16), e.g. {"profile_id": "python_pytest", "working_directory": ".", '
         '"targets": ["tests/test_feature.py"]}. A target must exist when the check runs, so a task that '
         "creates a test file may target it, but its predecessor must target tests that already exist. "
+        "Each check must finish within " + str(CHECK_TIMEOUT_SECONDS) + " seconds, so choose a few fast, "
+        "focused test files (unit tests for the modules the task changes), not large integration suites. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "agent_role": "coder", '
