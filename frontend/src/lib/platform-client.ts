@@ -147,6 +147,8 @@ export interface PlatformGoalTaskLink {
   status: string;
   title: string;
   executor_kind?: PlatformGoal["executor_kind"];
+  /** Saved Binding that ran this task (multi-agent goals mix several). */
+  binding_ref?: string;
   functional_validation?: FunctionalValidation;
   publication?: PlatformAgentRun["publication"];
 }
@@ -494,9 +496,9 @@ const mockGoal: PlatformGoal = {
   created_at: new Date(now.getTime() - 25 * 60_000).toISOString(),
   updated_at: new Date(now.getTime() - 2 * 60_000).toISOString(),
   task_links: [
-    { task_id: "task-demo-1", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "分析目标与代码库" },
-    { task_id: "task-demo-2", plan_task_id: "T002", status: "RUNNING", title: "实现协调与恢复链路" },
-    { task_id: "task-demo-3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据" },
+    { task_id: "task-demo-1", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "分析目标与代码库", executor_kind: "claude_code", binding_ref: "claude-opus" },
+    { task_id: "task-demo-2", plan_task_id: "T002", status: "RUNNING", title: "实现协调与恢复链路", executor_kind: "opencode", binding_ref: "coding-glm" },
+    { task_id: "task-demo-3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据", executor_kind: "opencode", binding_ref: "coding-default" },
   ],
 };
 

@@ -42,6 +42,10 @@ function taskStateText(state: string) {
   return "等待依赖完成";
 }
 
+const EXECUTOR_LABELS: Record<string, string> = {
+  opencode: "OpenCode", codex: "Codex", claude_code: "Claude Code", deterministic_fixture: "Fixture",
+};
+
 function publicationText(publication: PlatformGoalTaskLink["publication"]) {
   if (!publication) return "尚无发布记录";
   if (publication.status === "PENDING") return "等待发布";
@@ -98,15 +102,21 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
                   {FUNCTIONAL_STATUS_LABELS[proof.status]}
                 </span>
+                <span data-testid={`goal-publication-${task.task_id}`} className={cn("rounded-md px-1.5 py-0.5", task.publication ? "bg-ra-light text-ra-text-secondary" : "text-ra-text-tertiary")}>
+                  {publicationText(task.publication)}
+                </span>
+                {task.executor_kind && <span data-testid={`goal-agent-${task.task_id}`} className="rounded-md bg-ra-tertiary/60 px-1.5 py-0.5 font-mono text-[10px] text-ra-text-secondary"
+                  title="执行此任务的 Agent">
+                  {EXECUTOR_LABELS[task.executor_kind] ?? task.executor_kind}{task.binding_ref ? ` · ${task.binding_ref}` : ""}
+                </span>}
                 <Link to={`/runs?task=${encodeURIComponent(task.task_id)}`}
                   aria-label={`查看 ${task.title} 的${state === "interrupted" ? "中断" : ""}运行`}
-                  className="inline-flex min-h-6 items-center rounded px-1 font-medium text-ra-accent underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                  className="ml-auto inline-flex min-h-6 items-center rounded px-1 font-medium text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
                   查看运行
                 </Link>
               </>}
             </div>
-            {materialized && <div className="ml-7 mt-2 space-y-2">
-              <p data-testid={`goal-publication-${task.task_id}`} className="text-[11px] text-ra-text-secondary">{publicationText(task.publication)}</p>
+            {materialized && <div className="ml-7 mt-1">
               <details className="text-xs text-ra-text-secondary">
                 <summary className="min-h-6 w-fit cursor-pointer rounded underline-offset-4 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">查看功能检查</summary>
                 <FunctionalValidationView evidence={proof} executor={executor} />
