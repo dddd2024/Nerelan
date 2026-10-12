@@ -45,3 +45,24 @@ def test_text_mode_subprocess_calls_declare_decode_errors() -> None:
     assert violations == [], (
         "text-mode subprocess calls missing errors= at " + ", ".join(violations)
     )
+
+
+def test_where_exe_paths_use_the_console_code_page(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import opencode_executor
+
+    install = tmp_path / "测试" / "opencode.exe"
+    install.parent.mkdir()
+    install.write_bytes(b"")
+    seen = []
+
+    def fake_run(argv, **kwargs):
+        seen.append(kwargs.get("encoding"))
+        missing = str(tmp_path / "missing" / "opencode.exe")
+        return SimpleNamespace(returncode=0, stdout=f"{missing}\n{install}\n")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    # A listed path that does not exist is skipped; the real non-ASCII path is returned.
+    assert opencode_executor._resolve_windows_exe() == str(install)
+    assert seen and set(seen) == {opencode_executor._WHERE_ENCODING}

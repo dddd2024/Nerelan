@@ -582,6 +582,11 @@ def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
     raise ExecutorRuntimeError("opencode_cli_not_found")
 
 
+# where.exe prints paths in the console (OEM) code page, not UTF-8; a non-ASCII install
+# path decoded as UTF-8 would point nowhere.
+_WHERE_ENCODING = "oem" if os.name == "nt" else "utf-8"
+
+
 def _resolve_windows_exe() -> str | None:
     """Find the true opencode.exe without PATH mutation or installation."""
     # 1. Try `where.exe opencode.exe`
@@ -591,14 +596,14 @@ def _resolve_windows_exe() -> str | None:
                 ["where.exe", candidate],
                 capture_output=True,
                 text=True,
-                encoding="utf-8",
+                encoding=_WHERE_ENCODING,
                 errors="replace",
                 timeout=10,
             )
             if proc.returncode == 0:
                 for line in proc.stdout.splitlines():
                     p = line.strip()
-                    if p and p.lower().endswith(".exe"):
+                    if p and p.lower().endswith(".exe") and os.path.isfile(p):
                         return p
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
@@ -609,7 +614,7 @@ def _resolve_windows_exe() -> str | None:
             ["where.exe", "opencode"],
             capture_output=True,
             text=True,
-            encoding="utf-8",
+            encoding=_WHERE_ENCODING,
             errors="replace",
             timeout=10,
         )
@@ -635,14 +640,14 @@ def _resolve_windows_cmd() -> str | None:
             ["where.exe", "opencode.cmd"],
             capture_output=True,
             text=True,
-            encoding="utf-8",
+            encoding=_WHERE_ENCODING,
             errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
             for line in proc.stdout.splitlines():
                 p = line.strip()
-                if p and p.lower().endswith((".cmd", ".bat")):
+                if p and p.lower().endswith((".cmd", ".bat")) and os.path.isfile(p):
                     return p
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
