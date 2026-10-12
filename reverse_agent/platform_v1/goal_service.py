@@ -52,7 +52,7 @@ ESCALATION_LADDER = {"simple": "coder", "coder": "complex"}
 _NON_AGENT_FAILURE = re.compile(
     r"auth|login|readiness|unavailable|not_found|network|transport|dispatch|session|resume|workspace"
     r"|contract|artifact|budget|reservation|cancel|head_moved|base|ambiguous|coordinator|process_start"
-    r"|rate_limit|quota")
+    r"|rate_limit|quota|api_error")
 
 
 def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
