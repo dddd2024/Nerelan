@@ -1,0 +1,172 @@
+"""Planner agent: decomposition into role-tagged tasks (zero model calls)."""
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+import pytest
+
+from reverse_agent.platform_v1.agent_planner import (
+    AgentPlanner, build_planner_prompt, extract_plan, run_planner_cli,
+)
+from reverse_agent.platform_v1.claude_executor import ClaudeCodeExecutor
+from reverse_agent.platform_v1.control_store import PlatformControlStore
+from reverse_agent.platform_v1.goal_service import GoalService
+from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
+
+PLAN = {"tasks": [
+    {"id": "T001", "title": "Design", "instruction": "Design the change", "agent_role": "complex"},
+    {"id": "T002", "title": "Implement", "instruction": "Implement it", "agent_role": "coder", "dependencies": ["T001"]},
+    {"id": "T003", "title": "Docs", "instruction": "Update docs", "agent_role": "simple", "dependencies": ["T002"]},
+], "acceptance_criteria": ["Feature works", "Docs updated"]}
+
+
+def test_prompt_names_roles_and_demands_json():
+    prompt = build_planner_prompt(objective="Add a status page", repository="dddd2024/Nerelan")
+    for token in ("Add a status page", "dddd2024/Nerelan", "simple", "complex", '"tasks"', "cheapest role"):
+        assert token in prompt
+
+
+@pytest.mark.parametrize("text", [
+    json.dumps(PLAN),
+    "Here is the plan:\n```json\n" + json.dumps(PLAN) + "\n```",
+    "Plan follows " + json.dumps(PLAN) + " end.",
+])
+def test_extract_plan_accepts_plain_fenced_and_embedded_json(text):
+    plan = extract_plan(text)
+    assert [task["agent_role"] for task in plan["tasks"]] == ["complex", "coder", "simple"]
+    assert plan["acceptance_criteria"] == ["Feature works", "Docs updated"]
+
+
+def test_extract_plan_strips_fields_a_planner_may_not_request():
+    raw = {"tasks": [{"id": "T001", "title": "x", "instruction": "y", "capability": "validate_task",
+                      "validation_command_id": "git_diff_check", "artifact_input": {"plan_task_id": "T0"}}]}
+    assert extract_plan(json.dumps(raw))["tasks"] == [{"id": "T001", "title": "x", "instruction": "y"}]
+
+
+@pytest.mark.parametrize("text,error", [
+    ("", "agent_plan_empty"),
+    ("no json here", "agent_plan_not_json"),
+    ('{"tasks": []}', "agent_plan_tasks_required"),
+    (json.dumps({"tasks": [{"id": f"T{i:03d}", "title": "t", "instruction": "i"} for i in range(1, 14)]}),
+     "agent_plan_too_many_tasks"),
+])
+def test_extract_plan_rejects_bad_output(text, error):
+    with pytest.raises(TaskStoreError, match=error):
+        extract_plan(text)
+
+
+def _goals():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Add a status page", "repository": "dddd2024/Nerelan",
+                         "idempotency_key": "plan-goal-1", "executor_kind": "opencode",
+                         "orchestration_mode": "agent_team", "binding_ref": ""})
+    return goals, goal
+
+
+def _planner(goals, runner, roster=("claude_code", "claude-opus")):
+    calls = []
+
+    def run(**kwargs):
+        calls.append(kwargs)
+        return runner(**kwargs)
+    return AgentPlanner(goal_service=goals, roster_resolver=lambda role: roster,
+                        binding_model=lambda ref: {"claude-opus": "opus"}[ref],
+                        repo_dir_for=lambda repository: "/fixture/repo", runner=run), calls
+
+
+def test_planner_job_saves_role_tagged_plan_without_launching():
+    goals, goal = _goals()
+    planner, calls = _planner(goals, lambda **_: json.dumps(PLAN))
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "PLANNED" and status["planner"] == {"executor_kind": "claude_code", "binding_ref": "claude-opus"}
+    assert calls[0]["executor_kind"] == "claude_code" and calls[0]["model_id"] == "opus"
+    assert calls[0]["repo_dir"] == "/fixture/repo" and "Add a status page" in calls[0]["prompt"]
+    saved = goals.control_store.get_goal(goal.id)
+    assert saved.status == "PLANNED"
+    assert [task.get("agent_role") for task in saved.tasks] == ["complex", "coder", "simple"]
+    assert goals.control_store.list_goal_tasks(goal.id) == () or len(goals.control_store.list_goal_tasks(goal.id)) == 0
+
+
+def test_planner_failures_are_finite_and_leave_the_goal_unplanned():
+    goals, goal = _goals()
+    planner, _ = _planner(goals, lambda **_: "I could not decide")
+    assert planner.start(goal.id, expected_revision=1, background=False)["error"] == "agent_plan_not_json"
+    assert goals.control_store.get_goal(goal.id).status == "DRAFT"
+    bad_role = {"tasks": [{"id": "T001", "title": "x", "instruction": "y", "agent_role": "wizard"}]}
+    planner, _ = _planner(goals, lambda **_: json.dumps(bad_role))
+    assert planner.start(goal.id, expected_revision=1, background=False)["error"] == "unsupported_agent_role:wizard"
+
+
+def test_planner_requires_native_planner_and_current_revision():
+    goals, goal = _goals()
+    planner, _ = _planner(goals, lambda **_: json.dumps(PLAN), roster=("opencode", "cheap"))
+    with pytest.raises(TaskStoreError, match="agent_planner_requires_native_executor"):
+        planner.start(goal.id, expected_revision=1, background=False)
+    planner, _ = _planner(goals, lambda **_: json.dumps(PLAN))
+    with pytest.raises(TaskStoreError, match="goal_revision_mismatch"):
+        planner.start(goal.id, expected_revision=2, background=False)
+
+
+def test_read_only_cli_run_parses_claude_stream(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    events = [{"type": "system", "subtype": "init", "session_id": "plan-session"},
+              {"type": "result", "subtype": "success", "is_error": False, "result": json.dumps(PLAN)}]
+    script = "import sys,json;sys.stdin.read();print(" + repr("\n".join(json.dumps(e) for e in events)) + ")"
+    seen = {}
+
+    def factory(**kwargs):
+        def process(argv, **popen):
+            seen["argv"], seen["cwd"] = argv, popen["cwd"]
+            return subprocess.Popen([sys.executable, "-u", "-c", script], **popen)
+        return ClaudeCodeExecutor(claude_exe=sys.executable, process_factory=process,
+                                  readiness_probe=lambda _: "managed_login_ready",
+                                  parent_env={"PATH": str(Path(sys.executable).parent)}, **kwargs)
+
+    text = run_planner_cli(executor_kind="claude_code", model_id="opus", repo_dir=str(repo),
+                           prompt="plan it", executor_factory=factory)
+    assert extract_plan(text)["tasks"][0]["agent_role"] == "complex"
+    tools = seen["argv"][seen["argv"].index("--tools") + 1]
+    assert tools == "Read,Glob,Grep" and Path(seen["cwd"]).resolve() == repo.resolve()
+
+
+def test_agent_plan_http_routes(tmp_path):
+    import threading
+    from http.server import ThreadingHTTPServer
+    from urllib.request import Request, urlopen
+    from _local_client_fixture import client_headers, client_session
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.task_service import _handler_factory
+
+    goals, goal = _goals()
+    planner, _ = _planner(goals, lambda **_: json.dumps(PLAN))
+    handler = _handler_factory(goals.store, ExecutorRouter(), allowed_origin="http://localhost:5173",
+                               execution_authority_sha="fixture-authority", planning_sha="fixture-plan",
+                               control_store=goals.control_store, goal_service=goals, agent_planner=planner,
+                               local_client_session=client_session())
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        def call(method, path, payload=None):
+            req = Request(base + path, method=method, data=None if payload is None else json.dumps(payload).encode(),
+                          headers=client_headers({"Content-Type": "application/json"}))
+            with urlopen(req, timeout=10) as response:
+                return response.status, json.load(response)
+        assert call("GET", f"/api/goals/{goal.id}/agent-plan") == (200, {"goal_id": goal.id, "status": "NONE", "error": ""})
+        status, started = call("POST", f"/api/goals/{goal.id}/agent-plan", {"expected_revision": 1})
+        assert status == 202 and started["status"] in {"RUNNING", "PLANNED"}
+        for _ in range(50):
+            _, current = call("GET", f"/api/goals/{goal.id}/agent-plan")
+            if current["status"] != "RUNNING":
+                break
+            threading.Event().wait(0.05)
+        assert current["status"] == "PLANNED"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

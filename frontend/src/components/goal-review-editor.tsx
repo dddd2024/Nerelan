@@ -1,3 +1,4 @@
+import { AgentPlanButton } from "@/components/agent-plan-button";
 import { useEffect, useState } from "react";
 import { useBindings } from "@/hooks/use-model-access";
 import { useRepositories } from "@/hooks/use-repositories";
@@ -94,6 +95,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
     {!mode && editable && <div className="flex flex-wrap gap-2">
       <button type="button" className={buttonClass} disabled={busy} onClick={() => reload("configuration")}>编辑目标配置</button>
       {goal.status === "PLANNED" && <button type="button" className={buttonClass} disabled={busy} onClick={() => reload("plan")}>编辑当前计划</button>}
+      {goal.orchestration_mode === "agent_team" && <AgentPlanButton goal={goal} busy={busy} />}
     </div>}
     {mode && <div className="space-y-4 rounded-xl border border-ra-border bg-ra-light/20 p-4">
       <p className="text-sm font-medium">{mode === "configuration" ? "目标配置" : "计划内容"} · 版本 {base.revision}</p>
