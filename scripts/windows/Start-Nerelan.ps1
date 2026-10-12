@@ -47,6 +47,8 @@ $form.Show()
 $process = Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -PassThru `
   -RedirectStandardOutput $log -RedirectStandardError "$log.err" `
   -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $devUp, "-RepoDir", $repoDir)
+# Windows PowerShell 5.1 reports ExitCode as $null unless the process handle was opened.
+$null = $process.Handle
 while (-not $process.HasExited) {
   [System.Windows.Forms.Application]::DoEvents()
   Start-Sleep -Milliseconds 100
