@@ -294,7 +294,7 @@ class GoalService:
         for item in planned_tasks:
             if item.capability not in window.capabilities:
                 raise TaskStoreError(f"goal_window_missing_{item.capability}_capability")
-            if item.validation_command_id and (goal.orchestration_mode != "single" or item.artifact_input
+            if item.validation_command_id and (goal.orchestration_mode not in {"single", "agent_team"} or item.artifact_input
                                                or item.validation_checks):
                 raise TaskStoreError("host_validation_requires_standalone_single_task")
         # Resolve every task's agent before creating any, so a missing role never
@@ -445,7 +445,11 @@ class GoalService:
         proof = functional_evidence(task)
         try:
             contract = load_contract(task)
-            matches = (task.repository == goal.repository and task.executor_kind == goal.executor_kind
+            # In a multi-agent team each task runs on its role's executor, not the goal default.
+            executor_matches = (task.executor_kind in {"opencode", "codex", "claude_code"}
+                                if goal.orchestration_mode == "agent_team"
+                                else task.executor_kind == goal.executor_kind)
+            matches = (task.repository == goal.repository and executor_matches
                        and (contract is None or (
                            contract["goal_id"] == goal.id
                            and contract["goal_revision"] == goal.revision == link["goal_revision"]

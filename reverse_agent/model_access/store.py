@@ -959,7 +959,9 @@ class ModelProfileStore:
             data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise StoreError(f"invalid agent roster file: {type(exc).__name__}") from exc
-        roles = data.get("roles") if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            raise StoreError("invalid agent roster file")
+        roles = data.get("roles")
         if data.get("schema_version") != 1 or not isinstance(roles, dict):
             raise StoreError("invalid agent roster file")
         self._agent_roster = {role: binding for role, binding in roles.items()

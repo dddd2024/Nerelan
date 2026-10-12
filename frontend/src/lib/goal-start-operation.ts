@@ -81,7 +81,8 @@ function fingerprintInput(input: StartGoalInput): string {
     input.executorKind,
     input.bindingRef,
     input.autonomyHours,
-    input.teamMode === true,
+    // Only team starts add a field, so starts journaled before team mode keep their fingerprint.
+    ...(input.teamMode ? ["agent_team"] : []),
   ];
   if (input.checkerDraft) {
     const descriptor = input.checkerDraft;
