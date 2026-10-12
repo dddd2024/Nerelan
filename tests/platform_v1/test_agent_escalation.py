@@ -14,15 +14,15 @@ BASE = "b" * 40
 ROSTER = {"simple": ("opencode", "cheap"), "coder": ("opencode", "mid"), "complex": ("claude_code", "strong")}
 
 
-def _window_payload():
+def _window_payload(max_retries=3):
     now = datetime.now(timezone.utc)
     return {"policy_id": "owner-window-esc", "policy_revision": 1, "owner_identity": "owner@example",
             "starts_at": (now - timedelta(seconds=5)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
             "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
-            "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1, "confirmation": "ACTIVATE"}
+            "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": max_retries, "confirmation": "ACTIVATE"}
 
 
-def _launched(monkeypatch, roster=ROSTER, role="simple"):
+def _launched(monkeypatch, roster=ROSTER, role="simple", checks=None, max_retries=3):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
     autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
@@ -38,11 +38,12 @@ def _launched(monkeypatch, roster=ROSTER, role="simple"):
                          "idempotency_key": f"esc-{role}", "executor_kind": "opencode",
                          "orchestration_mode": "agent_team", "binding_ref": ""})
     goals.plan(goal.id, expected_revision=1, tasks=[
-        {"id": "T001", "title": "Edit docs", "instruction": "Edit docs", "agent_role": role},
+        {"id": "T001", "title": "Edit docs", "instruction": "Edit docs", "agent_role": role,
+         **({"validation_checks": checks} if checks else {})},
         {"id": "T002", "title": "Follow up", "instruction": "Follow up", "dependencies": ["T001"], "agent_role": "simple"},
     ])
     goals.approve(goal.id, expected_revision=1)
-    window = autonomy.activate(_window_payload())
+    window = autonomy.activate(_window_payload(max_retries))
     goals.launch(goal.id, expected_revision=1, window_id=window.id)
     return store, control, goals, goal
 
@@ -126,3 +127,46 @@ def test_coordinator_runs_the_escalator_after_refreshing_goals(monkeypatch):
     coordinator.goal_escalator = broken
     coordinator._refresh_claimed_goals((_link(control, goal.id, "T001")["task_id"],))
     assert coordinator._last_error == "goal_escalation_failed:RuntimeError"
+
+
+def test_escalated_task_keeps_the_launch_base_when_head_moves(monkeypatch):
+    from reverse_agent.platform_v1.functional_validation import load_contract
+    checks = [{"profile_id": "python_pytest", "working_directory": "."}]
+    store, control, goals, goal = _launched(monkeypatch, checks=checks,
+                                            roster={"simple": ("opencode", "cheap"), "coder": ("codex", "mid")})
+    first = store.get_task(_link(control, goal.id, "T001")["task_id"])
+    assert load_contract(first)["base_commit"] == BASE
+    monkeypatch.setattr(goal_service_module, "repository_base", lambda repository: "c" * 40)  # HEAD moved
+    _fail(store, first.id)
+    [step] = goals.escalate_failed_tasks(goal.id)
+    second = store.get_task(step["to_task_id"])
+    assert second.branch == BASE and load_contract(second)["base_commit"] == BASE
+    assert goals.escalate_failed_tasks(goal.id) == ()  # a re-run never conflicts with the frozen contract
+
+
+@pytest.mark.parametrize("classification", ["auth_provider_route_failure", "cli_unavailable",
+                                            "functional_contract_conflict", "budget_exhausted",
+                                            "network_provider_failure", "workspace_missing"])
+def test_infrastructure_failures_never_escalate(monkeypatch, classification):
+    store, control, goals, goal = _launched(monkeypatch)
+    _fail(store, _link(control, goal.id, "T001")["task_id"], classification=classification)
+    assert goals.escalate_failed_tasks(goal.id) == ()
+
+
+def test_escalations_spend_the_window_retry_budget(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, max_retries=0)
+    _fail(store, _link(control, goal.id, "T001")["task_id"])
+    assert goals.escalate_failed_tasks(goal.id) == ()
+
+    store, control, goals, goal = _launched(monkeypatch, max_retries=1)
+    _fail(store, _link(control, goal.id, "T001")["task_id"])
+    [step] = goals.escalate_failed_tasks(goal.id)
+    _fail(store, step["to_task_id"])
+    assert goals.escalate_failed_tasks(goal.id) == ()
+
+
+def test_a_claim_still_in_recovery_does_not_escalate(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    _fail(store, _link(control, goal.id, "T001")["task_id"])
+    monkeypatch.setattr(control, "can_complete_host_claim", lambda **kwargs: True)
+    assert goals.escalate_failed_tasks(goal.id) == ()
