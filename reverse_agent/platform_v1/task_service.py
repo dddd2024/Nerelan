@@ -331,6 +331,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     planning_sha: str = ""
     control_store: PlatformControlStore
     goal_service: GoalService
+    agent_planner: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
@@ -429,6 +430,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
                 )
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":
+                from .agent_planner import planner_status_payload
+                self._send_json(HTTPStatus.OK, dict(planner_status_payload(self.agent_planner, segments[2])))
                 return
             if segments == ["api", "windows", "policy"]:
                 try:
@@ -674,6 +679,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         **configuration,
                     )
                     self._send_json(HTTPStatus.OK, goal_to_dict(goal))
+                    return
+                if action == "agent-plan":
+                    if self.agent_planner is None:
+                        raise TaskStoreError("agent_planner_unavailable")
+                    self._send_json(HTTPStatus.ACCEPTED,
+                                    self.agent_planner.start(segments[2], expected_revision=revision))
                     return
                 if action == "launch":
                     goal = self.goal_service.launch(
@@ -1207,6 +1218,7 @@ def _handler_factory(
     planning_sha: str = "",
     control_store: PlatformControlStore | None = None,
     goal_service: GoalService | None = None,
+    agent_planner: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
@@ -1241,6 +1253,7 @@ def _handler_factory(
     ConfiguredHandler.goal_service = goal_service or GoalService(
         store=store, control_store=configured_control
     )
+    ConfiguredHandler.agent_planner = agent_planner
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
     )
