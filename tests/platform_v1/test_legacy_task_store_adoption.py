@@ -230,3 +230,14 @@ def test_model_setup_is_not_restored_after_owner_reset(tmp_path):
     (target.parent / "model_setup_state.json").unlink()  # owner resets Model Control
     assert adopt_legacy_task_store(str(target), str(legacy)) == "target_exists"
     assert not (target.parent / "model_setup_state.json").exists()
+
+
+def test_agent_roster_is_carried_with_the_model_setup(tmp_path):
+    legacy = tmp_path / "checkout" / "tasks.sqlite3"
+    _legacy_store_with_task(legacy)
+    (legacy.parent / "model_setup_state.json").write_bytes(b"{}")
+    (legacy.parent / "agent_roster.json").write_bytes(b'{"schema_version":1,"roles":{"coder":"coding-glm"}}')
+    target = tmp_path / "user-data" / "tasks.sqlite3"
+    assert adopt_legacy_task_store(str(target), str(legacy)) == "adopted"
+    assert (target.parent / "agent_roster.json").read_bytes() == b'{"schema_version":1,"roles":{"coder":"coding-glm"}}'
+    assert not list(target.parent.glob("*.adopting-*"))

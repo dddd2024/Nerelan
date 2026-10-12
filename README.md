@@ -22,6 +22,8 @@ Requirements: Python 3.13+, Node.js, an existing `frontend/node_modules`, Git, G
 .\dev-up.ps1
 ```
 
+On Windows, run `.\create_desktop_shortcut.ps1` once to put a **Nerelan** icon on the desktop. Double-clicking it starts the stack with no console window, shows a small "starting" window, and opens the Nerelan client. Double-clicking again reopens a closed client. Launcher output goes to `%LOCALAPPDATA%\Nerelan\launcher.log`, and a failure shows a message box that points to it.
+
 For compatibility, you can also double-click `launch_reverse_agent.bat`. The launcher starts loopback-only services and opens `http://127.0.0.1:4173`:
 
 ```text
