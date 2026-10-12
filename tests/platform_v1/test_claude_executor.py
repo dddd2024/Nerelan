@@ -98,6 +98,12 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     ("import sys,json;sys.stdin.read();print(json.dumps({'type':'system','subtype':'init','session_id':'s'}));"
      "print(json.dumps({'type':'result','subtype':'error_max_turns','is_error':True}))",
      "claude_code_turn_failed:error_max_turns"),
+    ("import sys,json;sys.stdin.read();print(json.dumps({'type':'system','subtype':'init','session_id':'s'}));"
+     "print(json.dumps({'type':'result','subtype':'success','is_error':True,'api_error_status':429}))",
+     "claude_code_turn_failed:api_error_429"),
+    ("import sys,json;sys.stdin.read();print(json.dumps({'type':'system','subtype':'init','session_id':'s'}));"
+     "print(json.dumps({'type':'result','subtype':'success','is_error':True}))",
+     "claude_code_turn_failed:api_error"),
 ])
 def test_process_and_protocol_failures_remain_failures(repository, tmp_path, script, classification):
     repo, base = repository

@@ -403,11 +403,14 @@ class UnattendedCoordinator:
             (result for result in worker_results if not bool(result.get("success"))),
             None,
         )
-        if failed is not None:
+        if failed is not None and not self._last_error.startswith("goal_escalation_failed:"):
+            # Never mask an escalation error raised while refreshing this batch's goals.
             self._last_error = f"task_unsuccessful:{failed.get('task_id', '')}"
         return completed
 
     def _refresh_claimed_goals(self, task_ids: tuple[str, ...]) -> None:
+        if self._last_error.startswith("goal_escalation_failed:"):
+            self._last_error = ""  # a fresh refresh reports its own escalation outcome
         goal_ids: set[str] = set()
         for task_id in task_ids:
             try:
