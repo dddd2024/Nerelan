@@ -179,6 +179,15 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
               </select></label>
               <label className="min-w-0 flex-1 text-xs">检查目录<input aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 目录`} className={fieldClass} value={check.working_directory} disabled={busy}
                 onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? { ...entry, working_directory: event.target.value } : entry))} /></label>
+              {check.profile_id === "python_pytest" && <label className="min-w-0 flex-[2] text-xs">测试文件（可选，逗号分隔；留空则运行目录下全部测试）<input aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 测试文件`} className={fieldClass}
+                value={(check.targets ?? []).join(", ")} disabled={busy}
+                onChange={(event) => updateChecks(index, checks.map((entry, item) => {
+                  if (item !== checkIndex) return entry;
+                  const targets = event.target.value.split(",").map((value) => value.trim()).filter(Boolean);
+                  const next: FunctionalCheckInput = { ...entry, targets };
+                  if (!targets.length) delete next.targets;
+                  return next;
+                }))} /></label>}
               <button type="button" className={buttonClass} aria-label={`移除任务 ${task.id} 检查 ${checkIndex + 1}`} disabled={busy}
                 onClick={() => updateChecks(index, checks.filter((_, item) => item !== checkIndex))}>移除</button>
             </div>)}

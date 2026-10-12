@@ -50,29 +50,47 @@ def catalog_digest() -> str:
                    "reports": {"python_pytest": "junit", "npm_test": {"node --test": "tap", "vitest run": "junit"}}})
 
 
-def normalize_checks(raw: Any) -> tuple[dict[str, str], ...]:
+MAX_CHECK_TARGETS = 16
+
+
+def _relative_path_invalid(value: Any) -> bool:
+    return (not isinstance(value, str) or not value or len(value) > 240
+            or "\\" in value or ":" in value or "\x00" in value
+            or value.startswith(("/", "-")) or value != value.strip()
+            or any(part in {"", ".."} for part in value.split("/"))
+            or (value != "." and "." in value.split("/")))
+
+
+def normalize_checks(raw: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(raw, (list, tuple)) or len(raw) > 8:
         raise TaskStoreError("functional_checks_invalid")
     checks: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for item in raw:
-        if not isinstance(item, Mapping) or set(item) - {"profile_id", "working_directory"}:
+        if not isinstance(item, Mapping) or set(item) - {"profile_id", "working_directory", "targets"}:
             raise TaskStoreError("functional_check_fields_invalid")
         profile = item.get("profile_id")
         directory = item.get("working_directory", ".")
         if not isinstance(profile, str) or profile not in _CATALOG:
             raise TaskStoreError("functional_profile_unapproved")
-        if (not isinstance(directory, str) or not directory or len(directory) > 240
-                or "\\" in directory or ":" in directory or "\x00" in directory
-                or directory.startswith("/") or directory != directory.strip()
-                or any(part in {"", ".."} for part in directory.split("/"))
-                or (directory != "." and "." in directory.split("/"))):
+        if _relative_path_invalid(directory):
             raise TaskStoreError("functional_directory_invalid")
-        identity = (profile, directory)
+        # Optional pytest paths (relative to working_directory) keep a check to the
+        # tests that matter instead of the whole suite under the directory.
+        targets = item.get("targets")
+        if targets is not None:
+            if (profile != "python_pytest" or not isinstance(targets, (list, tuple))
+                    or not 1 <= len(targets) <= MAX_CHECK_TARGETS or len(set(targets)) != len(targets)
+                    or any(_relative_path_invalid(target) or target == "." for target in targets)):
+                raise TaskStoreError("functional_targets_invalid")
+        identity = (profile, directory, tuple(targets or ()))
         if identity in seen:
             raise TaskStoreError("functional_check_duplicate")
         seen.add(identity)
-        checks.append({"profile_id": profile, "working_directory": directory})
+        check: dict[str, Any] = {"profile_id": profile, "working_directory": directory}
+        if targets is not None:
+            check["targets"] = list(targets)
+        checks.append(check)
     return tuple(checks)
 
 
@@ -276,6 +294,11 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         report_kind = "junit"
         if profile == "python_pytest":
             argv.append(f"--junitxml={report}")
+            for target in check.get("targets", ()):
+                path = cwd.joinpath(*PurePosixPath(target).parts).resolve()
+                if not path.is_relative_to(root) or not path.exists():
+                    raise TaskStoreError("functional_target_missing")
+                argv.append(target)
         if profile == "npm_test":
             package = cwd / "package.json"
             if package.stat().st_size > 1048576:
@@ -536,7 +559,8 @@ def functional_evidence(task: Any) -> dict[str, Any]:
         from .artifact_handoff import load_input_binding, _digest as artifact_digest
         consumed = load_input_binding(task)
         input_matches = consumed is None or result.get("artifact_input_digest") == artifact_digest(consumed)
-        identities = [{key: item[key] for key in ("profile_id", "working_directory")} for item in checks]
+        identities = [{key: item[key] for key in ("profile_id", "working_directory", "targets") if key in item}
+                      for item in checks]
         consistent = (identities == contract["checks"]
                       and all(type(item["exit_code"]) is int and item["exit_code"] == 0
                               and item["timed_out"] is False and item["test_report"]["accepted"] is True

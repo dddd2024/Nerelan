@@ -142,6 +142,8 @@ export type FunctionalCheckProfile = "python_pytest" | "npm_test";
 export interface FunctionalCheckInput {
   profile_id: FunctionalCheckProfile;
   working_directory: string;
+  /** pytest only: test paths relative to working_directory, so the check runs just these. */
+  targets?: string[];
 }
 
 export interface FunctionalCheckResult extends FunctionalCheckInput {
