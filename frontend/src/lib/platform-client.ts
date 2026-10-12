@@ -1064,6 +1064,23 @@ export async function fetchGoals(): Promise<PlatformGoal[]> {
   return result.goals;
 }
 
+export interface AgentPlanStatus {
+  goal_id: string;
+  status: "NONE" | "RUNNING" | "PLANNED" | "FAILED" | "UNAVAILABLE";
+  error: string;
+  planner?: { executor_kind?: string; binding_ref?: string };
+}
+
+export async function startAgentPlan(goalId: string, expectedRevision: number): Promise<AgentPlanStatus> {
+  return request<AgentPlanStatus>(`/api/goals/${encodeURIComponent(goalId)}/agent-plan`, {
+    method: "POST", body: JSON.stringify({ expected_revision: expectedRevision }),
+  });
+}
+
+export async function fetchAgentPlanStatus(goalId: string): Promise<AgentPlanStatus> {
+  return request<AgentPlanStatus>(`/api/goals/${encodeURIComponent(goalId)}/agent-plan`);
+}
+
 export async function fetchGoal(goalId: string): Promise<PlatformGoal> {
   if (isMock()) return mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
   return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`);

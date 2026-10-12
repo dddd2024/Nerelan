@@ -289,6 +289,16 @@ class CombinedTrustedHost:
 
         return _provider
 
+    def _agent_planner(self) -> Any:
+        from .agent_planner import AgentPlanner
+        from .repository_workspace import resolve_repository_workspace
+        return AgentPlanner(
+            goal_service=self._goal_service,
+            roster_resolver=self._resolve_agent_role,
+            binding_model=lambda binding_ref: self._store.get_binding_public(binding_ref)["model_id"],
+            repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
+        )
+
     def _resolve_agent_role(self, role: str) -> tuple[str, str]:
         """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
         entry = self._store.get_agent_roster_public()["roles"].get(role)
@@ -415,6 +425,7 @@ class CombinedTrustedHost:
                 planning_sha=self._planning_sha,
                 control_store=self._control_store,
                 goal_service=self._goal_service,
+                agent_planner=self._agent_planner(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,
