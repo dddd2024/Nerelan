@@ -81,6 +81,8 @@ function fingerprintInput(input: StartGoalInput): string {
     input.executorKind,
     input.bindingRef,
     input.autonomyHours,
+    // Only team starts add a field, so starts journaled before team mode keep their fingerprint.
+    ...(input.teamMode ? ["agent_team"] : []),
   ];
   if (input.checkerDraft) {
     const descriptor = input.checkerDraft;
@@ -310,10 +312,12 @@ async function runGoalStart(
         objective: input.objective,
         repository: input.repository,
         idempotency_key: checkerDraft?.idempotencyKey ?? (checkerPlan ? template!.goal_idempotency_key : journal.idempotency_key),
-        executor_kind: checkerDraft?.executorKind ?? (checkerPlan ? "opencode" : input.executorKind),
+        executor_kind: checkerDraft?.executorKind ?? (checkerPlan || input.teamMode ? "opencode" : input.executorKind),
         orchestration_mode:
-          checkerDraft?.orchestrationMode ?? (checkerPlan ? "single" : input.executorKind === "opencode" ? "sequential_team" : "single"),
-        binding_ref: checkerDraft?.bindingRef ?? (checkerPlan ? "" : input.executorKind !== "deterministic_fixture" ? input.bindingRef : ""),
+          checkerDraft?.orchestrationMode ?? (checkerPlan ? "single" : input.teamMode ? "agent_team"
+            : input.executorKind === "opencode" ? "sequential_team" : "single"),
+        binding_ref: checkerDraft?.bindingRef ?? (checkerPlan || input.teamMode ? ""
+          : input.executorKind !== "deterministic_fixture" ? input.bindingRef : ""),
       }),
     });
     journal = updateJournalGoal(journal, goal);

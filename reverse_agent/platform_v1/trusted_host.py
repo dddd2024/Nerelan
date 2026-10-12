@@ -42,7 +42,7 @@ from .opencode_executor import (
     execute_opencode_auth_list_probe,
     start_opencode_account_auth_server,
 )
-from .run_store import TaskStore
+from .run_store import TaskStore, TaskStoreError
 from .task_runtime import ExecutorRouter
 from .task_service import _handler_factory as _task_handler_factory
 from .task_service import validate_bind_host
@@ -140,6 +140,7 @@ class CombinedTrustedHost:
         self._goal_service = GoalService(
             store=self._task_store,
             control_store=self._control_store,
+            roster_resolver=self._resolve_agent_role,
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -287,6 +288,13 @@ class CombinedTrustedHost:
             )
 
         return _provider
+
+    def _resolve_agent_role(self, role: str) -> tuple[str, str]:
+        """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
+        entry = self._store.get_agent_roster_public()["roles"].get(role)
+        if not entry or not entry["available"]:
+            raise TaskStoreError(f"agent_role_unfilled:{role}")
+        return entry["executor_id"], entry["binding_id"]
 
     def _binding_resolver_factory(self, base_url: str) -> Any:
         from .binding_resolver import BindingResolutionError, BindingResolver

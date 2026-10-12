@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { getDefaultModelControlClient } from "@/lib/model-control-client";
+import { getDefaultModelControlClient, type AgentRole, type AgentRoster } from "@/lib/model-control-client";
 import type {
   Binding,
   Connection,
@@ -18,6 +18,26 @@ import type { BindingInput } from "@/schemas/model-access";
 export const CONNECTIONS_QUERY_KEY = ["connections"] as const;
 export const EXECUTORS_QUERY_KEY = ["executors"] as const;
 export const BINDINGS_QUERY_KEY = ["bindings"] as const;
+export const AGENT_ROSTER_QUERY_KEY = ["agent-roster"] as const;
+
+export function useAgentRoster() {
+  const client = getDefaultModelControlClient();
+  return useQuery<AgentRoster>({
+    queryKey: AGENT_ROSTER_QUERY_KEY,
+    queryFn: () => client.getAgentRoster(),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export function usePutAgentRoster() {
+  const queryClient = useQueryClient();
+  const client = getDefaultModelControlClient();
+  return useMutation<AgentRoster, Error, Partial<Record<AgentRole, string>>>({
+    mutationFn: (roles) => client.putAgentRoster(roles),
+    onSuccess: (roster) => queryClient.setQueryData(AGENT_ROSTER_QUERY_KEY, roster),
+  });
+}
 
 function replaceConnections(queryClient: QueryClient, connections: Connection[]) {
   queryClient.setQueryData<Connection[]>(

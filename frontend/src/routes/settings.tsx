@@ -23,6 +23,7 @@ import type { BindingInput } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
 import { getDefaultModelControlClient } from "@/lib/model-control-client";
 import { ThemeSelector } from "@/components/theme-selector";
+import { AgentTeamEditor } from "@/components/agent-team-editor";
 
 type EditorView = "connection" | "binding";
 
@@ -543,6 +544,7 @@ export function SettingsPage() {
             onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
+        <AgentTeamEditor bindings={bindings} />
       </div>
     </main>
   );

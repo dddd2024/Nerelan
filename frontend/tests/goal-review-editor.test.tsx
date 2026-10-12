@@ -79,7 +79,7 @@ it("keeps native Claude Code goals single-mode and saves them with their own bin
   await user.click(screen.getByRole("button", { name: "编辑目标配置" }));
   await user.selectOptions(screen.getByLabelText("目标执行器"), "claude_code");
   const mode = screen.getByLabelText("目标协作方式");
-  expect(Array.from(mode.querySelectorAll("option")).map((option) => option.getAttribute("value"))).toEqual(["single"]);
+  expect(Array.from(mode.querySelectorAll("option")).map((option) => option.getAttribute("value"))).toEqual(["single", "agent_team"]);
   expect(screen.getByLabelText("目标模型绑定").querySelectorAll("option[value='coding-selected']")).toHaveLength(0);
   await user.selectOptions(screen.getByLabelText("目标仓库"), "owner/selected");
   await user.selectOptions(screen.getByLabelText("目标模型绑定"), "claude-default");

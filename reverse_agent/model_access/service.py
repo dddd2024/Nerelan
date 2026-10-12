@@ -304,6 +304,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "bindings"]:
                 self._send_json(HTTPStatus.OK, self.store.list_bindings_public())
                 return
+            if segments == ["api", "agent-roster"]:
+                self._send_json(HTTPStatus.OK, self.store.get_agent_roster_public())
+                return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 self._send_json(
                     HTTPStatus.OK,
@@ -339,6 +342,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     self.store.get_connection_public(segments[2]),
                 )
+                return
+            if segments == ["api", "agent-roster"]:
+                self._send_json(HTTPStatus.OK, self.store.put_agent_roster(self._read_json()))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 payload = self._read_json()

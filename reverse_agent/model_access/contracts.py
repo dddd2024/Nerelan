@@ -91,6 +91,10 @@ NATIVE_CLI_PROVIDERS: dict[str, tuple[str, str, str]] = {
     "claude-code": ("anthropic", "claude-code-cli", "claude_code"),
 }
 NATIVE_CLI_EXECUTORS = frozenset(spec[2] for spec in NATIVE_CLI_PROVIDERS.values())
+
+# Multi-agent team roles. Each role is filled by one saved Binding, so different
+# kinds of work go to agents of matching capability and cost.
+AGENT_ROLES: tuple[str, ...] = ("planner", "complex", "coder", "simple", "reviewer")
 NATIVE_CLI_PROVIDER_FOR_EXECUTOR = {spec[2]: provider for provider, spec in NATIVE_CLI_PROVIDERS.items()}
 
 

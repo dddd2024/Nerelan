@@ -39,6 +39,19 @@ class PlannedTask:
     validation_checks: tuple[dict[str, str], ...] = ()
     artifact_input: dict[str, str] | None = None
     validation_command_id: str = ""
+    agent_role: str = ""
+
+
+AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
+
+
+def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
+    payload = asdict(task)
+    if not payload["agent_role"]:
+        # Unrouted tasks keep their existing stored shape (and plan digest).
+        del payload["agent_role"]
+    return payload
+DEFAULT_AGENT_ROLE = "coder"
 
 
 @dataclass(frozen=True)
@@ -62,9 +75,25 @@ def goal_to_dict(goal: GoalRecord, *, links: Sequence[Mapping[str, Any]] = ()) -
 class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
-    def __init__(self, *, store: TaskStore, control_store: PlatformControlStore) -> None:
+    def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
+                 roster_resolver: Any | None = None) -> None:
         self.store = store
         self.control_store = control_store
+        # role -> (executor_kind, binding_ref); supplied by the trusted host.
+        self.roster_resolver = roster_resolver
+
+    def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
+        """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
+        if goal.orchestration_mode != "agent_team":
+            return goal.executor_kind, goal.binding_ref, goal.orchestration_mode
+        if self.roster_resolver is None:
+            raise TaskStoreError("agent_roster_unavailable")
+        role = plan_task.agent_role or DEFAULT_AGENT_ROLE
+        executor_kind, binding_ref = self.roster_resolver(role)
+        if executor_kind not in {"opencode", "codex", "claude_code"} or not binding_ref:
+            raise TaskStoreError(f"agent_role_unfilled:{role}")
+        # Each role agent runs one task on its own; collaboration is across tasks.
+        return executor_kind, binding_ref, "single"
 
     def create(self, payload: Mapping[str, Any]) -> GoalRecord:
         objective = str(payload.get("objective", "")).strip()
@@ -108,7 +137,7 @@ class GoalService:
             expected_revision=expected_revision,
             spec_markdown=spec,
             plan_markdown=plan,
-            tasks=tuple(asdict(item) for item in planned),
+            tasks=tuple(_plan_task_dict(item) for item in planned),
             acceptance_criteria=criteria,
         )
         return GoalPlan(
@@ -265,10 +294,13 @@ class GoalService:
         for item in planned_tasks:
             if item.capability not in window.capabilities:
                 raise TaskStoreError(f"goal_window_missing_{item.capability}_capability")
-            if item.validation_command_id and (goal.orchestration_mode != "single" or item.artifact_input
+            if item.validation_command_id and (goal.orchestration_mode not in {"single", "agent_team"} or item.artifact_input
                                                or item.validation_checks):
                 raise TaskStoreError("host_validation_requires_standalone_single_task")
-        if goal.executor_kind in {"opencode", "codex", "claude_code"}:
+        # Resolve every task's agent before creating any, so a missing role never
+        # leaves a half-materialized Goal behind.
+        routes = [self._task_route(goal, item) for item in planned_tasks]
+        if any(kind in {"opencode", "codex", "claude_code"} for kind, _, _ in routes):
             try:
                 resolve_repository_workspace(goal.repository)
             except RepositoryWorkspaceError as exc:
@@ -276,21 +308,23 @@ class GoalService:
                     str(exc)
                 )
 
-        functional_base = repository_base(goal.repository) if goal.executor_kind in {"codex", "claude_code"} or any(
+        functional_base = repository_base(goal.repository) if any(
+            kind in {"codex", "claude_code"} for kind, _, _ in routes) or any(
             raw.get("validation_checks") for raw in goal.tasks
         ) else ""
         for seq, raw in enumerate(goal.tasks):
             plan_task = self._normalize_task(raw, seq=seq)
+            executor_kind, binding_ref, orchestration_mode = routes[seq]
             task = self.store.create_task(
                 title=self._execution_title(goal, plan_task),
                 repository=goal.repository,
-                executor_kind=goal.executor_kind,
-                binding_ref=goal.binding_ref,
-                branch=functional_base if goal.executor_kind in {"codex", "claude_code"} else "",
+                executor_kind=executor_kind,
+                binding_ref=binding_ref,
+                branch=functional_base if executor_kind in {"codex", "claude_code"} else "",
                 permission_profile="AUTONOMOUS_WINDOW",
                 policy_ref=window.id if plan_task.validation_command_id else window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
-                orchestration_mode=goal.orchestration_mode,
+                orchestration_mode=orchestration_mode,
             )
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
@@ -411,7 +445,11 @@ class GoalService:
         proof = functional_evidence(task)
         try:
             contract = load_contract(task)
-            matches = (task.repository == goal.repository and task.executor_kind == goal.executor_kind
+            # In a multi-agent team each task runs on its role's executor, not the goal default.
+            executor_matches = (task.executor_kind in {"opencode", "codex", "claude_code"}
+                                if goal.orchestration_mode == "agent_team"
+                                else task.executor_kind == goal.executor_kind)
+            matches = (task.repository == goal.repository and executor_matches
                        and (contract is None or (
                            contract["goal_id"] == goal.id
                            and contract["goal_revision"] == goal.revision == link["goal_revision"]
@@ -513,7 +551,11 @@ class GoalService:
         if (not isinstance(command, str) or (command and
                 (command != "git_diff_check" or capability != "validate_task" or artifact_input or checks))):
             raise TaskStoreError("unsupported_standalone_validation_command")
-        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command)
+        agent_role = str(raw.get("agent_role", "") or "").strip()
+        if agent_role and agent_role not in AGENT_TASK_ROLES:
+            raise TaskStoreError(f"unsupported_agent_role:{agent_role}")
+        return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command,
+                           agent_role)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
