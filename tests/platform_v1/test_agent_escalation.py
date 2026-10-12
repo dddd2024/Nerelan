@@ -149,7 +149,8 @@ def test_escalated_task_keeps_the_launch_base_when_head_moves(monkeypatch):
 
 @pytest.mark.parametrize("classification", ["auth_provider_route_failure", "cli_unavailable",
                                             "functional_contract_conflict", "budget_exhausted",
-                                            "network_provider_failure", "workspace_missing"])
+                                            "network_provider_failure", "workspace_missing",
+                                            "claude_code_turn_failed:api_error_429", "claude_code_turn_failed:api_error"])
 def test_infrastructure_failures_never_escalate(monkeypatch, classification):
     store, control, goals, goal = _launched(monkeypatch)
     _fail(store, _link(control, goal.id, "T001")["task_id"], classification=classification)
