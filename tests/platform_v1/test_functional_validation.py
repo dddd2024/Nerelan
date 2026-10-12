@@ -100,6 +100,18 @@ def test_mutation_during_tests_invalidates_the_proof(implementation):
     [{"profile_id": "python_pytest", "working_directory": "a\\b"}],
     [{"profile_id": "python_pytest", "working_directory": "a//b"}],
     [{"profile_id": "python_pytest"}, {"profile_id": "python_pytest"}],
+    [{"profile_id": "npm_test", "targets": ["x.test.js"]}],
+    [{"profile_id": "python_pytest", "targets": []}],
+    [{"profile_id": "python_pytest", "targets": "test_app.py"}],
+    [{"profile_id": "python_pytest", "targets": ["-k", "x"]}],
+    [{"profile_id": "python_pytest", "targets": ["@opts"]}],
+    [{"profile_id": "python_pytest", "targets": [["test_app.py"]]}],
+    [{"profile_id": "python_pytest", "targets": [{"path": "test_app.py"}]}],
+    [{"profile_id": "python_pytest", "working_directory": "@opts"}],
+    [{"profile_id": "python_pytest", "targets": ["../test_app.py"]}],
+    [{"profile_id": "python_pytest", "targets": ["."]}],
+    [{"profile_id": "python_pytest", "targets": ["a.py", "a.py"]}],
+    [{"profile_id": "python_pytest", "targets": [f"t{i}.py" for i in range(17)]}],
 ])
 def test_unapproved_command_fields_and_paths_are_rejected(checks):
     with pytest.raises(TaskStoreError):
@@ -212,3 +224,20 @@ def test_catalog_change_invalidates_frozen_checks(implementation, monkeypatch):
     monkeypatch.setitem(fv._CATALOG["python_pytest"], "timeout_seconds", 1)
     with pytest.raises(TaskStoreError, match="functional_contract_invalid_or_stale"):
         validate(implementation)
+
+
+def test_targets_limit_pytest_to_the_named_files(tmp_path):
+    (tmp_path / "test_wanted.py").write_text("def test_wanted():\n    assert True\n", encoding="utf-8")
+    (tmp_path / "test_other.py").write_text("def test_other():\n    assert False\n", encoding="utf-8")
+    [check] = fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": ".", "targets": ["test_wanted.py"]}])
+    assert check == {"profile_id": "python_pytest", "working_directory": ".", "targets": ["test_wanted.py"]}
+    result = fv._run_check(check, tmp_path)
+    assert result["exit_code"] == 0 and result["test_report"]["tests"] == 1, result
+    assert result["argv"][-1] == "test_wanted.py"
+    with pytest.raises(TaskStoreError, match="functional_target_missing"):
+        fv._run_check({**check, "targets": ["test_absent.py"]}, tmp_path)
+
+
+def test_checks_without_targets_keep_their_frozen_shape():
+    assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
+        {"profile_id": "python_pytest", "working_directory": "."},)

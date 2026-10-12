@@ -49,13 +49,20 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         '"artifact_input": {"plan_task_id": "<that dependency id>"} (exactly one, and it must be listed in '
         "dependencies), and give BOTH tasks \"validation_checks\" chosen from: "
         + ", ".join(CHECK_PROFILES) + ' as [{"profile_id": "...", "working_directory": "."}]. '
+        "A python_pytest check without targets runs the whole suite under working_directory, which is "
+        "usually too slow; list the test files that cover the task as \"targets\" (paths relative to "
+        'working_directory, up to 16), e.g. {"profile_id": "python_pytest", "working_directory": ".", '
+        '"targets": ["tests/test_feature.py"]}. A target must exist when the check runs, so a task that '
+        "creates a test file may target it, but its predecessor must target tests that already exist. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "agent_role": "coder", '
-        '"dependencies": [], "validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}, '
+        '"dependencies": [], "validation_checks": [{"profile_id": "python_pytest", "working_directory": ".", '
+        '"targets": ["tests/test_existing.py"]}]}, '
         '{"id": "T002", "title": "...", "instruction": "...", "agent_role": "simple", "dependencies": ["T001"], '
         '"artifact_input": {"plan_task_id": "T001"}, '
-        '"validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}], '
+        '"validation_checks": [{"profile_id": "python_pytest", "working_directory": ".", '
+        '"targets": ["tests/test_new_feature.py"]}]}], '
         '"acceptance_criteria": ["..."]}'
     )
 

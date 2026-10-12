@@ -174,11 +174,20 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             <p className="text-xs text-ra-text-secondary">选择任务完成后必须通过的检查。目录相对于仓库根目录；保存后须重新审阅计划。</p>
             {(task.validation_checks ?? []).map((check, checkIndex, checks) => <div key={checkIndex} className="flex flex-wrap items-end gap-2">
               <label className="min-w-0 flex-1 text-xs">检查类型<select aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 类型`} className={fieldClass} value={check.profile_id} disabled={busy}
-                onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? { ...entry, profile_id: event.target.value as FunctionalCheckInput["profile_id"] } : entry))}>
+                onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? (({ targets: _targets, ...rest }) => ({ ...rest, profile_id: event.target.value as FunctionalCheckInput["profile_id"] }))(entry) : entry))}>
                 {Object.entries(FUNCTIONAL_PROFILES).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </select></label>
               <label className="min-w-0 flex-1 text-xs">检查目录<input aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 目录`} className={fieldClass} value={check.working_directory} disabled={busy}
                 onChange={(event) => updateChecks(index, checks.map((entry, item) => item === checkIndex ? { ...entry, working_directory: event.target.value } : entry))} /></label>
+              {check.profile_id === "python_pytest" && <label className="min-w-0 flex-[2] text-xs">测试文件（可选，逗号分隔；留空则运行目录下全部测试）<input aria-label={`任务 ${task.id} 检查 ${checkIndex + 1} 测试文件`} className={fieldClass}
+                value={(check.targets ?? []).join(", ")} disabled={busy}
+                onChange={(event) => updateChecks(index, checks.map((entry, item) => {
+                  if (item !== checkIndex) return entry;
+                  const targets = event.target.value.split(",").map((value) => value.trim()).filter(Boolean);
+                  const next: FunctionalCheckInput = { ...entry, targets };
+                  if (!targets.length) delete next.targets;
+                  return next;
+                }))} /></label>}
               <button type="button" className={buttonClass} aria-label={`移除任务 ${task.id} 检查 ${checkIndex + 1}`} disabled={busy}
                 onClick={() => updateChecks(index, checks.filter((_, item) => item !== checkIndex))}>移除</button>
             </div>)}
