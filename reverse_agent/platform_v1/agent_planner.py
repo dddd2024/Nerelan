@@ -144,6 +144,8 @@ class AgentPlanner:
             raise TaskStoreError("goal_revision_mismatch")
         if goal.status not in {"DRAFT", "PLANNED"}:
             raise TaskStoreError("goal_not_plannable")
+        if goal.orchestration_mode != "agent_team":
+            raise TaskStoreError("agent_planner_requires_agent_team_goal")
         executor_kind, binding_ref = self._roster("planner")
         if executor_kind not in {"claude_code", "codex"}:
             raise TaskStoreError("agent_planner_requires_native_executor")
@@ -166,6 +168,12 @@ class AgentPlanner:
                                 repo_dir=self._repo_dir_for(goal.repository),
                                 prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
             plan = extract_plan(text)
+            current = self._goals.control_store.get_goal(goal.id)
+            # DRAFT -> PLANNED keeps the revision, so also compare status and plan digest:
+            # a plan the Owner saved while the planner ran is never overwritten.
+            if (current.revision, current.status, current.artifact_digest) != (
+                    goal.revision, goal.status, goal.artifact_digest):
+                raise TaskStoreError("goal_changed_during_planning")
             self._goals.plan(goal.id, expected_revision=goal.revision, tasks=plan["tasks"],
                              acceptance_criteria=plan["acceptance_criteria"])
             outcome, error = "PLANNED", ""

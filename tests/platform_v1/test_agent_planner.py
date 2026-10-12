@@ -170,3 +170,27 @@ def test_agent_plan_http_routes(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_planner_never_overwrites_a_plan_saved_while_it_ran():
+    goals, goal = _goals()
+
+    def owner_saves_first(**_):
+        goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Owner", "instruction": "Owner plan"}])
+        return json.dumps(PLAN)
+    planner, _ = _planner(goals, owner_saves_first)
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "FAILED" and status["error"] == "goal_changed_during_planning"
+    assert [task["title"] for task in goals.control_store.get_goal(goal.id).tasks] == ["Owner"]
+
+
+def test_planner_only_runs_for_agent_team_goals():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Fixture goal", "repository": "dddd2024/Nerelan", "idempotency_key": "plan-fixture",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    planner, calls = _planner(goals, lambda **_: json.dumps(PLAN))
+    with pytest.raises(TaskStoreError, match="agent_planner_requires_agent_team_goal"):
+        planner.start(goal.id, expected_revision=1, background=False)
+    assert calls == []
