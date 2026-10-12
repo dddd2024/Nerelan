@@ -43,6 +43,8 @@ class PlannedTask:
 
 
 AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
+# A failed task is retried once per step by a stronger agent; complex is the top.
+ESCALATION_LADDER = {"simple": "coder", "coder": "complex"}
 
 
 def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
@@ -348,6 +350,70 @@ class GoalService:
         return self.control_store.mark_goal_running(
             goal.id, revision=goal.revision, window_id=window_id
         )
+
+    def escalate_failed_tasks(self, goal_id: str) -> tuple[dict[str, Any], ...]:
+        """Hand each FAILED agent_team task to the next stronger distinct agent, once per step.
+
+        Only FAILED tasks escalate: BLOCKED (policy/blocker) and CANCELLED never do,
+        and nothing escalates outside the Goal's still-active window. The failed task
+        and its evidence stay in place; only the plan task's link moves on.
+        """
+        goal = self.control_store.get_goal(goal_id)
+        if goal.orchestration_mode != "agent_team" or self.roster_resolver is None or not goal.window_id:
+            return ()
+        window = self.control_store.get_window(goal.window_id)
+        if window.status != "ACTIVE":
+            return ()
+        history = self.control_store.list_task_escalations(goal_id)
+        planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
+        outcomes = []
+        for link in self.control_store.list_goal_tasks(goal_id):
+            if link["status"] != "FAILED" or int(link["goal_revision"]) != goal.revision:
+                continue
+            plan_task = planned.get(link["plan_task_id"])
+            if plan_task is None:
+                continue
+            failed = self.store.get_task(link["task_id"])
+            previous = [row for row in history if row["plan_task_id"] == plan_task.id]
+            role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
+            target = self._stronger_route(role, failed.binding_ref)
+            if target is None:
+                continue  # no stronger distinct agent: the Goal stays BLOCKED for the Owner
+            next_role, executor_kind, binding_ref = target
+            step = len(previous) + 1
+            native = executor_kind in {"codex", "claude_code"}
+            base = repository_base(goal.repository) if native or plan_task.validation_checks else ""
+            task = self.store.create_task(
+                title=self._execution_title(goal, plan_task), repository=goal.repository,
+                executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native else "",
+                permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
+                idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
+                orchestration_mode="single",
+            )
+            freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+            freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+            reason = f"failed:{failed.failure_classification or 'unknown'}"
+            self.control_store.escalate_goal_task(
+                goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
+                to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)
+            outcomes.append({"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
+                             "from_role": role, "to_role": next_role, "step": step, "reason": reason})
+        if outcomes:
+            self.control_store.refresh_goal_status(goal_id)
+        return tuple(outcomes)
+
+    def _stronger_route(self, role: str, current_binding: str) -> tuple[str, str, str] | None:
+        """Next role up the ladder whose agent differs from the one that failed."""
+        next_role = ESCALATION_LADDER.get(role)
+        while next_role is not None:
+            try:
+                executor_kind, binding_ref = self.roster_resolver(next_role)
+            except TaskStoreError:
+                executor_kind, binding_ref = "", ""
+            if binding_ref and binding_ref != current_binding and executor_kind in {"opencode", "codex", "claude_code"}:
+                return next_role, executor_kind, binding_ref
+            next_role = ESCALATION_LADDER.get(next_role)
+        return None
 
     def _freeze_host_validation(self, task: Any, goal: GoalRecord, plan_task: PlannedTask, window: Any) -> None:
         binding = self.control_store.window_policy_binding(window.id)

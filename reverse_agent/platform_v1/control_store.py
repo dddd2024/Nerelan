@@ -256,6 +256,20 @@ class PlatformControlStore:
                     PRIMARY KEY(goal_id, goal_revision, plan_task_id),
                     UNIQUE(task_id)
                 );
+                CREATE TABLE IF NOT EXISTS platform_task_escalations (
+                    goal_id TEXT NOT NULL REFERENCES platform_goals(id),
+                    goal_revision INTEGER NOT NULL,
+                    plan_task_id TEXT NOT NULL,
+                    step INTEGER NOT NULL,
+                    from_task_id TEXT NOT NULL REFERENCES tasks(id),
+                    to_task_id TEXT NOT NULL REFERENCES tasks(id),
+                    from_role TEXT NOT NULL,
+                    to_role TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY(goal_id, goal_revision, plan_task_id, step),
+                    UNIQUE(to_task_id)
+                );
                 CREATE TABLE IF NOT EXISTS platform_autonomous_windows (
                     id TEXT PRIMARY KEY,
                     policy_id TEXT NOT NULL,
@@ -702,6 +716,38 @@ class PlatformControlStore:
                 raise TaskStoreError("goal_not_launchable")
             return self.get_goal(goal_id)
 
+    def escalate_goal_task(self, goal_id: str, *, goal_revision: int, plan_task_id: str, from_task_id: str,
+                           to_task_id: str, from_role: str, to_role: str, reason: str) -> int:
+        """Repoint one plan task's link to a stronger agent's task; returns the escalation step."""
+        with self._lock:
+            with self._conn:
+                row = self._conn.execute(
+                    "SELECT task_id FROM platform_goal_task_links WHERE goal_id = ? AND goal_revision = ? "
+                    "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()
+                if row is None or row["task_id"] != from_task_id:
+                    raise TaskStoreError("goal_task_escalation_conflict")
+                step = int(self._conn.execute(
+                    "SELECT COUNT(*) FROM platform_task_escalations WHERE goal_id = ? AND goal_revision = ? "
+                    "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()[0]) + 1
+                self._conn.execute(
+                    "UPDATE platform_goal_task_links SET task_id = ? WHERE goal_id = ? AND goal_revision = ? "
+                    "AND plan_task_id = ? AND task_id = ?",
+                    (to_task_id, goal_id, goal_revision, plan_task_id, from_task_id))
+                self._conn.execute(
+                    "INSERT INTO platform_task_escalations (goal_id, goal_revision, plan_task_id, step, from_task_id, "
+                    "to_task_id, from_role, to_role, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, from_role, to_role,
+                     reason[:200], _utc_now()))
+        return step
+
+    def list_task_escalations(self, goal_id: str) -> tuple[Mapping[str, Any], ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT goal_revision, plan_task_id, step, from_task_id, to_task_id, from_role, to_role, reason, "
+                "created_at FROM platform_task_escalations WHERE goal_id = ? ORDER BY plan_task_id, step",
+                (goal_id,)).fetchall()
+        return tuple(dict(row) for row in rows)
+
     def list_goal_tasks(self, goal_id: str) -> tuple[Mapping[str, Any], ...]:
         with self._lock:
             rows = self._conn.execute(
@@ -725,6 +771,11 @@ class PlatformControlStore:
             row = self._conn.execute(
                 "SELECT goal_id FROM platform_goal_task_links WHERE task_id = ?", (task_id,)
             ).fetchone()
+            if row is None:
+                # A task replaced by a stronger agent keeps its Goal through the escalation record.
+                row = self._conn.execute(
+                    "SELECT goal_id FROM platform_task_escalations WHERE from_task_id = ?", (task_id,)
+                ).fetchone()
             if row is None:
                 raise TaskStoreError(f"goal_link_not_found:{task_id}")
             return str(row["goal_id"])

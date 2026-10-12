@@ -413,6 +413,7 @@ class CombinedTrustedHost:
                 binding_resolver=binding_resolver,
                 execution_authority_sha=self._execution_authority_sha,
                 planning_sha=self._planning_sha,
+                goal_escalator=self._goal_service.escalate_failed_tasks,
             )
             task_handler = _task_handler_factory(
                 self._task_store,

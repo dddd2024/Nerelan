@@ -50,7 +50,10 @@ class UnattendedCoordinator:
         poll_interval: float = 1.0,
         claim_lease_ms: int = 15 * 60 * 1000,
         owner: str | None = None,
+        goal_escalator: Any | None = None,
     ) -> None:
+        # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
+        self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
         self.autonomy = autonomy
@@ -416,6 +419,11 @@ class UnattendedCoordinator:
                 self.control_store.refresh_goal_status(goal_id)
             except TaskStoreError as exc:
                 self._last_error = f"goal_refresh_failed:{type(exc).__name__}"
+            if self.goal_escalator is not None:
+                try:
+                    self.goal_escalator(goal_id)
+                except Exception as exc:  # noqa: BLE001 - escalation must never break the loop
+                    self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
 
     def status(self) -> dict[str, Any]:
         active = self.control_store.active_window()
