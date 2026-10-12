@@ -41,7 +41,8 @@ def test_extract_plan_accepts_plain_fenced_and_embedded_json(text):
 def test_extract_plan_strips_fields_a_planner_may_not_request():
     raw = {"tasks": [{"id": "T001", "title": "x", "instruction": "y", "capability": "validate_task",
                       "validation_command_id": "git_diff_check", "artifact_input": {"plan_task_id": "T0"}}]}
-    assert extract_plan(json.dumps(raw))["tasks"] == [{"id": "T001", "title": "x", "instruction": "y"}]
+    assert extract_plan(json.dumps(raw))["tasks"] == [
+        {"id": "T001", "title": "x", "instruction": "y", "artifact_input": {"plan_task_id": "T0"}}]
 
 
 @pytest.mark.parametrize("text,error", [
@@ -126,9 +127,10 @@ def test_read_only_cli_run_parses_claude_stream(tmp_path):
                                   readiness_probe=lambda _: "managed_login_ready",
                                   parent_env={"PATH": str(Path(sys.executable).parent)}, **kwargs)
 
-    text = run_planner_cli(executor_kind="claude_code", model_id="opus", repo_dir=str(repo),
-                           prompt="plan it", executor_factory=factory)
-    assert extract_plan(text)["tasks"][0]["agent_role"] == "complex"
+    output = run_planner_cli(executor_kind="claude_code", model_id="opus", repo_dir=str(repo),
+                             prompt="plan it", executor_factory=factory)
+    assert extract_plan(output.text)["tasks"][0]["agent_role"] == "complex"
+    assert output.usage is None  # no usage in this stream: reported as unknown, never zero
     tools = seen["argv"][seen["argv"].index("--tools") + 1]
     assert tools == "Read,Glob,Grep" and Path(seen["cwd"]).resolve() == repo.resolve()
 
@@ -170,3 +172,59 @@ def test_agent_plan_http_routes(tmp_path):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_planner_never_overwrites_a_plan_saved_while_it_ran():
+    goals, goal = _goals()
+
+    def owner_saves_first(**_):
+        goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Owner", "instruction": "Owner plan"}])
+        return json.dumps(PLAN)
+    planner, _ = _planner(goals, owner_saves_first)
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "FAILED" and status["error"] == "goal_changed_during_planning"
+    assert [task["title"] for task in goals.control_store.get_goal(goal.id).tasks] == ["Owner"]
+
+
+def test_planner_only_runs_for_agent_team_goals():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Fixture goal", "repository": "dddd2024/Nerelan", "idempotency_key": "plan-fixture",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    planner, calls = _planner(goals, lambda **_: json.dumps(PLAN))
+    with pytest.raises(TaskStoreError, match="agent_planner_requires_agent_team_goal"):
+        planner.start(goal.id, expected_revision=1, background=False)
+    assert calls == []
+
+
+def test_planned_chain_hands_artifacts_to_dependent_tasks():
+    checks = [{"profile_id": "python_pytest", "working_directory": "."}]
+    chain = {"tasks": [
+        {"id": "T001", "title": "Implement", "instruction": "Implement it", "agent_role": "coder", "validation_checks": checks},
+        {"id": "T002", "title": "Docs", "instruction": "Document the change", "agent_role": "simple",
+         "dependencies": ["T001"], "artifact_input": {"plan_task_id": "T001"}, "validation_checks": checks},
+    ], "acceptance_criteria": ["Works and is documented"]}
+    goals, goal = _goals()
+    planner, _ = _planner(goals, lambda **_: json.dumps(chain))
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "PLANNED" and status["usage_status"] == "unknown"
+    saved = goals.control_store.get_goal(goal.id).tasks
+    assert saved[1]["artifact_input"] == {"plan_task_id": "T001"} and saved[0]["validation_checks"]
+
+
+def test_planned_artifact_without_checks_is_rejected_by_plan_validation():
+    bad = {"tasks": [
+        {"id": "T001", "title": "Implement", "instruction": "Implement it"},
+        {"id": "T002", "title": "Docs", "instruction": "Docs", "dependencies": ["T001"],
+         "artifact_input": {"plan_task_id": "T001"}},
+    ]}
+    goals, goal = _goals()
+    planner, _ = _planner(goals, lambda **_: json.dumps(bad))
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "FAILED" and status["error"].startswith("artifact_input_requires_functional_checks")
+
+
+def test_prompt_explains_artifact_handoff_and_check_catalog():
+    prompt = build_planner_prompt(objective="x", repository="o/r")
+    assert "artifact_input" in prompt and "python_pytest" in prompt and "npm_test" in prompt

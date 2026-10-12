@@ -29,6 +29,8 @@ ROLE_GUIDE = {
     "reviewer": "review of another task's result (use for explicit review tasks only)",
 }
 MAX_PLAN_TASKS = 12
+# Approved host-run functional check profiles a planner may attach (see functional_validation).
+CHECK_PROFILES = ("python_pytest", "npm_test")
 PLAN_TIMEOUT_SECONDS = 600
 
 
@@ -41,10 +43,20 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         f"Repository: {repository}\nObjective: {objective}\n\nRoles:\n{roles}\n\n"
         "Rules: at most " + str(MAX_PLAN_TASKS) + " tasks; ids T001, T002, ...; dependencies reference "
         "earlier ids only; each instruction is self-contained (the agent sees only its own task); do not "
-        "plan commits, pushes, releases or dependency installs.\n\n"
+        "plan commits, pushes, releases or dependency installs.\n"
+        "Dependencies only order tasks; each task starts from the approved base and cannot see another "
+        "task's changes. When a task must build on a predecessor's changes, set "
+        '"artifact_input": {"plan_task_id": "<that dependency id>"} (exactly one, and it must be listed in '
+        "dependencies), and give BOTH tasks \"validation_checks\" chosen from: "
+        + ", ".join(CHECK_PROFILES) + ' as [{"profile_id": "...", "working_directory": "."}]. '
+        "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "agent_role": "coder", '
-        '"dependencies": []}], "acceptance_criteria": ["..."]}'
+        '"dependencies": [], "validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}, '
+        '{"id": "T002", "title": "...", "instruction": "...", "agent_role": "simple", "dependencies": ["T001"], '
+        '"artifact_input": {"plan_task_id": "T001"}, '
+        '"validation_checks": [{"profile_id": "python_pytest", "working_directory": "."}]}], '
+        '"acceptance_criteria": ["..."]}'
     )
 
 
@@ -69,12 +81,14 @@ def extract_plan(text: str) -> dict[str, Any]:
         raise TaskStoreError("agent_plan_tasks_required")
     if len(plan["tasks"]) > MAX_PLAN_TASKS:
         raise TaskStoreError("agent_plan_too_many_tasks")
-    allowed = {"id", "title", "instruction", "agent_role", "dependencies"}
+    # Approved checks and predecessor artifacts let a chain build on earlier work; GoalService
+    # validation still requires catalog profiles and an artifact from a declared dependency.
+    allowed = {"id", "title", "instruction", "agent_role", "dependencies", "validation_checks", "artifact_input"}
     tasks = []
     for raw in plan["tasks"]:
         if not isinstance(raw, dict):
             raise TaskStoreError("agent_plan_task_invalid")
-        # Only plain fields: a planner cannot request host checks, artifacts or capabilities.
+        # Capabilities and host validation commands are never taken from a planner.
         tasks.append({key: raw[key] for key in allowed if key in raw})
     criteria = plan.get("acceptance_criteria", [])
     if not isinstance(criteria, list) or not all(isinstance(item, str) for item in criteria):
@@ -102,7 +116,14 @@ def run_planner_cli(*, executor_kind: str, model_id: str, repo_dir: str, prompt:
     turn = parser.finish()
     if code != 0 or turn.failed:
         raise TaskStoreError(turn.failure_classification or f"{executor_kind}_planner_failed")
-    return turn.final_text
+    # Usage is reported with the job (tokens when the CLI reports them, otherwise unknown).
+    return PlannerOutput(turn.final_text, dict(turn.usage) if turn.usage is not None else None)
+
+
+@dataclass(frozen=True)
+class PlannerOutput:
+    text: str
+    usage: dict[str, int] | None = None
 
 
 @dataclass
@@ -113,10 +134,14 @@ class PlanJob:
     started_at: float = field(default_factory=time.time)
     finished_at: float = 0.0
     planner: dict[str, str] = field(default_factory=dict)
+    usage: dict[str, int] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {"goal_id": self.goal_id, "status": self.status, "error": self.error,
-                "started_at": self.started_at, "finished_at": self.finished_at, "planner": dict(self.planner)}
+                "started_at": self.started_at, "finished_at": self.finished_at, "planner": dict(self.planner),
+                # A planner run is a model call: unknown usage is reported as unknown, never as zero.
+                "usage_status": "observed_tokens" if self.usage is not None else "unknown",
+                "token_usage": dict(self.usage) if self.usage is not None else None}
 
 
 class AgentPlanner:
@@ -144,6 +169,8 @@ class AgentPlanner:
             raise TaskStoreError("goal_revision_mismatch")
         if goal.status not in {"DRAFT", "PLANNED"}:
             raise TaskStoreError("goal_not_plannable")
+        if goal.orchestration_mode != "agent_team":
+            raise TaskStoreError("agent_planner_requires_agent_team_goal")
         executor_kind, binding_ref = self._roster("planner")
         if executor_kind not in {"claude_code", "codex"}:
             raise TaskStoreError("agent_planner_requires_native_executor")
@@ -162,10 +189,20 @@ class AgentPlanner:
 
     def _run(self, job: PlanJob, goal: Any, executor_kind: str, binding_ref: str) -> None:
         try:
-            text = self._runner(executor_kind=executor_kind, model_id=self._binding_model(binding_ref),
-                                repo_dir=self._repo_dir_for(goal.repository),
-                                prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
+            output = self._runner(executor_kind=executor_kind, model_id=self._binding_model(binding_ref),
+                                  repo_dir=self._repo_dir_for(goal.repository),
+                                  prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
+            if isinstance(output, PlannerOutput):
+                text, job.usage = output.text, output.usage
+            else:
+                text = output
             plan = extract_plan(text)
+            current = self._goals.control_store.get_goal(goal.id)
+            # DRAFT -> PLANNED keeps the revision, so also compare status and plan digest:
+            # a plan the Owner saved while the planner ran is never overwritten.
+            if (current.revision, current.status, current.artifact_digest) != (
+                    goal.revision, goal.status, goal.artifact_digest):
+                raise TaskStoreError("goal_changed_during_planning")
             self._goals.plan(goal.id, expected_revision=goal.revision, tasks=plan["tasks"],
                              acceptance_criteria=plan["acceptance_criteria"])
             outcome, error = "PLANNED", ""
