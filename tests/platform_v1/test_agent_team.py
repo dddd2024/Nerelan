@@ -64,9 +64,10 @@ def test_deleted_binding_leaves_role_unfilled_not_remapped(tmp_path):
     assert store.get_agent_roster_public()["roles"]["coder"]["available"] is False
 
 
-def test_damaged_roster_file_never_blocks_the_store(tmp_path):
+@pytest.mark.parametrize("content", ["{not json", "[]", '"text"', '{"schema_version": 1, "roles": []}'])
+def test_damaged_roster_file_never_blocks_the_store(tmp_path, content):
     _models(tmp_path)
-    (tmp_path / "agent_roster.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "agent_roster.json").write_text(content, encoding="utf-8")
     store = ModelProfileStore(state_path=tmp_path / "model_setup_state.json")
     assert store.get_agent_roster_public()["roles"]["coder"]["binding_id"] == ""
     assert store.get_binding_public("mid")["model_id"] == "glm-5.2"
@@ -151,3 +152,18 @@ def test_agent_team_without_roster_and_bad_roles_fail_closed(monkeypatch):
     with pytest.raises(TaskStoreError, match="agent_team_requires_model_executor"):
         goals.create({"objective": "Fixture team", "repository": "dddd2024/Nerelan", "idempotency_key": "team-goal-4",
                       "executor_kind": "deterministic_fixture", "orchestration_mode": "agent_team"})
+
+
+def test_mixed_executor_team_tasks_keep_functional_evidence(monkeypatch):
+    roster = {"complex": ("claude_code", "strong"), "coder": ("opencode", "mid"), "simple": ("opencode", "cheap")}
+    store, control, autonomy, goals = _team(monkeypatch, roster)
+    goal = goals.create({"objective": "Mixed team evidence", "repository": "dddd2024/Nerelan",
+                         "idempotency_key": "team-goal-evidence", "executor_kind": "opencode",
+                         "orchestration_mode": "agent_team", "binding_ref": ""})
+    goals.plan(goal.id, expected_revision=1, tasks=PLAN)
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=autonomy.activate(_window_payload("dddd2024/Nerelan")).id)
+    current = control.get_goal(goal.id)
+    for link in control.list_goal_tasks(goal.id):
+        evidence = goals._task_link_evidence(current, link)["functional_validation"]
+        assert evidence.get("reason") != "goal_functional_contract_mismatch", (link["plan_task_id"], evidence)

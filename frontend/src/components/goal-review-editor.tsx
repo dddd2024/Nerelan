@@ -150,8 +150,10 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             value={task.agent_role ?? ""} disabled={busy}
             onChange={(event) => setTasks(tasks.map((entry, item) => {
               if (item !== index) return entry;
-              const { agent_role: _previous, ...rest } = entry;
-              return event.target.value ? { ...rest, agent_role: event.target.value } : rest;
+              const next = { ...entry };
+              if (event.target.value) next.agent_role = event.target.value;
+              else delete next.agent_role;
+              return next;
             }))}>
             <option value="">默认（常规编码）</option><option value="planner">规划者</option><option value="complex">复杂编码</option>
             <option value="coder">常规编码</option><option value="simple">简单任务</option><option value="reviewer">审查者</option>
