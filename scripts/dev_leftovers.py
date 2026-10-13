@@ -133,6 +133,8 @@ def _head_on_remote(head: str | None, repo) -> bool | None:
 
 
 def _classify(record: dict) -> tuple[str, str]:
+    if record["kind"] == "link":
+        return "review", "symlink or junction; not followed"
     if record["git_kind"] == "none":
         return "scratch", "non-git directory" if record["kind"] == "dir" else "loose file"
     if record["gitdir_missing"]:
@@ -180,7 +182,10 @@ def scan(root, repo, patterns=None) -> dict:
             "head_on_remote": None,
         }
         if link:
-            pass
+            record["kind"] = "link"
+            record["size_bytes"] = 0
+            record["git_kind"] = None
+            record["gitdir_missing"] = False
         elif is_dir:
             record["size_bytes"] = _dir_size(path)
             dot_git = os.path.join(path, ".git")
@@ -196,7 +201,7 @@ def scan(root, repo, patterns=None) -> dict:
                 record["size_bytes"] = st.st_size
             except OSError:
                 pass
-        if record["git_kind"] != "none" and not record["gitdir_missing"]:
+        if record["git_kind"] in ("repo", "worktree") and not record["gitdir_missing"]:
             record["head"] = _git(["rev-parse", "HEAD"], path) or None
             record["branch"] = _git(["rev-parse", "--abbrev-ref", "HEAD"], path) or None
             porcelain = _git(["status", "--porcelain"], path)
