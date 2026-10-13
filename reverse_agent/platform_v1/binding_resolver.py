@@ -149,7 +149,11 @@ class BindingResolver:
                     raise BindingResolutionError(f"{task_executor}_requires_managed_session_binding")
         else:
             model_id = _normalize_model_id(provider_id, raw_model_id)
-        base_url = _validate_provider_base_url(connection.get("base_url"))
+            relay_mode = False
+        from ..model_access.contracts import anthropic_endpoint
+        base_url = _validate_provider_base_url(
+            anthropic_endpoint({**connection, "executor_provider_id": provider_id}) if relay_mode
+            else connection.get("base_url"))
 
         auth_method = _required_text(
             connection.get("auth_method"), "connection_auth_method", maximum=40

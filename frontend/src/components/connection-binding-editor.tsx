@@ -839,14 +839,15 @@ export function ConnectionBindingEditor({
                   <option key={modelId} value={modelId} />
                 ))}
               </datalist>
-              {onBindAllModels && connModels.length > 0 && bindDraft.connectionId && bindDraft.executorId && (
+              {onBindAllModels && connModels.length > 0 && bindDraft.connectionId && (
                 <button
                   type="button"
                   data-testid="bind-all-models-button"
                   disabled={busy}
                   onClick={async () => {
                     try {
-                      const result = await onBindAllModels(bindDraft.connectionId, connModels, bindDraft.executorId);
+                      // "auto": every executor this connection's key can drive (free model x executor pairing).
+                      const result = await onBindAllModels(bindDraft.connectionId, connModels, "auto");
                       setConnModelsMessage(`已绑定 ${result.created.length} 个新模型，${result.reused.length} 个已存在。`);
                     } catch (cause) {
                       setConnModelsMessage(cause instanceof Error ? cause.message : "批量绑定失败");
@@ -854,7 +855,7 @@ export function ConnectionBindingEditor({
                   }}
                   className={cn(secondaryButtonClass, "mt-2 self-start")}
                 >
-                  全部绑定（{connModels.length} 个模型）
+                  全部绑定（{connModels.length} 个模型 × 所有可用执行器）
                 </button>
               )}
               {connModelsMessage && (

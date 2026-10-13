@@ -1410,7 +1410,7 @@ describe("one connection binds all of its models", () => {
     expect(screen.getByLabelText("连接")).toHaveValue("coding-connection");
     await user.click(screen.getByTestId("fetch-models-button"));
     const bindAll = await screen.findByTestId("bind-all-models-button");
-    expect(bindAll).toHaveTextContent("全部绑定（2 个模型）");
+    expect(bindAll).toHaveTextContent("全部绑定（2 个模型 × 所有可用执行器）");
     await user.click(bindAll);
     expect(await screen.findByTestId("connection-models-message")).toHaveTextContent("已绑定 2 个新模型，0 个已存在。");
     const client = getDefaultModelControlClient();

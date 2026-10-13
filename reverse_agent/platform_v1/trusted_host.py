@@ -336,7 +336,28 @@ class CombinedTrustedHost:
         entry = self._store.get_agent_roster_public()["roles"].get(role)
         if not entry or not entry["available"]:
             raise TaskStoreError(f"agent_role_unfilled:{role}")
-        return entry["executor_id"], entry["binding_id"]
+        return self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
+
+    # Roles whose work only some executors can do; a measured swap never leaves this set.
+    ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex"})}
+
+    def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
+        """Same model, another executor: let real outcomes pick the pairing that works better."""
+        from .model_profiles import best_pairing, cached_agent_profiles
+        bindings = {item["binding_id"]: item for item in self._store.list_bindings_public()}
+        chosen = bindings.get(binding_id)
+        if chosen is None:
+            return executor_id, binding_id
+        ready = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
+        ready &= self.ROLE_EXECUTORS.get(role, ready)
+        siblings = [item["binding_id"] for item in bindings.values()
+                    if item["binding_id"] != binding_id and item.get("enabled")
+                    and item["connection_id"] == chosen["connection_id"] and item["model_id"] == chosen["model_id"]
+                    and item["executor_id"] in ready]
+        if not siblings:
+            return executor_id, binding_id
+        picked = best_pairing(cached_agent_profiles(self._task_store), binding_id, siblings)
+        return bindings[picked]["executor_id"], picked
 
     def _binding_resolver_factory(self, base_url: str) -> Any:
         from .binding_resolver import BindingResolutionError, BindingResolver

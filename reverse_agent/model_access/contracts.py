@@ -111,11 +111,39 @@ def _connection_provider_identity(value: Any) -> ProviderIdentity:
 ANTHROPIC_PROTOCOL = "anthropic"
 
 
+# Providers whose one API key also serves an Anthropic Messages endpoint. A connection to
+# one of these hosts carries that endpoint automatically, so the same key drives OpenCode
+# (OpenAI protocol) and Claude Code (Anthropic protocol) with no second connection.
+KNOWN_ANTHROPIC_ENDPOINTS = {
+    "token.sensenova.cn": "https://token.sensenova.cn",
+    "open.bigmodel.cn": "https://open.bigmodel.cn/api/anthropic",
+    "api.deepseek.com": "https://api.deepseek.com/anthropic",
+    "api.moonshot.cn": "https://api.moonshot.cn/anthropic",
+}
+
+
+def _read_field(connection: Mapping[str, Any] | "Connection", key: str) -> Any:
+    return connection.get(key) if isinstance(connection, Mapping) else getattr(connection, key, None)
+
+
+def anthropic_endpoint(connection: Mapping[str, Any] | "Connection") -> str | None:
+    """The Anthropic Messages base URL this API-key connection's key can use, if any."""
+    if _read_field(connection, "auth_method") != "api_key":
+        return None
+    if _read_field(connection, "executor_provider_id") in NATIVE_CLI_PROVIDERS:
+        return None
+    if _read_field(connection, "protocol_family") == ANTHROPIC_PROTOCOL:
+        return _read_field(connection, "base_url")
+    return _read_field(connection, "anthropic_base_url") or None
+
+
 def is_anthropic_relay_connection(connection: Mapping[str, Any] | "Connection") -> bool:
-    read = (lambda key: connection.get(key)) if isinstance(connection, Mapping) else (
-        lambda key: getattr(connection, key, None))
-    return (read("auth_method") == "api_key" and read("protocol_family") == ANTHROPIC_PROTOCOL
-            and read("executor_provider_id") not in NATIVE_CLI_PROVIDERS)
+    if _read_field(connection, "auth_method") != "api_key":
+        return False
+    if _read_field(connection, "executor_provider_id") in NATIVE_CLI_PROVIDERS:
+        return False
+    return (_read_field(connection, "protocol_family") == ANTHROPIC_PROTOCOL
+            or bool(_read_field(connection, "anthropic_base_url")))
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +168,7 @@ class Connection:
     upstream_provider_id: str | None = None
     protocol_family: str | None = None
     executor_provider_id: str | None = None
+    anthropic_base_url: str | None = None
 
     def __post_init__(self) -> None:
         provider_alias = _provider_alias(self.provider)
@@ -246,6 +275,8 @@ class Connection:
             upstream_provider_id=identity.upstream_provider_id,
             protocol_family=identity.protocol_family,
             executor_provider_id=identity.executor_provider_id,
+            anthropic_base_url=_anthropic_base_url(value, auth_method, identity.protocol_family,
+                                                   _read(value, "base_url", "baseUrl")),
         )
 
     def to_public_dict(
@@ -271,12 +302,29 @@ class Connection:
             "protocol_family": self.protocol_family,
             "executor_provider_id": self.executor_provider_id,
             "base_url": self.base_url,
+            "anthropic_base_url": self.anthropic_base_url,
             "auth_method": self.auth_method,
             "enabled": self.enabled,
             "credential_configured": credential_configured,
             "secret_status": secret_status,
             "external_session_status": external_session_status,
         }
+
+
+def _anthropic_base_url(value: Mapping[str, Any], auth_method: str, protocol_family: str | None,
+                        base_url: Any) -> str | None:
+    """Explicit Anthropic endpoint, else the known one for this host; only for OpenAI-protocol API keys."""
+    if auth_method != "api_key" or protocol_family == ANTHROPIC_PROTOCOL:
+        return None
+    explicit = _read(value, "anthropic_base_url", "anthropicBaseUrl")
+    if explicit not in (None, ""):
+        return _base_url(explicit)
+    from urllib.parse import urlsplit
+    try:
+        host = (urlsplit(str(base_url or "")).hostname or "").casefold()
+    except ValueError:
+        return None
+    return KNOWN_ANTHROPIC_ENDPOINTS.get(host)
 
 
 @dataclass(frozen=True, slots=True)
