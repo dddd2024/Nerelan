@@ -849,7 +849,9 @@ class TestDecisionImmutability:
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
         log_out = subprocess.check_output(
-            ["git", "rev-list", f"{starting_head}..HEAD"],
+            # Topological, not date, order: accepted task artifacts carry a fixed
+            # deterministic commit date (2000-01-01) by design.
+            ["git", "rev-list", "--topo-order", f"{starting_head}..HEAD"],
             cwd=REPO_ROOT,
             encoding="utf-8",
         ).strip()
@@ -874,7 +876,9 @@ class TestDecisionImmutability:
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
         log_out = subprocess.check_output(
-            ["git", "rev-list", f"{starting_head}..HEAD"],
+            # Topological, not date, order: accepted task artifacts carry a fixed
+            # deterministic commit date (2000-01-01) by design.
+            ["git", "rev-list", "--topo-order", f"{starting_head}..HEAD"],
             cwd=REPO_ROOT,
             encoding="utf-8",
         ).strip()
@@ -909,7 +913,9 @@ class TestDecisionImmutability:
         contract = _parse_decision_contract()
         starting_head = contract["starting_head"]
         log_out = subprocess.check_output(
-            ["git", "rev-list", f"{starting_head}..HEAD"],
+            # Topological, not date, order: accepted task artifacts carry a fixed
+            # deterministic commit date (2000-01-01) by design.
+            ["git", "rev-list", "--topo-order", f"{starting_head}..HEAD"],
             cwd=REPO_ROOT,
             encoding="utf-8",
         ).strip()
