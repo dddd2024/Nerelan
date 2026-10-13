@@ -456,16 +456,16 @@ if (Test-Path -LiteralPath $pidFile) {
     }
   }
   if ($runtimeState -and $runtimeState.children) {
-    # A record written before job ownership existed (no job_name on any child) whose roots
-    # are all gone and whose service ports are all free can no longer own a running stack:
-    # nothing of it still serves. Set it aside instead of refusing every future start.
-    $legacyRecord = @($runtimeState.children | Where-Object { $_.job_name }).Count -eq 0
-    $rootsGone = @($runtimeState.children | Where-Object { $_.pid -and (Get-Process -Id $_.pid -ErrorAction SilentlyContinue) }).Count -eq 0
+    # A record none of whose children is still provably owned (root gone or its PID reused by
+    # another program, e.g. after a reboot, and its named job object gone; a job object lives
+    # as long as any process in it) and whose service ports are all free can no longer own a
+    # running stack. Set it aside instead of refusing every future start.
+    $noneOwned = @($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ }).Count -eq 0
     $portsFree = @(@($FrontendPort, $TaskApiPort, $ModelControlPort) | Where-Object { Is-PortInUse $_ }).Count -eq 0
-    if ($legacyRecord -and $rootsGone -and $portsFree) {
+    if ($noneOwned -and $portsFree) {
       $aside = Join-Path (Split-Path -Parent $pidFile) ("devup_pids.stale-" + (Get-Date -Format "yyyyMMddTHHmmss") + ".json")
       Move-Item -LiteralPath $pidFile -Destination $aside
-      Write-Warning "dev-up: set aside a pre-ownership runtime record with no live roots and free ports: ${aside}"
+      Write-Warning "dev-up: set aside a runtime record with no owned processes and free ports: ${aside}"
       $runtimeState = $null
     }
   }
