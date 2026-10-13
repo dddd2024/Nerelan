@@ -138,14 +138,13 @@ class CodexExecutor:
     def __init__(self, *, model_id: str = "", binding_resolution=None, repo_dir: str = "",
                  base_ref: str = "", codex_exe: str | None = None, timeout: float = 300,
                  sandbox: str = "workspace-write", parent_env=None, process_factory=None,
-                 readiness_probe=None):
+                 readiness_probe=None, lease_provider=None):
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 600:
             raise ExecutorRuntimeError(self._e("timeout_invalid"))
+        self._binding_resolution = binding_resolution
+        self._lease_provider = lease_provider
         if binding_resolution is not None:
-            if binding_resolution.executor_id != self.KIND or binding_resolution.auth_method != "external_cli_session" or binding_resolution.relay_required:
-                raise ExecutorRuntimeError(self._e("requires_managed_session_binding"))
-            if binding_resolution.external_session_status not in {"available", "executor_managed"}:
-                raise ExecutorRuntimeError(self._e("session_unavailable"))
+            self._accept_binding(binding_resolution)
             model_id = binding_resolution.model_id
         self._model_id = validate_codex_model(model_id)
         self._repo_dir = repo_dir
@@ -158,10 +157,20 @@ class CodexExecutor:
         self._readiness_probe = readiness_probe or type(self).default_readiness_probe
         self._validate_options()
 
-    def prepare_worktree_once(self, task_id, root_path, event_callback=None):
-        cli = self._resolve_cli()
+    def _accept_binding(self, resolution) -> None:
+        """Native CLIs run on the Owner's own managed login, never on a relayed API key."""
+        if resolution.executor_id != self.KIND or resolution.auth_method != "external_cli_session" or resolution.relay_required:
+            raise ExecutorRuntimeError(self._e("requires_managed_session_binding"))
+        if resolution.external_session_status not in {"available", "executor_managed"}:
+            raise ExecutorRuntimeError(self._e("session_unavailable"))
+
+    def _require_ready(self, cli) -> None:
         if self._readiness_probe(cli) != "managed_login_ready":
             raise ExecutorRuntimeError(self._e("managed_login_unavailable"))
+
+    def prepare_worktree_once(self, task_id, root_path, event_callback=None):
+        cli = self._resolve_cli()
+        self._require_ready(cli)
         if not re.fullmatch(r"[0-9a-f]{40}", self._base_ref):
             raise ExecutorRuntimeError(self._e("requires_exact_base_sha"))
         worktree, base = prepare_linked_worktree(task_id, Path(root_path), event_callback,

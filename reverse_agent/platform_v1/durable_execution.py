@@ -2136,9 +2136,11 @@ class DurableExecutionService:
             timeout = max(timeout, min(learned, MAX_EXECUTOR_TIMEOUT_SECONDS))
         if getattr(task, "executor_kind", "") in {"codex", "claude_code"}:
             from .codex_executor import codex_executor_kwargs
-            return {**codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
-                                            kind=task.executor_kind),
-                    "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
+            native = codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
+                                           kind=task.executor_kind)
+            if getattr(native.get("binding_resolution"), "relay_required", False) and self.lease_provider is not None:
+                native["lease_provider"] = self.lease_provider  # API-key model inside Claude Code
+            return {**native, "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:

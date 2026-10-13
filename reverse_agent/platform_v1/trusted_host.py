@@ -261,7 +261,9 @@ class CombinedTrustedHost:
                 raise RuntimeError("base_url_drift_before_lease")
             if snapshot.auth_method != resolution.auth_method:
                 raise RuntimeError("auth_method_drift_before_lease")
-            expected_model = _normalize_model_id(snapshot.provider, snapshot.raw_model_id)
+            anthropic = snapshot.protocol_family == "anthropic" and snapshot.executor_id == "claude_code"
+            expected_model = (snapshot.raw_model_id if anthropic
+                              else _normalize_model_id(snapshot.provider, snapshot.raw_model_id))
             if expected_model != resolution.model_id:
                 raise RuntimeError("model_drift_before_lease")
 

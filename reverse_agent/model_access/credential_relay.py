@@ -10,7 +10,8 @@ short-lived capability.
 The relay rejects:
 - any request without a valid, un-expired, non-released lease;
 - any method other than ``POST``;
-- any path other than ``/chat/completions``;
+- any path other than ``/chat/completions`` (or, for a lease whose connection speaks the
+  Anthropic Messages API, ``/v1/messages`` and ``/v1/messages/count_tokens``);
 - any model mismatch against the snapshot;
 - non-loopback client origins;
 - any request-body or header logging of provider credentials.
@@ -26,6 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
 import math
+import re
 import secrets
 import threading
 import time
@@ -36,7 +38,7 @@ from urllib.request import Request
 
 from .http_safe import urlopen  # never follows redirects with the provider key
 
-from .contracts import ExecutionSnapshot
+from .contracts import ANTHROPIC_PROTOCOL, ExecutionSnapshot
 
 _MAX_BODY_BYTES = 4 * 1024 * 1024
 
@@ -312,7 +314,7 @@ class CredentialRelayManager:
 
             if method.upper() != "POST":
                 raise CredentialRelayError(f"lease_method_mismatch:{method}")
-            if path != "/chat/completions":
+            if path not in _lease_paths(active.snapshot):
                 raise CredentialRelayError(f"lease_path_mismatch:{path}")
             expected_model = active.model_id
             if model is None or model != expected_model:
@@ -458,7 +460,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
             return
 
         request_path = urlsplit(self.path).path
-        if request_path != "/chat/completions":
+        if request_path not in {"/chat/completions", *ANTHROPIC_RELAY_PATHS}:
             self._send_error(404, "relay_route_not_found")
             return
 
@@ -476,11 +478,14 @@ class _RelayHandler(BaseHTTPRequestHandler):
             active = self.manager._validate_lease_for_request(
                 lease_id,
                 method="POST",
-                path="/chat/completions",
+                path=request_path,
                 model=request_model,
             )
         except CredentialRelayError:
             self._send_error(401, "lease_invalid")
+            return
+        if request_path in ANTHROPIC_RELAY_PATHS:
+            self._relay_anthropic(active, request_path, body, stream=payload.get("stream") is True)
             return
 
         try:
@@ -519,7 +524,53 @@ class _RelayHandler(BaseHTTPRequestHandler):
             token = auth[len("bearer "):].strip()
             if token:
                 return token
-        return None
+        # Anthropic clients may send the capability as x-api-key instead.
+        token = self.headers.get("x-api-key", "").strip()
+        return token or None
+
+    def _relay_anthropic(self, active: _ActiveLease, path: str, body: bytes, *, stream: bool) -> None:
+        """Forward an Anthropic Messages request, injecting the provider key as x-api-key."""
+        _validate_upstream_url(active.snapshot.base_url)
+        upstream_url = f"{active.snapshot.base_url}{path}"
+        version = self.headers.get("anthropic-version", "")
+        headers = {
+            "x-api-key": active.snapshot.resolved_api_key or "",
+            "anthropic-version": version if _ANTHROPIC_VERSION_RE.fullmatch(version) else "2023-06-01",
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+            "Accept": "text/event-stream" if stream else "application/json",
+        }
+        beta = self.headers.get("anthropic-beta", "")
+        if beta and _ANTHROPIC_BETA_RE.fullmatch(beta):
+            headers["anthropic-beta"] = beta
+        req = Request(upstream_url, data=body, headers=headers, method="POST")
+        req.full_url = upstream_url
+        try:
+            with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310 - refuses redirects
+                status = int(resp.status)
+                if status != 200:
+                    self._send_sanitized_error(status)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream" if stream else "application/json; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                if not stream:
+                    data = resp.read(_MAX_BODY_BYTES)
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+                self.end_headers()
+                while True:
+                    chunk = resp.read(4096)
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+        except HTTPError as exc:
+            self._send_sanitized_error(int(exc.code))
+        except (URLError, TimeoutError, OSError):
+            self._send_error(502, "upstream_error")
 
     def _read_body(self) -> bytes | None:
         raw = self.headers.get("Content-Length")
@@ -644,6 +695,18 @@ def _validate_upstream_url(base_url: str) -> None:
             raise CredentialRelayError("upstream_cleartext_not_loopback")
         return
     raise CredentialRelayError("upstream_url_invalid")
+
+
+ANTHROPIC_RELAY_PATHS = frozenset({"/v1/messages", "/v1/messages/count_tokens"})
+_ANTHROPIC_VERSION_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+_ANTHROPIC_BETA_RE = re.compile(r"[A-Za-z0-9._,-]{1,512}")
+
+
+def _lease_paths(snapshot: ExecutionSnapshot) -> frozenset[str]:
+    """A lease may call only the API its connection speaks."""
+    if snapshot.protocol_family == ANTHROPIC_PROTOCOL:
+        return ANTHROPIC_RELAY_PATHS
+    return frozenset({"/chat/completions"})
 
 
 def _normalize_model_id(provider: str, model_id: str) -> str:
