@@ -51,17 +51,22 @@ def test_native_runs_are_timed_from_workspace_ready():
     assert profile["median_ok_seconds"] == 50 and profile["executor_kind"] == "claude_code"
 
 
+def _fresh_recommendation(store, binding):
+    store._agent_profile_cache = None  # profiles are cached for a minute; these steps add rows in between
+    return recommended_timeout_seconds(store, binding)
+
+
 def test_recommended_timeout_fits_slow_productive_agents_within_bounds():
     store = TaskStore(":memory:")
-    assert recommended_timeout_seconds(store, "glm") is None  # no evidence yet
+    assert _fresh_recommendation(store, "glm") is None  # no evidence yet
     _task(store, "cutoff", "FAILED", "timeout", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
-    assert recommended_timeout_seconds(store, "cutoff") == de.MAX_EXECUTOR_TIMEOUT_SECONDS  # only ever cut off
+    assert _fresh_recommendation(store, "cutoff") == de.MAX_EXECUTOR_TIMEOUT_SECONDS  # only ever cut off
     for hour in (6, 7):
         _task(store, "fast", "READY_FOR_REVIEW", start=f"2026-10-13T0{hour}:00:00Z", end=f"2026-10-13T0{hour}:01:00Z")
-    assert recommended_timeout_seconds(store, "fast") == de.DEFAULT_EXECUTOR_TIMEOUT_SECONDS  # never below the default
+    assert _fresh_recommendation(store, "fast") == de.DEFAULT_EXECUTOR_TIMEOUT_SECONDS  # never below the default
     for hour in (6, 7):
         _task(store, "slow", "READY_FOR_REVIEW", start=f"2026-10-13T0{hour}:00:00Z", end=f"2026-10-13T0{hour}:09:00Z")
-    assert recommended_timeout_seconds(store, "slow") == 756  # p90 9 min x 1.4
+    assert _fresh_recommendation(store, "slow") == 756  # p90 9 min x 1.4
 
 
 @pytest.mark.parametrize("binding,expected", [("slow", 756), ("fresh", 600)])
@@ -74,3 +79,22 @@ def test_execution_uses_the_learned_turn_limit(monkeypatch, binding, expected):
     service = de.DurableExecutionService.__new__(de.DurableExecutionService)
     service.store, service.binding_resolver, service.lease_provider = store, None, None
     assert service._build_executor_kwargs(task)["timeout"] == expected
+
+
+def test_an_explicit_host_timeout_is_not_raised_by_learning(monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_EXECUTOR_TIMEOUT_SECONDS", "300")
+    store = TaskStore(":memory:")
+    for hour in (6, 7):
+        _task(store, "slow", "READY_FOR_REVIEW", start=f"2026-10-13T0{hour}:00:00Z", end=f"2026-10-13T0{hour}:09:00Z")
+    task = store.create_task(title="next", executor_kind="opencode", binding_ref="slow", repository="o/r")
+    service = de.DurableExecutionService.__new__(de.DurableExecutionService)
+    service.store, service.binding_resolver, service.lease_provider = store, None, None
+    assert service._build_executor_kwargs(task)["timeout"] == 300
+
+
+def test_profiles_are_cached_for_a_minute():
+    store = TaskStore(":memory:")
+    assert recommended_timeout_seconds(store, "cutoff") is None
+    _task(store, "cutoff", "FAILED", "timeout", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
+    assert recommended_timeout_seconds(store, "cutoff") is None  # cached profile, no new scan
+    assert _fresh_recommendation(store, "cutoff") == de.MAX_EXECUTOR_TIMEOUT_SECONDS
