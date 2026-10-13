@@ -582,9 +582,26 @@ def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
     raise ExecutorRuntimeError("opencode_cli_not_found")
 
 
-# where.exe prints paths in the console (OEM) code page, not UTF-8; a non-ASCII install
-# path decoded as UTF-8 would point nowhere.
-_WHERE_ENCODING = "oem" if os.name == "nt" else "utf-8"
+def _where_encoding() -> str:
+    """where.exe prints in the active console output code page (OEM when no console), not UTF-8.
+
+    Decoding a non-ASCII install path as UTF-8, or with a code page other than the one
+    `chcp` selected, would point nowhere.
+    """
+    if os.name != "nt":
+        return "utf-8"
+    try:
+        import ctypes
+        page = int(ctypes.windll.kernel32.GetConsoleOutputCP())
+    except (AttributeError, OSError, ValueError):
+        page = 0
+    if page > 0:
+        try:
+            import codecs
+            return codecs.lookup(f"cp{page}").name
+        except LookupError:
+            pass
+    return "oem"
 
 
 def _resolve_windows_exe() -> str | None:
@@ -596,7 +613,7 @@ def _resolve_windows_exe() -> str | None:
                 ["where.exe", candidate],
                 capture_output=True,
                 text=True,
-                encoding=_WHERE_ENCODING,
+                encoding=_where_encoding(),
                 errors="replace",
                 timeout=10,
             )
@@ -614,7 +631,7 @@ def _resolve_windows_exe() -> str | None:
             ["where.exe", "opencode"],
             capture_output=True,
             text=True,
-            encoding=_WHERE_ENCODING,
+            encoding=_where_encoding(),
             errors="replace",
             timeout=10,
         )
@@ -640,7 +657,7 @@ def _resolve_windows_cmd() -> str | None:
             ["where.exe", "opencode.cmd"],
             capture_output=True,
             text=True,
-            encoding=_WHERE_ENCODING,
+            encoding=_where_encoding(),
             errors="replace",
             timeout=10,
         )

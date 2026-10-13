@@ -65,4 +65,20 @@ def test_where_exe_paths_use_the_console_code_page(tmp_path: Path, monkeypatch) 
     monkeypatch.setattr(subprocess, "run", fake_run)
     # A listed path that does not exist is skipped; the real non-ASCII path is returned.
     assert opencode_executor._resolve_windows_exe() == str(install)
-    assert seen and set(seen) == {opencode_executor._WHERE_ENCODING}
+    assert seen and set(seen) == {opencode_executor._where_encoding()}
+
+
+def test_where_exe_follows_the_active_console_code_page(monkeypatch) -> None:
+    import ctypes
+    import os
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import opencode_executor
+
+    if os.name != "nt":
+        assert opencode_executor._where_encoding() == "utf-8"
+        return
+    kernel = SimpleNamespace(GetConsoleOutputCP=lambda: 65001)
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(kernel32=kernel))
+    assert opencode_executor._where_encoding() == "utf-8"  # after chcp 65001
+    kernel.GetConsoleOutputCP = lambda: 0  # no console: the system OEM code page
+    assert opencode_executor._where_encoding() == "oem"
