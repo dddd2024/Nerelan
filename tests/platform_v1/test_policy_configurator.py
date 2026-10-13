@@ -128,5 +128,6 @@ def test_binding_health_counts_outcomes_and_rate_limits():
         store._conn.execute("UPDATE tasks SET status = ?, failure_classification = ? WHERE id = ?", (status, classification, task.id))
     store._conn.commit()
     health = binding_health(store)
-    assert health["coding-glm"] == {"ok": 1, "failed": 0, "rate_limited": 0}
-    assert health["coding-kimi"] == {"ok": 0, "failed": 2, "rate_limited": 1}
+    pick = lambda stats: {key: stats[key] for key in ("ok", "failed", "rate_limited")}
+    assert pick(health["coding-glm"]) == {"ok": 1, "failed": 0, "rate_limited": 0}
+    assert pick(health["coding-kimi"]) == {"ok": 0, "failed": 2, "rate_limited": 1}
