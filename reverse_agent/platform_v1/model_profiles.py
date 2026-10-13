@@ -9,6 +9,7 @@ of assuming every model behaves alike; e.g. a slow but productive model gets a l
 from __future__ import annotations
 
 from datetime import datetime
+import json
 import math
 import threading
 import time
@@ -60,6 +61,20 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             f"SELECT task_id, SUM(COALESCE(input_units,0) + COALESCE(output_units,0)) AS units "
             f"FROM task_usage_observations WHERE status = 'OBSERVED' AND task_id IN ({marks}) GROUP BY task_id", ids):
         tokens[row["task_id"]] = int(row["units"] or 0)
+    # Native CLIs keep budget usage UNKNOWN (no reasoning/cost figures), but their completion event
+    # carries the token counts they did report; profiles use those for comparison only.
+    for row in conn.execute(f"SELECT task_id, metadata FROM task_events WHERE type = 'EXECUTOR_COMPLETED' "
+                            f"AND task_id IN ({marks})", ids):
+        if row["task_id"] in tokens:
+            continue
+        try:
+            usage = json.loads(row["metadata"] or "{}").get("token_usage")
+        except (ValueError, AttributeError):
+            usage = None
+        if isinstance(usage, dict):
+            counts = [usage.get(key) for key in ("input_tokens", "output_tokens")]
+            if all(type(value) is int and value >= 0 for value in counts):
+                tokens[row["task_id"]] = sum(counts)
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in tasks:
