@@ -522,6 +522,25 @@ class _HeartbeatContext:
 # Durable Execution Service
 # ---------------------------------------------------------------------------
 
+
+# One agent turn may run this long. Free models are slow: 300 s timed out every free-model task
+# in the first real team runs. Trusted host configuration only (never a request field); it stays
+# below the coordinator's 15-minute claim lease, and native CLIs accept at most 600 s.
+DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 600
+MAX_EXECUTOR_TIMEOUT_SECONDS = 840
+NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS = 600
+
+
+def executor_timeout_seconds() -> int:
+    raw = os.environ.get("REVERSE_AGENT_EXECUTOR_TIMEOUT_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
+    return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
+
 class DurableExecutionService:
     """Level-1 durable sequential-team execution with lease fencing.
 
@@ -2106,10 +2125,12 @@ class DurableExecutionService:
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
+        timeout = executor_timeout_seconds()
         if getattr(task, "executor_kind", "") in {"codex", "claude_code"}:
             from .codex_executor import codex_executor_kwargs
-            return codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
-                                         kind=task.executor_kind)
+            return {**codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
+                                            kind=task.executor_kind),
+                    "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
@@ -2129,6 +2150,7 @@ class DurableExecutionService:
             ).strip() or "cli"
             if self.lease_provider is not None:
                 kwargs["lease_provider"] = self.lease_provider
+            kwargs["timeout"] = timeout
         return kwargs
 
     @staticmethod
