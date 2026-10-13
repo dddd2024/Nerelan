@@ -95,3 +95,18 @@ def test_bind_all_keeps_native_connection_rules():
     store.upsert_connection(_connection())
     with pytest.raises(ValueError):
         store.bind_connection_models("sense-api", ["sonnet"], "claude_code")  # API key cannot feed a native CLI
+
+
+def test_anthropic_connections_list_models_under_v1():
+    store = ModelProfileStore()
+    store.upsert_connection(_connection(connection_id="sense-anthropic", provider="anthropic-compatible",
+                                        base_url="https://token.sensenova.cn"))
+    calls = []
+
+    def transport(url, headers, timeout):
+        calls.append(url)
+        return 200, _listing("glm-5.2")
+
+    result = discover_connection_models(store=store, connection_id="sense-anthropic", live_enabled=True,
+                                        transport=transport)
+    assert calls == ["https://token.sensenova.cn/v1/models"] and result["models"] == ["glm-5.2"]
