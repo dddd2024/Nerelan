@@ -82,13 +82,17 @@ def _dir_size(path: str) -> int:
 
 def _git(args: list[str], path) -> str | None:
     try:
+        # Read-only: optional locks off so `status` never refreshes the scanned repo's index,
+        # and a scanned repository's config cannot launch an fsmonitor hook.
         proc = subprocess.run(
-            ["git", "-C", str(path), *args],
+            ["git", "-c", "core.fsmonitor=false", "-C", str(path), *args],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=30,
+            stdin=subprocess.DEVNULL,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"},
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
