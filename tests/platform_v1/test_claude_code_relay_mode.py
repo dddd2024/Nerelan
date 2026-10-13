@@ -173,6 +173,7 @@ def test_relay_mode_child_sees_only_the_relay_and_a_capability(monkeypatch):
     assert executor.execute_role_prepared(None, None, role_context=None) == "done"
     assert captured["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:9999"
     assert captured["ANTHROPIC_AUTH_TOKEN"] == "sk-capability"
+    assert captured["ANTHROPIC_SMALL_FAST_MODEL"] == captured["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "glm-5.2"
     assert "ANTHROPIC_API_KEY" not in captured and PROVIDER_KEY not in json.dumps(captured)
     assert released == [True] and executor._child_env().get("ANTHROPIC_BASE_URL") is None
 

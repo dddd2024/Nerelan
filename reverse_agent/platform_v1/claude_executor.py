@@ -30,6 +30,9 @@ from .task_runtime import ExecutorRuntimeError
 # working directory; --tools then names the only built-ins that exist. Running
 # tests is the host's job after the turn (git_diff_check, functional checks).
 READ_TOOLS = ("Read", "Glob", "Grep")
+# Claude Code may pick a separate small/fast or per-tier model; in relay mode all point at the leased one.
+RELAY_MODEL_VARIABLES = ("ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                         "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL")
 WRITE_TOOLS = ("Edit", "Write")
 
 
@@ -165,7 +168,9 @@ class ClaudeCodeExecutor(CodexExecutor):
             lease.bind_execution_deadline(self._timeout)
             # The child sees only the loopback relay and a short-lived capability, never the provider key.
             self._relay_env = {"ANTHROPIC_BASE_URL": lease.relay_url, "ANTHROPIC_AUTH_TOKEN": lease.lease_id,
-                               "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+                               "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+                               # The lease admits one model; background/small-model calls must use it too.
+                               **{name: self._model_id for name in RELAY_MODEL_VARIABLES}}
             return super().execute_role_prepared(prepared, store, role_context=role_context,
                                                  event_callback=event_callback)
         finally:
