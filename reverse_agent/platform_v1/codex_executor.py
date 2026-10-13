@@ -186,7 +186,8 @@ class CodexExecutor:
             raise ExecutorRuntimeError(self._e("worktree_identity_invalid"))
         def common_directory(root):
             result = subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=root,
-                capture_output=True, text=True, timeout=10, check=False)
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=10, check=False)
             if result.returncode or not result.stdout.strip() or len(result.stdout) > 4096:
                 raise ExecutorRuntimeError(self._e("worktree_identity_invalid"))
             return (root / result.stdout.strip()).resolve()
@@ -197,7 +198,7 @@ class CodexExecutor:
         if not re.fullmatch(r"[0-9a-f]{40}", expected) or not worktree.is_dir():
             raise ExecutorRuntimeError(self._e("worktree_identity_invalid"))
         result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=worktree, capture_output=True,
-                                text=True, timeout=10, check=False)
+                                text=True, encoding="utf-8", errors="replace", timeout=10, check=False)
         if result.returncode or result.stdout.strip() != expected:
             raise ExecutorRuntimeError(self._e("worktree_head_mismatch"))
 

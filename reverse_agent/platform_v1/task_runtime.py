@@ -231,7 +231,8 @@ class LocalValidationRunner:
             if expected_head:
                 observed = subprocess.run([*prefix, "rev-parse", "--verify", "HEAD"], cwd=cwd,
                                           env=environment, stdin=subprocess.DEVNULL, capture_output=True,
-                                          text=True, timeout=10, check=False)
+                                          text=True, encoding="utf-8", errors="replace",
+                                          timeout=10, check=False)
                 if observed.returncode or observed.stdout.strip() != expected_head:
                     raise ExecutorRuntimeError("host_validation_base_drift")
             # diff HEAD cannot inspect new files: observe selected literal
@@ -255,6 +256,8 @@ class LocalValidationRunner:
                 cwd=cwd,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
                 check=False,
                 env=environment,
@@ -452,6 +455,8 @@ def _run(argv: list[str], cwd: Path) -> None:
         cwd=str(cwd),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=True,
     )
@@ -463,6 +468,8 @@ def _collect_changed_files(worktree: Path, task_id: str) -> list[dict[str, Any]]
         cwd=str(worktree),
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=30,
         check=False,
     )
