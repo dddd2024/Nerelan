@@ -2126,6 +2126,12 @@ class DurableExecutionService:
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
         timeout = executor_timeout_seconds()
+        # A binding whose real turns run longer (a slow but productive model) gets the turn it
+        # needs, never more than the host maximum; a fast one keeps the host default.
+        from .model_profiles import recommended_timeout_seconds
+        learned = recommended_timeout_seconds(self.store, getattr(task, "binding_ref", "") or "")
+        if learned:
+            timeout = max(timeout, min(learned, MAX_EXECUTOR_TIMEOUT_SECONDS))
         if getattr(task, "executor_kind", "") in {"codex", "claude_code"}:
             from .codex_executor import codex_executor_kwargs
             return {**codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
