@@ -291,6 +291,24 @@ def test_previous_failed_escalation_attempt_survives_handoff_and_reopen(tmp_path
     reopened._conn.close()
 
 
+def test_durable_facade_projects_bound_context_and_rejects_stale_lease(tmp_path,repo):
+    from reverse_agent.platform_v1.durable_execution import _DurableFencedExecutorStore
+    from reverse_agent.platform_v1.context_builder import executor_context
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    store,goal,first,*_=_setup(tmp_path/'s.db')
+    lease=store._acquire_durable_lease(task_id=first.id,execution_id=first.execution_id,lease_owner='context-worker')
+    facade=_DurableFencedExecutorStore(store,lease.run_id,first.id,lease.owner,lease.epoch)
+    text=executor_context(facade,task_id=first.id,workspace=repo,expected_head=_head(repo))
+    assert goal.id in text and 'Durable Context Packet' in text
+    assert not hasattr(facade,'_conn') and not hasattr(facade,'transition_to')
+    with pytest.raises(TaskStoreError,match='context_task_mismatch'):
+        executor_context(facade,task_id='other',workspace=repo,expected_head=_head(repo))
+    store._conn.execute('UPDATE durable_runs SET lease_epoch=lease_epoch+1 WHERE run_id=?',(lease.run_id,))
+    store._conn.commit()
+    with pytest.raises(TaskStoreError,match='lease_fenced'):
+        executor_context(facade,task_id=first.id,workspace=repo,expected_head=_head(repo))
+
+
 @pytest.mark.parametrize('kind',['codex','claude'])
 def test_native_goal_context_survives_reopen_and_reaches_real_subprocess(tmp_path,repo,kind):
     from reverse_agent.platform_v1.opencode_executor import RoleContext

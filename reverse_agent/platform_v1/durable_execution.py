@@ -270,13 +270,14 @@ class _FakePreparedCtx:
 class _DurableFencedExecutorStore:
     """Capability-safe executor-facing store facade with explicit allowlist.
 
-    Binds run_id, task_id, owner, epoch at construction. Only two public
+    Binds run_id, task_id, owner, epoch at construction. Only these public
     capabilities are exposed:
 
     - get_task(task_id)  : must match the bound task_id exactly
     - add_evidence(...)  : fenced evidence persistence
     - append_usage_observation(...) : fenced sanitized usage persistence
     - active_usage_reservation(...) : fenced reservation observation
+    - executor_context(...) : read-only, lease-bound context projection
 
     NO __getattr__ passthrough. All other TaskStore methods
     (set_state, transition_to, set_changed_files, set_validation_result,
@@ -307,6 +308,29 @@ class _DurableFencedExecutorStore:
                 f"expected:{self._task_id}"
             )
         return self._store.get_task(task_id)
+
+    def executor_context(self, *, task_id: str, workspace: Any, expected_head: str) -> str:
+        """Project through the real store without exposing its mutation APIs."""
+        from .context_builder import executor_context
+        if task_id != self._task_id:
+            raise TaskStoreError("durable_context_task_mismatch")
+        with self._store._lock:
+            if self._store._conn.in_transaction:
+                raise TaskStoreError("durable_context_snapshot_nested")
+            def check() -> None:
+                self._store._validate_durable_lease(self._run_id, self._owner, self._epoch)
+                row = self._store._conn.execute(
+                    "SELECT task_id,execution_id,lease_expiry_ms FROM durable_runs WHERE run_id=?",
+                    (self._run_id,)).fetchone()
+                if (row is None or row["task_id"] != task_id
+                        or row["execution_id"] != self._store.get_task(task_id,event_limit=0).execution_id
+                        or row["lease_expiry_ms"] <= _utc_now_ms()):
+                    raise TaskStoreError("durable_context_lease_invalid")
+            check()
+            text = executor_context(self._store, task_id=task_id, workspace=workspace,
+                                    expected_head=expected_head)
+            check()
+            return text
 
     def add_evidence(
         self,

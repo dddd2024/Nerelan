@@ -17,7 +17,7 @@ class Observations:
 
     def get_task(self, task_id, event_limit=0):
         return SimpleNamespace(id=task_id, execution_id='exec-'+task_id, branch='a'*40,
-                               status='READY_FOR_REVIEW', failure_classification='')
+                               status='READY_FOR_REVIEW', failure_classification='',validation_exit_code=0)
 
     def list_usage_observations(self, task_id):
         return self.rows
@@ -27,7 +27,7 @@ class Observations:
 
 
 def summary(arm='A', **kw):
-    return summarize_arm(Observations(), contract=CONTRACT, arm=arm, task_ids=['task'],
+    return summarize_arm(Observations(), contract=CONTRACT, arm=arm, task_ids=['task'],delivery_task_id='task',
                          wall_seconds=10, verification_seconds=2, coordination_seconds=1, **kw)
 
 
@@ -66,13 +66,13 @@ def test_retry_role_usage_retains_unknown_fields():
     row = SimpleNamespace(execution_id='exec-task', input_units=5, output_units=3,
                           reasoning_units=None, cache_read_units=0, cache_write_units=None, cost_micro_units=8)
     other = SimpleNamespace(**{**row.__dict__, 'cost_micro_units':None})
-    s = summarize_arm(Observations((row,other)), contract=CONTRACT, arm='B', task_ids=['task'],
+    s = summarize_arm(Observations((row,other)), contract=CONTRACT, arm='B', task_ids=['task'],delivery_task_id='task',
                       wall_seconds=2, verification_seconds=0, coordination_seconds=0)
     assert s['usage']['input_units']['total'] == 10
     assert s['usage']['cost_micro_units'] == {'known_total':8, 'unknown_observations':1, 'total':None}
     other.execution_id = 'old-execution'
     with pytest.raises(BenchmarkError, match='execution_mismatch'):
-        summarize_arm(Observations((other,)), contract=CONTRACT, arm='B', task_ids=['task'],
+        summarize_arm(Observations((other,)), contract=CONTRACT, arm='B', task_ids=['task'],delivery_task_id='task',
                       wall_seconds=2, verification_seconds=0, coordination_seconds=0)
 
 
@@ -87,7 +87,7 @@ def test_untrusted_or_stale_acceptance_cannot_pass():
 
 def test_duplicate_tasks_and_zero_baseline_do_not_make_savings():
     with pytest.raises(BenchmarkError, match='tasks_invalid'):
-        summarize_arm(Observations(),contract=CONTRACT,arm='A',task_ids=['task','task'],
+        summarize_arm(Observations(),contract=CONTRACT,arm='A',task_ids=['task','task'],delivery_task_id='task',
                       wall_seconds=1,verification_seconds=0,coordination_seconds=0)
     a = summary(cash_cost=0,currency='USD',acceptance=accepted())
     assert 'zero_baseline_cash_cost' in compare_arms(a,summary('B',cash_cost=0,currency='USD',acceptance=accepted()))['blockers']
@@ -99,8 +99,21 @@ def test_role_without_observations_keeps_total_unknown():
     class Partial(Observations):
         def list_usage_observations(self, task_id):
             return (row,) if task_id == 'task' else ()
-    s = summarize_arm(Partial(),contract=CONTRACT,arm='B',task_ids=['task','review'],
+    s = summarize_arm(Partial(),contract=CONTRACT,arm='B',task_ids=['task','review'],delivery_task_id='task',
                       wall_seconds=2,verification_seconds=0,coordination_seconds=0)
     assert s['missing_usage_tasks'] == 1
     assert s['usage']['cost_micro_units']['known_total'] == 8
     assert s['usage']['cost_micro_units']['total'] is None
+
+
+def test_quality_pass_after_timeout_cannot_become_completed_workflow():
+    class TimedOut(Observations):
+        def get_task(self,task_id,event_limit=0):
+            task=super().get_task(task_id,event_limit=event_limit)
+            task.status='FAILED'
+            task.validation_exit_code=-1
+            return task
+    s=summarize_arm(TimedOut(),contract=CONTRACT,arm='B',task_ids=['task'],delivery_task_id='task',wall_seconds=600,
+                    verification_seconds=2,coordination_seconds=1,acceptance=accepted())
+    assert s['artifact_independently_accepted']
+    assert not s['workflow_completed'] and not s['independently_accepted']

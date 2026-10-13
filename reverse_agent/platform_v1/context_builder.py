@@ -795,6 +795,9 @@ def executor_context(store: Any, *, task_id: str, workspace: str | Path,
     """Trusted executor projection. Legacy adapter doubles have no durable truth."""
     from .run_store import TaskStore
     from .task_runtime import ExecutorRuntimeError
+    from .durable_execution import _DurableFencedExecutorStore
+    if isinstance(store, _DurableFencedExecutorStore):
+        return store.executor_context(task_id=task_id, workspace=workspace, expected_head=expected_head)
     if not isinstance(store, TaskStore):
         return ""
     try:

@@ -56,7 +56,7 @@ def _nonnegative(value: Any) -> float | None:
 
 
 def summarize_arm(store: Any, *, contract: BenchmarkContract, arm: str,
-                  task_ids: Sequence[str], wall_seconds: float,
+                  task_ids: Sequence[str], delivery_task_id: str, wall_seconds: float,
                   verification_seconds: float, coordination_seconds: float,
                   cash_cost: float | None = None, currency: str | None = None,
                   quota_units: float | None = None, human_seconds: float | None = None,
@@ -71,6 +71,8 @@ def summarize_arm(store: Any, *, contract: BenchmarkContract, arm: str,
         raise BenchmarkError("benchmark_arm_invalid")
     if not task_ids or len(set(task_ids)) != len(task_ids):
         raise BenchmarkError("benchmark_tasks_invalid")
+    if delivery_task_id not in task_ids:
+        raise BenchmarkError("benchmark_delivery_task_invalid")
     wall, verification, coordination = map(_nonnegative, (wall_seconds, verification_seconds, coordination_seconds))
     if any(x is None for x in (wall, verification, coordination)):
         raise BenchmarkError("benchmark_measurement_required")
@@ -88,7 +90,8 @@ def summarize_arm(store: Any, *, contract: BenchmarkContract, arm: str,
         if task.branch != contract.base_commit:
             raise BenchmarkError("benchmark_base_mismatch")
         tasks.append({"task_id":task.id, "execution_id":task.execution_id,
-                      "status":task.status, "failure_classification":task.failure_classification})
+                      "status":task.status, "failure_classification":task.failure_classification,
+                      "validation_exit_code":task.validation_exit_code})
         # Native account CLIs expose token counters separately from dollar cost.
         # Preserve provider definitions; do not silently combine unlike counters.
         for event in store.get_events(task_id):
@@ -117,6 +120,9 @@ def summarize_arm(store: Any, *, contract: BenchmarkContract, arm: str,
                           "unknown_observations":sum(x is None for x in values),
                           "total":sum(values) if values and not missing_usage_tasks and all(x is not None for x in values) else None}
     accepted = False
+    artifact_accepted = False
+    delivery = next(task for task in tasks if task['task_id'] == delivery_task_id)
+    workflow_completed = delivery['status'] in {'READY_FOR_REVIEW', 'COMPLETED'} and delivery['validation_exit_code'] == 0
     receipt = None
     if acceptance is not None:
         required = {'contract_identity', 'artifact_digest', 'evaluator_ref', 'independent', 'verdict'}
@@ -128,15 +134,18 @@ def summarize_arm(store: Any, *, contract: BenchmarkContract, arm: str,
                 or len(acceptance['evaluator_ref']) > 200):
             raise BenchmarkError("benchmark_acceptance_invalid")
         receipt = dict(acceptance)
-        accepted = receipt['independent'] and receipt['verdict'] == 'ACCEPT'
+        artifact_accepted = receipt['independent'] and receipt['verdict'] == 'ACCEPT'
+        accepted = artifact_accepted and workflow_completed
     return {'schema_version':1, 'authority':'NONE', 'contract_identity':contract.identity,
             'arm':arm, 'tasks':tasks, 'usage':metrics, 'usage_observation_count':len(rows),
+            'delivery_task_id':delivery_task_id,
             'missing_usage_tasks':missing_usage_tasks,
             'native_usage':native_usage,
             'observed_tools_digest':observed_tools_digest,
             'wall_seconds':wall, 'verification_seconds':verification, 'coordination_seconds':coordination,
             'cash_cost':cash, 'currency':currency, 'quota_units':quota, 'human_seconds':human,
-            'independently_accepted':accepted, 'acceptance':receipt}
+            'independently_accepted':accepted, 'artifact_independently_accepted':artifact_accepted,
+            'workflow_completed':workflow_completed, 'acceptance':receipt}
 
 
 def compare_arms(left: Mapping[str, Any], right: Mapping[str, Any]) -> dict[str, Any]:
