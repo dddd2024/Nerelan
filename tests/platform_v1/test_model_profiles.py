@@ -129,3 +129,14 @@ def test_a_planner_is_never_swapped_to_an_executor_that_cannot_plan():
     pick = lambda role: CombinedTrustedHost._prefer_measured_pairing(host, role, "claude_code", "glm-claude")
     assert pick("planner") == ("claude_code", "glm-claude")  # OpenCode cannot plan
     assert pick("coder") == ("opencode", "glm-opencode")  # other roles follow the measurements
+
+
+def test_native_token_counts_come_from_the_completion_event():
+    store = TaskStore(":memory:")
+    task = _task(store, "sonnet", "READY_FOR_REVIEW", kind="claude_code", start_event="WORKSPACE_READY",
+                 start="2026-10-13T06:00:00Z", end="2026-10-13T06:00:50Z")
+    store._conn.execute("INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "VALUES (?, ?, 'EXECUTOR_COMPLETED', '2026-10-13T06:00:50Z', '', '', '', ?)",
+                        (f"done-{task.id}", task.id, '{"token_usage": {"input_tokens": 1200, "cached_input_tokens": 900, "output_tokens": 300}}'))
+    store._conn.commit()
+    assert compute_agent_profiles(store)["sonnet"]["median_ok_tokens"] == 1500
