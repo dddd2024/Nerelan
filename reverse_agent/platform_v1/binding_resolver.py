@@ -137,12 +137,16 @@ class BindingResolver:
             model_id = validate_codex_model(raw_model_id)
             native_provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR[task_executor]
             upstream, protocol, _ = NATIVE_CLI_PROVIDERS[native_provider]
-            if (provider_id != native_provider or connection.get("upstream_provider_id") != upstream
-                    or connection.get("protocol_family") != protocol):
-                raise BindingResolutionError("codex_requires_openai_managed_connection" if task_executor == "codex"
-                                             else f"{task_executor}_requires_managed_connection")
-            if connection.get("auth_method") != "external_cli_session":
-                raise BindingResolutionError(f"{task_executor}_requires_managed_session_binding")
+            from ..model_access.contracts import is_anthropic_relay_connection
+            relay_mode = task_executor == "claude_code" and is_anthropic_relay_connection(
+                {**connection, "executor_provider_id": provider_id})
+            if not relay_mode:
+                if (provider_id != native_provider or connection.get("upstream_provider_id") != upstream
+                        or connection.get("protocol_family") != protocol):
+                    raise BindingResolutionError("codex_requires_openai_managed_connection" if task_executor == "codex"
+                                                 else f"{task_executor}_requires_managed_connection")
+                if connection.get("auth_method") != "external_cli_session":
+                    raise BindingResolutionError(f"{task_executor}_requires_managed_session_binding")
         else:
             model_id = _normalize_model_id(provider_id, raw_model_id)
         base_url = _validate_provider_base_url(connection.get("base_url"))

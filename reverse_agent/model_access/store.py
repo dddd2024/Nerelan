@@ -21,6 +21,7 @@ from .contracts import (
     ExecutionSnapshot,
     ExecutorDescriptor,
     ModelProfile,
+    is_anthropic_relay_connection,
 )
 from .os_vault import (
     VaultAdapter,
@@ -942,7 +943,8 @@ class ModelProfileStore:
                     raise ValueError(f"{prefix}_model_id_invalid") from exc
                 connection = self._connections[binding.connection_id].connection
                 upstream = NATIVE_CLI_PROVIDERS[native_provider][0]
-                if (connection.executor_provider_id != native_provider
+                relay_mode = binding.executor_id == "claude_code" and is_anthropic_relay_connection(connection)
+                if not relay_mode and (connection.executor_provider_id != native_provider
                         or connection.upstream_provider_id != upstream
                         or connection.auth_method != "external_cli_session"):
                     raise ValueError("codex_requires_openai_managed_connection" if prefix == "codex"

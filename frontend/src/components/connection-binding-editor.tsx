@@ -358,6 +358,7 @@ export function ConnectionBindingEditor({
               <datalist id="connection-provider-presets">
                 <option value="litellm-proxy">LiteLLM Proxy</option>
                 <option value="openai-compatible">OpenAI Compatible</option>
+                <option value="anthropic-compatible">Anthropic 兼容 API（可在 Claude Code 中运行）</option>
                 <option value="codex">ChatGPT 账号（Codex CLI 登录）</option>
                 <option value="claude-code">Claude 账号（Claude Code 登录）</option>
               </datalist>

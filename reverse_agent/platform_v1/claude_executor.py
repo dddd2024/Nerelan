@@ -136,6 +136,42 @@ class ClaudeCodeExecutor(CodexExecutor):
                 raise ExecutorRuntimeError("claude_code_model_id_invalid") from None
             raise
 
+    @property
+    def relay_mode(self) -> bool:
+        """An Anthropic-compatible API-key model run through the host's credential relay."""
+        return bool(self._binding_resolution is not None and self._binding_resolution.relay_required)
+
+    def _accept_binding(self, resolution) -> None:
+        if resolution.executor_id == self.KIND and resolution.relay_required and resolution.auth_method == "api_key":
+            if self._lease_provider is None:
+                raise ExecutorRuntimeError("claude_code_relay_requires_lease_provider")
+            return
+        super()._accept_binding(resolution)
+
+    def _require_ready(self, cli) -> None:
+        if not self.relay_mode:
+            super()._require_ready(cli)  # the Owner's claude.ai login
+            return
+        # Relay mode never uses the saved login, only a CLI new enough for the confined flags.
+        if self._readiness_probe(cli) not in {"managed_login_ready", "managed_login_unavailable"}:
+            raise ExecutorRuntimeError("claude_code_cli_unavailable")
+
+    def execute_role_prepared(self, prepared, store, *, role_context, event_callback=None):
+        if not self.relay_mode:
+            return super().execute_role_prepared(prepared, store, role_context=role_context,
+                                                 event_callback=event_callback)
+        lease = self._lease_provider(self._binding_resolution)
+        try:
+            lease.bind_execution_deadline(self._timeout)
+            # The child sees only the loopback relay and a short-lived capability, never the provider key.
+            self._relay_env = {"ANTHROPIC_BASE_URL": lease.relay_url, "ANTHROPIC_AUTH_TOKEN": lease.lease_id,
+                               "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+            return super().execute_role_prepared(prepared, store, role_context=role_context,
+                                                 event_callback=event_callback)
+        finally:
+            self._relay_env = {}
+            lease.release()
+
     def _validate_options(self) -> None:
         build_claude_argv("claude", self._model_id, self._sandbox)
 
@@ -147,7 +183,7 @@ class ClaudeCodeExecutor(CodexExecutor):
         return build_claude_argv(prepared.cli_path, self._model_id, self._sandbox)
 
     def _child_env(self) -> dict[str, str]:
-        return claude_child_env(self._parent_env)
+        return {**claude_child_env(self._parent_env), **getattr(self, "_relay_env", {})}
 
     def _parser(self, callback):
         return ClaudeStreamJson(callback)

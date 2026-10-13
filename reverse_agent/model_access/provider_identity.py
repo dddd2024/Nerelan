@@ -23,6 +23,8 @@ _LEGACY_PROVIDER_MAP: dict[str, tuple[str | None, str | None]] = {
     "openrouter": ("openrouter", "openai"),
     "openai-compatible": (None, "openai"),
     "litellm-proxy": (None, "openai"),
+    # Anthropic Messages API endpoints (e.g. GLM, DeepSeek, Kimi); usable by Claude Code via the relay.
+    "anthropic-compatible": (None, "anthropic"),
 }
 
 

@@ -106,6 +106,18 @@ def _connection_provider_identity(value: Any) -> ProviderIdentity:
     return identity
 
 
+# An API-key connection that speaks Anthropic's Messages API (for example GLM, DeepSeek or
+# Kimi through their Anthropic-compatible endpoints) can drive Claude Code through the relay.
+ANTHROPIC_PROTOCOL = "anthropic"
+
+
+def is_anthropic_relay_connection(connection: Mapping[str, Any] | "Connection") -> bool:
+    read = (lambda key: connection.get(key)) if isinstance(connection, Mapping) else (
+        lambda key: getattr(connection, key, None))
+    return (read("auth_method") == "api_key" and read("protocol_family") == ANTHROPIC_PROTOCOL
+            and read("executor_provider_id") not in NATIVE_CLI_PROVIDERS)
+
+
 @dataclass(frozen=True, slots=True)
 class Connection:
     """Sanitized provider/service access metadata.
