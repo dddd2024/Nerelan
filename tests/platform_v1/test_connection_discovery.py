@@ -110,3 +110,29 @@ def test_anthropic_connections_list_models_under_v1():
     result = discover_connection_models(store=store, connection_id="sense-anthropic", live_enabled=True,
                                         transport=transport)
     assert calls == ["https://token.sensenova.cn/v1/models"] and result["models"] == ["glm-5.2"]
+
+
+def test_one_key_binds_every_compatible_executor_automatically():
+    store = ModelProfileStore()
+    store.upsert_connection(_connection(connection_id="sense", provider="litellm-proxy",
+                                        base_url="https://token.sensenova.cn/v1"))
+    connection = store.get_connection_public("sense")
+    assert connection["protocol_family"] == "openai"
+    assert connection["anthropic_base_url"] == "https://token.sensenova.cn"  # known host: filled in automatically
+    assert store.compatible_executors("sense") == ["opencode", "claude_code"]
+    result = store.bind_connection_models("sense", ["glm-5.2"], "auto")
+    assert result["executors"] == ["opencode", "claude_code"]
+    assert sorted(result["created"]) == ["sense-glm-5.2", "sense-glm-5.2-claude_code"]
+    snapshot = store.resolve_execution_snapshot("sense-glm-5.2-claude_code")
+    assert (snapshot.base_url, snapshot.protocol_family) == ("https://token.sensenova.cn", "anthropic")
+    opencode = store.resolve_execution_snapshot("sense-glm-5.2")
+    assert (opencode.base_url, opencode.protocol_family) == ("https://token.sensenova.cn/v1", "openai")
+
+
+def test_unknown_hosts_get_no_implicit_anthropic_endpoint_but_accept_an_explicit_one():
+    store = ModelProfileStore()
+    store.upsert_connection(_connection())
+    assert store.get_connection_public("sense-api")["anthropic_base_url"] is None
+    assert store.compatible_executors("sense-api") == ["opencode"]
+    store.upsert_connection(_connection(anthropic_base_url="https://models.example.test/anthropic"))
+    assert store.compatible_executors("sense-api") == ["opencode", "claude_code"]

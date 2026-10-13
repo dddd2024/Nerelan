@@ -21,6 +21,7 @@ from .contracts import (
     ExecutionSnapshot,
     ExecutorDescriptor,
     ModelProfile,
+    anthropic_endpoint,
     is_anthropic_relay_connection,
 )
 from .os_vault import (
@@ -78,6 +79,7 @@ _CONNECTION_SAFE_FIELDS_V1 = frozenset({
 })
 _CONNECTION_SAFE_FIELDS_V2 = frozenset({
     "connection_id",
+    "anthropic_base_url",
     "name",
     "upstream_provider_id",
     "protocol_family",
@@ -306,6 +308,8 @@ class _StoredConnection:
             "auth_method": self.connection.auth_method,
             "enabled": self.connection.enabled,
         }
+        if self.connection.anthropic_base_url:
+            entry["anthropic_base_url"] = self.connection.anthropic_base_url
         if self.api_key_env:
             entry["api_key_env"] = self.api_key_env
         if self.credential_ref:
@@ -860,6 +864,8 @@ class ModelProfileStore:
                 # unavailable vault raises VaultUnavailableError so execution
                 # fails closed; there is never a plaintext fallback.
                 resolved_key = self._resolve_stored_secret(stored_conn)
+            # The same key reaches Claude Code through the connection's Anthropic endpoint.
+            relay_anthropic = binding.executor_id == "claude_code" and anthropic_endpoint(conn) is not None
             return ExecutionSnapshot(
                 binding_id=binding.binding_id,
                 binding_enabled=binding.enabled,
@@ -868,12 +874,12 @@ class ModelProfileStore:
                 connection_id=conn.connection_id,
                 connection_enabled=conn.enabled,
                 provider=conn.provider,
-                base_url=conn.base_url,
+                base_url=anthropic_endpoint(conn) if relay_anthropic else conn.base_url,
                 auth_method=conn.auth_method,
                 resolved_api_key=resolved_key,
                 external_session_status=stored_conn.external_session_status,
                 upstream_provider_id=conn.upstream_provider_id,
-                protocol_family=conn.protocol_family,
+                protocol_family="anthropic" if relay_anthropic else conn.protocol_family,
                 executor_provider_id=conn.executor_provider_id,
             )
 
@@ -973,6 +979,9 @@ class ModelProfileStore:
             raise ValueError("bind_models_model_ids_invalid")
         if not isinstance(executor_id, str) or not executor_id:
             raise ValueError("bind_models_executor_required")
+        if executor_id == "auto":
+            # Every executor this connection's key can drive: free model x executor combination.
+            return self._bind_models_all_executors(connection_id, model_ids)
         with self._lock:
             self._ensure_connection_binding_ready()
             if connection_id not in self._connections:
@@ -986,16 +995,46 @@ class ModelProfileStore:
             if (model_id, executor_id) in existing:
                 reused.append(existing[(model_id, executor_id)])
                 continue
-            stem = re.sub(r"[^a-z0-9._-]+", "-", f"{connection_id}-{model_id}".lower()).strip("-.")[:72] or "binding"
+            # Name the executor too when it is not the default, so pairings stay readable.
+            label = f"{connection_id}-{model_id}" + ("" if executor_id == "opencode" else f"-{executor_id}")
+            stem = re.sub(r"[^a-z0-9._-]+", "-", label.lower()).strip("-.")[:72] or "binding"
             binding_id, suffix = stem, 2
             while binding_id in taken:
                 binding_id, suffix = f"{stem[:68]}-{suffix}", suffix + 1
-            self.upsert_binding({"binding_id": binding_id, "name": f"{name} · {model_id}"[:120],
+            suffix = "" if executor_id == "opencode" else f" · {executor_id}"
+            self.upsert_binding({"binding_id": binding_id, "name": f"{name} · {model_id}{suffix}"[:120],
                                  "connection_id": connection_id, "executor_id": executor_id,
                                  "model_id": model_id, "enabled": True})
             taken.add(binding_id)
             created.append(binding_id)
         return {"created": created, "reused": reused}
+
+    def compatible_executors(self, connection_id: str) -> list[str]:
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            if connection_id not in self._connections:
+                raise ValueError(f"unknown connection_id: {connection_id}")
+            connection = self._connections[connection_id].connection
+        native = NATIVE_CLI_PROVIDERS.get(connection.executor_provider_id)
+        if native is not None:
+            return [executor for executor, provider in NATIVE_CLI_PROVIDER_FOR_EXECUTOR.items()
+                    if provider == connection.executor_provider_id]
+        executors = [] if connection.protocol_family == "anthropic" else ["opencode"]
+        if anthropic_endpoint(connection) is not None:
+            executors.append("claude_code")
+        return executors
+
+    def _bind_models_all_executors(self, connection_id: str, model_ids: Any) -> dict[str, Any]:
+        created: list[str] = []
+        reused: list[str] = []
+        executors = self.compatible_executors(connection_id)
+        if not executors:
+            raise ValueError("bind_models_no_compatible_executor")
+        for executor in executors:
+            result = self.bind_connection_models(connection_id, model_ids, executor)
+            created += result["created"]
+            reused += result["reused"]
+        return {"created": created, "reused": reused, "executors": executors}
 
     # ---- multi-agent team roster -------------------------------------------------
 

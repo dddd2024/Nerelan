@@ -766,11 +766,13 @@ export function createMockModelControlClient(
     async bindConnectionModels(connectionId, modelIds, executorId) {
       const created: string[] = [];
       const reused: string[] = [];
+      // Mock: "auto" means the OpenCode executor; the host also adds Claude Code for Anthropic-capable keys.
+      const executor = executorId === "auto" ? "opencode" : executorId;
       for (const modelId of Array.from(new Set(modelIds))) {
-        const existing = bindings.find((b) => b.connectionId === connectionId && b.modelId === modelId && b.executorId === executorId);
+        const existing = bindings.find((b) => b.connectionId === connectionId && b.modelId === modelId && b.executorId === executor);
         if (existing) { reused.push(existing.bindingId); continue; }
         const bindingId = `${connectionId}-${modelId}`.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 72);
-        bindings = [...bindings, { bindingId, name: `${connectionId} · ${modelId}`, connectionId, executorId, modelId, enabled: true } as Binding];
+        bindings = [...bindings, { bindingId, name: `${connectionId} · ${modelId}`, connectionId, executorId: executor, modelId, enabled: true } as Binding];
         created.push(bindingId);
       }
       return { created, reused };
