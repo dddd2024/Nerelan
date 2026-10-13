@@ -27,7 +27,8 @@ ROLE_GUIDE = {
     "complex": "architecture-level or multi-file changes that need strong reasoning",
     "coder": "ordinary feature work and bug fixes",
     "simple": "documentation, tests, small mechanical edits (cheapest)",
-    "reviewer": "review of another task's result (use for explicit review tasks only)",
+    "reviewer": ("review of another task's result (use for explicit review tasks only); it reads and runs "
+                 "checks but never modifies files, and must take that task's result as artifact_input"),
 }
 MAX_PLAN_TASKS = 12
 # Approved host-run functional check profiles a planner may attach (see functional_validation).
@@ -101,8 +102,13 @@ def extract_plan(text: str) -> dict[str, Any]:
     for raw in plan["tasks"]:
         if not isinstance(raw, dict):
             raise TaskStoreError("agent_plan_task_invalid")
-        # Capabilities and host validation commands are never taken from a planner.
-        tasks.append({key: raw[key] for key in allowed if key in raw})
+        # Capabilities and host validation commands are never taken from a planner. A review
+        # validates its input artifact without changing it, so reviewer tasks are derived as
+        # validate_task (the host rejects any tree change); everything else stays execute_task.
+        task = {key: raw[key] for key in allowed if key in raw}
+        if task.get("agent_role") == "reviewer":
+            task["capability"] = "validate_task"
+        tasks.append(task)
     criteria = plan.get("acceptance_criteria", [])
     if not isinstance(criteria, list) or not all(isinstance(item, str) for item in criteria):
         raise TaskStoreError("agent_plan_criteria_invalid")

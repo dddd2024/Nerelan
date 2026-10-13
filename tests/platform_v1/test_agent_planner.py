@@ -45,6 +45,16 @@ def test_extract_plan_strips_fields_a_planner_may_not_request():
         {"id": "T001", "title": "x", "instruction": "y", "artifact_input": {"plan_task_id": "T0"}}]
 
 
+def test_reviewer_tasks_validate_without_changing_their_input():
+    raw = {"tasks": [
+        {"id": "T001", "title": "fix", "instruction": "fix", "agent_role": "coder"},
+        {"id": "T002", "title": "review", "instruction": "review", "agent_role": "reviewer",
+         "capability": "execute_task", "dependencies": ["T001"], "artifact_input": {"plan_task_id": "T001"}}]}
+    first, review = extract_plan(json.dumps(raw))["tasks"]
+    assert "capability" not in first  # GoalService defaults it to execute_task
+    assert review["capability"] == "validate_task"  # derived from the role, never taken from the planner
+
+
 @pytest.mark.parametrize("text,error", [
     ("", "agent_plan_empty"),
     ("no json here", "agent_plan_not_json"),
