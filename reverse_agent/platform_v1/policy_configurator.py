@@ -36,20 +36,22 @@ ROLE_PURPOSE = {
 
 
 def build_policy_prompt(*, text: str, bindings: Sequence[Mapping[str, Any]],
-                        health: Mapping[str, Mapping[str, int]]) -> str:
+                        health: Mapping[str, Mapping[str, Any]]) -> str:
     lines = []
     for item in bindings:
         stats = health.get(item["binding_id"], {})
         lines.append(f'- {item["binding_id"]}: executor={item["executor_id"]}, model={item["model_id"]}, '
                      f'connection={item["connection_id"]} ({item.get("cost_class", "unknown")}), '
                      f'recent ok={stats.get("ok", 0)} failed={stats.get("failed", 0)} '
-                     f'rate_limited={stats.get("rate_limited", 0)}')
+                     f'timeouts={stats.get("timeouts", 0)} rate_limited={stats.get("rate_limited", 0)} '
+                     f'typical_ok_minutes={_minutes(stats.get("median_ok_seconds"))}')
     roles = "\n".join(f"- {role}: {ROLE_PURPOSE[role]}" for role in AGENT_ROLES)
     return (
         "You configure a multi-agent software team from the owner's preference sentence. "
         "Choose, for every role, the saved binding that best matches the preference, using only the "
         "binding ids listed. Prefer cheaper bindings where the preference does not ask for strength, "
         "avoid bindings that are recently failing or rate limited, and honor explicit exclusions. "
+        "A binding that times out but also succeeds is slow, not broken: it suits cheap, non-urgent work. "
         "Planner must be a binding whose executor is claude_code or codex. Reviewer must use a different "
         "model than coder.\n\n"
         f"Owner preference (may be Chinese):\n{text}\n\nRoles:\n{roles}\n\nSaved bindings:\n" + "\n".join(lines) +
@@ -204,19 +206,11 @@ class PolicyConfigurator:
         return {"job": self.get(job_id), "roster": dict(roster)}
 
 
-def binding_health(store: Any, *, limit: int = 500) -> dict[str, dict[str, int]]:
-    """Recent outcomes per binding from the TaskStore (provider-free observation)."""
-    rows = store._conn.execute(
-        "SELECT binding_ref, status, failure_classification FROM tasks WHERE binding_ref <> '' "
-        "ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
-    health: dict[str, dict[str, int]] = {}
-    for row in rows:
-        stats = health.setdefault(row["binding_ref"], {"ok": 0, "failed": 0, "rate_limited": 0})
-        classification = (row["failure_classification"] or "").lower()
-        if row["status"] in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
-            stats["ok"] += 1
-        elif row["status"] == "FAILED":
-            stats["failed"] += 1
-            if "rate" in classification or "429" in classification:
-                stats["rate_limited"] += 1
-    return health
+def _minutes(seconds: Any) -> str:
+    return f"{seconds / 60:.1f}" if isinstance(seconds, (int, float)) else "unknown"
+
+
+def binding_health(store: Any, *, limit: int = 500) -> dict[str, dict[str, Any]]:
+    """Recent per-binding profiles from the TaskStore (provider-free observation)."""
+    from .model_profiles import compute_agent_profiles
+    return compute_agent_profiles(store, limit=limit)
