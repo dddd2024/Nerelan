@@ -281,7 +281,9 @@ def discover_connection_models(
             headers["Authorization"] = f"Bearer {secret}"
         if not live_enabled:
             return _discovery("live_probe_disabled", "Live model listing requires REVERSE_AGENT_MODEL_CONTROL_LIVE=1")
-        url = f"{connection.base_url.rstrip('/')}/models"
+        # Anthropic-style APIs list models at {base}/v1/models (base has no /v1); OpenAI-style at {base}/models.
+        suffix = "/v1/models" if connection.protocol_family == "anthropic" else "/models"
+        url = f"{connection.base_url.rstrip('/')}{suffix}"
         try:
             status_code, body = (transport or _default_transport)(url, headers, timeout)
             payload = json.loads(body.decode("utf-8")) if 200 <= status_code < 300 else None

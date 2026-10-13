@@ -121,7 +121,8 @@ def test_messages_are_forwarded_with_the_provider_key_only_upstream(upstream, st
     assert status == 200 and (b"message_stop" in data if stream else b'"ok"' in data)
     [request] = seen
     assert request["path"] == "/v1/messages" and request["x-api-key"] == PROVIDER_KEY
-    assert request["authorization"] is None  # the client capability is never forwarded
+    # Upstream gets the provider key in both forms; the client's capability is never forwarded.
+    assert request["authorization"] == f"Bearer {PROVIDER_KEY}"
     assert request["version"] == "2023-06-01"
     assert PROVIDER_KEY not in data.decode()
 

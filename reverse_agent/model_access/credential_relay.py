@@ -533,8 +533,11 @@ class _RelayHandler(BaseHTTPRequestHandler):
         _validate_upstream_url(active.snapshot.base_url)
         upstream_url = f"{active.snapshot.base_url}{path}"
         version = self.headers.get("anthropic-version", "")
+        key = active.snapshot.resolved_api_key or ""
         headers = {
-            "x-api-key": active.snapshot.resolved_api_key or "",
+            # Anthropic itself reads x-api-key; compatible gateways (e.g. SenseNova) read Bearer.
+            "x-api-key": key,
+            "Authorization": f"Bearer {key}",
             "anthropic-version": version if _ANTHROPIC_VERSION_RE.fullmatch(version) else "2023-06-01",
             "Content-Type": "application/json",
             "Content-Length": str(len(body)),
