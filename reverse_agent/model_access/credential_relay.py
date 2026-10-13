@@ -32,7 +32,9 @@ import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from .http_safe import urlopen  # never follows redirects with the provider key
 
 from .contracts import ExecutionSnapshot
 

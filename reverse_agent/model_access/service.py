@@ -12,9 +12,10 @@ from time import perf_counter
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .account_auth import AccountAuthManager
+from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
 from .os_vault import VaultUnavailableError
 from .store import ModelProfileStore
