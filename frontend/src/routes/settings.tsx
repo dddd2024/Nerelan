@@ -8,6 +8,7 @@ import {
   useDeleteConnection,
   useExecutors,
   useTestConnection,
+  useBindConnectionModels,
   useListConnectionModels,
   useUpsertBinding,
   useUpsertConnection,
@@ -61,6 +62,7 @@ export function SettingsPage() {
 
   const testConnectionMutation = useTestConnection();
   const listConnectionModelsMutation = useListConnectionModels();
+  const bindConnectionModelsMutation = useBindConnectionModels();
 
   useEffect(() => {
     if (creating) return;
@@ -149,6 +151,10 @@ export function SettingsPage() {
 
   async function handleConnectionModelsFetch(connectionId: string) {
     return listConnectionModelsMutation.mutateAsync(connectionId);
+  }
+
+  async function handleBindAllModels(connectionId: string, modelIds: string[], executorId: string) {
+    return bindConnectionModelsMutation.mutateAsync({ connectionId, modelIds, executorId });
   }
 
   async function handleAccountAuthStart(connectionId: string) {
@@ -533,6 +539,7 @@ export function SettingsPage() {
             onBindingDelete={handleBindingDelete}
             onConnectionTest={handleConnectionTest}
             onConnectionModelsFetch={handleConnectionModelsFetch}
+            onBindAllModels={handleBindAllModels}
             connectionProbeResult={connProbeResult}
             connectionProbePending={testConnectionMutation.isPending}
             connectionModelsPending={listConnectionModelsMutation.isPending}

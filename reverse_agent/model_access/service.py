@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
 import os
+import re
 from time import perf_counter
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -238,6 +239,75 @@ def probe_saved_connection(
     )
 
 
+# Account CLIs expose a fixed set of model aliases instead of a /models listing.
+NATIVE_MODEL_CATALOG: dict[str, tuple[str, ...]] = {"claude-code": ("opus", "sonnet", "haiku")}
+_MAX_DISCOVERED_MODELS = 300
+_MODEL_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}")
+
+
+def discover_connection_models(
+    *,
+    store: ModelProfileStore,
+    connection_id: str,
+    live_enabled: bool,
+    transport: ProbeTransport | None = None,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """List every model a saved Connection can reach, and which are already bound.
+
+    API-key and keyless connections read the provider's OpenAI-compatible ``/models``
+    listing server-side (the secret never leaves the host; no inference, no quota).
+    Account CLIs use their fixed alias catalog. Nothing is bound here.
+    """
+    try:
+        connection = Connection.from_mapping(store.get_connection_public(connection_id))
+    except KeyError:
+        return _discovery("not_found", "Connection not found")
+    if not connection.enabled:
+        return _discovery("disabled", "Connection is disabled")
+    model_ids: list[str] = []
+    if connection.executor_provider_id in NATIVE_MODEL_CATALOG:
+        model_ids = list(NATIVE_MODEL_CATALOG[connection.executor_provider_id])
+    elif connection.auth_method in {"api_key", "none"}:
+        headers = {"Accept": "application/json"}
+        if connection.auth_method == "api_key":
+            try:
+                secret = store.resolve_connection_secret(connection_id)
+            except VaultUnavailableError:
+                return _discovery("credential_store_locked", "Credential store is locked or unavailable")
+            if not secret:
+                return _discovery("credential_missing", "API key is not configured or needs to be re-entered")
+            headers["Authorization"] = f"Bearer {secret}"
+        if not live_enabled:
+            return _discovery("live_probe_disabled", "Live model listing requires REVERSE_AGENT_MODEL_CONTROL_LIVE=1")
+        url = f"{connection.base_url.rstrip('/')}/models"
+        try:
+            status_code, body = (transport or _default_transport)(url, headers, timeout)
+            payload = json.loads(body.decode("utf-8")) if 200 <= status_code < 300 else None
+        except (HTTPError, URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+            payload = None
+        rows = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(rows, list):
+            return _discovery("invalid_upstream_response", "Upstream did not return a model list")
+        for row in rows[:_MAX_DISCOVERED_MODELS]:
+            value = row.get("id") if isinstance(row, dict) else None
+            if isinstance(value, str) and _MODEL_ID_RE.fullmatch(value) and value not in model_ids:
+                model_ids.append(value)
+    else:
+        return _discovery("unsupported_auth_method", "Listing models is not supported for this connection")
+    bound: dict[str, list[dict[str, str]]] = {}
+    for binding in store.list_bindings_public():
+        if binding.get("connection_id") == connection_id:
+            bound.setdefault(binding.get("model_id", ""), []).append(
+                {"binding_id": binding.get("binding_id", ""), "executor_id": binding.get("executor_id", "")})
+    return {**_discovery("discovered", f"{len(model_ids)} models available", ok=True), "models": model_ids,
+            "bound": {model_id: bound[model_id] for model_id in model_ids if model_id in bound}}
+
+
+def _discovery(status: str, message: str, *, ok: bool = False) -> dict[str, Any]:
+    return {"ok": ok, "status": status, "message": message, "latency_ms": None, "models": [], "bound": {}}
+
+
 class _ModelControlHandler(BaseHTTPRequestHandler):
     store = ModelProfileStore()
     live_enabled = False
@@ -423,6 +493,18 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                     live_enabled=self.live_enabled,
                 )
                 self._send_json(HTTPStatus.OK, result.to_dict())
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "connections"] and segments[3] == "models":
+                _require_empty_payload(self._read_json(optional=True))
+                self._send_json(HTTPStatus.OK, discover_connection_models(
+                    store=self.store, connection_id=segments[2], live_enabled=self.live_enabled))
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "connections"] and segments[3] == "bind-models":
+                payload = self._read_json(optional=True)
+                if set(payload) - {"model_ids", "executor_id"}:
+                    raise ValueError("bind-models accepts only model_ids and executor_id")
+                self._send_json(HTTPStatus.OK, self.store.bind_connection_models(
+                    segments[2], payload.get("model_ids"), payload.get("executor_id")))
                 return
             if (
                 len(segments) == 5

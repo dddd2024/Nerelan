@@ -7,6 +7,7 @@ from pathlib import Path
 import errno
 import json
 import os
+import re
 from threading import RLock
 from typing import Any, Mapping
 import tempfile
@@ -958,6 +959,41 @@ class ModelProfileStore:
                     lambda: self._rollback_conn_binding(snap_conns, snap_bindings),
                 )
             return result
+
+    def bind_connection_models(self, connection_id: str, model_ids: Any, executor_id: Any) -> dict[str, Any]:
+        """Bind many models of one Connection to one executor in a single step.
+
+        Existing (connection, model, executor) bindings are reused, never duplicated or
+        overwritten; each new binding still passes every upsert_binding rule.
+        """
+        if (not isinstance(model_ids, list) or not 1 <= len(model_ids) <= 300
+                or any(not isinstance(item, str) or not item.strip() for item in model_ids)):
+            raise ValueError("bind_models_model_ids_invalid")
+        if not isinstance(executor_id, str) or not executor_id:
+            raise ValueError("bind_models_executor_required")
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            if connection_id not in self._connections:
+                raise ValueError(f"unknown connection_id: {connection_id}")
+            name = self._connections[connection_id].connection.name
+            existing = {(b.model_id, b.executor_id): b.binding_id for b in self._bindings.values()
+                        if b.connection_id == connection_id}
+            taken = set(self._bindings)
+        created, reused = [], []
+        for model_id in dict.fromkeys(item.strip() for item in model_ids):
+            if (model_id, executor_id) in existing:
+                reused.append(existing[(model_id, executor_id)])
+                continue
+            stem = re.sub(r"[^a-z0-9._-]+", "-", f"{connection_id}-{model_id}".lower()).strip("-.")[:72] or "binding"
+            binding_id, suffix = stem, 2
+            while binding_id in taken:
+                binding_id, suffix = f"{stem[:68]}-{suffix}", suffix + 1
+            self.upsert_binding({"binding_id": binding_id, "name": f"{name} · {model_id}"[:120],
+                                 "connection_id": connection_id, "executor_id": executor_id,
+                                 "model_id": model_id, "enabled": True})
+            taken.add(binding_id)
+            created.append(binding_id)
+        return {"created": created, "reused": reused}
 
     # ---- multi-agent team roster -------------------------------------------------
 
