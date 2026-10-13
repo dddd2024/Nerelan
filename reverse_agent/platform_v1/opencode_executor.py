@@ -582,6 +582,28 @@ def resolve_opencode_cli(exe: str | None = None) -> tuple[str, bool]:
     raise ExecutorRuntimeError("opencode_cli_not_found")
 
 
+def _where_encoding() -> str:
+    """where.exe prints in the active console output code page (OEM when no console), not UTF-8.
+
+    Decoding a non-ASCII install path as UTF-8, or with a code page other than the one
+    `chcp` selected, would point nowhere.
+    """
+    if os.name != "nt":
+        return "utf-8"
+    try:
+        import ctypes
+        page = int(ctypes.windll.kernel32.GetConsoleOutputCP())
+    except (AttributeError, OSError, ValueError):
+        page = 0
+    if page > 0:
+        try:
+            import codecs
+            return codecs.lookup(f"cp{page}").name
+        except LookupError:
+            pass
+    return "oem"
+
+
 def _resolve_windows_exe() -> str | None:
     """Find the true opencode.exe without PATH mutation or installation."""
     # 1. Try `where.exe opencode.exe`
@@ -591,12 +613,14 @@ def _resolve_windows_exe() -> str | None:
                 ["where.exe", candidate],
                 capture_output=True,
                 text=True,
+                encoding=_where_encoding(),
+                errors="replace",
                 timeout=10,
             )
             if proc.returncode == 0:
                 for line in proc.stdout.splitlines():
                     p = line.strip()
-                    if p and p.lower().endswith(".exe"):
+                    if p and p.lower().endswith(".exe") and os.path.isfile(p):
                         return p
         except (FileNotFoundError, subprocess.TimeoutExpired):
             pass
@@ -607,6 +631,8 @@ def _resolve_windows_exe() -> str | None:
             ["where.exe", "opencode"],
             capture_output=True,
             text=True,
+            encoding=_where_encoding(),
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -631,12 +657,14 @@ def _resolve_windows_cmd() -> str | None:
             ["where.exe", "opencode.cmd"],
             capture_output=True,
             text=True,
+            encoding=_where_encoding(),
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
             for line in proc.stdout.splitlines():
                 p = line.strip()
-                if p and p.lower().endswith((".cmd", ".bat")):
+                if p and p.lower().endswith((".cmd", ".bat")) and os.path.isfile(p):
                     return p
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
@@ -2036,6 +2064,8 @@ class OpenCodeExecutor:
             cwd=str(wt),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -2086,6 +2116,8 @@ class OpenCodeExecutor:
                 cwd=str(cwd),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
                 check=False,
             )
@@ -2699,6 +2731,8 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )
@@ -2736,6 +2770,8 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )
