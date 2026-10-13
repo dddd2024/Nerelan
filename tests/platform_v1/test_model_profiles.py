@@ -98,3 +98,17 @@ def test_profiles_are_cached_for_a_minute():
     _task(store, "cutoff", "FAILED", "timeout", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
     assert recommended_timeout_seconds(store, "cutoff") is None  # cached profile, no new scan
     assert _fresh_recommendation(store, "cutoff") == de.MAX_EXECUTOR_TIMEOUT_SECONDS
+
+
+def test_best_pairing_needs_evidence_and_prefers_success_then_speed():
+    from reverse_agent.platform_v1.model_profiles import best_pairing
+    profiles = {
+        "glm@opencode": {"attempts": 10, "success_rate": 0.5, "median_ok_seconds": 840},
+        "glm@claude": {"attempts": 4, "success_rate": 0.75, "median_ok_seconds": 120},
+        "glm@thin": {"attempts": 2, "success_rate": 1.0, "median_ok_seconds": 10},  # too little evidence
+        "glm@same": {"attempts": 5, "success_rate": 0.5, "median_ok_seconds": 300},
+    }
+    assert best_pairing(profiles, "glm@opencode", ["glm@claude", "glm@thin"]) == "glm@claude"
+    assert best_pairing(profiles, "glm@opencode", ["glm@thin"]) == "glm@opencode"
+    assert best_pairing(profiles, "glm@opencode", ["glm@same"]) == "glm@same"  # same rate, faster
+    assert best_pairing({}, "glm@opencode", ["glm@claude"]) == "glm@opencode"  # no evidence: keep the choice

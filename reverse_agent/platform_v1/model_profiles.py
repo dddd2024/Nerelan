@@ -113,6 +113,29 @@ def _recommend_timeout(ok_seconds: list[float], timeout_seconds: list[float]) ->
     return max(DEFAULT_EXECUTOR_TIMEOUT_SECONDS, min(wanted, MAX_EXECUTOR_TIMEOUT_SECONDS))
 
 
+MIN_ROUTING_ATTEMPTS = 3
+
+
+def best_pairing(profiles: dict[str, dict[str, Any]], chosen: str, siblings: list[str]) -> str:
+    """Among bindings of the same model on different executors, the one real runs favour.
+
+    A sibling replaces the chosen binding only with enough evidence: at least
+    MIN_ROUTING_ATTEMPTS finished attempts and a higher success rate, or the same rate
+    and a faster typical successful turn. Without evidence the configured choice stands.
+    """
+    def score(binding: str) -> tuple[float, float] | None:
+        profile = profiles.get(binding)
+        if not profile or profile.get("attempts", 0) < MIN_ROUTING_ATTEMPTS or profile.get("success_rate") is None:
+            return None
+        return (profile["success_rate"], -(profile.get("median_ok_seconds") or float("inf")))
+    best, best_score = chosen, score(chosen)
+    for sibling in siblings:
+        candidate = score(sibling)
+        if candidate is not None and (best_score is None or candidate > best_score):
+            best, best_score = sibling, candidate
+    return best
+
+
 _CACHE_SECONDS = 60.0
 _cache_lock = threading.Lock()
 
