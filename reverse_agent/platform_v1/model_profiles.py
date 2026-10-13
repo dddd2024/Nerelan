@@ -140,10 +140,8 @@ _CACHE_SECONDS = 60.0
 _cache_lock = threading.Lock()
 
 
-def recommended_timeout_seconds(store: Any, binding_ref: str) -> int | None:
-    """Learned turn limit for one binding; profiles are recomputed at most once a minute per store."""
-    if not binding_ref:
-        return None
+def cached_agent_profiles(store: Any) -> dict[str, dict[str, Any]]:
+    """Profiles recomputed at most once a minute per store."""
     now = time.monotonic()
     with _cache_lock:
         cached = getattr(store, "_agent_profile_cache", None)
@@ -151,4 +149,11 @@ def recommended_timeout_seconds(store: Any, binding_ref: str) -> int | None:
         cached = (now, compute_agent_profiles(store, limit=500))
         with _cache_lock:
             store._agent_profile_cache = cached
-    return cached[1].get(binding_ref, {}).get("recommended_timeout_seconds")
+    return cached[1]
+
+
+def recommended_timeout_seconds(store: Any, binding_ref: str) -> int | None:
+    """Learned turn limit for one binding (from the cached profiles)."""
+    if not binding_ref:
+        return None
+    return cached_agent_profiles(store).get(binding_ref, {}).get("recommended_timeout_seconds")
