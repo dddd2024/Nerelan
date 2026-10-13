@@ -297,10 +297,13 @@ def test_durable_facade_projects_bound_context_and_rejects_stale_lease(tmp_path,
     from reverse_agent.platform_v1.run_store import TaskStoreError
     store,goal,first,*_=_setup(tmp_path/'s.db')
     lease=store._acquire_durable_lease(task_id=first.id,execution_id=first.execution_id,lease_owner='context-worker')
+    store._set_workspace_identity(lease.run_id,str(repo),_head(repo),lease.owner,lease.epoch)
     facade=_DurableFencedExecutorStore(store,lease.run_id,first.id,lease.owner,lease.epoch)
     text=executor_context(facade,task_id=first.id,workspace=repo,expected_head=_head(repo))
     assert goal.id in text and 'Durable Context Packet' in text
     assert not hasattr(facade,'_conn') and not hasattr(facade,'transition_to')
+    with pytest.raises(TaskStoreError,match='context_lease_invalid'):
+        executor_context(facade,task_id=first.id,workspace=tmp_path,expected_head=_head(repo))
     with pytest.raises(TaskStoreError,match='context_task_mismatch'):
         executor_context(facade,task_id='other',workspace=repo,expected_head=_head(repo))
     store._conn.execute('UPDATE durable_runs SET lease_epoch=lease_epoch+1 WHERE run_id=?',(lease.run_id,))

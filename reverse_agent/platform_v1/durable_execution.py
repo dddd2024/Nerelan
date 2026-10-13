@@ -320,11 +320,14 @@ class _DurableFencedExecutorStore:
             def check() -> None:
                 self._store._validate_durable_lease(self._run_id, self._owner, self._epoch)
                 row = self._store._conn.execute(
-                    "SELECT task_id,execution_id,lease_expiry_ms FROM durable_runs WHERE run_id=?",
+                    "SELECT task_id,execution_id,lease_expiry_ms,worktree_path,worktree_head_sha "
+                    "FROM durable_runs WHERE run_id=?",
                     (self._run_id,)).fetchone()
                 if (row is None or row["task_id"] != task_id
                         or row["execution_id"] != self._store.get_task(task_id,event_limit=0).execution_id
-                        or row["lease_expiry_ms"] <= _utc_now_ms()):
+                        or row["lease_expiry_ms"] <= _utc_now_ms()
+                        or not row["worktree_path"] or Path(workspace).resolve() != Path(row["worktree_path"]).resolve()
+                        or expected_head != row["worktree_head_sha"]):
                     raise TaskStoreError("durable_context_lease_invalid")
             check()
             text = executor_context(self._store, task_id=task_id, workspace=workspace,
