@@ -34,6 +34,8 @@ interface ConnectionBindingEditorProps {
   onBindingDelete: (bindingId: string) => Promise<void>;
   onConnectionTest: (connectionId: string) => Promise<void>;
   onConnectionModelsFetch?: (connectionId: string) => Promise<ConnectionModelsResult>;
+  /** Bind every listed model of one connection to one executor in a single step. */
+  onBindAllModels?: (connectionId: string, modelIds: string[], executorId: string) => Promise<{ created: string[]; reused: string[] }>;
   connectionProbeResult: ConnectionProbeResult | null;
   connectionProbePending: boolean;
   connectionModelsPending?: boolean;
@@ -77,6 +79,7 @@ export function ConnectionBindingEditor({
   onBindingDelete,
   onConnectionTest,
   onConnectionModelsFetch,
+  onBindAllModels,
   connectionProbeResult,
   connectionProbePending,
   connectionModelsPending = false,
@@ -835,6 +838,24 @@ export function ConnectionBindingEditor({
                   <option key={modelId} value={modelId} />
                 ))}
               </datalist>
+              {onBindAllModels && connModels.length > 0 && bindDraft.connectionId && bindDraft.executorId && (
+                <button
+                  type="button"
+                  data-testid="bind-all-models-button"
+                  disabled={busy}
+                  onClick={async () => {
+                    try {
+                      const result = await onBindAllModels(bindDraft.connectionId, connModels, bindDraft.executorId);
+                      setConnModelsMessage(`已绑定 ${result.created.length} 个新模型，${result.reused.length} 个已存在。`);
+                    } catch (cause) {
+                      setConnModelsMessage(cause instanceof Error ? cause.message : "批量绑定失败");
+                    }
+                  }}
+                  className={cn(secondaryButtonClass, "mt-2 self-start")}
+                >
+                  全部绑定（{connModels.length} 个模型）
+                </button>
+              )}
               {connModelsMessage && (
                 <p
                   role="status"

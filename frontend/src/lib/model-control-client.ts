@@ -81,6 +81,11 @@ function normalizeAgentRoster(payload: unknown): AgentRoster {
   return roster;
 }
 
+export interface BindModelsResult {
+  created: string[];
+  reused: string[];
+}
+
 export interface ModelControlClient {
   listProfiles(): Promise<ModelProfile[]>;
   upsertProfile(input: ModelProfileInput): Promise<ModelProfile>;
@@ -93,6 +98,7 @@ export interface ModelControlClient {
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
   listConnectionModels(connectionId: string): Promise<ConnectionModelsResult>;
+  bindConnectionModels(connectionId: string, modelIds: string[], executorId: string): Promise<BindModelsResult>;
   getAccountAuthStatus(connectionId: string): Promise<AccountAuthStatus>;
   startAccountAuth(connectionId: string): Promise<AccountAuthStatus>;
   completeAccountAuth(connectionId: string, code?: string): Promise<AccountAuthStatus>;
@@ -444,6 +450,16 @@ export function createHttpModelControlClient(
       });
     },
 
+    async bindConnectionModels(connectionId, modelIds, executorId) {
+      const payload = await requestJson(
+        `${connectionsUrl}/${encodeURIComponent(connectionId)}/bind-models`,
+        { method: "POST", body: JSON.stringify({ model_ids: modelIds, executor_id: executorId }) },
+      );
+      const raw = (payload ?? {}) as { created?: unknown; reused?: unknown };
+      const strings = (value: unknown) => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+      return { created: strings(raw.created), reused: strings(raw.reused) };
+    },
+
     async getAccountAuthStatus(connectionId) {
       const payload = await requestJson(
         `${connectionsUrl}/${encodeURIComponent(connectionId)}/account-auth`,
@@ -745,6 +761,19 @@ export function createMockModelControlClient(
         message: "连接成功",
         latencyMs: 18,
       };
+    },
+
+    async bindConnectionModels(connectionId, modelIds, executorId) {
+      const created: string[] = [];
+      const reused: string[] = [];
+      for (const modelId of Array.from(new Set(modelIds))) {
+        const existing = bindings.find((b) => b.connectionId === connectionId && b.modelId === modelId && b.executorId === executorId);
+        if (existing) { reused.push(existing.bindingId); continue; }
+        const bindingId = `${connectionId}-${modelId}`.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 72);
+        bindings = [...bindings, { bindingId, name: `${connectionId} · ${modelId}`, connectionId, executorId, modelId, enabled: true } as Binding];
+        created.push(bindingId);
+      }
+      return { created, reused };
     },
 
     async listConnectionModels(connectionId) {
