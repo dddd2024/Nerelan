@@ -4,7 +4,7 @@ import {
   useQueryClient,
   type QueryClient,
 } from "@tanstack/react-query";
-import { getDefaultModelControlClient, type AgentRole, type AgentRoster } from "@/lib/model-control-client";
+import { getDefaultModelControlClient, type AgentRole, type AgentRoster, type BindModelsResult } from "@/lib/model-control-client";
 import type {
   Binding,
   Connection,
@@ -131,6 +131,15 @@ export function useTestConnection() {
   const client = getDefaultModelControlClient();
   return useMutation<ConnectionProbeResult, Error, string>({
     mutationFn: (connectionId) => client.testConnection(connectionId),
+  });
+}
+
+export function useBindConnectionModels() {
+  const client = getDefaultModelControlClient();
+  const queryClient = useQueryClient();
+  return useMutation<BindModelsResult, Error, { connectionId: string; modelIds: string[]; executorId: string }>({
+    mutationFn: ({ connectionId, modelIds, executorId }) => client.bindConnectionModels(connectionId, modelIds, executorId),
+    onSuccess: () => void queryClient.invalidateQueries(),
   });
 }
 
