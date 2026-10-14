@@ -190,8 +190,14 @@ export function ConnectionBindingEditor({
       );
       return;
     }
+    // Carry the saved Anthropic endpoint through ordinary edits; a new Base URL lets the backend re-derive it.
+    const keepAnthropicEndpoint =
+      connection && !creating && connDraft.baseUrl === connection.baseUrl
+        ? connection.anthropicBaseUrl
+        : undefined;
     const parsed = ConnectionInputSchema.safeParse({
       ...connDraft,
+      ...(keepAnthropicEndpoint ? { anthropicBaseUrl: keepAnthropicEndpoint } : {}),
       ...(connApiKey ? { apiKey: connApiKey } : {}),
       ...(connClearSecret ? { clearSecret: true } : {}),
     });

@@ -64,6 +64,8 @@ export const ConnectionSchema = z.object({
   name: z.string().trim().min(1, "名称不能为空").max(120),
   provider: ConnectionProviderSchema,
   baseUrl,
+  // Anthropic endpoint the backend relays this API key to; not edited here, only carried through.
+  anthropicBaseUrl: baseUrl.nullable().optional(),
   authMethod: AuthMethodSchema,
   enabled: z.boolean(),
   credentialConfigured: z.boolean(),

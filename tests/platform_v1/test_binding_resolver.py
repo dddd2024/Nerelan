@@ -375,3 +375,38 @@ def test_resolver_rejects_non_object_response_without_body_echo() -> None:
 
     assert str(excinfo.value) == "binding_response_not_object"
     assert "fake-token-not-real" not in str(excinfo.value)
+
+
+def _claude_relay_transport(readiness_status: str, **connection: Any) -> _FakeTransport:
+    transport = _FakeTransport(
+        binding=_binding(executor_id="claude_code", model_id="glm-5.2"),
+        connection=_connection(auth_method="api_key", secret_status="session",
+                               anthropic_base_url="https://models.example.test/anthropic", **connection),
+    )
+    transport.responses["/api/executors/claude_code"] = _executor(
+        executor_id="claude_code", name="Claude Code", operational=readiness_status == "managed_login_ready",
+        readiness_status=readiness_status)
+    return transport
+
+
+def test_claude_relay_binding_needs_the_cli_but_not_a_claude_account_login() -> None:
+    resolution = BindingResolver(transport=_claude_relay_transport("managed_login_unavailable")).resolve(
+        "coding-fast", task_executor="claude_code")
+    assert resolution.relay_required is True
+    assert resolution.base_url == "https://models.example.test/anthropic"
+
+
+@pytest.mark.parametrize("readiness_status", ["cli_unavailable", "cli_incompatible", "not_probed"])
+def test_claude_relay_binding_still_requires_a_usable_cli(readiness_status: str) -> None:
+    with pytest.raises(BindingResolutionError, match="executor_not_operational"):
+        BindingResolver(transport=_claude_relay_transport(readiness_status)).resolve(
+            "coding-fast", task_executor="claude_code")
+
+
+def test_claude_account_binding_without_login_is_not_operational() -> None:
+    transport = _claude_relay_transport("managed_login_unavailable")
+    transport.responses["/api/connections/sense-api"] = _connection(
+        provider="claude-code", base_url="https://claude.ai", auth_method="external_cli_session",
+        upstream_provider_id="anthropic", protocol_family="anthropic", external_session_status="missing")
+    with pytest.raises(BindingResolutionError, match="executor_not_operational"):
+        BindingResolver(transport=transport).resolve("coding-fast", task_executor="claude_code")

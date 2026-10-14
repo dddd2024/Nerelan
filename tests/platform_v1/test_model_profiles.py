@@ -112,6 +112,12 @@ def test_best_pairing_needs_evidence_and_prefers_success_then_speed():
     assert best_pairing(profiles, "glm@opencode", ["glm@thin"]) == "glm@opencode"
     assert best_pairing(profiles, "glm@opencode", ["glm@same"]) == "glm@same"  # same rate, faster
     assert best_pairing({}, "glm@opencode", ["glm@claude"]) == "glm@opencode"  # no evidence: keep the choice
+    # A sibling never displaces a configured route that has no comparable record yet,
+    # least of all one already known to fail every task.
+    failing = {"glm@claude": {"attempts": 3, "success_rate": 0.0, "median_ok_seconds": None},
+               "glm@opencode": {"attempts": 1, "success_rate": 1.0, "median_ok_seconds": 60}}
+    assert best_pairing(failing, "glm@opencode", ["glm@claude"]) == "glm@opencode"
+    assert best_pairing({"glm@claude": profiles["glm@claude"]}, "glm@opencode", ["glm@claude"]) == "glm@opencode"
 
 
 def test_a_planner_is_never_swapped_to_an_executor_that_cannot_plan():

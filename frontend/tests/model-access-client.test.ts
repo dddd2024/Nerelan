@@ -494,6 +494,46 @@ describe("executor-managed external session regressions", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("http client round-trips the Anthropic relay endpoint it reads back", async () => {
+    const mockFetch = vi.fn(async () => ({
+      ok: true,
+      text: async () =>
+        JSON.stringify([{
+          connection_id: "sense-api",
+          name: "SenseNova",
+          provider: "openai-compatible",
+          base_url: "https://models.example.test/v1",
+          anthropic_base_url: "https://models.example.test/anthropic",
+          auth_method: "api_key",
+          enabled: true,
+          credential_configured: true,
+          secret_status: "session",
+          external_session_status: "not_applicable",
+        }]),
+    }));
+    vi.stubGlobal("fetch", mockFetch);
+    try {
+      const client = createHttpModelControlClient("/api");
+      const [connection] = await client.listConnections();
+      expect(connection.anthropicBaseUrl).toBe("https://models.example.test/anthropic");
+      mockFetch.mockClear();
+      await client.upsertConnection({
+        connectionId: connection.connectionId,
+        name: "Renamed",
+        provider: connection.provider,
+        baseUrl: connection.baseUrl,
+        anthropicBaseUrl: connection.anthropicBaseUrl,
+        authMethod: connection.authMethod,
+        enabled: true,
+      }).catch(() => undefined);
+      const call = mockFetch.mock.calls[0] as unknown[];
+      const body = JSON.parse(String((call[1] as { body?: string }).body));
+      expect(body.anthropic_base_url).toBe("https://models.example.test/anthropic");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("OpenAI account OAuth client", () => {

@@ -136,7 +136,8 @@ def best_pairing(profiles: dict[str, dict[str, Any]], chosen: str, siblings: lis
 
     A sibling replaces the chosen binding only with enough evidence: at least
     MIN_ROUTING_ATTEMPTS finished attempts and a higher success rate, or the same rate
-    and a faster typical successful turn. Without evidence the configured choice stands.
+    and a faster typical successful turn than the chosen binding's own record. Until the
+    chosen binding has that much evidence too, the configured choice stands.
     """
     def score(binding: str) -> tuple[float, float] | None:
         profile = profiles.get(binding)
@@ -144,9 +145,11 @@ def best_pairing(profiles: dict[str, dict[str, Any]], chosen: str, siblings: lis
             return None
         return (profile["success_rate"], -(profile.get("median_ok_seconds") or float("inf")))
     best, best_score = chosen, score(chosen)
+    if best_score is None:
+        return chosen
     for sibling in siblings:
         candidate = score(sibling)
-        if candidate is not None and (best_score is None or candidate > best_score):
+        if candidate is not None and candidate > best_score:
             best, best_score = sibling, candidate
     return best
 

@@ -185,6 +185,7 @@ function normalizeConnection(value: unknown): Connection {
     name: raw.name,
     provider: raw.provider,
     baseUrl: raw.baseUrl ?? raw.base_url,
+    anthropicBaseUrl: raw.anthropicBaseUrl ?? raw.anthropic_base_url ?? null,
     authMethod,
     enabled: raw.enabled,
     credentialConfigured:
@@ -241,6 +242,9 @@ function serializeConnectionInput(input: ConnectionInput) {
     auth_method: parsed.authMethod,
     enabled: parsed.enabled,
   };
+  if (parsed.anthropicBaseUrl) {
+    body.anthropic_base_url = parsed.anthropicBaseUrl;
+  }
   if (parsed.apiKey !== undefined && parsed.apiKey !== "") {
     body.api_key = parsed.apiKey;
   }
@@ -685,6 +689,7 @@ export function createMockModelControlClient(
         name: parsed.name,
         provider: parsed.provider,
         baseUrl: parsed.baseUrl,
+        anthropicBaseUrl: parsed.anthropicBaseUrl ?? null,
         authMethod: parsed.authMethod,
         enabled: parsed.enabled,
         credentialConfigured,

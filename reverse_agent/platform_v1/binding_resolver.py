@@ -123,12 +123,18 @@ class BindingResolver:
         executor = self._get_object("executor", "/api/executors", executor_id)
         if executor.get("executor_id") != executor_id:
             raise BindingResolutionError("executor_identity_mismatch")
-        if executor.get("operational") is not True:
-            raise BindingResolutionError("executor_not_operational")
-
         provider_id = _required_text(
             connection.get("provider"), "connection_provider", maximum=80
         )
+        if executor.get("operational") is not True:
+            # A relay run uses the CLI with the connection's API key, never the claude.ai login,
+            # so a present CLI without that login still serves Anthropic relay bindings.
+            from ..model_access.contracts import is_anthropic_relay_connection
+            relay_ready = (task_executor == "claude_code"
+                           and executor.get("readiness_status") == "managed_login_unavailable"
+                           and is_anthropic_relay_connection({**connection, "executor_provider_id": provider_id}))
+            if not relay_ready:
+                raise BindingResolutionError("executor_not_operational")
         raw_model_id = _required_text(
             binding.get("model_id"), "binding_model_id", maximum=200
         )

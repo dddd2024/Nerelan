@@ -1485,4 +1485,6 @@ def _authority_fields_changed(
         )
         or old.base_url != new_connection.base_url
         or old.auth_method != new_connection.auth_method
+        # The Anthropic relay sends the stored key here; a new host needs a new key.
+        or new_connection.anthropic_base_url not in (None, old.anthropic_base_url)
     )

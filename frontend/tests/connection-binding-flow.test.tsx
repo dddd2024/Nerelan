@@ -726,6 +726,54 @@ describe("Connection verify button state", () => {
     expect(screen.getByLabelText("连接名称")).toHaveValue("FailSave");
   });
 
+  it.each([
+    ["an unrelated edit keeps", false, "https://models.example.test/anthropic"],
+    ["a new Base URL drops", true, undefined],
+  ])("%s the saved Anthropic relay endpoint", async (_label, changeBaseUrl, expected) => {
+    const conn: Connection = {
+      connectionId: "sense-api",
+      name: "SenseNova",
+      provider: "openai-compatible",
+      baseUrl: "https://models.example.test/v1",
+      anthropicBaseUrl: "https://models.example.test/anthropic",
+      authMethod: "api_key",
+      enabled: true,
+      credentialConfigured: true,
+      secretStatus: "session",
+      externalSessionStatus: "not_applicable",
+    };
+    const saveCalls: ConnectionInput[] = [];
+    const user = userEvent.setup();
+    renderWithProviders(
+      <ConnectionBindingEditor
+        view="connection"
+        connection={conn}
+        binding={null}
+        creating={false}
+        connections={[conn]}
+        executors={[]}
+        busy={false}
+        onConnectionSave={async (input) => { saveCalls.push(input); }}
+        onBindingSave={async () => undefined}
+        onConnectionDelete={async () => undefined}
+        onBindingDelete={async () => undefined}
+        onConnectionTest={async () => undefined}
+        connectionProbeResult={null}
+        connectionProbePending={false}
+      />,
+    );
+    await user.clear(screen.getByLabelText("连接名称"));
+    await user.type(screen.getByLabelText("连接名称"), "Renamed");
+    if (changeBaseUrl) {
+      await user.clear(screen.getByLabelText("Base URL"));
+      await user.type(screen.getByLabelText("Base URL"), "https://other.example.test/v1");
+      await user.type(screen.getByLabelText("API Key"), "replacement-key");
+    }
+    await user.click(screen.getByRole("button", { name: "保存连接" }));
+    await waitFor(() => expect(saveCalls).toHaveLength(1));
+    expect(saveCalls[0].anthropicBaseUrl).toBe(expected);
+  });
+
   it("failed save does not clear the unsaved API Key as though persisted", async () => {
     const conn: Connection = {
       connectionId: "coding-connection",
