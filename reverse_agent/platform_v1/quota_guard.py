@@ -15,12 +15,13 @@ API-key bindings have no subscription window and are never checked here.
 
 from __future__ import annotations
 
+import re
 from statistics import median
 from typing import Any, Iterable, Mapping, Sequence
 
 from ..model_access.contracts import NATIVE_CLI_PROVIDERS
 from ..model_access.pricing import equivalent_cost
-from ..model_access.quota_forecast import guard, worst
+from ..model_access.quota_forecast import guard, parse_time, worst
 
 
 def typical_task_units(records: Iterable[Mapping[str, Any]], binding_id: str, model_id: str) -> float | None:
@@ -69,11 +70,13 @@ CODING_LADDER = ("simple", "coder", "complex")
 
 
 def alternatives(role: str, current: Mapping[str, Any], *, bindings: Sequence[Mapping[str, Any]],
-                 roster: Mapping[str, Mapping[str, Any]], usable_executors: set[str]) -> list[Mapping[str, Any]]:
-    """Candidate bindings on other connections: the same model first, then stronger coding roles.
+                 roster: Mapping[str, Mapping[str, Any]], usable_executors: set[str],
+                 standins: Sequence[str] = ()) -> list[Mapping[str, Any]]:
+    """Candidate bindings on other connections: the same model first, then stronger coding roles,
+    then the stand-ins the Owner declared for this coding role.
 
-    Quality must not drop to save quota, so a weaker role's agent is never a stand-in, and the
-    planner and reviewer are only replaced by the same model on another account.
+    Quality must not drop to save quota, so a weaker role's agent is never a stand-in unless the
+    Owner named it, and the planner and reviewer are only replaced by the same model on another account.
     """
     def eligible(binding: Mapping[str, Any] | None) -> bool:
         return bool(binding and binding.get("enabled") and binding["connection_id"] != current["connection_id"]
@@ -86,4 +89,28 @@ def alternatives(role: str, current: Mapping[str, Any], *, bindings: Sequence[Ma
             binding = by_id.get((roster.get(stronger) or {}).get("binding_id", ""))
             if eligible(binding) and binding not in ordered:
                 ordered.append(binding)
+        for binding_id in standins:
+            binding = by_id.get(binding_id)
+            if eligible(binding) and binding not in ordered:
+                ordered.append(binding)
     return ordered
+
+
+# Failures that mean the account itself is out of quota, not that the agent did badly.
+LIMIT_HIT = re.compile(r"api_error_429|rate_limit|usage_limit|quota_exhausted")
+LIMIT_HIT_HOLD_SECONDS = 3600  # when the account's own reset time is unknown
+
+
+def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None) -> float:
+    """Until when an account that just refused a run counts as exhausted.
+
+    The earliest known window reset after the hit; otherwise a fixed hold. An estimate that
+    the window has room again never overrides what the account actually answered.
+    """
+    resets = []
+    for window in (quota or {}).get("windows", ()) if isinstance(quota, Mapping) else ():
+        value = window.get("resets_at") if isinstance(window, Mapping) else None
+        reset = float(value) if type(value) in (int, float) else parse_time(value)
+        if reset is not None and reset > hit_at:
+            resets.append(reset)
+    return min(resets) if resets else hit_at + LIMIT_HIT_HOLD_SECONDS
