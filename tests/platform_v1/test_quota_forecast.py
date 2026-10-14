@@ -454,6 +454,13 @@ def test_status_line_command_runs_unquoted_and_old_forms_are_still_recognised(tm
     # The quoted form an earlier install wrote is still ours, so install/uninstall can replace it.
     assert sl._ours({"command": f'"C:\Program Files\Python313\python.exe" "{target}"'})
     assert not sl._ours({"command": "python other/claude_statusline.py"})
-    # Paths that keep a space are quoted rather than broken.
+    # Without 8.3 names Python keeps its space: a .cmd wrapper carries the quoting instead,
+    # so the command still never starts with a quote (cmd /c and PowerShell break on that).
     monkeypatch.setattr(sl, "_portable", lambda path: path.replace("\\", "/"))
-    assert sl.command_for(target).startswith('"C:/Program Files/')
+    monkeypatch.setattr(sl.os, "name", "nt")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    command = sl.command_for(target)
+    assert '"' not in command and command.endswith("/claude_statusline.cmd")
+    wrapper = target.with_name("claude_statusline.cmd").read_bytes()
+    assert wrapper == b'@"C:\\Program Files\\Python313\\python.exe" "%~dp0claude_statusline.py"\r\n'
+    assert sl._ours({"command": command})
