@@ -68,6 +68,7 @@ class CodexJsonl:
         self._bytes = 0
         self._events = 0
         self._started = False
+        self._error_seen = False
 
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
@@ -89,6 +90,10 @@ class CodexJsonl:
             self._line(bytes(self._buffer))
             self._buffer.clear()
         if not (self.turn.completed or self.turn.failed):
+            if self._error_seen:
+                self.turn.failed = True
+                self.turn.failure_classification = "codex_turn_failed"
+                return self.turn
             raise CodexProtocolError("codex_turn_incomplete")
         if self.turn.completed and not self.turn.final_text:
             raise CodexProtocolError("codex_final_message_missing")
@@ -122,8 +127,13 @@ class CodexJsonl:
             if self._started or not self.turn.thread_id:
                 raise CodexProtocolError("codex_turn_identity_invalid")
             self._started = True
-        elif kind in {"turn.completed", "turn.failed", "error"}:
-            if kind != "error" and not self._started:
+        elif kind == "error":
+            # CLI diagnostics (including reconnect attempts) are not a turn
+            # terminal. Only a later completed/failed event settles the turn;
+            # EOF after a diagnostic remains a failure.
+            self._error_seen = True
+        elif kind in {"turn.completed", "turn.failed"}:
+            if not self._started:
                 raise CodexProtocolError("codex_turn_identity_invalid")
             self.turn.completed = kind == "turn.completed"
             self.turn.failed = not self.turn.completed

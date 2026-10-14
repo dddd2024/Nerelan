@@ -73,9 +73,14 @@ def probe_codex_readiness(exe: str | None = None) -> str:
 def build_codex_argv(cli: str, cwd: Path, model: str, sandbox: str) -> list[str]:
     if sandbox not in {"read-only", "workspace-write"}:
         raise ExecutorRuntimeError("codex_sandbox_invalid")
-    return [cli, "exec", "--ignore-user-config", "--ephemeral", "--json", "--color", "never",
+    argv = [cli, "exec", "--ignore-user-config", "--ephemeral", "--json", "--color", "never",
             "--sandbox", sandbox, "--model", validate_codex_model(model), "--cd", str(cwd),
-            "-c", 'approval_policy="never"', "-c", 'model_provider="openai"', "-"]
+            "-c", 'approval_policy="never"', "-c", 'model_provider="openai"']
+    if os.name == "nt":
+        # Ignoring user config also removes the configured Windows sandbox.
+        # Select the provisioned restricted sandbox; never fall back to full access.
+        argv.extend(["-c", 'windows.sandbox="elevated"'])
+    return [*argv, "-"]
 
 
 @dataclass(frozen=True)
@@ -238,6 +243,16 @@ class CodexExecutor:
         prompt = ("Perform only this admitted task inside this isolated workspace. Preserve existing work. "
                   "Do not commit, push, merge, access credentials, install dependencies, or bypass policy. "
                   "Report changes and checks truthfully; CLI success is not functional acceptance.\n\n" + title)
+        from .context_builder import executor_context
+        context = executor_context(store, task_id=task_id, workspace=prepared.worktree,
+                                   expected_head=prepared.base_sha)
+        prompt += context
+        if context:
+            context_blob = context.rsplit("\n", 1)[-1].encode()
+            _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
+                "description":"Non-authoritative projection from current TaskStore and Git",
+                "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
+                            "context_packet_bytes":len(context_blob), "base_sha":prepared.base_sha}})
         def progress(item):
             _emit(event_callback, task_id, {"type": "EXECUTOR_PROGRESS", "title": self.LABEL,
                 "description": public_text(item.get("text") or item.get("command") or f"{self.LABEL} activity"),

@@ -1,0 +1,52 @@
+{
+  "host_head": "e5c92c570bd966520d0d38c9f093a687d5d0e896",
+  "source_head": "e5c92c570bd966520d0d38c9f093a687d5d0e896",
+  "goal_id": "goal-1791950797784-22c9a25a7a51",
+  "goal_revision": 1,
+  "artifact_digest": "b0a55b2d94c3fd051c7e77f53832293a76c2cedb8c4dfe86db1e635c997a1278",
+  "task_id": "task-1791950798024-a49ed9a33d7e",
+  "prepare_pid": 23740,
+  "execute_pid": 38652,
+  "task_status": "READY_FOR_REVIEW",
+  "reply": {
+    "goal_id": "goal-1791950797784-22c9a25a7a51",
+    "goal_revision": 1,
+    "artifact_digest": "b0a55b2d94c3fd051c7e77f53832293a76c2cedb8c4dfe86db1e635c997a1278",
+    "checkpoint_run_id": "run-task-1791950798024-a49ed9a33d7e-6a6e0984c6f8",
+    "git_head": "e5c92c570bd966520d0d38c9f093a687d5d0e896"
+  },
+  "expected": {
+    "goal_id": "goal-1791950797784-22c9a25a7a51",
+    "goal_revision": 1,
+    "artifact_digest": "b0a55b2d94c3fd051c7e77f53832293a76c2cedb8c4dfe86db1e635c997a1278",
+    "checkpoint_run_id": "run-task-1791950798024-a49ed9a33d7e-6a6e0984c6f8",
+    "git_head": "e5c92c570bd966520d0d38c9f093a687d5d0e896"
+  },
+  "context_receipts": [
+    {
+      "base_sha": "e5c92c570bd966520d0d38c9f093a687d5d0e896",
+      "context_packet_bytes": 3860,
+      "context_packet_digest": "f804ac2f3234d9ca2e276d92f2de65135e85776e75f79a0bbc5b020968f8db37"
+    }
+  ],
+  "wall_seconds": 21.902158737182617,
+  "matched_context_facts": true,
+  "native_usage": [
+    {
+      "cached_input_tokens": 12544,
+      "input_tokens": 17387,
+      "output_tokens": 138
+    }
+  ],
+  "cash_cost": null,
+  "quota_remaining": null,
+  "functional_acceptance": "NOT_CLAIMED",
+  "schema_version": 1,
+  "authority": "NONE",
+  "source_receipt_sha256": "1bc073efa307d51bd75fd9ab31bfe6133a939c3b40b2f93f72ce1987e606a50f",
+  "proof_scope": "REAL_TASK_API_AND_MANAGED_GPT_CONTEXT_FACTS_AFTER_DISTINCT_PROCESS_RESTART",
+  "requested_binding": "chatgpt-gpt",
+  "requested_model_id": "gpt-6.1-sol",
+  "benchmark_acceptance": "NOT_APPLICABLE_PRODUCTION_FOLLOWUP",
+  "provider_physical_request_count": null
+}

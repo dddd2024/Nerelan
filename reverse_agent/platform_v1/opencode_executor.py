@@ -1367,6 +1367,15 @@ class OpenCodeExecutor:
             str(worktree),
             role_context,
         )
+        from .context_builder import executor_context
+        context = executor_context(store, task_id=task_id, workspace=worktree, expected_head=base_sha)
+        prompt += context
+        if context:
+            context_blob = context.rsplit("\n", 1)[-1].encode()
+            _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
+                "description":"Non-authoritative projection from current TaskStore and Git",
+                "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
+                            "context_packet_bytes":len(context_blob), "base_sha":base_sha}})
         if self._transport_kind == "server":
             return self._run_server_executor_core(
                 task_id=task_id,
