@@ -7,8 +7,8 @@ calls to startup or CI, new state database, dependencies or governance changes.
 ## Real interface result
 
 [`live-result.json`](live-result.json) records the authenticated Task API probe
-on source commit `da75582f6eb45b933f7c06ca87e47477e7854317`, after merging current
-main's P0-3 resource-management changes. The final evidence commit adds documents
+on source commit `0e2d19c9a6b8b90f66dfd3bdf6f9a1f2c9b861ee`, after merging current
+main's P0-3 resource-management and quota-guard changes. The final evidence commit adds documents
 only; per-file SHA-256 values bind the product/runtime modules actually loaded.
 `code_sha256` hashes the Windows clone bytes; `code_sha256_lf` normalizes CRLF
 to LF and matches all nine files in the final candidate regardless of checkout
@@ -27,7 +27,7 @@ in a separate process against the same persistent TaskStore:
    authority matched exactly. The summary survived restart, and on-demand
    retrieval returned a bounded match. The activated window was stopped.
 
-Both real calls completed. The restored packet is 16,273 UTF-8 bytes inside its
+Both real calls completed. The restored packet is 16,272 UTF-8 bytes inside its
 16,384-byte budget. The retrieval response is 2,216 bytes inside its 4,096-byte
 budget. Native token fields are retained exactly as reported. Cash costs and
 remaining subscription quotas are UNKNOWN. This proves the mechanisms and fact
@@ -35,13 +35,18 @@ recovery on controlled input; it does not prove summary quality on arbitrary rea
 history, lower costs, a successful P0-4 paired benchmark, or execution acceptance.
 
 An earlier successful probe on `2febae02462d9db5b48596501beebf22cf968781` is
-preserved externally at `C:/ncb-context-optimization-20261014/result.json`. The
-checked-in result is the repeat on the integrated source above.
+preserved externally at `C:/ncb-context-optimization-20261014/result.json`. Another successful repeat is preserved at
+`C:/ncb-context-optimization-20261014-final/result.json` on source
+`da75582f6eb45b933f7c06ca87e47477e7854317`. The checked-in result is the
+latest repeat on the integrated source above, stored externally at
+`C:/ncb-context-optimization-20261014-quota-integration/result.json`.
 
 ## Verification
 
 - Context/optimization and native/OpenCode adapters plus new usage ledger:
-  `234 passed, 2 skipped` after integration.
+  `234 passed, 2 skipped` after resource-management integration.
+- Context/optimization and quota-forecast integration: `66 passed, 1 skipped`
+  after merging the subsequent quota guard.
 - Context/optimization, trusted host and Task HTTP suites:
   `273 passed, 4 skipped` before the main merge; latest context-specific regression
   was separately rerun, `7 passed`.
