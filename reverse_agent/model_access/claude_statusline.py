@@ -169,14 +169,26 @@ def _portable(path: str) -> str:
     return path.replace("\\", "/")
 
 
+WRAPPER_NAME = "claude_statusline.cmd"
+
+
 def command_for(target: Path) -> str:
     """The statusLine command. Claude Code may run it through cmd, PowerShell or bash: quoted
     tokens break cmd /c (outer quotes stripped) and PowerShell (a quoted string is not called),
-    so the command avoids quotes whenever the paths allow."""
+    so the command never starts with a quote on Windows.
+
+    Python's 8.3 short path keeps the command unquoted. Where no short name exists (8.3 names
+    disabled), a one-line ``.cmd`` beside the script calls the quoted Python path itself, and
+    the command names only that wrapper; all three shells run a ``.cmd`` path directly.
+    """
     exe, script = _portable(sys.executable), _portable(str(target))
-    if " " in exe or " " in script:
-        return f'"{exe}" "{script}"'
-    return f"{exe} {script}"
+    if " " not in exe and " " not in script:
+        return f"{exe} {script}"
+    if os.name != "nt":
+        return f'"{exe}" "{script}"'  # POSIX shells handle quoted words
+    wrapper = target.with_name(WRAPPER_NAME)
+    wrapper.write_bytes(f'@"{sys.executable}" "%~dp0{target.name}"\r\n'.encode("utf-8"))
+    return _portable(str(wrapper))
 
 
 def _norm(text: str) -> str:
@@ -185,9 +197,9 @@ def _norm(text: str) -> str:
 
 def _ours(status_line) -> bool:
     command = status_line.get("command") if isinstance(status_line, dict) else None
-    target = str(state_dir() / "claude_statusline.py")
+    forms = [str(state_dir() / name) for name in ("claude_statusline.py", WRAPPER_NAME)]
     return isinstance(command, str) and any(
-        _norm(command).endswith(_norm(form)) for form in (target, _portable(target)))
+        _norm(command).endswith(_norm(form)) for path in forms for form in (path, _portable(path)))
 
 
 def install() -> int:
