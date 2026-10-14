@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any, Callable, Mapping
 
 from .contracts import NATIVE_CLI_PROVIDERS, is_anthropic_relay_connection
+from .pricing import equivalent_cost
 
 # Observed usage covers this many recent model-backed tasks (the agent-profile window).
 OBSERVATION_WINDOW_TASKS = 500
@@ -22,7 +23,8 @@ _PROFILE_FIELDS = ("attempts", "ok", "failed", "timeouts", "rate_limited", "succ
                    "median_ok_seconds", "median_ok_tokens", "observed_tokens")
 _TOTAL_FIELDS = ("attempts", "ok", "failed", "observed_tokens")
 
-UNKNOWN_QUOTA = {"state": "UNKNOWN", "provenance": "UNAVAILABLE", "reason": "no_official_quota_source"}
+UNKNOWN_QUOTA = {"state": "UNKNOWN", "provenance": "UNAVAILABLE", "reason": "no_official_quota_source", "windows": []}
+_TOKEN_COUNTERS = ("input", "cache_read", "cache_write", "output", "reasoning")
 
 
 def _credential(connection: Mapping[str, Any]) -> dict[str, Any]:
@@ -74,11 +76,70 @@ def _read_profiles(profiles: Callable[[], Mapping[str, Mapping[str, Any]]]) -> t
         return {}, "unavailable"
 
 
-def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]]) -> dict[str, Any]:
-    """Connections -> credential, executors, bindings, observed usage and quota, sanitized."""
+def _token_usage(entry: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(entry, Mapping):
+        return None
+    return {key: _count(entry.get(key)) for key in (*_TOKEN_COUNTERS, "tasks", "tasks_with_tokens",
+                                                     "cache_write_unknown_tasks")} | {"provenance": "LOCAL_METERING"}
+
+
+def _price_binding(model_id: str, entry: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Equivalent list-price cost of one binding's tokens, model by model."""
+    if not isinstance(entry, Mapping) or not entry.get("tasks_with_tokens"):
+        return None
+    parts = []
+    for model, tokens in (entry.get("models") or {}).items():
+        if isinstance(tokens, Mapping) and any(tokens.get(key) for key in _TOKEN_COUNTERS):
+            parts.append(equivalent_cost(model or model_id, tokens))
+    return _combine_costs(parts, cli_reported=entry.get("cli_reported_cost_usd"))
+
+
+def _combine_costs(parts: list[Mapping[str, Any]], *, cli_reported: Any = None) -> dict[str, Any] | None:
+    if not parts:
+        return None
+    priced = [part for part in parts if part.get("usd") is not None]
+    state = "ESTIMATED" if len(priced) == len(parts) and all(p.get("state") == "ESTIMATED" for p in parts) \
+        else "PARTIAL" if priced else "UNKNOWN"
+    result = {"state": state, "usd": round(sum(part["usd"] for part in priced), 6) if priced else None,
+              "currency": "USD", "provenance": "ESTIMATED_LIST_PRICE",
+              "price_source": parts[0].get("price_source"), "price_as_of": parts[0].get("price_as_of"),
+              "unpriced": sorted({r for part in parts for r in ([part["reason"]] if part.get("reason") else
+                                                                 part.get("unpriced", []))}),
+              "notes": sorted({note for part in parts for note in part.get("notes", ())})}
+    if type(cli_reported) in (int, float):
+        # Claude Code's own API-price figure for the same runs, as a cross-check.
+        result["cli_reported_usd"] = round(float(cli_reported), 6)
+    return result
+
+
+def _read_source(source: Callable[[], Any] | None) -> Mapping[str, Any]:
+    if source is None:
+        return {}
+    try:
+        value = source()
+    except Exception:  # noqa: BLE001 - an extra figure must never hide the resources
+        return {}
+    return value if isinstance(value, Mapping) else {}
+
+
+def _quota(connection: Mapping[str, Any], native: tuple[str, str, str] | None,
+           quotas: Mapping[str, Any]) -> dict[str, Any]:
+    if native is None:
+        reason = "api_key_has_no_subscription_window" if connection.get("auth_method") == "api_key" \
+            else "no_official_quota_source"
+        return dict(UNKNOWN_QUOTA, reason=reason)
+    snapshot = quotas.get(connection.get("executor_provider_id"))
+    return dict(snapshot) if isinstance(snapshot, Mapping) and snapshot.get("state") else dict(UNKNOWN_QUOTA)
+
+
+def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]],
+                        tokens: Callable[[], Mapping[str, Any]] | None = None,
+                        quotas: Callable[[], Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    """Connections -> credential, executors, bindings, tokens, equivalent cost and quota, sanitized."""
     executors = {item["executor_id"]: item for item in store.list_executors_public()}
     bindings = store.list_bindings_public()
     observed, observation_status = _read_profiles(profiles)
+    token_totals, quota_snapshots = _read_source(tokens), _read_source(quotas)
     resources = []
     for connection in store.list_connections_public():
         connection_id = connection["connection_id"]
@@ -90,14 +151,23 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
         ready = {executor_id: connection_ok and _executor_ready(executors.get(executor_id), connection)
                  for executor_id in compatible}
         rows, totals = [], dict.fromkeys(_TOTAL_FIELDS, 0)
+        token_sum = dict.fromkeys((*_TOKEN_COUNTERS, "tasks_with_tokens"), 0)
+        costs = []
         for binding in (b for b in bindings if b["connection_id"] == connection_id):
             usage = _observed(observed.get(binding["binding_id"]))
             for field in _TOTAL_FIELDS if usage else ():
                 totals[field] += _count(usage.get(field))
+            token_entry = token_totals.get(binding["binding_id"])
+            binding_tokens = _token_usage(token_entry)
+            cost = _price_binding(binding["model_id"], token_entry)
+            for key in token_sum if binding_tokens else ():
+                token_sum[key] += binding_tokens[key]
+            if cost:
+                costs.append(cost)
             rows.append({"binding_id": binding["binding_id"], "model_id": binding["model_id"],
                          "executor_id": binding["executor_id"], "enabled": binding["enabled"],
                          "usable": bool(binding["enabled"] and ready.get(binding["executor_id"])),
-                         "observed": usage})
+                         "observed": usage, "tokens": binding_tokens, "equivalent_cost": cost})
         native = NATIVE_CLI_PROVIDERS.get(connection.get("executor_provider_id"))
         credential = _credential(connection)
         resources.append({
@@ -116,9 +186,14 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
             "bindings": rows,
             "observed_usage": totals | {"provenance": "LOCAL_METERING", "window_tasks": OBSERVATION_WINDOW_TASKS,
                                         "status": observation_status},
-            "quota": dict(UNKNOWN_QUOTA),
+            "token_usage": token_sum | {"provenance": "LOCAL_METERING"},
+            "equivalent_cost": _combine_costs(costs),
+            "quota": _quota(connection, native, quota_snapshots),
         })
     return {"resources": resources,
             "summary": {"connections": len(resources),
                         "usable_bindings": sum(row["usable"] for item in resources for row in item["bindings"]),
-                        "quota_known": 0}}
+                        "quota_known": sum(item["quota"].get("state") == "OBSERVED" for item in resources),
+                        "tokens": {key: sum(item["token_usage"][key] for item in resources) for key in _TOKEN_COUNTERS},
+                        "equivalent_cost": _combine_costs([item["equivalent_cost"] for item in resources
+                                                           if item["equivalent_cost"]])}}

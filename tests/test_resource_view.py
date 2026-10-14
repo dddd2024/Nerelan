@@ -49,7 +49,8 @@ def test_one_view_joins_credentials_executors_bindings_and_observed_usage():
     assert claude["credential"] == {"kind": "subscription", "configured": False, "status": "missing"}
     assert claude["credential_owner"] == "claude-code-cli"
     assert claude["bindings"][0]["usable"] is False  # an account binding does need the login
-    assert view["summary"] == {"connections": 2, "usable_bindings": 2, "quota_known": 0}
+    assert {k: view["summary"][k] for k in ("connections", "usable_bindings", "quota_known")} == {
+        "connections": 2, "usable_bindings": 2, "quota_known": 0}
 
 
 def test_credential_owner_names_who_holds_the_sign_in():
@@ -93,8 +94,9 @@ def test_quota_stays_unknown_and_is_never_derived_from_local_usage():
     view = build_resource_view(_store(), lambda: {"sense-glm-5.2": {"attempts": 50, "ok": 50,
                                                                     "observed_tokens": 10**6}})
     for item in view["resources"]:
-        assert item["quota"] == {"state": "UNKNOWN", "provenance": "UNAVAILABLE",
-                                 "reason": "no_official_quota_source"}
+        assert (item["quota"]["state"], item["quota"]["provenance"], item["quota"]["windows"]) == (
+            "UNKNOWN", "UNAVAILABLE", [])
+    assert _by_id(view)["sense"]["quota"]["reason"] == "api_key_has_no_subscription_window"
 
 
 def test_disabled_connection_or_binding_is_not_usable():
@@ -149,3 +151,62 @@ def test_http_route_serves_the_view_with_injected_profiles():
     assert response.status == 200 and SECRET not in body
     sense = _by_id(json.loads(body))["sense"]
     assert sense["observed_usage"]["attempts"] == 2 and sense["observed_usage"]["observed_tokens"] == 400
+
+
+def _ledger(**bindings):
+    entry = lambda models, **extra: {"input": 0, "cache_read": 0, "cache_write": 0, "output": 0, "reasoning": 0,
+                                     "tasks": 1, "tasks_with_tokens": 1, "cache_write_unknown_tasks": 0,
+                                     "models": models, "cli_reported_cost_usd": None, **extra}
+    return {binding: entry(models, **{k: sum(m.get(k, 0) for m in models.values()) for k in ("input", "output")})
+            for binding, models in bindings.items()}
+
+
+def test_tokens_and_list_price_cost_per_binding_connection_and_total():
+    tokens = _ledger(**{
+        # The binding's own model when the run named none; glm-5.2 is priced at Zhipu's list price.
+        "sense-glm-5.2": {"": {"input": 1_000_000, "output": 100_000}},
+        # An unpriceable model leaves the connection PARTIAL rather than inventing a price.
+        "sense-glm-5.2-claude_code": {"mystery-model-9": {"input": 10, "output": 10}},
+        # Claude Code named the concrete model behind the "sonnet" alias.
+        "claude-sonnet": {"claude-sonnet-5-5": {"input": 1_000_000, "output": 1_000_000}},
+    })
+    view = build_resource_view(_store(), dict, tokens=lambda: tokens)
+    sense, claude = _by_id(view)["sense"], _by_id(view)["claude-account"]
+    rows = {row["binding_id"]: row for row in sense["bindings"]}
+    assert rows["sense-glm-5.2"]["tokens"]["input"] == 1_000_000
+    glm = rows["sense-glm-5.2"]["equivalent_cost"]
+    assert glm["state"] == "ESTIMATED" and glm["provenance"] == "ESTIMATED_LIST_PRICE"
+    assert glm["usd"] == 1.84 and glm["price_source"] == "https://models.dev/api.json"
+    assert rows["sense-glm-5.2-claude_code"]["equivalent_cost"]["state"] == "UNKNOWN"
+    assert sense["equivalent_cost"]["state"] == "PARTIAL" and sense["equivalent_cost"]["usd"] == glm["usd"]
+    assert "vendor_unknown" in sense["equivalent_cost"]["unpriced"]
+    assert claude["bindings"][0]["equivalent_cost"]["usd"] == 12.0
+    assert sense["token_usage"]["input"] == 1_000_010
+    assert view["summary"]["tokens"]["output"] == 100_010 + 1_000_000
+    assert view["summary"]["equivalent_cost"]["state"] == "PARTIAL"
+
+
+def test_an_unresolved_claude_alias_is_not_priced():
+    tokens = _ledger(**{"claude-sonnet": {"": {"input": 1000, "output": 1000}}})  # model "sonnet"
+    cost = _by_id(build_resource_view(_store(), dict, tokens=lambda: tokens))["claude-account"]["bindings"][0]
+    assert cost["equivalent_cost"]["state"] == "UNKNOWN" and cost["equivalent_cost"]["usd"] is None
+    assert cost["equivalent_cost"]["unpriced"] == ["model_unresolved"]
+
+
+def test_subscription_quota_is_shown_only_on_its_own_account():
+    snapshot = {"state": "OBSERVED", "provenance": "OFFICIAL_VIA_CLI", "source": "claude_rate_limit_event",
+                "observed_at": "2026-10-14T05:00:00Z",
+                "windows": [{"window": "five_hour", "used_percent": 40.0, "resets_at": "2026-10-14T09:00:00Z",
+                             "window_minutes": None, "status": "allowed", "reset_passed": False}]}
+    view = build_resource_view(_store(), dict, quotas=lambda: {"claude-code": snapshot})
+    assert _by_id(view)["claude-account"]["quota"] == snapshot
+    assert _by_id(view)["sense"]["quota"]["state"] == "UNKNOWN"  # the API key shares no subscription window
+    assert view["summary"]["quota_known"] == 1
+
+
+def test_failing_token_or_quota_sources_leave_the_view_intact():
+    def broken():
+        raise OSError("unreadable")
+    view = build_resource_view(_store(), dict, tokens=broken, quotas=broken)
+    assert view["summary"]["connections"] == 2 and view["summary"]["equivalent_cost"] is None
+    assert all(item["quota"]["state"] == "UNKNOWN" for item in view["resources"])

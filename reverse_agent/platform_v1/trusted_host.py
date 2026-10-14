@@ -378,6 +378,31 @@ class CombinedTrustedHost:
         from .model_profiles import cached_agent_profiles
         return cached_agent_profiles(self._task_store)
 
+    def _token_usage(self) -> dict[str, Any]:
+        """Per-binding token counters normalized across OpenCode, Codex and Claude Code."""
+        from .usage_ledger import binding_token_totals, task_token_records
+        return _cached(self, "_token_usage_cache", lambda: binding_token_totals(task_token_records(self._task_store)))
+
+    def _subscription_quotas(self) -> dict[str, Any]:
+        """Account windows as the official CLIs last reported them, keyed by native provider."""
+        if os.environ.get("REVERSE_AGENT_SUBSCRIPTION_QUOTA") == "0":
+            return {}
+        from ..model_access.subscription_quota import claude_rate_limits, read_codex_quota
+        from .usage_ledger import latest_rate_limits
+
+        def read() -> dict[str, Any]:
+            bindings = self._store.list_bindings_public()
+            connections = {item["connection_id"]: item for item in self._store.list_connections_public()}
+            # Only runs on the Claude account itself; a relay run's notices are not about the subscription.
+            account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
+                       and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
+            claude = latest_rate_limits(self._task_store, account)
+            return {"codex": read_codex_quota(),
+                    "claude-code": claude_rate_limits(*claude) if claude else
+                    {"state": "UNKNOWN", "provenance": "UNAVAILABLE", "windows": [],
+                     "reason": "no_claude_rate_limit_observed_yet"}}
+        return _cached(self, "_subscription_quota_cache", read)
+
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
         """Same model, another executor: let real outcomes pick the pairing that works better."""
         from .model_profiles import best_pairing, cached_agent_profiles
@@ -461,6 +486,8 @@ class CombinedTrustedHost:
                 external_session_refresh=self._refresh_external_session_auth,
                 account_auth=self._account_auth,
                 usage_profiles=self._usage_profiles,
+                token_usage=self._token_usage,
+                subscription_quotas=self._subscription_quotas,
             )
             self._model_server = ThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
@@ -603,6 +630,19 @@ class CombinedTrustedHost:
 
     def stop(self) -> None:
         self._cleanup_runtime_resources(close_account_auth=True)
+
+
+_CACHE_SECONDS = 60.0
+
+
+def _cached(owner: Any, attribute: str, compute: Any) -> Any:
+    """Recompute an expensive read at most once a minute per host."""
+    now = time.monotonic()
+    cached = getattr(owner, attribute, None)
+    if cached is None or now - cached[0] > _CACHE_SECONDS:
+        cached = (now, compute())
+        setattr(owner, attribute, cached)
+    return cached[1]
 
 
 def _make_task_store(db_path: str | None) -> TaskStore:
