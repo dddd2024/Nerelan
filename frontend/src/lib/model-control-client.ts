@@ -24,6 +24,7 @@ import {
   type ConnectionModelsResult,
   type AccountAuthStatus,
 } from "@/schemas/model-access";
+import { normalizeResourceOverview, type ResourceOverview } from "@/lib/resources";
 
 /**
  * Loopback default for the Model Control service.
@@ -110,6 +111,7 @@ export interface ModelControlClient {
   deleteBinding(bindingId: string): Promise<void>;
   getAgentRoster(): Promise<AgentRoster>;
   putAgentRoster(roles: Partial<Record<AgentRole, string>>): Promise<AgentRoster>;
+  getResources(): Promise<ResourceOverview>;
 }
 
 const DEFAULT_MOCK_PROFILES: ModelProfile[] = [
@@ -337,6 +339,7 @@ export function createHttpModelControlClient(
   const executorsUrl = `${baseUrl}/executors`;
   const bindingsUrl = `${baseUrl}/bindings`;
   const rosterUrl = `${baseUrl}/agent-roster`;
+  const resourcesUrl = `${baseUrl}/resources`;
 
   return {
     async listProfiles() {
@@ -549,6 +552,10 @@ export function createHttpModelControlClient(
         method: "PUT",
         body: JSON.stringify({ roles }),
       }));
+    },
+
+    async getResources() {
+      return normalizeResourceOverview(await requestJson(resourcesUrl));
     },
   };
 }
@@ -896,6 +903,31 @@ export function createMockModelControlClient(
       }
       rosterAssignments = { ...roles };
       return mockRoster();
+    },
+
+    async getResources() {
+      // The mock has no task history or CLI: no tokens, no cost, quota unknown.
+      return normalizeResourceOverview({
+        resources: connections.map((conn) => ({
+          connection_id: conn.connectionId,
+          name: conn.name,
+          enabled: conn.enabled,
+          credential: {
+            kind: conn.authMethod === "api_key" ? "api_key" : conn.authMethod === "none" ? "none" : "subscription",
+            configured: conn.authMethod === "api_key" ? conn.credentialConfigured : true,
+          },
+          credential_owner: conn.authMethod === "api_key" ? "nerelan" : "external_cli",
+          executors: [],
+          bindings: bindings
+            .filter((b) => b.connectionId === conn.connectionId)
+            .map((b) => ({ binding_id: b.bindingId, model_id: b.modelId, executor_id: b.executorId,
+                           usable: b.enabled && conn.enabled, tokens: null, equivalent_cost: null })),
+          token_usage: {},
+          equivalent_cost: null,
+          quota: { state: "UNKNOWN", reason: "no_official_quota_source", windows: [] },
+        })),
+        summary: { usable_bindings: 0, quota_known: 0, tokens: {}, equivalent_cost: null },
+      });
     },
 
     async upsertBinding(input) {

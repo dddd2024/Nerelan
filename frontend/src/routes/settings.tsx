@@ -25,6 +25,7 @@ import { cn } from "@/lib/cn";
 import { getDefaultModelControlClient } from "@/lib/model-control-client";
 import { ThemeSelector } from "@/components/theme-selector";
 import { AgentTeamEditor } from "@/components/agent-team-editor";
+import { ResourceOverview } from "@/components/resource-overview";
 
 type EditorView = "connection" | "binding";
 
@@ -551,6 +552,7 @@ export function SettingsPage() {
             onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
+        <ResourceOverview />
         <AgentTeamEditor bindings={bindings} />
       </div>
     </main>

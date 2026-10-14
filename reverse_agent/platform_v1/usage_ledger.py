@@ -1,7 +1,7 @@
 """One token ledger for every executor (P0-3, provider-free observation).
 
-Executors count tokens differently. OpenCode records non-cached input and cache
-reads/writes separately (``task_usage_observations``). Codex reports ``input_tokens``
+Executors count tokens differently. OpenCode records non-cached input, cache
+reads/writes and reasoning separately from output (``task_usage_observations``). Codex reports ``input_tokens``
 *including* the cached part. Claude Code reports non-cached input and cache reads and
 writes separately. Here every finished task becomes the same five counters, so totals
 and prices compare like with like:
@@ -59,8 +59,12 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
             "SUM(reasoning_units) AS reasoning, COUNT(input_units) AS known "
             f"FROM task_usage_observations WHERE status = 'OBSERVED' AND task_id IN ({marks}) GROUP BY task_id", ids):
         if row["known"] and row["output"] is not None:
-            observed[row["task_id"]] = {key: (int(row[key]) if row[key] is not None else None) for key in COUNTERS}
-            observed[row["task_id"]]["cache_read"] = observed[row["task_id"]]["cache_read"] or 0
+            counters = {key: (int(row[key]) if row[key] is not None else None) for key in COUNTERS}
+            counters["cache_read"] = counters["cache_read"] or 0
+            # OpenCode counts reasoning beside output, not inside it (often reasoning > output);
+            # providers bill reasoning as output, so fold it in and keep the part for reference.
+            counters["output"] += counters["reasoning"] or 0
+            observed[row["task_id"]] = counters
     completion: dict[str, dict[str, Any]] = {}
     for row in conn.execute(f"SELECT task_id, metadata FROM task_events WHERE type = 'EXECUTOR_COMPLETED' "
                             f"AND task_id IN ({marks}) ORDER BY seq", ids):

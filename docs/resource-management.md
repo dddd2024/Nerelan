@@ -97,18 +97,64 @@ Invariants (tested):
 - If the observed-usage source fails, the view still lists every resource with
   `observed_usage.status: "unavailable"` and zero totals; it does not fail the request.
 
+## Tokens, equivalent cost and subscription quota
+
+**One token ledger** (`reverse_agent/platform_v1/usage_ledger.py`). Every finished,
+model-backed task becomes the same counters: `input` (non-cached), `cache_read`,
+`cache_write`, `output` (billable, reasoning included) and `reasoning` (for reference).
+The three executors report differently:
+
+| Executor | Source | Differences handled |
+|---|---|---|
+| OpenCode | `task_usage_observations` rows | Reasoning is reported *beside* output, not inside it: real history has reasoning > output in 540 of 1,312 rows. It is folded into billable output. |
+| Codex | `EXECUTOR_COMPLETED.token_usage` | `input_tokens` *includes* `cached_input_tokens`, so non-cached input = input − cached. |
+| Claude Code | `EXECUTOR_COMPLETED.token_usage` | Cache reads and writes are separate from input. The stream parser now also keeps `cache_creation_input_tokens`, the concrete model behind an alias such as `sonnet` (`modelUsage`), and the CLI's own `total_cost_usd`. |
+
+**Equivalent cost** (`reverse_agent/model_access/pricing.py`) is what the tokens would
+cost at the **model maker's own** pay-as-you-go list price. For example, GLM-5.2 is
+priced at Zhipu's price even when it ran on SenseNova's free gateway.
+- Prices come from a vendored, dated models.dev snapshot (`pricing_snapshot.json`). It is
+  refreshed offline with `python -m reverse_agent.model_access.pricing refresh <api.json>`.
+- Every figure is `ESTIMATED_LIST_PRICE` with its source and date. It is not an invoice.
+- An unresolved alias, an unknown vendor or an unlisted model stays `UNKNOWN`, and a mix
+  of priced and unpriced runs is `PARTIAL`.
+- Two cases are flagged in `notes` rather than silently assumed: a cache price that is not
+  listed (billed at the input price) and long-context tiers (not applied).
+- Claude Code's own `total_cost_usd` is shown beside the estimate as a cross-check.
+
+**Subscription quota** (`reverse_agent/model_access/subscription_quota.py`) uses
+first-party sources only:
+- **Codex:** the account's 5-hour and weekly windows (percent used, reset time, plan,
+  credits) from the newest `token_count` event in `$CODEX_HOME/sessions`. Only lines
+  containing that event are decoded.
+- **Claude Code:** `rate_limit_event` notices captured from Nerelan's own runs on the Claude
+  *account*. Relay runs are excluded, because their notices are not about the subscription.
+- **Freshness:** a window whose reset time has passed is shown as "reset passed, current use
+  unknown", never as 0%.
+- **Opting out:** set `REVERSE_AGENT_SUBSCRIPTION_QUOTA=0`.
+
+All three appear in `/api/resources` per binding, per connection and in total. They also
+appear in Settings → 资源与用量. If a source fails, only its figures are dropped.
+
+Checked on the Owner's real history (a read-only copy):
+- 62 finished model-backed tasks, 45 of them with tokens.
+- About $16.67 at list price, almost all GLM-5.2 cache reads on `coding-glm`.
+- Codex Plus windows at 49% (5-hour) and 40% (weekly), matching the CLI.
+- Older Claude `sonnet` runs stay unpriced, because they predate model capture.
+
 ## Remaining P0-3 work
 
-1. Quota adapter (opt-in): read Magpie's `GET /v1/magpie/quotas?kept=1` when the Owner
-   enables it, or else OpenUsage's `--json` reports. Map the result into `provider_usage`
-   snapshots with source provenance (the tool's name and freshness, never "official"
-   unless the tool says the number came from the vendor) and fill `quota`. Provider-free
-   contract tests use recorded JSON. A live read needs Owner consent, because both tools
-   read local sign-ins.
-2. Executor isolation: verify whether `claude -p` applies `~/.claude/settings.json` `env`
+1. Quota beyond official percentages, following the Owner's rule (2026-10-14):
+   - Official percent → show it.
+   - Status only → show availability and record actual limit hits.
+   - History but no number → predict with an error range.
+   - Nothing reliable → `UNKNOWN`.
+   - If the predicted quota is too low for the next task, switch model or warn before
+     dispatch.
+2. Optional third-party quota sources (Magpie `GET /v1/magpie/quotas?kept=1`, OpenUsage
+   `--json`) for subscriptions the official CLIs do not report. These are opt-in and
+   labelled with the tool as their source.
+3. Executor isolation: verify whether `claude -p` applies `~/.claude/settings.json` `env`
    under Nerelan's argv. If it does, pin the settings sources for account and relay runs and
    add a regression test.
-3. A Settings "Resources" view that consumes `/api/resources`.
-4. One real loop: configure a resource, verify the connection, select a model, execute.
-   This needs an Owner-authorized key and paid calls.
-5. Retire legacy `ModelProfile` after a migration check.
+4. Retire legacy `ModelProfile` after a migration check.

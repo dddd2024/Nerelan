@@ -45,8 +45,9 @@ def test_each_executor_lands_in_the_same_counters():
         "token_usage": {"input_tokens": 10, "cached_input_tokens": 0, "output_tokens": 5}})
     _task(store, "glm@opencode", "opencode", "QUEUED", observation=(9, 9, 0, 0, 0))  # unfinished: ignored
     records = {r["binding_ref"] + ("" if r["ok"] else "!"): r for r in task_token_records(store)}
+    # OpenCode's reasoning is reported beside output and billed as output.
     assert records["glm@opencode"]["tokens"] == {"input": 1000, "cache_read": 4000, "cache_write": 200,
-                                                 "output": 300, "reasoning": 50}
+                                                 "output": 350, "reasoning": 50}
     assert records["gpt@codex"]["tokens"] == {"input": 2000, "cache_read": 8000, "cache_write": None,
                                               "output": 500, "reasoning": None}
     assert records["sonnet@claude"]["tokens"]["cache_write"] == 900
