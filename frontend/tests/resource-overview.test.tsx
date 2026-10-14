@@ -22,7 +22,7 @@ const PAYLOAD = {
                    tokens: { input: 26473, cache_read: 33024, cache_write: 0, output: 291, tasks: 2 },
                    equivalent_cost: { state: "ESTIMATED", usd: 0.0592, price_as_of: "2026-10-14" } }],
       token_usage: { input: 26473, cache_read: 33024, cache_write: 0, output: 291, reasoning: 0, tasks_with_tokens: 1 },
-      equivalent_cost: { state: "ESTIMATED", usd: 0.0592, price_as_of: "2026-10-14" },
+      equivalent_cost: { state: "ESTIMATED", usd: 0.0021, price_as_of: "2026-10-14", cli_reported_usd: 0.0019 },
       quota: {
         state: "OBSERVED", source: "codex_session_log", observed_at: "2026-10-14T04:44:18Z", plan: "plus",
         windows: [
@@ -84,12 +84,14 @@ describe("resource overview", () => {
     expect(weekly).toHaveTextContent("已过重置时间，当前用量未知");
     expect(within(weekly).queryByRole("meter")).toBeNull();
     expect(chatgpt).toHaveTextContent("计划 plus");
-    expect(within(chatgpt).getByTestId("resource-cost")).toHaveTextContent("$0.06");
+    expect(within(chatgpt).getByTestId("resource-cost")).toHaveTextContent("< $0.01");
+    expect(within(chatgpt).getByTestId("resource-cli-cost")).toHaveTextContent("Claude Code 自报 < $0.01");
     expect(chatgpt).toHaveTextContent("来自 Nerelan 的 1 个任务");
 
     const sense = screen.getByTestId("resource-sense");
     expect(within(sense).getByTestId("quota-unknown")).toHaveTextContent("API Key 按量计费，没有订阅额度窗口");
     expect(within(sense).getByTestId("resource-cost")).toHaveTextContent("$16.57（部分）");
+    expect(within(fiveHour).getByRole("meter")).toHaveAttribute("aria-valuetext", "49%");
 
     const summary = screen.getByTestId("resource-summary");
     expect(summary).toHaveTextContent("等价成本 $16.63（部分）");

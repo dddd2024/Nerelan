@@ -61,7 +61,12 @@ function formatReset(iso: string | null): string | null {
 
 function costText(cost: EquivalentCost | null): string {
   if (!cost || cost.state === "UNKNOWN" || cost.usd === null) return "未知";
-  return `${usd.format(cost.usd)}${cost.state === "PARTIAL" ? "（部分）" : ""}`;
+  return `${money(cost.usd)}${cost.state === "PARTIAL" ? "（部分）" : ""}`;
+}
+
+function money(value: number): string {
+  // Fractions of a cent are real usage, not zero.
+  return value > 0 && value < 0.005 ? "< $0.01" : usd.format(value);
 }
 
 function Meter({ label, value, range }: { label: string; value: number | null; range?: [number, number] | null }) {
@@ -74,6 +79,7 @@ function Meter({ label, value, range }: { label: string; value: number | null; r
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={value ?? undefined}
+      aria-valuetext={value === null ? "用量未知" : range ? `约 ${Math.round(value)}%（${Math.round(range[0])}–${Math.round(range[1])}%）` : `${Math.round(value)}%`}
     >
       {range && (
         <div
@@ -96,7 +102,7 @@ function windowText(window: QuotaWindow): string {
     const range = window.usedPercentRange;
     return `预计已用约 ${Math.round(window.usedPercent)}%${range ? `（${Math.round(range[0])}–${Math.round(range[1])}%）` : ""}`;
   }
-  if (window.usedUnits !== null) return `本窗口已用约 ${usd.format(window.usedUnits)}，上限未知`;
+  if (window.usedUnits !== null) return `本窗口已用约 ${money(window.usedUnits)}，上限未知`;
   return "用量未知";
 }
 
@@ -223,6 +229,11 @@ function ResourceCard({ resource }: { resource: Resource }) {
             {costText(resource.equivalentCost)}
           </p>
           <p className="text-[11px] text-ra-text-tertiary">等价 API 成本</p>
+          {resource.equivalentCost?.cliReportedUsd != null && (
+            <p className="text-[11px] text-ra-text-tertiary" data-testid="resource-cli-cost">
+              Claude Code 自报 {money(resource.equivalentCost.cliReportedUsd)}
+            </p>
+          )}
         </div>
       </header>
       <QuotaBlock quota={resource.quota} />

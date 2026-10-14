@@ -142,19 +142,61 @@ Checked on the Owner's real history (a read-only copy):
 - Codex Plus windows at 49% (5-hour) and 40% (weekly), matching the CLI.
 - Older Claude `sonnet` runs stay unpriced, because they predate model capture.
 
+## Tiered quota, forecasts and the dispatch guard
+
+The Owner's rule (2026-10-14) is that every subscription window is shown on the best basis
+available (`basis` in the API):
+
+| Basis | When | Shown as |
+|---|---|---|
+| `official_percent` | The CLI states the percent used. Codex always does; Claude does when a notice carries `utilization`. | The percent, with reset time and plan. |
+| `official_status` | The CLI only says allowed / warning / rejected (Claude `rate_limit_event`). | Availability (可用 / 接近上限 / 已触顶) plus reset time. Actual limit hits are listed. |
+| `estimated` | No official number, but local history shows how much a window holds. | Predicted percent used, with a low–high range and a remaining-units range. The reset time is marked as estimated when it is inferred. |
+| `unknown` | Nothing reliable. If usage in the window was measured, that is shown with "上限未知". | UNKNOWN. |
+
+How capacity is learned (`model_access/quota_forecast.py`, `quota_history.py`), in
+list-price units, because limits weigh cache and output roughly the way prices do:
+
+- **Codex:** official percent steps against the usage in the same window, taken from
+  `token_count` / `turn_context` lines in `$CODEX_HOME/sessions`. Steps under 3 points are
+  ignored, and a single sample carries ±1 point of rounding.
+- **Claude:** usage in rolling 5-hour blocks, each starting with the first request after the
+  previous block ended. A block's usage up to an actual `usage_limit_reached` error gives one
+  capacity sample. The samples come from assistant usage lines (deduplicated by message id) and
+  API error lines in `~/.claude/projects/*/*.jsonl`. A block that already hit the limit is
+  reported as reached until it ends.
+- **Range:** the median of the samples, with the interquartile range once there are 4 or
+  more. Min and max are kept for reference.
+- **Scope:** usage elsewhere (other devices, the web, Nerelan's `--ephemeral` Codex runs) is
+  invisible here. The estimates say `usage_scope: this_machine` and lean optimistic.
+
+**Dispatch guard** (`platform_v1/quota_guard.py`, host `_quota_guarded`). Before an
+agent-team role dispatches on a subscription binding, the account's windows are compared with
+the binding's typical task size. That size is taken from the binding's own successful tasks
+when it has them, then its connection's, then all tasks; the decision records which was used.
+
+- **`switch`:** the limit is reached, an official percent is ≥ 98, an estimate's optimistic
+  end is ≥ 98, or even the optimistic remaining amount cannot fit the task. The role moves to
+  the same model on another account, or to a stronger coding role's agent. It never moves to
+  a weaker one, and the planner and reviewer only move to the same model. If no alternative
+  passes its own check, the run goes ahead with a recorded warning.
+- **`warn`:** the pessimistic remaining amount does not fit, an official percent is ≥ 90, an
+  estimate's midpoint is ≥ 90, or the CLI says the account is near its limit.
+- **Explicitly chosen bindings** are never moved; their shortfall is recorded as a warning.
+
+Decisions appear in `/api/resources` (`summary.quota_guard`) and in Settings.
+
+On the Owner's real data (2026-10-14):
+- Codex official 72% / 43%.
+- Claude estimated at about 99% (range 72–100%) from 9 limit hits in three days.
+- The guard dry run gave Claude bindings `warn` (possibly insufficient) and Codex `ok`.
+
 ## Remaining P0-3 work
 
-1. Quota beyond official percentages, following the Owner's rule (2026-10-14):
-   - Official percent → show it.
-   - Status only → show availability and record actual limit hits.
-   - History but no number → predict with an error range.
-   - Nothing reliable → `UNKNOWN`.
-   - If the predicted quota is too low for the next task, switch model or warn before
-     dispatch.
-2. Optional third-party quota sources (Magpie `GET /v1/magpie/quotas?kept=1`, OpenUsage
+1. Optional third-party quota sources (Magpie `GET /v1/magpie/quotas?kept=1`, OpenUsage
    `--json`) for subscriptions the official CLIs do not report. These are opt-in and
    labelled with the tool as their source.
-3. Executor isolation: verify whether `claude -p` applies `~/.claude/settings.json` `env`
+2. Executor isolation: verify whether `claude -p` applies `~/.claude/settings.json` `env`
    under Nerelan's argv. If it does, pin the settings sources for account and relay runs and
    add a regression test.
-4. Retire legacy `ModelProfile` after a migration check.
+3. Retire legacy `ModelProfile` after a migration check.
