@@ -135,7 +135,71 @@ The [production follow-up and real development trial report](benchmarks/context-
 separates successful process-restart context consumption from rejected or timed-out
 benchmark artifacts and unknown cash/quota observations.
 
-## Errors
+## P0-2 follow-up: bounded context and recovery
+
+Goal-linked native and OpenCode execution now use schema version 2. The legacy
+public builder defaults to version 1; `optimize=True` opts into version 2.
+Canonical UTF-8 JSON, including index/trigger metadata and optional summaries,
+fits the supplied byte budget. Compression keeps structured task states,
+execution identities, Goal revision, checkpoint and Git sources. It removes
+Goal prose, clips history descriptions and chooses recent critical events before
+other recent events. Omissions and clipping are explicit. If the structured core
+cannot fit, reconstruction fails instead of discarding current truth.
+
+The full sanitized projection stays in the existing TaskStore. Internal
+`full_projection=True` is working data for bounded retrieval, never a model
+prompt or browser-selectable flag. No artifact files, raw logs or metadata are
+read for retrieval. Original event/evidence/Goal references and digests form a
+deterministic catalog. Empty queries browse it; lexical queries and exact refs
+retrieve visible entries. Oversized entries return a labelled excerpt with the
+original digest. Changed snapshots fail closed rather than mixing revisions.
+
+Authenticated local clients can POST to `/api/tasks/{task_id}/context/{action}`:
+
+| Action | Body fields | Result |
+| --- | --- | --- |
+| `packet` | optional `budget_bytes` (default 16384) | fresh compact packet with snapshot/index |
+| `retrieve` | `expected_snapshot`, optional `query`, `refs`, `budget_bytes` (512–65536), `limit` (1–32) | bounded catalog matches/excerpts |
+| `summary` | `expected_snapshot`, optional `timeout` (1–90 seconds) | explicit saved-native-account summary result |
+| `handoff` | `expected_snapshot`, `from_agent`, `to_agent` | immutable source-bound handoff identifier |
+| `recover` | `handoff_id`, `agent_id`, optional `budget_bytes` | handoff plus freshly rebuilt packet |
+
+Workspace and visibility come from trusted host configuration. Browser paths,
+bindings and scope overrides never grant authority. Handoff agent names are
+labels, not authentication or permission. Host APIs retain the existing local
+client capability and Origin checks. The trusted source workspace is used before
+a durable run; an admitted durable run uses its own workspace. A missing durable
+workspace fails closed. The Python service also supports explicitly restricted
+task/path views, and refuses native AI summaries for those views because the
+native read-only runtime could read repository files outside that projection.
+
+The summary trigger is deterministic: sanitized original context exceeds 65536
+bytes and has at least 32 events. A trigger never calls a provider. Only the
+explicit `summary` action resolves the configured native planner account and
+reuses the existing read-only CLI runner. Input is independently bounded to
+32768 bytes, output to 4096 bytes, and existing secret redaction runs before
+persistence. Source bindings cover the events actually supplied, with compression
+metadata retained. Usage is the native runner's reported usage or UNKNOWN; no
+cash/quota savings are inferred. Startup and CI remain provider-free.
+
+Summary reservations and outcomes use derived `ContextSummary` evidence;
+handoffs use `ContextHandoff`. Neither contributes to authoritative source
+digests or invalidates its own input. Duplicate requests reuse the recorded
+outcome. A reservation surviving process loss remains RUNNING with an unknown
+outcome; restart does **not** retry that potentially paid call or advertise a
+completed summary. This slice does not reconcile or retry interrupted summary
+jobs. Completed summaries survive restart and are included as advisory prose
+only while visibility, Goal revision, execution, Git scope and supplied source
+digests still match. Publication revalidates the full input inside a write
+transaction after the model returns; raced input produces a FAILED receipt.
+
+Recovery rejects changed Goal/execution/Git/visibility anchors and mismatched
+receiver labels. Task statuses and checkpoints are read again, so advancing
+state never comes from the old handoff or summary. Retrieval is deterministic
+text search within one task/Goal projection; cross-task semantic memory and
+vector search remain outside this slice.
+
+### Error codes
 
 `ContextBuilderError(ValueError)` has a `.code`, and its message is the code
 only. The codes are:
@@ -155,3 +219,10 @@ only. The codes are:
 - `context_goal_stale`
 - `context_budget_insufficient`
 - `context_packet_invalid`
+- `context_snapshot_stale`
+- `context_reference_unavailable`
+- `context_transaction_invalid`
+- `context_handoff_stale`
+- `context_summary_scope_restricted`
+- `context_summary_binding_invalid`
+- `context_summary_not_needed`

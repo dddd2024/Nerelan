@@ -332,6 +332,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     control_store: PlatformControlStore
     goal_service: GoalService
     agent_planner: Any | None = None
+    context_recovery: Any | None = None
     agent_policy: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
@@ -555,6 +556,42 @@ class _TaskHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if len(segments) == 5 and segments[:2] == ['api', 'tasks'] and segments[3] == 'context':
+                from .context_builder import ContextBuilderError
+                if self.context_recovery is None:
+                    self._send_json(HTTPStatus.CONFLICT, {'error': 'context_service_unavailable'})
+                    return
+                payload = self._read_json(optional=True)
+                task_id, action = segments[2], segments[4]
+                try:
+                    if action == 'packet':
+                        result = self.context_recovery.packet(task_id, budget_bytes=payload.get('budget_bytes', 16384))
+                    elif action == 'retrieve':
+                        if not isinstance(payload.get('refs', []), list):
+                            raise ContextBuilderError('context_invalid_argument')
+                        result = self.context_recovery.retrieve(task_id,
+                            expected_snapshot=payload.get('expected_snapshot', ''),
+                            query=payload.get('query', ''), refs=tuple(payload.get('refs', ())),
+                            budget_bytes=payload.get('budget_bytes', 4096), limit=payload.get('limit', 8))
+                    elif action == 'summary':
+                        result = self.context_recovery.summarize(task_id,
+                            expected_snapshot=payload.get('expected_snapshot', ''), timeout=payload.get('timeout', 90))
+                    elif action == 'handoff':
+                        result = self.context_recovery.handoff(task_id,
+                            expected_snapshot=payload.get('expected_snapshot', ''),
+                            from_agent=payload.get('from_agent', ''), to_agent=payload.get('to_agent', ''))
+                    elif action == 'recover':
+                        result = self.context_recovery.recover(task_id,
+                            handoff_id=payload.get('handoff_id', ''), agent_id=payload.get('agent_id', ''),
+                            budget_bytes=payload.get('budget_bytes', 16384))
+                    else:
+                        self._send_json(HTTPStatus.NOT_FOUND, {'error': 'route not found'})
+                        return
+                except ContextBuilderError as exc:
+                    self._send_json(HTTPStatus.CONFLICT, {'error': exc.code})
+                    return
+                self._send_json(HTTPStatus.OK, result)
+                return
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "runs"]
@@ -1236,6 +1273,7 @@ def _handler_factory(
     control_store: PlatformControlStore | None = None,
     goal_service: GoalService | None = None,
     agent_planner: Any | None = None,
+    context_recovery: Any | None = None,
     agent_policy: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
@@ -1272,6 +1310,7 @@ def _handler_factory(
         store=store, control_store=configured_control
     )
     ConfiguredHandler.agent_planner = agent_planner
+    ConfiguredHandler.context_recovery = context_recovery
     ConfiguredHandler.agent_policy = agent_policy
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
