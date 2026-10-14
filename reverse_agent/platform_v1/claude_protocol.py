@@ -23,6 +23,8 @@ class ClaudeProtocolError(CodexProtocolError):
 
 _USAGE_KEYS = ("input_tokens", "cache_read_input_tokens", "output_tokens")
 _MAX_RATE_LIMITS = 8
+# `system` notices that only report progress and never count toward the event bound.
+_PROGRESS_SUBTYPES = frozenset({"thinking_tokens"})
 
 
 def _rate_limit(info: Any) -> dict[str, Any] | None:
@@ -104,9 +106,6 @@ class ClaudeStreamJson:
             raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
         if not line.strip():
             return
-        self._events += 1
-        if self._events > self._event_limit:
-            raise ClaudeProtocolError("claude_code_event_limit_exceeded")
         try:
             event = json.loads(line.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
@@ -114,6 +113,13 @@ class ClaudeStreamJson:
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
             raise ClaudeProtocolError("claude_code_invalid_event")
         kind = event["type"]
+        if kind == "system" and event.get("subtype") in _PROGRESS_SUBTYPES:
+            # Reasoning models (e.g. GLM via the relay) emit one notice per few thinking tokens,
+            # thousands per turn. They carry no turn state; the stream byte bound limits them.
+            return
+        self._events += 1
+        if self._events > self._event_limit:
+            raise ClaudeProtocolError("claude_code_event_limit_exceeded")
         if kind == "rate_limit_event":
             # Account quota notices can arrive at any point; keep the latest per window.
             limit = _rate_limit(event.get("rate_limit_info"))
