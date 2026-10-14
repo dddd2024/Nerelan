@@ -158,7 +158,7 @@ def _write(path: Path, data: dict) -> None:
 
 def _portable(path: str) -> str:
     """A path every shell runs unquoted: 8.3 short form when it has spaces, forward slashes."""
-    if os.name == "nt" and " " in path:
+    if _WINDOWS and " " in path:
         try:
             import ctypes
             buffer = ctypes.create_unicode_buffer(1024)
@@ -170,6 +170,7 @@ def _portable(path: str) -> str:
 
 
 WRAPPER_NAME = "claude_statusline.cmd"
+_WINDOWS = os.name == "nt"  # a module flag, so tests can exercise either branch on any OS
 
 
 def command_for(target: Path) -> str:
@@ -184,7 +185,7 @@ def command_for(target: Path) -> str:
     exe, script = _portable(sys.executable), _portable(str(target))
     if " " not in exe and " " not in script:
         return f"{exe} {script}"
-    if os.name != "nt":
+    if not _WINDOWS:
         return f'"{exe}" "{script}"'  # POSIX shells handle quoted words
     wrapper = target.with_name(WRAPPER_NAME)
     wrapper.write_bytes(f'@"{sys.executable}" "%~dp0{target.name}"\r\n'.encode("utf-8"))
@@ -226,6 +227,10 @@ def uninstall() -> int:
         return 0
     data.pop("statusLine", None)
     _write(path, data)
+    try:
+        (state_dir() / WRAPPER_NAME).unlink()
+    except OSError:
+        pass
     print(f"removed Nerelan statusLine from {path}")
     return 0
 

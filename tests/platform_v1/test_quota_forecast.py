@@ -457,10 +457,13 @@ def test_status_line_command_runs_unquoted_and_old_forms_are_still_recognised(tm
     # Without 8.3 names Python keeps its space: a .cmd wrapper carries the quoting instead,
     # so the command still never starts with a quote (cmd /c and PowerShell break on that).
     monkeypatch.setattr(sl, "_portable", lambda path: path.replace("\\", "/"))
-    monkeypatch.setattr(sl.os, "name", "nt")
+    monkeypatch.setattr(sl, "_WINDOWS", True)
     target.parent.mkdir(parents=True, exist_ok=True)
     command = sl.command_for(target)
     assert '"' not in command and command.endswith("/claude_statusline.cmd")
     wrapper = target.with_name("claude_statusline.cmd").read_bytes()
     assert wrapper == b'@"C:\\Program Files\\Python313\\python.exe" "%~dp0claude_statusline.py"\r\n'
     assert sl._ours({"command": command})
+    # POSIX shells handle a quoted command, so no wrapper is written there.
+    monkeypatch.setattr(sl, "_WINDOWS", False)
+    assert sl.command_for(target).startswith('"C:/Program Files/')
