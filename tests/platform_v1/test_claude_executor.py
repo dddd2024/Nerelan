@@ -187,6 +187,22 @@ def test_protocol_requires_session_and_terminal_result():
         parser.feed(b'{"type":"assistant","message":{"content":[]}}\n')
 
 
+def test_thinking_progress_notices_do_not_spend_the_event_bound():
+    # Observed with GLM-5.2 through the relay: one notice per 1-4 thinking tokens (#1164).
+    notice = b'{"type":"system","subtype":"thinking_tokens","estimated_tokens":3,"estimated_tokens_delta":2}\n'
+    parser = ClaudeStreamJson(max_events=3)
+    parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 500
+                + b'{"type":"result","subtype":"success","is_error":false,"result":"done"}\n')
+    assert parser.finish().final_text == "done"
+    parser = ClaudeStreamJson(max_events=2)
+    with pytest.raises(ClaudeProtocolError, match="claude_code_event_limit_exceeded"):
+        parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n'
+                    + b'{"type":"assistant","message":{"content":[]}}\n' * 2)
+    parser = ClaudeStreamJson(max_frame_bytes=1024, max_stream_bytes=4096)
+    with pytest.raises(ClaudeProtocolError, match="claude_code_stream_limit_exceeded"):
+        parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 100)
+
+
 def test_router_registers_claude_code_executor():
     factory = ExecutorRouter()._registry["claude_code"]
     executor = factory(model_id="claude-sonnet-5-5", claude_exe=sys.executable,
