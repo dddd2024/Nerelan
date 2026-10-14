@@ -61,6 +61,8 @@ def test_estimated_window_reports_a_range_and_remaining_units():
     ({"basis": "official_percent", "used_percent": 92.0}, None, "warn"),
     ({"status": "allowed_warning"}, None, "warn"),
     ({"status": "rejected", "reset_passed": True}, None, "ok"),
+    ({"basis": "estimated", "used_percent": 99.4, "used_percent_range": [72.5, 100.0]}, None, "warn"),
+    ({"basis": "estimated", "used_percent": 99.9, "used_percent_range": [98.5, 100.0]}, None, "switch"),
 ])
 def test_guard_decisions(window, need, decision):
     assert guard(window, need)["decision"] == decision
@@ -167,6 +169,20 @@ def test_claude_quota_without_any_signal_is_unknown(tmp_path):
 
 
 # ---- dispatch guard ---------------------------------------------------------------------
+
+def test_typical_need_falls_back_from_binding_to_connection_to_all_tasks():
+    from reverse_agent.platform_v1.quota_guard import typical_need
+    bindings = [{"binding_id": "sonnet", "connection_id": "claude", "model_id": "sonnet"},
+                {"binding_id": "opus", "connection_id": "claude", "model_id": "claude-opus-5-5"},
+                {"binding_id": "glm", "connection_id": "sense", "model_id": "glm-5.2"}]
+    records = [{"binding_ref": "sonnet", "ok": True, "models": [], "tokens": {"input": 10}},  # alias: unpriced
+               {"binding_ref": "glm", "ok": True, "models": [], "tokens": {"input": 1_000_000}}]
+    assert typical_need(records, bindings[0], bindings) == (1.4, "all_tasks")
+    records.append({"binding_ref": "opus", "ok": True, "models": [], "tokens": {"input": 1_000_000}})
+    assert typical_need(records, bindings[0], bindings) == (4.0, "connection")
+    assert typical_need([], bindings[0], bindings) == (None, "none")
+    assert guard({"remaining_units_range": [0.0, 2.0]}, None)["reason"] == "no_task_estimate"
+
 
 def test_typical_task_units_and_check_skip_api_keys():
     records = [{"binding_ref": "b", "ok": True, "models": [], "tokens": {"input": 1_000_000, "output": 0}},

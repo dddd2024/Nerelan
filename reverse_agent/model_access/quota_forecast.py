@@ -174,8 +174,17 @@ def guard(window: Mapping[str, Any], need_units: float | None) -> dict[str, Any]
             return {"decision": "switch", "reason": "almost_exhausted"}
         if used >= 90:
             return {"decision": "warn", "reason": "nearly_exhausted"}
+    if window.get("basis") == "estimated" and isinstance(used, (int, float)):
+        # An estimate moves a role only when even its optimistic end is exhausted.
+        low = (window.get("used_percent_range") or [used, used])[0]
+        if low >= 98:
+            return {"decision": "switch", "reason": "almost_exhausted"}
+        if used >= 90:
+            return {"decision": "warn", "reason": "nearly_exhausted"}
     if status == "allowed_warning":
         return {"decision": "warn", "reason": "near_limit"}
+    if remaining and need_units is None:
+        return {"decision": "ok", "reason": "no_task_estimate"}
     return {"decision": "ok", "reason": "fits" if remaining else "no_signal"}
 
 

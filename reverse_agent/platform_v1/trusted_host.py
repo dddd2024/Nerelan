@@ -342,13 +342,14 @@ class CombinedTrustedHost:
         return self._quota_guarded(role, executor_id, binding_id, roster["roles"])
 
     def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
-        from .quota_guard import check, typical_task_units
+        from .quota_guard import check, typical_need
         from .usage_ledger import task_token_records
         try:
             connection = self._store.get_connection_public(binding["connection_id"])
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
-            need = typical_task_units(records, binding["binding_id"], binding["model_id"])
-            return check(connection, self._subscription_quotas(), need)
+            need, source = typical_need(records, binding, self._store.list_bindings_public())
+            verdict = check(connection, self._subscription_quotas(), need)
+            return verdict | {"need_source": source} if verdict else None
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
             return None
 

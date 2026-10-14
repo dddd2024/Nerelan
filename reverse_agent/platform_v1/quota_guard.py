@@ -36,6 +36,21 @@ def typical_task_units(records: Iterable[Mapping[str, Any]], binding_id: str, mo
     return round(median(values), 4) if values else None
 
 
+def typical_need(records: Sequence[Mapping[str, Any]], binding: Mapping[str, Any],
+                 bindings: Sequence[Mapping[str, Any]]) -> tuple[float | None, str]:
+    """The binding's own typical task, else its connection's, else any task's, with the source."""
+    own = typical_task_units(records, binding["binding_id"], binding["model_id"])
+    if own is not None:
+        return own, "binding"
+    for scope, members in (("connection", [b for b in bindings if b["connection_id"] == binding["connection_id"]]),
+                           ("all_tasks", list(bindings))):
+        values = [value for member in members
+                  if (value := typical_task_units(records, member["binding_id"], member["model_id"])) is not None]
+        if values:
+            return round(median(values), 4), scope
+    return None, "none"
+
+
 def check(connection: Mapping[str, Any], quotas: Mapping[str, Any], need_units: float | None) -> dict[str, Any] | None:
     """Worst decision over the account's windows, or None for a binding without one."""
     provider = connection.get("executor_provider_id")
