@@ -302,6 +302,38 @@ class CombinedTrustedHost:
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
         )
 
+    def _context_recovery(self) -> Any:
+        from pathlib import Path
+        from .context_recovery import ContextRecoveryService
+        from .context_builder import _git_head
+        from .repository_workspace import resolve_repository_workspace
+
+        def workspace(task_id: str) -> tuple[str, str]:
+            task = self._task_store.get_task(task_id, event_limit=0)
+            observation = self._task_store.get_latest_durable_run_observation(task_id)
+            if observation is not None:
+                run = self._task_store._get_durable_run(observation.run_id)
+                if run.execution_id != task.execution_id:
+                    raise TaskStoreError('context_execution_stale')
+                path = run.worktree_path
+                if not path:
+                    raise TaskStoreError('context_workspace_unavailable')
+            else:
+                path = str(resolve_repository_workspace(task.repository).repo_dir)
+            return str(path), _git_head(Path(path))
+
+        def binding() -> tuple[str, str]:
+            executor, ref = self._resolve_agent_role('planner')
+            public = self._store.get_binding_public(ref)
+            connection = self._store.get_connection_public(public['connection_id'])
+            if (not public['enabled'] or public['executor_id'] != executor
+                    or connection['auth_method'] != 'external_cli_session'):
+                raise TaskStoreError('context_summary_requires_native_account_binding')
+            return executor, public['model_id']
+
+        return ContextRecoveryService(store=self._task_store, workspace_for=workspace,
+                                      summary_binding=binding)
+
     def _agent_policy(self) -> Any:
         from .policy_configurator import PolicyConfigurator, binding_health
 
@@ -583,6 +615,7 @@ class CombinedTrustedHost:
                 control_store=self._control_store,
                 goal_service=self._goal_service,
                 agent_planner=self._agent_planner(),
+                context_recovery=self._context_recovery(),
                 agent_policy=self._agent_policy(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
