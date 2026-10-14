@@ -167,6 +167,9 @@ def test_readiness_uses_auth_status_without_inference(payload, expected, monkeyp
 
 def test_readiness_rejects_incompatible_cli():
     assert probe_claude_code_readiness(sys.executable, runner=_runner({}, help_text="--print")) == "cli_incompatible"
+    # An old CLI whose auth status also fails must not look like "CLI fine, just logged out".
+    assert probe_claude_code_readiness(
+        sys.executable, runner=_runner({}, help_text="--print", status_code=1)) == "cli_incompatible"
 
 
 def test_protocol_requires_session_and_terminal_result():
