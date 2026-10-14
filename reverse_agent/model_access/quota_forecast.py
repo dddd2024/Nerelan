@@ -28,6 +28,7 @@ from .pricing import equivalent_cost
 
 FIVE_HOURS = 5 * 3600
 MIN_PERCENT_STEP = 3.0  # smaller official steps are mostly rounding noise
+CALIBRATION_MIN_SPREAD = 0.15  # least relative uncertainty of a calibrated capacity
 
 
 @dataclass(frozen=True)
@@ -154,7 +155,14 @@ def calibrate(samples: Sequence[Mapping[str, Any]], events: Sequence[UsageEvent]
         pct = sample["used_percent"]
         values.append(used_units * 100 / pct)
         spread = (used_units * 100 / (pct + 1), used_units * 100 / max(pct - 1, 1))
-    return capacity_range(values, single_spread=spread if len(values) == 1 else None)
+    capacity = capacity_range(values, single_spread=spread if len(values) == 1 else None)
+    if capacity:
+        # Limits weigh token kinds differently from list prices, so the same window holds more
+        # or fewer price units with the mix: the Owner's two first readings implied ~28 and ~38
+        # (2026-10-14). Never claim more precision than that variation allows.
+        capacity["low"] = round(min(capacity["low"], capacity["mid"] * (1 - CALIBRATION_MIN_SPREAD)), 4)
+        capacity["high"] = round(max(capacity["high"], capacity["mid"] * (1 + CALIBRATION_MIN_SPREAD)), 4)
+    return capacity
 
 
 def capacity_from_hits(events: Sequence[UsageEvent], hits: Sequence[float],
