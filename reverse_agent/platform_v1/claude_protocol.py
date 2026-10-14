@@ -22,6 +22,25 @@ class ClaudeProtocolError(CodexProtocolError):
 
 
 _USAGE_KEYS = ("input_tokens", "cache_read_input_tokens", "output_tokens")
+_MAX_RATE_LIMITS = 8
+
+
+def _rate_limit(info: Any) -> dict[str, Any] | None:
+    """Allowlisted projection of a ``rate_limit_event``'s ``rate_limit_info``."""
+    if not isinstance(info, dict) or not isinstance(info.get("status"), str):
+        return None
+    public: dict[str, Any] = {"status": public_text(info["status"], 40)}
+    if isinstance(info.get("rateLimitType"), str):
+        public["window"] = public_text(info["rateLimitType"], 40)
+    resets_at = info.get("resetsAt")
+    if type(resets_at) is int and 0 < resets_at < 10**11:
+        public["resets_at"] = resets_at
+    utilization = info.get("utilization")
+    if type(utilization) in (int, float) and 0 <= utilization <= 100:
+        public["utilization"] = utilization
+    if isinstance(info.get("isUsingOverage"), bool):
+        public["using_overage"] = info["isUsingOverage"]
+    return public
 
 
 class ClaudeStreamJson:
@@ -95,6 +114,13 @@ class ClaudeStreamJson:
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
             raise ClaudeProtocolError("claude_code_invalid_event")
         kind = event["type"]
+        if kind == "rate_limit_event":
+            # Account quota notices can arrive at any point; keep the latest per window.
+            limit = _rate_limit(event.get("rate_limit_info"))
+            if limit is not None:
+                kept = [item for item in self.turn.rate_limits if item.get("window") != limit.get("window")]
+                self.turn.rate_limits = (kept + [limit])[-_MAX_RATE_LIMITS:]
+            return
         if self.turn.completed or self.turn.failed:
             raise ClaudeProtocolError("claude_code_event_after_terminal")
         if kind == "system":
@@ -154,5 +180,14 @@ class ClaudeStreamJson:
                     "cached_input_tokens": usage["cache_read_input_tokens"],
                     "output_tokens": usage["output_tokens"],
                 }
+                if type(usage.get("cache_creation_input_tokens")) is int and usage["cache_creation_input_tokens"] >= 0:
+                    self.turn.usage["cache_write_input_tokens"] = usage["cache_creation_input_tokens"]
+            # The concrete models behind an alias such as "sonnet", and the CLI's own API-price figure.
+            model_usage = event.get("modelUsage")
+            if isinstance(model_usage, dict):
+                self.turn.models = [public_text(name, 120) for name in list(model_usage)[:8] if isinstance(name, str)]
+            cost = event.get("total_cost_usd")
+            if type(cost) in (int, float) and 0 <= cost < 10**6:
+                self.turn.reported_cost_usd = float(cost)
             return
         # Unknown event kinds (e.g. stream_event, rate_limit notices) are ignored.

@@ -284,7 +284,11 @@ class CodexExecutor:
         _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": f"{self.LABEL} response",
             "description": public_text(turn.final_text), "metadata": {"executor_kind": self.KIND,
                 "final_text": turn.final_text, "usage_status": "observed_tokens" if turn.usage is not None else "unknown",
-                "token_usage": turn.usage, "cost_status": "unknown", "process_exit_code": code}})
+                "token_usage": turn.usage, "cost_status": "unknown", "process_exit_code": code,
+                **({"models": turn.models} if turn.models else {}),
+                **({"rate_limits": turn.rate_limits} if turn.rate_limits else {}),
+                **({"cli_reported_cost_usd": turn.reported_cost_usd}
+                   if turn.reported_cost_usd is not None else {})}})
         exit_code, summary, digest = LocalValidationRunner().run(task_id=task_id, command_id="git_diff_check", cwd=str(prepared.worktree))
         return ExecutorResult(exit_code == 0, exit_code, "git_diff_check", digest, summary,
             changed_files=_collect_final_product_files(prepared.worktree), workspace=str(prepared.worktree),

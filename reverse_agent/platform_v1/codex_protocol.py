@@ -42,6 +42,10 @@ class CodexTurn:
     failure_classification: str = ""
     usage: dict[str, int] | None = None
     items: list[dict[str, Any]] = field(default_factory=list)
+    # Optional, allowlisted facts a CLI reports about the turn (empty when it says nothing).
+    models: list[str] = field(default_factory=list)
+    rate_limits: list[dict[str, Any]] = field(default_factory=list)
+    reported_cost_usd: float | None = None
 
 
 class CodexJsonl:

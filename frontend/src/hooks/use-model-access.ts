@@ -14,11 +14,25 @@ import type {
   Executor,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
+import type { ResourceOverview } from "@/lib/resources";
 
 export const CONNECTIONS_QUERY_KEY = ["connections"] as const;
 export const EXECUTORS_QUERY_KEY = ["executors"] as const;
 export const BINDINGS_QUERY_KEY = ["bindings"] as const;
 export const AGENT_ROSTER_QUERY_KEY = ["agent-roster"] as const;
+export const RESOURCES_QUERY_KEY = ["resources"] as const;
+
+/** Every AI resource with its tokens, list-price cost and subscription windows. */
+export function useResources() {
+  const client = getDefaultModelControlClient();
+  return useQuery<ResourceOverview>({
+    queryKey: RESOURCES_QUERY_KEY,
+    queryFn: () => client.getResources(),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+}
 
 export function useAgentRoster() {
   const client = getDefaultModelControlClient();
