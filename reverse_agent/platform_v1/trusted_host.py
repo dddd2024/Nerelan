@@ -17,7 +17,8 @@ credential relay used internally during execution.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 from http.server import ThreadingHTTPServer
 import collections
 import json
@@ -371,19 +372,46 @@ class CombinedTrustedHost:
         if not entry or not entry["available"]:
             raise TaskStoreError(f"agent_role_unfilled:{role}")
         executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
-        return self._quota_guarded(role, executor_id, binding_id, roster["roles"])
+        return self._quota_guarded(role, executor_id, binding_id, roster["roles"],
+                                   standins=roster.get("standins", {}).get(role, ()))
 
     def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
         from .quota_guard import check, typical_need
         from .usage_ledger import task_token_records
         try:
             connection = self._store.get_connection_public(binding["connection_id"])
+            until = self._limit_hit_until(connection)
+            if until is not None:
+                # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
+                return {"decision": "switch", "reason": "limit_hit", "window": None,
+                        "until": datetime.fromtimestamp(until, timezone.utc).isoformat().replace("+00:00", "Z")}
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
             need, source = typical_need(records, binding, self._store.list_bindings_public())
             verdict = check(connection, self._subscription_quotas(), need)
             return verdict | {"need_source": source} if verdict else None
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
             return {"decision": "error", "reason": "quota_check_failed"}
+
+    def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
+        """When a run on this connection last failed for quota, and the account has not reset since."""
+        from .quota_guard import ACCOUNT_LIMIT, limit_hit_until
+        bindings = [b["binding_id"] for b in self._store.list_bindings_public()
+                    if b["connection_id"] == connection.get("connection_id")]
+        if not bindings:
+            return None
+        since = datetime.fromtimestamp(time.time() - 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = self._task_store._conn.execute(
+            "SELECT failure_classification, updated_at FROM tasks WHERE status IN ('FAILED', 'BLOCKED') "
+            "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
+            (since, *bindings)).fetchall()
+        # Our own refusals are not new answers from the account and must never extend the hold.
+        hit = next((row["updated_at"] for row in rows if ACCOUNT_LIMIT.search(row["failure_classification"] or "")), None)
+        if hit is None:
+            return None
+        hit_at = datetime.fromisoformat(hit.replace("Z", "+00:00")).timestamp()
+        quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "")
+        until = limit_hit_until(hit_at, quota)
+        return until if until > time.time() else None
 
     def _runnable_bindings(self) -> set[str]:
         """Bindings that could dispatch now: enabled, credential usable, executor ready (resolver rules)."""
@@ -404,7 +432,7 @@ class CombinedTrustedHost:
         log.appendleft({"at": _utc_now(), "_logged": time.monotonic(), **entry})
 
     def _quota_guarded(self, role: str, executor_id: str, binding_id: str,
-                       roster: Mapping[str, Mapping[str, Any]]) -> tuple[str, str]:
+                       roster: Mapping[str, Mapping[str, Any]], standins: Sequence[str] = ()) -> tuple[str, str]:
         """Move a role off an account whose quota cannot take the next task, before dispatch."""
         from .quota_guard import alternatives
         bindings = self._store.list_bindings_public()
@@ -418,7 +446,8 @@ class CombinedTrustedHost:
             usable = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
             usable &= self.ROLE_EXECUTORS.get(role, usable)
             runnable = self._runnable_bindings()
-            for candidate in alternatives(role, chosen, bindings=bindings, roster=roster, usable_executors=usable):
+            for candidate in alternatives(role, chosen, bindings=bindings, roster=roster, usable_executors=usable,
+                                          standins=standins):
                 if candidate["binding_id"] not in runnable:
                     continue  # a stand-in that cannot run is worse than a warned run
                 verdict = self._quota_check(candidate)
@@ -494,6 +523,12 @@ class CombinedTrustedHost:
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
                 verdict = host._quota_check(binding) if binding else None
+                if verdict and verdict.get("reason") == "limit_hit":
+                    # Refuse before launch: the account already answered with its limit. The plan task
+                    # is then rerouted to a stand-in, or blocked, instead of failing again at the API.
+                    host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "refuse",
+                                                 "reason": "limit_hit", "window": None, "switched_to": None})
+                    raise BindingResolutionError("quota_exhausted:limit_hit")
                 if verdict and verdict["decision"] in {"warn", "switch"}:
                     # A binding the task named itself is kept; the shortfall is recorded before the run.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "warn",

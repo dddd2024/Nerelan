@@ -57,6 +57,23 @@ def test_roster_rejects_invalid_assignments(tmp_path, roles, error):
     assert not (tmp_path / "agent_roster.json").exists()
 
 
+def test_owner_stand_ins_persist_survive_role_edits_and_validate(tmp_path):
+    store = _models(tmp_path)
+    store.put_agent_roster({"roles": {"complex": "strong"}, "standins": {"complex": ["mid", "mid", ""]}})
+    assert store.get_agent_roster_public()["standins"] == {"complex": ["mid"]}
+    store.put_agent_roster({"roles": {"complex": "strong", "coder": "mid"}})  # a role edit keeps them
+    reloaded = ModelProfileStore(state_path=tmp_path / "model_setup_state.json")
+    assert reloaded.get_agent_roster_public()["standins"] == {"complex": ["mid"]}
+    with pytest.raises(ValueError, match="agent_standin_role_invalid:planner"):
+        store.put_agent_roster({"roles": {}, "standins": {"planner": ["mid"]}})
+    with pytest.raises(ValueError, match="agent_standin_binding_unknown:complex"):
+        store.put_agent_roster({"roles": {}, "standins": {"complex": ["missing"]}})
+    store.delete_binding("mid")  # a removed stand-in is not offered
+    assert store.get_agent_roster_public()["standins"] == {}
+    store.put_agent_roster({"roles": {"complex": "strong"}, "standins": {}})
+    assert "standins" not in json.loads((tmp_path / "agent_roster.json").read_text(encoding="utf-8"))
+
+
 def test_deleted_binding_leaves_role_unfilled_not_remapped(tmp_path):
     store = _models(tmp_path)
     store.put_agent_roster({"roles": {"coder": "mid"}})

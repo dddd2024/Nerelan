@@ -104,6 +104,23 @@ def test_failed_checks_at_the_top_get_one_retry_by_the_same_agent(monkeypatch):
     assert control.get_goal(goal.id).status == "BLOCKED"
 
 
+def test_quota_failures_move_the_role_to_the_guarded_stand_in_not_up_the_ladder(monkeypatch):
+    roster = dict(ROSTER)
+    store, control, goals, goal = _launched(monkeypatch, roster=roster, role="complex")
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first, classification="claude_code_turn_failed:api_error_429")
+    assert goals.escalate_failed_tasks(goal.id) == ()  # the guard still answers the same agent: blocked
+    roster["complex"] = ("codex", "gpt-standin")  # the guard now sees the hit and picks the stand-in
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert (moved["from_role"], moved["to_role"]) == ("complex", "complex")
+    assert moved["reason"] == "failed:claude_code_turn_failed:api_error_429"
+    assert store.get_task(moved["to_task_id"]).binding_ref == "gpt-standin"
+    # A later check failure by the stand-in still gets its one same-agent retry.
+    _fail(store, moved["to_task_id"], classification="deterministic_validation_failure")
+    [retry] = goals.escalate_failed_tasks(goal.id)
+    assert store.get_task(retry["to_task_id"]).binding_ref == "gpt-standin"
+
+
 def test_other_failures_at_the_top_still_block(monkeypatch):
     store, control, goals, goal = _launched(monkeypatch, role="complex")
     _fail(store, _link(control, goal.id, "T001")["task_id"], classification="timeout")

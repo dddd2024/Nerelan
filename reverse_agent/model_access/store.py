@@ -177,6 +177,16 @@ def _sanitize_agent_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+STANDIN_ROLES = ("simple", "coder", "complex")
+
+
+def _sanitize_standins(raw: Mapping[str, Any]) -> dict[str, list[str]]:
+    """Coding role -> up to 4 binding ids, in the Owner's order of preference."""
+    return {role: list(dict.fromkeys(b for b in ids if isinstance(b, str) and b))[:4]
+            for role, ids in raw.items() if role in STANDIN_ROLES and isinstance(ids, list)
+            and any(isinstance(b, str) and b for b in ids)}
+
+
 def _write_atomic(data: bytes, target: Path) -> None:
     parent = target.parent
     os.makedirs(parent, exist_ok=True)
@@ -409,6 +419,8 @@ class ModelProfileStore:
         self._bindings: dict[str, Binding] = {}
         self._agent_roster: dict[str, str] = {}
         self._agent_policy: dict[str, Any] = {}
+        # Owner-declared stand-ins per coding role, used only when the role's account is exhausted.
+        self._agent_standins: dict[str, list[str]] = {}
         self._lock = RLock()
         self._connection_binding_poison: StoreError | None = None
 
@@ -1058,6 +1070,8 @@ class ModelProfileStore:
                               if role in AGENT_ROLES and isinstance(binding, str) and binding}
         policy = data.get("policy")
         self._agent_policy = _sanitize_agent_policy(policy) if isinstance(policy, dict) else {}
+        standins = data.get("standins")
+        self._agent_standins = _sanitize_standins(standins) if isinstance(standins, dict) else {}
 
     def get_agent_roster_public(self) -> dict[str, Any]:
         with self._lock:
@@ -1073,7 +1087,11 @@ class ModelProfileStore:
                     "executor_id": binding.executor_id if binding else "",
                     "model_id": binding.model_id if binding else "",
                 }
-            return {"roles": roles, "role_order": list(AGENT_ROLES), "policy": dict(self._agent_policy)}
+            # A stand-in that was deleted or disabled is simply not offered.
+            standins = {role: [b for b in ids if b in self._bindings and self._bindings[b].enabled]
+                        for role, ids in self._agent_standins.items()}
+            return {"roles": roles, "role_order": list(AGENT_ROLES), "policy": dict(self._agent_policy),
+                    "standins": {role: ids for role, ids in standins.items() if ids}}
 
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
@@ -1098,14 +1116,30 @@ class ModelProfileStore:
                 raise ValueError("agent_reviewer_must_differ_from_coder")
             policy_raw = payload.get("policy") if isinstance(payload, Mapping) else None
             policy = _sanitize_agent_policy(policy_raw) if isinstance(policy_raw, Mapping) else {}
+            standins = self._agent_standins
+            if isinstance(payload, Mapping) and "standins" in payload:
+                # Only an explicit edit changes the Owner's stand-ins; a role edit keeps them.
+                raw = payload["standins"]
+                if not isinstance(raw, Mapping):
+                    raise ValueError("agent_standins_invalid")
+                standins = _sanitize_standins(raw)
+                for role, ids in raw.items():
+                    if role not in STANDIN_ROLES:
+                        raise ValueError(f"agent_standin_role_invalid:{role}")
+                    if not isinstance(ids, list) or any(
+                            not isinstance(b, str) or (b and b not in self._bindings) for b in ids):
+                        raise ValueError(f"agent_standin_binding_unknown:{role}")
             path = self._roster_path()
             if path is not None:
                 document: dict[str, Any] = {"schema_version": 1, "roles": roster}
                 if policy:
                     document["policy"] = policy
+                if standins:
+                    document["standins"] = standins
                 _write_atomic(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
                               .encode("utf-8"), path)
             self._agent_roster = roster
+            self._agent_standins = standins
             # A manual role edit drops the stored natural-language policy it no longer reflects.
             self._agent_policy = policy
         return self.get_agent_roster_public()

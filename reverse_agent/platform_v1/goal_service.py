@@ -24,6 +24,7 @@ from .run_store import TaskStore, TaskStoreError
 from .functional_validation import (
     freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
 )
+from .quota_guard import LIMIT_HIT
 from .run_read_model import publication_projection
 from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
@@ -382,7 +383,8 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
-            if _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
+            if not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
@@ -390,9 +392,21 @@ class GoalService:
                 break  # escalations spend the window's retry budget
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
-            target = self._stronger_route(role, failed.binding_ref)
+            if quota_failure:
+                # The account was out of quota, not the agent out of skill: the same role moves to the
+                # stand-in the quota guard now picks, never up the ladder. No stand-in: stays BLOCKED.
+                try:
+                    executor_kind, binding_ref = self.roster_resolver(role)
+                except TaskStoreError:
+                    continue
+                if binding_ref == failed.binding_ref:
+                    continue
+                target = (role, executor_kind, binding_ref)
+            else:
+                target = self._stronger_route(role, failed.binding_ref)
             if (target is None and failed.failure_classification == "deterministic_validation_failure"
-                    and not any(row.get("from_role") == row.get("to_role") for row in previous)):
+                    and not any(str(row.get("reason", "")).startswith("failed:deterministic_validation_failure")
+                                and row.get("from_role") == row.get("to_role") for row in previous)):
                 # No stronger agent: the same one retries once, now seeing which checks failed
                 # (functional_feedback reaches it through the context packet).
                 target = (role, failed.executor_kind, failed.binding_ref)
@@ -422,7 +436,8 @@ class GoalService:
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                 to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)
-            history = (*history, {"plan_task_id": plan_task.id, "from_role": role, "to_role": next_role})
+            history = (*history, {"plan_task_id": plan_task.id, "from_role": role, "to_role": next_role,
+                                  "reason": reason})
             outcomes.append({"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
                              "from_role": role, "to_role": next_role, "step": step, "reason": reason})
         if outcomes:

@@ -220,6 +220,44 @@ def test_true_goal_materialization_and_functional_checks_do_not_accept_cli_exit_
         store._conn.close()
 
 
+def test_a_quota_refusal_before_launch_fails_the_task_without_a_cli_call(source, tmp_path):
+    from reverse_agent.platform_v1.binding_resolver import BindingResolutionError
+
+    class Refusing:
+        def resolve(self, binding_ref, *, task_executor):
+            raise BindingResolutionError("quota_exhausted:limit_hit")
+
+    store = TaskStore(str(tmp_path / "tasks.sqlite3"))
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Refused for quota", "repository": "owner/native-fixture",
+        "idempotency_key": "native-refused", "executor_kind": "codex", "orchestration_mode": "single",
+        "binding_ref": "native-binding"})
+    goal = goals.plan(goal.id, expected_revision=goal.revision,
+                      tasks=[{"id": "T001", "title": "Value two", "instruction": "Change app.py"}]).goal
+    goals.approve(goal.id, expected_revision=goal.revision)
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "native-window", "policy_revision": 1, "owner_identity": "fixture-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": [goal.repository], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2, "max_retries": 0, "confirmation": "ACTIVATE"})
+    goals.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    calls = []
+    router = ExecutorRouter()
+    router.replace("codex", native_factory(calls))
+    service = DurableExecutionService(store=store, router=router, binding_resolver=Refusing(),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
+    try:
+        outcome = service.execute_durable_single(task_id, workspace_root=str(tmp_path / "workspaces"))
+        task = store.get_task(task_id)
+        assert outcome.success is False and calls == []
+        assert (task.status, task.failure_classification) == ("FAILED", "quota_exhausted:limit_hit")
+    finally:
+        store._conn.close()
+
+
 def test_native_checkpoint_recovery_does_not_dispatch_a_second_cli(source, tmp_path):
     _, base = source
     store = TaskStore(str(tmp_path / "tasks.sqlite3"))

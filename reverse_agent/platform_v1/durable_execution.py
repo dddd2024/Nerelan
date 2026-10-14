@@ -848,7 +848,23 @@ class DurableExecutionService:
             if executor_kind == "deterministic_fixture"
             else "READY_FOR_REVIEW"
         )
-        executor_kwargs = self._build_executor_kwargs(task)
+        try:
+            executor_kwargs = self._build_executor_kwargs(task)
+        except ExecutorRuntimeError as exc:
+            if not str(exc).startswith("quota_exhausted"):
+                raise
+            # The host refused dispatch because the account already answered with its limit.
+            # A FAILED terminal lets the Goal reroute the role (or block) instead of retrying here.
+            self.store._fenced_classify_failure(
+                lease.run_id, task_id, classification=str(exc)[:120], detail=str(exc),
+                owner=lease.owner, epoch=lease.epoch,
+            )
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id, execution_id=final.execution_id, success=False,
+                validation_command_id="", validation_exit_code=-1,
+                failure_classification=final.failure_classification, failure_detail=final.failure_detail,
+            )
 
         # --- External dispatch via the same router path as TaskExecutionService ---
         # For deterministic_fixture, the executor creates its own worktree internally.
