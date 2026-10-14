@@ -1,0 +1,12 @@
+{
+  "v1_test_sha256": "b1470785921913717dceff46e1c08a41babc5f5a2283996d2efe26cb414a0671",
+  "v2_test_sha256": "d252ca89280f37f585e6c3714ce7e84e40989db11c02d05c3320dbb51e73e9d2",
+  "conftest_sha256": "91839d53f37ae7e5b58f1561e0a09cb684fb16e8a9bb61e57692d544e6d6b624",
+  "corrections": [
+    "two unsupported event fixture types replaced by supported EXECUTOR_FINISHED with same sentinels",
+    "two changed_paths comparisons normalize path strings or path-bearing dictionaries without changing filename assertions"
+  ],
+  "addition": "controlled Python clean-filter marker must remain absent during packet observation; fail-closed sanitized rejection permitted",
+  "semantic_assertions_removed": 0,
+  "candidate_changes": 0
+}

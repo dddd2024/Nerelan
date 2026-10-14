@@ -1,0 +1,1469 @@
+{
+  "schema_version": 1,
+  "authority": "NONE",
+  "owner_authorization_date": "2026-10-13",
+  "evidence_export_date": "2026-10-14",
+  "repository": "dddd2024/Nerelan",
+  "frozen_implementation_base": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+  "attempt_count": 20,
+  "attempts": [
+    {
+      "round": 1,
+      "arm": "A-claude",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791893690623-bdcf18ff047c",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "d0eb2364cdfc7585e88ec5f75717e2d375a8b48ae78660b4245ea06ff4890da5",
+      "receipt_sha256": "d82df451a4892024ce81b9e7cfb752a296c399df0d25d0ab11979ee2c490fbf9",
+      "execution_record_complete": true,
+      "status": "BLOCKED",
+      "cli_workflow_success": false,
+      "failure_classification": "blocked",
+      "started_at_unix": 1791893682.2603967,
+      "ended_at_unix": 1791893692.1074734,
+      "role_wall_seconds": 9.847076654434204,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 0,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 1,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791893682568-1acb2fac4002",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "d0eb2364cdfc7585e88ec5f75717e2d375a8b48ae78660b4245ea06ff4890da5",
+      "receipt_sha256": "ad28ff870a67e1a0f5762c288cd0e6e76f42f1aa5ebe8a2134e90fafdedfb964",
+      "execution_record_complete": true,
+      "status": "BLOCKED",
+      "cli_workflow_success": false,
+      "failure_classification": "blocked",
+      "started_at_unix": 1791893672.2663844,
+      "ended_at_unix": 1791893683.7401786,
+      "role_wall_seconds": 11.473794221878052,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 0,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 1,
+      "arm": "B",
+      "role": "planner",
+      "attempt_record": "planner.json",
+      "task_id": "task-1791893700708-0775190d51b7",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "d0eb2364cdfc7585e88ec5f75717e2d375a8b48ae78660b4245ea06ff4890da5",
+      "receipt_sha256": "235d054fdf25927d6cb316b6e11afac8ef4c2278a165db5a20ec32209ca4b608",
+      "execution_record_complete": true,
+      "status": "BLOCKED",
+      "cli_workflow_success": false,
+      "failure_classification": "blocked",
+      "started_at_unix": 1791893692.3470988,
+      "ended_at_unix": 1791893703.1198094,
+      "role_wall_seconds": 10.77271056175232,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 0,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 2,
+      "arm": "A-claude",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791893864493-bb97bb0d7ebd",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "15fa54eaa9e2b6ae679049deea63f07136873c29b9af99cf7f891d08dcc4db0f",
+      "receipt_sha256": "de8a04ef8b6d8cd3ed2f3a262c557ed51309a8b3bc028632b8cf0e6094aac70a",
+      "execution_record_complete": true,
+      "status": "FAILED",
+      "cli_workflow_success": false,
+      "failure_classification": "claude_code_timeout",
+      "started_at_unix": 1791893854.6606805,
+      "ended_at_unix": 1791894467.2525706,
+      "role_wall_seconds": 612.5918900966644,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 2,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791893864492-03006e47a8ff",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "15fa54eaa9e2b6ae679049deea63f07136873c29b9af99cf7f891d08dcc4db0f",
+      "receipt_sha256": "0de7ca9ba36a91e644c9426f01d4257eedcb7ace8ab23e8542a41668d880e1e0",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791893854.6607463,
+      "ended_at_unix": 1791893904.2569017,
+      "role_wall_seconds": 49.596155405044556,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 2,
+      "arm": "B",
+      "role": "planner",
+      "attempt_record": "planner.json",
+      "task_id": "task-1791893864523-38ef3e30e83d",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "15fa54eaa9e2b6ae679049deea63f07136873c29b9af99cf7f891d08dcc4db0f",
+      "receipt_sha256": "fa24a1d7367becf6124f3c5702e0605e31286f8690f5cfa4a43414a23130df7a",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791893854.6607103,
+      "ended_at_unix": 1791893934.9272707,
+      "role_wall_seconds": 80.26656031608582,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "A-claude",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791894128507-2376fe82491f",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "93c28fbadf74a2536fdda68e5fa1fed8e3e87795db850e69df5cea4189bb0998",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894118.7153153,
+      "ended_at_unix": 1791894415.6810827,
+      "role_wall_seconds": 296.96576738357544,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 467092,
+          "input_tokens": 28,
+          "output_tokens": 31640
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "6d1a3136109dad9cb1ffad6455284a0081c7c5ecb12eaf0da55ff8cdceea86fc",
+        "reverse_agent/platform_v1/context_builder.py": "f1ee35f2a9d850b42b72f999fde89353ddb04ee609b4cce7ed6850ad659437dc",
+        "tests/platform_v1/test_context_builder.py": "4b2e4363b493be360b052a82216973772a47316c881f9d66381f2c182cb6be67"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791894128506-72eb6229db20",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "799549ed0f8db3b24903029d4049fa7da96adaf97fb70958381c18ac92ce2605",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894118.7152667,
+      "ended_at_unix": 1791894180.2591336,
+      "role_wall_seconds": 61.543866872787476,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 30080,
+          "input_tokens": 35689,
+          "output_tokens": 206
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "B",
+      "role": "escalation",
+      "attempt_record": "escalation-infra2.json",
+      "task_id": "task-1791894691615-5bb0add9e9c0",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "24f0d447245cf139081877fda3a5606584e3677e5936b592bd92f75920aadd19",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894691.1048658,
+      "ended_at_unix": 1791894944.5697122,
+      "role_wall_seconds": 253.46484637260437,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 348816,
+          "input_tokens": 26,
+          "output_tokens": 27794
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "f7b7f46fcf4edef5210ed03000683e8c55a3d16d273a1273f43c08e889fefe16",
+        "reverse_agent/platform_v1/context_builder.py": "85d52030f1b14405c1e6e185689ecdb37e14e7757981f5ab763b3cc5aa2828df",
+        "tests/platform_v1/test_context_builder.py": "4d2445aecf34fe594e9d6522f0fce59190a28899ac3e77d42da686a87aa20d1a"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "B",
+      "role": "escalation",
+      "attempt_record": "escalation.json",
+      "task_id": "task-1791894622807-0960fdfdaf2e",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "9899b37186c4f1107c893f4823e716fef399da8eb8292ba3dea89115d2073301",
+      "execution_record_complete": true,
+      "status": "BLOCKED",
+      "cli_workflow_success": false,
+      "failure_classification": "blocked",
+      "started_at_unix": 1791894622.3163953,
+      "ended_at_unix": 1791894625.2482734,
+      "role_wall_seconds": 2.931878089904785,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 0,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": null,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "B",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791894219175-b8a87d4430be",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "71f97776462c9ffd351b3495e28f47ba14c87e12f8b19241202644e3ebe3d62d",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894218.601267,
+      "ended_at_unix": 1791894490.7038436,
+      "role_wall_seconds": 272.1025764942169,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 15,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 225532,
+          "unknown_observations": 0,
+          "total": 225532
+        },
+        "output_units": {
+          "known_subtotal": 2127,
+          "unknown_observations": 0,
+          "total": 2127
+        },
+        "reasoning_units": {
+          "known_subtotal": 783,
+          "unknown_observations": 0,
+          "total": 783
+        },
+        "cache_read_units": {
+          "known_subtotal": 293888,
+          "unknown_observations": 0,
+          "total": 293888
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": 0
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": 0
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "B",
+      "role": "planner",
+      "attempt_record": "planner.json",
+      "task_id": "task-1791894128540-3ec46b9a5237",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "37313d61ec6118d6937008cd58c24abaa04347f3d6f471dec5a10e97158af7de",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894118.7152278,
+      "ended_at_unix": 1791894179.387003,
+      "role_wall_seconds": 60.671775102615356,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 90337,
+          "input_tokens": 12,
+          "output_tokens": 4904
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 3,
+      "arm": "B",
+      "role": "reviewer",
+      "attempt_record": "reviewer.json",
+      "task_id": "task-1791895002279-58146e977411",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "4feaf54ee20533d01a98bdb4eae50887dee7911f9160b2b9c9ad3529c126f112",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791895001.7417617,
+      "ended_at_unix": 1791895119.3802235,
+      "role_wall_seconds": 117.63846182823181,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 133632,
+          "input_tokens": 159335,
+          "output_tokens": 1638
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "f7b7f46fcf4edef5210ed03000683e8c55a3d16d273a1273f43c08e889fefe16",
+        "reverse_agent/platform_v1/context_builder.py": "85d52030f1b14405c1e6e185689ecdb37e14e7757981f5ab763b3cc5aa2828df",
+        "tests/platform_v1/test_context_builder.py": "4d2445aecf34fe594e9d6522f0fce59190a28899ac3e77d42da686a87aa20d1a"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 4,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791894536069-f70523fa3af6",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "5b98c54253809a2968999c43b950f58e08a68b6a75f30df014bb50bf7371f129",
+      "execution_record_complete": true,
+      "status": "FAILED",
+      "cli_workflow_success": false,
+      "failure_classification": "codex_event_after_terminal",
+      "started_at_unix": 1791894526.8552053,
+      "ended_at_unix": 1791894586.101336,
+      "role_wall_seconds": 59.24613070487976,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 5,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791894948536-d209014aeeba",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+      "receipt_sha256": "aa26f6ef06ae5932de33465b550205559a9453e46d427d8015ec7592f5974170",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791894938.7491517,
+      "ended_at_unix": 1791895518.751408,
+      "role_wall_seconds": 580.0022563934326,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 922112,
+          "input_tokens": 972833,
+          "output_tokens": 13628
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "818b40e82b151361033ccc0acf13135ffd5dd9d226da3573a687c4208c611e2a",
+        "reverse_agent/platform_v1/context_builder.py": "2b121e643b17a3569d068ecec6412deca27031413311cb3a0c69a0a4919b2393",
+        "tests/platform_v1/test_context_builder.py": "63e65424b8c646202b7c73ddec3edb4ad16356f33904d225babfdd086c6ba131"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 6,
+      "arm": "A-claude",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791896067362-b226da1a352f",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+      "receipt_sha256": "396bdcd243a194e96e85269aa9d479d5062b2980ef4b80505b9fe73c78651921",
+      "execution_record_complete": true,
+      "status": "FAILED",
+      "cli_workflow_success": false,
+      "failure_classification": "claude_code_turn_failed:api_error_429",
+      "started_at_unix": 1791896057.1481783,
+      "ended_at_unix": 1791896554.0734193,
+      "role_wall_seconds": 496.92524099349976,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "reverse_agent/platform_v1/context_builder.py": "da58c61b9d42e5e75e6ce77ca95623bed9ca2f15210350b7e6c1eaeb59f7cbbd"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 6,
+      "arm": "A-gpt",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791896067363-334b7be795c9",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+      "receipt_sha256": "22aefadf34e71b1a093cd6c1dd3a6154a53fb2c97ae58b786763421234509d15",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791896057.1481974,
+      "ended_at_unix": 1791896590.2373412,
+      "role_wall_seconds": 533.0891437530518,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 592640,
+          "input_tokens": 653718,
+          "output_tokens": 14026
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "875a7c41e120688643a67a1647a0c99e4026d4c76bb8be71946e7bd983d36b5b",
+        "reverse_agent/platform_v1/context_builder.py": "df8c2302ac68edcb8172b451f69ba611ac03ed3acebc48b4f23d453a2904ddc4",
+        "tests/platform_v1/test_context_builder.py": "d00ef405275346f512e4ee816776648e32d4dfa6af2d5125255841fa2fd833b5"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 6,
+      "arm": "B",
+      "role": "escalation",
+      "attempt_record": "escalation.json",
+      "task_id": "task-1791897124874-16582118d2c9",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+      "receipt_sha256": "f292e822d077791a84bdc65b6620cfffab4fca3b02658934f1064520e66a74f8",
+      "execution_record_complete": true,
+      "status": "FAILED",
+      "cli_workflow_success": false,
+      "failure_classification": "codex_timeout",
+      "started_at_unix": 1791897123.7093484,
+      "ended_at_unix": 1791897727.346064,
+      "role_wall_seconds": 603.6367156505585,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {
+        "docs/context-builder.md": "1975311e9e94aac9ab550d92575a4e2f81af4cffa262289c007e99e60e9c9383",
+        "reverse_agent/platform_v1/context_builder.py": "8389b12c0cc30de12bb2f596d48ddacfbfb2ee80ea38ca88a231b54a8759a167",
+        "tests/platform_v1/test_context_builder.py": "ee06e3e5643e13d351ef1d0a0d056e6e3dd9197e5cc7f4a04b54f033daa9b960"
+      },
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 6,
+      "arm": "B",
+      "role": "implementation",
+      "attempt_record": "implementation.json",
+      "task_id": "task-1791896412940-b8763dbec567",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+      "receipt_sha256": "5ed0c6b321202e78af2ac597c9679381636a7de9db80cb226dfbe278b0837e0b",
+      "execution_record_complete": true,
+      "status": "FAILED",
+      "cli_workflow_success": false,
+      "failure_classification": "timeout",
+      "started_at_unix": 1791896412.3494716,
+      "ended_at_unix": 1791897031.1524649,
+      "role_wall_seconds": 618.8029932975769,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [],
+      "executor_usage_observation_count": 0,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 0,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    },
+    {
+      "round": 6,
+      "arm": "B",
+      "role": "planner",
+      "attempt_record": "planner.json",
+      "task_id": "task-1791896067363-489b6217b08a",
+      "base_commit": "3e841a4ff4f1582efc3abd44c1294f8a23749f44",
+      "requirements_sha256": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+      "receipt_sha256": "8a8aabd411430ad74c74e10cb4fda316d089fe0771061e8c8bb7b611f9651be0",
+      "execution_record_complete": true,
+      "status": "READY_FOR_REVIEW",
+      "cli_workflow_success": true,
+      "failure_classification": "",
+      "started_at_unix": 1791896057.1482952,
+      "ended_at_unix": 1791896158.481153,
+      "role_wall_seconds": 101.33285784721375,
+      "cash_cost": null,
+      "quota_remaining": null,
+      "human_seconds": null,
+      "physical_provider_requests": null,
+      "native_token_counters": [
+        {
+          "cached_input_tokens": 111645,
+          "input_tokens": 16,
+          "output_tokens": 4824
+        }
+      ],
+      "executor_usage_observation_count": 1,
+      "executor_reported_metrics": {
+        "input_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "output_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "reasoning_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_read_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cache_write_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        },
+        "cost_micro_units": {
+          "known_subtotal": 0,
+          "unknown_observations": 1,
+          "total": null
+        }
+      },
+      "product_hashes": {},
+      "product_scope_reported": true,
+      "scratch_scope": "UNKNOWN_NOT_AUDITED",
+      "independent_acceptance": false
+    }
+  ],
+  "independent_receipts": [
+    {
+      "arm": "A-claude",
+      "verdict": "REJECT_UNTRUSTED_REPOSITORY_FILTER_EXECUTION",
+      "raw_counts": {
+        "passed": 30,
+        "failed": 3,
+        "skipped": 1
+      },
+      "v2_test_sha256": "d252ca89280f37f585e6c3714ce7e84e40989db11c02d05c3320dbb51e73e9d2",
+      "v1_test_sha256": "b1470785921913717dceff46e1c08a41babc5f5a2283996d2efe26cb414a0671",
+      "validation_wall_seconds": 19.6114478,
+      "product_hashes": {
+        "docs/context-builder.md": "6d1a3136109dad9cb1ffad6455284a0081c7c5ecb12eaf0da55ff8cdceea86fc",
+        "reverse_agent/platform_v1/context_builder.py": "f1ee35f2a9d850b42b72f999fde89353ddb04ee609b4cce7ed6850ad659437dc",
+        "tests/platform_v1/test_context_builder.py": "4b2e4363b493be360b052a82216973772a47316c881f9d66381f2c182cb6be67"
+      },
+      "finding_domains": [
+        "repository_clean_filter_executed",
+        "foreign_repository_goal_link_not_rejected",
+        "unicode_budget_compaction_fails"
+      ],
+      "round": 3,
+      "receipt_name": "independent-acceptance-v2.json",
+      "receipt_sha256": "f4ff9610f86b3a7602f7f275f370060e5ab3901ac28baea5bef8a172bc39ad70"
+    },
+    {
+      "arm": "A-claude",
+      "verdict": "NOT_ACCEPTED_CONTRACT_REPOSITORY_IDENTITY_FAILURE",
+      "validation_wall_seconds": 17.7839812,
+      "product_hashes": {
+        "docs/context-builder.md": "6d1a3136109dad9cb1ffad6455284a0081c7c5ecb12eaf0da55ff8cdceea86fc",
+        "reverse_agent/platform_v1/context_builder.py": "f1ee35f2a9d850b42b72f999fde89353ddb04ee609b4cce7ed6850ad659437dc",
+        "tests/platform_v1/test_context_builder.py": "4b2e4363b493be360b052a82216973772a47316c881f9d66381f2c182cb6be67"
+      },
+      "round": 3,
+      "receipt_name": "independent-acceptance.json",
+      "receipt_sha256": "4d58f0d070de75e3efeb896af7e89d21d4bd48e932bfc32683aa3a5fa1b9b785"
+    },
+    {
+      "arm": "A-gpt",
+      "verdict": "NOT_ACCEPTED_PERMISSION_ADMISSION_FAILED",
+      "validation_wall_seconds": 1.686305,
+      "round": 3,
+      "receipt_name": "independent-acceptance.json",
+      "receipt_sha256": "c9a586436a094a4c47d45e9fac3793547dc17ac966849452c49b984ef7ee97d0"
+    },
+    {
+      "arm": "B",
+      "verdict": "REJECT_UNTRUSTED_REPOSITORY_FILTER_EXECUTION",
+      "raw_counts": {
+        "passed": 31,
+        "failed": 2,
+        "skipped": 1
+      },
+      "v2_test_sha256": "d252ca89280f37f585e6c3714ce7e84e40989db11c02d05c3320dbb51e73e9d2",
+      "v1_test_sha256": "b1470785921913717dceff46e1c08a41babc5f5a2283996d2efe26cb414a0671",
+      "validation_wall_seconds": 19.6782366,
+      "product_hashes": {
+        "docs/context-builder.md": "f7b7f46fcf4edef5210ed03000683e8c55a3d16d273a1273f43c08e889fefe16",
+        "reverse_agent/platform_v1/context_builder.py": "85d52030f1b14405c1e6e185689ecdb37e14e7757981f5ab763b3cc5aa2828df",
+        "tests/platform_v1/test_context_builder.py": "4d2445aecf34fe594e9d6522f0fce59190a28899ac3e77d42da686a87aa20d1a"
+      },
+      "finding_domains": [
+        "repository_clean_filter_executed",
+        "unvalidated_digest_field_emitted_as_source_version_contract_interpretation_pending"
+      ],
+      "round": 3,
+      "receipt_name": "independent-acceptance-v2.json",
+      "receipt_sha256": "b233d35461109a535a311c44ded408108cf70a8cba48372d2e0f29eaf871b31f"
+    },
+    {
+      "arm": "B",
+      "role": "escalation",
+      "verdict": "CALIBRATED_TESTS_PASS_REVIEW_PENDING",
+      "validation_wall_seconds": 18.0623863,
+      "product_hashes": {
+        "docs/context-builder.md": "f7b7f46fcf4edef5210ed03000683e8c55a3d16d273a1273f43c08e889fefe16",
+        "reverse_agent/platform_v1/context_builder.py": "85d52030f1b14405c1e6e185689ecdb37e14e7757981f5ab763b3cc5aa2828df",
+        "tests/platform_v1/test_context_builder.py": "4d2445aecf34fe594e9d6522f0fce59190a28899ac3e77d42da686a87aa20d1a"
+      },
+      "round": 3,
+      "receipt_name": "independent-acceptance.json",
+      "receipt_sha256": "667bb01064a20670f110de7f91b91f2c21b61eca67277490cefaea50150fda7c"
+    },
+    {
+      "arm": "A-gpt",
+      "round": 5,
+      "verdict": "REJECT_UNTRUSTED_REPOSITORY_FILTER_EXECUTION",
+      "v2_test_sha256": "d252ca89280f37f585e6c3714ce7e84e40989db11c02d05c3320dbb51e73e9d2",
+      "validation_wall_seconds": 16.7640517,
+      "product_hashes": {
+        "docs/context-builder.md": "818b40e82b151361033ccc0acf13135ffd5dd9d226da3573a687c4208c611e2a",
+        "reverse_agent/platform_v1/context_builder.py": "2b121e643b17a3569d068ecec6412deca27031413311cb3a0c69a0a4919b2393",
+        "tests/platform_v1/test_context_builder.py": "63e65424b8c646202b7c73ddec3edb4ad16356f33904d225babfdd086c6ba131"
+      },
+      "receipt_name": "independent-acceptance-v2.json",
+      "receipt_sha256": "9de4379b7c11f4d9b79299bbaace9406000097a5aecfc8a58c82a9b0098f78fa"
+    },
+    {
+      "arm": "A-claude",
+      "verdict": "NOT_ACCEPTED_PROVIDER_FAILURE_STOP",
+      "failure_classification": "claude_code_turn_failed:api_error_429",
+      "round": 6,
+      "receipt_name": "independent-acceptance.json",
+      "receipt_sha256": "35c3b9546ae5a67a32ecdf147783ce3b6605f7f0203166dbabac0e48987efb76"
+    },
+    {
+      "arm": "A-gpt",
+      "round": 6,
+      "verdict": "REJECT_EXCLUDED_PLAN_CONTENT_VISIBILITY",
+      "v2_counts": {
+        "passed": 33,
+        "failed": 0,
+        "skipped": 1
+      },
+      "v2_test_sha256": "d252ca89280f37f585e6c3714ce7e84e40989db11c02d05c3320dbb51e73e9d2",
+      "semantic_probe_sha256": "20a5e81282e5a9cd47c2a2d645df6762149b8e0c53f59c42f72b06e1b09cf00f",
+      "junit_sha256": "0060faf057e7566a42b9de6f517d89060c5ebe71e93498c4d81ce60351c806e4",
+      "validation_wall_seconds": 19.6051645,
+      "product_hashes": {
+        "docs/context-builder.md": "875a7c41e120688643a67a1647a0c99e4026d4c76bb8be71946e7bd983d36b5b",
+        "reverse_agent/platform_v1/context_builder.py": "df8c2302ac68edcb8172b451f69ba611ac03ed3acebc48b4f23d453a2904ddc4",
+        "tests/platform_v1/test_context_builder.py": "d00ef405275346f512e4ee816776648e32d4dfa6af2d5125255841fa2fd833b5"
+      },
+      "candidate_public_tests": {
+        "passed": 27,
+        "failed": 0,
+        "skipped": 1,
+        "pytest_reported_seconds": 13.61
+      },
+      "source_audit_findings": [
+        "raw_Goal_plan_exposes_excluded_peer_title_and_instruction",
+        "Python_path_open_streams_worktree_file_content_despite_Git_metadata_only_contract"
+      ],
+      "receipt_name": "independent-acceptance-v2.json",
+      "receipt_sha256": "5a16c7c51ca777c4c7099f44422507a0e4fb95e2419d66805903c83207f9b8bf",
+      "semantic_visibility": {
+        "passed": false,
+        "excluded_runtime_id_absent": true,
+        "excluded_plan_title_absent": false,
+        "excluded_plan_instruction_absent": false,
+        "current_task_preserved": true,
+        "goal_source_digest_preserved": true
+      }
+    },
+    {
+      "arm": "B",
+      "round": 6,
+      "role": "escalation",
+      "verdict": "NOT_ACCEPTED_TIMEOUT_AND_VISIBILITY",
+      "workflow_completed": false,
+      "failure_classification": "codex_timeout",
+      "v2_counts": {
+        "passed": 33,
+        "failed": 0,
+        "skipped": 1
+      },
+      "junit_sha256": "e26299cf41cdd5e46a9cb4ace0eb6b77c2591228452e6bc9977d5b44ede75714",
+      "validation_wall_seconds": 22.1103039,
+      "product_hashes": {
+        "docs/context-builder.md": "1975311e9e94aac9ab550d92575a4e2f81af4cffa262289c007e99e60e9c9383",
+        "reverse_agent/platform_v1/context_builder.py": "8389b12c0cc30de12bb2f596d48ddacfbfb2ee80ea38ca88a231b54a8759a167",
+        "tests/platform_v1/test_context_builder.py": "ee06e3e5643e13d351ef1d0a0d056e6e3dd9197e5cc7f4a04b54f033daa9b960"
+      },
+      "public_tests": {
+        "passed": 14,
+        "failed": 0,
+        "skipped": 1,
+        "seconds": 12.89
+      },
+      "receipt_name": "independent-acceptance-v2.json",
+      "receipt_sha256": "c42171b9e83a3c601607761febc21bbbad26ec0d0333e2bb0a44adccc3037ec6",
+      "semantic_visibility": {
+        "passed": false,
+        "excluded_runtime_id_absent": true,
+        "excluded_plan_title_absent": false,
+        "excluded_plan_instruction_absent": false
+      }
+    }
+  ],
+  "protocol_sha256": {
+    "context-contract-v6.md": "c89c6eb9ffccb444b23e1fc769b54a55abd1a1f17833ac2f962f52b1ba2106bc",
+    "context-contract.md": "bfdadbec1f84de2f1268aecb590cd28a13ab46e7928f94e2ff749e05290defc9",
+    "run_trial.py": "c47a152bdcd43e40ce8d89375627ea7fc607a1eb3407a5b388ea622002e13e33"
+  },
+  "qualified_paired_comparison": false,
+  "cash_savings_fraction": null,
+  "general_cost_savings_claim": false,
+  "cash_cost": "UNKNOWN",
+  "quota_remaining": "UNKNOWN",
+  "supervisor_model_usage": "UNKNOWN",
+  "human_time": "UNKNOWN",
+  "physical_provider_requests": "UNKNOWN",
+  "separate_rounds_are_not_pooled_for_causal_comparison": true,
+  "blockers": [
+    "no_independently_accepted_pair",
+    "native_tool_equivalence_unverified",
+    "cash_and_subscription_quota_unknown",
+    "Claude_api_429",
+    "bounded_coder_timeouts",
+    "excluded_plan_content_visibility_failures"
+  ],
+  "interpretation": "Executor cost fields are runtime reports, not actual invoices; zero unpriced runtime cost is not free cash cost. Native token counter definitions remain separate. Production repairs do not change frozen trial verdicts."
+}

@@ -126,6 +126,15 @@ revision's escalation records remain visible by default, so moving work to a
 stronger Agent or reopening the store does not erase failed attempts. Explicit
 visibility restrictions can withhold those tasks as well.
 
+Durable execution keeps the existing restricted store facade. Its additional
+read-only projection method verifies the bound task, execution, run, lease owner
+and epoch, unexpired lease and admitted workspace/revision before and after
+building context. It returns text without exposing database or mutation APIs.
+
+The [production follow-up and real development trial report](benchmarks/context-builder-20261013/README.md)
+separates successful process-restart context consumption from rejected or timed-out
+benchmark artifacts and unknown cash/quota observations.
+
 ## Errors
 
 `ContextBuilderError(ValueError)` has a `.code`, and its message is the code
