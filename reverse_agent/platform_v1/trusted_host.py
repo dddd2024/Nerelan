@@ -341,6 +341,11 @@ class CombinedTrustedHost:
     # Roles whose work only some executors can do; a measured swap never leaves this set.
     ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex"})}
 
+    def _usage_profiles(self) -> dict[str, dict[str, Any]]:
+        """What each Binding was observed doing, for the unified resource view."""
+        from .model_profiles import cached_agent_profiles
+        return cached_agent_profiles(self._task_store)
+
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
         """Same model, another executor: let real outcomes pick the pairing that works better."""
         from .model_profiles import best_pairing, cached_agent_profiles
@@ -423,6 +428,7 @@ class CombinedTrustedHost:
                 allowed_origin=self._allowed_origin,
                 external_session_refresh=self._refresh_external_session_auth,
                 account_auth=self._account_auth,
+                usage_profiles=self._usage_profiles,
             )
             self._model_server = ThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler

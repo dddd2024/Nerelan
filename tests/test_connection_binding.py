@@ -79,13 +79,17 @@ def test_connection_executor_and_binding_are_structurally_independent() -> None:
 def test_executor_registry_exposes_only_proven_operational_executor() -> None:
     store = ModelProfileStore()
 
-    assert store.list_executors_public() == [
-        {
-            "executor_id": "opencode",
-            "name": "OpenCode",
-            "operational": True,
-            "capabilities": ["model_selection", "workspace_execution"],
-        }
+    executors = store.list_executors_public()
+    assert executors[0] == {
+        "executor_id": "opencode",
+        "name": "OpenCode",
+        "operational": True,
+        "capabilities": ["model_selection", "workspace_execution"],
+    }
+    # Native account executors are listed but stay non-operational until their CLI probe says so.
+    assert [(e["executor_id"], e["operational"], e["readiness_status"]) for e in executors[1:]] == [
+        ("codex", False, "not_probed"),
+        ("claude_code", False, "not_probed"),
     ]
 
 
@@ -298,9 +302,9 @@ def test_connection_and_executor_endpoints_return_sanitized_structures(
 
     status, executors = api_request(port, "GET", "/api/executors")
     assert status == 200
-    assert [executor["executor_id"] for executor in executors] == ["opencode"]
+    assert [executor["executor_id"] for executor in executors] == ["opencode", "codex", "claude_code"]
+    assert [executor["executor_id"] for executor in executors if executor["operational"]] == ["opencode"]
     assert "openhands" not in json.dumps(executors).lower()
-    assert "codex" not in json.dumps(executors).lower()
 
 
 def test_binding_endpoints_validate_references_and_never_accept_credentials(

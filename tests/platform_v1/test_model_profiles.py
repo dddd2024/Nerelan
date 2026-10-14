@@ -42,6 +42,15 @@ def test_profile_reports_rates_durations_tokens_and_failure_kinds():
     assert profile["failure_kinds"] == {"timeout": 1, "provider_rate_limited": 1}
 
 
+def test_observed_tokens_total_every_finished_attempt_that_reported_them():
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW", tokens=1000)
+    _task(store, "glm", "FAILED", "timeout", tokens=500)  # a failed turn still spent tokens
+    _task(store, "glm", "FAILED", "timeout")  # nothing reported: adds nothing, not a guess
+    _task(store, "glm", "QUEUED", tokens=9999)  # not finished: not an attempt
+    assert compute_agent_profiles(store)["glm"]["observed_tokens"] == 1500
+
+
 def test_native_runs_are_timed_from_workspace_ready():
     store = TaskStore(":memory:")
     for minute in (1, 2):
