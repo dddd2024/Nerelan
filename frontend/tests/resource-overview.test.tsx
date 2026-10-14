@@ -108,10 +108,13 @@ describe("resource overview", () => {
           state: "OBSERVED", source: "claude_session_log",
           windows: [
             { window: "five_hour", basis: "estimated", used_percent: 89.1, used_percent_range: [65, 100],
-              capacity_units: { samples: 9 }, resets_at: "2026-10-14T09:06:58Z", resets_at_estimated: true },
+              capacity_units: { samples: 9 }, capacity_source: "limit_hits",
+              resets_at: "2026-10-14T09:06:58Z", resets_at_estimated: true },
             { window: "weekly", basis: "official_status", status: "allowed_warning", availability: "near_limit",
               resets_at: "2026-10-20T06:00:00Z" },
             { window: "seven_day_opus", basis: "unknown", used_units: 18.65 },
+            { window: "seven_day_sonnet", basis: "estimated", used_percent: 75, used_percent_range: [72, 78],
+              anchor: { used_percent: 50, at: "2026-10-14T05:00:00Z" }, capacity_source: "official_calibration" },
           ],
           limit_hits: [{ at: "2026-10-13T13:07:16Z", source: "claude_session_log" },
                        { at: "2026-10-13T10:36:33Z", source: "claude_session_log" }],
@@ -135,12 +138,14 @@ describe("resource overview", () => {
     expect(five).toHaveAttribute("data-basis", "estimated");
     expect(five).toHaveTextContent("预计已用约 89%（65–100%）");
     expect(five).toHaveTextContent("约 ");
-    expect(five).toHaveTextContent("按本机历史 9 次触顶/用量估算");
+    expect(five).toHaveTextContent("按本机 9 次触顶粗估（未校准，范围较宽）");
     expect(within(five).getByTestId("meter-range")).toBeInTheDocument();
     const weekly = screen.getByTestId("quota-window-weekly");
     expect(within(weekly).getByTestId("quota-availability")).toHaveTextContent("接近上限");
     expect(within(weekly).queryByRole("meter")).toBeNull();  // no invented percentage
     expect(screen.getByTestId("quota-window-seven_day_opus")).toHaveTextContent("本窗口已用约 $18.65，上限未知");
+    expect(screen.getByTestId("quota-window-seven_day_sonnet")).toHaveTextContent("官方 50%");
+    expect(screen.getByTestId("quota-window-seven_day_sonnet")).toHaveTextContent("+ 之后用量推算");
     expect(screen.getByTestId("quota-limit-hits")).toHaveTextContent("最近 8 天触顶 2 次");
     const log = screen.getByTestId("quota-guard-log");
     expect(log).toHaveTextContent("coder：claude-opus → chatgpt-gpt（预计余量不足以完成下一项任务）");

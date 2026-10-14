@@ -40,6 +40,8 @@ def test_rolling_blocks_and_capacity_from_limit_hits():
               UsageEvent(6 * H, 3.0), UsageEvent(7 * H, 8.0)]                       # block 2 hits at 7.5h
     blocks = rolling_blocks(events)
     assert [(b["start"], b["end"]) for b in blocks] == [(0, 5 * H), (6 * H, 11 * H)]
+    # Windows open at the top of the hour of their first request.
+    assert [(b["start"], b["end"]) for b in rolling_blocks([UsageEvent(4 * H + 419, 1.0)])] == [(4 * H, 9 * H)]
     cap = capacity_from_hits(events, [2.5 * H, 7.5 * H, 7.5 * H, 99 * H])
     assert (cap["low"], cap["mid"], cap["high"], cap["samples"]) == (11.0, 15.0, 19.0, 2)
 
@@ -321,3 +323,120 @@ def test_oversized_log_lines_are_skipped_without_losing_later_lines(tmp_path, mo
     path.write_text(huge + "\n" + good + "\n", encoding="utf-8")
     os.utime(path, (now, now))
     assert len(qh.read_claude_history(tmp_path).usage) == 1
+
+
+# ---- official Claude readings: status line, calibration, weekly ---------------------------
+
+def test_statusline_records_only_official_windows_and_never_fails(tmp_path, monkeypatch, capsys):
+    import io
+    from reverse_agent.model_access import claude_statusline as sl
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    payload = {"model": {"display_name": "Opus"}, "transcript_path": "C:/private/transcript.jsonl",
+               "rate_limits": {"five_hour": {"used_percentage": 88, "resets_at": 1792000000},
+                               "seven_day": {"used_percentage": 75, "resets_at": "2026-10-19T05:00:00Z"},
+                               "spend_limit": {"used_percentage": 5}}}
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(payload)))
+    assert sl.run_statusline() == 0
+    assert "5h 88% · 7d 75%" in capsys.readouterr().out
+    lines = [json.loads(x) for x in sl.log_path().read_text(encoding="utf-8").splitlines()]
+    assert [(r["window"], r["used_percent"]) for r in lines] == [("five_hour", 88.0), ("weekly", 75.0)]
+    assert lines[1]["resets_at"] == 1792386000 and "private" not in sl.log_path().read_text(encoding="utf-8")
+    for odd in ("not json", "[]", "null", "5", '"x"', '{"model": "Opus", "rate_limits": []}', "[" * 100000):
+        monkeypatch.setattr("sys.stdin", io.StringIO(odd))
+        assert sl.run_statusline() == 0, odd[:20]
+
+
+def test_statusline_install_keeps_other_settings_and_refuses_a_foreign_status_line(tmp_path, monkeypatch):
+    from reverse_agent.model_access import claude_statusline as sl
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "state"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "claude"))
+    settings = tmp_path / "claude" / "settings.json"
+    settings.parent.mkdir()
+    settings.write_text(json.dumps({"model": "opus", "statusLine": {"type": "command", "command": "mine"}}),
+                        encoding="utf-8")
+    assert sl.install() == 1  # someone else's status line is not replaced
+    settings.write_text(json.dumps({"model": "opus"}), encoding="utf-8")
+    assert sl.install() == 0
+    data = json.loads(settings.read_text(encoding="utf-8"))
+    assert data["model"] == "opus" and "claude_statusline.py" in data["statusLine"]["command"]
+    assert sl.uninstall() == 0 and json.loads(settings.read_text(encoding="utf-8")) == {"model": "opus"}
+    # The first backup is the Owner's original; later Nerelan writes never overwrite it.
+    backup = settings.with_name("settings.json.nerelan-backup")
+    original = json.loads(backup.read_text(encoding="utf-8"))
+    sl.install()
+    sl.install()
+    assert json.loads(backup.read_text(encoding="utf-8")) == original
+    # A refused install leaves nothing behind, and a look-alike command is still foreign.
+    sl.uninstall()
+    (tmp_path / "state" / "Nerelan" / "claude_statusline.py").unlink()
+    settings.write_text(json.dumps({"statusLine": {"type": "command", "command": "other/claude_statusline.py"}}),
+                        encoding="utf-8")
+    assert sl.install() == 1 and not (tmp_path / "state" / "Nerelan" / "claude_statusline.py").exists()
+
+
+def test_calibration_divides_window_usage_by_the_official_percent():
+    from reverse_agent.model_access.quota_forecast import calibrate
+    reset = 10 * H
+    usage = [UsageEvent(6 * H, 5.0), UsageEvent(7 * H, 6.0), UsageEvent(1 * H, 99.0)]  # last one: earlier window
+    samples = [{"at": 7.5 * H, "used_percent": 40.0, "resets_at": reset},
+               {"at": 8 * H, "used_percent": 55.0, "resets_at": reset}]   # latest reading of the window wins
+    cap = calibrate(samples, usage, length=5 * H)
+    assert cap["mid"] == pytest.approx(11.0 * 100 / 55) and cap["samples"] == 1
+    assert calibrate([{"at": 8 * H, "used_percent": 5.0, "resets_at": reset}], usage, length=5 * H) is None
+
+
+def test_hit_capacity_counts_one_hit_per_window_and_drops_probable_weekly_hits():
+    events = [UsageEvent(0, 20.0), UsageEvent(6 * H, 22.0), UsageEvent(12 * H, 21.0), UsageEvent(18 * H, 3.0)]
+    hits = [0.5 * H, 0.6 * H, 6.5 * H, 12.5 * H, 18.5 * H]  # a retry in window 1; window 4 hit the weekly cap
+    cap = capacity_from_hits(events, hits)
+    assert (cap["samples"], cap["low"]) == (3, 20.0)
+
+
+def _statusline_file(path, rows):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+
+def test_claude_quota_shows_a_fresh_official_reading_as_is(tmp_path):
+    now = time.time()
+    log = tmp_path / "sl.jsonl"
+    _statusline_file(log, [{"at": int(now - 60), "window": "five_hour", "used_percent": 88, "resets_at": int(now + 2 * H)},
+                           {"at": int(now - 60), "window": "weekly", "used_percent": 75, "resets_at": int(now + 4 * 24 * H)}])
+    quota = claude_quota(None, tmp_path / "none", now=now, statusline_path=log)
+    five, weekly = quota["windows"]
+    assert (five["basis"], five["used_percent"], five["official_source"]) == ("official_percent", 88, "claude_statusline")
+    assert (weekly["window"], weekly["used_percent"], weekly["resets_at_estimated"]) == ("weekly", 75, False)
+    assert quota["provenance"] == "OFFICIAL_VIA_CLI"
+
+
+def test_claude_quota_carries_an_older_reading_forward_with_calibrated_capacity(tmp_path):
+    now = time.time()
+    reset = int(now + H)
+    _write(tmp_path / "projects" / "p" / "s.jsonl", [
+        _claude_assistant(_iso(now - 3 * H), "a", out=1_000_000),      # $10 before the reading
+        _claude_assistant(_iso(now - 10 * 60), "b", out=500_000),      # $5 after it
+    ])
+    log = tmp_path / "sl.jsonl"
+    _statusline_file(log, [{"at": int(now - 2 * H), "window": "five_hour", "used_percent": 50, "resets_at": reset}])
+    window = claude_quota(None, tmp_path, now=now, statusline_path=log)["windows"][0]
+    # $10 was 50% -> about $20 per window; $5 more is about 25 points.
+    assert window["basis"] == "estimated" and window["anchor"]["used_percent"] == 50
+    assert window["used_percent"] == pytest.approx(75, abs=0.5) and window["capacity_source"] == "official_calibration"
+    assert window["resets_at_estimated"] is False
+
+
+def test_weekly_window_rolls_the_official_reset_forward_and_counts_usage_since(tmp_path):
+    now = time.time()
+    week = 7 * 24 * H
+    old_reset = int(now - 2 * 24 * H)  # last week's reset passed two days ago
+    _write(tmp_path / "projects" / "p" / "s.jsonl", [
+        _claude_assistant(_iso(old_reset - 3 * 24 * H), "a", out=4_000_000),   # $40 in the previous week
+        _claude_assistant(_iso(now - 24 * H), "b", out=1_000_000),             # $10 this week
+    ])
+    log = tmp_path / "sl.jsonl"
+    _statusline_file(log, [{"at": int(old_reset - 24 * H), "window": "weekly", "used_percent": 40,
+                            "resets_at": old_reset}])
+    weekly = next(w for w in claude_quota(None, tmp_path, now=now, statusline_path=log)["windows"]
+                  if w["window"] == "weekly")
+    assert weekly["basis"] == "estimated" and weekly["used_percent"] == pytest.approx(10, abs=0.5)
+    assert weekly["resets_at"] == _iso(old_reset + week).replace("+00:00", "Z")

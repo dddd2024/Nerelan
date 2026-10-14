@@ -174,55 +174,174 @@ def codex_quota(codex_home: str | os.PathLike[str] | None = None, *, now: float 
     return snapshot
 
 
+CLAUDE_WINDOW_SECONDS = {"five_hour": 5 * 3600, "weekly": 7 * 24 * 3600}
+HIT_CAPACITY_SPREAD = 1.5
+FRESH_SECONDS = 600
+
+
+def read_statusline_records(path: str | os.PathLike[str] | None = None, *, now: float | None = None) -> list[dict]:
+    """Official Claude windows recorded by the Nerelan status line (claude_statusline.py)."""
+    from .claude_statusline import log_path
+    now = time.time() if now is None else now
+    try:
+        lines = Path(path or log_path()).read_bytes().splitlines()[-4000:]
+    except OSError:
+        return []
+    records = []
+    for raw in lines:
+        try:
+            item = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError, RecursionError):
+            continue
+        if not isinstance(item, dict):
+            continue
+        at, window, used, reset = item.get("at"), item.get("window"), item.get("used_percent"), item.get("resets_at")
+        if (type(at) is int and now - _MAX_AGE_SECONDS <= at <= now + 60 and window in CLAUDE_WINDOW_SECONDS
+                and type(used) in (int, float) and 0 <= used <= 100 and (reset is None or type(reset) is int)):
+            records.append({"at": at, "window": window, "used_percent": float(used), "resets_at": reset,
+                            "source": "claude_statusline"})
+    return records
+
+
+def _notice_samples(notices: tuple[list, str | None] | None) -> list[dict]:
+    """Official percents carried by Nerelan's own Claude runs (rate_limit_event utilization)."""
+    from .quota_forecast import parse_time
+    if not notices:
+        return []
+    items, observed = notices
+    at = parse_time(observed)
+    samples = []
+    for notice in items if at is not None else ():
+        if not isinstance(notice, Mapping):
+            continue
+        window = _CLAUDE_WINDOWS.get(notice.get("window"))
+        utilization, reset = notice.get("utilization"), notice.get("resets_at")
+        if window and type(utilization) in (int, float) and 0 <= utilization <= 1:
+            samples.append({"at": int(at), "window": window, "used_percent": utilization * 100,
+                            "resets_at": reset if type(reset) is int else None, "source": "claude_rate_limit_event"})
+    return samples
+
+
+def _claude_window(name: str, samples: list[dict], history: Any, hit_times: list[float],
+                   now: float) -> dict[str, Any] | None:
+    from .quota_forecast import (calibrate, capacity_from_hits, estimated_window, iso, rolling_blocks,
+                                 usage_between)
+    length = CLAUDE_WINDOW_SECONDS[name]
+    capacity = calibrate(samples, history.usage, length=length)
+    capacity_source = "official_calibration" if capacity else None
+    if capacity is None and name == "five_hour":
+        capacity = capacity_from_hits(history.usage, hit_times)
+        capacity_source = "limit_hits" if capacity else None
+        if capacity:
+            # Limits do not weigh token kinds exactly like list prices: in a cache-read-heavy
+            # window (Owner's data, 2026-10-14) the real capacity was ~1.4x the hit-based figure.
+            # Until official readings calibrate it, the optimistic end allows for that.
+            capacity = dict(capacity, high=round(capacity["high"] * HIT_CAPACITY_SPREAD, 4))
+    latest = samples[-1] if samples else None
+    if latest and latest["resets_at"] and latest["resets_at"] > now:
+        reset = latest["resets_at"]
+        window: dict[str, Any] = {"window": name, "resets_at": iso(reset), "resets_at_estimated": False,
+                                  "reset_passed": False, "status": None, "as_of": iso(latest["at"]),
+                                  "official_source": latest["source"], "capacity_source": capacity_source}
+        if now - latest["at"] <= FRESH_SECONDS or capacity is None:
+            window |= {"basis": "official_percent", "used_percent": latest["used_percent"]}
+            if capacity:
+                left = (100 - latest["used_percent"]) / 100
+                window["capacity_units"] = capacity
+                window["remaining_units_range"] = [round(left * capacity["low"], 4), round(left * capacity["high"], 4)]
+            return window
+        # The official figure is older: add what was used since, at the calibrated capacity.
+        added = usage_between(history.usage, latest["at"], now)
+        clamp = lambda v: round(min(max(v, 0.0), 100.0), 1)  # noqa: E731
+        base = latest["used_percent"]
+        mid, low, high = (clamp(base + added / capacity[k] * 100) for k in ("mid", "high", "low"))
+        return window | {"basis": "estimated", "used_percent": mid, "used_percent_range": [low, high],
+                         "capacity_units": capacity, "used_units": round(added, 4),
+                         "anchor": {"used_percent": base, "at": iso(latest["at"])},
+                         "remaining_units_range": [round(max((100 - high) / 100 * capacity["low"], 0.0), 4),
+                                                   round(max((100 - low) / 100 * capacity["high"], 0.0), 4)]}
+    if name == "weekly":
+        if not latest or not latest["resets_at"]:
+            return None
+        reset = latest["resets_at"]
+        while reset <= now:  # the weekly window renews on a fixed schedule
+            reset += length
+        used_units = usage_between(history.usage, reset - length, now)
+        if capacity:
+            return estimated_window("weekly", used_units=used_units, capacity=capacity, resets_at=reset, now=now) | {
+                "resets_at_estimated": False, "capacity_source": capacity_source}
+        return {"window": "weekly", "basis": "unknown", "used_percent": None, "used_units": round(used_units, 4),
+                "resets_at": iso(reset), "resets_at_estimated": False, "reset_passed": False,
+                "reason": "capacity_unknown"}
+    blocks = rolling_blocks(history.usage)
+    current = blocks[-1] if blocks and now < blocks[-1]["end"] else None
+    if current and any(current["start"] <= hit < current["end"] for hit in hit_times):
+        return {"window": "five_hour", "basis": "estimated", "used_percent": 100.0,
+                "used_percent_range": [100.0, 100.0], "availability": "limit_reached",
+                "resets_at": iso(current["end"]), "resets_at_estimated": True, "reset_passed": False,
+                "remaining_units_range": [0.0, 0.0], "used_units": round(current["units"], 4),
+                "capacity_source": capacity_source}
+    if capacity:
+        # No usage in the last five hours: the next request opens a fresh window.
+        return estimated_window("five_hour", used_units=current["units"] if current else 0.0, capacity=capacity,
+                                resets_at=current["end"] if current else None, now=now) | {
+            "resets_at_estimated": True, "capacity_source": capacity_source}
+    if current:
+        return {"window": "five_hour", "basis": "unknown", "used_percent": None,
+                "used_units": round(current["units"], 4), "resets_at": iso(current["end"]),
+                "resets_at_estimated": True, "reset_passed": False, "reason": "capacity_unknown_no_limit_hit_yet"}
+    return None
+
+
 def claude_quota(notices: tuple[list, str | None] | None, config_dir: str | os.PathLike[str] | None = None,
-                 *, now: float | None = None) -> dict[str, Any]:
-    """Claude windows: official notices where seen, else estimated from local history."""
-    from .quota_forecast import (availability, capacity_from_hits, estimated_window, iso, parse_time,
-                                 rolling_blocks)
+                 *, now: float | None = None, statusline_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
+    """Claude's 5-hour and weekly windows, on the best basis available.
+
+    Official percents come from the Nerelan status line and from Nerelan's own Claude runs.
+    A fresh one is shown as is; an older one is carried forward with the usage since, at a
+    capacity calibrated from earlier official readings (local usage in the window divided by
+    its percent). Without official readings, actual limit hits calibrate the 5-hour window.
+    """
+    from .quota_forecast import availability, parse_time
     from .quota_history import read_claude_history
     now = time.time() if now is None else now
-    official = claude_rate_limits(*notices, now=now) if notices else unknown("no_rate_limits_reported")
-    windows = []
-    for window in official["windows"]:
-        window["basis"] = "official_percent" if window["used_percent"] is not None else "official_status"
-        window["availability"] = availability(window["status"])
-        windows.append(window)
     history = read_claude_history(config_dir, now=now)
-    hits = list(history.hits) + [{"at": parse_time(official.get("observed_at")) or now, "window": w["window"],
-                                  "source": "claude_rate_limit_event"}
-                                 for w in windows if w["status"] == "rejected"]
-    five = next((w for w in windows if w["window"] == "five_hour"), None)
-    if five is None or five["used_percent"] is None:
-        capacity = capacity_from_hits(history.usage, [hit["at"] for hit in history.hits])
-        blocks = rolling_blocks(history.usage)
-        current = blocks[-1] if blocks and now < blocks[-1]["end"] else None
-        official_reset = parse_time(five["resets_at"]) if five else None
-        estimate: dict[str, Any] | None = None
-        if current and any(current["start"] <= hit["at"] < current["end"] for hit in history.hits):
-            estimate = {"window": "five_hour", "basis": "estimated", "used_percent": 100.0,
-                        "used_percent_range": [100.0, 100.0], "availability": "limit_reached",
-                        "resets_at": iso(official_reset or current["end"]), "reset_passed": False,
-                        "remaining_units_range": [0.0, 0.0], "used_units": round(current["units"], 4)}
-        elif capacity:
-            used = current["units"] if current else 0.0
-            # No usage in the last five hours: the next request opens a fresh window.
-            estimate = estimated_window("five_hour", used_units=used, capacity=capacity,
-                                        resets_at=official_reset or (current["end"] if current else None), now=now)
-        elif current:
-            estimate = {"window": "five_hour", "basis": "unknown", "used_percent": None,
-                        "used_units": round(current["units"], 4), "resets_at": iso(official_reset or current["end"]),
-                        "reset_passed": False, "reason": "capacity_unknown_no_limit_hit_yet"}
-        if estimate is not None:
-            estimate["resets_at_estimated"] = official_reset is None
-            if five is not None:
-                if estimate.get("availability") != "limit_reached" and not five["reset_passed"]:
-                    estimate["status"] = five["status"]
-                    estimate["availability"] = five["availability"]
-                windows.remove(five)
-            windows.insert(0, estimate)
+    # Only what had happened by ``now`` (logs may hold later lines when ``now`` is in the past).
+    history.usage = [event for event in history.usage if event.at <= now]
+    history.hits = [hit for hit in history.hits if hit["at"] <= now]
+    samples = sorted((s for s in read_statusline_records(statusline_path, now=now) + _notice_samples(notices)
+                      if s["at"] <= now), key=lambda sample: sample["at"])
+    hit_times = [hit["at"] for hit in history.hits]
+    windows = []
+    for name in CLAUDE_WINDOW_SECONDS:
+        window = _claude_window(name, [s for s in samples if s["window"] == name], history, hit_times, now)
+        if window is not None:
+            windows.append(window)
+    # Notices that only state availability (or name another window) are kept beside the numbers.
+    official = claude_rate_limits(*notices, now=now) if notices else unknown("no_rate_limits_reported")
+    hits = list(history.hits)
+    for notice in official["windows"]:
+        if notice["status"] == "rejected":
+            hits.append({"at": parse_time(official.get("observed_at")) or now, "window": notice["window"],
+                         "source": "claude_rate_limit_event"})
+        if notice["reset_passed"]:
+            continue
+        same = next((w for w in windows if w["window"] == notice["window"]), None)
+        if same is None and notice["used_percent"] is None:
+            windows.append(notice | {"basis": "official_status", "availability": availability(notice["status"])})
+        elif same is not None and same.get("availability") != "limit_reached":
+            same["status"] = notice["status"]
+            same["availability"] = availability(notice["status"])
     if not windows:
         return unknown("no_claude_quota_signal")
-    is_official = any(w["basis"].startswith("official") for w in windows)
+    is_official = any(w["basis"].startswith("official") or w.get("anchor") for w in windows)
+    sources = sorted({s["source"] for s in samples})
     return {"state": "OBSERVED", "provenance": "OFFICIAL_VIA_CLI" if is_official else "ESTIMATED_FROM_HISTORY",
-            "source": official.get("source") or "claude_session_log", "observed_at": official.get("observed_at"),
+            "source": sources[-1] if sources else "claude_session_log",
+            "observed_at": iso_or_none(samples[-1]["at"]) if samples else official.get("observed_at"),
             "windows": windows, "limit_hits": _hits_public(hits), "usage_scope": "this_machine"}
+
+
+def iso_or_none(epoch: float | None) -> str | None:
+    from .quota_forecast import iso
+    return iso(epoch)

@@ -106,6 +106,21 @@ function windowText(window: QuotaWindow): string {
   return "用量未知";
 }
 
+function provenanceText(window: QuotaWindow): string | null {
+  if (window.basis === "official_percent") {
+    return window.asOf ? `官方读数 · ${formatReset(window.asOf) ?? ""}` : null;
+  }
+  if (window.basis !== "estimated") return null;
+  if (window.anchor) {
+    return `官方 ${Math.round(window.anchor.usedPercent)}%（${formatReset(window.anchor.at) ?? ""}）+ 之后用量推算`;
+  }
+  if (window.capacitySource === "official_calibration") return "按官方读数校准的容量估算";
+  if (window.capacitySource === "limit_hits") {
+    return `按本机 ${window.capacitySamples ?? ""} 次触顶粗估（未校准，范围较宽）`;
+  }
+  return "按本机历史估算";
+}
+
 function QuotaWindowRow({ window }: { window: QuotaWindow }) {
   const label = WINDOW_LABELS[window.window] ?? window.window;
   const reset = formatReset(window.resetsAt);
@@ -130,10 +145,10 @@ function QuotaWindowRow({ window }: { window: QuotaWindow }) {
       )}
       <p className="mt-0.5 text-[11px] text-ra-text-tertiary">
         {reset && !window.resetPassed ? `${window.resetsAtEstimated ? "约 " : ""}${reset} 重置` : ""}
-        {window.basis === "estimated" && (
+        {provenanceText(window) && (
           <>
             {reset && !window.resetPassed ? " · " : ""}
-            按本机历史{window.capacitySamples ? ` ${window.capacitySamples} 次触顶/用量` : ""}估算
+            {provenanceText(window)}
           </>
         )}
       </p>
