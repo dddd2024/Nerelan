@@ -136,3 +136,22 @@ def test_unknown_hosts_get_no_implicit_anthropic_endpoint_but_accept_an_explicit
     assert store.compatible_executors("sense-api") == ["opencode"]
     store.upsert_connection(_connection(anthropic_base_url="https://models.example.test/anthropic"))
     assert store.compatible_executors("sense-api") == ["opencode", "claude_code"]
+
+
+def test_a_new_anthropic_endpoint_cannot_reuse_the_stored_key():
+    store = ModelProfileStore()
+    store.upsert_connection(_connection())
+    without_key = {k: v for k, v in _connection().items() if k != "api_key"}
+    with pytest.raises(ValueError, match="authority-bearing"):
+        store.upsert_connection({**without_key, "anthropic_base_url": "https://elsewhere.example.test/anthropic"})
+    assert store.get_connection_public("sense-api")["anthropic_base_url"] is None
+    store.upsert_connection(_connection(anthropic_base_url="https://models.example.test/anthropic",
+                                        api_key="replacement-key"))
+    # Re-saving the same endpoint, or a known host's derived one, keeps the stored key.
+    store.upsert_connection({**without_key, "name": "Renamed",
+                             "anthropic_base_url": "https://models.example.test/anthropic"})
+    assert store.get_connection_public("sense-api")["credential_configured"] is True
+    store.upsert_connection(_connection(connection_id="sense", base_url="https://token.sensenova.cn/v1"))
+    store.upsert_connection({**without_key, "connection_id": "sense", "base_url": "https://token.sensenova.cn/v1",
+                             "name": "Renamed"})
+    assert store.get_connection_public("sense")["anthropic_base_url"] == "https://token.sensenova.cn"

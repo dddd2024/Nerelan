@@ -79,11 +79,12 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
                 return "probe_output_invalid"
             if result.returncode:
                 return "managed_login_unavailable" if args[0] == "auth" else "cli_unavailable"
+            # Check the flags before the login: a relay run accepts a missing login, never an old CLI.
+            if args[0] == "--help" and not all(flag in result.stdout for flag in (
+                    "--print", "--output-format", "--permission-mode", "--strict-mcp-config",
+                    "--restricted", "--tools", "--permission-prompts", "--no-session-persistence")):
+                return "cli_incompatible"
             outputs.append(result.stdout)
-        if not all(flag in outputs[0] for flag in (
-                "--print", "--output-format", "--permission-mode", "--strict-mcp-config",
-                "--restricted", "--tools", "--permission-prompts", "--no-session-persistence")):
-            return "cli_incompatible"
         try:
             status = json.loads(outputs[1])
         except (json.JSONDecodeError, RecursionError):
