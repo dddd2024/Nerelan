@@ -32,6 +32,12 @@ export interface QuotaWindow {
   /** List-price units used in the window, when measured locally. */
   usedUnits: number | null;
   capacitySamples: number | null;
+  /** "official_calibration" | "limit_hits" when the window was estimated. */
+  capacitySource: string | null;
+  /** The official reading an estimate was carried forward from. */
+  anchor: { usedPercent: number; at: string | null } | null;
+  /** When an official percent was read (status line or a Nerelan run). */
+  asOf: string | null;
   resetsAt: string | null;
   resetsAtEstimated: boolean;
   status: string | null;
@@ -159,6 +165,11 @@ function quota(value: unknown): Quota {
         availability: asString(w.availability),
         usedUnits: asNumber(w.used_units),
         capacitySamples: asNumber(asRecord(w.capacity_units).samples),
+        capacitySource: asString(w.capacity_source),
+        anchor: percent(asRecord(w.anchor).used_percent) !== null
+          ? { usedPercent: percent(asRecord(w.anchor).used_percent) as number, at: asString(asRecord(w.anchor).at) }
+          : null,
+        asOf: asString(w.as_of),
         resetsAt: asString(w.resets_at),
         resetsAtEstimated: w.resets_at_estimated === true,
         status: asString(w.status),

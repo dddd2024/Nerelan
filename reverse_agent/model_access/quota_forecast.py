@@ -112,28 +112,69 @@ def capacity_from_percent(samples: Iterable[PercentSample]) -> dict[str, dict[st
             for window, values in per_window.items()}
 
 
-def rolling_blocks(events: Sequence[UsageEvent], *, length: int = FIVE_HOURS) -> list[dict[str, Any]]:
-    """Group usage into windows that start with the first request after the previous one ended."""
+def rolling_blocks(events: Sequence[UsageEvent], *, length: int = FIVE_HOURS,
+                   align: int = 3600) -> list[dict[str, Any]]:
+    """Group usage into windows opened by the first request after the previous one ended.
+
+    A Claude window starts at the top of the hour of that request (first message at 04:07
+    -> window 04:00-09:00, matching the reset time the CLI reports).
+    """
     blocks: list[dict[str, Any]] = []
     for event in sorted(events, key=lambda e: e.at):
         if not blocks or event.at >= blocks[-1]["end"]:
-            blocks.append({"start": event.at, "end": event.at + length, "units": 0.0})
+            start = event.at - event.at % align if align else event.at
+            blocks.append({"start": start, "end": start + length, "units": 0.0})
         blocks[-1]["units"] += event.units
     return blocks
 
 
+def usage_between(events: Sequence[UsageEvent], start: float, end: float) -> float:
+    return sum(e.units for e in events if start <= e.at <= end)
+
+
+def calibrate(samples: Sequence[Mapping[str, Any]], events: Sequence[UsageEvent],
+              *, length: int) -> dict[str, Any] | None:
+    """Window capacity from official percents: local usage in the window / percent used.
+
+    Each window instance (one reset time) contributes its latest reading, which has the
+    most usage behind it. Readings under 10% are too coarse to divide by.
+    """
+    latest: dict[int, Mapping[str, Any]] = {}
+    for sample in samples:
+        reset = sample.get("resets_at")
+        if type(reset) is int and sample.get("used_percent", 0) >= 10:
+            key = round(reset / 60)  # two sources may report the same reset a second apart
+            if key not in latest or sample["at"] > latest[key]["at"]:
+                latest[key] = sample
+    values, spread = [], None
+    for sample in latest.values():
+        used_units = usage_between(events, sample["resets_at"] - length, sample["at"])
+        if used_units <= 0:
+            continue
+        pct = sample["used_percent"]
+        values.append(used_units * 100 / pct)
+        spread = (used_units * 100 / (pct + 1), used_units * 100 / max(pct - 1, 1))
+    return capacity_range(values, single_spread=spread if len(values) == 1 else None)
+
+
 def capacity_from_hits(events: Sequence[UsageEvent], hits: Sequence[float],
                        *, length: int = FIVE_HOURS) -> dict[str, Any] | None:
-    """Units a window held when the CLI reported the limit was reached."""
+    """Units a window held when the CLI reported the limit was reached.
+
+    One sample per window (its first hit: retries after it add nothing). A hit in a window
+    holding far less than the others is most likely the weekly limit, not this one, so with
+    three or more samples those below 60% of the median are left out.
+    """
     blocks = rolling_blocks(events, length=length)
-    samples = []
+    first_hit: dict[float, float] = {}
     for hit in sorted(set(hits)):
         block = next((b for b in blocks if b["start"] <= hit < b["end"]), None)
-        if block is None:
-            continue
-        used = sum(e.units for e in events if block["start"] <= e.at <= hit)
-        if used > 0:
-            samples.append(used)
+        if block is not None and block["start"] not in first_hit:
+            first_hit[block["start"]] = hit
+    samples = [used for start, hit in first_hit.items() if (used := usage_between(events, start, hit)) > 0]
+    if len(samples) >= 3:
+        middle = median(samples)
+        samples = [value for value in samples if value >= 0.6 * middle]
     return capacity_range(samples)
 
 
