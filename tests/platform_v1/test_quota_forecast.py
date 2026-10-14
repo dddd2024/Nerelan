@@ -282,10 +282,14 @@ def test_host_refuses_and_reroutes_after_the_account_answered_with_its_limit(mon
     resolver = host._binding_resolver_factory("http://127.0.0.1:1")
     with pytest.raises(BindingResolutionError, match="quota_exhausted:limit_hit"):
         resolver.resolve("claude-sonnet", task_executor="claude_code")
-    # Long after the hit (no reset time known) the account is tried again.
+    # Our own later refusals are not answers from the account: they never extend the hold.
+    held = host._limit_hit_until(store.get_connection_public("claude-account"))
     tasks._conn.execute("UPDATE tasks SET updated_at = '2000-01-01T00:00:00Z' WHERE id = ?", (failed.id,))
+    refused = tasks.create_task(title="r", repository="o/r", executor_kind="claude_code", binding_ref="claude-sonnet")
+    tasks._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = ? WHERE id = ?",
+                        ("quota_exhausted:limit_hit", refused.id))
     tasks._conn.commit()
-    assert host._limit_hit_until(store.get_connection_public("claude-account")) is None
+    assert held is not None and host._limit_hit_until(store.get_connection_public("claude-account")) is None
 
 
 def test_host_switches_a_role_off_an_exhausted_account_and_logs_it(monkeypatch):

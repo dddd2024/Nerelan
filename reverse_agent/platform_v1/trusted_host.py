@@ -394,7 +394,7 @@ class CombinedTrustedHost:
 
     def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
         """When a run on this connection last failed for quota, and the account has not reset since."""
-        from .quota_guard import LIMIT_HIT, limit_hit_until
+        from .quota_guard import ACCOUNT_LIMIT, limit_hit_until
         bindings = [b["binding_id"] for b in self._store.list_bindings_public()
                     if b["connection_id"] == connection.get("connection_id")]
         if not bindings:
@@ -404,7 +404,8 @@ class CombinedTrustedHost:
             "SELECT failure_classification, updated_at FROM tasks WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
-        hit = next((row["updated_at"] for row in rows if LIMIT_HIT.search(row["failure_classification"] or "")), None)
+        # Our own refusals are not new answers from the account and must never extend the hold.
+        hit = next((row["updated_at"] for row in rows if ACCOUNT_LIMIT.search(row["failure_classification"] or "")), None)
         if hit is None:
             return None
         hit_at = datetime.fromisoformat(hit.replace("Z", "+00:00")).timestamp()

@@ -96,8 +96,10 @@ def alternatives(role: str, current: Mapping[str, Any], *, bindings: Sequence[Ma
     return ordered
 
 
-# Failures that mean the account itself is out of quota, not that the agent did badly.
-LIMIT_HIT = re.compile(r"api_error_429|rate_limit|usage_limit|quota_exhausted")
+# Answers in which the account itself said it is out of quota; only these start or extend a hold.
+ACCOUNT_LIMIT = re.compile(r"api_error_429|rate_limit|usage_limit")
+# Failures that mean quota, not agent skill: the account's answer, or the host refusing dispatch for it.
+LIMIT_HIT = re.compile(ACCOUNT_LIMIT.pattern + r"|quota_exhausted")
 LIMIT_HIT_HOLD_SECONDS = 3600  # when the account's own reset time is unknown
 
 
