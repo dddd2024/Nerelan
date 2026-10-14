@@ -80,12 +80,14 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
     for row in tasks:
         profile = grouped.setdefault(row["binding_ref"], {
             "binding_ref": row["binding_ref"], "executor_kind": row["executor_kind"], "attempts": 0,
-            "ok": 0, "failed": 0, "timeouts": 0, "rate_limited": 0, "failure_kinds": {},
+            "ok": 0, "failed": 0, "timeouts": 0, "rate_limited": 0, "failure_kinds": {}, "observed_tokens": 0,
             "_ok_seconds": [], "_timeout_seconds": [], "_ok_tokens": []})
         status = row["status"]
         classification = (row["failure_classification"] or "").lower()
         span = spans.get(row["id"], ["", ""])
         seconds = _seconds(span[0], span[1]) if span[0] and span[1] else None
+        if status in OK_STATUSES or status == "FAILED":
+            profile["observed_tokens"] += tokens.get(row["id"], 0)
         if status in OK_STATUSES:
             profile["attempts"] += 1
             profile["ok"] += 1

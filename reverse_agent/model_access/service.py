@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
@@ -19,6 +19,7 @@ from .account_auth import AccountAuthManager
 from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
 from .os_vault import VaultUnavailableError
+from .resources import build_resource_view
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -319,6 +320,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
         lambda _force, _connection_id: None
     )
     account_auth: AccountAuthManager | None = None
+    usage_profiles: Callable[[], Mapping[str, Mapping[str, Any]]] = staticmethod(lambda: {})
 
     server_version = "reverse-agent-model-control/1"
 
@@ -379,6 +381,10 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.get_agent_roster_public())
+                return
+            if segments == ["api", "resources"]:
+                self.external_session_refresh(False, None)
+                self._send_json(HTTPStatus.OK, build_resource_view(self.store, self.usage_profiles))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 self._send_json(
@@ -668,6 +674,7 @@ def _handler_factory(
     allowed_origin: str,
     external_session_refresh: Callable[[bool, str | None], None] | None = None,
     account_auth: AccountAuthManager | None = None,
+    usage_profiles: Callable[[], Mapping[str, Mapping[str, Any]]] | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -679,6 +686,7 @@ def _handler_factory(
         external_session_refresh or (lambda _force, _connection_id: None)
     )
     ConfiguredHandler.account_auth = account_auth
+    ConfiguredHandler.usage_profiles = staticmethod(usage_profiles or (lambda: {}))
     return ConfiguredHandler
 
 
