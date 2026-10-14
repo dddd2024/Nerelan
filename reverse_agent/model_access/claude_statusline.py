@@ -156,10 +156,38 @@ def _write(path: Path, data: dict) -> None:
     os.replace(temp, path)
 
 
+def _portable(path: str) -> str:
+    """A path every shell runs unquoted: 8.3 short form when it has spaces, forward slashes."""
+    if os.name == "nt" and " " in path:
+        try:
+            import ctypes
+            buffer = ctypes.create_unicode_buffer(1024)
+            if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, 1024):
+                path = buffer.value
+        except (OSError, AttributeError):
+            pass
+    return path.replace("\\", "/")
+
+
+def command_for(target: Path) -> str:
+    """The statusLine command. Claude Code may run it through cmd, PowerShell or bash: quoted
+    tokens break cmd /c (outer quotes stripped) and PowerShell (a quoted string is not called),
+    so the command avoids quotes whenever the paths allow."""
+    exe, script = _portable(sys.executable), _portable(str(target))
+    if " " in exe or " " in script:
+        return f'"{exe}" "{script}"'
+    return f"{exe} {script}"
+
+
+def _norm(text: str) -> str:
+    return text.replace("\\", "/").replace('"', "").strip().casefold()
+
+
 def _ours(status_line) -> bool:
     command = status_line.get("command") if isinstance(status_line, dict) else None
     target = str(state_dir() / "claude_statusline.py")
-    return isinstance(command, str) and command.rstrip().rstrip('"').endswith(target)
+    return isinstance(command, str) and any(
+        _norm(command).endswith(_norm(form)) for form in (target, _portable(target)))
 
 
 def install() -> int:
@@ -172,7 +200,7 @@ def install() -> int:
         return 1
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(__file__, target)
-    data["statusLine"] = {"type": "command", "command": f'"{sys.executable}" "{target}"', "padding": 0}
+    data["statusLine"] = {"type": "command", "command": command_for(target), "padding": 0}
     _write(path, data)
     print(f"installed: {path} statusLine -> {target}; records to {log_path()}")
     return 0

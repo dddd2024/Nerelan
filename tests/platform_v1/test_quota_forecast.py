@@ -440,3 +440,20 @@ def test_weekly_window_rolls_the_official_reset_forward_and_counts_usage_since(t
                   if w["window"] == "weekly")
     assert weekly["basis"] == "estimated" and weekly["used_percent"] == pytest.approx(10, abs=0.5)
     assert weekly["resets_at"] == _iso(old_reset + week).replace("+00:00", "Z")
+
+
+def test_status_line_command_runs_unquoted_and_old_forms_are_still_recognised(tmp_path, monkeypatch):
+    from reverse_agent.model_access import claude_statusline as sl
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "state"))
+    target = sl.state_dir() / "claude_statusline.py"
+    monkeypatch.setattr(sl, "_portable", lambda path: path.replace("Program Files", "PROGRA~1").replace("\\", "/"))
+    monkeypatch.setattr(sl.sys, "executable", r"C:\Program Files\Python313\python.exe")
+    command = sl.command_for(target)
+    assert '"' not in command and command.startswith("C:/PROGRA~1/Python313/python.exe ")
+    assert sl._ours({"command": command})
+    # The quoted form an earlier install wrote is still ours, so install/uninstall can replace it.
+    assert sl._ours({"command": f'"C:\Program Files\Python313\python.exe" "{target}"'})
+    assert not sl._ours({"command": "python other/claude_statusline.py"})
+    # Paths that keep a space are quoted rather than broken.
+    monkeypatch.setattr(sl, "_portable", lambda path: path.replace("\\", "/"))
+    assert sl.command_for(target).startswith('"C:/Program Files/')
