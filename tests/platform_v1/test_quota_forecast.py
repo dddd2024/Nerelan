@@ -236,3 +236,88 @@ def test_host_switches_a_role_off_an_exhausted_account_and_logs_it(monkeypatch):
     verdicts["chatgpt-account"] = {"decision": "switch", "reason": "limit_reached"}
     assert host._quota_guarded("coder", "claude_code", "claude-opus", roster) == ("claude_code", "claude-opus")
     assert host._quota_guard_entries()[0]["reason"] == "limit_reached:no_alternative"
+
+
+def _guard_host(monkeypatch, verdicts):
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "claude-account", "name": "Claude", "provider": "claude-code",
+                             "base_url": "https://claude.ai", "auth_method": "external_cli_session", "enabled": True})
+    store.upsert_binding({"binding_id": "claude-opus", "name": "opus", "connection_id": "claude-account",
+                          "executor_id": "claude_code", "model_id": "opus", "enabled": True})
+    store.set_native_readiness("claude_code", "managed_login_ready")
+    host = object.__new__(CombinedTrustedHost)
+    host._store = store
+    monkeypatch.setattr(host, "_quota_check", lambda binding: verdicts.get(binding["connection_id"]), raising=False)
+    return host, store
+
+
+def test_guard_never_switches_to_a_binding_that_cannot_run(monkeypatch):
+    # The reviewer's repro: the only stand-in sits on a disabled API-key connection without a key.
+    verdicts = {"claude-account": {"decision": "switch", "reason": "limit_reached"}}
+    host, store = _guard_host(monkeypatch, verdicts)
+    store.upsert_connection({"connection_id": "api", "name": "API", "provider": "anthropic-compatible",
+                             "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": False})
+    store.upsert_binding({"binding_id": "opus-relay", "name": "opus relay", "connection_id": "api",
+                          "executor_id": "claude_code", "model_id": "opus", "enabled": True})
+    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    assert host._quota_guard_entries()[0]["reason"] == "limit_reached:no_alternative"
+    # Enabled but still without a key: also not a stand-in.
+    store.upsert_connection({"connection_id": "api", "name": "API", "provider": "anthropic-compatible",
+                             "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": True})
+    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    # With a usable key it is taken.
+    store.upsert_connection({"connection_id": "api", "name": "API", "provider": "anthropic-compatible",
+                             "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": True,
+                             "api_key": "test-key-not-real"})
+    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "opus-relay")
+    assert "_logged" not in host._quota_guard_entries()[0]
+
+
+def test_failed_quota_checks_never_move_or_admit_a_role(monkeypatch):
+    error = {"decision": "error", "reason": "quota_check_failed"}
+    host, store = _guard_host(monkeypatch, {"claude-account": error})
+    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    assert host._quota_guard_entries() == []
+    # A stand-in whose own check failed is not treated as fitting.
+    store.upsert_connection({"connection_id": "chatgpt-account", "name": "ChatGPT", "provider": "codex",
+                             "base_url": "https://chatgpt.com", "auth_method": "external_cli_session", "enabled": True})
+    store.upsert_binding({"binding_id": "gpt", "name": "gpt", "connection_id": "chatgpt-account",
+                          "executor_id": "codex", "model_id": "opus", "enabled": True})
+    store.set_native_readiness("codex", "managed_login_ready")
+    host2, _ = _guard_host(monkeypatch, {"claude-account": {"decision": "switch", "reason": "limit_reached"},
+                                         "chatgpt-account": error})
+    host2._store = store
+    assert host2._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+
+
+def test_repeated_identical_warnings_are_logged_once(monkeypatch):
+    host, _ = _guard_host(monkeypatch, {})
+    for _ in range(3):
+        host._record_quota_decision({"role": None, "binding_id": "b", "decision": "warn", "reason": "near_limit"})
+    assert len(host._quota_guard_entries()) == 1
+
+
+def test_a_stale_official_availability_does_not_contradict_the_estimate(tmp_path):
+    now = time.time()
+    _write(tmp_path / "projects" / "p" / "s.jsonl", [
+        _claude_assistant(_iso(now - H), "a", out=1_000_000),
+        {"type": "assistant", "timestamp": _iso(now - H + 60), "isApiErrorMessage": True,
+         "error": "rate_limit", "apiError": "usage_limit_reached", "message": {}},
+    ])
+    old = ([{"status": "allowed", "window": "five_hour", "resets_at": int(now - 10 * H)}], "t")
+    window = claude_quota(old, tmp_path, now=now)["windows"][0]
+    assert window["availability"] == "limit_reached"
+
+
+def test_oversized_log_lines_are_skipped_without_losing_later_lines(tmp_path, monkeypatch):
+    import reverse_agent.model_access.quota_history as qh
+    monkeypatch.setattr(qh, "MAX_LINE_BYTES", 1024)
+    now = time.time()
+    path = tmp_path / "projects" / "p" / "s.jsonl"
+    path.parent.mkdir(parents=True)
+    huge = json.dumps({"type": "user", "message": {"content": "x" * 5000, "usage": {}}})
+    good = json.dumps(_claude_assistant(_iso(now - H), "a", out=1_000_000))
+    path.write_text(huge + "\n" + good + "\n", encoding="utf-8")
+    os.utime(path, (now, now))
+    assert len(qh.read_claude_history(tmp_path).usage) == 1

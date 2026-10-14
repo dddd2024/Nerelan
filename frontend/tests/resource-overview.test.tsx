@@ -123,6 +123,8 @@ describe("resource overview", () => {
             reason: "predicted_insufficient", window: "five_hour", switched_to: "chatgpt-gpt" },
           { at: "2026-10-14T05:11:00Z", role: null, binding_id: "claude-sonnet", decision: "warn",
             reason: "limit_reached:no_alternative", switched_to: null },
+          { at: "2026-10-14T05:12:00Z", role: null, binding_id: "claude-opus", decision: "warn",
+            reason: "near_limit", switched_to: null },
         ],
       },
     };
@@ -142,7 +144,8 @@ describe("resource overview", () => {
     expect(screen.getByTestId("quota-limit-hits")).toHaveTextContent("最近 8 天触顶 2 次");
     const log = screen.getByTestId("quota-guard-log");
     expect(log).toHaveTextContent("coder：claude-opus → chatgpt-gpt（预计余量不足以完成下一项任务）");
-    expect(log).toHaveTextContent("claude-sonnet 继续运行（未找到不降级的替代）（已触顶）");
+    expect(log).toHaveTextContent("claude-sonnet 继续运行（没有可运行且不降级的替代）（已触顶）");
+    expect(log).toHaveTextContent("claude-opus 按任务指定的绑定运行，已提醒（接近上限）");
   });
 
   it("reports a load failure instead of an empty overview", async () => {

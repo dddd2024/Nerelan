@@ -351,13 +351,25 @@ class CombinedTrustedHost:
             verdict = check(connection, self._subscription_quotas(), need)
             return verdict | {"need_source": source} if verdict else None
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
-            return None
+            return {"decision": "error", "reason": "quota_check_failed"}
+
+    def _runnable_bindings(self) -> set[str]:
+        """Bindings that could dispatch now: enabled, credential usable, executor ready (resolver rules)."""
+        from ..model_access.resources import build_resource_view
+        view = build_resource_view(self._store, dict)
+        return {row["binding_id"] for item in view["resources"] if item["credential"]["configured"]
+                for row in item["bindings"] if row["usable"]}
 
     def _record_quota_decision(self, entry: dict[str, Any]) -> None:
         log = getattr(self, "_quota_guard_log", None)
         if log is None:
             log = self._quota_guard_log = collections.deque(maxlen=20)
-        log.appendleft({"at": _utc_now(), **entry})
+        key = (entry.get("binding_id"), entry.get("decision"), entry.get("reason"))
+        last = log[0] if log else None
+        if last and (last.get("binding_id"), last.get("decision"), last.get("reason")) == key \
+                and time.monotonic() - last.get("_logged", 0) < 120:
+            return  # the same verdict from role resolution and from the run itself
+        log.appendleft({"at": _utc_now(), "_logged": time.monotonic(), **entry})
 
     def _quota_guarded(self, role: str, executor_id: str, binding_id: str,
                        roster: Mapping[str, Mapping[str, Any]]) -> tuple[str, str]:
@@ -366,16 +378,20 @@ class CombinedTrustedHost:
         bindings = self._store.list_bindings_public()
         chosen = next((b for b in bindings if b["binding_id"] == binding_id), None)
         decision = self._quota_check(chosen) if chosen else None
-        if not decision or decision["decision"] == "ok":
-            return executor_id, binding_id
+        if not decision or decision["decision"] in {"ok", "error"}:
+            return executor_id, binding_id  # no shortfall known: never move on a failed estimate
         entry = {"role": role, "binding_id": binding_id, "decision": decision["decision"],
                  "reason": decision["reason"], "window": decision.get("window"), "switched_to": None}
         if decision["decision"] == "switch":
             usable = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
             usable &= self.ROLE_EXECUTORS.get(role, usable)
+            runnable = self._runnable_bindings()
             for candidate in alternatives(role, chosen, bindings=bindings, roster=roster, usable_executors=usable):
+                if candidate["binding_id"] not in runnable:
+                    continue  # a stand-in that cannot run is worse than a warned run
                 verdict = self._quota_check(candidate)
-                if verdict is None or verdict["decision"] != "switch":
+                # API keys have no window (None); a failed check is not "fits".
+                if verdict is None or verdict["decision"] in {"ok", "warn"}:
                     self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
                     return candidate["executor_id"], candidate["binding_id"]
             entry["decision"], entry["reason"] = "warn", f"{decision['reason']}:no_alternative"
@@ -383,7 +399,8 @@ class CombinedTrustedHost:
         return executor_id, binding_id
 
     def _quota_guard_entries(self) -> list[dict[str, Any]]:
-        return list(getattr(self, "_quota_guard_log", ()))
+        return [{k: v for k, v in entry.items() if not k.startswith("_")}
+                for entry in getattr(self, "_quota_guard_log", ())]
 
     # Roles whose work only some executors can do; a measured swap never leaves this set.
     ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex"})}
@@ -445,7 +462,7 @@ class CombinedTrustedHost:
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
                 verdict = host._quota_check(binding) if binding else None
-                if verdict and verdict["decision"] != "ok":
+                if verdict and verdict["decision"] in {"warn", "switch"}:
                     # A binding the task named itself is kept; the shortfall is recorded before the run.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "warn",
                                                  "reason": verdict["reason"], "window": verdict.get("window"),

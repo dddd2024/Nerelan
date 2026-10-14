@@ -215,8 +215,9 @@ def claude_quota(notices: tuple[list, str | None] | None, config_dir: str | os.P
         if estimate is not None:
             estimate["resets_at_estimated"] = official_reset is None
             if five is not None:
-                estimate["status"] = five["status"]
-                estimate["availability"] = five["availability"] or estimate.get("availability")
+                if estimate.get("availability") != "limit_reached" and not five["reset_passed"]:
+                    estimate["status"] = five["status"]
+                    estimate["availability"] = five["availability"]
                 windows.remove(five)
             windows.insert(0, estimate)
     if not windows:

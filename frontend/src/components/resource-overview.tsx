@@ -182,7 +182,11 @@ function GuardLog({ entries }: { entries: QuotaGuardEntry[] }) {
             {formatReset(entry.at) ?? ""} · {entry.role ? `${entry.role}：` : ""}
             {entry.switchedTo
               ? `${entry.bindingId} → ${entry.switchedTo}`
-              : `${entry.bindingId} 继续运行（未找到不降级的替代）`}
+              : entry.reason.endsWith(":no_alternative")
+                ? `${entry.bindingId} 继续运行（没有可运行且不降级的替代）`
+                : entry.role
+                  ? `${entry.bindingId} 继续运行，已提醒`
+                  : `${entry.bindingId} 按任务指定的绑定运行，已提醒`}
             （{GUARD_REASONS[entry.reason.split(":")[0]] ?? entry.reason}）
           </li>
         ))}

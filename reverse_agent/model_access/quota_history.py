@@ -25,7 +25,8 @@ from .quota_forecast import PercentSample, UsageEvent, parse_time, usage_units
 
 MAX_AGE_SECONDS = 8 * 24 * 3600
 MAX_FILES = 40
-MAX_FILE_BYTES = 64 * 1024 * 1024
+MAX_FILE_BYTES = 16 * 1024 * 1024
+MAX_LINE_BYTES = 1024 * 1024
 _WINDOWS = {300: "five_hour", 10080: "weekly"}
 
 
@@ -48,10 +49,16 @@ def _recent(root: Path, pattern: str, now: float) -> list[Path]:
 def _lines(path: Path, markers: tuple[bytes, ...]):
     read = 0
     with path.open("rb") as handle:
-        for raw in handle:
-            read += len(raw)
-            if read > MAX_FILE_BYTES:
+        while read <= MAX_FILE_BYTES:
+            raw = handle.readline(MAX_LINE_BYTES)
+            if not raw:
                 return
+            read += len(raw)
+            if not raw.endswith(b"\n") and len(raw) >= MAX_LINE_BYTES:
+                while (rest := handle.readline(MAX_LINE_BYTES)) and not rest.endswith(b"\n"):
+                    read += len(rest)  # skip the remainder of an oversized line unread
+                read += len(rest)
+                continue
             if any(marker in raw for marker in markers):
                 try:
                     entry = json.loads(raw.decode("utf-8"))
