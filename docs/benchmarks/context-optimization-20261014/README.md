@@ -10,6 +10,9 @@ calls to startup or CI, new state database, dependencies or governance changes.
 on source commit `da75582f6eb45b933f7c06ca87e47477e7854317`, after merging current
 main's P0-3 resource-management changes. The final evidence commit adds documents
 only; per-file SHA-256 values bind the product/runtime modules actually loaded.
+`code_sha256` hashes the Windows clone bytes; `code_sha256_lf` normalizes CRLF
+to LF and matches all nine files in the final candidate regardless of checkout
+newline conversion.
 
 The probe created and approved a real Goal/Plan and launched its bounded Task
 without executing product development. Its 80 historical events are explicitly

@@ -64,5 +64,16 @@
   },
   "observed_result_sha256": "13a8191afd2ea9345c53f6b7585c6d842feec3c0a479defc9dab5349a6060281",
   "cash_cost_status": "UNKNOWN",
-  "quota_status": "UNKNOWN"
+  "quota_status": "UNKNOWN",
+  "code_sha256_lf": {
+    "reverse_agent/platform_v1/context_builder.py": "0af98a662f6472ff3ab096075bfd837abc3cc90ce8a41fa901976e141a66a1af",
+    "reverse_agent/platform_v1/context_optimization.py": "d0c89b9144c337eb824e0ec7f273dba15d06331efae221513492b0c06838c669",
+    "reverse_agent/platform_v1/context_recovery.py": "d03710de745f227d15904358eeb650cebaf63dfef7085bb884db1060c76c94e5",
+    "reverse_agent/platform_v1/task_service.py": "92e6c75ff4e9d552ea9fa65601a83b77aaf6cbfe787094ff3f527ca3cccadbb5",
+    "reverse_agent/platform_v1/trusted_host.py": "4eaeb1d16d95e2bb1a52a7f4633b821ffd955fbb96c6a3a20923546057306428",
+    "reverse_agent/platform_v1/codex_executor.py": "dac10b5017b814653708351c6b2992ef1c62bafc5f02815fab9cad9167182c63",
+    "reverse_agent/platform_v1/codex_protocol.py": "a5f2d4654a9ab3a44b5f84e0f2b8755dcd98781aae2b4f79f79735f67b74c464",
+    "reverse_agent/platform_v1/claude_protocol.py": "2cf3947cd665e45b38e13b171d9b35afef705440ed8347957cd1c4b8684ff155",
+    "reverse_agent/platform_v1/agent_planner.py": "45dc0117430bd5d9c64cbc037c550064cde4963594e2ffc03b05b852802be271"
+  }
 }
