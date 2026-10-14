@@ -1,0 +1,68 @@
+{
+  "host_head": "da75582f6eb45b933f7c06ca87e47477e7854317",
+  "source_head": "da75582f6eb45b933f7c06ca87e47477e7854317",
+  "goal_id": "goal-1791960101936-c88c792a780b",
+  "goal_revision": 1,
+  "artifact_digest": "9881b671149a8d68c5c5dcb51a2fe9b7921dd0fb8438255d45b366347041fd51",
+  "task_id": "task-1791960102250-17e1cfab1571",
+  "window_id": "window-1791960102027-28a2f963e7dc",
+  "prepare_pid": 8540,
+  "status": "LIVE_NATIVE_SUMMARY_AND_CROSS_AGENT_PROCESS_RECOVERY",
+  "cash_cost": null,
+  "quota_remaining": null,
+  "history_origin": "CONTROLLED_STRESS_FIXTURE_NOT_REAL_PAST_MODEL_WORK",
+  "summary_status": "COMPLETED",
+  "summary_error": null,
+  "summary_usage": {
+    "input_tokens": 2,
+    "cached_input_tokens": 4028,
+    "output_tokens": 1361,
+    "cache_write_input_tokens": 11878
+  },
+  "summary_executor": "claude_code",
+  "summary_model": "opus",
+  "summary_pid": 47264,
+  "summary_digest": "71c1422c812d98236ade426b40aed12c7160e99f2fa8c923ff16c218ae38d1ca",
+  "handoff_id": "83da7fe71a724e14b6ee09287b575460a44fdd3636233b2ad82c8c6e1a709428",
+  "summary_wall_seconds": 42.93274164199829,
+  "recover_pid": 38732,
+  "reply": {
+    "task_id": "task-1791960102250-17e1cfab1571",
+    "goal_id": "goal-1791960101936-c88c792a780b",
+    "goal_revision": 1,
+    "git_head": "da75582f6eb45b933f7c06ca87e47477e7854317",
+    "authority": "NONE"
+  },
+  "expected": {
+    "task_id": "task-1791960102250-17e1cfab1571",
+    "goal_id": "goal-1791960101936-c88c792a780b",
+    "goal_revision": 1,
+    "git_head": "da75582f6eb45b933f7c06ca87e47477e7854317",
+    "authority": "NONE"
+  },
+  "matched_context_facts": true,
+  "recovered_summary": true,
+  "packet_bytes": 16273,
+  "retrieval_matches": 1,
+  "retrieval_bytes": 2216,
+  "recover_usage": {
+    "input_tokens": 21163,
+    "cached_input_tokens": 12544,
+    "output_tokens": 77
+  },
+  "recover_wall_seconds": 24.991363525390625,
+  "code_sha256": {
+    "reverse_agent/platform_v1/context_builder.py": "0c64dc4cc29a4e0cd17d5174c848a2005e54f4cddb92d1a0b6d49d8330550198",
+    "reverse_agent/platform_v1/context_optimization.py": "7f84f1da6bb8ba3073488aadf2ef843f6e559d43136d606abb2056a412b96dd6",
+    "reverse_agent/platform_v1/context_recovery.py": "fbbf62eb8475fd21441506b5955607191c74eda599f3698adcbe0d56fdfe3fba",
+    "reverse_agent/platform_v1/task_service.py": "cc212cfff0be94e7dc7eee1cbebfb6e37fc0153589c58441f186c9e292c1a4bd",
+    "reverse_agent/platform_v1/trusted_host.py": "48176017d62371aeb206c2bde51d012c1d495ab30218be643a99bded27a872d0",
+    "reverse_agent/platform_v1/codex_executor.py": "56e404fe20999b72e9b740a34bcc6e21170de57c75b6db1da1cf029ba910f6fa",
+    "reverse_agent/platform_v1/codex_protocol.py": "59820b6483b21ffe868fa132f77861dda72a8e4cbadcc30aa1b7c055027209ab",
+    "reverse_agent/platform_v1/claude_protocol.py": "d972563bc139113c6275608ad56efd514c792e6ce6c2c27248196caee251c26d",
+    "reverse_agent/platform_v1/agent_planner.py": "6da70e2ff2ec7f46b50be5d95eb12f9d928790d46b1bc1be1c93e16690399779"
+  },
+  "observed_result_sha256": "13a8191afd2ea9345c53f6b7585c6d842feec3c0a479defc9dab5349a6060281",
+  "cash_cost_status": "UNKNOWN",
+  "quota_status": "UNKNOWN"
+}
