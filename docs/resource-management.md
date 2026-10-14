@@ -1,8 +1,10 @@
 # Unified AI resource management (P0-3)
 
 Product priority: #1151 P0-3. Owners: #287 (setup), #667 (usage and quota), #1009 (guided setup).
-Status at this commit: **decision matrix fixed; read-only resource view implemented; no live
-provider loop run yet** (that needs an Owner-authorized key and paid calls).
+Status at this commit: **decision matrix fixed; read-only resource view implemented.** The
+view was checked once against the Owner's real configuration (8 connections, 7 usable
+bindings, no secret in the output) on an isolated host. That host also ran one live relay
+task (SenseNova key → Claude Code, `glm-5.2`; see #1154). No quota source is wired yet.
 
 ## What "one place for every resource" means here
 
@@ -86,9 +88,14 @@ Invariants (tested):
 
 - No secret, env-var name or vault reference appears in the response.
 - `quota` is never filled from local usage. Unknown stays `UNKNOWN`.
-- `usable` uses the same readiness rule as the binding resolver, including the Claude Code
-  relay without a claude.ai login.
-- Subscription connections report `credential_owner` as their official CLI.
+- `usable` uses the binding resolver's rules: the connection is enabled, a CLI-session
+  connection has an available session, and the executor is operational, or it is the
+  Claude Code relay without a claude.ai login.
+- `credential_owner` is `nerelan` for API keys, the official CLI for Codex/Claude accounts,
+  `external_cli` for another CLI's own sign-in (for example OpenCode), and `none` for no-auth
+  endpoints.
+- If the observed-usage source fails, the view still lists every resource with
+  `observed_usage.status: "unavailable"` and zero totals; it does not fail the request.
 
 ## Remaining P0-3 work
 

@@ -48,17 +48,37 @@ def _executor_ready(executor: Mapping[str, Any] | None, connection: Mapping[str,
             and is_anthropic_relay_connection(connection))
 
 
+def _session_usable(connection: Mapping[str, Any]) -> bool:
+    """The resolver refuses a CLI-session binding whose session is not available."""
+    if connection.get("auth_method") not in {"external_cli_session", "account_login"}:
+        return True
+    return connection.get("external_session_status") in {"available", "executor_managed"}
+
+
+def _count(value: Any) -> int:
+    return value if type(value) is int and value >= 0 else 0
+
+
 def _observed(profile: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    if not profile:
+    if not isinstance(profile, Mapping) or not profile:
         return None
     return {field: profile.get(field) for field in _PROFILE_FIELDS} | {"provenance": "LOCAL_METERING"}
+
+
+def _read_profiles(profiles: Callable[[], Mapping[str, Mapping[str, Any]]]) -> tuple[dict[str, Any], str]:
+    # Observed usage is an addition to the view; losing it must not hide the resources.
+    try:
+        observed = profiles()
+        return (dict(observed), "available") if isinstance(observed, Mapping) else ({}, "unavailable")
+    except Exception:  # noqa: BLE001 - any profile failure only drops the usage figures
+        return {}, "unavailable"
 
 
 def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]]) -> dict[str, Any]:
     """Connections -> credential, executors, bindings, observed usage and quota, sanitized."""
     executors = {item["executor_id"]: item for item in store.list_executors_public()}
     bindings = store.list_bindings_public()
-    observed = dict(profiles() or {})
+    observed, observation_status = _read_profiles(profiles)
     resources = []
     for connection in store.list_connections_public():
         connection_id = connection["connection_id"]
@@ -66,32 +86,36 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
             compatible = store.compatible_executors(connection_id)
         except ValueError:
             compatible = []
-        ready = {executor_id: connection.get("enabled") is True
-                 and _executor_ready(executors.get(executor_id), connection) for executor_id in compatible}
+        connection_ok = connection.get("enabled") is True and _session_usable(connection)
+        ready = {executor_id: connection_ok and _executor_ready(executors.get(executor_id), connection)
+                 for executor_id in compatible}
         rows, totals = [], dict.fromkeys(_TOTAL_FIELDS, 0)
         for binding in (b for b in bindings if b["connection_id"] == connection_id):
             usage = _observed(observed.get(binding["binding_id"]))
             for field in _TOTAL_FIELDS if usage else ():
-                totals[field] += int(usage.get(field) or 0)
+                totals[field] += _count(usage.get(field))
             rows.append({"binding_id": binding["binding_id"], "model_id": binding["model_id"],
                          "executor_id": binding["executor_id"], "enabled": binding["enabled"],
                          "usable": bool(binding["enabled"] and ready.get(binding["executor_id"])),
                          "observed": usage})
         native = NATIVE_CLI_PROVIDERS.get(connection.get("executor_provider_id"))
+        credential = _credential(connection)
         resources.append({
             "connection_id": connection_id,
             "name": connection["name"],
             "enabled": connection["enabled"],
             "upstream_provider_id": connection.get("upstream_provider_id"),
             "protocol_family": connection.get("protocol_family"),
-            "credential": _credential(connection),
-            # A subscription account stays owned by its official CLI login.
-            "credential_owner": native[1] if native else "nerelan",
+            "credential": credential,
+            # A subscription stays owned by the CLI that signed in; Nerelan owns only API keys.
+            "credential_owner": (native[1] if native else "external_cli") if credential["kind"] == "subscription"
+            else "nerelan" if credential["kind"] == "api_key" else "none",
             "executors": [{"executor_id": executor_id, "ready": ready[executor_id],
                            "readiness_status": (executors.get(executor_id) or {}).get("readiness_status") or None}
                           for executor_id in compatible],
             "bindings": rows,
-            "observed_usage": totals | {"provenance": "LOCAL_METERING", "window_tasks": OBSERVATION_WINDOW_TASKS},
+            "observed_usage": totals | {"provenance": "LOCAL_METERING", "window_tasks": OBSERVATION_WINDOW_TASKS,
+                                        "status": observation_status},
             "quota": dict(UNKNOWN_QUOTA),
         })
     return {"resources": resources,

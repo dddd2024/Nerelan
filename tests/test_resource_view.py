@@ -52,6 +52,43 @@ def test_one_view_joins_credentials_executors_bindings_and_observed_usage():
     assert view["summary"] == {"connections": 2, "usable_bindings": 2, "quota_known": 0}
 
 
+def test_credential_owner_names_who_holds_the_sign_in():
+    store = _store()
+    store.upsert_connection({"connection_id": "opencode-session", "name": "OpenCode", "provider": "opencode",
+                             "base_url": "https://opencode.ai/zen/v1", "auth_method": "external_cli_session",
+                             "enabled": True})
+    store.upsert_connection({"connection_id": "local", "name": "Local", "provider": "openai-compatible",
+                             "base_url": "http://127.0.0.1:11434/v1", "auth_method": "none", "enabled": True})
+    owners = {cid: item["credential_owner"] for cid, item in _by_id(build_resource_view(store, dict)).items()}
+    assert owners == {"sense": "nerelan", "claude-account": "claude-code-cli",
+                      "opencode-session": "external_cli", "local": "none"}
+
+
+def test_cli_session_without_a_session_is_not_usable_like_the_resolver_says():
+    store = _store()
+    store.upsert_connection({"connection_id": "opencode-session", "name": "OpenCode", "provider": "openai",
+                             "base_url": "https://opencode.ai/zen/v1", "auth_method": "external_cli_session",
+                             "enabled": True})
+    store.upsert_binding({"binding_id": "oc-glm", "name": "GLM", "connection_id": "opencode-session",
+                          "executor_id": "opencode", "model_id": "glm-5.2", "enabled": True})
+    store.refresh_external_session_status({})  # OpenCode reports no signed-in provider
+    item = _by_id(build_resource_view(store, dict))["opencode-session"]
+    assert item["credential"]["configured"] is False
+    assert not any(e["ready"] for e in item["executors"])
+    assert item["bindings"][0]["usable"] is False
+
+
+def test_a_failing_or_malformed_profile_source_only_drops_the_usage_figures():
+    def broken():
+        raise RuntimeError("task store unavailable")
+    view = build_resource_view(_store(), broken)
+    sense = _by_id(view)["sense"]
+    assert sense["observed_usage"]["status"] == "unavailable" and sense["observed_usage"]["attempts"] == 0
+    assert view["summary"]["connections"] == 2
+    odd = _by_id(build_resource_view(_store(), lambda: {"sense-glm-5.2": {"attempts": "lots", "ok": -1}}))
+    assert odd["sense"]["observed_usage"]["attempts"] == 0 and odd["sense"]["observed_usage"]["status"] == "available"
+
+
 def test_quota_stays_unknown_and_is_never_derived_from_local_usage():
     view = build_resource_view(_store(), lambda: {"sense-glm-5.2": {"attempts": 50, "ok": 50,
                                                                     "observed_tokens": 10**6}})
