@@ -156,10 +156,51 @@ def _write(path: Path, data: dict) -> None:
     os.replace(temp, path)
 
 
+def _portable(path: str) -> str:
+    """A path every shell runs unquoted: 8.3 short form when it has spaces, forward slashes."""
+    if _WINDOWS and " " in path:
+        try:
+            import ctypes
+            buffer = ctypes.create_unicode_buffer(1024)
+            if ctypes.windll.kernel32.GetShortPathNameW(path, buffer, 1024):
+                path = buffer.value
+        except (OSError, AttributeError):
+            pass
+    return path.replace("\\", "/")
+
+
+WRAPPER_NAME = "claude_statusline.cmd"
+_WINDOWS = os.name == "nt"  # a module flag, so tests can exercise either branch on any OS
+
+
+def command_for(target: Path) -> str:
+    """The statusLine command. Claude Code may run it through cmd, PowerShell or bash: quoted
+    tokens break cmd /c (outer quotes stripped) and PowerShell (a quoted string is not called),
+    so the command never starts with a quote on Windows.
+
+    Python's 8.3 short path keeps the command unquoted. Where no short name exists (8.3 names
+    disabled), a one-line ``.cmd`` beside the script calls the quoted Python path itself, and
+    the command names only that wrapper; all three shells run a ``.cmd`` path directly.
+    """
+    exe, script = _portable(sys.executable), _portable(str(target))
+    if " " not in exe and " " not in script:
+        return f"{exe} {script}"
+    if not _WINDOWS:
+        return f'"{exe}" "{script}"'  # POSIX shells handle quoted words
+    wrapper = target.with_name(WRAPPER_NAME)
+    wrapper.write_bytes(f'@"{sys.executable}" "%~dp0{target.name}"\r\n'.encode("utf-8"))
+    return _portable(str(wrapper))
+
+
+def _norm(text: str) -> str:
+    return text.replace("\\", "/").replace('"', "").strip().casefold()
+
+
 def _ours(status_line) -> bool:
     command = status_line.get("command") if isinstance(status_line, dict) else None
-    target = str(state_dir() / "claude_statusline.py")
-    return isinstance(command, str) and command.rstrip().rstrip('"').endswith(target)
+    forms = [str(state_dir() / name) for name in ("claude_statusline.py", WRAPPER_NAME)]
+    return isinstance(command, str) and any(
+        _norm(command).endswith(_norm(form)) for path in forms for form in (path, _portable(path)))
 
 
 def install() -> int:
@@ -172,7 +213,7 @@ def install() -> int:
         return 1
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(__file__, target)
-    data["statusLine"] = {"type": "command", "command": f'"{sys.executable}" "{target}"', "padding": 0}
+    data["statusLine"] = {"type": "command", "command": command_for(target), "padding": 0}
     _write(path, data)
     print(f"installed: {path} statusLine -> {target}; records to {log_path()}")
     return 0
@@ -186,6 +227,10 @@ def uninstall() -> int:
         return 0
     data.pop("statusLine", None)
     _write(path, data)
+    try:
+        (state_dir() / WRAPPER_NAME).unlink()
+    except OSError:
+        pass
     print(f"removed Nerelan statusLine from {path}")
     return 0
 
