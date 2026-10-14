@@ -19,12 +19,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from http.server import ThreadingHTTPServer
+import collections
 import json
 import os
 import subprocess
 import threading
 import time
-from typing import Any
+from typing import Any, Mapping
 
 from ..model_access.contracts import NATIVE_CLI_PROVIDERS, ExecutionSnapshot
 from ..model_access.credential_relay import (
@@ -333,10 +334,55 @@ class CombinedTrustedHost:
 
     def _resolve_agent_role(self, role: str) -> tuple[str, str]:
         """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
-        entry = self._store.get_agent_roster_public()["roles"].get(role)
+        roster = self._store.get_agent_roster_public()
+        entry = roster["roles"].get(role)
         if not entry or not entry["available"]:
             raise TaskStoreError(f"agent_role_unfilled:{role}")
-        return self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
+        executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
+        return self._quota_guarded(role, executor_id, binding_id, roster["roles"])
+
+    def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
+        from .quota_guard import check, typical_task_units
+        from .usage_ledger import task_token_records
+        try:
+            connection = self._store.get_connection_public(binding["connection_id"])
+            records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
+            need = typical_task_units(records, binding["binding_id"], binding["model_id"])
+            return check(connection, self._subscription_quotas(), need)
+        except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
+            return None
+
+    def _record_quota_decision(self, entry: dict[str, Any]) -> None:
+        log = getattr(self, "_quota_guard_log", None)
+        if log is None:
+            log = self._quota_guard_log = collections.deque(maxlen=20)
+        log.appendleft({"at": _utc_now(), **entry})
+
+    def _quota_guarded(self, role: str, executor_id: str, binding_id: str,
+                       roster: Mapping[str, Mapping[str, Any]]) -> tuple[str, str]:
+        """Move a role off an account whose quota cannot take the next task, before dispatch."""
+        from .quota_guard import alternatives
+        bindings = self._store.list_bindings_public()
+        chosen = next((b for b in bindings if b["binding_id"] == binding_id), None)
+        decision = self._quota_check(chosen) if chosen else None
+        if not decision or decision["decision"] == "ok":
+            return executor_id, binding_id
+        entry = {"role": role, "binding_id": binding_id, "decision": decision["decision"],
+                 "reason": decision["reason"], "window": decision.get("window"), "switched_to": None}
+        if decision["decision"] == "switch":
+            usable = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
+            usable &= self.ROLE_EXECUTORS.get(role, usable)
+            for candidate in alternatives(role, chosen, bindings=bindings, roster=roster, usable_executors=usable):
+                verdict = self._quota_check(candidate)
+                if verdict is None or verdict["decision"] != "switch":
+                    self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
+                    return candidate["executor_id"], candidate["binding_id"]
+            entry["decision"], entry["reason"] = "warn", f"{decision['reason']}:no_alternative"
+        self._record_quota_decision(entry)
+        return executor_id, binding_id
+
+    def _quota_guard_entries(self) -> list[dict[str, Any]]:
+        return list(getattr(self, "_quota_guard_log", ()))
 
     # Roles whose work only some executors can do; a measured swap never leaves this set.
     ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex"})}
@@ -355,7 +401,7 @@ class CombinedTrustedHost:
         """Account windows as the official CLIs last reported them, keyed by native provider."""
         if os.environ.get("REVERSE_AGENT_SUBSCRIPTION_QUOTA") == "0":
             return {}
-        from ..model_access.subscription_quota import claude_rate_limits, read_codex_quota
+        from ..model_access.subscription_quota import claude_quota, codex_quota
         from .usage_ledger import latest_rate_limits
 
         def read() -> dict[str, Any]:
@@ -364,11 +410,9 @@ class CombinedTrustedHost:
             # Only runs on the Claude account itself; a relay run's notices are not about the subscription.
             account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
                        and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
-            claude = latest_rate_limits(self._task_store, account)
-            return {"codex": read_codex_quota(),
-                    "claude-code": claude_rate_limits(*claude) if claude else
-                    {"state": "UNKNOWN", "provenance": "UNAVAILABLE", "windows": [],
-                     "reason": "no_claude_rate_limit_observed_yet"}}
+            # Official numbers first; the local CLI logs fill in what they do not say.
+            return {"codex": codex_quota(),
+                    "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
         return _cached(self, "_subscription_quota_cache", read)
 
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
@@ -398,6 +442,13 @@ class CombinedTrustedHost:
         class FreshExternalSessionBindingResolver:
             def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
+                binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
+                verdict = host._quota_check(binding) if binding else None
+                if verdict and verdict["decision"] != "ok":
+                    # A binding the task named itself is kept; the shortfall is recorded before the run.
+                    host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "warn",
+                                                 "reason": verdict["reason"], "window": verdict.get("window"),
+                                                 "switched_to": None})
                 if snapshot.auth_method in {
                     "account_login",
                     "external_cli_session",
@@ -456,6 +507,7 @@ class CombinedTrustedHost:
                 usage_profiles=self._usage_profiles,
                 token_usage=self._token_usage,
                 subscription_quotas=self._subscription_quotas,
+                quota_guard_log=self._quota_guard_entries,
             )
             self._model_server = ThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
@@ -600,6 +652,11 @@ class CombinedTrustedHost:
 
 
 _CACHE_SECONDS = 60.0
+
+
+def _utc_now() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _cached(owner: Any, attribute: str, compute: Any) -> Any:

@@ -132,9 +132,19 @@ def _quota(connection: Mapping[str, Any], native: tuple[str, str, str] | None,
     return dict(snapshot) if isinstance(snapshot, Mapping) and snapshot.get("state") else dict(UNKNOWN_QUOTA)
 
 
+def _guard_entries(source: Callable[[], Any] | None) -> list[dict[str, Any]]:
+    try:
+        entries = source() if source else []
+    except Exception:  # noqa: BLE001 - the log is an extra
+        return []
+    keys = ("at", "role", "binding_id", "decision", "reason", "window", "switched_to")
+    return [{key: entry.get(key) for key in keys} for entry in (entries or [])[:20] if isinstance(entry, Mapping)]
+
+
 def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]],
                         tokens: Callable[[], Mapping[str, Any]] | None = None,
-                        quotas: Callable[[], Mapping[str, Any]] | None = None) -> dict[str, Any]:
+                        quotas: Callable[[], Mapping[str, Any]] | None = None,
+                        guard_log: Callable[[], Any] | None = None) -> dict[str, Any]:
     """Connections -> credential, executors, bindings, tokens, equivalent cost and quota, sanitized."""
     executors = {item["executor_id"]: item for item in store.list_executors_public()}
     bindings = store.list_bindings_public()
@@ -196,4 +206,5 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
                         "quota_known": sum(item["quota"].get("state") == "OBSERVED" for item in resources),
                         "tokens": {key: sum(item["token_usage"][key] for item in resources) for key in _TOKEN_COUNTERS},
                         "equivalent_cost": _combine_costs([item["equivalent_cost"] for item in resources
-                                                           if item["equivalent_cost"]])}}
+                                                           if item["equivalent_cost"]]),
+                        "quota_guard": _guard_entries(guard_log)}}

@@ -323,6 +323,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     usage_profiles: Callable[[], Mapping[str, Mapping[str, Any]]] = staticmethod(lambda: {})
     token_usage: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
     subscription_quotas: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
+    quota_guard_log: Callable[[], list[Any]] = staticmethod(lambda: [])
 
     server_version = "reverse-agent-model-control/1"
 
@@ -387,7 +388,8 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
                 self._send_json(HTTPStatus.OK, build_resource_view(
-                    self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas))
+                    self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
+                    guard_log=self.quota_guard_log))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 self._send_json(
@@ -680,6 +682,7 @@ def _handler_factory(
     usage_profiles: Callable[[], Mapping[str, Mapping[str, Any]]] | None = None,
     token_usage: Callable[[], Mapping[str, Any]] | None = None,
     subscription_quotas: Callable[[], Mapping[str, Any]] | None = None,
+    quota_guard_log: Callable[[], list[Any]] | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -694,6 +697,7 @@ def _handler_factory(
     ConfiguredHandler.usage_profiles = staticmethod(usage_profiles or (lambda: {}))
     ConfiguredHandler.token_usage = staticmethod(token_usage or (lambda: {}))
     ConfiguredHandler.subscription_quotas = staticmethod(subscription_quotas or (lambda: {}))
+    ConfiguredHandler.quota_guard_log = staticmethod(quota_guard_log or (lambda: []))
     return ConfiguredHandler
 
 

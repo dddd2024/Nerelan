@@ -5,6 +5,7 @@ import {
   totalTokens,
   type EquivalentCost,
   type Quota,
+  type QuotaGuardEntry,
   type QuotaWindow,
   type Resource,
   type TokenCounters,
@@ -20,11 +21,27 @@ const WINDOW_LABELS: Record<string, string> = {
   seven_day_sonnet: "每周窗口（Sonnet）",
 };
 
+const AVAILABILITY_LABELS: Record<string, { text: string; tone: string }> = {
+  available: { text: "可用", tone: "text-ra-accent" },
+  near_limit: { text: "接近上限", tone: "text-ra-status-warning" },
+  limit_reached: { text: "已触顶", tone: "text-ra-status-error" },
+};
+
+const GUARD_REASONS: Record<string, string> = {
+  limit_reached: "已触顶",
+  predicted_insufficient: "预计余量不足以完成下一项任务",
+  possibly_insufficient: "余量可能不足",
+  almost_exhausted: "额度几乎用尽",
+  nearly_exhausted: "额度即将用尽",
+  near_limit: "接近上限",
+};
+
 const QUOTA_REASONS: Record<string, string> = {
   api_key_has_no_subscription_window: "API Key 按量计费，没有订阅额度窗口",
   no_claude_rate_limit_observed_yet: "尚未观察到额度：用该账号运行一次任务后显示",
   codex_sessions_not_found: "未找到 Codex 会话记录",
   no_recent_codex_rate_limits: "最近 8 天的 Codex 会话记录中没有额度信息",
+  no_claude_quota_signal: "没有官方额度信息，本机也没有可用于估算的使用记录",
 };
 
 const OWNER_LABELS: Record<string, string> = {
@@ -47,39 +64,73 @@ function costText(cost: EquivalentCost | null): string {
   return `${usd.format(cost.usd)}${cost.state === "PARTIAL" ? "（部分）" : ""}`;
 }
 
+function Meter({ label, value, range }: { label: string; value: number | null; range?: [number, number] | null }) {
+  const tone = (v: number) => (v >= 95 ? "bg-ra-status-error" : v >= 80 ? "bg-ra-status-warning" : "bg-ra-accent");
+  return (
+    <div
+      className="relative mt-1 h-1.5 overflow-hidden rounded-full bg-ra-tertiary"
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value ?? undefined}
+    >
+      {range && (
+        <div
+          className={cn("absolute inset-y-0 rounded-full opacity-30", tone(range[1]))}
+          style={{ left: `${range[0]}%`, width: `${Math.max(range[1] - range[0], 1)}%` }}
+          data-testid="meter-range"
+        />
+      )}
+      {value !== null && (
+        <div className={cn("relative h-full rounded-full", tone(value))} style={{ width: `${Math.max(value, 1)}%` }} />
+      )}
+    </div>
+  );
+}
+
+function windowText(window: QuotaWindow): string {
+  if (window.resetPassed) return "已过重置时间，当前用量未知";
+  if (window.basis === "official_percent" && window.usedPercent !== null) return `已用 ${Math.round(window.usedPercent)}%`;
+  if (window.basis === "estimated" && window.usedPercent !== null) {
+    const range = window.usedPercentRange;
+    return `预计已用约 ${Math.round(window.usedPercent)}%${range ? `（${Math.round(range[0])}–${Math.round(range[1])}%）` : ""}`;
+  }
+  if (window.usedUnits !== null) return `本窗口已用约 ${usd.format(window.usedUnits)}，上限未知`;
+  return "用量未知";
+}
+
 function QuotaWindowRow({ window }: { window: QuotaWindow }) {
   const label = WINDOW_LABELS[window.window] ?? window.window;
   const reset = formatReset(window.resetsAt);
-  const used = window.resetPassed ? null : window.usedPercent;
+  const availability = window.availability ? AVAILABILITY_LABELS[window.availability] : undefined;
+  const showMeter = !window.resetPassed && window.usedPercent !== null
+    && (window.basis === "official_percent" || window.basis === "estimated");
   return (
-    <div data-testid={`quota-window-${window.window}`}>
+    <div data-testid={`quota-window-${window.window}`} data-basis={window.basis}>
       <div className="flex items-baseline justify-between gap-2 text-xs">
-        <span className="font-medium text-ra-text">{label}</span>
-        <span className="text-ra-text-secondary">
-          {window.resetPassed ? "已过重置时间，当前用量未知" : used === null ? "用量未知" : `已用 ${Math.round(used)}%`}
+        <span className="font-medium text-ra-text">
+          {label}
+          {availability && (
+            <span className={cn("ml-2 font-medium", availability.tone)} data-testid="quota-availability">
+              {availability.text}
+            </span>
+          )}
         </span>
+        <span className="text-right text-ra-text-secondary">{windowText(window)}</span>
       </div>
-      <div
-        className="mt-1 h-1.5 overflow-hidden rounded-full bg-ra-tertiary"
-        role="meter"
-        aria-label={`${label}已用比例`}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={used ?? undefined}
-      >
-        {used !== null && (
-          <div
-            className={cn(
-              "h-full rounded-full",
-              used >= 95 ? "bg-ra-status-error" : used >= 80 ? "bg-ra-status-warning" : "bg-ra-accent",
-            )}
-            style={{ width: `${Math.max(used, 1)}%` }}
-          />
-        )}
-      </div>
-      {reset && !window.resetPassed && (
-        <p className="mt-0.5 text-[11px] text-ra-text-tertiary">{reset} 重置</p>
+      {showMeter && (
+        <Meter label={`${label}已用比例`} value={window.usedPercent} range={window.basis === "estimated" ? window.usedPercentRange : null} />
       )}
+      <p className="mt-0.5 text-[11px] text-ra-text-tertiary">
+        {reset && !window.resetPassed ? `${window.resetsAtEstimated ? "约 " : ""}${reset} 重置` : ""}
+        {window.basis === "estimated" && (
+          <>
+            {reset && !window.resetPassed ? " · " : ""}
+            按本机历史{window.capacitySamples ? ` ${window.capacitySamples} 次触顶/用量` : ""}估算
+          </>
+        )}
+      </p>
     </div>
   );
 }
@@ -92,17 +143,44 @@ function QuotaBlock({ quota }: { quota: Quota }) {
       </p>
     );
   }
-  const source = quota.source === "codex_session_log" ? "Codex 会话记录" : "Claude Code 运行时通知";
+  const source = quota.source === "codex_session_log" ? "Codex 会话记录"
+    : quota.source === "claude_session_log" ? "Claude Code 本机记录" : "Claude Code 运行时通知";
+  const lastHit = quota.limitHits[0];
   return (
     <div className="flex flex-col gap-2" data-testid="quota-observed">
       {quota.windows.map((window) => (
         <QuotaWindowRow key={window.window} window={window} />
       ))}
+      {lastHit && (
+        <p className="text-[11px] text-ra-text-tertiary" data-testid="quota-limit-hits">
+          最近 8 天触顶 {quota.limitHits.length} 次，最近一次 {formatReset(lastHit.at)}
+        </p>
+      )}
       <p className="text-[11px] text-ra-text-tertiary">
         来源：{source}
         {quota.plan ? ` · 计划 ${quota.plan}` : ""}
         {formatReset(quota.observedAt) ? ` · 记录于 ${formatReset(quota.observedAt)}` : ""}
       </p>
+    </div>
+  );
+}
+
+function GuardLog({ entries }: { entries: QuotaGuardEntry[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="mt-4" data-testid="quota-guard-log">
+      <h3 className="text-xs font-semibold text-ra-text">额度预警与自动切换</h3>
+      <ul className="mt-1 flex flex-col gap-0.5 text-[11px] text-ra-text-secondary">
+        {entries.slice(0, 8).map((entry, index) => (
+          <li key={`${entry.at}-${index}`}>
+            {formatReset(entry.at) ?? ""} · {entry.role ? `${entry.role}：` : ""}
+            {entry.switchedTo
+              ? `${entry.bindingId} → ${entry.switchedTo}`
+              : `${entry.bindingId} 继续运行（未找到不降级的替代）`}
+            （{GUARD_REASONS[entry.reason.split(":")[0]] ?? entry.reason}）
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -217,6 +295,7 @@ export function ResourceOverview() {
               <ResourceCard key={resource.connectionId} resource={resource} />
             ))}
           </div>
+          <GuardLog entries={overview.quotaGuard} />
         </>
       )}
     </section>
