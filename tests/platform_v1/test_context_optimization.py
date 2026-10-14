@@ -188,3 +188,7 @@ def test_malformed_derived_cache_is_ignored_without_losing_current_truth(tmp_pat
         value=render_context_packet(malformed), status='COMPLETED', raw_json_digest=_canonical_digest(malformed))
     fresh = service.packet(task.id)
     assert fresh['task'] == packet['task'] and 'advisory_summary' not in fresh
+    missing_usage = {**malformed, 'sources': [], 'summary': 'advisory with unknown usage'}
+    store.add_evidence(task.id, category='ContextSummary', label='unknown-usage',
+        value=render_context_packet(missing_usage), status='COMPLETED', raw_json_digest=_canonical_digest(missing_usage))
+    assert service.packet(task.id)['advisory_summary']['usage'] is None

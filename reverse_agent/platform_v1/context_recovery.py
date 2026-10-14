@@ -77,7 +77,7 @@ def available_summary(store: Any, packet: dict) -> dict | None:
             if (doc.get('status') == 'COMPLETED' and doc.get('scope_digest') == scope_digest(packet)
                     and all((ref['ref'], ref['digest']) in catalog for ref in doc.get('sources', []))):
                 return {'authority': 'NONE', 'summary': redact_secrets(doc['summary']),
-                        'input_snapshot_digest': doc['input_snapshot_digest'], 'usage': doc['usage']}
+                        'input_snapshot_digest': doc['input_snapshot_digest'], 'usage': doc.get('usage')}
     return None
 
 
