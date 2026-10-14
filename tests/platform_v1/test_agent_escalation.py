@@ -87,6 +87,29 @@ def test_failed_task_climbs_the_ladder_once_per_step_and_keeps_history(monkeypat
     assert [row["to_role"] for row in control.list_task_escalations(goal.id)] == ["coder", "complex"]
 
 
+def test_failed_checks_at_the_top_get_one_retry_by_the_same_agent(monkeypatch):
+    # #1164: Sonnet missed one test, with no stronger agent left the Goal blocked on a one-line fix.
+    store, control, goals, goal = _launched(monkeypatch, role="complex")
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first, classification="deterministic_validation_failure")
+    [retry] = goals.escalate_failed_tasks(goal.id)
+    assert (retry["from_role"], retry["to_role"], retry["step"]) == ("complex", "complex", 1)
+    assert retry["reason"] == "failed:deterministic_validation_failure"
+    again = store.get_task(retry["to_task_id"])
+    assert (again.executor_kind, again.binding_ref, again.status) == ("claude_code", "strong", "QUEUED")
+
+    _fail(store, again.id, classification="deterministic_validation_failure")
+    assert goals.escalate_failed_tasks(goal.id) == ()  # only one same-agent retry
+    control.refresh_goal_status(goal.id)
+    assert control.get_goal(goal.id).status == "BLOCKED"
+
+
+def test_other_failures_at_the_top_still_block(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch, role="complex")
+    _fail(store, _link(control, goal.id, "T001")["task_id"], classification="timeout")
+    assert goals.escalate_failed_tasks(goal.id) == ()
+
+
 @pytest.mark.parametrize("status", ["BLOCKED", "CANCELLED"])
 def test_blocked_and_cancelled_tasks_never_escalate(monkeypatch, status):
     store, control, goals, goal = _launched(monkeypatch)

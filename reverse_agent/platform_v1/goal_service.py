@@ -391,6 +391,11 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             target = self._stronger_route(role, failed.binding_ref)
+            if (target is None and failed.failure_classification == "deterministic_validation_failure"
+                    and not any(row.get("from_role") == row.get("to_role") for row in previous)):
+                # No stronger agent: the same one retries once, now seeing which checks failed
+                # (functional_feedback reaches it through the context packet).
+                target = (role, failed.executor_kind, failed.binding_ref)
             if target is None:
                 continue  # no stronger distinct agent: the Goal stays BLOCKED for the Owner
             next_role, executor_kind, binding_ref = target
@@ -417,7 +422,7 @@ class GoalService:
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                 to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)
-            history = (*history, {"plan_task_id": plan_task.id, "to_role": next_role})
+            history = (*history, {"plan_task_id": plan_task.id, "from_role": role, "to_role": next_role})
             outcomes.append({"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
                              "from_role": role, "to_role": next_role, "step": step, "reason": reason})
         if outcomes:
