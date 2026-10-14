@@ -19,6 +19,14 @@ from reverse_agent.platform_v1.quota_guard import alternatives, check, typical_t
 H = 3600
 
 
+@pytest.fixture(autouse=True)
+def _no_real_quota_files(tmp_path, monkeypatch):
+    """Never read the developer's real status-line log or CLI homes."""
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "isolated-localappdata"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "isolated-claude"))
+    monkeypatch.setenv("CODEX_HOME", str(tmp_path / "isolated-codex"))
+
+
 # ---- estimation -------------------------------------------------------------------------
 
 def test_capacity_from_official_percent_steps_with_rounding_range():
@@ -382,6 +390,8 @@ def test_calibration_divides_window_usage_by_the_official_percent():
                {"at": 8 * H, "used_percent": 55.0, "resets_at": reset}]   # latest reading of the window wins
     cap = calibrate(samples, usage, length=5 * H)
     assert cap["mid"] == pytest.approx(11.0 * 100 / 55) and cap["samples"] == 1
+    # One reading never claims better than +/-15%: token mix changes how much a window holds.
+    assert cap["low"] <= cap["mid"] * 0.85 + 1e-6 and cap["high"] >= cap["mid"] * 1.15 - 1e-6
     assert calibrate([{"at": 8 * H, "used_percent": 5.0, "resets_at": reset}], usage, length=5 * H) is None
 
 
