@@ -341,8 +341,9 @@ def test_statusline_records_only_official_windows_and_never_fails(tmp_path, monk
     lines = [json.loads(x) for x in sl.log_path().read_text(encoding="utf-8").splitlines()]
     assert [(r["window"], r["used_percent"]) for r in lines] == [("five_hour", 88.0), ("weekly", 75.0)]
     assert lines[1]["resets_at"] == 1792386000 and "private" not in sl.log_path().read_text(encoding="utf-8")
-    monkeypatch.setattr("sys.stdin", io.StringIO("not json"))
-    assert sl.run_statusline() == 0
+    for odd in ("not json", "[]", "null", "5", '"x"', '{"model": "Opus", "rate_limits": []}', "[" * 100000):
+        monkeypatch.setattr("sys.stdin", io.StringIO(odd))
+        assert sl.run_statusline() == 0, odd[:20]
 
 
 def test_statusline_install_keeps_other_settings_and_refuses_a_foreign_status_line(tmp_path, monkeypatch):
@@ -359,6 +360,18 @@ def test_statusline_install_keeps_other_settings_and_refuses_a_foreign_status_li
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data["model"] == "opus" and "claude_statusline.py" in data["statusLine"]["command"]
     assert sl.uninstall() == 0 and json.loads(settings.read_text(encoding="utf-8")) == {"model": "opus"}
+    # The first backup is the Owner's original; later Nerelan writes never overwrite it.
+    backup = settings.with_name("settings.json.nerelan-backup")
+    original = json.loads(backup.read_text(encoding="utf-8"))
+    sl.install()
+    sl.install()
+    assert json.loads(backup.read_text(encoding="utf-8")) == original
+    # A refused install leaves nothing behind, and a look-alike command is still foreign.
+    sl.uninstall()
+    (tmp_path / "state" / "Nerelan" / "claude_statusline.py").unlink()
+    settings.write_text(json.dumps({"statusLine": {"type": "command", "command": "other/claude_statusline.py"}}),
+                        encoding="utf-8")
+    assert sl.install() == 1 and not (tmp_path / "state" / "Nerelan" / "claude_statusline.py").exists()
 
 
 def test_calibration_divides_window_usage_by_the_official_percent():

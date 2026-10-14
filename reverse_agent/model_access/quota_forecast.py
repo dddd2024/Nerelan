@@ -143,11 +143,12 @@ def calibrate(samples: Sequence[Mapping[str, Any]], events: Sequence[UsageEvent]
     for sample in samples:
         reset = sample.get("resets_at")
         if type(reset) is int and sample.get("used_percent", 0) >= 10:
-            if reset not in latest or sample["at"] > latest[reset]["at"]:
-                latest[reset] = sample
+            key = round(reset / 60)  # two sources may report the same reset a second apart
+            if key not in latest or sample["at"] > latest[key]["at"]:
+                latest[key] = sample
     values, spread = [], None
-    for reset, sample in latest.items():
-        used_units = usage_between(events, reset - length, sample["at"])
+    for sample in latest.values():
+        used_units = usage_between(events, sample["resets_at"] - length, sample["at"])
         if used_units <= 0:
             continue
         pct = sample["used_percent"]

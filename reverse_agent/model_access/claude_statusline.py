@@ -81,9 +81,11 @@ def record(records: list[dict], path: Path | None = None) -> None:
     path = path or log_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        if path.stat().st_size > MAX_LOG_BYTES:  # keep the newest half
+        if path.stat().st_size > MAX_LOG_BYTES:  # keep the newest half, replaced in one step
             lines = path.read_bytes().splitlines()
-            path.write_bytes(b"\n".join(lines[len(lines) // 2:]) + b"\n")
+            temp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+            temp.write_bytes(b"\n".join(lines[len(lines) // 2:]) + b"\n")
+            os.replace(temp, path)
     except OSError:
         pass
     with path.open("a", encoding="utf-8") as handle:
@@ -98,22 +100,36 @@ def summary(records: list[dict]) -> str:
 
 
 def run_statusline() -> int:
+    """Always prints a line and returns 0: a status line must never break Claude Code."""
+    line = "Claude"
     try:
-        payload = json.loads(sys.stdin.read(MAX_STDIN) or "{}")
-    except (ValueError, OSError):
-        payload = {}
-    try:
-        records = extract(payload)
-        record(records)
-    except Exception:  # noqa: BLE001 - a status line must never break Claude Code
-        records = []
-    model = payload.get("model", {}).get("display_name") if isinstance(payload.get("model"), dict) else None
-    line = summary(records)
+        try:
+            payload = json.loads(sys.stdin.read(MAX_STDIN) or "{}")
+        except (ValueError, OSError, RecursionError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        records: list[dict] = []
+        try:
+            records = extract(payload)
+            record(records)
+        except Exception:  # noqa: BLE001 - recording is best effort
+            pass
+        model = payload.get("model")
+        name = model.get("display_name") if isinstance(model, dict) else None
+        line = summary(records)
+        if isinstance(name, str) and name:
+            line = f"{name[:60]} · {line}"
+    except Exception:  # noqa: BLE001
+        pass
     try:
         sys.stdout.reconfigure(encoding="utf-8")  # a piped stdout on Windows defaults to the ANSI code page
     except (AttributeError, ValueError):
         pass
-    print(f"{model} · {line}" if isinstance(model, str) and model else line)
+    try:
+        print(line)
+    except Exception:  # noqa: BLE001
+        pass
     return 0
 
 
@@ -132,23 +148,30 @@ def _load(path: Path) -> dict:
 
 def _write(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        shutil.copy2(path, path.with_name(path.name + ".nerelan-backup"))
+    backup = path.with_name(path.name + ".nerelan-backup")
+    if path.exists() and not backup.exists():  # keep the Owner's original, not a later Nerelan write
+        shutil.copy2(path, backup)
     temp = path.with_name(path.name + ".nerelan-tmp")
     temp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     os.replace(temp, path)
 
 
+def _ours(status_line) -> bool:
+    command = status_line.get("command") if isinstance(status_line, dict) else None
+    target = str(state_dir() / "claude_statusline.py")
+    return isinstance(command, str) and command.rstrip().rstrip('"').endswith(target)
+
+
 def install() -> int:
     target = state_dir() / "claude_statusline.py"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(__file__, target)
     path = settings_path()
     data = _load(path)
     current = data.get("statusLine")
-    if current and "claude_statusline.py" not in json.dumps(current):
+    if current and not _ours(current):
         print(f"statusLine already set to {json.dumps(current)}; not replaced", file=sys.stderr)
         return 1
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(__file__, target)
     data["statusLine"] = {"type": "command", "command": f'"{sys.executable}" "{target}"', "padding": 0}
     _write(path, data)
     print(f"installed: {path} statusLine -> {target}; records to {log_path()}")
@@ -158,7 +181,7 @@ def install() -> int:
 def uninstall() -> int:
     path = settings_path()
     data = _load(path)
-    if "claude_statusline.py" not in json.dumps(data.get("statusLine")):
+    if not _ours(data.get("statusLine")):
         print("Nerelan statusLine not installed; nothing changed")
         return 0
     data.pop("statusLine", None)
