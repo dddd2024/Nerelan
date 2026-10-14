@@ -220,6 +220,74 @@ def test_alternatives_never_step_down_in_strength():
                                                   usable_executors=usable)] == ["opus-relay"]
 
 
+def test_owner_stand_ins_come_after_same_model_and_stronger_roles():
+    bindings = [
+        {"binding_id": "sonnet", "connection_id": "claude", "model_id": "sonnet", "executor_id": "claude_code", "enabled": True},
+        {"binding_id": "gpt", "connection_id": "chatgpt", "model_id": "gpt", "executor_id": "codex", "enabled": True},
+        {"binding_id": "opus", "connection_id": "claude", "model_id": "opus", "executor_id": "claude_code", "enabled": True},
+    ]
+    roster = {"complex": {"binding_id": "sonnet"}}
+    usable = {"codex", "claude_code"}
+    assert alternatives("complex", bindings[0], bindings=bindings, roster=roster, usable_executors=usable) == []
+    picked = alternatives("complex", bindings[0], bindings=bindings, roster=roster, usable_executors=usable,
+                          standins=["opus", "gpt", "missing"])
+    assert [b["binding_id"] for b in picked] == ["gpt"]  # the same exhausted account is never a stand-in
+    assert alternatives("planner", bindings[0], bindings=bindings, roster=roster, usable_executors=usable,
+                        standins=["gpt"]) == []
+
+
+def test_limit_hit_lasts_until_the_next_known_reset():
+    from reverse_agent.platform_v1.quota_guard import LIMIT_HIT, LIMIT_HIT_HOLD_SECONDS, limit_hit_until
+    hit = 1_000_000.0
+    quota = {"windows": [{"resets_at": _iso(hit + 600)}, {"resets_at": hit + 9000}, {"resets_at": _iso(hit - 5)}]}
+    assert limit_hit_until(hit, quota) == pytest.approx(hit + 600)
+    assert limit_hit_until(hit, None) == hit + LIMIT_HIT_HOLD_SECONDS
+    assert all(LIMIT_HIT.search(c) for c in ("claude_code_turn_failed:api_error_429", "quota_exhausted:limit_hit"))
+    assert not LIMIT_HIT.search("deterministic_validation_failure")
+
+
+def test_host_refuses_and_reroutes_after_the_account_answered_with_its_limit(monkeypatch):
+    from reverse_agent.platform_v1.binding_resolver import BindingResolutionError
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "claude-account", "name": "Claude", "provider": "claude-code",
+                             "base_url": "https://claude.ai", "auth_method": "external_cli_session", "enabled": True})
+    store.upsert_connection({"connection_id": "chatgpt-account", "name": "ChatGPT", "provider": "codex",
+                             "base_url": "https://chatgpt.com", "auth_method": "external_cli_session", "enabled": True})
+    for binding_id, connection, executor, model in (("claude-sonnet", "claude-account", "claude_code", "sonnet"),
+                                                    ("chatgpt-gpt", "chatgpt-account", "codex", "gpt-6.1-sol")):
+        store.upsert_binding({"binding_id": binding_id, "name": binding_id, "connection_id": connection,
+                              "executor_id": executor, "model_id": model, "enabled": True})
+    store.set_native_readiness("claude_code", "managed_login_ready")
+    store.set_native_readiness("codex", "managed_login_ready")
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {}, raising=False)
+    monkeypatch.setattr(host, "_runnable_bindings", lambda: {"claude-sonnet", "chatgpt-gpt"}, raising=False)
+    sonnet = {"binding_id": "claude-sonnet", "connection_id": "claude-account"}
+    assert host._limit_hit_until(store.get_connection_public("claude-account")) is None
+
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="claude_code", binding_ref="claude-sonnet")
+    tasks._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = ? WHERE id = ?",
+                        ("claude_code_turn_failed:api_error_429", failed.id))
+    tasks._conn.commit()
+    verdict = host._quota_check(sonnet)
+    assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
+    roster = {"complex": {"binding_id": "claude-sonnet"}}
+    assert host._quota_guarded("complex", "claude_code", "claude-sonnet", roster) == ("claude_code", "claude-sonnet")
+    assert host._quota_guarded("complex", "claude_code", "claude-sonnet", roster,
+                               standins=["chatgpt-gpt"]) == ("codex", "chatgpt-gpt")
+    resolver = host._binding_resolver_factory("http://127.0.0.1:1")
+    with pytest.raises(BindingResolutionError, match="quota_exhausted:limit_hit"):
+        resolver.resolve("claude-sonnet", task_executor="claude_code")
+    # Long after the hit (no reset time known) the account is tried again.
+    tasks._conn.execute("UPDATE tasks SET updated_at = '2000-01-01T00:00:00Z' WHERE id = ?", (failed.id,))
+    tasks._conn.commit()
+    assert host._limit_hit_until(store.get_connection_public("claude-account")) is None
+
+
 def test_host_switches_a_role_off_an_exhausted_account_and_logs_it(monkeypatch):
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
     store = ModelProfileStore()

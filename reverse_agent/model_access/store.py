@@ -1126,7 +1126,8 @@ class ModelProfileStore:
                 for role, ids in raw.items():
                     if role not in STANDIN_ROLES:
                         raise ValueError(f"agent_standin_role_invalid:{role}")
-                    if not isinstance(ids, list) or any(b not in self._bindings for b in ids):
+                    if not isinstance(ids, list) or any(
+                            not isinstance(b, str) or (b and b not in self._bindings) for b in ids):
                         raise ValueError(f"agent_standin_binding_unknown:{role}")
             path = self._roster_path()
             if path is not None:
