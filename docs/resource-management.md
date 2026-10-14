@@ -170,6 +170,38 @@ list-price units, because limits weigh cache and output roughly the way prices d
 - **Scope:** usage elsewhere (other devices, the web, Nerelan's `--ephemeral` Codex runs) is
   invisible here. The estimates say `usage_scope: this_machine` and lean optimistic.
 
+**Official Claude readings** come from two places:
+
+- **The Nerelan status line** (`model_access/claude_statusline.py`). Installed with
+  `python -m reverse_agent.model_access.claude_statusline install`, on the Owner's request
+  (2026-10-14).
+  - Claude Code hands it the official `rate_limits` (`five_hour`, `seven_day`:
+    `used_percentage`, `resets_at`): the same figures as the app's "Plan usage limits".
+  - It appends only those numbers to `%LOCALAPPDATA%\Nerelan\claude_rate_limits.jsonl`. It
+    never reads the login token and never fails the status line.
+  - It runs only where Claude Code renders a status line: terminal sessions, and possibly
+    not the desktop app.
+- **Nerelan's own Claude account runs:** `rate_limit_event.utilization`.
+
+With official readings:
+
+- A reading at most 10 minutes old is shown as is.
+- An older reading is carried forward: its percent, plus the local usage since, divided by a
+  capacity calibrated from earlier readings. Calibration takes the usage in that window
+  instance divided by its official percent.
+- The weekly window rolls the official reset forward on its fixed 7-day schedule.
+
+Without official readings, the 5-hour capacity falls back to actual limit hits:
+
+- One sample per window, and samples under 60% of the median are dropped as probable weekly
+  hits.
+- The optimistic end is widened 1.5×, because a backtest against the Owner's official 88%
+  (06:50 UTC, 2026-10-14) showed the hit-based capacity was about a third too low in a
+  cache-read-heavy window. Limits do not weigh token kinds exactly like list prices.
+- 5-hour windows open at the top of the hour of their first request, matching the reset time
+  the CLI reports.
+- Only events up to `now` are counted.
+
 **Dispatch guard** (`platform_v1/quota_guard.py`, host `_quota_guarded`). Before an
 agent-team role dispatches on a subscription binding, the account's windows are compared with
 the binding's typical task size. That size is taken from the binding's own successful tasks
