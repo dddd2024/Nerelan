@@ -75,6 +75,22 @@ def test_syntax_error_and_failed_assertion_do_not_verify(implementation, code):
     assert result["checks"][0]["exit_code"] != 0
 
 
+def test_failed_checks_leave_feedback_for_the_next_attempt(implementation):
+    root, base, store, task_id = implementation
+    (root / "app.py").write_text("value = 3\n", encoding="utf-8")
+    command, code, reason, _ = fv.run_task_validation(store, task_id, worktree=root, base_commit=base,
+                                                      execution_id="run-exact")
+    assert (command, code, reason) == (fv.FUNCTIONAL_COMMAND_ID, 1, "functional_check_failed")
+    [event] = [item for item in store.get_task(task_id).events if item["title"] == "Functional check failed"]
+    assert "FAILED test_app::test_requested_behavior: assert 3 == 2" in event["description"]
+    assert "0 passed, 1 failed" in event["description"]
+
+    (root / "app.py").write_text("value = (\n", encoding="utf-8")  # collection error: no test named
+    report = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-exact")["checks"][0]["test_report"]
+    assert "failures" in report or "SyntaxError" in report["output_tail"]
+
+
 def test_unchanged_baseline_cannot_claim_implementation(implementation):
     result = validate(implementation)
     assert result["reason"] == "functional_implementation_missing"

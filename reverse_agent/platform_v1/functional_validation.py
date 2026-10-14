@@ -29,6 +29,9 @@ CONTRACT_CATEGORY = "FunctionalContract"
 RESULT_CATEGORY = "FunctionalValidation"
 CATALOG_VERSION = 1
 OUTPUT_LIMIT = 4096
+# Failure feedback kept for the next attempt (see functional_feedback).
+MAX_REPORTED_FAILURES = 8
+FEEDBACK_TAIL_CHARS = 1200
 _SHA40 = re.compile(r"[0-9a-f]{40}\Z")
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 _CATALOG = {
@@ -328,8 +331,22 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         return result
 
 
+def _failure_item(case: Any, problem: Any) -> dict[str, str]:
+    name = "::".join(part for part in (case.get("classname", ""), case.get("name", "")) if part)
+    lines = (problem.text or "").strip().splitlines()
+    message = problem.get("message") or (lines[-1] if lines else "")
+    return {"test": _feedback_text(name, 200), "message": _feedback_text(message, 300)}
+
+
+def _feedback_text(value: Any, limit: int) -> str:
+    """Bounded, secret-redacted text that a later attempt may read as feedback."""
+    from .codex_protocol import public_text
+    return public_text(str(value or ""), limit)
+
+
 def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     counts = {"tests": 0, "passed": 0, "failed": 0, "skipped": 0}
+    failures: list[dict[str, str]] = []
     try:
         if kind == "junit":
             if not report.is_file() or report.stat().st_size > 8388608:
@@ -340,9 +357,12 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
             cases = list(ET.fromstring(raw).iter("testcase"))
             counts["tests"] = len(cases)
             for case in cases:
-                key = "failed" if case.find("failure") is not None or case.find("error") is not None else (
+                problem = case.find("failure") if case.find("failure") is not None else case.find("error")
+                key = "failed" if problem is not None else (
                     "skipped" if case.find("skipped") is not None else "passed")
                 counts[key] += 1
+                if problem is not None and len(failures) < MAX_REPORTED_FAILURES:
+                    failures.append(_failure_item(case, problem))
         else:
             summary = tail.decode("utf-8", errors="replace")
             observed = {key: int(value) for key, value in re.findall(
@@ -352,9 +372,16 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
             counts.update(tests=observed["tests"], passed=observed["pass"],
                           failed=observed["fail"] + observed["cancelled"], skipped=observed["skipped"])
         complete = counts["tests"] == counts["passed"] + counts["failed"] + counts["skipped"]
-        return {"format": kind, **counts, "accepted": complete and counts["passed"] > 0 and counts["failed"] == 0}
+        result = {"format": kind, **counts, "accepted": complete and counts["passed"] > 0 and counts["failed"] == 0}
     except (OSError, ValueError, ET.ParseError):
-        return {"format": kind, **counts, "accepted": False}
+        result = {"format": kind, **counts, "accepted": False}
+    # What a retry needs to fix: the failing tests, or the end of the output when none were named.
+    if failures:
+        result["failures"] = failures
+    elif not result["accepted"] and tail:
+        result["output_tail"] = _feedback_text(tail.decode("utf-8", errors="replace")[-FEEDBACK_TAIL_CHARS:],
+                                               FEEDBACK_TAIL_CHARS * 4)
+    return result
 
 
 def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict[str, str]) -> dict[str, Any]:
@@ -469,6 +496,21 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
     return result
 
 
+def functional_feedback(result: Mapping[str, Any]) -> str:
+    """Plain summary of a failed validation: the reason, each check and what failed in it."""
+    lines = [f"Reason: {result.get('reason') or 'functional_check_failed'}"]
+    for check in result.get("checks", ()):
+        report = check.get("test_report") or {}
+        targets = " ".join(check.get("targets", ())) or check.get("working_directory", ".")
+        state = "timed out" if check.get("timed_out") else f"exit {check.get('exit_code')}"
+        lines.append(f"{check.get('profile_id')} {targets}: {state}, "
+                     f"{report.get('passed', 0)} passed, {report.get('failed', 0)} failed")
+        lines += [f"  FAILED {item['test']}: {item['message']}" for item in report.get("failures", ())]
+        if report.get("output_tail"):
+            lines.append("  Output tail:\n" + report["output_tail"])
+    return "\n".join(lines)
+
+
 def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_commit: str = "",
                         execution_id: str = "", lease: Any = None) -> tuple[str, int, str, str]:
     """Run the approved oracle, or legacy hygiene, and persist fenced proof.
@@ -521,6 +563,14 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         store.add_evidence(task_id, **fields)
     else:
         store._fenced_add_evidence(lease.run_id, task_id, **fields, owner=lease.owner, epoch=lease.epoch)
+    if not result["passed"]:
+        # The next attempt (retry or escalation) sees this through its context packet.
+        feedback = dict(event_type="VALIDATED", title="Functional check failed",
+                        description=functional_feedback(result), metadata={"validation_result": identity})
+        if lease is None:
+            store.add_event(task_id, **feedback)
+        else:
+            store._fenced_add_event(lease.run_id, task_id, **feedback, owner=lease.owner, epoch=lease.epoch)
     if result["passed"] and result["verified"]:
         try:
             retain_validated_artifact(store, task_id, identity, worktree=worktree, lease=lease)
