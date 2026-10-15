@@ -4261,3 +4261,74 @@ def test_fixture_single_executor_creation_failure_does_not_claim_running(tmp_pat
         assert not any(event.type == "EXECUTOR_RUNNING" for event in store.get_events(task.id))
     finally:
         store._conn.close()
+
+@pytest.mark.parametrize("mode", ["single", "sequential_team"])
+@pytest.mark.parametrize("failure", ["binding", "generic", "expired", "superseded", "terminal"])
+def test_dispatch_exception_records_fenced_failure(tmp_path, monkeypatch, mode, failure):
+    from reverse_agent.platform_v1.binding_resolver import BindingResolutionError
+
+    store = _make_store(tmp_path)
+    task = store.create_task(title="dispatch-failure", executor_kind="opencode" if mode == "sequential_team" else "deterministic_fixture",
+                             orchestration_mode=mode)
+    service = DurableExecutionService(store=store, router=ExecutorRouter(),
+                                      execution_authority_sha="test_authority",
+                                      planning_sha="test_planning")
+    error = (BindingResolutionError("binding_unavailable:private detail")
+             if failure == "binding" else RuntimeError("private detail"))
+
+    def fail(task_id, workspace_root, lease, **kwargs):
+        store._fenced_transition_to(lease.run_id, task_id, "PREPARING_WORKSPACE",
+                                    lease.owner, lease.epoch)
+        if failure == "expired":
+            store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = 1 WHERE run_id = ?",
+                                (lease.run_id,))
+            store._conn.commit()
+        if failure == "superseded":
+            store._conn.execute("UPDATE durable_runs SET lease_owner = 'new', lease_epoch = lease_epoch + 1 WHERE run_id = ?",
+                                (lease.run_id,))
+            store._conn.commit()
+        if failure == "terminal":
+            store._fenced_terminalize(lease.run_id, task_id, terminal_status="FAILED",
+                validation_command_id="", validation_exit_code=-1, validation_output_digest="",
+                failure_classification="original_failure", failure_detail="original_failure",
+                owner=lease.owner, epoch=lease.epoch)
+        raise error
+
+    monkeypatch.setattr(service, "_execute_single_with_lease" if mode == "single"
+                        else "_execute_with_lease", fail)
+    execute = service.execute_durable_single if mode == "single" else service.execute_durable_sequential_team
+    with pytest.raises(type(error)) as caught:
+        execute(task.id, workspace_root=str(tmp_path / "ws"))
+    assert caught.value is error
+    after = store.get_task(task.id)
+    run = store._conn.execute("SELECT * FROM durable_runs WHERE task_id = ?", (task.id,)).fetchone()
+    if failure == "superseded":
+        assert after.status == "PREPARING_WORKSPACE"
+        assert run["lease_owner"] == "new"
+        return
+    assert after.status == "FAILED"
+    assert run["lease_owner"] == ""
+    expected = ("binding_resolution_failed:binding_unavailable" if failure == "binding"
+                else "original_failure" if failure == "terminal" else "executor_dispatch_failed")
+    assert after.failure_classification == expected
+    events = store._conn.execute("SELECT description FROM task_events WHERE task_id = ?", (task.id,)).fetchall()
+    assert "private detail" not in str([tuple(row) for row in events])
+    if failure != "terminal":
+        assert expected in [row["description"] for row in events]
+
+
+def test_reconcile_ownerless_preparation_fails_once(tmp_path):
+    store = _make_store(tmp_path)
+    task = store.create_task(title="orphan-preparation", executor_kind="deterministic_fixture")
+    service = DurableExecutionService(store=store, router=ExecutorRouter(),
+                                      execution_authority_sha="test_authority",
+                                      planning_sha="test_planning")
+    lease = service._acquire_or_find_lease(task.id, "old", "", str(tmp_path / "ws"))
+    store._fenced_transition_to(lease.run_id, task.id, "PREPARING_WORKSPACE", lease.owner, lease.epoch)
+    store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+    records = service.reconcile_expired_runs(now_ms=int(time.time() * 1000), max_age_ms=1000)
+    assert len(records) == 1
+    assert records[0]["recovery_classification"] == "orphaned_preparation"
+    assert store.get_task(task.id).status == "FAILED"
+    assert store.get_task(task.id).failure_classification == "orphaned_preparation"
+    assert service.reconcile_expired_runs(now_ms=int(time.time() * 1000), max_age_ms=1000) == ()

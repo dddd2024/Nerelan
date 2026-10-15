@@ -727,8 +727,8 @@ class DurableExecutionService:
             )
         except _CrashSimulated:
             raise
-        except Exception:
-            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        except Exception as exc:
+            self._fail_dispatch(task_id, lease, exc)
             raise
 
     # ---------------------------------------------------------------
@@ -782,9 +782,43 @@ class DurableExecutionService:
             )
         except _CrashSimulated:
             raise
-        except Exception:
-            self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        except Exception as exc:
+            self._fail_dispatch(task_id, lease, exc)
             raise
+
+    def _fail_dispatch(self, task_id: str, lease: LeaseHandle, exc: Exception) -> None:
+        """Publish a sanitized dispatch failure while this worker still owns the run."""
+        from .binding_resolver import BindingResolutionError
+        from .run_store import TERMINAL_STATUSES
+
+        classification = "executor_dispatch_failed"
+        if isinstance(exc, BindingResolutionError):
+            # Resolver codes are finite public identifiers; never persist arbitrary
+            # exception text (which can contain provider or filesystem details).
+            code = str(exc).split(":", 1)[0]
+            if code and all(c.isascii() and (c.isalnum() or c == "_") for c in code):
+                classification = f"binding_resolution_failed:{code}"
+        try:
+            if self.store.get_task(task_id).status not in TERMINAL_STATUSES:
+                self.store._fenced_terminalize(
+                    lease.run_id, task_id, terminal_status="FAILED",
+                    validation_command_id="", validation_exit_code=-1,
+                    validation_output_digest="", failure_classification=classification,
+                    failure_detail=classification, owner=lease.owner, epoch=lease.epoch,
+                )
+                self.store._fenced_add_event(
+                    lease.run_id, task_id, event_type="EXECUTOR_FINISHED",
+                    title="Executor dispatch failed", description=classification,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+        except TaskStoreError:
+            # A reconciler or newer owner has revoked this worker's authority.
+            pass
+        finally:
+            try:
+                self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+            except TaskStoreError:
+                pass
 
     def _execute_single_with_lease(
         self,
