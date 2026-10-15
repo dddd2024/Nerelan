@@ -38,6 +38,28 @@ def test_extract_plan_accepts_plain_fenced_and_embedded_json(text):
     assert plan["acceptance_criteria"] == ["Feature works", "Docs updated"]
 
 
+@pytest.mark.parametrize("text", [
+    # JSON followed by prose whose braces would defeat the first-'{'..last-'}' slice.
+    json.dumps(PLAN) + "\nThat covers {scope} and {more}.",
+    # JSON preceded by prose containing braces.
+    "Here is my {reasoning}:\n" + json.dumps(PLAN),
+])
+def test_extract_plan_tolerates_prose_with_braces(text):
+    plan = extract_plan(text)
+    assert [task["agent_role"] for task in plan["tasks"]] == ["complex", "coder", "simple"]
+    assert plan["acceptance_criteria"] == ["Feature works", "Docs updated"]
+
+
+def test_extract_plan_accepts_fenced_block_with_backticks_in_instruction():
+    raw = {"tasks": [{"id": "T001", "title": "Wrap code", "agent_role": "coder",
+                      "instruction": "Wrap the snippet in ```python\nx = 1\n``` blocks."}],
+           "acceptance_criteria": ["Code wrapped"]}
+    text = "```json\n" + json.dumps(raw) + "\n```"
+    plan = extract_plan(text)
+    assert plan["tasks"][0]["instruction"] == "Wrap the snippet in ```python\nx = 1\n``` blocks."
+    assert plan["tasks"][0]["agent_role"] == "coder"
+
+
 def test_extract_plan_strips_fields_a_planner_may_not_request():
     raw = {"tasks": [{"id": "T001", "title": "x", "instruction": "y", "capability": "validate_task",
                       "validation_command_id": "git_diff_check", "artifact_input": {"plan_task_id": "T0"}}]}
