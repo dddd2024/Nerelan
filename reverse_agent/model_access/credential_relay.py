@@ -23,6 +23,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
+from http.client import IncompleteRead
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import ip_address
 import json
@@ -548,22 +549,25 @@ class _RelayHandler(BaseHTTPRequestHandler):
             headers["anthropic-beta"] = beta
         req = Request(upstream_url, data=body, headers=headers, method="POST")
         req.full_url = upstream_url
+        headers_sent = False
         try:
             with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310 - refuses redirects
                 status = int(resp.status)
                 if status != 200:
                     self._send_sanitized_error(status)
                     return
+                data = resp.read(_MAX_BODY_BYTES) if not stream else None
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream" if stream else "application/json; charset=utf-8")
                 self.send_header("Cache-Control", "no-store")
                 if not stream:
-                    data = resp.read(_MAX_BODY_BYTES)
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
                     return
+                self.close_connection = True
                 self.end_headers()
+                headers_sent = True
                 while True:
                     chunk = resp.read(4096)
                     if not chunk:
@@ -572,8 +576,24 @@ class _RelayHandler(BaseHTTPRequestHandler):
                     self.wfile.flush()
         except HTTPError as exc:
             self._send_sanitized_error(int(exc.code))
-        except (URLError, TimeoutError, OSError):
-            self._send_error(502, "upstream_error")
+        except (IncompleteRead, URLError, OSError):
+            self._end_failed_stream(headers_sent, anthropic=True)
+
+    def _end_failed_stream(self, headers_sent: bool, *, anthropic: bool) -> None:
+        self.close_connection = True
+        try:
+            if not headers_sent:
+                self._send_error(502, "upstream_error")
+                return
+            error = {"type": "api_error", "message": "upstream_error"}
+            payload = {"type": "error", "error": error} if anthropic else {"error": error}
+            # Start a fresh SSE frame even if the upstream cut inside an event.
+            prefix = "\n\nevent: error\n" if anthropic else "\n\n"
+            self.wfile.write((prefix + "data: " + json.dumps(payload) + "\n\n").encode("utf-8"))
+            self.wfile.flush()
+        except OSError:
+            # The child may have disconnected as well; never try another write.
+            pass
 
     def _read_body(self) -> bytes | None:
         raw = self.headers.get("Content-Length")
@@ -627,6 +647,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
         }
         req = Request(upstream_url, data=body, headers=headers, method="POST")
         req.full_url = upstream_url
+        headers_sent = False
         try:
             with urlopen(req, timeout=self.upstream_timeout) as resp:  # noqa: S310
                 status = int(resp.status)
@@ -636,7 +657,9 @@ class _RelayHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/event-stream")
                 self.send_header("Cache-Control", "no-store")
+                self.close_connection = True
                 self.end_headers()
+                headers_sent = True
                 while True:
                     chunk = resp.read(4096)
                     if not chunk:
@@ -645,8 +668,8 @@ class _RelayHandler(BaseHTTPRequestHandler):
                     self.wfile.flush()
         except HTTPError as exc:
             self._send_sanitized_error(int(exc.code))
-        except (URLError, TimeoutError, OSError):
-            self._send_error(502, "upstream_error")
+        except (IncompleteRead, URLError, OSError):
+            self._end_failed_stream(headers_sent, anthropic=False)
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
