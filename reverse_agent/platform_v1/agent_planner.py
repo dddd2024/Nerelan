@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .functional_validation import _CATALOG as _CHECK_CATALOG
+from .opencode_executor import redact_secrets
 from .run_store import TaskStoreError
 
 ROLE_GUIDE = {
@@ -74,10 +75,14 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
     )
 
 
-def extract_plan(text: str) -> dict[str, Any]:
-    """Parse the planner's single JSON object (tolerating a fenced code block)."""
-    if not isinstance(text, str) or not text.strip():
-        raise TaskStoreError("agent_plan_empty")
+def _parse_plan_object(text: str) -> Any:
+    """Locate and parse the planner's single JSON object.
+
+    Tolerates a fenced code block and leading/trailing prose. If the fenced-block
+    regex or the first-'{'..last-'}' slice fails to parse (often because trailing
+    prose added stray braces), scan each '{' that starts a line and raw_decode
+    until one yields an object with a 'tasks' list.
+    """
     candidate = text.strip()
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", candidate, re.DOTALL)
     if fenced:
@@ -88,9 +93,27 @@ def extract_plan(text: str) -> dict[str, Any]:
             raise TaskStoreError("agent_plan_not_json")
         candidate = candidate[start:end + 1]
     try:
-        plan = json.loads(candidate)
-    except (json.JSONDecodeError, RecursionError) as exc:
-        raise TaskStoreError("agent_plan_not_json") from exc
+        return json.loads(candidate)
+    except (json.JSONDecodeError, RecursionError):
+        pass
+    # The slice captured stray braces from surrounding prose; decode from each
+    # line-start '{' and keep the first object that looks like a plan.
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"(?m)^[ \t]*\{", text):
+        try:
+            obj, _ = decoder.raw_decode(text, match.end() - 1)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(obj, dict) and isinstance(obj.get("tasks"), list) and obj["tasks"]:
+            return obj
+    raise TaskStoreError("agent_plan_not_json")
+
+
+def extract_plan(text: str) -> dict[str, Any]:
+    """Parse the planner's single JSON object (tolerating a fenced code block)."""
+    if not isinstance(text, str) or not text.strip():
+        raise TaskStoreError("agent_plan_empty")
+    plan = _parse_plan_object(text)
     if not isinstance(plan, dict) or not isinstance(plan.get("tasks"), list) or not plan["tasks"]:
         raise TaskStoreError("agent_plan_tasks_required")
     if len(plan["tasks"]) > MAX_PLAN_TASKS:
@@ -145,6 +168,18 @@ class PlannerOutput:
     usage: dict[str, int] | None = None
 
 
+_RAW_EXCERPT_LIMIT = 2000
+
+
+def _raw_excerpt(text: str) -> str:
+    """First and last 2000 chars of the planner's final text, secret-redacted."""
+    redacted = redact_secrets(text or "")
+    if len(redacted) <= _RAW_EXCERPT_LIMIT * 2:
+        return redacted
+    return (redacted[:_RAW_EXCERPT_LIMIT] + "\n...[truncated]...\n"
+            + redacted[-_RAW_EXCERPT_LIMIT:])
+
+
 @dataclass
 class PlanJob:
     goal_id: str
@@ -154,13 +189,18 @@ class PlanJob:
     finished_at: float = 0.0
     planner: dict[str, str] = field(default_factory=dict)
     usage: dict[str, int] | None = None
+    raw_excerpt: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"goal_id": self.goal_id, "status": self.status, "error": self.error,
+        data = {"goal_id": self.goal_id, "status": self.status, "error": self.error,
                 "started_at": self.started_at, "finished_at": self.finished_at, "planner": dict(self.planner),
                 # A planner run is a model call: unknown usage is reported as unknown, never as zero.
                 "usage_status": "observed_tokens" if self.usage is not None else "unknown",
                 "token_usage": dict(self.usage) if self.usage is not None else None}
+        # Only a failed parse keeps the raw excerpt, so the cause can be diagnosed.
+        if self.status == "FAILED" and self.raw_excerpt:
+            data["raw_excerpt"] = self.raw_excerpt
+        return data
 
 
 class AgentPlanner:
@@ -215,7 +255,13 @@ class AgentPlanner:
                 text, job.usage = output.text, output.usage
             else:
                 text = output
-            plan = extract_plan(text)
+            try:
+                plan = extract_plan(text)
+            except TaskStoreError:
+                # The expensive planner run produced unparseable text; keep a bounded
+                # excerpt so the cause can be diagnosed instead of being lost.
+                job.raw_excerpt = _raw_excerpt(text)
+                raise
             current = self._goals.control_store.get_goal(goal.id)
             # DRAFT -> PLANNED keeps the revision, so also compare status and plan digest:
             # a plan the Owner saved while the planner ran is never overwritten.
