@@ -1450,6 +1450,9 @@ def test_interrupted_single_workspace_validation(tmp_path, monkeypatch, classifi
         return validate(*args)
 
     monkeypatch.setattr(svc, "_validate_prepared_artifact", track_validation)
+    # Provider-free resume must not require the OpenCode CLI on Linux CI.
+    monkeypatch.setattr("reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+                        lambda exe=None: ("provider-free-stub", False))
     if resume:
         set_crash_after_checkpoint("PRE_PLANNER")
         with pytest.raises(_CrashSimulated):
