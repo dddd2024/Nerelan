@@ -828,6 +828,12 @@ def test_redact_event_nested_container(container) -> None:
                                   {"note": "[REDACTED]"}]
 
 
+@pytest.mark.parametrize("separator", ["\n ", "\r\n ", "\t"])
+def test_redact_authorization_unquoted_multiline(separator: str) -> None:
+    value = "synthetic-private-value"
+    text = f"Authorization:{separator}{value}"
+    assert redact_secrets(text) == f"Authorization:{separator}[REDACTED]"
+
 def test_redact_authorization_quoted_escapes_and_case() -> None:
     obj = {"aUtHoRiZaTiOn": 'Bearer short"escaped\\tail', "status": "ok"}
     assert json.loads(redact_secrets(json.dumps(obj))) == {

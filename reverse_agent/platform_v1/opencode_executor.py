@@ -179,7 +179,7 @@ _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         r'''(?:\\[^\r\n]|(?!\2)[^\\\r\n])*\2'''
     ), r"\1\2[REDACTED]\2"),
     (re.compile(
-        r'''(?i)(\bauthorization[ \t]*[:=][ \t]*)(?:(?:bearer|basic|token)\s+)?[^\s"',;{}\[\]<>]+'''
+        r'''(?i)(\bauthorization[ \t]*[:=]\s*)(?:(?:bearer|basic|token)\s+)?[^\s"',;{}\[\]<>]+'''
     ), r"\1[REDACTED]"),
     (re.compile(r"(?i)\"?(api[_-]?key|apikey)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(token)\"?\s*[:=]\s*\S{8,}"), r"\1: [REDACTED]"),
