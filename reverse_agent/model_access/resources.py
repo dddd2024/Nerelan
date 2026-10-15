@@ -122,6 +122,19 @@ def _read_source(source: Callable[[], Any] | None) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _read_external(source: Callable[[], Any]) -> Mapping[str, Any]:
+    """Like _read_source, but a failure is surfaced as {"status": "unavailable"}.
+
+    External accounts are listed separately and never folded into a Nerelan
+    connection's quota, tokens or cost, so nothing is double counted.
+    """
+    try:
+        value = source()
+    except Exception:  # noqa: BLE001 - an external source must never hide the resources
+        return {"status": "unavailable"}
+    return value if isinstance(value, Mapping) else {"status": "unavailable"}
+
+
 def _quota(connection: Mapping[str, Any], native: tuple[str, str, str] | None,
            quotas: Mapping[str, Any]) -> dict[str, Any]:
     if native is None:
@@ -144,8 +157,15 @@ def _guard_entries(source: Callable[[], Any] | None) -> list[dict[str, Any]]:
 def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]],
                         tokens: Callable[[], Mapping[str, Any]] | None = None,
                         quotas: Callable[[], Mapping[str, Any]] | None = None,
-                        guard_log: Callable[[], Any] | None = None) -> dict[str, Any]:
-    """Connections -> credential, executors, bindings, tokens, equivalent cost and quota, sanitized."""
+                        guard_log: Callable[[], Any] | None = None,
+                        external: Callable[[], Mapping[str, Any]] | None = None) -> dict[str, Any]:
+    """Connections -> credential, executors, bindings, tokens, equivalent cost and quota, sanitized.
+
+    When *external* is given, its snapshot appears under
+    ``external_sources.magpie``; it is never merged into a connection's quota,
+    tokens or cost.  When *external* is None (Magpie disabled) the response has
+    no ``external_sources`` key.
+    """
     executors = {item["executor_id"]: item for item in store.list_executors_public()}
     bindings = store.list_bindings_public()
     observed, observation_status = _read_profiles(profiles)
@@ -200,7 +220,7 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
             "equivalent_cost": _combine_costs(costs),
             "quota": _quota(connection, native, quota_snapshots),
         })
-    return {"resources": resources,
+    view = {"resources": resources,
             "summary": {"connections": len(resources),
                         "usable_bindings": sum(row["usable"] for item in resources for row in item["bindings"]),
                         "quota_known": sum(item["quota"].get("state") == "OBSERVED" for item in resources),
@@ -208,3 +228,6 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
                         "equivalent_cost": _combine_costs([item["equivalent_cost"] for item in resources
                                                            if item["equivalent_cost"]]),
                         "quota_guard": _guard_entries(guard_log)}}
+    if external is not None:
+        view["external_sources"] = {"magpie": _read_external(external)}
+    return view

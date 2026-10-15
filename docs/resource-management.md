@@ -232,3 +232,69 @@ On the Owner's real data (2026-10-14):
    under Nerelan's argv. If it does, pin the settings sources for account and relay runs and
    add a regression test.
 3. Retire legacy `ModelProfile` after a migration check.
+
+## Magpie source (opt-in)
+
+Nerelan can read a local [Magpie](https://github.com/yetone/magpie) gateway (v0.1.1250)
+read-only so the resources page shows subscriptions served through it — the first target is
+the WorkBuddy subscription (provider ids `workbuddy` and `workbuddy-ai`). This is
+**default-off** and touches the network only when explicitly enabled.
+
+### Enabling
+
+Set `REVERSE_AGENT_MAGPIE=1`. The gateway URL defaults to `http://127.0.0.1:3425`; override it
+with `REVERSE_AGENT_MAGPIE_URL` if Magpie listens elsewhere on loopback. When disabled, no
+gateway is contacted and `GET /api/resources` has no `external_sources` key.
+
+### What is read
+
+Three loopback GET requests, in order, with `Authorization: Bearer magpie-nerelan` so Magpie
+counts the calls as Nerelan:
+
+1. `GET /api/hello` — confirms the gateway is Magpie (`{"name":"magpie","version":"0.1.1250"}`).
+2. `GET /v1/models` — lists models Magpie exposes, including routing groups.
+3. `GET /v1/magpie/quotas?kept=1` — **cached only**: Magpie answers from its own cache and
+   never asks a vendor. A key held to a budget returns 403 `gateway_key_held`; the snapshot
+   reports that account as unavailable.
+
+The result appears under `external_sources.magpie` in `GET /api/resources`:
+
+```json
+{"external_sources": {"magpie": {
+  "status": "available", "version": "0.1.1250",
+  "models": [{"model_id": "workbuddy/glm-5.2", "provider": "workbuddy", "...": "..."}],
+  "accounts": [{"provider": "workbuddy", "kind": "subscription", "account_ref": "a1b2c3d4e5f6",
+                "windows": [{"name": "hourly", "used_percent": 20, "remaining_percent": 80, "...": "..."}],
+                "state": "FRESH", "provenance": "EXTERNAL_MAGPIE"}]}}}
+```
+
+### Privacy
+
+Account identity is reduced to a short `account_ref` hash (first 12 hex chars of SHA-256 over
+`[provider, user]`). No `user` string, email, phone-derived login, alias or origin is placed
+in the response. Transport errors that may embed personal data are caught and replaced with a
+generic reason. The snapshot never contains secrets.
+
+### Fallback
+
+If the gateway is not Magpie, refuses, redirects, times out, or returns malformed data, the
+snapshot is `{"status": "unavailable"}` (or `refused` / `not_magpie`). Legacy resources
+(connections, bindings, quotas, tokens, cost, summary) are **unaffected** — external accounts
+are listed separately and are never added into a Nerelan connection's quota, tokens or cost, so
+nothing is double counted. When Magpie is disabled the response is byte-identical to before.
+
+### Using WorkBuddy models through Magpie
+
+Magpie's gateway is OpenAI-compatible. To use WorkBuddy models through it:
+
+1. In Settings (or via `PUT /api/connections`), add an **openai-compatible** Connection with
+   `base_url` `http://127.0.0.1:3425/v1` and key `magpie-nerelan`.
+2. Discover models (`POST /api/connections/<id>/models`); you will see ids like
+   `workbuddy/glm-5.2` and routing-group names without a slash.
+3. Bind e.g. `workbuddy/glm-5.2` to OpenCode (or another executor).
+
+> **Owner responsibility (R3):** Magpie reads WorkBuddy's login token itself and manages its
+> own credential refresh. Installing Magpie and signing in to WorkBuddy is the Owner's own
+> action — Nerelan never touches that token. The loopback gateway accepts **any** bearer key;
+> that is a convenience for attribution, **not** access control. Any local process that knows
+> the address can spend every pooled account. Secure the host accordingly.

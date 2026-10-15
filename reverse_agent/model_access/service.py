@@ -18,6 +18,7 @@ from urllib.request import Request
 from .account_auth import AccountAuthManager
 from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
+from .magpie import fetch_magpie_snapshot, magpie_enabled
 from .os_vault import VaultUnavailableError
 from .resources import build_resource_view
 from .store import ModelProfileStore
@@ -44,6 +45,13 @@ def _default_transport(
     request = Request(url, headers=headers, method="GET")
     with urlopen(request, timeout=timeout) as response:  # noqa: S310 - gated opt-in
         return int(response.status), response.read(_MAX_BODY_BYTES)
+
+
+def _magpie_external() -> Mapping[str, Any]:
+    """Callable passed as ``external`` to build_resource_view when Magpie is on."""
+    return fetch_magpie_snapshot(
+        os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425")
+    )
 
 
 def _do_probe(
@@ -387,9 +395,10 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
+                external = _magpie_external if magpie_enabled(os.environ) else None
                 self._send_json(HTTPStatus.OK, build_resource_view(
                     self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
-                    guard_log=self.quota_guard_log))
+                    guard_log=self.quota_guard_log, external=external))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 self._send_json(
