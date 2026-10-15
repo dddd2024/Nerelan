@@ -172,15 +172,23 @@ _SECRET_KEYS = {
 }
 
 _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"(?i)(authorization)\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    # Consume quoted values as a unit, including escapes, without eating the
+    # closing quote or neighboring JSON/repr fields.
+    (re.compile(
+        r'''(?i)((?:"authorization"|'authorization'|\bauthorization)\s*[:=]\s*)(["'])'''
+        r'''(?:\\[^\r\n]|(?!\2)[^\\\r\n])*\2'''
+    ), r"\1\2[REDACTED]\2"),
+    (re.compile(
+        r'''(?i)(\bauthorization[ \t]*[:=]\s*)(?:(?:bearer|basic|token)\s+)?[^\s"',;{}\[\]<>]+'''
+    ), r"\1[REDACTED]"),
     (re.compile(r"(?i)\"?(api[_-]?key|apikey)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(token)\"?\s*[:=]\s*\S{8,}"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(password|passwd|pwd)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(secret)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(credential)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(cookie)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
-    (re.compile(r"(?i)bearer\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
-    (re.compile(r"(?i)basic\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
+    (re.compile(r'''(?i)\b(?:bearer|basic)\s+[^\s"',;{}\[\]<>]+'''), "[REDACTED]"),
+    (re.compile(r"\bsk-[a-zA-Z0-9_.~+/=-]+"), "[REDACTED]"),
     (re.compile(r"(?i)(ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{20,}"), "[REDACTED]"),
 ]
 
@@ -225,7 +233,7 @@ def _redact_recursively(obj: Any, depth: int = 0, total_bytes: int = 0) -> Any:
         for item in obj:
             total_bytes += 1
             result.append(_redact_recursively(item, depth + 1, total_bytes))
-        return list(obj) if isinstance(obj, tuple) else result
+        return result
     return str(obj)[:MAX_EVIDENCE_STRING_LEN]
 
 
