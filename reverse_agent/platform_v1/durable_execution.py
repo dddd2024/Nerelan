@@ -1175,7 +1175,12 @@ class DurableExecutionService:
             epoch=lease.epoch,
         )
 
+        interrupted_validation = None
         if not exec_result.success:
+            interrupted_validation = self._validate_interrupted_executor(
+                task_id, prepared.worktree, run, lease,
+                exec_result.failure_classification, exec_result.error)
+        if not exec_result.success and not (interrupted_validation and interrupted_validation[1] == 0):
             classification = (
                 "blocked"
                 if "unapproved" in exec_result.error
@@ -1256,8 +1261,8 @@ class DurableExecutionService:
         _check_crash_seam("POST_REVIEWER")
 
         wt_path = str(prepared.worktree)
-        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
-            task_id, wt_path, run, lease)
+        val_command_id, val_exit, val_output, val_digest = (
+            interrupted_validation or self._validate_prepared_artifact(task_id, wt_path, run, lease))
 
         self.store._set_validation_result(
             lease.run_id,
@@ -1336,6 +1341,38 @@ class DurableExecutionService:
             failure_classification="deterministic_validation_failure",
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
+
+    def _validate_interrupted_executor(
+        self, task_id: str, worktree: Any, run: Any, lease: LeaseHandle,
+        classification: str, error: str,
+    ) -> tuple[str, int, str, str] | None:
+        """Validate potentially finished work only for known transport interruptions."""
+        from .opencode_executor import _collect_final_product_files
+
+        if classification not in {
+            "timeout", "codex_timeout", "claude_code_timeout",
+            "codex_stream_read_failed", "claude_code_stream_read_failed",
+            "codex_turn_incomplete", "claude_code_turn_incomplete",
+            "server_event_timeout", "server_event_disconnected",
+        } or "unapproved" in error:
+            return None
+        self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        if not _collect_final_product_files(Path(worktree)):
+            return None
+        result = self._validate_prepared_artifact(task_id, worktree, run, lease)
+        command_id, code, output, digest = result
+        self.store._fenced_add_event(
+            lease.run_id, task_id,
+            event_type="EXECUTOR_TIMEOUT_SALVAGED" if code == 0 else "EXECUTOR_TIMEOUT_VALIDATION_FAILED",
+            title=("Executor timed out; finished work validated" if code == 0
+                   else "Interrupted executor work failed validation"),
+            description=output or f"{command_id} exit={code}",
+            metadata={"failure_classification": classification,
+                      "validation_command_id": command_id, "validation_exit_code": code,
+                      "validation_output_digest": digest},
+            owner=lease.owner, epoch=lease.epoch,
+        )
+        return result
 
     def _record_fixture_single_start(self, task_id: str, run: Any, lease: LeaseHandle) -> None:
         # Persist activity at the dispatch boundary with the same owner/epoch
@@ -3218,7 +3255,12 @@ class DurableExecutionService:
             epoch=lease.epoch,
         )
 
+        interrupted_validation = None
         if not success_flag:
+            interrupted_validation = self._validate_interrupted_executor(
+                task_id, prepared_path, run, lease,
+                exec_result.get("failure_classification", ""), exec_result.get("error", ""))
+        if not success_flag and not (interrupted_validation and interrupted_validation[1] == 0):
             classification = (
                 "blocked"
                 if "unapproved" in exec_result.get("error", "")
@@ -3297,7 +3339,7 @@ class DurableExecutionService:
 
         return self._resume_single_validate_and_terminal(
             task_id, prepared_path, run, lease,
-            role_attempt, review_status,
+            role_attempt, review_status, interrupted_validation,
         )
 
     def _resume_single_post_planner(
@@ -3389,14 +3431,15 @@ class DurableExecutionService:
         lease: LeaseHandle,
         role_attempt: int,
         review_status: str,
+        interrupted_validation: tuple[str, int, str, str] | None = None,
     ) -> Any:
         """Common validation + terminalization for all resume paths."""
         from .task_execution import TaskExecutionOutcome
         from .task_runtime import LocalValidationRunner
         from .opencode_executor import _collect_final_product_files
 
-        val_command_id, val_exit, val_output, val_digest = self._validate_prepared_artifact(
-            task_id, prepared_path, run, lease)
+        val_command_id, val_exit, val_output, val_digest = (
+            interrupted_validation or self._validate_prepared_artifact(task_id, prepared_path, run, lease))
 
         self.store._set_validation_result(
             lease.run_id,

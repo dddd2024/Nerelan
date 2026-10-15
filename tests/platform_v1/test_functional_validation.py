@@ -257,3 +257,40 @@ def test_targets_limit_pytest_to_the_named_files(tmp_path):
 def test_checks_without_targets_keep_their_frozen_shape():
     assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
         {"profile_id": "python_pytest", "working_directory": "."},)
+
+
+@pytest.mark.parametrize("value", [2, 3])
+def test_durable_timeout_uses_functional_contract(implementation, monkeypatch, value):
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.opencode_executor import ExecutorResult
+
+    root, base, store, task_id = implementation
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(root))
+
+    class InterruptedExecutor:
+        def prepare_worktree_once(self, task_id, workspace_root, callback=None):
+            return SimpleNamespace(worktree=root, base_sha=base, execution_id="interrupted")
+
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            (root / "app.py").write_text(f"value = {value}\n", encoding="utf-8")
+            return ExecutorResult(False, -1, "", "", "", error="timeout",
+                                  failure_classification="timeout")
+
+    router = ExecutorRouter()
+    router.replace("opencode", lambda **kwargs: InterruptedExecutor())
+    service = DurableExecutionService(store=store, router=router,
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    outcome = service.execute_durable_single(task_id, workspace_root=str(root.parent / "ws"))
+    task = store.get_task(task_id)
+    assert outcome.success is (value == 2)
+    assert task.status == ("READY_FOR_REVIEW" if value == 2 else "FAILED")
+    if value == 2:
+        assert task.validation_command_id == fv.FUNCTIONAL_COMMAND_ID
+        assert fv.functional_evidence(task)["verified"] is True
+        assert any(e.type == "EXECUTOR_TIMEOUT_SALVAGED" for e in store.get_events(task_id))
+    else:
+        assert task.failure_classification == "timeout"
+        feedback = [e for e in store.get_events(task_id) if e.title == "Functional check failed"]
+        assert "assert 3 == 2" in feedback[0].description
+        assert not any(e.type == "EXECUTOR_TIMEOUT_SALVAGED" for e in store.get_events(task_id))
