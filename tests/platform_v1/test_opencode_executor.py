@@ -786,6 +786,38 @@ def test_redact_secrets_auth_header() -> None:
     assert "abcdefghijklmnopqrstuvwxyz" not in result
 
 
+@pytest.mark.parametrize("scheme", ["Bearer", "Basic", "Token"])
+def test_redact_secrets_auth_header_consumes_credential(scheme: str) -> None:
+    text = f"Authorization: {scheme} abcdefghijklmnop1234567890"
+    assert redact_secrets(text) == "Authorization: [REDACTED]"
+
+
+def test_redact_secrets_x_api_key_header() -> None:
+    assert redact_secrets("x-api-key: abcdefghijklmnop") == "x-api-key: [REDACTED]"
+
+
+@pytest.mark.parametrize("prefix", ["sk-", "sk-ant-", "sk-proj-", "sk-or-"])
+def test_redact_secrets_bare_provider_key(prefix: str) -> None:
+    text = f"key {prefix}ABCDEFGHIJKLMNOPQRSTUVWX12345 end"
+    assert redact_secrets(text) == "key [REDACTED] end"
+
+
+def test_redact_secrets_relay_lease_id() -> None:
+    text = "lease sk-" + "Ab0_-xyz" * 8 + " end"
+    assert redact_secrets(text) == "lease [REDACTED] end"
+
+
+@pytest.mark.parametrize("prefix", ["sk-", "sk-ant-", "sk-proj-", "sk-or-"])
+def test_redact_secrets_short_provider_key_unchanged(prefix: str) -> None:
+    text = f"sk-learn and {prefix}ABCDEFGHIJKLMNO"
+    assert redact_secrets(text) == text
+
+
+def test_redact_secrets_authorization_header_in_json() -> None:
+    text = json.dumps({"message": "Authorization: Bearer abcdefghijklmnop1234567890"})
+    assert json.loads(redact_secrets(text)) == {"message": "Authorization: [REDACTED]"}
+
+
 def test_redact_secrets_api_key() -> None:
     text = 'config: { "api_key": "sk-1234567890abcdef" }'
     result = redact_secrets(text)
