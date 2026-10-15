@@ -1483,8 +1483,41 @@ def test_interrupted_single_workspace_validation(tmp_path, monkeypatch, classifi
         assert event.metadata["failure_classification"] == classification
     if failed:
         assert "trailing whitespace" in failed[0].description
+        evidence = failed[0].metadata
+        assert after.validation_command_id == evidence["validation_command_id"]
+        assert after.validation_exit_code == evidence["validation_exit_code"]
+        assert after.validation_output_digest == evidence["validation_output_digest"]
+        assert outcome.validation_command_id == evidence["validation_command_id"]
+        assert outcome.validation_exit_code == evidence["validation_exit_code"]
     if expected:
         assert any(f["path"] == "product.py" for f in after.changed_files)
+
+
+@pytest.mark.parametrize("error", [
+    "UNAPPROVED: permission denied",
+    "quota exceeded",
+    "rate_limit: 429",
+    "usage_limit reached",
+])
+def test_interrupted_timeout_does_not_salvage_refusal(tmp_path, error):
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="refused transport", executor_kind="opencode", orchestration_mode="single")
+
+    class RefusedExecutor(FakeSingleExecutor):
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            (prepared.worktree / "product.py").write_text("value = 1\n", encoding="utf-8")
+            return _FakeResult(success=False, validation_exit_code=-1,
+                               failure_classification="timeout", error=error)
+
+    svc = DurableExecutionService(
+        store=store, router=_make_router(RefusedExecutor()),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    outcome = svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"))
+    after = store.get_task(task.id)
+    assert outcome.success is False
+    assert after.status == "FAILED"
+    assert not any(e.type.startswith("EXECUTOR_TIMEOUT_") for e in store.get_events(task.id))
 
 
 def test_interrupted_validation_cannot_salvage_after_lease_loss(tmp_path, monkeypatch):

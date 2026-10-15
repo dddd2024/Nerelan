@@ -1181,9 +1181,21 @@ class DurableExecutionService:
                 task_id, prepared.worktree, run, lease,
                 exec_result.failure_classification, exec_result.error)
         if not exec_result.success and not (interrupted_validation and interrupted_validation[1] == 0):
+            failed_command_id = (interrupted_validation[0] if interrupted_validation
+                                 else exec_result.validation_command_id)
+            failed_exit_code = (interrupted_validation[1] if interrupted_validation
+                                else exec_result.validation_exit_code)
+            failed_output_digest = (interrupted_validation[3] if interrupted_validation
+                                    else exec_result.validation_output_digest)
+            if interrupted_validation:
+                self.store._set_validation_result(
+                    lease.run_id, command_id=failed_command_id,
+                    exit_code=failed_exit_code, output_digest=failed_output_digest,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
             classification = (
                 "blocked"
-                if "unapproved" in exec_result.error
+                if "unapproved" in exec_result.error.lower()
                 else exec_result.failure_classification or "failed"
             ) or "failed"
             self.store._accept_checkpoint(
@@ -1206,9 +1218,9 @@ class DurableExecutionService:
             self.store._fenced_terminalize(
                 lease.run_id, task_id,
                 terminal_status="FAILED",
-                validation_command_id=exec_result.validation_command_id,
-                validation_exit_code=exec_result.validation_exit_code,
-                validation_output_digest=exec_result.validation_output_digest,
+                validation_command_id=failed_command_id,
+                validation_exit_code=failed_exit_code,
+                validation_output_digest=failed_output_digest,
                 failure_classification=classification,
                 failure_detail=exec_result.error,
                 owner=lease.owner, epoch=lease.epoch,
@@ -1218,8 +1230,8 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=final.execution_id,
                 success=False,
-                validation_command_id=exec_result.validation_command_id,
-                validation_exit_code=exec_result.validation_exit_code,
+                validation_command_id=failed_command_id,
+                validation_exit_code=failed_exit_code,
                 failure_classification=final.failure_classification,
                 failure_detail=final.failure_detail,
             )
@@ -1349,12 +1361,20 @@ class DurableExecutionService:
         """Validate potentially finished work only for known transport interruptions."""
         from .opencode_executor import _collect_final_product_files
 
+        # A transport-looking classification must not override an explicit
+        # permission, quota or budget refusal carried in the error message.
+        refusal_markers = (
+            "unapproved", "permission", "denied", "unauthorized", "forbidden",
+            "quota", "rate_limit", "rate limit", "usage_limit", "usage limit",
+            "429", "budget", "insufficient_credit", "payment_required",
+        )
+        refusal = any(marker in (error or "").lower() for marker in refusal_markers)
         if classification not in {
             "timeout", "codex_timeout", "claude_code_timeout",
             "codex_stream_read_failed", "claude_code_stream_read_failed",
             "codex_turn_incomplete", "claude_code_turn_incomplete",
             "server_event_timeout", "server_event_disconnected",
-        } or "unapproved" in error:
+        } or refusal:
             return None
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
         if not _collect_final_product_files(Path(worktree)):
@@ -1510,7 +1530,7 @@ class DurableExecutionService:
         if not exec_result["success"]:
             classification = (
                 "blocked"
-                if "unapproved" in exec_result.get("error", "")
+                if "unapproved" in exec_result.get("error", "").lower()
                 else exec_result.get("failure_classification", "failed")
             ) or "failed"
             self.store._accept_checkpoint(
@@ -3261,9 +3281,21 @@ class DurableExecutionService:
                 task_id, prepared_path, run, lease,
                 exec_result.get("failure_classification", ""), exec_result.get("error", ""))
         if not success_flag and not (interrupted_validation and interrupted_validation[1] == 0):
+            failed_command_id = (interrupted_validation[0] if interrupted_validation
+                                 else exec_result.get("validation_command_id", ""))
+            failed_exit_code = (interrupted_validation[1] if interrupted_validation
+                                else exec_result.get("validation_exit_code", -1))
+            failed_output_digest = (interrupted_validation[3] if interrupted_validation
+                                    else exec_result.get("validation_output_digest", ""))
+            if interrupted_validation:
+                self.store._set_validation_result(
+                    lease.run_id, command_id=failed_command_id,
+                    exit_code=failed_exit_code, output_digest=failed_output_digest,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
             classification = (
                 "blocked"
-                if "unapproved" in exec_result.get("error", "")
+                if "unapproved" in exec_result.get("error", "").lower()
                 else exec_result.get("failure_classification", "failed")
             ) or "failed"
             self.store._accept_checkpoint(
@@ -3286,9 +3318,9 @@ class DurableExecutionService:
             self.store._fenced_terminalize(
                 lease.run_id, task_id,
                 terminal_status="FAILED",
-                validation_command_id=exec_result.get("validation_command_id", ""),
-                validation_exit_code=exec_result.get("validation_exit_code", -1),
-                validation_output_digest=exec_result.get("validation_output_digest", ""),
+                validation_command_id=failed_command_id,
+                validation_exit_code=failed_exit_code,
+                validation_output_digest=failed_output_digest,
                 failure_classification=classification,
                 failure_detail=exec_result.get("error", "executor failed"),
                 owner=lease.owner, epoch=lease.epoch,
@@ -3298,8 +3330,8 @@ class DurableExecutionService:
                 task_id=task_id,
                 execution_id=final.execution_id,
                 success=False,
-                validation_command_id=exec_result.get("validation_command_id", ""),
-                validation_exit_code=exec_result.get("validation_exit_code", -1),
+                validation_command_id=failed_command_id,
+                validation_exit_code=failed_exit_code,
                 failure_classification=final.failure_classification,
                 failure_detail=final.failure_detail,
             )
