@@ -752,3 +752,99 @@ class TestLeaseCleanup:
         now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
         assert lease.expires_at <= now + __import__("datetime").timedelta(seconds=6)
         assert lease.expires_at >= now + __import__("datetime").timedelta(seconds=4)
+
+@pytest.mark.parametrize("anthropic", [True, False])
+@pytest.mark.parametrize("failure", ["chunked", "connection", "os", "before_headers"])
+def test_stream_cut_ends_response_without_network(monkeypatch, anthropic, failure):
+    import io
+    import time
+    from http.client import HTTPResponse
+    from types import SimpleNamespace
+    from reverse_agent.model_access import credential_relay as relay_module
+
+    # HTTPResponse itself parses a complete chunk followed by a truncated chunk.
+    # No sockets or network calls are used, including for the downstream writer.
+    partial = b'data: {"partial":true}\n\n' + b' ' * 4096
+    wire = (b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n'
+            + f'{len(partial):x}\r\n'.encode() + partial
+            + b'\r\n100\r\nprivate-upstream-body')
+
+    class FakeSocket:
+        def makefile(self, *args, **kwargs):
+            return io.BytesIO(wire)
+
+    response = HTTPResponse(FakeSocket())
+    response.begin()
+    reads = 0
+
+    class Upstream:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            response.close()
+
+        def read(self, size):
+            nonlocal reads
+            reads += 1
+            if failure in {"connection", "os"} and reads > 1:
+                error = ConnectionError if failure == "connection" else OSError
+                raise error("private-upstream-body")
+            return response.read(size)
+
+    def fake_urlopen(*args, **kwargs):
+        if failure == "before_headers":
+            raise ConnectionError("private-upstream-body")
+        return Upstream()
+
+    monkeypatch.setattr(relay_module, "urlopen", fake_urlopen)
+    handler = object.__new__(relay_module._RelayHandler)
+    handler.headers = {}
+    handler.wfile = io.BytesIO()
+    handler.request_version = "HTTP/1.1"
+    handler.requestline = "POST / HTTP/1.1"
+    handler.close_connection = False
+    active = SimpleNamespace(snapshot=_make_snapshot())
+    started = time.monotonic()
+    if anthropic:
+        handler._relay_anthropic(active, "/v1/messages", b"{}", stream=True)
+    else:
+        handler._relay_sse_fail_closed(active, b"{}")
+
+    assert time.monotonic() - started < 1.0
+    output = handler.wfile.getvalue()
+    assert handler.close_connection is True
+    assert output.count(b"HTTP/1.0") == 1
+    assert b"private-upstream-body" not in output
+    assert b"provider-master-key-xyz" not in output
+    if failure == "before_headers":
+        assert b"502 Bad Gateway" in output
+        assert output.endswith(b'{"error":"upstream_error"}')
+    else:
+        assert b"200 OK" in output
+        assert b'data: {"partial":true}' in output
+        assert reads == 2
+        frame = output.split(b"\n\n")[-2]
+        if anthropic:
+            assert frame.startswith(b"event: error\ndata: ")
+        payload = json.loads(frame.split(b"data: ", 1)[1])
+        assert payload["error"] == {"type": "api_error", "message": "upstream_error"}
+
+
+@pytest.mark.parametrize("headers_sent", [True, False])
+def test_stream_failure_tolerates_disconnected_child(headers_sent):
+    from reverse_agent.model_access.credential_relay import _RelayHandler
+
+    class DisconnectedWriter:
+        def write(self, data):
+            raise BrokenPipeError("child disconnected")
+
+    handler = object.__new__(_RelayHandler)
+    handler.wfile = DisconnectedWriter()
+    handler.request_version = "HTTP/1.1"
+    handler.requestline = "POST / HTTP/1.1"
+    handler.close_connection = False
+    handler._end_failed_stream(headers_sent, anthropic=True)
+    assert handler.close_connection is True
