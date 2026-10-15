@@ -310,11 +310,46 @@ def test_existing_matching_provider_prefix_is_preserved() -> None:
     assert resolution.model_id == "openai-compatible/sense-coding-fast"
 
 
-def test_provider_prefix_mismatch_fails_closed() -> None:
-    with pytest.raises(BindingResolutionError, match="model_provider_mismatch"):
-        BindingResolver(
-            transport=_FakeTransport(binding=_binding(model_id="other/model"))
-        ).resolve("coding-fast", task_executor="opencode")
+def test_gateway_namespaced_model_id_is_accepted() -> None:
+    """A gateway-namespaced model id (e.g. workbuddy/glm-5.3) on an
+    openai-compatible connection is the upstream's own identifier, not a
+    provider-prefix mismatch.  The resolver must accept it and prepend the
+    connection provider so the CLI selector is well-formed."""
+    resolution = BindingResolver(
+        transport=_FakeTransport(binding=_binding(model_id="workbuddy/glm-5.3"))
+    ).resolve("coding-fast", task_executor="opencode")
+
+    assert resolution.model_id == "openai-compatible/workbuddy/glm-5.3"
+
+
+def test_unmatched_provider_prefix_is_namespaced_not_rejected() -> None:
+    """A model_id whose slash prefix is not the provider id is treated as
+    an upstream-namespaced id, not a mismatch.  The provider is prepended
+    so the CLI selector carries the correct provider prefix."""
+    resolution = BindingResolver(
+        transport=_FakeTransport(binding=_binding(model_id="other/model"))
+    ).resolve("coding-fast", task_executor="opencode")
+
+    assert resolution.model_id == "openai-compatible/other/model"
+
+
+@pytest.mark.parametrize(
+    ("raw_model_id", "expected_model_id"),
+    [
+        ("openai-compatible/gpt-4o", "openai-compatible/gpt-4o"),
+        ("gpt-4o", "openai-compatible/gpt-4o"),
+    ],
+)
+def test_existing_model_id_forms_are_preserved(
+    raw_model_id: str, expected_model_id: str
+) -> None:
+    """Bare and provider-prefixed ids keep their current normalised result
+    alongside the new gateway-namespaced acceptance."""
+    resolution = BindingResolver(
+        transport=_FakeTransport(binding=_binding(model_id=raw_model_id))
+    ).resolve("coding-fast", task_executor="opencode")
+
+    assert resolution.model_id == expected_model_id
 
 
 def test_provider_base_url_query_is_rejected_before_transient_config() -> None:

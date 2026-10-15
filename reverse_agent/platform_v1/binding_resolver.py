@@ -294,7 +294,11 @@ def _normalize_model_id(provider_id: str, model_id: str) -> str:
         return f"{provider_id}/{model_id}"
     prefix, suffix = model_id.split("/", 1)
     if prefix != provider_id:
-        raise BindingResolutionError("model_provider_mismatch")
+        # Gateway-namespaced model ids (e.g. "workbuddy/glm-5.3" on an
+        # openai-compatible connection) are the upstream's own identifiers,
+        # not a provider-prefix mismatch.  Treat the whole string as the
+        # upstream model id so such bindings can resolve and run.
+        return f"{provider_id}/{model_id}"
     if not suffix:
         raise BindingResolutionError("binding_model_id_invalid")
     return model_id
