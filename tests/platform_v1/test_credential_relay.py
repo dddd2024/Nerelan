@@ -91,6 +91,15 @@ class TestLeaseCreation:
         assert _normalize_model_id("openai", "gpt-4o") == "openai/gpt-4o"
         assert _normalize_model_id("openai", "openai/gpt-4o") == "openai/gpt-4o"
 
+    def test_model_id_gateway_namespaced_is_prepended(self) -> None:
+        """A gateway-namespaced id (e.g. workbuddy/glm-5.3) on an
+        openai-compatible connection is the upstream's own identifier; the
+        relay's normaliser mirrors the resolver so the drift check passes."""
+        assert (
+            _normalize_model_id("openai-compatible", "workbuddy/glm-5.3")
+            == "openai-compatible/workbuddy/glm-5.3"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Segment C: Lease validation / negative confinement
@@ -169,6 +178,26 @@ class TestLeaseValidation:
                 path="/chat/completions",
                 model="gpt-4o",
             )
+
+    def test_gateway_namespaced_model_accepted_by_lease(
+        self, manager: CredentialRelayManager
+    ) -> None:
+        """A gateway-namespaced binding (workbuddy/glm-5.3 on an
+        openai-compatible connection) stores the raw model id in the lease.
+        OpenCode sends exactly that id as the request model after
+        _extract_provider_facing_model strips the relay prefix; the lease
+        check must accept it."""
+        snap = _make_snapshot(raw_model_id="workbuddy/glm-5.3")
+        lease = manager.create_lease(snap, relay_url="http://127.0.0.1:0")
+        assert lease.model_id == "workbuddy/glm-5.3"
+
+        active = manager._validate_lease_for_request(
+            lease.lease_id,
+            method="POST",
+            path="/chat/completions",
+            model="workbuddy/glm-5.3",
+        )
+        assert active.model_id == "workbuddy/glm-5.3"
 
 
 # ---------------------------------------------------------------------------
@@ -512,6 +541,61 @@ class TestProviderMasterInjection:
             status, resp_body, _ = forward_to_upstream(active_lease, body=body, timeout=5.0)
             assert status == 200
             assert received_headers["Authorization"] == f"Bearer {master}"
+        finally:
+            server.shutdown()
+            server.server_close()
+            t.join(timeout=5)
+            assert not t.is_alive()
+
+    def test_upstream_body_carries_gateway_model_unchanged(self) -> None:
+        """The relay forwards the request body verbatim.  For a gateway-
+        namespaced binding the upstream must see exactly the binding's model
+        id ('workbuddy/glm-5.3'), not the resolver-prefixed form."""
+        manager = CredentialRelayManager(default_expiry_seconds=2.0)
+
+        received_body: dict[str, Any] = {}
+
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        class CaptureBodyHandler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                length = int(self.headers.get("Content-Length", "0"))
+                raw = self.rfile.read(length)
+                received_body.update(json.loads(raw))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", "13")
+                self.end_headers()
+                self.wfile.write(b'{"choices":[]}')
+
+            def log_message(self, fmt, *args):  # noqa: N802
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), CaptureBodyHandler)
+        port = server.server_address[1]
+        t = threading.Thread(target=server.serve_forever, daemon=True)
+        t.start()
+
+        try:
+            snap = _make_snapshot(
+                base_url=f"http://127.0.0.1:{port}",
+                raw_model_id="workbuddy/glm-5.3",
+            )
+            lease = manager.create_lease(snap, relay_url="http://127.0.0.1:0")
+
+            body = json.dumps({
+                "model": "workbuddy/glm-5.3",
+                "messages": [{"role": "user", "content": "hello"}],
+            }).encode("utf-8")
+            active = manager._validate_lease_for_request(
+                lease.lease_id,
+                method="POST",
+                path="/chat/completions",
+                model="workbuddy/glm-5.3",
+            )
+            status, _resp_body, _ = forward_to_upstream(active, body=body, timeout=5.0)
+            assert status == 200
+            assert received_body["model"] == "workbuddy/glm-5.3"
         finally:
             server.shutdown()
             server.server_close()

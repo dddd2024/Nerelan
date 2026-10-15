@@ -715,6 +715,12 @@ def _lease_paths(snapshot: ExecutionSnapshot) -> frozenset[str]:
 def _normalize_model_id(provider: str, model_id: str) -> str:
     if "/" not in model_id:
         return f"{provider}/{model_id}"
+    prefix, _suffix = model_id.split("/", 1)
+    if prefix != provider:
+        # Gateway-namespaced model ids are the upstream's own identifiers,
+        # not a provider-prefix match.  Mirror binding_resolver behaviour so
+        # the pre-lease drift check stays consistent.
+        return f"{provider}/{model_id}"
     return model_id
 
 
