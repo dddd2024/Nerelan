@@ -792,6 +792,40 @@ def test_redact_secrets_api_key() -> None:
     assert "sk-1234567890abcdef" not in result
 
 
+@pytest.mark.parametrize("scheme", ["Bearer", "Basic", "Token"])
+@pytest.mark.parametrize("token", ["abc", "eyJhbGciOiJIUzI1NiJ9.payload.signature-tail", "a" * 32 + ".tail"])
+def test_redact_authorization_representations(scheme: str, token: str) -> None:
+    import ast
+
+    value = f"{scheme} {token}"
+    obj = {"Authorization": value, "status": "ok"}
+    expected = {"Authorization": "[REDACTED]", "status": "ok"}
+    assert json.loads(redact_secrets(json.dumps(obj))) == expected
+    assert json.loads(redact_secrets(json.dumps(obj).replace(': ', ':\n '))) == expected
+    assert ast.literal_eval(redact_secrets(repr(obj))) == expected
+    assert redact_secrets(f"Authorization: {value}\r\nX-Status: ok") == (
+        "Authorization: [REDACTED]\r\nX-Status: ok"
+    )
+    assert redact_secrets(f"Authorization: {scheme}\n {token}\nX-Status: ok") == (
+        "Authorization: [REDACTED]\nX-Status: ok"
+    )
+    if scheme != "Token":
+        assert redact_secrets(f"request {value}, status=ok") == "request [REDACTED], status=ok"
+    assert redact_event({"output": json.dumps(obj)})["output"] == json.dumps(expected)
+
+
+@pytest.mark.parametrize("token", ["sk-abc", "sk-proj-synthetic_key-with-tail123"])
+def test_redact_bare_sk_keys(token: str) -> None:
+    assert redact_secrets(f'key "{token}", status=ok') == 'key "[REDACTED]", status=ok'
+
+
+def test_redact_authorization_quoted_escapes_and_case() -> None:
+    obj = {"aUtHoRiZaTiOn": 'Bearer short"escaped\\tail', "status": "ok"}
+    assert json.loads(redact_secrets(json.dumps(obj))) == {
+        "aUtHoRiZaTiOn": "[REDACTED]", "status": "ok",
+    }
+
+
 def test_redact_secrets_token() -> None:
     text = "token = abcdefghijklmnop"
     result = redact_secrets(text)
