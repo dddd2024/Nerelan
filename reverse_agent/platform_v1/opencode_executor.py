@@ -172,7 +172,7 @@ _SECRET_KEYS = {
 }
 
 _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"(?i)(authorization)\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
+    (re.compile(r"(?i)(authorization)\s*[:=]\s*(?:(?:bearer|basic|token)\s+)?[^\s\"']+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(api[_-]?key|apikey)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(token)\"?\s*[:=]\s*\S{8,}"), r"\1: [REDACTED]"),
     (re.compile(r"(?i)\"?(password|passwd|pwd)\"?\s*[:=]\s*\S+"), r"\1: [REDACTED]"),
@@ -182,6 +182,7 @@ _SECRET_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"(?i)bearer\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
     (re.compile(r"(?i)basic\s+[a-zA-Z0-9+/=]{16,}"), "[REDACTED]"),
     (re.compile(r"(?i)(ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{20,}"), "[REDACTED]"),
+    (re.compile(r"\bsk-(?:(?:ant|proj|or)-|(?!ant-|proj-|or-))[A-Za-z0-9_-]{16,}"), "[REDACTED]"),
 ]
 
 
