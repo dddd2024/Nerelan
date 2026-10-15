@@ -819,6 +819,15 @@ def test_redact_bare_sk_keys(token: str) -> None:
     assert redact_secrets(f'key "{token}", status=ok') == 'key "[REDACTED]", status=ok'
 
 
+@pytest.mark.parametrize("container", [list, tuple])
+def test_redact_event_nested_container(container) -> None:
+    children = container([{"Authorization": "Bearer synthetic.short_token"},
+                          {"note": "sk-proj-synthetic_token"}])
+    result = redact_event({"children": children})
+    assert result["children"] == [{"Authorization": "[REDACTED]"},
+                                  {"note": "[REDACTED]"}]
+
+
 def test_redact_authorization_quoted_escapes_and_case() -> None:
     obj = {"aUtHoRiZaTiOn": 'Bearer short"escaped\\tail', "status": "ok"}
     assert json.loads(redact_secrets(json.dumps(obj))) == {

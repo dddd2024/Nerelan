@@ -233,7 +233,7 @@ def _redact_recursively(obj: Any, depth: int = 0, total_bytes: int = 0) -> Any:
         for item in obj:
             total_bytes += 1
             result.append(_redact_recursively(item, depth + 1, total_bytes))
-        return list(obj) if isinstance(obj, tuple) else result
+        return result
     return str(obj)[:MAX_EVIDENCE_STRING_LEN]
 
 
