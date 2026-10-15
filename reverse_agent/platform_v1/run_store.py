@@ -2553,7 +2553,7 @@ class TaskStore:
         now_ms: int,
         max_age_ms: int,
     ) -> tuple[dict[str, Any], ...]:
-        """Atomically reconcile expired active run leases to INTERRUPTED.
+        """Reconcile expired leases to INTERRUPTED and ownerless preparation to FAILED.
 
         For each candidate stale run, re-checks expiry/epoch/task_status
         inside a BEGIN IMMEDIATE transaction. Only interrupts if the run
@@ -2569,8 +2569,9 @@ class TaskStore:
         runs = self._conn.execute(
             "SELECT dr.*, t.status as task_status FROM durable_runs dr "
             "JOIN tasks t ON t.id = dr.task_id "
-            "WHERE dr.lease_expiry_ms > 0 "
-            "AND dr.lease_expiry_ms < ? "
+            "WHERE ((dr.lease_expiry_ms > 0 "
+            "AND dr.lease_expiry_ms < ?) OR "
+            "(t.status = 'PREPARING_WORKSPACE' AND dr.lease_owner = '')) "
             "AND t.status IN ('PREPARING_WORKSPACE', 'RUNNING', "
             "'RUNNING_FIXTURE', 'VALIDATING') "
             "ORDER BY dr.created_at ASC",
@@ -2585,7 +2586,7 @@ class TaskStore:
             try:
                 cur.execute("BEGIN IMMEDIATE")
                 recheck = cur.execute(
-                    "SELECT dr.lease_expiry_ms, dr.lease_epoch, "
+                    "SELECT dr.lease_expiry_ms, dr.lease_epoch, dr.lease_owner, "
                     "dr.recovery_classification, t.status as task_status2 "
                     "FROM durable_runs dr "
                     "JOIN tasks t ON t.id = dr.task_id "
@@ -2596,7 +2597,15 @@ class TaskStore:
                     cur.execute("ROLLBACK")
                     continue
                 current_expiry = int(recheck["lease_expiry_ms"])
-                if current_expiry >= now_ms:
+                orphaned = (
+                    recheck["task_status2"] == "PREPARING_WORKSPACE"
+                    and not recheck["lease_owner"]
+                )
+                if (int(recheck["lease_epoch"]) != int(row["lease_epoch"])
+                        or recheck["lease_owner"] != row["lease_owner"]):
+                    cur.execute("ROLLBACK")
+                    continue
+                if not orphaned and current_expiry >= now_ms:
                     cur.execute("ROLLBACK")
                     continue
                 current_status = recheck["task_status2"]
@@ -2605,6 +2614,26 @@ class TaskStore:
                     "RUNNING_FIXTURE", "VALIDATING",
                 ):
                     cur.execute("ROLLBACK")
+                    continue
+                if orphaned:
+                    cur.execute(
+                        "UPDATE tasks SET status = 'FAILED', "
+                        "failure_classification = 'orphaned_preparation', "
+                        "failure_detail = 'orphaned_preparation', updated_at = ? WHERE id = ?",
+                        (_utc_now(), task_id),
+                    )
+                    cur.execute(
+                        "INSERT INTO task_events "
+                        "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (f"event-{task_id}-{_short_uuid()}", task_id, "EXECUTOR_FINISHED",
+                         _utc_now(), "Orphaned preparation failed", "orphaned_preparation",
+                         "", json_dumps_stable({"run_id": run_id})),
+                    )
+                    cur.execute("COMMIT")
+                    records.append({"run_id": run_id, "task_id": task_id,
+                                    "previous_status": task_status,
+                                    "recovery_classification": "orphaned_preparation"})
                     continue
                 cur.execute(
                     "UPDATE durable_runs SET "
