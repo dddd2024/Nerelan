@@ -176,12 +176,14 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
                                        resets_at=reset.isoformat() if reset else None,
                                        unlimited=window.get("unlimited", False)))
         if reason is None:
-            account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH")
+            account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH", reason=None)
             account.update(windows=normalized, cached_windows=[])
         elif reason == "stale_reading":
-            account.update(windows=[], cached_windows=normalized)
+            account.update(state="STALE", reason=reason, windows=[], cached_windows=normalized)
         else:
-            account.update(windows=[], cached_windows=[])
+            # Errors (including invalid_window found while validating a stale
+            # reading) override any earlier stale state to UNKNOWN.
+            account.update(state="UNKNOWN", reason=reason, windows=[], cached_windows=[])
     counts: dict[str, int] = {}
     for account in result:
         ref = account["account_ref"]

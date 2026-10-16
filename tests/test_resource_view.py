@@ -315,12 +315,25 @@ def test_correlation_accounts_are_always_uncorrelated_without_stable_identity():
 
 def test_correlation_models_exact_match_is_candidate_only_not_verified_identity():
     store = _store()
-    view = build_resource_view(store, dict, external=_magpie_snapshot, mode="hybrid")
+    # A single exact-match candidate: bind glm-5.2 to opencode only (the "auto"
+    # fixture also creates a claude_code binding for the same model).
+    store.bind_connection_models("sense", ["glm-5.2"], "opencode")
+    store.delete_binding("sense-glm-5.2-claude_code")
+    snapshot = _magpie_snapshot()
+    # A nonmatching external model stays uncorrelated.
+    snapshot["models"] = snapshot["models"] + [
+        {"model_id": "workbuddy/other-9", "provider": "workbuddy",
+         "display_name": None, "reasoning": None,
+         "context_window": None, "max_output_tokens": None, "is_group": False}]
+    view = build_resource_view(store, dict, external=lambda: snapshot, mode="hybrid")
     models = view["correlation"]["models"]
     # glm-5.2 is bound on the sense connection: exact model_id match.
     matched = [m for m in models if m["external_model_id"] == "workbuddy/glm-5.2"]
     assert matched and matched[0]["status"] == "correlated"
     assert matched[0]["matched_binding_ids"] == ["sense-glm-5.2"]
+    unmatched = [m for m in models if m["external_model_id"] == "workbuddy/other-9"]
+    assert unmatched and unmatched[0]["status"] == "uncorrelated"
+    assert unmatched[0]["matched_binding_ids"] == []
     # But the account correlation is never trusted as the same account/provider.
     assert all(a["status"] == "uncorrelated" for a in view["correlation"]["accounts"])
 

@@ -218,7 +218,16 @@ def _correlation(resources: list[dict[str, Any]],
         if not isinstance(model, Mapping):
             continue
         mid = model.get("model_id")
-        matched = legacy_model_ids.get(mid, []) if isinstance(mid, str) and mid else []
+        # Magpie namespaces model ids as "<provider>/<model>"; legacy bindings
+        # store the bare model name.  Both the full id and its bare suffix are
+        # candidate names for an exact match — never a verified routed identity.
+        candidates = [mid, mid.split("/", 1)[1]] if isinstance(mid, str) and "/" in mid else [mid]
+        matched = []
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate:
+                for binding_id in legacy_model_ids.get(candidate, []):
+                    if binding_id not in matched:
+                        matched.append(binding_id)
         model_corr.append({
             "external_model_id": mid,
             "external_provider": model.get("provider"),

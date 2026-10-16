@@ -64,6 +64,24 @@ def test_subscription_and_privacy():
     assert all(secret not in json.dumps(result) for secret in PRIVATE)
 
 
+def test_fresh_state_has_none_reason_and_degraded_states_have_reasons():
+    """State/reason alignment: exactly FRESH carries reason None; every other
+    state persists a real machine-readable reason."""
+    fresh = parse_quotas(envelope(quota()), NOW)[0]
+    assert fresh["state"] == "FRESH" and fresh["reason"] is None
+    undated_raw = quota()
+    undated_raw.pop("readAt", None)
+    undated_raw.pop("asOf", None)
+    undated = parse_quotas(envelope(undated_raw), NOW)[0]
+    assert undated["state"] == "UNDATED" and undated["reason"] == "no_read_time"
+    stale_raw = quota()
+    stale_raw["readAt"] = "2026-10-15T05:00:00Z"
+    stale = parse_quotas(envelope(stale_raw), NOW)[0]
+    assert stale["state"] == "STALE" and stale["reason"] == "stale_reading"
+    for account in (fresh, undated, stale):
+        assert (account["state"] == "FRESH") == (account["reason"] is None)
+
+
 def test_undated_reading_keeps_its_windows():
     raw = quota()
     raw.pop("readAt", None)
