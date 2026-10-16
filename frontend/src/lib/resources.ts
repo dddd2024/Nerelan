@@ -95,6 +95,69 @@ export interface Resource {
   quota: Quota;
 }
 
+export interface MagpieModel {
+  modelId: string;
+  provider: string | null;
+  displayName: string | null;
+  reasoning: boolean | null;
+  contextWindow: number | null;
+  maxOutputTokens: number | null;
+  isGroup: boolean;
+}
+
+export interface MagpieAccountWindow {
+  name: string;
+  usedPercent: number;
+  remainingPercent: number;
+  resetsAt: string | null;
+  unlimited: boolean;
+}
+
+export interface MagpieAccount {
+  provider: string | null;
+  kind: string | null;
+  plan: string | null;
+  accountRef: string | null;
+  windows: MagpieAccountWindow[];
+  state: string;
+  reason: string | null;
+  observedAt: string | null;
+  provenance: string;
+  sourceVersion: string | null;
+}
+
+export interface MagpieSnapshot {
+  status: string;
+  version: string | null;
+  models: MagpieModel[];
+  accounts: MagpieAccount[];
+  reason: string | null;
+}
+
+export interface CorrelationEntry {
+  externalProvider: string | null;
+  externalAccountRef?: string | null;
+  externalModelId?: string | null;
+  matchedConnectionIds: string[];
+  matchedBindingIds?: string[];
+  status: string;
+  reason: string;
+}
+
+export interface Correlation {
+  accounts: CorrelationEntry[];
+  models: CorrelationEntry[];
+  status: string;
+}
+
+export interface MagpieView {
+  status: string;
+  version: string | null;
+  models: MagpieModel[];
+  accounts: MagpieAccount[];
+  legacyFallback: { connections: number; usableBindings: number };
+}
+
 export interface ResourceOverview {
   resources: Resource[];
   usableBindings: number;
@@ -102,6 +165,10 @@ export interface ResourceOverview {
   tokens: TokenCounters;
   equivalentCost: EquivalentCost | null;
   quotaGuard: QuotaGuardEntry[];
+  viewMode?: string;
+  externalSources?: { magpie: MagpieSnapshot };
+  correlation?: Correlation;
+  magpieView?: MagpieView;
 }
 
 type Raw = Record<string, unknown>;
@@ -204,6 +271,98 @@ function guardEntries(value: unknown): QuotaGuardEntry[] {
   });
 }
 
+function magpieModel(value: unknown): MagpieModel {
+  const raw = asRecord(value);
+  const id = asString(raw.model_id) ?? asString(raw.id) ?? "";
+  return {
+    modelId: id,
+    provider: asString(raw.provider),
+    displayName: asString(raw.display_name),
+    reasoning: typeof raw.reasoning === "boolean" ? raw.reasoning : null,
+    contextWindow: asNumber(raw.context_window),
+    maxOutputTokens: asNumber(raw.max_output_tokens),
+    isGroup: raw.is_group === true,
+  };
+}
+
+function magpieAccountWindow(value: unknown): MagpieAccountWindow {
+  const raw = asRecord(value);
+  return {
+    name: asString(raw.name) ?? "window",
+    usedPercent: asNumber(raw.used_percent) ?? 0,
+    remainingPercent: asNumber(raw.remaining_percent) ?? 0,
+    resetsAt: asString(raw.resets_at),
+    unlimited: raw.unlimited === true,
+  };
+}
+
+function magpieAccount(value: unknown): MagpieAccount {
+  const raw = asRecord(value);
+  return {
+    provider: asString(raw.provider),
+    kind: asString(raw.kind),
+    plan: asString(raw.plan),
+    accountRef: asString(raw.account_ref),
+    windows: (Array.isArray(raw.windows) ? raw.windows : []).map(magpieAccountWindow),
+    state: asString(raw.state) ?? "UNKNOWN",
+    reason: asString(raw.reason),
+    observedAt: asString(raw.observed_at),
+    provenance: asString(raw.provenance) ?? "EXTERNAL_MAGPIE",
+    sourceVersion: asString(raw.source_version),
+  };
+}
+
+function magpieSnapshot(value: unknown): MagpieSnapshot {
+  const raw = asRecord(value);
+  return {
+    status: asString(raw.status) ?? "unavailable",
+    version: asString(raw.version),
+    models: (Array.isArray(raw.models) ? raw.models : []).map(magpieModel),
+    accounts: (Array.isArray(raw.accounts) ? raw.accounts : []).map(magpieAccount),
+    reason: asString(raw.reason),
+  };
+}
+
+function correlationEntry(value: unknown, isModel: boolean): CorrelationEntry {
+  const raw = asRecord(value);
+  return {
+    externalProvider: asString(raw.external_provider),
+    ...(isModel
+      ? { externalModelId: asString(raw.external_model_id) }
+      : { externalAccountRef: asString(raw.external_account_ref) }),
+    matchedConnectionIds: asStrings(raw.matched_connection_ids),
+    ...(isModel ? { matchedBindingIds: asStrings(raw.matched_binding_ids) } : {}),
+    status: asString(raw.status) ?? "uncorrelated",
+    reason: asString(raw.reason) ?? "",
+  };
+}
+
+function correlation(value: unknown): Correlation {
+  const raw = asRecord(value);
+  const accounts = (Array.isArray(raw.accounts) ? raw.accounts : []).map((v) => correlationEntry(v, false));
+  const models = (Array.isArray(raw.models) ? raw.models : []).map((v) => correlationEntry(v, true));
+  return {
+    accounts,
+    models,
+    status: asString(raw.status) ?? "no_external_data",
+  };
+}
+
+function magpieView(value: unknown): MagpieView {
+  const raw = asRecord(value);
+  const fallback = asRecord(raw.legacy_fallback);
+  return {
+    status: asString(raw.status) ?? "unavailable",
+    version: asString(raw.version),
+    models: (Array.isArray(raw.models) ? raw.models : []).map(magpieModel),
+    accounts: (Array.isArray(raw.accounts) ? raw.accounts : []).map(magpieAccount),
+    legacyFallback: {
+      connections: asCount(fallback.connections),
+      usableBindings: asCount(fallback.usable_bindings),
+    },
+  };
+}
+
 export function normalizeResourceOverview(payload: unknown): ResourceOverview {
   const raw = asRecord(payload);
   const summary = asRecord(raw.summary);
@@ -249,6 +408,10 @@ export function normalizeResourceOverview(payload: unknown): ResourceOverview {
     tokens: tokens(summary.tokens),
     equivalentCost: cost(summary.equivalent_cost),
     quotaGuard: guardEntries(summary.quota_guard),
+    ...(asString(raw.view_mode) ? { viewMode: asString(raw.view_mode) } : {}),
+    ...(raw.external_sources ? { externalSources: { magpie: magpieSnapshot(asRecord(raw.external_sources).magpie) } } : {}),
+    ...(raw.correlation ? { correlation: correlation(raw.correlation) } : {}),
+    ...(raw.magpie_view ? { magpieView: magpieView(raw.magpie_view) } : {}),
   };
 }
 

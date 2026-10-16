@@ -3,7 +3,10 @@ import { useResources } from "@/hooks/use-model-access";
 import { cn } from "@/lib/cn";
 import {
   totalTokens,
+  type Correlation,
   type EquivalentCost,
+  type MagpieAccount,
+  type MagpieSnapshot,
   type Quota,
   type QuotaGuardEntry,
   type QuotaWindow,
