@@ -17,7 +17,53 @@ from .run_store import TaskStoreError
 CATEGORY = "RequiredReviewArtifactContract"
 VERSION = 1
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
-_REVIEW = re.compile(r"(?m)^Nerelan-Review: (ACCEPT|REJECT|WITHHELD) ([0-9a-f]{40})\s*$")
+_REVIEW = re.compile(r"Nerelan-Review: (ACCEPT|REJECT|WITHHELD) ([0-9a-f]{40})")
+_FENCE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})")
+_REVIEW_OUTCOME = re.compile(
+    r"^(?:Final[ -]?)?(?:Outcome|Decision|Verdict|Review[ -]?Status):\s*"
+    r"(REJECT|WITHHELD|FAIL|FAILED)\b", re.IGNORECASE
+)
+
+
+def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
+    """Only a genuine top-level verdict counts, not an example or quoted template.
+
+    Markdown comments/fenced examples can legitimately repeat a marker; they
+    are never declarations. Unclosed fences/comments fail closed. The report
+    remains model-authored and is NOT a substitute for external acceptance.
+    """
+    # Strip complete multiline HTML comments first; refuse unclosed markers.
+    without_comments = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+    if "<!--" in without_comments or "-->" in without_comments:
+        return None, "review_comment_unclosed"
+    markers = []
+    fence = None
+    for line in without_comments.splitlines():
+        opened = _FENCE.match(line)
+        if fence is not None:
+            if opened and opened.group(1)[0] == fence[0] and len(opened.group(1)) >= len(fence):
+                trailing = line[opened.end():]
+                if not trailing.strip():
+                    fence = None
+            continue
+        if opened:
+            fence = opened.group(1)
+            continue
+        # Do not count block quotes, code indentation, list items or templates.
+        if line.startswith((" ", "\t", ">", "-", "*", "+")):
+            continue
+        stripped = re.sub(r"^#{1,6}[ ]+", "", line)
+        if _REVIEW_OUTCOME.match(stripped):
+            return None, "review_explicit_failure_outcome"
+        match = _REVIEW.fullmatch(line.strip())
+        if match:
+            markers.append((match.group(1), match.group(2)))
+    if fence is not None:
+        return None, "review_fence_unclosed"
+    if len(markers) != 1:
+        return None, "review_verdict_missing_or_ambiguous"
+    return markers[0], ""
+
 _SAFE_PATH = re.compile(r"[A-Za-z0-9_.\-/]{1,180}\Z")
 
 
@@ -115,10 +161,10 @@ def validate_required_artifacts(task: Any, worktree: str | Path) -> tuple[bool, 
             if not 40 <= size <= 128 * 1024:
                 return False, "artifact_empty_or_oversized"
             content = candidate.read_text(encoding="utf-8", errors="strict")
-            matches = _REVIEW.findall(content)
-            if len(matches) != 1:
-                return False, "review_verdict_missing_or_ambiguous"
-            verdict, sha = matches[0]
+            marker, error = _parse_review_marker(content)
+            if marker is None:
+                return False, error
+            verdict, sha = marker
             if sha != spec["expected_sha"]:
                 return False, "review_exact_sha_mismatch"
             if verdict != "ACCEPT":
