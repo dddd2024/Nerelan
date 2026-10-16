@@ -1406,3 +1406,189 @@ def test_ambiguous_pending_op_zero_dispatch(tmp_path) -> None:
     assert outcome.success is False
     assert outcome.failure_classification == "ambiguous_external_operation"
     assert poison_count[0] == 0
+
+
+@pytest.mark.parametrize("classification,mutation,expected", [
+    ("timeout", "pass", True),
+    ("codex_timeout", "pass", True),
+    ("claude_code_timeout", "pass", True),
+    ("codex_stream_read_failed", "pass", True),
+    ("claude_code_turn_incomplete", "pass", True),
+    ("server_event_disconnected", "pass", True),
+    ("timeout", "fail", False),
+    ("timeout", "none", False),
+    ("executor_nonzero", "pass", False),
+    ("codex_permission_denied", "pass", False),
+    ("cancelled", "pass", False),
+    ("stream_budget_abort_confirmed", "pass", False),
+])
+@pytest.mark.parametrize("resume", [False, True])
+def test_interrupted_single_workspace_validation(tmp_path, monkeypatch, classification, mutation, expected, resume):
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="interrupted work", executor_kind="opencode",
+                             orchestration_mode="single")
+
+    class InterruptedExecutor(FakeSingleExecutor):
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            if mutation != "none":
+                (prepared.worktree / "product.py").write_text(
+                    "value = 1" + ("  " if mutation == "fail" else "") + "\n",
+                    encoding="utf-8")
+            # Real interrupted executors do not return their changed-file list.
+            return _FakeResult(success=False, validation_exit_code=-1,
+                               failure_classification=classification, error=classification)
+
+    svc = DurableExecutionService(
+        store=store, router=_make_router(InterruptedExecutor()),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    validations = []
+    validate = svc._validate_prepared_artifact
+
+    def track_validation(*args):
+        validations.append(args)
+        return validate(*args)
+
+    monkeypatch.setattr(svc, "_validate_prepared_artifact", track_validation)
+    # Provider-free resume must not require the OpenCode CLI on Linux CI.
+    monkeypatch.setattr("reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+                        lambda exe=None: ("provider-free-stub", False))
+    if resume:
+        set_crash_after_checkpoint("PRE_PLANNER")
+        with pytest.raises(_CrashSimulated):
+            svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"),
+                                       lease_owner="first")
+        reset_crash_seam()
+        _expire_and_reconcile(store, task.id)
+        outcome = svc.resume_single(task_id=task.id, lease_owner="second",
+                                    execution_authority_sha="test_authority",
+                                    planning_sha="test_planning")
+    else:
+        outcome = svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"),
+                                             lease_owner="test")
+    assert len(validations) == int(expected or (classification == "timeout" and mutation == "fail"))
+    after = store.get_task(task.id)
+    assert outcome.success is expected
+    assert after.status == ("READY_FOR_REVIEW" if expected else "FAILED")
+    if not expected:
+        assert after.failure_classification == classification
+        assert after.failure_detail == classification
+    events = store.get_events(task.id)
+    salvaged = [e for e in events if e.type == "EXECUTOR_TIMEOUT_SALVAGED"]
+    failed = [e for e in events if e.type == "EXECUTOR_TIMEOUT_VALIDATION_FAILED"]
+    assert bool(salvaged) is expected
+    assert bool(failed) is (classification == "timeout" and mutation == "fail")
+    if salvaged or failed:
+        event = (salvaged or failed)[0]
+        assert event.metadata["failure_classification"] == classification
+    if failed:
+        assert "trailing whitespace" in failed[0].description
+        evidence = failed[0].metadata
+        assert after.validation_command_id == evidence["validation_command_id"]
+        assert after.validation_exit_code == evidence["validation_exit_code"]
+        assert after.validation_output_digest == evidence["validation_output_digest"]
+        assert outcome.validation_command_id == evidence["validation_command_id"]
+        assert outcome.validation_exit_code == evidence["validation_exit_code"]
+    if expected:
+        assert any(f["path"] == "product.py" for f in after.changed_files)
+
+
+def test_timeout_salvage_resume_post_validation_restores_task_truth(tmp_path, monkeypatch):
+    """A crash after accepted salvage must not report success while INTERRUPTED."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="post-validation-salvage", executor_kind="opencode",
+                             orchestration_mode="single")
+    dispatches = []
+
+    class Interrupted(FakeSingleExecutor):
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            dispatches.append(True)
+            (prepared.worktree / "product.py").write_text("value = 1\n", encoding="utf-8")
+            return _FakeResult(success=False, validation_exit_code=-1,
+                               failure_classification="timeout", error="timeout")
+
+    svc = DurableExecutionService(
+        store=store, router=_make_router(Interrupted()),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+    monkeypatch.setattr("reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+                        lambda exe=None: ("provider-free-stub", False))
+    set_crash_after_checkpoint("POST_VALIDATION")
+    try:
+        with pytest.raises(_CrashSimulated):
+            svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"),
+                                       lease_owner="first")
+    finally:
+        reset_crash_seam()
+    run_id = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()[0]
+    accepted = store._get_durable_run(run_id)
+    assert accepted.accepted_checkpoint == "POST_VALIDATION"
+    assert accepted.validation_exit_code == 0
+    _expire_and_reconcile(store, task.id)
+    assert store.get_task(task.id).status == "INTERRUPTED"
+    outcome = svc.resume_single(task_id=task.id, lease_owner="second",
+                                execution_authority_sha="test_authority",
+                                planning_sha="test_planning")
+    after = store.get_task(task.id)
+    assert outcome.success is True
+    assert after.status == "READY_FOR_REVIEW"
+    assert after.validation_command_id == accepted.validation_command_id
+    assert after.validation_exit_code == accepted.validation_exit_code == 0
+    assert after.validation_output_digest == accepted.validation_output_digest
+    assert len(dispatches) == 1
+
+
+@pytest.mark.parametrize("error", [
+    "UNAPPROVED: permission denied",
+    "quota exceeded",
+    "rate_limit: 429",
+    "usage_limit reached",
+])
+def test_interrupted_timeout_does_not_salvage_refusal(tmp_path, error):
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="refused transport", executor_kind="opencode", orchestration_mode="single")
+
+    class RefusedExecutor(FakeSingleExecutor):
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            (prepared.worktree / "product.py").write_text("value = 1\n", encoding="utf-8")
+            return _FakeResult(success=False, validation_exit_code=-1,
+                               failure_classification="timeout", error=error)
+
+    svc = DurableExecutionService(
+        store=store, router=_make_router(RefusedExecutor()),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+    outcome = svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"))
+    after = store.get_task(task.id)
+    assert outcome.success is False
+    assert after.status == "FAILED"
+    assert not any(e.type.startswith("EXECUTOR_TIMEOUT_") for e in store.get_events(task.id))
+
+
+def test_interrupted_validation_cannot_salvage_after_lease_loss(tmp_path, monkeypatch):
+    store = _make_store(tmp_path)
+    task = store.create_task(title="lease loss", executor_kind="opencode", orchestration_mode="single")
+    store.transition_to(task.id, "PREPARING_WORKSPACE")
+    store.transition_to(task.id, "RUNNING")
+    lease = store._acquire_durable_lease(task_id=task.id, execution_id=task.execution_id,
+                                       lease_owner="first", expiry_ms=300000)
+    store._fenced_transition_to(lease.run_id, task.id, "RUNNING", lease.owner, lease.epoch)
+    worktree = _init_git_worktree(tmp_path, "lease-worktree")
+    (worktree / "product.py").write_text("value = 2\n", encoding="utf-8")
+    service = DurableExecutionService(store=store, router=ExecutorRouter(),
+        execution_authority_sha="test_authority", planning_sha="test_planning")
+
+    def lose_lease(*args):
+        store._recover_durable_lease(lease.run_id, "second")
+        return "git_diff_check", 0, "", ""
+
+    monkeypatch.setattr(service, "_validate_prepared_artifact", lose_lease)
+    with pytest.raises(TaskStoreError):
+        service._validate_interrupted_executor(task.id, worktree,
+            store._get_durable_run(lease.run_id), lease, "timeout", "timeout")
+    assert not any(e.type == "EXECUTOR_TIMEOUT_SALVAGED" for e in store.get_events(task.id))
+    assert store.get_task(task.id).status == "RUNNING"
