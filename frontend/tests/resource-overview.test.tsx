@@ -177,4 +177,39 @@ describe("resource overview", () => {
     expect(overview.resources.length).toBeGreaterThan(0);
     expect(overview.resources.every((r) => r.quota.state === "UNKNOWN" && r.equivalentCost === null)).toBe(true);
   });
+
+  it("normalizes magpie cached_windows and magpie_view reason", () => {
+    const overview = normalizeResourceOverview({
+      resources: [],
+      summary: { usable_bindings: 0, quota_known: 0, tokens: {} },
+      view_mode: "magpie_primary",
+      magpie_view: {
+        status: "unavailable",
+        version: null,
+        models: [],
+        accounts: [{
+          provider: "anthropic",
+          kind: "subscription",
+          plan: "pro",
+          account_ref: "acct_stale",
+          state: "STALE",
+          reason: "stale_reading",
+          observed_at: "2026-10-13T04:44:18Z",
+          provenance: "EXTERNAL_MAGPIE",
+          source_version: null,
+          windows: [],
+          cached_windows: [
+            { name: "five_hour", used_percent: 55, remaining_percent: 45, resets_at: "2026-10-13T09:05:11Z", unlimited: false },
+          ],
+        }],
+        reason: "not_configured",
+        legacy_fallback: { connections: 2, usable_bindings: 1 },
+      },
+    });
+    expect(overview.magpieView?.reason).toBe("not_configured");
+    const account = overview.magpieView?.accounts[0];
+    expect(account?.cachedWindows).toHaveLength(1);
+    expect(account?.cachedWindows[0]).toMatchObject({ name: "five_hour", usedPercent: 55, remainingPercent: 45 });
+    expect(account?.windows).toEqual([]);
+  });
 });

@@ -210,3 +210,201 @@ def test_failing_token_or_quota_sources_leave_the_view_intact():
     view = build_resource_view(_store(), dict, tokens=broken, quotas=broken)
     assert view["summary"]["connections"] == 2 and view["summary"]["equivalent_cost"] is None
     assert all(item["quota"]["state"] == "UNKNOWN" for item in view["resources"])
+
+
+# --- M2 resource view mode tests (#1170) ---
+
+def _magpie_snapshot():
+    return {"status": "available", "version": "0.1.1250",
+            "models": [{"model_id": "workbuddy/glm-5.2", "provider": "workbuddy",
+                        "display_name": "GLM", "reasoning": True,
+                        "context_window": 200000, "max_output_tokens": 32000, "is_group": False}],
+            "accounts": [{"provider": "workbuddy", "kind": "subscription", "plan": "Pro",
+                          "account_ref": "abc123def456", "windows": [{"name": "hourly", "used_percent": 20,
+                          "remaining_percent": 80, "resets_at": "2026-10-15T08:00:00Z", "unlimited": False}],
+                          "cached_windows": [],
+                          "state": "FRESH", "reason": None, "observed_at": "2026-10-15T06:59:00Z",
+                          "provenance": "EXTERNAL_MAGPIE", "source_version": "0.1.1250"}],
+            "reason": None}
+
+
+def test_legacy_default_is_byte_identical_to_pre_m2_view():
+    store = _store()
+    legacy_default = build_resource_view(store, dict)
+    legacy_explicit = build_resource_view(store, dict, mode="legacy")
+    assert "external_sources" not in legacy_default
+    assert "view_mode" not in legacy_default
+    assert "correlation" not in legacy_default
+    assert "magpie_view" not in legacy_default
+    assert json.dumps(legacy_default, sort_keys=True) == json.dumps(legacy_explicit, sort_keys=True)
+
+
+def test_legacy_with_external_snapshot_preserves_resources_unchanged():
+    store = _store()
+    baseline = build_resource_view(store, dict)
+    view = build_resource_view(store, dict, external=_magpie_snapshot)
+    assert view["external_sources"]["magpie"]["status"] == "available"
+    assert _by_id(view)["sense"]["quota"] == _by_id(baseline)["sense"]["quota"]
+    assert _by_id(view)["sense"]["token_usage"] == _by_id(baseline)["sense"]["token_usage"]
+    assert view["summary"] == baseline["summary"]
+    assert "correlation" not in view and "magpie_view" not in view
+
+
+def test_hybrid_with_external_includes_correlation_and_leaves_resources_unchanged():
+    store = _store()
+    baseline = build_resource_view(store, dict)
+    view = build_resource_view(store, dict, external=_magpie_snapshot, mode="hybrid")
+    assert view["view_mode"] == "hybrid"
+    assert view["external_sources"]["magpie"]["status"] == "available"
+    assert view["correlation"]["status"] == "available"
+    # No resource's quota, token_usage, equivalent_cost or summary changed.
+    assert _by_id(view)["sense"]["quota"] == _by_id(baseline)["sense"]["quota"]
+    assert _by_id(view)["sense"]["token_usage"] == _by_id(baseline)["sense"]["token_usage"]
+    assert _by_id(view)["sense"]["equivalent_cost"] == _by_id(baseline)["sense"]["equivalent_cost"]
+    assert view["summary"] == baseline["summary"]
+    assert "magpie_view" not in view
+
+
+def test_hybrid_without_external_shows_disabled_state():
+    store = _store()
+    view = build_resource_view(store, dict, external=None, mode="hybrid")
+    assert view["view_mode"] == "hybrid"
+    assert view["external_sources"]["magpie"] == {"status": "disabled", "reason": "magpie_not_enabled"}
+    assert view["correlation"]["status"] == "no_external_data"
+    assert view["summary"]["connections"] == 2
+
+
+def test_magpie_primary_leads_with_external_and_keeps_legacy_fallback():
+    store = _store()
+    view = build_resource_view(store, dict, external=_magpie_snapshot, mode="magpie_primary")
+    assert view["view_mode"] == "magpie_primary"
+    assert view["magpie_view"]["status"] == "available"
+    assert view["magpie_view"]["reason"] is None
+    assert view["magpie_view"]["models"][0]["model_id"] == "workbuddy/glm-5.2"
+    assert view["magpie_view"]["legacy_fallback"]["connections"] == 2
+    # Resources are still present as fallback.
+    assert len(view["resources"]) == 2
+
+
+def test_magpie_primary_without_external_shows_unavailable_with_reason():
+    store = _store()
+    view = build_resource_view(store, dict, external=None, mode="magpie_primary")
+    assert view["magpie_view"]["status"] == "disabled"
+    assert view["magpie_view"]["reason"] == "magpie_not_enabled"
+    assert view["magpie_view"]["legacy_fallback"]["connections"] == 2
+
+
+def test_magpie_primary_with_raising_external_shows_unavailable():
+    def boom():
+        raise RuntimeError("gateway down")
+    store = _store()
+    view = build_resource_view(store, dict, external=boom, mode="magpie_primary")
+    assert view["magpie_view"]["status"] == "unavailable"
+    assert view["magpie_view"]["legacy_fallback"]["connections"] == 2
+    assert len(view["resources"]) == 2
+
+
+def test_correlation_accounts_are_always_uncorrelated_without_stable_identity():
+    store = _store()
+    view = build_resource_view(store, dict, external=_magpie_snapshot, mode="hybrid")
+    accounts = view["correlation"]["accounts"]
+    assert len(accounts) == 1
+    assert accounts[0]["status"] == "uncorrelated"
+    assert accounts[0]["reason"] in ("provider_match_ambiguous", "no_stable_account_identifier_on_legacy_side")
+
+
+def test_correlation_models_exact_match_is_candidate_only_not_verified_identity():
+    store = _store()
+    # A single exact-match candidate: bind glm-5.2 to opencode only (the "auto"
+    # fixture also creates a claude_code binding for the same model).
+    store.bind_connection_models("sense", ["glm-5.2"], "opencode")
+    store.delete_binding("sense-glm-5.2-claude_code")
+    snapshot = _magpie_snapshot()
+    # A nonmatching external model stays uncorrelated.
+    snapshot["models"] = snapshot["models"] + [
+        {"model_id": "workbuddy/other-9", "provider": "workbuddy",
+         "display_name": None, "reasoning": None,
+         "context_window": None, "max_output_tokens": None, "is_group": False}]
+    view = build_resource_view(store, dict, external=lambda: snapshot, mode="hybrid")
+    models = view["correlation"]["models"]
+    # glm-5.2 is bound on the sense connection: exact model_id match.
+    matched = [m for m in models if m["external_model_id"] == "workbuddy/glm-5.2"]
+    assert matched and matched[0]["status"] == "correlated"
+    assert matched[0]["matched_binding_ids"] == ["sense-glm-5.2"]
+    unmatched = [m for m in models if m["external_model_id"] == "workbuddy/other-9"]
+    assert unmatched and unmatched[0]["status"] == "uncorrelated"
+    assert unmatched[0]["matched_binding_ids"] == []
+    # But the account correlation is never trusted as the same account/provider.
+    assert all(a["status"] == "uncorrelated" for a in view["correlation"]["accounts"])
+
+
+def test_external_non_mapping_yields_unavailable_in_non_legacy_mode():
+    store = _store()
+    view = build_resource_view(store, dict, external=lambda: ["not", "a", "mapping"], mode="hybrid")
+    assert view["external_sources"]["magpie"] == {"status": "unavailable"}
+    assert view["correlation"]["status"] == "no_external_data"
+
+
+def test_invalid_mode_raises_value_error():
+    import pytest
+    with pytest.raises(ValueError, match="unsupported resource view mode"):
+        build_resource_view(_store(), dict, mode="bogus")
+
+
+def test_invalid_mode_http_route_returns_400():
+    import threading
+    from http.client import HTTPConnection
+    from http.server import ThreadingHTTPServer
+
+    from reverse_agent.model_access.service import _handler_factory
+
+    handler = _handler_factory(_store(), live_enabled=False, allowed_origin="http://localhost:5173")
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        connection = HTTPConnection("127.0.0.1", server.server_address[1], timeout=3)
+        connection.request("GET", "/api/resources?mode=bogus")
+        response = connection.getresponse()
+        body = response.read().decode("utf-8")
+        connection.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+    assert response.status == 400
+    assert "unsupported resource view mode" in body
+
+
+def test_connection_binding_equality_preserved_across_mode_switch_and_rollback():
+    store = _store()
+    profiles = {"sense-glm-5.2-claude_code": {"attempts": 3, "ok": 3, "failed": 0, "success_rate": 1.0,
+                                              "median_ok_seconds": 44, "median_ok_tokens": 3000,
+                                              "observed_tokens": 9000, "failure_kinds": {"x": 1}}}
+    legacy = build_resource_view(store, lambda: profiles, mode="legacy")
+    hybrid = build_resource_view(store, lambda: profiles, external=_magpie_snapshot, mode="hybrid")
+    primary = build_resource_view(store, lambda: profiles, external=_magpie_snapshot, mode="magpie_primary")
+    rolled_back = build_resource_view(store, lambda: profiles, mode="legacy")
+
+    # Connection-level fields are identical across all modes.
+    for cid in ("sense", "claude-account"):
+        for view in (hybrid, primary, rolled_back):
+            assert _by_id(view)[cid]["credential"] == _by_id(legacy)[cid]["credential"]
+            assert _by_id(view)[cid]["credential_owner"] == _by_id(legacy)[cid]["credential_owner"]
+            assert _by_id(view)[cid]["enabled"] == _by_id(legacy)[cid]["enabled"]
+            assert _by_id(view)[cid]["equivalent_cost"] == _by_id(legacy)[cid]["equivalent_cost"]
+            assert _by_id(view)[cid]["token_usage"] == _by_id(legacy)[cid]["token_usage"]
+            assert _by_id(view)[cid]["quota"] == _by_id(legacy)[cid]["quota"]
+
+    # Binding-level fields are identical across all modes.
+    for view in (hybrid, primary, rolled_back):
+        sense_bindings = {b["binding_id"]: b for b in _by_id(view)["sense"]["bindings"]}
+        legacy_sense = {b["binding_id"]: b for b in _by_id(legacy)["sense"]["bindings"]}
+        for bid in legacy_sense:
+            for key in ("model_id", "executor_id", "enabled", "usable", "observed", "tokens", "equivalent_cost"):
+                assert sense_bindings[bid][key] == legacy_sense[bid][key]
+
+    # Summary is identical across all modes.
+    assert hybrid["summary"] == legacy["summary"]
+    assert primary["summary"] == legacy["summary"]
+    assert rolled_back["summary"] == legacy["summary"]
