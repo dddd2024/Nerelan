@@ -33,12 +33,24 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     remains model-authored and is NOT a substitute for external acceptance.
     """
     # Strip complete multiline HTML comments first; refuse unclosed markers.
-    without_comments = re.sub(r"<!--.*?-->", "", content, flags=re.DOTALL)
+    # Replace (do not delete) comments: joining "AC<!--x-->CEPT"
+    # must never synthesize a real ACCEPT marker.
+    without_comments = re.sub(
+        r"<!--.*?-->", " [COMMENT] ", content, flags=re.DOTALL,
+    )
     if "<!--" in without_comments or "-->" in without_comments:
         return None, "review_comment_unclosed"
     markers = []
     fence = None
+    html_code = False
     for line in without_comments.splitlines():
+        # HTML code blocks are examples, not live reviewer declarations.
+        if re.search(r"<(?:pre|code)\b", line, re.IGNORECASE):
+            html_code = True
+        if html_code:
+            if re.search(r"</(?:pre|code)\s*>", line, re.IGNORECASE):
+                html_code = False
+            continue
         opened = _FENCE.match(line)
         if fence is not None:
             if opened and opened.group(1)[0] == fence[0] and len(opened.group(1)) >= len(fence):
@@ -60,6 +72,8 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
             markers.append((match.group(1), match.group(2)))
     if fence is not None:
         return None, "review_fence_unclosed"
+    if html_code:
+        return None, "review_html_code_unclosed"
     if len(markers) != 1:
         return None, "review_verdict_missing_or_ambiguous"
     return markers[0], ""

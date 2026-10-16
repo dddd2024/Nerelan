@@ -148,6 +148,10 @@ def test_plan_accepts_opt_in_review_and_defaults_not_required():
     "Literal example:\n    Nerelan-Review: ACCEPT " + SHA + "\n",
     # Unclosed comment/fence is ambiguous and cannot bless an outcome.
     "Nerelan-Review: ACCEPT " + SHA + "\n<!-- partial\n",
+    "Nerelan-Review: AC<!-- template -->CEPT " + SHA + "\n",
+    "<pre>\nNerelan-Review: ACCEPT " + SHA + "\n</pre>\n",
+    "<code>\nNerelan-Review: ACCEPT " + SHA + "\n</code>\n",
+    "<pre>\nNerelan-Review: ACCEPT " + SHA + "\n",
     "Nerelan-Review: ACCEPT " + SHA + "\n```text\n",
 ])
 def test_quoted_or_contradictory_accept_never_passes_real_host_validation(tmp_path, bad):
