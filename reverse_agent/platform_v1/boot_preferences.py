@@ -113,6 +113,7 @@ class BootEvidence:
     same_owner_identity: bool = False
     authorized_window_current: bool = False
     same_frozen_task_identity: bool = False
+    task_resume_allowed: bool = False
     local_checkpoint_verified: bool = False
     external_receipts_reconciled: bool = False
     no_duplicate_side_effect: bool = False
@@ -150,6 +151,7 @@ def plan_boot(preferences: BootPreferences, evidence: BootEvidence, *,
     requirements = (
         ("authorized_window_current", "owner_window_not_current"),
         ("same_frozen_task_identity", "task_identity_not_verified"),
+        ("task_resume_allowed", "task_resume_not_authorized"),
         ("local_checkpoint_verified", "checkpoint_not_verified"),
         ("external_receipts_reconciled", "external_jobs_unreconciled"),
         ("no_duplicate_side_effect", "idempotency_not_verified"),
