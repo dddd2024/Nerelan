@@ -89,7 +89,109 @@ def test_degraded(patch, reason, state):
     assert result[0]["state"] == state
     assert result[0]["reason"] == reason
     assert result[0]["windows"] == []
+    # Stale readings preserve validated windows in cached_windows; all other
+    # error/malformed states cache nothing.
+    if state == "STALE":
+        assert len(result[0]["cached_windows"]) == 2
+    else:
+        assert result[0]["cached_windows"] == []
     assert all(secret not in json.dumps(result) for secret in PRIVATE)
+
+
+# --- Stale history preservation (#1170) ---
+
+
+def test_stale_reading_preserves_validated_windows_in_cached_windows():
+    """A stale reading keeps windows=[] for admission but preserves validated
+    windows in cached_windows for display, with the same field checks."""
+    raw = quota()
+    raw["readAt"] = "2026-10-15T05:00:00Z"  # 2 hours old: stale
+    account = parse_quotas(envelope(raw), NOW)[0]
+    assert account["state"] == "STALE"
+    assert account["reason"] == "stale_reading"
+    assert account["windows"] == []  # admission semantics: stale = unknown
+    # Cached windows preserve the same validated fields as fresh windows.
+    assert len(account["cached_windows"]) == 2
+    assert [w["name"] for w in account["cached_windows"]] == ["hourly", "weekly"]
+    assert account["cached_windows"][0]["used_percent"] == 20
+    assert account["cached_windows"][0]["remaining_percent"] == 80
+    assert account["cached_windows"][0]["resets_at"] is not None
+    assert account["cached_windows"][0]["unlimited"] is False
+    # observed_at is still preserved so the UI can label when it was read.
+    assert account["observed_at"] is not None
+
+
+def test_stale_reading_with_invalid_window_discards_cached_windows():
+    """A stale reading whose windows fail validation is not cached as trusted."""
+    raw = quota()
+    raw["readAt"] = "2026-10-15T05:00:00Z"  # stale
+    raw["windows"][0]["used"] = -1  # invalid percent
+    account = parse_quotas(envelope(raw), NOW)[0]
+    assert account["state"] == "UNKNOWN"  # invalid_window overrides stale
+    assert account["reason"] == "invalid_window"
+    assert account["windows"] == []
+    assert account["cached_windows"] == []
+
+
+def test_stale_reading_with_malformed_window_dict_discards_cached_windows():
+    raw = quota()
+    raw["readAt"] = "2026-10-15T05:00:00Z"
+    raw["windows"][0] = "not-a-dict"
+    account = parse_quotas(envelope(raw), NOW)[0]
+    assert account["reason"] == "invalid_window"
+    assert account["cached_windows"] == []
+
+
+def test_error_and_read_deferred_accounts_have_no_cached_windows():
+    """Error/deferred rows are never cached as trusted history."""
+    for patch in [{"error": "boom"}, {"readDeferred": True}]:
+        raw = quota()
+        raw.update(patch)
+        account = parse_quotas(envelope(raw), NOW)[0]
+        assert account["cached_windows"] == []
+
+
+def test_duplicate_accounts_clear_cached_windows_as_well_as_windows():
+    """Duplicate account handling clears both windows and cached_windows."""
+    raw = quota()
+    raw["readAt"] = "2026-10-15T05:00:00Z"  # stale but valid windows
+    duplicate = deepcopy(raw)
+    duplicate["windows"][0]["used"] = 90
+    result = parse_quotas(envelope(raw, duplicate), NOW)
+    for account in result:
+        assert account["state"] == "UNKNOWN"
+        assert account["reason"] == "duplicate_account"
+        assert account["windows"] == []
+        assert account["cached_windows"] == []
+
+
+def test_cached_windows_privacy_filtered_same_as_windows():
+    """Cached windows apply the same privacy filtering (secret stripping) as fresh windows."""
+    raw = quota()
+    raw["readAt"] = "2026-10-15T05:00:00Z"  # stale
+    raw["windows"][0]["name"] = PRIVATE[1]  # private alias as window name
+    account = parse_quotas(envelope(raw), NOW)[0]
+    # Private name → name filtered to None → invalid_window, nothing cached.
+    assert account["reason"] == "invalid_window"
+    assert account["cached_windows"] == []
+    assert all(secret not in json.dumps(account) for secret in PRIVATE)
+
+
+def test_undated_and_fresh_accounts_have_empty_cached_windows():
+    """Only stale readings populate cached_windows; fresh/undated keep windows in windows[]."""
+    # Fresh
+    fresh = parse_quotas(envelope(quota()), NOW)[0]
+    assert fresh["state"] == "FRESH"
+    assert len(fresh["windows"]) == 2
+    assert fresh["cached_windows"] == []
+    # Undated
+    undated_raw = quota()
+    undated_raw.pop("readAt", None)
+    undated_raw.pop("asOf", None)
+    undated = parse_quotas(envelope(undated_raw), NOW)[0]
+    assert undated["state"] == "UNDATED"
+    assert len(undated["windows"]) == 2
+    assert undated["cached_windows"] == []
 
 
 @pytest.mark.parametrize("value", [-1, 101, "20", None, True, float("nan"), float("inf"), {}, []])
@@ -199,6 +301,7 @@ def _magpie_snapshot():
             "accounts": [{"provider": "workbuddy", "kind": "subscription", "plan": "Pro",
                           "account_ref": "abc123def456", "windows": [{"name": "hourly", "used_percent": 20,
                           "remaining_percent": 80, "resets_at": "2026-10-15T08:00:00Z", "unlimited": False}],
+                          "cached_windows": [],
                           "state": "FRESH", "reason": None, "observed_at": "2026-10-15T06:59:00Z",
                           "provenance": "EXTERNAL_MAGPIE", "source_version": "0.1.1250"}],
             "reason": None}

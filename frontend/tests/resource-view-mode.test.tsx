@@ -233,4 +233,90 @@ describe("resource view mode", () => {
     expect(screen.queryByTestId("legacy-fallback")).toBeNull();
     expect(impl).toHaveBeenCalledWith("legacy");
   });
+
+  // --- Stale history preservation (#1170) ---
+
+  const STALE_HYBRID_PAYLOAD = {
+    ...HYBRID_PAYLOAD,
+    external_sources: {
+      magpie: {
+        ...HYBRID_PAYLOAD.external_sources.magpie,
+        accounts: [
+          {
+            provider: "anthropic",
+            kind: "subscription",
+            plan: "pro",
+            account_ref: "acct_stale",
+            state: "STALE",
+            reason: "stale_reading",
+            observed_at: "2026-10-13T04:44:18Z",
+            provenance: "EXTERNAL_MAGPIE",
+            source_version: "magpie-cli 0.4",
+            windows: [],
+            cached_windows: [
+              { name: "five_hour", used_percent: 55, remaining_percent: 45, resets_at: "2026-10-13T09:05:11Z", unlimited: false },
+              { name: "weekly", used_percent: 30, remaining_percent: 70, resets_at: null, unlimited: false },
+            ],
+          },
+          ...HYBRID_PAYLOAD.external_sources.magpie.accounts.filter(
+            (a) => a.provider !== "anthropic",
+          ),
+        ],
+      },
+    },
+  };
+
+  it("displays stale cached windows with an explicit not-current-allowance label and timestamp", async () => {
+    mockGetResources((mode) => (mode === "hybrid" ? STALE_HYBRID_PAYLOAD : LEGACY_PAYLOAD));
+    renderWithProviders(<ResourceOverview />);
+    fireEvent.change(screen.getByTestId("resource-view-mode"), { target: { value: "hybrid" } });
+
+    const panel = await screen.findByTestId("magpie-panel");
+    const stale = within(panel).getByTestId("magpie-account-anthropic");
+    expect(stale).toHaveAttribute("data-state", "STALE");
+    // Cached windows section is present with an explicit label.
+    const cached = within(stale).getByTestId("magpie-cached-windows");
+    expect(cached).toHaveTextContent("缓存的过往读数（非当前额度）");
+    // The cached window values are shown as historical, not current.
+    const cachedWindow = within(stale).getByTestId("magpie-cached-window-five_hour");
+    expect(cachedWindow).toHaveTextContent("历史已用 55%");
+    expect(cachedWindow).toHaveTextContent("剩余 45%");
+    expect(cachedWindow).toHaveTextContent("重置（历史）");
+    // Observed-at timestamp is shown as expired.
+    expect(cached).toHaveTextContent("观测于");
+    expect(cached).toHaveTextContent("已过期");
+  });
+
+  it("never presents stale cached windows as current allowance or cash", async () => {
+    mockGetResources((mode) => (mode === "hybrid" ? STALE_HYBRID_PAYLOAD : LEGACY_PAYLOAD));
+    renderWithProviders(<ResourceOverview />);
+    fireEvent.change(screen.getByTestId("resource-view-mode"), { target: { value: "hybrid" } });
+
+    const panel = await screen.findByTestId("magpie-panel");
+    const stale = within(panel).getByTestId("magpie-account-anthropic");
+    // The current allowance is unknown, not the stale 55%.
+    expect(within(stale).getByTestId("magpie-account-unknown")).toBeInTheDocument();
+    // No fresh window row shows the stale percentages.
+    expect(within(stale).queryByTestId("magpie-window-five_hour")).toBeNull();
+    // Cached windows are explicitly labelled as historical, not current.
+    const cachedWindow = within(stale).getByTestId("magpie-cached-window-five_hour");
+    expect(cachedWindow).toHaveTextContent("历史已用 55%");
+    // The cached section header states this is not current allowance.
+    const cachedSection = within(stale).getByTestId("magpie-cached-windows");
+    expect(cachedSection).toHaveTextContent("非当前额度");
+    // No cash/cost label is attached to cached data.
+    expect(cachedWindow).not.toHaveTextContent("现金");
+    expect(cachedWindow).not.toHaveTextContent("成本");
+  });
+
+  it("accounts without cached_windows do not render a stale history section", async () => {
+    // The openai account in HYBRID_PAYLOAD is observed (FRESH/ok) with no cached_windows.
+    mockGetResources((mode) => (mode === "hybrid" ? HYBRID_PAYLOAD : LEGACY_PAYLOAD));
+    renderWithProviders(<ResourceOverview />);
+    fireEvent.change(screen.getByTestId("resource-view-mode"), { target: { value: "hybrid" } });
+
+    const panel = await screen.findByTestId("magpie-panel");
+    const openai = within(panel).getByTestId("magpie-account-openai");
+    expect(within(openai).queryByTestId("magpie-cached-windows")).toBeNull();
+  });
 });

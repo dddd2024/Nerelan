@@ -426,6 +426,7 @@ function MagpieWindowRow({ window, observed }: { window: MagpieAccountWindow; ob
 
 function MagpieAccountRow({ account }: { account: MagpieAccount }) {
   const observed = magpieAccountObserved(account);
+  const hasCached = account.cachedWindows.length > 0;
   return (
     <div data-testid={`magpie-account-${account.provider ?? "unknown"}`} data-state={account.state}>
       <div className="flex items-baseline justify-between gap-2 text-xs">
@@ -440,6 +441,29 @@ function MagpieAccountRow({ account }: { account: MagpieAccount }) {
       {account.windows.map((window) => (
         <MagpieWindowRow key={window.name} window={window} observed={observed} />
       ))}
+      {hasCached && (
+        <div className="mt-1" data-testid="magpie-cached-windows">
+          <p className="text-[11px] text-ra-text-tertiary">缓存的过往读数（非当前额度）</p>
+          {account.cachedWindows.map((window) => (
+            <div key={`cached-${window.name}`} className="mt-0.5" data-testid={`magpie-cached-window-${window.name}`}>
+              <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                <span className="text-ra-text-tertiary">{window.name}</span>
+                <span className="text-ra-text-tertiary">
+                  {window.unlimited
+                    ? "不限量"
+                    : `历史已用 ${Math.round(window.usedPercent)}% · 剩余 ${Math.round(window.remainingPercent)}%`}
+                </span>
+              </div>
+              {window.resetsAt && (
+                <p className="text-[11px] text-ra-text-tertiary">{formatReset(window.resetsAt)} 重置（历史）</p>
+              )}
+            </div>
+          ))}
+          {formatReset(account.observedAt) && (
+            <p className="text-[11px] text-ra-text-tertiary">观测于 {formatReset(account.observedAt)}（已过期）</p>
+          )}
+        </div>
+      )}
       <p className="text-[11px] text-ra-text-tertiary">
         来源 {account.provenance}{account.sourceVersion ? ` · ${account.sourceVersion}` : ""}
         {formatReset(account.observedAt) ? ` · 观测于 ${formatReset(account.observedAt)}` : " · 观测时间未知"}

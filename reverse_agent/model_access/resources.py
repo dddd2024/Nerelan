@@ -243,12 +243,13 @@ def _magpie_view(magpie: Mapping[str, Any],
         "usable_bindings": summary.get("usable_bindings", 0),
     }
     if status != "available":
-        return {"status": status, "legacy_fallback": fallback}
+        return {"status": status, "reason": magpie.get("reason"), "legacy_fallback": fallback}
     return {
         "status": "available",
         "version": magpie.get("version"),
         "models": magpie.get("models") or [],
         "accounts": magpie.get("accounts") or [],
+        "reason": None,
         "legacy_fallback": fallback,
     }
 

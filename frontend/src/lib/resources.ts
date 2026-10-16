@@ -119,6 +119,7 @@ export interface MagpieAccount {
   plan: string | null;
   accountRef: string | null;
   windows: MagpieAccountWindow[];
+  cachedWindows: MagpieAccountWindow[];
   state: string;
   reason: string | null;
   observedAt: string | null;
@@ -155,6 +156,7 @@ export interface MagpieView {
   version: string | null;
   models: MagpieModel[];
   accounts: MagpieAccount[];
+  reason: string | null;
   legacyFallback: { connections: number; usableBindings: number };
 }
 
@@ -313,6 +315,7 @@ function magpieAccount(value: unknown): MagpieAccount {
     plan: asString(raw.plan),
     accountRef: asString(raw.account_ref),
     windows: (Array.isArray(raw.windows) ? raw.windows : []).map(magpieAccountWindow),
+    cachedWindows: (Array.isArray(raw.cached_windows) ? raw.cached_windows : []).map(magpieAccountWindow),
     state: asString(raw.state) ?? "UNKNOWN",
     reason: asString(raw.reason),
     observedAt: asString(raw.observed_at),
@@ -365,6 +368,7 @@ function magpieView(value: unknown): MagpieView {
     version: asString(raw.version),
     models: (Array.isArray(raw.models) ? raw.models : []).map(magpieModel),
     accounts: (Array.isArray(raw.accounts) ? raw.accounts : []).map(magpieAccount),
+    reason: asString(raw.reason),
     legacyFallback: {
       connections: asCount(fallback.connections),
       usableBindings: asCount(fallback.usable_bindings),
