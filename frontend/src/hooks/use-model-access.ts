@@ -14,7 +14,7 @@ import type {
   Executor,
 } from "@/schemas/model-access";
 import type { BindingInput } from "@/schemas/model-access";
-import type { ResourceOverview } from "@/lib/resources";
+import type { ResourceOverview, ResourceViewMode } from "@/lib/resources";
 
 export const CONNECTIONS_QUERY_KEY = ["connections"] as const;
 export const EXECUTORS_QUERY_KEY = ["executors"] as const;
@@ -22,12 +22,18 @@ export const BINDINGS_QUERY_KEY = ["bindings"] as const;
 export const AGENT_ROSTER_QUERY_KEY = ["agent-roster"] as const;
 export const RESOURCES_QUERY_KEY = ["resources"] as const;
 
-/** Every AI resource with its tokens, list-price cost and subscription windows. */
-export function useResources() {
+/**
+ * Every AI resource with its tokens, list-price cost and subscription windows.
+ * `mode` is a display preference only: it selects which external/Magpie data the
+ * backend returns but never writes bindings or connections. A distinct query key
+ * per mode keeps cached views from leaking across selections, and `legacy` (the
+ * default) preserves the original single-resource behaviour exactly.
+ */
+export function useResources(mode: ResourceViewMode = "legacy") {
   const client = getDefaultModelControlClient();
   return useQuery<ResourceOverview>({
-    queryKey: RESOURCES_QUERY_KEY,
-    queryFn: () => client.getResources(),
+    queryKey: [...RESOURCES_QUERY_KEY, mode] as const,
+    queryFn: () => client.getResources(mode),
     staleTime: 30_000,
     refetchInterval: 60_000,
     retry: false,

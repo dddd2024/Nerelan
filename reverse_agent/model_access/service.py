@@ -12,7 +12,7 @@ import re
 from time import perf_counter
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import Request
 
 from .account_auth import AccountAuthManager
@@ -20,7 +20,7 @@ from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
 from .magpie import fetch_magpie_snapshot, magpie_enabled
 from .os_vault import VaultUnavailableError
-from .resources import build_resource_view
+from .resources import RESOURCE_VIEW_MODES, build_resource_view
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -52,6 +52,21 @@ def _magpie_external() -> Mapping[str, Any]:
     return fetch_magpie_snapshot(
         os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425")
     )
+
+
+def _resource_view_mode(path: str) -> str:
+    """Read the ``?mode=`` query param for ``GET /api/resources``.
+
+    Falls back to ``REVERSE_AGENT_RESOURCE_VIEW_MODE`` then ``"legacy"``.
+    The returned mode is validated against :data:`RESOURCE_VIEW_MODES`.
+    """
+    params = parse_qs(urlsplit(path).query)
+    mode_values = params.get("mode", [])
+    mode = mode_values[0] if mode_values else os.environ.get(
+        "REVERSE_AGENT_RESOURCE_VIEW_MODE", "legacy")
+    if mode not in RESOURCE_VIEW_MODES:
+        raise ValueError(f"unsupported resource view mode: {mode}")
+    return mode
 
 
 def _do_probe(
@@ -396,9 +411,10 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
                 external = _magpie_external if magpie_enabled(os.environ) else None
+                mode = _resource_view_mode(self.path)
                 self._send_json(HTTPStatus.OK, build_resource_view(
                     self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
-                    guard_log=self.quota_guard_log, external=external))
+                    guard_log=self.quota_guard_log, external=external, mode=mode))
                 return
             if len(segments) == 3 and segments[:2] == ["api", "bindings"]:
                 self._send_json(

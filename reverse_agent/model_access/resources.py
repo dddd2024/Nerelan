@@ -7,6 +7,11 @@ observed those Bindings do. Provider-side balance or quota is reported only when
 an official source supplies it; otherwise it is UNKNOWN, never a guess or zero.
 
 Nothing here reads secrets, calls a provider or writes state.
+
+M2 (#1170) adds a reversible *resource view mode* that controls only how the
+read model is presented.  Mode never modifies credentials, rewrites CLI/Magpie
+files, turns on a gateway, reroutes executions, changes privacy/admission or
+removes legacy data.
 """
 
 from __future__ import annotations
@@ -25,6 +30,12 @@ _TOTAL_FIELDS = ("attempts", "ok", "failed", "observed_tokens")
 
 UNKNOWN_QUOTA = {"state": "UNKNOWN", "provenance": "UNAVAILABLE", "reason": "no_official_quota_source", "windows": []}
 _TOKEN_COUNTERS = ("input", "cache_read", "cache_write", "output", "reasoning")
+
+# Resource view modes (M2, #1170).  Mode controls only read/display preference.
+RESOURCE_VIEW_MODES: tuple[str, ...] = ("legacy", "hybrid", "magpie_primary")
+
+# Explicit state shown when Magpie is not enabled in a non-legacy mode.
+_MAGPIE_DISABLED = {"status": "disabled", "reason": "magpie_not_enabled"}
 
 
 def _credential(connection: Mapping[str, Any]) -> dict[str, Any]:
@@ -154,18 +165,131 @@ def _guard_entries(source: Callable[[], Any] | None) -> list[dict[str, Any]]:
     return [{key: entry.get(key) for key in keys} for entry in (entries or [])[:20] if isinstance(entry, Mapping)]
 
 
+def _correlation(resources: list[dict[str, Any]],
+                magpie: Mapping[str, Any]) -> dict[str, Any]:
+    """Explicit account/model correlation between legacy and external Magpie data.
+
+    Only provably identical stable nonsecret identifiers produce a ``correlated``
+    status.  Ambiguous matches (provider-level only, with no account-level
+    identity on the legacy side) stay ``uncorrelated`` and are never summed.
+    The correlation section documents the relationship so consumers cannot
+    accidentally double-count.
+    """
+    if not isinstance(magpie, Mapping) or magpie.get("status") != "available":
+        return {"accounts": [], "models": [], "status": "no_external_data"}
+
+    # Legacy binding model_ids keyed for exact-match correlation.
+    legacy_model_ids: dict[str, list[str]] = {}
+    for resource in resources:
+        for binding in resource.get("bindings") or []:
+            mid = binding.get("model_id")
+            if isinstance(mid, str) and mid:
+                legacy_model_ids.setdefault(mid, []).append(
+                    binding.get("binding_id", ""))
+
+    # Legacy connection upstream_provider_ids for provider-level reference.
+    legacy_providers: dict[str, list[str]] = {}
+    for resource in resources:
+        upstream = resource.get("upstream_provider_id")
+        if isinstance(upstream, str) and upstream:
+            legacy_providers.setdefault(upstream, []).append(
+                resource.get("connection_id", ""))
+
+    account_corr: list[dict[str, Any]] = []
+    for account in (magpie.get("accounts") or []):
+        if not isinstance(account, Mapping):
+            continue
+        provider = account.get("provider")
+        # No stable account-level identifier exists on the legacy side; a
+        # provider-only match is ambiguous (multiple accounts can share a
+        # provider) and therefore explicitly uncorrelated.
+        matched = legacy_providers.get(provider, []) if provider else []
+        account_corr.append({
+            "external_provider": provider,
+            "external_account_ref": account.get("account_ref"),
+            "matched_connection_ids": matched,
+            "status": "uncorrelated",
+            "reason": ("provider_match_ambiguous" if matched
+                       else "no_stable_account_identifier_on_legacy_side"),
+        })
+
+    model_corr: list[dict[str, Any]] = []
+    for model in (magpie.get("models") or []):
+        if not isinstance(model, Mapping):
+            continue
+        mid = model.get("model_id")
+        # Magpie namespaces model ids as "<provider>/<model>"; legacy bindings
+        # store the bare model name.  Both the full id and its bare suffix are
+        # candidate names for an exact match — never a verified routed identity.
+        candidates = [mid, mid.split("/", 1)[1]] if isinstance(mid, str) and "/" in mid else [mid]
+        matched = []
+        for candidate in candidates:
+            if isinstance(candidate, str) and candidate:
+                for binding_id in legacy_model_ids.get(candidate, []):
+                    if binding_id not in matched:
+                        matched.append(binding_id)
+        model_corr.append({
+            "external_model_id": mid,
+            "external_provider": model.get("provider"),
+            "matched_binding_ids": matched,
+            "status": "correlated" if matched else "uncorrelated",
+            "reason": "exact_model_id_match" if matched else "no_exact_model_id_match",
+        })
+
+    return {"accounts": account_corr, "models": model_corr, "status": "available"}
+
+
+def _magpie_view(magpie: Mapping[str, Any],
+                 summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Magpie-primary view: leads with external models/accounts, legacy as fallback.
+
+    No data is copied into a second authoritative store — the Magpie snapshot is
+    referenced, and legacy resources are summarized as fallback only.
+    """
+    status = magpie.get("status") if isinstance(magpie, Mapping) else "unavailable"
+    fallback: dict[str, Any] = {
+        "connections": summary.get("connections", 0),
+        "usable_bindings": summary.get("usable_bindings", 0),
+    }
+    if status != "available":
+        return {"status": status, "reason": magpie.get("reason"), "legacy_fallback": fallback}
+    return {
+        "status": "available",
+        "version": magpie.get("version"),
+        "models": magpie.get("models") or [],
+        "accounts": magpie.get("accounts") or [],
+        "reason": None,
+        "legacy_fallback": fallback,
+    }
+
+
 def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[str, Any]]],
                         tokens: Callable[[], Mapping[str, Any]] | None = None,
                         quotas: Callable[[], Mapping[str, Any]] | None = None,
                         guard_log: Callable[[], Any] | None = None,
-                        external: Callable[[], Mapping[str, Any]] | None = None) -> dict[str, Any]:
+                        external: Callable[[], Mapping[str, Any]] | None = None,
+                        *, mode: str = "legacy") -> dict[str, Any]:
     """Connections -> credential, executors, bindings, tokens, equivalent cost and quota, sanitized.
 
-    When *external* is given, its snapshot appears under
-    ``external_sources.magpie``; it is never merged into a connection's quota,
-    tokens or cost.  When *external* is None (Magpie disabled) the response has
-    no ``external_sources`` key.
+    *mode* controls only how the resource view is read/displayed (M2, #1170):
+
+    - ``"legacy"`` (default): byte-identical to the pre-M2 view.  When *external*
+      is given, its snapshot appears under ``external_sources.magpie``; when
+      *external* is None the response has no ``external_sources`` key.
+    - ``"hybrid"``: always includes ``external_sources.magpie`` with an explicit
+      state (``disabled`` when *external* is None, or the fetch result).  Adds a
+      ``correlation`` section that documents which external accounts/models
+      provably match legacy resources.  No metric is ever summed.
+    - ``"magpie_primary"``: same as *hybrid* plus a ``magpie_view`` section that
+      leads with Magpie's models/accounts, with legacy resources as fallback.
+
+    Mode never modifies credentials, rewrites files, turns on a gateway, reroutes
+    executions, changes privacy/admission or removes legacy data.  Switching or
+    rolling back the mode leaves all Binding bytes/semantics unchanged.
     """
+    if mode not in RESOURCE_VIEW_MODES:
+        raise ValueError(f"unsupported resource view mode: {mode}")
+
     executors = {item["executor_id"]: item for item in store.list_executors_public()}
     bindings = store.list_bindings_public()
     observed, observation_status = _read_profiles(profiles)
@@ -228,6 +352,20 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
                         "equivalent_cost": _combine_costs([item["equivalent_cost"] for item in resources
                                                            if item["equivalent_cost"]]),
                         "quota_guard": _guard_entries(guard_log)}}
-    if external is not None:
-        view["external_sources"] = {"magpie": _read_external(external)}
+    if mode == "legacy":
+        # Byte-identical to the pre-M2 view: external_sources only when a
+        # caller explicitly provides an external snapshot.
+        if external is not None:
+            view["external_sources"] = {"magpie": _read_external(external)}
+        return view
+
+    # Non-legacy modes always surface external_sources with an explicit state
+    # so the consumer knows whether Magpie data is available, disabled, or
+    # unreachable — never silently absent.
+    magpie_snapshot = _read_external(external) if external is not None else dict(_MAGPIE_DISABLED)
+    view["view_mode"] = mode
+    view["external_sources"] = {"magpie": magpie_snapshot}
+    view["correlation"] = _correlation(resources, magpie_snapshot)
+    if mode == "magpie_primary":
+        view["magpie_view"] = _magpie_view(magpie_snapshot, view["summary"])
     return view

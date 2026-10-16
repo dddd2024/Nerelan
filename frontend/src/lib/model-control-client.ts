@@ -24,7 +24,7 @@ import {
   type ConnectionModelsResult,
   type AccountAuthStatus,
 } from "@/schemas/model-access";
-import { normalizeResourceOverview, type ResourceOverview } from "@/lib/resources";
+import { normalizeResourceOverview, type ResourceOverview, type ResourceViewMode } from "@/lib/resources";
 
 /**
  * Loopback default for the Model Control service.
@@ -111,7 +111,7 @@ export interface ModelControlClient {
   deleteBinding(bindingId: string): Promise<void>;
   getAgentRoster(): Promise<AgentRoster>;
   putAgentRoster(roles: Partial<Record<AgentRole, string>>): Promise<AgentRoster>;
-  getResources(): Promise<ResourceOverview>;
+  getResources(mode?: ResourceViewMode): Promise<ResourceOverview>;
 }
 
 const DEFAULT_MOCK_PROFILES: ModelProfile[] = [
@@ -554,8 +554,9 @@ export function createHttpModelControlClient(
       }));
     },
 
-    async getResources() {
-      return normalizeResourceOverview(await requestJson(resourcesUrl));
+    async getResources(mode) {
+      const url = mode ? `${resourcesUrl}?mode=${encodeURIComponent(mode)}` : resourcesUrl;
+      return normalizeResourceOverview(await requestJson(url));
     },
   };
 }
@@ -905,9 +906,12 @@ export function createMockModelControlClient(
       return mockRoster();
     },
 
-    async getResources() {
+    async getResources(mode) {
       // The mock has no task history or CLI: no tokens, no cost, quota unknown.
+      // Mode is a display preference only; the mock carries no external Magpie data,
+      // so it simply echoes the requested view without inventing external accounts.
       return normalizeResourceOverview({
+        view_mode: mode,
         resources: connections.map((conn) => ({
           connection_id: conn.connectionId,
           name: conn.name,
