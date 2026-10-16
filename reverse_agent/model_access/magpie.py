@@ -103,7 +103,7 @@ def _date(value: Any) -> datetime | None:
 
 def _account() -> dict[str, Any]:
     return dict(provider=None, kind=None, plan=None, account_ref=None, windows=[],
-                state="UNKNOWN", reason="invalid_schema", observed_at=None,
+                cached_windows=[], state="UNKNOWN", reason="invalid_schema", observed_at=None,
                 provenance="EXTERNAL_MAGPIE", source_version=None)
 
 
@@ -153,24 +153,37 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
         windows = raw.get("windows")
         if reason is None and (not isinstance(windows, list) or not windows):
             reason = "missing_windows"
+        # Validate windows with the same checks/privacy filtering for fresh,
+        # undated, and stale readings.  Stale windows are preserved in
+        # cached_windows for display only; windows stays [] so admission
+        # semantics treat stale the same as unknown.
+        stale = reason == "stale_reading"
         normalized = []
-        if reason is None:
-            for window in windows:
+        if reason is None or stale:
+            for window in (windows if isinstance(windows, list) else []):
                 if not isinstance(window, dict):
                     reason = "invalid_window"
+                    normalized = []
                     break
                 used, remaining = _number(window.get("used"), 100), _number(window.get("remaining"), 100)
                 name = _text(window.get("name"), secrets)
                 reset = _date(window.get("resetsAt"))
                 if name is None or used is None or remaining is None or ("resetsAt" in window and reset is None) or ("unlimited" in window and not isinstance(window["unlimited"], bool)):
                     reason = "invalid_window"
+                    normalized = []
                     break
                 normalized.append(dict(name=name, used_percent=used, remaining_percent=remaining,
                                        resets_at=reset.isoformat() if reset else None,
                                        unlimited=window.get("unlimited", False)))
-        account.update(reason=reason, windows=normalized if reason is None else [])
         if reason is None:
-            account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH")
+            account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH", reason=None)
+            account.update(windows=normalized, cached_windows=[])
+        elif reason == "stale_reading":
+            account.update(state="STALE", reason=reason, windows=[], cached_windows=normalized)
+        else:
+            # Errors (including invalid_window found while validating a stale
+            # reading) override any earlier stale state to UNKNOWN.
+            account.update(state="UNKNOWN", reason=reason, windows=[], cached_windows=[])
     counts: dict[str, int] = {}
     for account in result:
         ref = account["account_ref"]
@@ -178,7 +191,7 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
             counts[ref] = counts.get(ref, 0) + 1
     for account in result:
         if counts.get(account["account_ref"], 0) > 1:
-            account.update(state="UNKNOWN", reason="duplicate_account", windows=[])
+            account.update(state="UNKNOWN", reason="duplicate_account", windows=[], cached_windows=[])
     return result
 
 
