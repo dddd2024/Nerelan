@@ -90,13 +90,26 @@ def probe_checkout(repo: str | Path) -> dict[str, object]:
     else:
         code, _ = git("cat-file", "-e", remote + "^{commit}")
         if code != 0:
+            # The remote object is not locally available, or git itself errored;
+            # either way no ancestry relation can be proven.
             ancestry = "unknown"
-        elif git("merge-base", "--is-ancestor", installed, remote)[0] == 0:
-            ancestry = "remote_descendant"
-        elif git("merge-base", "--is-ancestor", remote, installed)[0] == 0:
-            ancestry = "local_descendant"
         else:
-            ancestry = "diverged"
+            # ``merge-base --is-ancestor X Y``: exit 0 proves X is an ancestor of
+            # Y; exit 1 disproves it. Any other code (git fatal 128, timeout -1)
+            # proves neither relation. Only classify divergence when *both*
+            # directions are actually disproved (exit 1); if neither direction
+            # proves ancestry and at least one query errored, report
+            # uncertainty instead of mistaking a probe error for divergence.
+            forward = git("merge-base", "--is-ancestor", installed, remote)[0]
+            reverse = git("merge-base", "--is-ancestor", remote, installed)[0]
+            if forward == 0:
+                ancestry = "remote_descendant"
+            elif reverse == 0:
+                ancestry = "local_descendant"
+            elif forward == 1 and reverse == 1:
+                ancestry = "diverged"
+            else:
+                ancestry = "unknown"
     return classify_revisions(installed=installed, remote=remote,
                               ancestry=ancestry, local_modified=modified)
 
