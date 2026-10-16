@@ -1,144 +1,143 @@
-"""Pure, read-only normalization of Magpie route evidence per logical session.
+"""Normalize the real Magpie session route endpoint (not a synthetic list).
 
-Support boundary (fails closed outside it): the only accepted payload shape is
-a Magpie route log envelope ``{"object": "list", "data": [...]}`` where each
-entry is a mapping carrying, for one logical session, the concrete route that
-actually served the request: a routed model identifier that names a concrete
-model (``provider/model``), the upstream provider, and an account reference.
-Unsupported shapes, unknown extra fields, private data, missing route fields,
-ambiguous fallback (more than one route entry for the session) and stale
-readings all normalize to a non-verified record; the actual provider/model is
-never inferred from a route group name, and no costs are estimated.
+GET /v1/magpie/route?session=<id> returns {session, seq, route}.
+The route has time, asked, group, model, tries, done, status, and served.
+model is only a candidate until the route finishes. served is the reply's
+vendor-native model and might lack the provider prefix. The route does not
+reveal the upstream account. Account attribution and cash cost remain UNKNOWN.
+Fail closed for stale, incomplete, conflicting or unsupported evidence.
+
+Based on yetone/magpie internal/gateway/session_route.go; the local 0.1.1250
+gateway was independently probed on 2026-10-16 with a synthetic absent session.
 """
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
 import math
-from typing import Any, Mapping
+from typing import Any
 
-PROVENANCE = "EXTERNAL_MAGPIE"
-
-# Keys a route entry may carry. Anything else is untrusted and fails closed.
-SUPPORTED_ENTRY_KEYS = frozenset({
-    "sessionId", "requestedModel", "routedModel", "provider", "accountRef",
-    "occurredAt", "sourceVersion",
-})
-PRIVATE_KEYS = frozenset({"user", "alias", "from"})
+SOURCE = "MAGPIE_SESSION_ROUTE"
 
 
-def _decode(payload: Any) -> Any:
-    if isinstance(payload, (str, bytes, bytearray)):
-        try:
-            return json.loads(payload)
-        except (ValueError, UnicodeError):
-            return None
-    return payload
+def _unknown(reason: str, *, state: str = "UNKNOWN", seq: int | None = None,
+             asked: str | None = None, group: str | None = None,
+             candidate: str | None = None, at: str | None = None) -> dict[str, Any]:
+    return {
+        "state": state, "reason": reason, "source": SOURCE,
+        "seq": seq, "requested_model": asked, "group": group,
+        "candidate_model": candidate, "routed_model": None,
+        "provider": None, "account_ref": None,
+        "account_state": "UNKNOWN", "observed_at": at,
+        "fallback_count": None,
+    }
 
 
-def _private_strings(payload: Any) -> set[str]:
-    values: set[str] = set()
-    if isinstance(payload, dict):
-        for key, value in payload.items():
-            if key in PRIVATE_KEYS and isinstance(value, str) and value:
-                values.add(value)
-            values.update(_private_strings(value))
-    elif isinstance(payload, list):
-        for value in payload:
-            values.update(_private_strings(value))
-    return values
-
-
-def _text(value: Any, secrets: set[str]) -> str | None:
-    if not isinstance(value, str) or not value or any(s in value for s in secrets):
+def _safe_text(value: Any) -> str | None:
+    if not isinstance(value, str) or not value or len(value) > 256:
+        return None
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
         return None
     return value
 
 
-def _date(value: Any) -> datetime | None:
+def _concrete_model(value: Any) -> str | None:
+    text = _safe_text(value)
+    if not text or "/" not in text:
+        return None
+    provider, model = text.split("/", 1)
+    if not provider or not model or provider == "group":
+        return None
+    return text
+
+
+def _parsed_time(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-        return parsed.astimezone(timezone.utc) if parsed.tzinfo else None
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.astimezone(timezone.utc) if dt.tzinfo else None
     except (ValueError, OverflowError):
         return None
 
 
-def _unverified(reason: str) -> dict[str, Any]:
-    return dict(state="UNKNOWN", reason=reason, session_id=None,
-                requested_model=None, routed_model=None, provider=None,
-                account_ref=None, observed_at=None, provenance=PROVENANCE,
-                source_version=None)
-
-
 def parse_route_evidence(payload: Any, session_id: Any, now: datetime,
-                         max_age_seconds: float = 900) -> dict[str, Any]:
-    """Normalize the actual route that served ``session_id``, or why it is unknown.
+                         max_age_seconds: float = 900,
+                         *, after_seq: int | None = None) -> dict[str, Any]:
+    """Parse one session route. No network I/O, credentials or cost guesses.
 
-    Pure and read-only: no network, no credentials, no inference from group
-    names and no cost estimation. Unsupported evidence fails closed to UNKNOWN.
+    Use after_seq sampled before dispatch to distinguish consecutive turns of
+    one conversation. With a unique per-request session it may be omitted.
+    The route timestamp still enforces a freshness bound.
     """
-    if not isinstance(session_id, str) or not session_id.strip():
-        return _unverified("invalid_session_id")
+    if not isinstance(session_id, str) or not 0 < len(session_id.strip()) <= 128:
+        return _unknown("invalid_session_id")
     session_id = session_id.strip()
-    payload = _decode(payload)
-    if not isinstance(payload, dict) or payload.get("object") != "list" or not isinstance(payload.get("data"), list):
-        return _unverified("invalid_schema")
-    secrets = _private_strings(payload)
-    matches: list[dict[str, Any]] = []
-    for raw in payload["data"]:
-        if not isinstance(raw, dict):
-            continue
-        if raw.get("sessionId") == session_id:
-            matches.append(raw)
-    if not matches:
-        return _unverified("session_not_found")
-    if len(matches) > 1:
-        # More than one route entry for one session is an ambiguous fallback.
-        return _unverified("fallback_ambiguous")
-    raw = matches[0]
-    if not SUPPORTED_ENTRY_KEYS.issuperset(raw):
-        return _unverified("untrusted_field")
-    if secrets:
-        return _unverified("untrusted_field")
-    record = _unverified(None)
-    record["session_id"] = session_id
-    requested = _text(raw.get("requestedModel"), secrets)
-    routed = _text(raw.get("routedModel"), secrets)
-    provider = _text(raw.get("provider"), secrets)
-    account_ref = _text(raw.get("accountRef"), secrets)
-    version = _text(raw.get("sourceVersion"), secrets)
-    record.update(requested_model=requested, routed_model=routed,
-                  provider=provider, account_ref=account_ref,
-                  source_version=version)
-    if not routed or not provider or not account_ref:
-        # The actual route is never derived from a requested group name.
-        return record | {"reason": "missing_route_fields", "routed_model": None,
-                         "provider": None, "account_ref": None}
-    if "/" not in routed or routed.split("/", 1)[1] == "":
-        return record | {"reason": "invalid_route_model", "routed_model": None,
-                         "provider": None, "account_ref": None}
-    occurred = _date(raw.get("occurredAt"))
-    if occurred is None:
-        return record | {"reason": "invalid_timestamp", "routed_model": None,
-                         "provider": None, "account_ref": None}
-    if (not isinstance(now, datetime) or now.tzinfo is None
-            or isinstance(max_age_seconds, bool)
-            or not isinstance(max_age_seconds, (int, float))
-            or not math.isfinite(max_age_seconds) or max_age_seconds < 0):
-        return record | {"reason": "invalid_timestamp", "routed_model": None,
-                         "provider": None, "account_ref": None}
-    age = (now - occurred).total_seconds()
+    if not isinstance(now, datetime) or now.tzinfo is None:
+        return _unknown("invalid_clock")
+    if isinstance(max_age_seconds, bool) or not isinstance(max_age_seconds, (int, float)) or (
+        not math.isfinite(max_age_seconds) or max_age_seconds < 0
+    ):
+        return _unknown("invalid_clock")
+    if after_seq is not None and (type(after_seq) is not int or after_seq < 0):
+        return _unknown("invalid_sequence")
+    if isinstance(payload, (str, bytes, bytearray)):
+        try:
+            payload = json.loads(payload)
+        except (UnicodeError, ValueError, TypeError):
+            return _unknown("invalid_schema")
+    if not isinstance(payload, dict):
+        return _unknown("invalid_schema")
+    if payload.get("session") != session_id:
+        return _unknown("session_mismatch")
+    seq = payload.get("seq")
+    if type(seq) is not int or seq < 0:
+        return _unknown("invalid_sequence")
+    if after_seq is not None and seq <= after_seq:
+        return _unknown("sequence_not_advanced", seq=seq)
+    route = payload.get("route")
+    if route is None:
+        return _unknown("session_has_no_route", seq=seq)
+    if not isinstance(route, dict):
+        return _unknown("invalid_route", seq=seq)
+    asked = _safe_text(route.get("asked"))
+    group = _safe_text(route.get("group"))
+    candidate = _concrete_model(route.get("model"))
+    at = _parsed_time(route.get("time"))
+    if at is None:
+        return _unknown("missing_route_timestamp", seq=seq, asked=asked, group=group)
+    stamp = at.isoformat()
+    age = (now.astimezone(timezone.utc) - at).total_seconds()
     if age < 0:
-        return record | {"reason": "invalid_timestamp", "routed_model": None,
-                         "provider": None, "account_ref": None}
-    record["observed_at"] = occurred.isoformat()
+        return _unknown("future_route", seq=seq, asked=asked, group=group)
     if age > max_age_seconds:
-        return record | {"state": "STALE", "reason": "stale_reading",
-                         "routed_model": None, "provider": None,
-                         "account_ref": None}
-    record["state"] = "VERIFIED"
-    record["reason"] = None
-    return record
+        return _unknown("stale_route", state="STALE", seq=seq, asked=asked, group=group, at=stamp)
+    if route.get("done") is not True:
+        return _unknown("route_in_flight", state="IN_FLIGHT", seq=seq,
+                        asked=asked, group=group, candidate=candidate, at=stamp)
+    status = route.get("status")
+    if type(status) is not int or not 200 <= status < 300:
+        return _unknown("route_failed", seq=seq, asked=asked, group=group, at=stamp)
+    tries = route.get("tries")
+    if not isinstance(tries, list) or not tries or not all(isinstance(t, dict) for t in tries):
+        return _unknown("missing_route_tries", seq=seq, asked=asked, group=group, at=stamp)
+    last = tries[-1]
+    member = _concrete_model(last.get("model"))
+    if (not member or candidate != member or last.get("done") is not True or
+        type(last.get("status")) is not int or not 200 <= last["status"] < 300 or
+        bool(last.get("fail"))):
+        return _unknown("last_try_not_verified", seq=seq, asked=asked, group=group, at=stamp)
+    served = _safe_text(route.get("served"))
+    if served:
+        model_name = member.split("/", 1)[1]
+        if served not in (member, model_name):
+            return _unknown("served_model_conflict", seq=seq, asked=asked, group=group, at=stamp)
+    fallback_count = sum(bool(t.get("fail")) for t in tries[:-1])
+    return {
+        "state": "VERIFIED_ROUTE", "reason": None, "source": SOURCE,
+        "seq": seq, "requested_model": asked, "group": group,
+        "candidate_model": member, "routed_model": member,
+        "provider": member.split("/", 1)[0], "account_ref": None,
+        "account_state": "UNKNOWN", "observed_at": stamp,
+        "fallback_count": fallback_count,
+    }

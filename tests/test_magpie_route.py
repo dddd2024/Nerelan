@@ -1,5 +1,4 @@
-"""Fixture-only Magpie route evidence checks: no gateway or network is contacted."""
-
+"""Provider-free contract fixtures derived from Magpie session_route.go."""
 from datetime import datetime, timedelta, timezone
 import json
 
@@ -7,136 +6,142 @@ import pytest
 
 from reverse_agent.model_access.magpie_route import parse_route_evidence
 
-NOW = datetime(2026, 10, 15, 7, 0, tzinfo=timezone.utc)
-PRIVATE = ("person@example.test", "private-alias", "private-origin")
-SESSION = "session-123"
+NOW = datetime(2026, 10, 16, 8, 25, tzinfo=timezone.utc)
+SESSION = "nerelan-req-123"
 
 
-def entry(**overrides):
-    base = {"sessionId": SESSION, "requestedModel": "routing",
-            "routedModel": "workbuddy/glm-5.2", "provider": "workbuddy",
-            "accountRef": "abc123def456",
-            "occurredAt": "2026-10-15T06:59:00Z", "sourceVersion": "0.1.1250"}
-    base.update(overrides)
-    return base
+def route(**kw):
+    data = {
+        "id": 12, "time": "2026-10-16T08:24:00Z",
+        "asked": "group/development", "group": "development",
+        "model": "rb/glm-5.3", "served": "glm-5.3",
+        "done": True, "status": 200,
+        "tries": [
+            {"model": "ra/glm-5.3", "done": True, "status": 429, "fail": "rate limit"},
+            {"model": "rb/glm-5.3", "done": True, "status": 200},
+        ],
+    }
+    data.update(kw)
+    return data
 
 
-def envelope(*items):
-    return {"object": "list", "data": list(items)}
+def response(item=None, *, seq=17, session=SESSION):
+    return {"session": session, "seq": seq, "route": route() if item is None else item}
 
 
-def verified_record():
-    return {"state": "VERIFIED", "reason": None, "session_id": SESSION,
-            "requested_model": "routing", "routed_model": "workbuddy/glm-5.2",
-            "provider": "workbuddy", "account_ref": "abc123def456",
-            "observed_at": "2026-10-15T06:59:00+00:00",
-            "provenance": "EXTERNAL_MAGPIE", "source_version": "0.1.1250"}
-
-
-def assert_unverified(result, reason, state="UNKNOWN"):
+def assert_unknown(result, reason, state="UNKNOWN"):
     assert result["state"] == state
     assert result["reason"] == reason
     assert result["routed_model"] is None
     assert result["provider"] is None
     assert result["account_ref"] is None
+    assert result["account_state"] == "UNKNOWN"
 
 
-def test_verified_route():
-    result = parse_route_evidence(envelope(entry()), SESSION, NOW)
-    assert result == verified_record()
-    # Same evidence as a JSON string.
-    assert parse_route_evidence(json.dumps(envelope(entry())), SESSION, NOW) == result
-    # Other sessions in the envelope are ignored.
-    other = entry(sessionId="session-other")
-    assert parse_route_evidence(envelope(other, entry()), SESSION, NOW) == result
+def test_exact_upstream_gateway_schema_valid_route_with_fallback():
+    obj = response()
+    val = parse_route_evidence(obj, SESSION, NOW, after_seq=16)
+    assert val["state"] == "VERIFIED_ROUTE"
+    assert val["source"] == "MAGPIE_SESSION_ROUTE"
+    assert val["seq"] == 17
+    assert val["requested_model"] == "group/development"
+    assert val["group"] == "development"
+    assert val["routed_model"] == "rb/glm-5.3"
+    assert val["provider"] == "rb"
+    assert val["fallback_count"] == 1
+    assert val["account_ref"] is None
+    assert val["observed_at"] == "2026-10-16T08:24:00+00:00"
+    assert parse_route_evidence(json.dumps(obj), SESSION, NOW, after_seq=16) == val
 
 
-def test_group_name_never_becomes_the_routed_model():
-    """The requested group/route name must never be reported as the actual model."""
-    result = parse_route_evidence(envelope(entry(requestedModel="routing",
-                                                 routedModel="routing")), SESSION, NOW)
-    assert_unverified(result, "invalid_route_model")
+def test_local_gateway_absent_session_response():
+    assert_unknown(parse_route_evidence({"route": None, "seq": 0, "session": SESSION}, SESSION, NOW),
+                   "session_has_no_route")
 
 
-def test_absent_session():
-    assert_unverified(parse_route_evidence(envelope(entry(sessionId="other")), SESSION, NOW),
-                      "session_not_found")
-    assert_unverified(parse_route_evidence(envelope(), SESSION, NOW), "session_not_found")
+@pytest.mark.parametrize("bad", [None, [], {}, {"object": "list", "data": []}, "nonsense", "[1]"])
+def test_reject_synthetic_or_invalid_envelope(bad):
+    assert parse_route_evidence(bad, SESSION, NOW)["state"] == "UNKNOWN"
 
 
-def test_invalid_session_id():
-    for bad in ("", "   ", None, 123, [], {}):
-        assert_unverified(parse_route_evidence(envelope(entry()), bad, NOW), "invalid_session_id")
+def test_session_exact_match_and_replay_fence():
+    assert_unknown(parse_route_evidence(response(session="another"), SESSION, NOW), "session_mismatch")
+    assert_unknown(parse_route_evidence(response(seq=17), SESSION, NOW, after_seq=17), "sequence_not_advanced")
+    assert_unknown(parse_route_evidence(response(seq=16), SESSION, NOW, after_seq=17), "sequence_not_advanced")
+    assert parse_route_evidence(response(seq=18), SESSION, NOW, after_seq=17)["state"] == "VERIFIED_ROUTE"
 
 
-@pytest.mark.parametrize("payload", ["{", None, [], {}, {"data": []}, {"object": "list", "data": {}}])
-def test_invalid_schema(payload):
-    assert_unverified(parse_route_evidence(payload, SESSION, NOW), "invalid_schema")
+def test_inflight_candidate_never_becomes_real_route():
+    val = parse_route_evidence(response(route(done=False, status=0, served="")), SESSION, NOW)
+    assert_unknown(val, "route_in_flight", state="IN_FLIGHT")
+    assert val["candidate_model"] == "rb/glm-5.3"
+    assert val["requested_model"] == "group/development"
 
 
-@pytest.mark.parametrize("field", ["routedModel", "provider", "accountRef"])
-def test_missing_route_fields(field):
-    raw = entry()
-    del raw[field]
-    assert_unverified(parse_route_evidence(envelope(raw), SESSION, NOW), "missing_route_fields")
+def test_error_even_if_last_model_known():
+    for status in (0, 401, 429, 500, 300, True, "200"):
+        assert_unknown(parse_route_evidence(response(route(status=status)), SESSION, NOW), "route_failed")
 
 
-def test_missing_route_fields_never_fall_back_to_group():
-    raw = entry(routedModel=None, provider=None, accountRef=None)
-    result = parse_route_evidence(envelope(raw), SESSION, NOW)
-    assert_unverified(result, "missing_route_fields")
-    assert result["requested_model"] == "routing"
-
-
-def test_fallback_ambiguous():
-    duplicate = entry(accountRef="999999999999")
-    assert_unverified(parse_route_evidence(envelope(entry(), duplicate), SESSION, NOW),
-                      "fallback_ambiguous")
-
-
-@pytest.mark.parametrize("extra", [
-    {"unexpectedField": "x"}, {"user": PRIVATE[0]}, {"alias": PRIVATE[1]},
+@pytest.mark.parametrize("malformed", [
+    [],
+    {"done": True, "status": 200, "time": "2026-10-16T08:24:00Z", "model": "p/m"},
+    route(tries=[]),
+    route(tries="not-a-list"),
 ])
-def test_untrusted_fields(extra):
-    assert_unverified(parse_route_evidence(envelope(entry(**extra)), SESSION, NOW),
-                      "untrusted_field")
+def test_no_route_or_no_successful_try(malformed):
+    reason = "invalid_route" if not isinstance(malformed, dict) else "missing_route_tries"
+    assert_unknown(parse_route_evidence(response(malformed), SESSION, NOW), reason)
 
 
-def test_private_values_anywhere_reject():
-    nested = {"object": "list", "data": [entry()],
-              "user": PRIVATE[0]}
-    assert_unverified(parse_route_evidence(nested, SESSION, NOW), "untrusted_field")
+def test_failed_or_mismatched_last_try_not_attributed():
+    for bad in (
+        route(tries=[{"model": "rb/glm-5.3", "done": False, "status": 200}]),
+        route(tries=[{"model": "rb/glm-5.3", "done": True, "status": 429, "fail": "quota"}]),
+        route(tries=[{"model": "ra/glm-5.3", "done": True, "status": 200}]),
+        route(model="group/development"),
+    ):
+        assert_unknown(parse_route_evidence(response(bad), SESSION, NOW), "last_try_not_verified")
 
 
-def test_stale_reading():
-    old = entry(occurredAt="2026-10-15T06:00:00Z")
-    assert_unverified(parse_route_evidence(envelope(old), SESSION, NOW),
-                      "stale_reading", state="STALE")
-    fresh_edge = entry(occurredAt=(NOW - timedelta(seconds=900)).isoformat())
-    assert parse_route_evidence(envelope(fresh_edge), SESSION, NOW)["state"] == "VERIFIED"
+def test_served_vendor_model_never_overwrites_verified_member():
+    good = route(served="rb/glm-5.3")
+    assert parse_route_evidence(response(good), SESSION, NOW)["routed_model"] == "rb/glm-5.3"
+    bad = route(served="another-model")
+    assert_unknown(parse_route_evidence(response(bad), SESSION, NOW), "served_model_conflict")
 
 
-@pytest.mark.parametrize("stamp", ["bad", "2026-10-15T06:59:00", None, 123])
-def test_invalid_timestamp(stamp):
-    assert_unverified(parse_route_evidence(envelope(entry(occurredAt=stamp)), SESSION, NOW),
-                      "invalid_timestamp")
+def test_stale_future_missing_time_are_not_attributed():
+    old = (NOW - timedelta(hours=3)).isoformat()
+    assert_unknown(parse_route_evidence(response(route(time=old)), SESSION, NOW),
+                   "stale_route", state="STALE")
+    future = (NOW + timedelta(minutes=3)).isoformat()
+    assert_unknown(parse_route_evidence(response(route(time=future)), SESSION, NOW), "future_route")
+    for time in (None, "", "2026-10-16T08:24:00"):
+        assert_unknown(parse_route_evidence(response(route(time=time)), SESSION, NOW),
+                       "missing_route_timestamp")
 
 
-def test_invalid_now_and_max_age():
-    bad_now = datetime(2026, 10, 15, 7, 0)
-    assert_unverified(parse_route_evidence(envelope(entry()), SESSION, bad_now), "invalid_timestamp")
-    assert_unverified(parse_route_evidence(envelope(entry()), SESSION, None), "invalid_timestamp")
-    for bad_age in (-1, float("nan"), float("inf"), True, "x"):
-        assert_unverified(parse_route_evidence(envelope(entry()), SESSION, NOW, bad_age),
-                          "invalid_timestamp")
+def test_reject_bad_clock_and_sequence():
+    assert_unknown(parse_route_evidence(response(), SESSION, datetime(2026, 10, 16)), "invalid_clock")
+    for age in (float("nan"), float("inf"), True, -1, "15"):
+        assert_unknown(parse_route_evidence(response(), SESSION, NOW, age), "invalid_clock")
+    for seq in (True, -1, "3"):
+        assert_unknown(parse_route_evidence(response(seq=seq), SESSION, NOW), "invalid_sequence")
 
 
-def test_no_private_data_in_any_result():
-    payloads = [
-        envelope(entry()), "{", envelope(entry(user=PRIVATE[0])),
-        envelope(entry(), entry(accountRef="other")),
-        envelope(entry(occurredAt="bad")),
-    ]
-    for payload in payloads:
-        result = parse_route_evidence(payload, SESSION, NOW)
-        assert all(secret not in json.dumps(result) for secret in PRIVATE)
+def test_unsupported_account_identity_never_inferred():
+    obj = response(route(account="my.email@example.test", accountRef="secret",
+                         authorization="Bearer fake", user="private"))
+    result = parse_route_evidence(obj, SESSION, NOW)
+    assert result["account_ref"] is None
+    text = json.dumps(result)
+    for secret in ("my.email@example.test", "secret", "Bearer fake", "private"):
+        assert secret not in text
+
+
+def test_requested_group_cannot_be_misattributed_as_provider_model():
+    obj = response(route(model="group/dev",
+                         tries=[{"model": "group/dev", "status": 200, "done": True}]))
+    result = parse_route_evidence(obj, SESSION, NOW)
+    assert_unknown(result, "last_try_not_verified")
