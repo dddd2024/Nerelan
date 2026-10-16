@@ -48,7 +48,7 @@ const HYBRID_PAYLOAD = {
           kind: "subscription",
           plan: "plus",
           account_ref: "acct_abc123",
-          state: "ok",
+          state: "FRESH",
           observed_at: "2026-10-14T04:44:18Z",
           provenance: "EXTERNAL_MAGPIE",
           source_version: "magpie-cli 0.4",

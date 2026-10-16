@@ -373,11 +373,11 @@ function magpieData(overview: ResourceOverview): MagpiePanelData | null {
   return null;
 }
 
-// Magpie is "current" only when the backend actually read the account; a missing
-// observedAt (or explicit UNKNOWN state) means the window values are stale/absent
-// and must not be shown as a live 0% allowance.
+// Only an explicitly fresh account reading may be treated as current. A stale
+// response may still have an observedAt from its historical cached reading.
+// Keep the legacy "ok" fixture state compatible with the normalized FRESH state.
 function magpieAccountObserved(account: MagpieAccount): boolean {
-  return Boolean(account.observedAt) && account.state !== "UNKNOWN";
+  return Boolean(account.observedAt) && (account.state === "FRESH" || account.state === "ok");
 }
 
 function MagpieModels({ models }: { models: MagpieModel[] }) {
