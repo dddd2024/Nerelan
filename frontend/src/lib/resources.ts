@@ -158,6 +158,9 @@ export interface MagpieView {
   legacyFallback: { connections: number; usableBindings: number };
 }
 
+/** Display-only view of GET /api/resources. Never selects writes/bindings. */
+export type ResourceViewMode = "legacy" | "hybrid" | "magpie_primary";
+
 export interface ResourceOverview {
   resources: Resource[];
   usableBindings: number;
@@ -165,7 +168,7 @@ export interface ResourceOverview {
   tokens: TokenCounters;
   equivalentCost: EquivalentCost | null;
   quotaGuard: QuotaGuardEntry[];
-  viewMode?: string;
+  viewMode?: ResourceViewMode;
   externalSources?: { magpie: MagpieSnapshot };
   correlation?: Correlation;
   magpieView?: MagpieView;
@@ -181,6 +184,12 @@ const asCount = (value: unknown): number => {
 };
 const asString = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
 const asStrings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
+
+const VIEW_MODES: ResourceViewMode[] = ["legacy", "hybrid", "magpie_primary"];
+const asViewMode = (value: unknown): ResourceViewMode | null => {
+  const s = asString(value);
+  return s && VIEW_MODES.includes(s as ResourceViewMode) ? (s as ResourceViewMode) : null;
+};
 
 function tokens(value: unknown): TokenCounters {
   const raw = asRecord(value);
@@ -401,6 +410,7 @@ export function normalizeResourceOverview(payload: unknown): ResourceOverview {
       quota: quota(r.quota),
     };
   });
+  const viewMode = asViewMode(raw.view_mode);
   return {
     resources,
     usableBindings: asCount(summary.usable_bindings),
@@ -408,7 +418,7 @@ export function normalizeResourceOverview(payload: unknown): ResourceOverview {
     tokens: tokens(summary.tokens),
     equivalentCost: cost(summary.equivalent_cost),
     quotaGuard: guardEntries(summary.quota_guard),
-    ...(asString(raw.view_mode) ? { viewMode: asString(raw.view_mode) } : {}),
+    ...(viewMode ? { viewMode } : {}),
     ...(raw.external_sources ? { externalSources: { magpie: magpieSnapshot(asRecord(raw.external_sources).magpie) } } : {}),
     ...(raw.correlation ? { correlation: correlation(raw.correlation) } : {}),
     ...(raw.magpie_view ? { magpieView: magpieView(raw.magpie_view) } : {}),
