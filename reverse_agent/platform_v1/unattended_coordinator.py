@@ -71,6 +71,7 @@ class UnattendedCoordinator:
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
         self._dispatch_active = False
+        self._dispatch_count = 0
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
@@ -216,14 +217,16 @@ class UnattendedCoordinator:
     def _begin_dispatch(self) -> bool:
         """Linearize batch dispatch against stop intent without holding the lock while work runs."""
         with self._lifecycle_lock:
-            if self._stop.is_set() or self._dispatch_active:
+            if self._stop.is_set():
                 return False
+            self._dispatch_count += 1
             self._dispatch_active = True
             return True
 
     def _finish_dispatch(self) -> None:
         with self._lifecycle_lock:
-            self._dispatch_active = False
+            self._dispatch_count = max(0, self._dispatch_count - 1)
+            self._dispatch_active = self._dispatch_count > 0
 
     def _abandon_claimed_before_dispatch(
         self,
@@ -457,15 +460,40 @@ class UnattendedCoordinator:
 
     def _run(self) -> None:
         current = threading.current_thread()
+        # Each tick acquires its own fenced task claims. A running batch no
+        # longer blocks admission of later independent work; database claims
+        # enforce the actual per-window concurrency and budget ceilings.
+        workers: set[threading.Thread] = set()
+
+        def dispatch_tick() -> None:
+            try:
+                self.tick()
+            except Exception as exc:
+                self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
+
         try:
             while not self._stop.is_set():
-                try:
-                    self.tick()
-                except Exception as exc:
-                    self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
+                workers = {worker for worker in workers if worker.is_alive()}
+                window = self.control_store.active_window()
+                if window is not None and len(workers) < window.max_concurrent_tasks:
+                    # Avoid spinning extra threads when every runnable task is
+                    # already claimed. claim_task remains the sole authority.
+                    if self.control_store.runnable_tasks(window.id, limit=1):
+                        worker = threading.Thread(
+                            target=dispatch_tick, name="reverse-agent-refill",
+                            daemon=True,
+                        )
+                        workers.add(worker)
+                        worker.start()
                 self._stop.wait(self.poll_interval)
         finally:
+            # A stop must drain admitted work before reporting STOPPED. The
+            # outer coordinator thread remains alive throughout this drain.
+            for worker in workers:
+                if worker is not threading.current_thread():
+                    worker.join()
             with self._lifecycle_lock:
+                self._dispatch_count = 0
                 self._dispatch_active = False
                 if self._thread is current:
                     self._thread = None

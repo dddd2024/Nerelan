@@ -994,3 +994,60 @@ def test_unknown_usage_still_stops_a_zero_budget_hard_admission_window():
     control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
     stopped = control.get_window(window.id)
     assert (stopped.status, stopped.stop_reason, stopped.enforcement_class) == ("BLOCKED", "usage_unknown", "USAGE_UNKNOWN")
+
+
+def test_live_refill_starts_later_goal_before_slow_first_goal_finishes(tmp_path):
+    import time
+
+    store = TaskStore(str(tmp_path / "refill.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "late-refill", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 2, "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    first = _parallel_goal(goals, window.id, key="refill-first", count=1)
+    first_id = control.list_goal_tasks(first.id)[0]["task_id"]
+    entered = threading.Event()
+    second_entered = threading.Event()
+    release = threading.Event()
+    lock = threading.Lock()
+    calls = []
+
+    def execute(task_id):
+        with lock:
+            calls.append(task_id)
+        if task_id == first_id:
+            entered.set()
+            assert release.wait(timeout=12)
+        else:
+            second_entered.set()
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspace", task_executor=execute, poll_interval=0.1,
+    )
+    try:
+        coordinator.start()
+        assert entered.wait(timeout=6), "first task never started"
+        second = _parallel_goal(goals, window.id, key="refill-second", count=1)
+        second_id = control.list_goal_tasks(second.id)[0]["task_id"]
+        assert second_entered.wait(timeout=6), "idle slot was not refilled while first running"
+        assert store.get_task(first_id).status != "READY_FOR_REVIEW_FIXTURE"
+        assert control.get_window(window.id).tasks_started == 2
+    finally:
+        release.set()
+        coordinator.stop(timeout=12)
+    assert store.get_task(first_id).status == "READY_FOR_REVIEW_FIXTURE"
+    assert store.get_task(second_id).status == "READY_FOR_REVIEW_FIXTURE"
+    assert calls.count(first_id) == 1
+    assert calls.count(second_id) == 1
+    assert control.get_window(window.id).tasks_completed == 2
+    assert coordinator.status()["lifecycle"] == "STOPPED"
