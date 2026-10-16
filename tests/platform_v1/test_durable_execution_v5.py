@@ -1493,6 +1493,55 @@ def test_interrupted_single_workspace_validation(tmp_path, monkeypatch, classifi
         assert any(f["path"] == "product.py" for f in after.changed_files)
 
 
+def test_timeout_salvage_resume_post_validation_restores_task_truth(tmp_path, monkeypatch):
+    """A crash after accepted salvage must not report success while INTERRUPTED."""
+    reset_crash_seam()
+    store = _make_store(tmp_path)
+    task = store.create_task(title="post-validation-salvage", executor_kind="opencode",
+                             orchestration_mode="single")
+    dispatches = []
+
+    class Interrupted(FakeSingleExecutor):
+        def execute_role_prepared(self, prepared, store, **kwargs):
+            dispatches.append(True)
+            (prepared.worktree / "product.py").write_text("value = 1\n", encoding="utf-8")
+            return _FakeResult(success=False, validation_exit_code=-1,
+                               failure_classification="timeout", error="timeout")
+
+    svc = DurableExecutionService(
+        store=store, router=_make_router(Interrupted()),
+        execution_authority_sha="test_authority", planning_sha="test_planning",
+    )
+    monkeypatch.setattr("reverse_agent.platform_v1.opencode_executor.resolve_opencode_cli",
+                        lambda exe=None: ("provider-free-stub", False))
+    set_crash_after_checkpoint("POST_VALIDATION")
+    try:
+        with pytest.raises(_CrashSimulated):
+            svc.execute_durable_single(task.id, workspace_root=str(tmp_path / "ws"),
+                                       lease_owner="first")
+    finally:
+        reset_crash_seam()
+    run_id = store._conn.execute(
+        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (task.id,),
+    ).fetchone()[0]
+    accepted = store._get_durable_run(run_id)
+    assert accepted.accepted_checkpoint == "POST_VALIDATION"
+    assert accepted.validation_exit_code == 0
+    _expire_and_reconcile(store, task.id)
+    assert store.get_task(task.id).status == "INTERRUPTED"
+    outcome = svc.resume_single(task_id=task.id, lease_owner="second",
+                                execution_authority_sha="test_authority",
+                                planning_sha="test_planning")
+    after = store.get_task(task.id)
+    assert outcome.success is True
+    assert after.status == "READY_FOR_REVIEW"
+    assert after.validation_command_id == accepted.validation_command_id
+    assert after.validation_exit_code == accepted.validation_exit_code == 0
+    assert after.validation_output_digest == accepted.validation_output_digest
+    assert len(dispatches) == 1
+
+
 @pytest.mark.parametrize("error", [
     "UNAPPROVED: permission denied",
     "quota exceeded",

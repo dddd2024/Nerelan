@@ -2918,16 +2918,9 @@ class DurableExecutionService:
                 )
 
         accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
-        if accepted_cp == "POST_VALIDATION" and not self._has_functional_contract(task_id):
-            stored = self.store.get_task(task_id)
-            return TaskExecutionOutcome(
-                task_id=task_id,
-                execution_id=run_obj.execution_id,
-                success=True,
-                validation_command_id=run_obj.validation_command_id or "git_diff_check",
-                validation_exit_code=run_obj.validation_exit_code or 0,
-            )
-
+        # POST_VALIDATION is not automatically terminal: the checkpoint can
+        # precede a crash that leaves the TaskStore task INTERRUPTED. Always
+        # recover a fenced lease and persist the accepted validation verdict.
         if accepted_cp == "":
             raise DurableResumeError(
                 f"pre_pre_planner_no_reconstruction_path:{task_id}:"
@@ -2997,6 +2990,11 @@ class DurableExecutionService:
         stored = self.store.get_task(task_id)
         if validation_only_input(stored):
             return self._validate_input_without_roles(task_id, lease)
+        if run.accepted_checkpoint == "POST_VALIDATION" and not self._has_functional_contract(task_id):
+            if not run.validation_command_id or run.validation_exit_code != 0:
+                raise DurableResumeError(f"post_validation_proof_missing_or_failed:{task_id}")
+            if stored.status in {"FAILED", "BLOCKED", "CANCELLED"}:
+                raise DurableResumeError(f"post_validation_terminal_task_cannot_revive:{task_id}")
         if stored.status == "INTERRUPTED":
             self.store._fenced_transition_to(
                 lease.run_id, task_id, "RUNNING",
@@ -3016,13 +3014,32 @@ class DurableExecutionService:
         if accepted == "POST_VALIDATION":
             if self._has_functional_contract(task_id):
                 return self._functional_checkpoint_outcome(task_id, run, lease)
-            stored = self.store.get_task(task_id)
+            # A persisted successful checkpoint may precede task terminalization.
+            # Replay only its fenced, previously accepted validation evidence;
+            # never rerun the executor or treat a checkpoint as a terminal state.
+            if task.status != review_status:
+                self.store._fenced_set_task_validation(
+                    lease.run_id, task_id,
+                    command_id=run.validation_command_id,
+                    exit_code=run.validation_exit_code,
+                    output_digest=run.validation_output_digest,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+                self.store._fenced_transition_to(
+                    lease.run_id, task_id, "VALIDATING", lease.owner, lease.epoch,
+                )
+                self.store._fenced_transition_to(
+                    lease.run_id, task_id, review_status, lease.owner, lease.epoch,
+                )
+            after = self.store.get_task(task_id)
+            if after.status != review_status or after.validation_exit_code != 0:
+                raise DurableResumeError(f"post_validation_task_not_terminal:{task_id}")
             return TaskExecutionOutcome(
                 task_id=task_id,
                 execution_id=run.execution_id,
                 success=True,
-                validation_command_id=run.validation_command_id or "git_diff_check",
-                validation_exit_code=run.validation_exit_code or 0,
+                validation_command_id=run.validation_command_id,
+                validation_exit_code=run.validation_exit_code,
             )
 
         wt_path = str(run.worktree_path or workspace_root)
