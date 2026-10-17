@@ -76,6 +76,40 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     assert any(e["type"] == "EXECUTOR_PROGRESS" for e in seen)
 
 
+def test_native_cli_helper_failure_prevents_false_ready_for_review(repository, tmp_path):
+    repo, base = repository
+    # Codex may report turn.completed and exit 0 even when its sandbox helper
+    # failed before creating the requested child process.
+    events = [
+        {"type": "thread.started", "thread_id": "helper-failed"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {
+            "type": "command_execution", "command": "git rev-parse HEAD",
+            "status": "failed", "exit_code": -1,
+        }},
+        {"type": "item.completed", "item": {
+            "type": "agent_message", "text": "BLOCKED - helper_unknown_error",
+        }},
+        {"type": "turn.completed"},
+    ]
+    script = "import sys,json;sys.stdin.read();print(" + repr(
+        "\n".join(json.dumps(event) for event in events)
+    ) + ")"
+    executor, launched = fixture_executor(repo, base, script)
+    seen = []
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Read-only smoke"))
+    result = executor.execute("native-helper-1", store,
+        workspace_root=str(tmp_path / "workspaces"),
+        event_callback=lambda _, event: seen.append(event))
+    assert not result.success
+    assert result.failure_classification == "codex_tool_launch_failed"
+    assert result.validation_command_id == ""
+    assert result.validation_exit_code == -1
+    assert all(event["type"] != "EXECUTOR_COMPLETED" for event in seen)
+    assert any(event["type"] == "EXECUTOR_PROGRESS" for event in seen)
+    assert len(launched) == 1 and launched[0].poll() == 0
+
+
 @pytest.mark.parametrize("script,classification", [
     ("import sys;sys.stdin.read();print('invalid json')", "codex_invalid_jsonl"),
     (SUCCESS_SCRIPT + ";raise SystemExit(7)", "codex_process_failed"),
