@@ -780,6 +780,41 @@ class PlatformControlStore:
                 raise TaskStoreError(f"goal_link_not_found:{task_id}")
             return str(row["goal_id"])
 
+    @staticmethod
+    def is_strict_owner_window(window: AutonomousWindowRecord) -> bool:
+        return (window.confirmation_mode != "DELEGATED_CONTROLLER"
+                and window.max_tasks == 1 and window.max_concurrent_tasks == 1
+                and window.max_retries == 0 and len(window.repositories) == 1
+                and window.capabilities == ("execute_task",))
+
+    def check_strict_task_admission(self, window_id: str, task_id: str) -> None:
+        """Caller holds the store lock; claims call this inside BEGIN IMMEDIATE.
+
+        This binds to the first launched Goal, not an Owner-selected Goal: legacy
+        activation does not carry that identity or a selected executor.
+        """
+        window = self.get_window(window_id)
+        if not self.is_strict_owner_window(window):
+            return
+        goals = self.list_window_goals(window_id)
+        if len(goals) != 1:
+            raise TaskStoreError("strict_window_goal_binding_required")
+        goal = goals[0]
+        links = self.list_goal_tasks(goal.id)
+        task = self.task_store.get_task(task_id)
+        completion_recovery = (goal.status in {"COMPLETED", "BLOCKED"}
+                               and self.can_complete_host_claim(window_id=window_id, task_id=task_id))
+        if ((goal.status != "RUNNING" and not completion_recovery)
+                or goal.repository != window.repositories[0]
+                or goal.orchestration_mode != "single" or len(goal.tasks) != 1
+                or len(links) != 1 or links[0]["task_id"] != task_id
+                or links[0]["goal_revision"] != goal.revision
+                or task.repository != goal.repository
+                or task.executor_kind != goal.executor_kind
+                or task.binding_ref != goal.binding_ref
+                or task.orchestration_mode != goal.orchestration_mode):
+            raise TaskStoreError("strict_window_task_binding_mismatch")
+
     def runnable_tasks(self, window_id: str, *, limit: int = 100) -> tuple[str, ...]:
         with self._lock:
             # Limit ready tasks, not queue positions: waiting dependencies must
@@ -814,6 +849,10 @@ class PlatformControlStore:
             ).fetchall()
             ready = []
             for row in rows:
+                try:
+                    self.check_strict_task_admission(window_id, row["task_id"])
+                except TaskStoreError:
+                    continue
                 if row["status"] in {"READY_FOR_REVIEW", "FAILED"} and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
                     continue
@@ -1076,6 +1115,7 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
+            self.check_strict_task_admission(window_id, task_id)
             if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",

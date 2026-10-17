@@ -20,7 +20,11 @@ def _services():
 
 @pytest.mark.parametrize("durable", [False, True])
 def test_explicit_host_check_goal_freezes_intent_and_never_dispatches_model(tmp_path, monkeypatch, durable):
-    """Synthetic authority fixture; the checker itself operates on a real Git repository."""
+    _persisted_host_result(tmp_path, monkeypatch, durable=durable)
+
+
+def _persisted_host_result(tmp_path, monkeypatch, *, durable=True, strict=False, failed=False):
+    """Synthetic SQLite authority; the checker uses a disposable Git repository."""
     import subprocess
     from reverse_agent.platform_v1.task_execution import TaskExecutionService
     from reverse_agent.platform_v1.task_runtime import ExecutorRouter, load_host_validation_contract
@@ -53,6 +57,16 @@ def test_explicit_host_check_goal_freezes_intent_and_never_dispatches_model(tmp_
     goals.approve(goal.id, expected_revision=1)
     goals.launch(goal.id, expected_revision=1, window_id=window.id)
     task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    if strict:
+        # Synthetic authority only: exercise recovery under the strict admission shape.
+        store._conn.execute(
+            "UPDATE platform_autonomous_windows SET capabilities_json = ?, max_tasks = 1, "
+            "max_concurrent_tasks = 1, max_retries = 0 WHERE id = ?",
+            ('["execute_task"]', window.id))
+        assert control.is_strict_owner_window(control.get_window(window.id))
+        control.claim_task(window_id=window.id, task_id=task_id, owner="original", lease_ms=1000)
+    if failed:
+        (tmp_path / "source.txt").write_bytes(b"baseline trailing whitespace   \n")
     frozen = load_host_validation_contract(store.get_task(task_id))
     assert frozen["allowed_paths"] == ["source.txt"] and frozen["base_sha"] == head
     router = ExecutorRouter()
@@ -69,12 +83,66 @@ def test_explicit_host_check_goal_freezes_intent_and_never_dispatches_model(tmp_
         store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
     else:
         outcome = service.execute(task_id, workspace_root=str(tmp_path))
-    assert outcome.success and outcome.validation_command_id == "git_diff_check"
+    assert outcome.success is (not failed)
+    assert outcome.validation_command_id == "git_diff_check"
     final = store.get_task(task_id)
-    assert final.status == "READY_FOR_REVIEW"
+    assert final.status == ("FAILED" if failed else "READY_FOR_REVIEW")
     assert any(row["value"] == "host_validation" for row in final.evidence_refs)
     assert any(event.metadata.get("model_execution_skipped") for event in store.get_events(task_id))
-    assert goals.detail(goal.id)["completion_scope"] == "EXECUTION_ONLY"
+    if not failed:
+        assert goals.detail(goal.id)["completion_scope"] == "EXECUTION_ONLY"
+    control.refresh_goal_status(goal.id)
+    monkeypatch.setattr(control, "window_policy_binding",
+                        PlatformControlStore.window_policy_binding.__get__(control))
+    return store, control, window, goal, task_id
+
+
+@pytest.mark.parametrize("failed", [False, True])
+@pytest.mark.parametrize("mutation", [None, "task", "revision", "executor", "missing_result", "new_work"])
+def test_strict_terminal_goal_recovers_only_original_persisted_result(tmp_path, monkeypatch, failed, mutation):
+    store, control, window, goal, task_id = _persisted_host_result(
+        tmp_path, monkeypatch, strict=True, failed=failed)
+    assert control.get_goal(goal.id).status == ("BLOCKED" if failed else "COMPLETED")
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms = 0 WHERE task_id = ?", (task_id,))
+    task = store.get_task(task_id)
+    store.append_usage_observation(task_id, observation_id="original-unknown", execution_id=task.execution_id,
+        role="executor", model_id="fixture", provider_id="", source_kind="fixture", source_id="original", status="UNKNOWN")
+    if mutation == "task":
+        task_id = store.create_task(title="Unrelated", repository=goal.repository, executor_kind=goal.executor_kind).id
+    elif mutation == "revision":
+        store._conn.execute("UPDATE platform_goal_task_links SET goal_revision = 2 WHERE task_id = ?", (task_id,))
+    elif mutation == "executor":
+        store._conn.execute("UPDATE tasks SET executor_kind = 'codex' WHERE id = ?", (task_id,))
+    elif mutation == "missing_result":
+        store._conn.execute("UPDATE tasks SET validation_exit_code = NULL WHERE id = ?", (task_id,))
+    elif mutation == "new_work":
+        store.set_state(task_id, "QUEUED")
+    if mutation:
+        assert task_id not in control.runnable_tasks(window.id)
+        with pytest.raises(TaskStoreError, match="strict_window_task_binding_mismatch"):
+            control.claim_task(window_id=window.id, task_id=task_id, owner="recovery", lease_ms=1000)
+        reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
+        assert reservation["state"] == "ACTIVE" and reservation["claim_epoch"] == 1
+    else:
+        assert control.can_complete_host_claim(window_id=window.id, task_id=task_id)
+        assert control.runnable_tasks(window.id) == (task_id,)
+        epoch, _ = control.claim_task(window_id=window.id, task_id=task_id, owner="recovery", lease_ms=1000)
+        assert epoch == 2
+        assert store.get_task(task_id) == task
+        control.complete_task_claim(window_id=window.id, task_id=task_id, owner="recovery", epoch=epoch, result="persisted")
+        with pytest.raises(TaskStoreError, match="coordinator_claim_fenced"):
+            control.complete_task_claim(window_id=window.id, task_id=task_id, owner="recovery", epoch=epoch, result="persisted")
+        reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
+        assert reservation["state"] == "UNKNOWN" and reservation["claim_epoch"] == epoch
+        assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 1
+        assert control.get_window(window.id).tasks_completed == 1
+        assert control.get_window(window.id).unknown_observation_count == 1
+        assert control.runnable_tasks(window.id) == ()
+        with pytest.raises(TaskStoreError):
+            control.claim_task(window_id=window.id, task_id=task_id, owner="again", lease_ms=1000)
+    assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
+    assert control.get_window(window.id).tasks_started == 1
+    assert control.get_window(window.id).retries_used == 0
 
 
 @pytest.mark.parametrize("command,capability", [("shell echo hello", "validate_task"), ("git_diff_check", "execute_task")])
@@ -102,6 +170,74 @@ def _window_payload():
         "max_retries": 1,
         "confirmation": "ACTIVATE",
     }
+
+
+def _strict_running_goal():
+    store, control, autonomy, goals = _services()
+    payload = _window_payload()
+    payload.update(capabilities=["execute_task"], max_tasks=1,
+                   max_concurrent_tasks=1, max_retries=0)
+    window = autonomy.activate(payload)
+    goal = _approve_strict_fixture(goals, "first")
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    return store, control, autonomy, goals, window, goal, task_id
+
+
+def _approve_strict_fixture(goals, key):
+    goal = goals.create({"objective": "Fixture", "idempotency_key": key,
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    goals.approve(goal.id, expected_revision=1)
+    return goal
+
+
+def test_strict_window_rejects_second_goal_without_materialization():
+    store, control, _, goals, window, first, task_id = _strict_running_goal()
+    second = _approve_strict_fixture(goals, "second")
+    with pytest.raises(TaskStoreError, match="strict_window_requires_one_single_task_goal"):
+        goals.launch(second.id, expected_revision=1, window_id=window.id)
+    assert control.list_goal_tasks(second.id) == ()
+    assert control.runnable_tasks(window.id) == (task_id,)
+    control.claim_task(window_id=window.id, task_id=task_id, owner="fixture", lease_ms=1000)
+    assert control.get_window(window.id).tasks_started == 1
+
+
+@pytest.mark.parametrize("mutation", ["revision", "executor", "repository", "binding", "unknown"])
+def test_strict_claim_rejects_unbound_task_without_spending(mutation):
+    store, control, _, _, window, goal, task_id = _strict_running_goal()
+    if mutation == "revision":
+        store._conn.execute("UPDATE platform_goal_task_links SET goal_revision = 2 WHERE task_id = ?", (task_id,))
+    elif mutation == "unknown":
+        task_id = store.create_task(title="Legacy", repository=goal.repository,
+                                    executor_kind="deterministic_fixture").id
+    else:
+        column, value = {"executor": ("executor_kind", "opencode"),
+                         "repository": ("repository", "other/repo"),
+                         "binding": ("binding_ref", "wrong-binding")}[mutation]
+        store._conn.execute(f"UPDATE tasks SET {column} = ? WHERE id = ?", (value, task_id))
+    with pytest.raises(TaskStoreError, match="strict_window_task_binding_mismatch"):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="fixture", lease_ms=1000)
+    assert control.get_window(window.id).tasks_started == 0
+    if mutation != "unknown":
+        assert control.runnable_tasks(window.id) == ()
+    assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 0
+
+
+def test_strict_binding_does_not_spill_to_next_window():
+    _, control, autonomy, goals, first_window, _, first_task = _strict_running_goal()
+    control.stop_window(first_window.id)
+    payload = _window_payload()
+    payload.update(policy_id="owner-window-2", capabilities=["execute_task"],
+                   max_tasks=1, max_concurrent_tasks=1, max_retries=0)
+    window = autonomy.activate(payload)
+    goal = _approve_strict_fixture(goals, "next-window")
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    with pytest.raises(TaskStoreError, match="strict_window_task_binding_mismatch"):
+        control.claim_task(window_id=window.id, task_id=first_task, owner="fixture", lease_ms=1000)
+    assert control.runnable_tasks(window.id) == (task_id,)
+    control.claim_task(window_id=window.id, task_id=task_id, owner="fixture", lease_ms=1000)
 
 
 def _running_timestamp_goal():
