@@ -17,6 +17,8 @@ import threading
 from collections.abc import Callable
 from multiprocessing.connection import AuthenticationError, Listener
 
+from .native_pipe_peer import matches_expected_client_pid
+
 PROTOCOL = "nerelan-native-pipe-probe/v1"
 MAX_REQUEST_BYTES = 4096
 BLOCKED = "NOT_SUPPORTED"
@@ -75,11 +77,15 @@ class NativePipeProbe:
     def __init__(
         self,
         *,
+        expected_client_pid: int,
         key_factory: Callable[[int], bytes] = secrets.token_bytes,
         nonce_factory: Callable[[int], str] = secrets.token_hex,
     ) -> None:
         if os.name != "nt":
             raise RuntimeError("windows_native_pipe_required")
+        if type(expected_client_pid) is not int or not (1 <= expected_client_pid <= 0xFFFFFFFF):
+            raise RuntimeError("native_pipe_expected_client_unavailable")
+        self._expected_client_pid = expected_client_pid
         self._lock = threading.RLock()
         key = key_factory(32)
         name = nonce_factory(16)
@@ -136,6 +142,13 @@ class NativePipeProbe:
                     return "AUTHENTICATION_FAILED"
                 try:
                     with connection:
+                        # The Python authentication key alone does not identify
+                        # a trusted launched process. Check Win32's actual
+                        # connecting PID on the SERVER pipe handle.
+                        if not matches_expected_client_pid(
+                            connection.fileno(), self._expected_client_pid,
+                        ):
+                            return "CLIENT_IDENTITY_REJECTED"
                         try:
                             packet = connection.recv_bytes(MAX_REQUEST_BYTES + 1)
                         except (EOFError, OSError, ValueError):

@@ -47,7 +47,7 @@ def test_probe_response_does_not_assert_user_or_scheduler_authority():
 
 @pytest.mark.skipif(os.name != "nt", reason="AF_PIPE requires Windows")
 def test_real_named_pipe_accepts_only_host_delivered_key():
-    server = NativePipeProbe()
+    server = NativePipeProbe(expected_client_pid=os.getpid())
     bootstrap = []
     server.deliver_to_trusted_bootstrap(lambda address, secret: bootstrap.append((address, secret)))
     assert len(bootstrap) == 1
@@ -77,7 +77,7 @@ def test_real_named_pipe_accepts_only_host_delivered_key():
 
 @pytest.mark.skipif(os.name != "nt", reason="AF_PIPE requires Windows")
 def test_real_named_pipe_wrong_authentication_never_reaches_handler():
-    server = NativePipeProbe()
+    server = NativePipeProbe(expected_client_pid=os.getpid())
     bootstrap = []
     server.deliver_to_trusted_bootstrap(lambda address, secret: bootstrap.append((address, secret)))
     address, key = bootstrap[0]
@@ -97,7 +97,7 @@ def test_real_named_pipe_wrong_authentication_never_reaches_handler():
 
 @pytest.mark.skipif(os.name != "nt", reason="AF_PIPE requires Windows")
 def test_authenticated_pipe_still_denies_goal_mutation():
-    server = NativePipeProbe()
+    server = NativePipeProbe(expected_client_pid=os.getpid())
     bootstrap = []
     server.deliver_to_trusted_bootstrap(lambda address, key: bootstrap.append((address, key)))
     ready = threading.Event()
@@ -116,7 +116,7 @@ def test_authenticated_pipe_still_denies_goal_mutation():
 
 @pytest.mark.skipif(os.name != "nt", reason="AF_PIPE requires Windows")
 def test_delivery_failure_revokes_session_without_echoing_secret():
-    server = NativePipeProbe()
+    server = NativePipeProbe(expected_client_pid=os.getpid())
     def receiver(_address, _secret):
         raise ValueError("credential-shaped sensitive information")
     with pytest.raises(RuntimeError, match="^native_pipe_delivery_failed$") as exc:
@@ -130,6 +130,6 @@ def test_delivery_failure_revokes_session_without_echoing_secret():
 @pytest.mark.skipif(os.name != "nt", reason="AF_PIPE requires Windows")
 def test_probe_rejects_zero_secret_and_untrusted_pipe_suffix():
     with pytest.raises(RuntimeError, match="native_pipe_key_unavailable"):
-        NativePipeProbe(key_factory=lambda _: bytes(32))
+        NativePipeProbe(expected_client_pid=os.getpid(), key_factory=lambda _: bytes(32))
     with pytest.raises(RuntimeError, match="native_pipe_name_unavailable"):
-        NativePipeProbe(nonce_factory=lambda _: "../../evil")
+        NativePipeProbe(expected_client_pid=os.getpid(), nonce_factory=lambda _: "../../evil")
