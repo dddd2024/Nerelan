@@ -38,6 +38,9 @@ class CodexTurn:
     thread_id: str = ""
     completed: bool = False
     failed: bool = False
+    # A tool runner that never created its child process is an infrastructure
+    # failure, even when the model turn itself later reports completed.
+    tool_launch_failed: bool = False
     final_text: str = ""
     failure_classification: str = ""
     usage: dict[str, int] | None = None
@@ -166,6 +169,12 @@ class CodexJsonl:
                 if type(item.get("exit_code")) is int:
                     public["exit_code"] = item["exit_code"]
                 public["status"] = public_text(item.get("status"), 80)
+                # An exit code of -1 on a failed command_execution is a CLI
+                # helper/launch failure, not a normal nonzero command exit.
+                # Do not let a later turn.completed erase this evidence.
+                if (kind == "item.completed" and public["status"] == "failed"
+                        and item.get("exit_code") == -1):
+                    self.turn.tool_launch_failed = True
             elif item_type == "file_change":
                 public["status"] = public_text(item.get("status"), 80)
             else:

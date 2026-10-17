@@ -46,6 +46,30 @@ def test_actual_token_usage_is_not_a_cost_estimate():
     assert "cost" not in parser.turn.__dict__
 
 
+@pytest.mark.parametrize("status,exit_code,expected", [
+    ("failed", -1, True),   # Windows sandbox helper never launched the child.
+    ("failed", 1, False),   # Ordinary command failure may be exploratory.
+    ("completed", 0, False),
+    ("failed", None, False),  # Do not invent an unavailable exit code.
+])
+def test_failed_command_helper_is_preserved_after_completed_turn(status, exit_code, expected):
+    item = {"type": "command_execution", "status": status, "command": "git status"}
+    if exit_code is not None:
+        item["exit_code"] = exit_code
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE))
+    result = parser.finish()
+    assert result.completed
+    assert result.tool_launch_failed is expected
+
+
+def test_transient_command_updates_do_not_fabricate_launch_failure():
+    parser = CodexJsonl()
+    item = {"type": "command_execution", "status": "failed", "exit_code": -1}
+    parser.feed(wire(*START, {"type": "item.updated", "item": item}, MESSAGE, DONE))
+    assert parser.finish().tool_launch_failed is False
+
+
 @pytest.mark.parametrize("stream,classification", [
     (b"not-json\n", "codex_invalid_jsonl"),
     (b"\xff\n", "codex_invalid_jsonl"),
