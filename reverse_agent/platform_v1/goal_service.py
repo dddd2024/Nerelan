@@ -25,6 +25,7 @@ from .functional_validation import (
     freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
 )
 from .quota_guard import LIMIT_HIT
+from .required_review_artifact import normalize_required_artifacts, freeze_required_artifacts
 from .run_read_model import publication_projection
 from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
@@ -43,6 +44,7 @@ class PlannedTask:
     artifact_input: dict[str, str] | None = None
     validation_command_id: str = ""
     agent_role: str = ""
+    required_artifacts: tuple[dict[str, str], ...] = ()
 
 
 AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
@@ -338,6 +340,7 @@ class GoalService:
                 orchestration_mode=orchestration_mode,
             )
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
+            freeze_required_artifacts(self.store, task, goal=goal, plan_task=plan_task)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             if plan_task.validation_command_id:
                 self._freeze_host_validation(task, goal, plan_task, window)
@@ -431,6 +434,7 @@ class GoalService:
                 orchestration_mode="single",
             )
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+            freeze_required_artifacts(self.store, task, goal=goal, plan_task=plan_task)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
             reason = f"failed:{failed.failure_classification or 'unknown'}"
             self.control_store.escalate_goal_task(
@@ -670,11 +674,14 @@ class GoalService:
         if (not isinstance(command, str) or (command and
                 (command != "git_diff_check" or capability != "validate_task" or artifact_input or checks))):
             raise TaskStoreError("unsupported_standalone_validation_command")
+        required_artifacts = normalize_required_artifacts(raw.get("required_artifacts", ()))
+        if required_artifacts and (capability != "execute_task" or checks or artifact_input or command):
+            raise TaskStoreError("required_artifacts_require_standalone_execution")
         agent_role = str(raw.get("agent_role", "") or "").strip()
         if agent_role and agent_role not in AGENT_TASK_ROLES:
             raise TaskStoreError(f"unsupported_agent_role:{agent_role}")
         return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command,
-                           agent_role)
+                           agent_role, required_artifacts)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -710,6 +717,8 @@ class GoalService:
                         + (" on " + ", ".join(f"`{target}`" for target in check["targets"]) if check.get("targets") else "")
                         for check in item.validation_checks
                     ) or "not selected (patch hygiene alone is not functional verification)"),
+                    *([f"Required review output: `{v['path']}` exact `{v['expected_sha']}`"
+                       for v in item.required_artifacts]),
                     *([f"Accepted artifact input: `{item.artifact_input['plan_task_id']}`"]
                       if item.artifact_input else []),
                     "",

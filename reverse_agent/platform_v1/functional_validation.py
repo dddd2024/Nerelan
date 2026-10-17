@@ -23,6 +23,7 @@ from typing import Any, Mapping, Sequence
 from reverse_agent.executor_neutral.core import _snapshot_workspace
 from .repository_workspace import resolve_repository_workspace
 from .run_store import TaskStoreError
+from .required_review_artifact import validate_required_artifacts
 
 FUNCTIONAL_COMMAND_ID = "approved_functional_checks"
 CONTRACT_CATEGORY = "FunctionalContract"
@@ -527,6 +528,15 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
     if contract is None:
         code, output, output_digest = LocalValidationRunner().run(
             task_id=task_id, command_id="git_diff_check", cwd=str(worktree))
+        if code == 0:
+            try:
+                passed, reason = validate_required_artifacts(task, worktree)
+            except TaskStoreError as exc:
+                passed, reason = False, str(exc)
+            if not passed:
+                # A model's exit=0 and a clean git diff do not prove that a
+                # requested exact-SHA review report was produced.
+                return "required_review_artifact", 1, reason, ""
         return "git_diff_check", code, output, output_digest
     if lease is not None:
         store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
