@@ -401,6 +401,28 @@ def test_present_invalid_reservation_state_is_unknown(tmp_path, state):
     assert path.read_bytes() == before
 
 
+@pytest.mark.parametrize("tokens,cost", [
+    (0, None), (None, 0), (1, 2), (0, 0),
+])
+def test_active_reservation_cannot_have_observed_usage(tmp_path, tokens, cost):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(
+            "UPDATE platform_budget_reservations "
+            "SET state='ACTIVE', observed_token_units=?, observed_cost_micro_units=?",
+            (tokens, cost),
+        )
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result == {
+        "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+    assert json.loads(json.dumps(result)) == result
+    assert path.read_bytes() == before
+
+
 @pytest.mark.parametrize("state", ["ACTIVE", "UNKNOWN", "OVERRUN", "RECONCILED"])
 def test_canonical_reservation_states_and_absent_join(tmp_path, state):
     path = fixture_db(tmp_path)
@@ -452,7 +474,7 @@ def test_snapshot_connection_is_read_only_and_query_only(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("millis", ["0", "1792195200000"])
-def test_generated_canonical_ids_remain_exact(tmp_path, monkeypatch, capsys, millis):
+def test_canonical_looking_caller_ids_stay_opaque(tmp_path, monkeypatch, capsys, millis):
     path = fixture_db(tmp_path)
     task_id = f"task-{millis}-abcdef012345"
     window_id = f"window-{millis}-012345abcdef"
@@ -464,10 +486,12 @@ def test_generated_canonical_ids_remain_exact(tmp_path, monkeypatch, capsys, mil
     before = path.read_bytes()
     result = inspect_orphan_claims(path, now_ms=NOW)
     claim = result["claims"][0]
-    assert claim["task_id"] == task_id
-    assert claim["window_id"] == window_id
-    assert claim["task_id_is_surrogate"] is False
-    assert claim["window_id_is_surrogate"] is False
+    assert claim["task_id"] == "sha256:" + hashlib.sha256(task_id.encode()).hexdigest()
+    assert claim["window_id"] == "sha256:" + hashlib.sha256(window_id.encode()).hexdigest()
+    assert claim["task_id_is_surrogate"] is True
+    assert claim["window_id_is_surrogate"] is True
+    assert task_id not in json.dumps(result)
+    assert window_id not in json.dumps(result)
     assert claim["reason"] == "TERMINAL_FAILED_REMOTE_UNVERIFIED"
     monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
     assert main() == 0

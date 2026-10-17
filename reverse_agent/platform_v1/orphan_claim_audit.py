@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 from pathlib import Path
 import sqlite3
 import time
@@ -23,12 +22,9 @@ def _safe_id(value: object) -> bool:
     return type(value) is str and 1 <= len(value) <= 128
 
 
-def _reported_id(value: str, prefix: str) -> str:
-    # run_store.create_task and control_store._id generate decimal Unix millis
-    # and uuid4().hex[:12]. Window creation also accepts caller IDs: this is a
-    # format whitelist, not proof of provenance. Legacy IDs get a pseudonym.
-    if re.fullmatch(rf"{prefix}-(?:0|[1-9][0-9]*)-[0-9a-f]{{12}}", value):
-        return value
+def _reported_id(value: str) -> str:
+    # IDs may be caller-supplied even when they look platform-generated.
+    # Their syntax cannot attest provenance. Never disclose raw IDs here.
     return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
@@ -92,6 +88,13 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 or any(row[key] is not None
                        and (type(row[key]) is not int or row[key] < 0)
                        for key in ("observed_token_units", "observed_cost_micro_units"))
+                # An ACTIVE reservation has not been finalized. Observed
+                # usage is only populated in the same transaction that
+                # changes it to a terminal reservation state.
+                or (row["reservation_state"] == "ACTIVE" and (
+                    row["observed_token_units"] is not None
+                    or row["observed_cost_micro_units"] is not None
+                ))
             ):
                 return _unknown("invalid_claim_row")
             for status, joined_id, allowed in (
@@ -135,8 +138,8 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 reason = "INTERRUPTED_REQUIRES_RECEIPT"
             else:
                 reason = "SIDE_EFFECT_STATUS_UNKNOWN"
-            task_id = _reported_id(row["task_id"], "task")
-            window_id = _reported_id(row["window_id"], "window")
+            task_id = _reported_id(row["task_id"])
+            window_id = _reported_id(row["window_id"])
             observations.append({
                 "task_id": task_id,
                 "window_id": window_id,
