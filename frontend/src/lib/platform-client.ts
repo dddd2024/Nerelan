@@ -205,7 +205,13 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
     // A structured conflict reports an existing window, not an uncertain commit.
     // Reuse only the immutable approved grant; never retire a concurrent window.
     if (error instanceof PlatformClientError && definitiveActivationDenials.has(error)
-      && error.status === 409 && error.code === "active_window_exists") {
+      && error.status === 409 && (error.code === "active_window_exists"
+        || error.code.startsWith("active_window_already_exists:"))) {
+      // Discard the reported ID: only authenticated status may select a window.
+      // Malformed suffixes still take the non-mutating conflict path, but cannot authorize reuse.
+      const validConflict = error.code === "active_window_exists"
+        || /^active_window_already_exists:[A-Za-z0-9._:-]{1,256}$/.test(error.code)
+          && !/[\r\n]/.test(error.code);
       let refreshed: PlatformWindow | null;
       try {
         refreshed = (await fetchPlatformStatus()).autonomy.active_window;
@@ -213,7 +219,7 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
         throw new PlatformClientError(409, "active_window_exists_stop_unverified");
       }
       if (refreshed === null) throw error;
-      if (validWindowResponse(refreshed, matches)) return refreshed;
+      if (validConflict && validWindowResponse(refreshed, matches)) return refreshed;
       throw new PlatformClientError(409, Array.isArray(refreshed?.repositories) && !refreshed.repositories.includes(repository)
         ? "active_window_repository_conflict" : "active_window_policy_conflict");
     }

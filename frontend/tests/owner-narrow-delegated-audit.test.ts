@@ -192,7 +192,15 @@ describe("indeterminate activation reconciliation", () => {
 
 // Definitive denials still require authenticated evidence before reporting safety.
 describe("structured activation denial reconciliation", () => {
-  it.each(["exact", "foreign", "spent", "wider", "wrong policy", "wrong revision", "wrong digest", "wrong window"])("handles active_window_exists with %s narrow grant without stop or retry", async (kind) => {
+  it.each([
+    "active_window_exists",
+    "active_window_already_exists:window-concurrent",
+    "active_window_already_exists:",
+    "active_window_already_exists:../../foreign-window/stop",
+    "active_window_already_exists:window-concurrent\n",
+    "active_window_already_exists:" + "x".repeat(257),
+  ].flatMap(error => ["exact", "foreign", "spent", "wider", "wrong policy", "wrong revision", "wrong digest", "wrong window"]
+    .map(kind => ({ error, kind }))))("handles $error with $kind narrow grant without stop or retry", async ({ error, kind }) => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const { template, window } = fixture();
     const active = { ...window,
@@ -212,12 +220,13 @@ describe("structured activation denial reconciliation", () => {
       if (path === "/api/platform/status") return json({ autonomy: { active_window: activated ? active : null } });
       if (path === "/api/windows/activate") {
         activated = true;
-        return json({ error: "active_window_exists" }, 409);
+        return json({ error }, 409);
       }
       throw new Error("Unexpected mutation " + path);
     }));
     const result = ensureApprovedWindow(repo, grant);
-    if (kind === "exact") await expect(result).resolves.toEqual(active);
+    const validConflict = error === "active_window_exists" || error === "active_window_already_exists:window-concurrent";
+    if (kind === "exact" && validConflict) await expect(result).resolves.toEqual(active);
     else await expect(result).rejects.toMatchObject({ status: 409,
       code: kind === "foreign" ? "active_window_repository_conflict" : "active_window_policy_conflict" });
     expect(paths).toEqual(["/api/windows/policy", "/api/platform/status", "/api/windows/activate", "/api/platform/status"]);

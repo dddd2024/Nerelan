@@ -198,6 +198,29 @@ describe("indeterminate activation reconciliation", () => {
 
 // Definitive denials still require authenticated evidence before reporting safety.
 describe("structured activation denial reconciliation", () => {
+  it.each([
+    "active_window_already_exists:window-concurrent",
+    "active_window_already_exists:../../foreign-window/stop",
+  ])("keeps owner fallback fail closed for foreign readback after %s", async (error) => {
+    let activated = false;
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+      const path = pathOf(url); paths.push(path);
+      if (path === "/api/windows/policy") return json({ error: "delegated_policy_authority_unavailable" }, 409);
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: activated
+        ? fakeWindow({ policy_id: "foreign-policy", policy_revision: 1, repositories: ["foreign/repo"] }) : null } });
+      if (path === "/api/windows/activate") {
+        activated = true;
+        return json({ error }, 409);
+      }
+      throw new Error("Unexpected mutation " + path);
+    }));
+    await expect(ensureApprovedWindow(repo, grant)).rejects.toMatchObject({
+      status: 409, code: `${error}_stop_unverified`,
+    });
+    expect(paths).toEqual(["/api/windows/policy", "/api/platform/status", "/api/windows/activate", "/api/platform/status"]);
+  });
+
   it.each([400, 403, 409, 422])("preserves a definitive %s denial with no active window", async (status) => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const paths: string[] = [];
