@@ -263,10 +263,11 @@ def _ready_fixture(store: TaskStore, task_id: str):
 
 
 @pytest.mark.parametrize("failed", [False, True])
-@pytest.mark.parametrize("mutation", [None, "goal", "window", "task", "revision", "epoch", "future", "missing_result", "false_result", "artifact"])
+@pytest.mark.parametrize("mutation", [None, "goal", "window", "task", "revision", "epoch", "future", "missing_result", "false_result", "artifact", "policy"])
 def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatch, failed, mutation):
     from test_goal_service import _persisted_host_result
     from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+    from reverse_agent.platform_v1.control_store import sha256_json
 
     store, control, window, goal, task_id = _persisted_host_result(
         tmp_path, monkeypatch, strict=True, failed=failed)
@@ -296,6 +297,8 @@ def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatc
             store._conn.execute("UPDATE tasks SET validation_exit_code=? WHERE id=?", (0 if failed else 1, task_id))
         elif mutation == "artifact":
             store._conn.execute("UPDATE platform_goals SET artifact_digest=? WHERE id=?", ("f" * 64, goal.id))
+        elif mutation == "policy":
+            store._conn.execute("UPDATE platform_autonomous_windows SET policy_digest=? WHERE id=?", ("f" * 64, window.id))
         def forbidden(*args, **kwargs):
             pytest.fail("Result-only recovery dispatched work")
         router = ExecutorRouter()
@@ -333,11 +336,26 @@ def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatc
             assert reservation["state"] == "UNKNOWN" and reservation["claim_epoch"] == 1
             assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
             assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 1
-            receipts = [r for r in control.list_receipts(window_id=window.id) if r.reason == "coordinator_claim_completed"]
-            assert len(receipts) == 1
+            receipts = control.list_receipts(window_id=window.id)
+            reconciled = [r for r in receipts if r.operation_type == "task_claim_reconciliation"]
+            assert len(reconciled) == 1
+            receipt = reconciled[0]
+            assert receipt.capability == "execute_task" and receipt.decision == "allowed"
+            assert receipt.reason == "coordinator_persisted_result_reconciled"
+            assert receipt.result == "persisted_host_result:UNKNOWN"
+            assert receipt.subject_id == task_id and receipt.repository == task.repository
+            assert receipt.actor == final.owner_identity
+            assert receipt.policy_revision == final.policy_revision
+            assert receipt.policy_digest == final.policy_digest
+            assert receipt.confirmation_mode == control.window_policy_binding(window.id)["confirmation_mode"]
+            assert receipt.input_digest == sha256_json({"task_id": task_id, "claim_epoch": 1,
+                "claim_owner": "original", "persisted_result_only": True})
+            assert not any(r.decision == "allowed" and r.capability == "validate_task" for r in receipts)
+            assert not any(r.operation_type == "task_execution" for r in receipts)
             assert coordinator.tick() == 0
             with pytest.raises(TaskStoreError):
                 control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
+            assert control.list_receipts(window_id=window.id) == receipts
     finally:
         store._conn.close()
 

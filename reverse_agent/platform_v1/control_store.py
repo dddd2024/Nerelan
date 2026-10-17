@@ -1291,7 +1291,7 @@ class PlatformControlStore:
             self._finalize_task_claim(
                 window_id=window_id, task_id=task_id, owner=claim["owner"], epoch=claim["epoch"],
                 claim_status="COMPLETE", count_completion=True,
-                receipt_reason="coordinator_claim_completed", receipt_result="persisted_host_result",
+                receipt_reason="coordinator_persisted_result_reconciled", receipt_result="persisted_host_result",
                 persisted_host_recovery=True)
 
     def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
@@ -1514,11 +1514,16 @@ class PlatformControlStore:
                     values,
                 )
                 self.append_receipt(
-                    window_id=window_id, operation_type="task_execution",
-                    capability=self._claim_operation(task_id),
+                    window_id=window_id,
+                    # Recovery settles the original execute_task admission; it
+                    # neither admits nor executes the terminal Task's checker.
+                    operation_type="task_claim_reconciliation" if persisted_host_recovery else "task_execution",
+                    capability="execute_task" if persisted_host_recovery else self._claim_operation(task_id),
                     repository=self.task_store.get_task(task_id).repository,
                     subject_id=task_id, decision="allowed", reason=receipt_reason,
-                    input_payload={"task_id": task_id, "claim_epoch": epoch},
+                    input_payload=({"task_id": task_id, "claim_epoch": epoch,
+                                    "claim_owner": owner, "persisted_result_only": True}
+                                   if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
                     result=f"{receipt_result}:{reservation_state}",
                 )
                 cur.execute("COMMIT")
