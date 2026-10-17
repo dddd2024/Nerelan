@@ -499,6 +499,43 @@ def _liveness(
     }
 
 
+def _usage_evidence(usage: Mapping[str, Any]) -> dict[str, Any]:
+    """Never turn task-start/heartbeat into a billable model-call claim.
+
+    Usage observations are task-attributed local receipts; they do not prove a
+    specific Magpie gateway session/served model or upstream provider billing.
+    """
+    count = usage.get("observation_count", 0)
+    unknown = usage.get("unknown_observation_count", 0)
+    if type(count) is not int or type(unknown) is not int or count < 0 or unknown < 0 or unknown > count:
+        state = "UNKNOWN"
+        known = 0
+    else:
+        known = count - unknown
+        if count == 0:
+            state = "NO_USAGE_RECEIPT"
+        elif known == 0:
+            state = "USAGE_UNKNOWN"
+        elif unknown:
+            state = "PARTIALLY_OBSERVED"
+        elif usage.get("total_token_units", 0) == 0:
+            state = "ZERO_TOKEN_USAGE_OBSERVED"
+        else:
+            state = "USAGE_OBSERVED"
+    return {
+        "state": state,
+        "task_usage_records": count if type(count) is int and count >= 0 else 0,
+        "confirmed_numeric_records": known,
+        "positive_token_units": (
+            usage.get("total_token_units") if type(usage.get("total_token_units")) is int
+            and usage["total_token_units"] > 0 else 0
+        ),
+        "provider_request_receipt": "UNVERIFIED",
+        "served_magpie_route": "UNKNOWN",
+        "attribution_scope": "TASK_STORE_ONLY",
+    }
+
+
 class RunReadModel:
     """Derived listing/detail over TaskStore; read-only by construction."""
 
@@ -605,6 +642,7 @@ class RunReadModel:
         )
         current_activity = projected_events[-1] if projected_events else None
         validation = self._validation(task)
+        usage = self.store.usage_summary(task.id)
         return {
             "task_id": task.id,
             "title": _safe_text(task.title),
@@ -619,7 +657,8 @@ class RunReadModel:
             "goal_id": goal_id,
             "goal_title": _safe_text(goal_title),
             "window_id": window_id,
-            "usage": self.store.usage_summary(task.id),
+            "usage": usage,
+            "usage_evidence": _usage_evidence(usage),
             "budget": budget,
             "publication": publication_projection(publication),
             "run_id": _safe_text(getattr(durable_run, "run_id", ""), limit=128),
