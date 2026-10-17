@@ -52,7 +52,7 @@ const OWNER_SINGLE_TASK = {
   max_concurrent_tasks: 1,
   max_tasks: 1,
   max_retries: 0,
-  capabilities: ["execute_task", "validate_task"],
+  capabilities: ["execute_task"],
 } as const;
 
 function isExactOwnerWindow(window: PlatformWindow, repository: string, expires: Date): boolean {
@@ -122,13 +122,29 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
   if (template.policy.repository !== repository) throw new PlatformClientError(409, "active_window_repository_conflict");
   const startsAt = Date.parse(template.policy.autonomousWindow.startsAt);
   const expiresAt = Date.parse(template.policy.autonomousWindow.expiresAt);
+  // The delegated-policy route must not sidestep an explicit narrow Owner
+  // selection. Reject the wider policy BEFORE any window activation.
+  const narrow = owner?.autonomyHours === 0.5;
+  const narrowDeadline = narrow ? new Date(Date.now() + 30 * 60 * 1000) : null;
+  if (narrow && (
+    !template.task_budget
+    || template.task_budget.max_tasks !== OWNER_SINGLE_TASK.max_tasks
+    || template.task_budget.max_concurrent_tasks !== OWNER_SINGLE_TASK.max_concurrent_tasks
+    || template.task_budget.max_retries !== OWNER_SINGLE_TASK.max_retries
+    || template.supported_operations.length !== OWNER_SINGLE_TASK.capabilities.length
+    || !OWNER_SINGLE_TASK.capabilities.every((capability) => template.supported_operations.includes(capability))
+    || !Number.isFinite(startsAt) || !Number.isFinite(expiresAt)
+    || startsAt > Date.now() || expiresAt <= Date.now()
+    || expiresAt > narrowDeadline!.getTime()
+  )) throw new PlatformClientError(409, "owner_window_scope_confirmation_required");
   const matches = (window: PlatformWindow) => window.id === template.window_id
     && window.policy_id === template.policy_id && window.policy_revision === template.policy_revision
     && (window.canonical_policy_digest ?? window.policy_digest_sha256 ?? window.policy_digest) === template.policy_digest
     && window.repositories.length === 1 && window.repositories[0] === repository
     && window.status === "ACTIVE" && Number.isFinite(startsAt) && Number.isFinite(expiresAt)
     && startsAt <= Date.now() && Date.now() < expiresAt
-    && Number.isFinite(Date.parse(window.expires_at)) && Date.parse(window.expires_at) === expiresAt;
+    && Number.isFinite(Date.parse(window.expires_at)) && Date.parse(window.expires_at) === expiresAt
+    && (!narrow || isExactOwnerWindow(window, repository, narrowDeadline!));
   const current = (await fetchPlatformStatus()).autonomy.active_window;
   if (current) {
     if (!matches(current)) throw new PlatformClientError(409, current.repositories.includes(repository) ? "active_window_policy_conflict" : "active_window_repository_conflict");
@@ -139,9 +155,28 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
       policy_id: template.policy_id, policy_revision: template.policy_revision,
       policy: JSON.parse(serializePolicy(template.policy)),
     }) });
-    if (!matches(window)) throw new PlatformClientError(409, "active_window_policy_conflict");
+    if (!matches(window)) {
+      if (narrow) {
+        let stopped = false;
+        if (window.status === "ACTIVE" && /^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) {
+          try {
+            await request(`/api/windows/${encodeURIComponent(window.id)}/stop`, {
+              method: "POST", body: JSON.stringify({ reason: "owner_scope_mismatch" }),
+            });
+            stopped = true;
+          } catch {
+            // Do not claim to have retired an unexpected live authority.
+          }
+        }
+        throw new PlatformClientError(409, stopped
+          ? "owner_window_scope_response_mismatch"
+          : "owner_window_scope_response_mismatch_stop_unverified");
+      }
+      throw new PlatformClientError(409, "active_window_policy_conflict");
+    }
     return window;
   } catch (error) {
+    if (error instanceof PlatformClientError && error.code.startsWith("owner_window_scope_")) throw error;
     if (error instanceof PlatformClientError && (error.status === 409 || error.code.includes("active_window"))) {
       const refreshed = (await fetchPlatformStatus()).autonomy.active_window;
       if (refreshed) {

@@ -43,7 +43,7 @@ describe("owner-approved 30-minute one-task authorization", () => {
     await expect(ensureApprovedWindow(repo, grant)).resolves.toMatchObject({ max_tasks: 1 });
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({
-      repositories: [repo], capabilities: ["execute_task", "validate_task"],
+      repositories: [repo], capabilities: ["execute_task"],
       max_tasks: 1, max_concurrent_tasks: 1, max_retries: 0,
     });
     const ms = Date.parse(seen[0].expires_at) - Date.parse(seen[0].starts_at);
@@ -76,7 +76,7 @@ describe("owner-approved 30-minute one-task authorization", () => {
       const path = pathOf(url);
       if (path === "/api/windows/policy") return response({ error: "delegated_policy_authority_unavailable" }, 409);
       if (path === "/api/platform/status") return response({ autonomy: { active_window: fakeWindow({
-        repositories: [repo], capabilities: ["execute_task", "validate_task"], max_tasks: 20,
+        repositories: [repo], capabilities: ["execute_task"], max_tasks: 20,
         max_concurrent_tasks: 2, max_retries: 1, expires_at: new Date(Date.now() + 3600000).toISOString(),
       }) } });
       if (path === "/api/windows/activate") { activated = true; throw new Error("Unexpected activation"); }
