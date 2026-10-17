@@ -36,6 +36,20 @@ def test_no_window_is_idle_not_execution_permission():
     assert x["queued_tasks"]==9
 
 
+def test_completed_historical_window_is_valid_but_not_authority():
+    x=evaluate(windows=[window("COMPLETED", start=-6, end=-4)])
+    assert x["state"]=="HOST_IDLE_NO_WINDOW"
+    assert x["dispatch_permitted"] is False
+    assert x["required_next_action"]=="WAIT_FOR_OWNER_WINDOW"
+
+
+def test_completed_history_coexists_with_current_window_without_granting_dispatch():
+    x=evaluate(windows=[window("COMPLETED", start=-6, end=-4, name="older"), window()])
+    assert x["state"]=="READY_FOR_HOST_RECONCILIATION"
+    assert x["dispatch_permitted"] is False
+    assert x["active_window_id"]=="win"
+
+
 def test_single_active_window_requires_separate_fenced_reconciliation():
     x=evaluate()
     assert x["state"]=="READY_FOR_HOST_RECONCILIATION"
