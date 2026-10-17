@@ -69,18 +69,53 @@ function isExactOwnerWindow(window: PlatformWindow, repository: string, expires:
     && Date.parse(window.expires_at) > Date.now();
 }
 
-// A successful HTTP response alone does not establish retirement.
-async function retireUnexpectedWindow(window: PlatformWindow): Promise<boolean> {
-  if (window.status !== "ACTIVE" || !/^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) return false;
+// Never use an untrusted activation response to select a foreign window to stop.
+// A null read immediately after an indeterminate mutation cannot rule out a late commit.
+async function retireUnexpectedWindow(
+  response: PlatformWindow | undefined,
+  attributable: (window: PlatformWindow) => boolean,
+  definitiveRejection = false,
+): Promise<boolean> {
   try {
+    const platform = await fetchPlatformStatus();
+    const active = platform.autonomy.active_window;
+    if (active === undefined || (active !== null && active.status !== "ACTIVE")) return false;
+    if (active === null && definitiveRejection) return true;
+    const window = active ?? response;
+    if (!window || !attributable(window) || typeof window.id !== "string" || !/^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) return false;
     const stopped = await request<{ status?: string }>(`/api/windows/${encodeURIComponent(window.id)}/stop`, {
       method: "POST", body: JSON.stringify({ reason: "owner_scope_mismatch" }),
     });
-    const platform = await fetchPlatformStatus();
-    return stopped.status === "STOPPED" && platform.autonomy.active_window === null;
+    const readback = await fetchPlatformStatus();
+    return stopped?.status === "STOPPED" && readback.autonomy.active_window === null;
   } catch {
     return false;
   }
+}
+
+// Runtime JSON is untrusted even when request<T> supplies a static type.
+function validWindowResponse(window: PlatformWindow, matches: (window: PlatformWindow) => boolean): boolean {
+  try {
+    return !!window && typeof window.id === "string" && /^[A-Za-z0-9._:-]{1,256}$/.test(window.id)
+      && window.status === "ACTIVE" && Array.isArray(window.repositories)
+      && matches(window);
+  } catch {
+    return false;
+  }
+}
+
+// Only structured denials from the authenticated request path are definitive.
+const definitiveActivationDenials = new WeakSet<PlatformClientError>();
+
+async function activationFailure(
+  code: string, response: PlatformWindow | undefined, attributable: (window: PlatformWindow) => boolean,
+  error?: unknown,
+): Promise<never> {
+  const denial = error instanceof PlatformClientError && definitiveActivationDenials.has(error) ? error : undefined;
+  const stopped = await retireUnexpectedWindow(response, attributable, !!denial);
+  if (stopped && denial) throw denial;
+  const failureCode = denial?.code ?? code;
+  throw new PlatformClientError(denial?.status ?? 409, stopped ? failureCode : `${failureCode}_stop_unverified`);
 }
 
 /** Fail-closed owner window; the UI must not enlarge an approved one-task grant. */
@@ -102,22 +137,24 @@ async function ensureOwnerWindow(repository: string, owner: OwnerWindowRequest):
     }
     return current;
   }
-  const window = await request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
-    policy_id: `owner-ui-${owner.operationId}`, policy_revision: 1, owner_identity: "local-owner",
-    starts_at: starts.toISOString(), expires_at: expires.toISOString(), repositories: [repository],
-    capabilities: narrow ? OWNER_SINGLE_TASK.capabilities :
-      ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
-    max_concurrent_tasks: narrow ? 1 : 2, max_tasks: narrow ? 1 : 20,
-    max_retries: narrow ? 0 : 1, confirmation: "ACTIVATE",
-  }) });
-  if (narrow && !isExactOwnerWindow(window, repository, expires)) {
-    // A malformed/widened response may already have created a live window.
-    // Attempt to retire it through the same authenticated API before refusing
-    // launch; don't interpret a stop failure as a successful rollback.
-    const stopped = await retireUnexpectedWindow(window);
-    throw new PlatformClientError(409, stopped
-      ? "owner_window_scope_response_mismatch"
-      : "owner_window_scope_response_mismatch_stop_unverified");
+  const policyId = `owner-ui-${owner.operationId}`;
+  const attributable = (window: PlatformWindow) => window.policy_id === policyId && window.policy_revision === 1;
+  let window: PlatformWindow;
+  try {
+    window = await request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
+      policy_id: policyId, policy_revision: 1, owner_identity: "local-owner",
+      starts_at: starts.toISOString(), expires_at: expires.toISOString(), repositories: [repository],
+      capabilities: narrow ? OWNER_SINGLE_TASK.capabilities :
+        ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
+      max_concurrent_tasks: narrow ? 1 : 2, max_tasks: narrow ? 1 : 20,
+      max_retries: narrow ? 0 : 1, confirmation: "ACTIVATE",
+    }) });
+  } catch (error) {
+    return activationFailure("owner_window_activation_indeterminate", undefined, attributable, error);
+  }
+  if (!validWindowResponse(window, candidate => !narrow
+    || (attributable(candidate) && isExactOwnerWindow(candidate, repository, expires)))) {
+    return activationFailure("owner_window_scope_response_mismatch", window, attributable);
   }
   return window;
 }
@@ -156,32 +193,36 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
     if (!matches(current)) throw new PlatformClientError(409, current.repositories.includes(repository) ? "active_window_policy_conflict" : "active_window_repository_conflict");
     return current;
   }
+  const attributable = (window: PlatformWindow) => window.id === template.window_id
+    && window.policy_id === template.policy_id && window.policy_revision === template.policy_revision;
+  let window: PlatformWindow;
   try {
-    const window = await request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
+    window = await request<PlatformWindow>("/api/windows/activate", { method: "POST", body: JSON.stringify({
       policy_id: template.policy_id, policy_revision: template.policy_revision,
       policy: JSON.parse(serializePolicy(template.policy)),
     }) });
-    if (!matches(window)) {
-      if (narrow) {
-        const stopped = await retireUnexpectedWindow(window);
-        throw new PlatformClientError(409, stopped
-          ? "owner_window_scope_response_mismatch"
-          : "owner_window_scope_response_mismatch_stop_unverified");
-      }
-      throw new PlatformClientError(409, "active_window_policy_conflict");
-    }
-    return window;
   } catch (error) {
-    if (error instanceof PlatformClientError && error.code.startsWith("owner_window_scope_")) throw error;
-    if (error instanceof PlatformClientError && (error.status === 409 || error.code.includes("active_window"))) {
-      const refreshed = (await fetchPlatformStatus()).autonomy.active_window;
-      if (refreshed) {
-        if (!matches(refreshed)) throw new PlatformClientError(409, refreshed.repositories.includes(repository) ? "active_window_policy_conflict" : "active_window_repository_conflict");
-        return refreshed;
+    // A structured conflict reports an existing window, not an uncertain commit.
+    // Reuse only the immutable approved grant; never retire a concurrent window.
+    if (error instanceof PlatformClientError && definitiveActivationDenials.has(error)
+      && error.status === 409 && error.code === "active_window_exists") {
+      let refreshed: PlatformWindow | null;
+      try {
+        refreshed = (await fetchPlatformStatus()).autonomy.active_window;
+      } catch {
+        throw new PlatformClientError(409, "active_window_exists_stop_unverified");
       }
+      if (refreshed === null) throw error;
+      if (validWindowResponse(refreshed, matches)) return refreshed;
+      throw new PlatformClientError(409, Array.isArray(refreshed?.repositories) && !refreshed.repositories.includes(repository)
+        ? "active_window_repository_conflict" : "active_window_policy_conflict");
     }
-    throw error;
+    return activationFailure("delegated_window_activation_indeterminate", undefined, attributable, error);
   }
+  if (!validWindowResponse(window, matches)) {
+    return activationFailure(narrow ? "owner_window_scope_response_mismatch" : "active_window_policy_conflict", window, attributable);
+  }
+  return window;
 }
 
 export function approvedCheckerPlan(template: ApprovedPolicyTemplate | null) {
@@ -1080,7 +1121,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const payload = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
   if (!response.ok) {
     const code = typeof payload.error === "string" ? payload.error : "platform_request_failed";
-    throw new PlatformClientError(response.status, code);
+    const error = new PlatformClientError(response.status, code);
+    if ([400, 403, 409, 422].includes(response.status) && typeof payload.error === "string" && payload.error.length > 0) {
+      definitiveActivationDenials.add(error);
+    }
+    throw error;
   }
   return payload;
 }
