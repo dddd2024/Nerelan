@@ -7,8 +7,84 @@ import sqlite3
 import pytest
 
 from reverse_agent.platform_v1.orphan_claim_audit import inspect_orphan_claims, main
+from reverse_agent.platform_v1.control_store import WINDOW_STATES
+from reverse_agent.platform_v1.run_store import TASK_STATUS_ORDER
 
 NOW = 10_000_000
+
+
+@pytest.mark.parametrize("table,column", [
+    ("tasks", "status"), ("platform_autonomous_windows", "status"),
+    ("platform_coordinator_claims", "task_id"),
+    ("platform_coordinator_claims", "window_id"),
+])
+@pytest.mark.parametrize("value", [
+    "private-secret/raw-payload", "private-secret", "x" * 1_000_000,
+    "../private-path", "sk-abcdefghijklmnopqrstuvwxyz", "payload\ntext",
+], ids=["raw-payload", "secret", "oversized", "path", "credential", "newline"])
+def test_unsafe_text_is_sanitized(tmp_path, monkeypatch, capsys, table, column, value):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(f"UPDATE {table} SET {column} = ?", (value,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result == {
+        "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+    assert json.loads(json.dumps(result)) == result
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 2
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == result
+    assert value not in captured.out
+    assert str(path) not in captured.out
+    assert captured.err == ""
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("task_status", TASK_STATUS_ORDER)
+@pytest.mark.parametrize("window_status", sorted(WINDOW_STATES))
+def test_canonical_statuses_remain_visible(tmp_path, task_status, window_status):
+    path = fixture_db(tmp_path, task_status=task_status)
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE platform_autonomous_windows SET status = ?", (window_status,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert result["claims"][0]["task_status"] == task_status
+    assert result["claims"][0]["window_status"] == window_status
+    assert json.loads(json.dumps(result)) == result
+    assert not any(result[key] for key in (
+        "dispatch_permitted", "reconcile_permitted", "auto_release_permitted"))
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("table", ["tasks", "platform_autonomous_windows"])
+def test_missing_join_is_held_but_null_status_is_corrupt(tmp_path, table):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(f"UPDATE {table} SET status = NULL")
+    assert inspect_orphan_claims(path, now_ms=NOW)["state"] == "UNKNOWN"
+    with sqlite3.connect(path) as db:
+        db.execute(f"DELETE FROM {table}")
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["claims"][0]["reason"] == "INCONSISTENT_CLAIM_OR_RESERVATION"
+
+
+@pytest.mark.parametrize("task_id,window_id", [
+    ("task-1792195200000-abcdef012345", "window-1792195200000-abcdef012345"),
+    ("task_fixture_1", "window_fixture_1"),
+])
+def test_safe_existing_id_formats(tmp_path, task_id, window_id):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE platform_coordinator_claims SET task_id=?, window_id=?",
+                   (task_id, window_id))
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["claims"][0]["task_id"] == task_id
+    assert result["claims"][0]["window_id"] == window_id
 
 
 def fixture_db(tmp_path, *, task_status="FAILED", claim_expires=1,
