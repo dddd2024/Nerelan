@@ -62,14 +62,21 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
         # than running a full journal scan for every claim. Deduplicate task IDs
         # so multiple claims for one task do not multiply its operation count.
         task_ids = list(dict.fromkeys(row["task_id"] for row in rows))
-        placeholders = ",".join("?" for _ in task_ids) or "NULL"
-        operation_counts = dict(conn.execute(
-            "SELECT task_id, COUNT(*) FROM durable_external_operations "
-            f"WHERE task_id IN ({placeholders}) GROUP BY task_id",
-            task_ids,
-        ).fetchall())
+        operation_counts = {}
+        if task_ids:
+            placeholders = ",".join("?" for _ in task_ids)
+            operation_counts = dict(conn.execute(
+                "SELECT task_id, COUNT(*) FROM durable_external_operations "
+                f"WHERE task_id IN ({placeholders}) GROUP BY task_id",
+                task_ids,
+            ).fetchall())
         observations = []
         for row in rows:
+            # Non-strict SQLite TEXT columns can contain BLOBs. Never return
+            # their contents (or attempt to decode them) in a JSON report.
+            if any(row[key] is not None and not isinstance(row[key], str)
+                   for key in ("task_status", "window_status")):
+                return _unknown("invalid_status_type")
             external_operations = operation_counts.get(row["task_id"], 0)
             if (not row["task_id"] or not row["window_id"]
                     or type(row["epoch"]) is not int

@@ -1,11 +1,12 @@
 """All fixtures are local SQLite copies. Never inspect or modify production TaskStore."""
 import hashlib
+import json
 from pathlib import Path
 import sqlite3
 
 import pytest
 
-from reverse_agent.platform_v1.orphan_claim_audit import inspect_orphan_claims
+from reverse_agent.platform_v1.orphan_claim_audit import inspect_orphan_claims, main
 
 NOW = 10_000_000
 
@@ -67,14 +68,53 @@ def test_orphan_claims_are_classified_but_never_auto_released(
     assert "owner" not in claim and "credential" not in claim
 
 
-def test_empty_claims_are_not_authorization(tmp_path):
+def test_empty_claims_are_not_authorization(tmp_path, monkeypatch):
     path = fixture_db(tmp_path)
     with sqlite3.connect(path) as db:
         db.execute("UPDATE platform_coordinator_claims SET status = 'FAILED'")
+    connect = sqlite3.connect
+    journal_queries = []
+
+    def traced_connect(*args, **kwargs):
+        conn = connect(*args, **kwargs)
+        conn.set_trace_callback(
+            lambda sql: journal_queries.append(sql)
+            if "durable_external_operations" in sql.lower() else None
+        )
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", traced_connect)
     result = inspect_orphan_claims(path, now_ms=NOW)
+    assert journal_queries == []
     assert result["state"] == "NO_ACTIVE_CLAIMS"
     assert result["claims"] == []
     assert result["dispatch_permitted"] is False
+    assert result["reconcile_permitted"] is False
+    assert result["auto_release_permitted"] is False
+
+
+@pytest.mark.parametrize("table", ["tasks", "platform_autonomous_windows"])
+def test_blob_status_fails_closed_as_json(tmp_path, monkeypatch, capsys, table):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(f"UPDATE {table} SET status = ?",
+                   (sqlite3.Binary(b"private-secret/private-path\xff"),))
+        assert db.execute(f"SELECT typeof(status) FROM {table}").fetchone()[0] == "blob"
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert json.loads(json.dumps(result)) == result
+    assert result == {
+        "state": "UNKNOWN", "reason": "invalid_status_type", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 2
+    output = capsys.readouterr().out
+    assert json.loads(output) == result
+    assert "private-secret" not in output and "private-path" not in output
+    assert str(path) not in output
+    assert path.read_bytes() == before
 
 
 def test_missing_db_schema_and_invalid_clock_fail_closed(tmp_path):
@@ -141,6 +181,7 @@ def test_large_unindexed_journal_is_scanned_once_for_shared_tasks(tmp_path, monk
     # this budget by orders of magnitude. No task_id index exists in this fixture.
     connect = sqlite3.connect
     progress_calls = 0
+    journal_queries = []
 
     def progress():
         nonlocal progress_calls
@@ -150,10 +191,15 @@ def test_large_unindexed_journal_is_scanned_once_for_shared_tasks(tmp_path, monk
     def bounded_connect(*args, **kwargs):
         conn = connect(*args, **kwargs)
         conn.set_progress_handler(progress, 1_000)
+        conn.set_trace_callback(
+            lambda sql: journal_queries.append(sql)
+            if "durable_external_operations" in sql.lower() else None
+        )
         return conn
 
     monkeypatch.setattr(sqlite3, "connect", bounded_connect)
     result = inspect_orphan_claims(path, now_ms=NOW)
+    assert len(journal_queries) == 1
     assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
     assert len(result["claims"]) == 500
     assert result["dispatch_permitted"] is False
