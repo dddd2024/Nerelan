@@ -89,3 +89,51 @@ describe("delegated policy cannot silently widen explicitly selected owner grant
     });
   });
 });
+
+// All requests are local fetch fixtures; no service is contacted.
+describe("narrow window adversarial readbacks", () => {
+  it.each(["foreign repository", "spent", "wrong policy", "wrong revision"])("rejects existing %s authority", async (kind) => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const { template, window } = fixture();
+    const active = { ...window,
+      ...(kind === "foreign repository" ? { repositories: ["foreign/repo"] } : {}),
+      ...(kind === "spent" ? { tasks_started: 1 } : {}),
+      ...(kind === "wrong policy" ? { policy_id: "foreign-policy" } : {}),
+      ...(kind === "wrong revision" ? { policy_revision: 2 } : {}),
+    };
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+      const path = new URL(String(url)).pathname; paths.push(path);
+      if (path === "/api/windows/policy") return json(template);
+      if (path === "/api/platform/status") return json({ autonomy: { active_window: active } });
+      throw new Error("Unexpected mutation " + path);
+    }));
+    await expect(ensureApprovedWindow(repo, grant)).rejects.toMatchObject({ status: 409 });
+    expect(paths).toEqual(["/api/windows/policy", "/api/platform/status"]);
+  });
+
+  it.each(["active response", "empty response", "still active", "read failure", "missing readback"])("reports stop_unverified for %s despite HTTP success", async (kind) => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const { template, window } = fixture();
+    let reads = 0;
+    const paths: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+      const path = new URL(String(url)).pathname; paths.push(path);
+      if (path === "/api/windows/policy") return json(template);
+      if (path === "/api/platform/status") {
+        reads += 1;
+        if (reads > 1 && kind === "read failure") throw new Error("read failed");
+        if (reads > 1 && kind === "missing readback") return json({ autonomy: {} });
+        return json({ autonomy: { active_window: reads > 1 && kind === "still active" ? window : null } });
+      }
+      if (path === "/api/windows/activate") return json({ ...window, max_tasks: 20 }, 201);
+      if (path.endsWith("/stop")) return json(kind === "empty response" ? {} : { status: kind === "active response" ? "ACTIVE" : "STOPPED" });
+      throw new Error("Unexpected " + path);
+    }));
+    await expect(ensureApprovedWindow(repo, grant)).rejects.toMatchObject({
+      code: "owner_window_scope_response_mismatch_stop_unverified", status: 409,
+    });
+    expect(paths.filter(path => path.endsWith("/stop"))).toHaveLength(1);
+    expect(reads).toBe(2);
+  });
+});

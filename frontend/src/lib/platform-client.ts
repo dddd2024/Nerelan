@@ -58,6 +58,7 @@ const OWNER_SINGLE_TASK = {
 function isExactOwnerWindow(window: PlatformWindow, repository: string, expires: Date): boolean {
   return window.status === "ACTIVE"
     && window.repositories.length === 1 && window.repositories[0] === repository
+    && window.tasks_started === 0 && window.tasks_completed === 0
     && window.max_tasks === OWNER_SINGLE_TASK.max_tasks
     && (window as PlatformWindow & { max_concurrent_tasks?: number }).max_concurrent_tasks === OWNER_SINGLE_TASK.max_concurrent_tasks
     && (window as PlatformWindow & { max_retries?: number }).max_retries === OWNER_SINGLE_TASK.max_retries
@@ -66,6 +67,20 @@ function isExactOwnerWindow(window: PlatformWindow, repository: string, expires:
     && Number.isFinite(Date.parse(window.expires_at))
     && Date.parse(window.expires_at) <= expires.getTime()
     && Date.parse(window.expires_at) > Date.now();
+}
+
+// A successful HTTP response alone does not establish retirement.
+async function retireUnexpectedWindow(window: PlatformWindow): Promise<boolean> {
+  if (window.status !== "ACTIVE" || !/^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) return false;
+  try {
+    const stopped = await request<{ status?: string }>(`/api/windows/${encodeURIComponent(window.id)}/stop`, {
+      method: "POST", body: JSON.stringify({ reason: "owner_scope_mismatch" }),
+    });
+    const platform = await fetchPlatformStatus();
+    return stopped.status === "STOPPED" && platform.autonomy.active_window === null;
+  } catch {
+    return false;
+  }
 }
 
 /** Fail-closed owner window; the UI must not enlarge an approved one-task grant. */
@@ -78,7 +93,8 @@ async function ensureOwnerWindow(repository: string, owner: OwnerWindowRequest):
   const expires = new Date(starts.getTime() + owner.autonomyHours * 60 * 60 * 1000);
   const current = (await fetchPlatformStatus()).autonomy.active_window;
   if (current) {
-    if (narrow && !isExactOwnerWindow(current, repository, expires)) {
+    if (narrow && (!isExactOwnerWindow(current, repository, expires)
+      || current.policy_id !== `owner-ui-${owner.operationId}` || current.policy_revision !== 1)) {
       throw new PlatformClientError(409, "active_window_scope_conflict");
     }
     if (!current.repositories.includes(repository)) {
@@ -98,17 +114,7 @@ async function ensureOwnerWindow(repository: string, owner: OwnerWindowRequest):
     // A malformed/widened response may already have created a live window.
     // Attempt to retire it through the same authenticated API before refusing
     // launch; don't interpret a stop failure as a successful rollback.
-    let stopped = false;
-    if (window.status === "ACTIVE" && /^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) {
-      try {
-        await request(`/api/windows/${encodeURIComponent(window.id)}/stop`, {
-          method: "POST", body: JSON.stringify({ reason: "owner_scope_mismatch" }),
-        });
-        stopped = true;
-      } catch {
-        // Surface that the wider grant could not be proven retired.
-      }
-    }
+    const stopped = await retireUnexpectedWindow(window);
     throw new PlatformClientError(409, stopped
       ? "owner_window_scope_response_mismatch"
       : "owner_window_scope_response_mismatch_stop_unverified");
@@ -157,17 +163,7 @@ export async function ensureApprovedWindow(repository: string, owner?: OwnerWind
     }) });
     if (!matches(window)) {
       if (narrow) {
-        let stopped = false;
-        if (window.status === "ACTIVE" && /^[A-Za-z0-9._:-]{1,256}$/.test(window.id)) {
-          try {
-            await request(`/api/windows/${encodeURIComponent(window.id)}/stop`, {
-              method: "POST", body: JSON.stringify({ reason: "owner_scope_mismatch" }),
-            });
-            stopped = true;
-          } catch {
-            // Do not claim to have retired an unexpected live authority.
-          }
-        }
+        const stopped = await retireUnexpectedWindow(window);
         throw new PlatformClientError(409, stopped
           ? "owner_window_scope_response_mismatch"
           : "owner_window_scope_response_mismatch_stop_unverified");
