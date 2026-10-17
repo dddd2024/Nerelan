@@ -90,6 +90,77 @@ describe("owner-approved 30-minute one-task authorization", () => {
     });
     expect(activated).toBe(false);
   });
+
+  it("does not retire the concurrent winner when the same policy revision has different timestamps", async () => {
+    let statusReads = 0;
+    let activations = 0;
+    let winner: ReturnType<typeof fakeWindow> | null = null;
+    let stopped = false;
+    const fetcher = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") {
+        return response({ error: "delegated_policy_authority_unavailable" }, 409);
+      }
+      if (path === "/api/platform/status") {
+        statusReads += 1;
+        return response({ autonomy: { active_window: statusReads <= 2 ? null : winner } });
+      }
+      if (path === "/api/windows/activate") {
+        activations += 1;
+        const payload = JSON.parse(String(init?.body));
+        if (activations === 1) {
+          winner = fakeWindow(payload);
+          return response(winner, 201);
+        }
+        return response({ error: "policy_revision_conflict" }, 409);
+      }
+      if (path.endsWith("/stop")) {
+        stopped = true;
+        throw new Error("Concurrent winner must never be stopped");
+      }
+      throw new Error("Unexpected " + path);
+    });
+    vi.stubGlobal("fetch", fetcher);
+    const results = await Promise.allSettled([
+      ensureApprovedWindow(repo, grant),
+      ensureApprovedWindow(repo, grant),
+    ]);
+    expect(activations).toBe(2);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    const failure = results.find(result => result.status === "rejected");
+    expect(failure).toMatchObject({
+      status: "rejected",
+      reason: { status: 409, code: "owner_window_concurrent_activation_conflict" },
+    });
+    expect(winner).toMatchObject({ status: "ACTIVE", max_tasks: 1, tasks_started: 0 });
+    expect(stopped).toBe(false);
+    expect(fetcher.mock.calls.filter(([url]) => pathOf(url).endsWith("/stop"))).toHaveLength(0);
+  });
+
+  it("does not stop a foreign winner after owner policy revision conflict", async () => {
+    let reads = 0;
+    let stopped = false;
+    vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
+      const path = pathOf(url);
+      if (path === "/api/windows/policy") return response({ error: "delegated_policy_authority_unavailable" }, 409);
+      if (path === "/api/platform/status") {
+        reads += 1;
+        return response({ autonomy: { active_window: reads === 1 ? null : fakeWindow({
+          policy_id: "foreign-owner", policy_revision: 1, repositories: ["someone/else"],
+          capabilities: ["execute_task"], max_tasks: 1, max_concurrent_tasks: 1,
+          max_retries: 0, expires_at: new Date(Date.now() + 900000).toISOString(),
+        }) } });
+      }
+      if (path === "/api/windows/activate") return response({ error: "policy_revision_conflict" }, 409);
+      if (path.endsWith("/stop")) { stopped = true; throw new Error("stop must not run"); }
+      throw new Error("Unexpected " + path);
+    }));
+    await expect(ensureApprovedWindow(repo, grant)).rejects.toMatchObject({
+      status: 409, code: "active_window_scope_conflict",
+    });
+    expect(reads).toBe(2);
+    expect(stopped).toBe(false);
+  });
 });
 
 // All requests are local fetch fixtures; no service is contacted.

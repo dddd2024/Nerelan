@@ -150,6 +150,25 @@ async function ensureOwnerWindow(repository: string, owner: OwnerWindowRequest):
       max_retries: narrow ? 0 : 1, confirmation: "ACTIVATE",
     }) });
   } catch (error) {
+    // A competing tab may have activated the SAME policy ID with different
+    // start/expiry timestamps. The server rejects that immutable revision with
+    // 409; policy ID matching is NOT evidence that this caller owns the winner.
+    // Never retire that winner as an indeterminate activation side effect.
+    if (error instanceof PlatformClientError && definitiveActivationDenials.has(error)
+      && error.status === 409 && error.code === "policy_revision_conflict") {
+      let active: PlatformWindow | null;
+      try {
+        active = (await fetchPlatformStatus()).autonomy.active_window;
+      } catch {
+        throw new PlatformClientError(409, "owner_window_concurrent_conflict_unverified");
+      }
+      if (active && (!attributable(active) || (narrow && !isExactOwnerWindow(active, repository, expires)))) {
+        throw new PlatformClientError(409, "active_window_scope_conflict");
+      }
+      // Caller may explicitly retry through the normal status/reuse path;
+      // this attempt must not start a second Goal or stop another tab's grant.
+      throw new PlatformClientError(409, "owner_window_concurrent_activation_conflict");
+    }
     return activationFailure("owner_window_activation_indeterminate", undefined, attributable, error);
   }
   if (!validWindowResponse(window, candidate => !narrow
