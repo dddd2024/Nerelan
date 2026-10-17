@@ -14,7 +14,16 @@ test("runs a provider-free goal with a deterministic fixture and bounded window"
   await expect(appPage.getByTestId("approval-plan")).toContainText("Playwright provider-free acceptance goal");
   await appPage.getByTestId("approval-approve-button").click();
   await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
-  await appPage.getByLabel("确认启动当前计划").check();
+  const autonomyWindow = appPage.getByRole("combobox", { name: "自治窗口时长", exact: true });
+  const launchConfirmation = appPage.getByRole("checkbox", { name: "确认启动当前计划", exact: true });
+  await expect(autonomyWindow).toHaveValue("");
+  await launchConfirmation.check();
+  await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
+  await autonomyWindow.selectOption("0.5");
+  await expect(launchConfirmation).not.toBeChecked();
+  await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
+  await launchConfirmation.check();
+  await expect(appPage.getByTestId("approval-launch-button")).toBeEnabled();
   await appPage.getByTestId("approval-launch-button").click();
   await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
   expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);

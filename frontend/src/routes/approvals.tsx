@@ -65,11 +65,11 @@ function GoalDetail({
   onSaveConfiguration: (goal: PlatformGoal, input: GoalConfigurationInput) => Promise<unknown>;
   onSavePlan: (goal: PlatformGoal, input: GoalPlanInput) => Promise<unknown>;
 }) {
-  const [autonomyHours, setAutonomyHours] = useState(2);
+  const [autonomyHours, setAutonomyHours] = useState<number | "">("");
   const [editing, setEditing] = useState(false);
   const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
   const [launchConfirmed, setLaunchConfirmed] = useState(false);
-  useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
+  useEffect(() => { setLaunchConfirmed(false); setAutonomyHours(""); }, [goal.id, goal.revision, goal.artifact_digest, goal.status]);
   const canPlan = goal.status === "DRAFT";
   const canApprove = goal.status === "PLANNED";
   const canLaunch = goal.status === "APPROVED";
@@ -200,6 +200,8 @@ function GoalDetail({
                 disabled={pending}
                 className="ml-2 rounded-lg border border-ra-border bg-ra-base px-2 py-2 text-sm text-ra-text"
               >
+                <option value="" disabled>请重新选择窗口范围</option>
+                <option value={0.5}>30 分钟（单任务）</option>
                 <option value={1}>1 小时</option>
                 <option value={2}>2 小时</option>
                 <option value={4}>4 小时</option>
@@ -208,8 +210,8 @@ function GoalDetail({
             <button
               type="button"
               data-testid="approval-launch-button"
-              disabled={pending || editing || !configurationReady || !launchConfirmed}
-              onClick={() => onLaunch(autonomyHours)}
+              disabled={pending || editing || !configurationReady || !launchConfirmed || autonomyHours === ""}
+              onClick={() => { if (autonomyHours !== "") onLaunch(autonomyHours); }}
               className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
             >
               启动运行
