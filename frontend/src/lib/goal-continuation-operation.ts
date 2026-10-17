@@ -114,7 +114,7 @@ async function mutateStage(
 }
 
 async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<PlatformWindow> {
-  if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
+  if (!Number.isFinite(autonomyHours) || autonomyHours < 0.5 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
   try { return await ensureApprovedWindow(goal.repository, { autonomyHours, operationId: `continue-${goal.id}-r${goal.revision}-${Date.now().toString(36)}` }); } catch (error) {
     if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalContinuationError("active_window_repository_conflict", goal.id);
     throw error;

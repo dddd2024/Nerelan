@@ -200,6 +200,7 @@ function GoalDetail({
                 disabled={pending}
                 className="ml-2 rounded-lg border border-ra-border bg-ra-base px-2 py-2 text-sm text-ra-text"
               >
+                <option value={0.5}>30 分钟（单任务）</option>
                 <option value={1}>1 小时</option>
                 <option value={2}>2 小时</option>
                 <option value={4}>4 小时</option>
