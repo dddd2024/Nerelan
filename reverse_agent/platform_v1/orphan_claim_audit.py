@@ -58,6 +58,21 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                  AND b.claim_epoch = c.epoch
                WHERE c.status='ACTIVE' ORDER BY c.task_id"""
         ).fetchall()
+        # Validate the entire snapshot before using identifiers or constructing
+        # observations. SQLite affinity does not prevent BLOB/nontext values.
+        for row in rows:
+            if (
+                any(type(row[key]) is not str or not row[key]
+                    for key in ("task_id", "window_id"))
+                or any(type(row[key]) is not int or row[key] < 0
+                       for key in ("epoch", "expires_at_ms"))
+                or any(row[key] is not None and type(row[key]) is not str
+                       for key in ("task_status", "window_status", "reservation_state"))
+                or any(row[key] is not None
+                       and (type(row[key]) is not int or row[key] < 0)
+                       for key in ("observed_token_units", "observed_cost_micro_units"))
+            ):
+                return _unknown("invalid_claim_row")
         # The production journal has no task_id index. Aggregate once, rather
         # than running a full journal scan for every claim. Deduplicate task IDs
         # so multiple claims for one task do not multiply its operation count.
@@ -70,18 +85,13 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 f"WHERE task_id IN ({placeholders}) GROUP BY task_id",
                 task_ids,
             ).fetchall())
+        if any(type(value) is not int or value < 0
+               for value in operation_counts.values()):
+            return _unknown("invalid_operation_count")
         observations = []
         for row in rows:
-            # Non-strict SQLite TEXT columns can contain BLOBs. Never return
-            # their contents (or attempt to decode them) in a JSON report.
-            if any(row[key] is not None and not isinstance(row[key], str)
-                   for key in ("task_status", "window_status")):
-                return _unknown("invalid_status_type")
             external_operations = operation_counts.get(row["task_id"], 0)
-            if (not row["task_id"] or not row["window_id"]
-                    or type(row["epoch"]) is not int
-                    or type(row["expires_at_ms"]) is not int
-                    or row["task_status"] is None or row["window_status"] is None
+            if (row["task_status"] is None or row["window_status"] is None
                     or row["reservation_state"] != "ACTIVE"):
                 reason = "INCONSISTENT_CLAIM_OR_RESERVATION"
             elif row["expires_at_ms"] > now_ms:
@@ -95,8 +105,8 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
             else:
                 reason = "SIDE_EFFECT_STATUS_UNKNOWN"
             observations.append({
-                "task_id": str(row["task_id"]),
-                "window_id": str(row["window_id"]),
+                "task_id": row["task_id"],
+                "window_id": row["window_id"],
                 "claim_epoch": row["epoch"],
                 "task_status": row["task_status"],
                 "window_status": row["window_status"],

@@ -93,27 +93,89 @@ def test_empty_claims_are_not_authorization(tmp_path, monkeypatch):
     assert result["auto_release_permitted"] is False
 
 
-@pytest.mark.parametrize("table", ["tasks", "platform_autonomous_windows"])
-def test_blob_status_fails_closed_as_json(tmp_path, monkeypatch, capsys, table):
+@pytest.mark.parametrize("table,column", [
+    ("platform_coordinator_claims", "task_id"),
+    ("platform_coordinator_claims", "window_id"),
+    ("platform_coordinator_claims", "epoch"),
+    ("platform_coordinator_claims", "expires_at_ms"),
+    ("tasks", "status"),
+    ("platform_autonomous_windows", "status"),
+    ("platform_budget_reservations", "state"),
+    ("platform_budget_reservations", "observed_token_units"),
+    ("platform_budget_reservations", "observed_cost_micro_units"),
+])
+def test_blob_row_fails_closed_as_json(tmp_path, monkeypatch, capsys, table, column):
     path = fixture_db(tmp_path)
     with sqlite3.connect(path) as db:
-        db.execute(f"UPDATE {table} SET status = ?",
+        db.execute(f"UPDATE {table} SET {column} = ?",
                    (sqlite3.Binary(b"private-secret/private-path\xff"),))
-        assert db.execute(f"SELECT typeof(status) FROM {table}").fetchone()[0] == "blob"
+        assert db.execute(f"SELECT typeof({column}) FROM {table}").fetchone()[0] == "blob"
     before = path.read_bytes()
     result = inspect_orphan_claims(path, now_ms=NOW)
     assert json.loads(json.dumps(result)) == result
     assert result == {
-        "state": "UNKNOWN", "reason": "invalid_status_type", "claims": [],
+        "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
         "dispatch_permitted": False, "reconcile_permitted": False,
         "auto_release_permitted": False,
     }
     monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
     assert main() == 2
-    output = capsys.readouterr().out
+    captured = capsys.readouterr()
+    output = captured.out
     assert json.loads(output) == result
     assert "private-secret" not in output and "private-path" not in output
     assert str(path) not in output
+    assert captured.err == ""
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("column,value", [
+    ("task_id", None), ("task_id", ""),
+    ("window_id", None), ("window_id", ""),
+    ("epoch", None), ("epoch", 1.5), ("epoch", -1),
+    ("expires_at_ms", None), ("expires_at_ms", 1.5), ("expires_at_ms", -1),
+])
+def test_invalid_claim_fields_fail_closed(tmp_path, column, value):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(f"UPDATE platform_coordinator_claims SET {column} = ?", (value,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "UNKNOWN"
+    assert result["claims"] == []
+    assert json.loads(json.dumps(result)) == result
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("value", [b"private-secret/private-path\xff", "private-secret", None, -1, 1.5])
+def test_invalid_operation_count_fails_closed(tmp_path, monkeypatch, capsys, value):
+    path = fixture_db(tmp_path, external=True)
+    connect = sqlite3.connect
+
+    class CorruptCountConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if "SELECT task_id, COUNT(*) FROM durable_external_operations" in sql:
+                # COUNT(*) normally returns an integer. Inject an invalid result
+                # at the SQLite boundary without changing the production query.
+                return super().execute("SELECT task_id, ? FROM durable_external_operations", (value,))
+            return super().execute(sql, parameters)
+
+    def corrupted_connect(*args, **kwargs):
+        return connect(*args, factory=CorruptCountConnection, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", corrupted_connect)
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "UNKNOWN"
+    assert result["reason"] == "invalid_operation_count"
+    assert result["claims"] == []
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 2
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == result
+    assert "private-secret" not in captured.out and "private-path" not in captured.out
+    assert str(path) not in captured.out
+    assert captured.err == ""
     assert path.read_bytes() == before
 
 
