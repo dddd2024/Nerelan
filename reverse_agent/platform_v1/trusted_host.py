@@ -434,7 +434,7 @@ class CombinedTrustedHost:
     def _quota_guarded(self, role: str, executor_id: str, binding_id: str,
                        roster: Mapping[str, Mapping[str, Any]], standins: Sequence[str] = ()) -> tuple[str, str]:
         """Move a role off an account whose quota cannot take the next task, before dispatch."""
-        from .quota_guard import alternatives
+        from .quota_guard import CONFIRMED_EXHAUSTION_REASONS, alternatives
         bindings = self._store.list_bindings_public()
         chosen = next((b for b in bindings if b["binding_id"] == binding_id), None)
         decision = self._quota_check(chosen) if chosen else None
@@ -455,6 +455,11 @@ class CombinedTrustedHost:
                 if verdict is None or verdict["decision"] in {"ok", "warn"}:
                     self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
                     return candidate["executor_id"], candidate["binding_id"]
+            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS:
+                entry["decision"], entry["reason"] = "refuse", f"{decision['reason']}:no_alternative"
+                self._record_quota_decision(entry)
+                # Do not advertise an exhausted role as an executable route.
+                raise TaskStoreError(f"quota_exhausted:{decision['reason']}:no_alternative")
             entry["decision"], entry["reason"] = "warn", f"{decision['reason']}:no_alternative"
         self._record_quota_decision(entry)
         return executor_id, binding_id
@@ -523,12 +528,14 @@ class CombinedTrustedHost:
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
                 verdict = host._quota_check(binding) if binding else None
-                if verdict and verdict.get("reason") == "limit_hit":
-                    # Refuse before launch: the account already answered with its limit. The plan task
-                    # is then rerouted to a stand-in, or blocked, instead of failing again at the API.
+                from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
+                if verdict and verdict.get("decision") == "switch" and verdict.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
+                    # Explicit/single-Goal binding routes have the same hard
+                    # quota boundary as an agent-team role: no model call.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "refuse",
-                                                 "reason": "limit_hit", "window": None, "switched_to": None})
-                    raise BindingResolutionError("quota_exhausted:limit_hit")
+                                                 "reason": verdict["reason"], "window": verdict.get("window"),
+                                                 "switched_to": None})
+                    raise BindingResolutionError(f"quota_exhausted:{verdict['reason']}")
                 if verdict and verdict["decision"] in {"warn", "switch"}:
                     # A binding the task named itself is kept; the shortfall is recorded before the run.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "warn",
