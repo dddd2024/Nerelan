@@ -1,5 +1,6 @@
 """All fixtures are local SQLite copies. Never inspect or modify production TaskStore."""
 import hashlib
+from pathlib import Path
 import sqlite3
 
 import pytest
@@ -93,3 +94,75 @@ def test_large_claim_queue_is_bounded_and_not_treated_as_clear(tmp_path):
     assert result["state"] == "UNKNOWN"
     assert result["reason"] == "claim_count_limit_exceeded"
     assert result["dispatch_permitted"] is False
+
+
+def test_malformed_path_fails_closed_without_disclosing_path():
+    result = inspect_orphan_claims("private-path\x00.sqlite3", now_ms=NOW)
+    assert result["state"] == "UNKNOWN"
+    assert result["claims"] == []
+    assert result["dispatch_permitted"] is False
+    assert "private-path" not in str(result)
+
+
+@pytest.mark.parametrize("operation", ["expanduser", "resolve", "is_file"])
+@pytest.mark.parametrize("error", [OSError, ValueError, RuntimeError])
+def test_path_errors_fail_closed(tmp_path, monkeypatch, operation, error):
+    def fail(*args, **kwargs):
+        raise error("private-filesystem-details")
+
+    monkeypatch.setattr(Path, operation, fail)
+    result = inspect_orphan_claims(tmp_path / "private.sqlite3", now_ms=NOW)
+    assert result == {
+        "state": "UNKNOWN", "reason": "snapshot_read_failed", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+
+
+def test_large_unindexed_journal_is_scanned_once_for_shared_tasks(tmp_path, monkeypatch):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.executemany("INSERT INTO platform_coordinator_claims VALUES(?,?,?,?,?)",
+                       [("task-example", "window-expired", epoch, 1, "ACTIVE")
+                        for epoch in range(2, 500)])
+        db.execute("INSERT INTO tasks VALUES('no-operation', 'FAILED')")
+        db.execute("INSERT INTO platform_coordinator_claims VALUES(?,?,?,?,?)",
+                   ("no-operation", "window-expired", 1, 1, "ACTIVE"))
+        db.executemany("INSERT INTO platform_budget_reservations VALUES(?,?,?,?,?,?)",
+                       [("task-example", "window-expired", epoch, "ACTIVE", None, None)
+                        for epoch in range(2, 500)]
+                       + [("no-operation", "window-expired", 1, "ACTIVE", None, None)])
+        db.executemany("INSERT INTO durable_external_operations VALUES(?)",
+                       (("unrelated-task",) for _ in range(100_000)))
+        db.executemany("INSERT INTO durable_external_operations VALUES(?)",
+                       [("task-example",)] * 3)
+
+    # Bound SQLite VM work, not elapsed time: 500 full journal scans exceed
+    # this budget by orders of magnitude. No task_id index exists in this fixture.
+    connect = sqlite3.connect
+    progress_calls = 0
+
+    def progress():
+        nonlocal progress_calls
+        progress_calls += 1
+        return int(progress_calls > 2_000)
+
+    def bounded_connect(*args, **kwargs):
+        conn = connect(*args, **kwargs)
+        conn.set_progress_handler(progress, 1_000)
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", bounded_connect)
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert len(result["claims"]) == 500
+    assert result["dispatch_permitted"] is False
+    for claim in result["claims"]:
+        if claim["task_id"] == "task-example":
+            assert claim["external_operation_count"] == 3
+            assert claim["reason"] == "EXTERNAL_OPERATION_REQUIRES_RECEIPT"
+        else:
+            assert claim["external_operation_count"] == 0
+            assert claim["reason"] == "TERMINAL_FAILED_REMOTE_UNVERIFIED"
+        assert claim["safe_to_release"] is False
+        assert claim["safe_to_dispatch"] is False

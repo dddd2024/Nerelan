@@ -27,11 +27,11 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
         now_ms = time.time_ns() // 1_000_000
     if type(now_ms) is not int or now_ms < 0:
         return _unknown("invalid_clock")
-    path = Path(db).expanduser().resolve()
-    if not path.is_file():
-        return _unknown("task_store_not_found")
     conn = None
     try:
+        path = Path(db).expanduser().resolve()
+        if not path.is_file():
+            return _unknown("task_store_not_found")
         conn = sqlite3.connect(
             "file:" + quote(path.as_posix(), safe="/:") + "?mode=ro",
             uri=True, timeout=3,
@@ -49,9 +49,7 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
             """SELECT c.task_id, c.window_id, c.epoch, c.expires_at_ms,
                       t.status AS task_status, w.status AS window_status,
                       b.state AS reservation_state,
-                      b.observed_token_units, b.observed_cost_micro_units,
-                      (SELECT COUNT(*) FROM durable_external_operations e
-                       WHERE e.task_id = c.task_id) AS external_operations
+                      b.observed_token_units, b.observed_cost_micro_units
                FROM platform_coordinator_claims c
                LEFT JOIN tasks t ON t.id = c.task_id
                LEFT JOIN platform_autonomous_windows w ON w.id = c.window_id
@@ -60,8 +58,19 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                  AND b.claim_epoch = c.epoch
                WHERE c.status='ACTIVE' ORDER BY c.task_id"""
         ).fetchall()
+        # The production journal has no task_id index. Aggregate once, rather
+        # than running a full journal scan for every claim. Deduplicate task IDs
+        # so multiple claims for one task do not multiply its operation count.
+        task_ids = list(dict.fromkeys(row["task_id"] for row in rows))
+        placeholders = ",".join("?" for _ in task_ids) or "NULL"
+        operation_counts = dict(conn.execute(
+            "SELECT task_id, COUNT(*) FROM durable_external_operations "
+            f"WHERE task_id IN ({placeholders}) GROUP BY task_id",
+            task_ids,
+        ).fetchall())
         observations = []
         for row in rows:
+            external_operations = operation_counts.get(row["task_id"], 0)
             if (not row["task_id"] or not row["window_id"]
                     or type(row["epoch"]) is not int
                     or type(row["expires_at_ms"]) is not int
@@ -70,7 +79,7 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 reason = "INCONSISTENT_CLAIM_OR_RESERVATION"
             elif row["expires_at_ms"] > now_ms:
                 reason = "LEASE_STILL_CURRENT_LIVENESS_UNKNOWN"
-            elif row["external_operations"] > 0:
+            elif external_operations > 0:
                 reason = "EXTERNAL_OPERATION_REQUIRES_RECEIPT"
             elif row["task_status"] == "FAILED":
                 reason = "TERMINAL_FAILED_REMOTE_UNVERIFIED"
@@ -85,7 +94,7 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 "task_status": row["task_status"],
                 "window_status": row["window_status"],
                 "reason": reason,
-                "external_operation_count": row["external_operations"],
+                "external_operation_count": external_operations,
                 "usage_observed": (
                     row["observed_token_units"] is not None
                     and row["observed_cost_micro_units"] is not None
@@ -101,7 +110,7 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
             "reconcile_permitted": False,
             "auto_release_permitted": False,
         }
-    except (sqlite3.Error, OSError, ValueError, TypeError):
+    except (sqlite3.Error, OSError, ValueError, TypeError, RuntimeError):
         return _unknown("snapshot_read_failed")
     finally:
         if conn is not None:
