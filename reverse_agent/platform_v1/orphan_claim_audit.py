@@ -6,6 +6,7 @@ missing external-operation records establish that remote side effects stopped.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -18,17 +19,17 @@ from .run_store import TASK_STATUS_ORDER
 
 
 def _safe_id(value: object) -> bool:
-    # Generated IDs use ASCII letters, digits and hyphens. Allow underscores
-    # for existing caller-supplied IDs, but never paths, payloads or credentials.
-    return (
-        type(value) is str
-        and 1 <= len(value) <= 128
-        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value) is not None
-        and not re.search(
-            r"secret|token|password|credential|authorization|api[_-]?key|^sk[-_]",
-            value, re.IGNORECASE,
-        )
-    )
+    # Validate type and bound work before either matching or hashing an ID.
+    return type(value) is str and 1 <= len(value) <= 128
+
+
+def _reported_id(value: str, prefix: str) -> str:
+    # run_store.create_task and control_store._id generate decimal Unix millis
+    # and uuid4().hex[:12]. Window creation also accepts caller IDs: this is a
+    # format whitelist, not proof of provenance. Legacy IDs get a pseudonym.
+    if re.fullmatch(rf"{prefix}-(?:0|[1-9][0-9]*)-[0-9a-f]{{12}}", value):
+        return value
+    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
 def _unknown(reason: str) -> dict:
@@ -67,6 +68,7 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
             """SELECT c.task_id, c.window_id, c.epoch, c.expires_at_ms,
                       t.id AS joined_task_id, w.id AS joined_window_id,
                       t.status AS task_status, w.status AS window_status,
+                      b.task_id AS joined_reservation_task_id,
                       b.state AS reservation_state,
                       b.observed_token_units, b.observed_cost_micro_units
                FROM platform_coordinator_claims c
@@ -95,6 +97,8 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
             for status, joined_id, allowed in (
                 ("task_status", "joined_task_id", TASK_STATUS_ORDER),
                 ("window_status", "joined_window_id", WINDOW_STATES),
+                ("reservation_state", "joined_reservation_task_id",
+                 {"ACTIVE", "UNKNOWN", "OVERRUN", "RECONCILED"}),
             ):
                 # Only an absent JOIN may omit a status; the classification
                 # below explicitly holds these inconsistent claims.
@@ -131,9 +135,13 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 reason = "INTERRUPTED_REQUIRES_RECEIPT"
             else:
                 reason = "SIDE_EFFECT_STATUS_UNKNOWN"
+            task_id = _reported_id(row["task_id"], "task")
+            window_id = _reported_id(row["window_id"], "window")
             observations.append({
-                "task_id": row["task_id"],
-                "window_id": row["window_id"],
+                "task_id": task_id,
+                "window_id": window_id,
+                "task_id_is_surrogate": task_id != row["task_id"],
+                "window_id_is_surrogate": window_id != row["window_id"],
                 "claim_epoch": row["epoch"],
                 "task_status": row["task_status"],
                 "window_status": row["window_status"],

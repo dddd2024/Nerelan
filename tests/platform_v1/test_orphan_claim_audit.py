@@ -28,14 +28,19 @@ def test_unsafe_text_is_sanitized(tmp_path, monkeypatch, capsys, table, column, 
         db.execute(f"UPDATE {table} SET {column} = ?", (value,))
     before = path.read_bytes()
     result = inspect_orphan_claims(path, now_ms=NOW)
-    assert result == {
-        "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
-        "dispatch_permitted": False, "reconcile_permitted": False,
-        "auto_release_permitted": False,
-    }
+    invalid = column == "status" or len(value) > 128
+    if not invalid:
+        assert result["claims"][0][column] == "sha256:" + hashlib.sha256(value.encode()).hexdigest()
+        assert result["claims"][0][column + "_is_surrogate"] is True
+    else:
+        assert result == {
+            "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
+            "dispatch_permitted": False, "reconcile_permitted": False,
+            "auto_release_permitted": False,
+        }
     assert json.loads(json.dumps(result)) == result
     monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
-    assert main() == 2
+    assert main() == (2 if invalid else 0)
     captured = capsys.readouterr()
     assert json.loads(captured.out) == result
     assert value not in captured.out
@@ -74,17 +79,24 @@ def test_missing_join_is_held_but_null_status_is_corrupt(tmp_path, table):
 
 
 @pytest.mark.parametrize("task_id,window_id", [
-    ("task-1792195200000-abcdef012345", "window-1792195200000-abcdef012345"),
     ("task_fixture_1", "window_fixture_1"),
+    ("legacy-task", "legacy-window"),
+    ("task-1792195200000-ABCDEF012345", "window-1792195200000-ABCDEF012345"),
+    ("task-01792195200000-abcdef012345", "window-01792195200000-abcdef012345"),
+    ("window-1792195200000-abcdef012345", "task-1792195200000-abcdef012345"),
 ])
-def test_safe_existing_id_formats(tmp_path, task_id, window_id):
+def test_existing_id_formats_are_opaque(tmp_path, task_id, window_id):
     path = fixture_db(tmp_path)
     with sqlite3.connect(path) as db:
         db.execute("UPDATE platform_coordinator_claims SET task_id=?, window_id=?",
                    (task_id, window_id))
+    before = path.read_bytes()
     result = inspect_orphan_claims(path, now_ms=NOW)
-    assert result["claims"][0]["task_id"] == task_id
-    assert result["claims"][0]["window_id"] == window_id
+    for key, value in (("task_id", task_id), ("window_id", window_id)):
+        assert result["claims"][0][key] == "sha256:" + hashlib.sha256(value.encode()).hexdigest()
+        assert value not in json.dumps(result)
+    assert inspect_orphan_claims(path, now_ms=NOW) == result
+    assert path.read_bytes() == before
 
 
 def fixture_db(tmp_path, *, task_status="FAILED", claim_expires=1,
@@ -206,7 +218,7 @@ def test_blob_row_fails_closed_as_json(tmp_path, monkeypatch, capsys, table, col
 
 
 @pytest.mark.parametrize("column,value", [
-    ("task_id", None), ("task_id", ""),
+    ("task_id", None), ("task_id", ""), ("task_id", "x" * 129),
     ("window_id", None), ("window_id", ""),
     ("epoch", None), ("epoch", 1.5), ("epoch", -1),
     ("expires_at_ms", None), ("expires_at_ms", 1.5), ("expires_at_ms", -1),
@@ -342,7 +354,7 @@ def test_large_unindexed_journal_is_scanned_once_for_shared_tasks(tmp_path, monk
     assert len(result["claims"]) == 500
     assert result["dispatch_permitted"] is False
     for claim in result["claims"]:
-        if claim["task_id"] == "task-example":
+        if claim["task_id"] == "sha256:" + hashlib.sha256(b"task-example").hexdigest():
             assert claim["external_operation_count"] == 3
             assert claim["reason"] == "EXTERNAL_OPERATION_REQUIRES_RECEIPT"
         else:
@@ -350,3 +362,114 @@ def test_large_unindexed_journal_is_scanned_once_for_shared_tasks(tmp_path, monk
             assert claim["reason"] == "TERMINAL_FAILED_REMOTE_UNVERIFIED"
         assert claim["safe_to_release"] is False
         assert claim["safe_to_dispatch"] is False
+
+
+@pytest.mark.parametrize("column", ["task_id", "window_id"])
+@pytest.mark.parametrize("value", ["ghp_" + "A" * 36, "AKIA" + "A" * 16, "api_token_123", "arbitrary_fixture", "x" * 128])
+def test_credential_shaped_ids_never_reach_report(tmp_path, monkeypatch, capsys, column, value):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(f"UPDATE platform_coordinator_claims SET {column}=?", (value,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert result["claims"][0][column] == "sha256:" + hashlib.sha256(value.encode()).hexdigest()
+    assert value not in json.dumps(result)
+    assert json.loads(json.dumps(result)) == result
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 0
+    captured = capsys.readouterr()
+    assert json.loads(captured.out) == result
+    assert value not in captured.out and str(path) not in captured.out
+    assert captured.err == ""
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("state", [None, "", "ghp_" + "A" * 36, "active"])
+def test_present_invalid_reservation_state_is_unknown(tmp_path, state):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE platform_budget_reservations SET state=?", (state,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result == {
+        "state": "UNKNOWN", "reason": "invalid_claim_row", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+    assert json.loads(json.dumps(result)) == result
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("state", ["ACTIVE", "UNKNOWN", "OVERRUN", "RECONCILED"])
+def test_canonical_reservation_states_and_absent_join(tmp_path, state):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE platform_budget_reservations SET state=?", (state,))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert path.read_bytes() == before
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM platform_budget_reservations")
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert result["claims"][0]["reason"] == "INCONSISTENT_CLAIM_OR_RESERVATION"
+    assert json.loads(json.dumps(result)) == result
+    assert path.read_bytes() == before
+
+
+def test_snapshot_connection_is_read_only_and_query_only(tmp_path, monkeypatch):
+    path = fixture_db(tmp_path)
+    before = path.read_bytes()
+    connect = sqlite3.connect
+    connections = []
+    statements = []
+
+    class ReadOnlyConnection(sqlite3.Connection):
+        def execute(self, sql, parameters=()):
+            if sql == "BEGIN":
+                assert super().execute("PRAGMA query_only").fetchone()[0] == 1
+                with pytest.raises(sqlite3.OperationalError):
+                    super().execute("DELETE FROM tasks")
+                self.rollback()
+            statements.append(sql)
+            return super().execute(sql, parameters)
+
+    def checked_connect(database, **kwargs):
+        assert database.endswith("?mode=ro")
+        assert kwargs["uri"] is True
+        conn = connect(database, factory=ReadOnlyConnection, **kwargs)
+        connections.append(conn)
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", checked_connect)
+    assert inspect_orphan_claims(path, now_ms=NOW)["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert len(connections) == 1
+    assert all(sql.startswith(("SELECT", "PRAGMA query_only=ON", "BEGIN")) for sql in statements)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("millis", ["0", "1792195200000"])
+def test_generated_canonical_ids_remain_exact(tmp_path, monkeypatch, capsys, millis):
+    path = fixture_db(tmp_path)
+    task_id = f"task-{millis}-abcdef012345"
+    window_id = f"window-{millis}-012345abcdef"
+    with sqlite3.connect(path) as db:
+        for table in ("tasks", "platform_autonomous_windows"):
+            db.execute(f"UPDATE {table} SET id=?", (task_id if table == "tasks" else window_id,))
+        for table in ("platform_coordinator_claims", "platform_budget_reservations"):
+            db.execute(f"UPDATE {table} SET task_id=?, window_id=?", (task_id, window_id))
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    claim = result["claims"][0]
+    assert claim["task_id"] == task_id
+    assert claim["window_id"] == window_id
+    assert claim["task_id_is_surrogate"] is False
+    assert claim["window_id_is_surrogate"] is False
+    assert claim["reason"] == "TERMINAL_FAILED_REMOTE_UNVERIFIED"
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 0
+    assert json.loads(capsys.readouterr().out) == result
+    assert path.read_bytes() == before
