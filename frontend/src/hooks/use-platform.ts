@@ -85,6 +85,8 @@ function useGoalSubmission(submit: typeof startGoal) {
       void queryClient.invalidateQueries({ queryKey: ["goals"] });
       void queryClient.invalidateQueries({ queryKey: ["goals", goal.id] });
       void queryClient.invalidateQueries({ queryKey: ["platform", "status"] });
+      // Starting a Goal can materialize new Tasks outside the current route.
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 }
