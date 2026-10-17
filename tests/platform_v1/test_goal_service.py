@@ -203,6 +203,57 @@ def test_strict_window_rejects_second_goal_without_materialization():
     assert control.get_window(window.id).tasks_started == 1
 
 
+def test_strict_window_preassociated_goal_launches_once_without_denied_writes():
+    # Synthetic SQLite authority only; no production store or provider execution.
+    store, control, autonomy, goals = _services()
+    payload = _window_payload()
+    payload.update(capabilities=["execute_task"], max_tasks=1,
+                   max_concurrent_tasks=1, max_retries=0)
+    window = autonomy.activate(payload)
+    goal = goals.create({"objective": "Fixture", "idempotency_key": "preassociated",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+                         "window_id": window.id})
+    goals.plan(goal.id, expected_revision=1)
+    goals.approve(goal.id, expected_revision=1)
+    assert control.get_goal(goal.id).window_id == window.id
+    assert control.list_goal_tasks(goal.id) == ()
+
+    running = goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    assert running.status == "RUNNING"
+    links = control.list_goal_tasks(goal.id)
+    assert len(links) == 1
+    task_id = links[0]["task_id"]
+
+    def execution_state():
+        return tuple(tuple(tuple(row) for row in store._conn.execute(query).fetchall()) for query in (
+            "SELECT * FROM tasks ORDER BY id",
+            "SELECT * FROM platform_goal_task_links ORDER BY task_id",
+            "SELECT * FROM platform_coordinator_claims ORDER BY task_id",
+            "SELECT * FROM platform_budget_reservations ORDER BY task_id",
+            "SELECT * FROM platform_usage_charges",
+            "SELECT * FROM platform_autonomous_windows ORDER BY id",
+        ))
+
+    before = execution_state()
+    assert goals.launch(goal.id, expected_revision=1, window_id=window.id) == running
+    assert execution_state() == before
+    second = _approve_strict_fixture(goals, "unrelated")
+    for claimed in (False, True):
+        if claimed:
+            control.claim_task(window_id=window.id, task_id=task_id, owner="fixture", lease_ms=1000)
+        before = execution_state()
+        with pytest.raises(TaskStoreError, match="strict_window_requires_one_single_task_goal"):
+            goals.launch(second.id, expected_revision=1, window_id=window.id)
+        assert execution_state() == before
+        assert control.list_goal_tasks(second.id) == ()
+        assert control.get_goal(second.id).status == "APPROVED"
+    with pytest.raises(TaskStoreError):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="again", lease_ms=1000)
+    assert execution_state() == before
+    assert control.get_window(window.id).tasks_started == 1
+    assert control.get_window(window.id).retries_used == 0
+
+
 @pytest.mark.parametrize("mutation", ["revision", "executor", "repository", "binding", "unknown"])
 def test_strict_claim_rejects_unbound_task_without_spending(mutation):
     store, control, _, _, window, goal, task_id = _strict_running_goal()

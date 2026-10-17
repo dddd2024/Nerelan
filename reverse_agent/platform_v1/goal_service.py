@@ -304,7 +304,7 @@ class GoalService:
         planned_tasks = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
         if self.control_store.is_strict_owner_window(window):
             if (goal.orchestration_mode != "single" or len(planned_tasks) != 1
-                    or self.control_store.list_window_goals(window_id)):
+                    or any(other.id != goal.id for other in self.control_store.list_window_goals(window_id))):
                 raise TaskStoreError("strict_window_requires_one_single_task_goal")
         for item in planned_tasks:
             if item.capability not in window.capabilities:
