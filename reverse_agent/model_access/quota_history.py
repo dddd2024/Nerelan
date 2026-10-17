@@ -91,7 +91,14 @@ def read_codex_history(codex_home: str | os.PathLike[str] | None = None, *, now:
                 limits = payload.get("rate_limits")
                 if at is None or not isinstance(limits, dict):
                     continue
-                if at > latest_at:
+                # Recent Codex event records can contain plan/credit metadata
+                # without a primary or secondary window. Such an event is not
+                # a newer quota snapshot; keep the latest *complete* windows.
+                has_window = any(
+                    isinstance(limits.get(key), dict)
+                    for key in ("primary", "secondary")
+                )
+                if has_window and at <= now + 60 and at > latest_at:
                     latest_at, history.latest = at, (payload, entry.get("timestamp"))
                 last = (payload.get("info") or {}).get("last_token_usage") if isinstance(payload.get("info"), dict) else None
                 units = 0.0
