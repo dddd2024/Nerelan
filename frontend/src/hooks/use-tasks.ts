@@ -257,7 +257,9 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
   };
 }
 
-export function useTasks() {
+export const SIDEBAR_TASK_REFRESH_MS = 5_000;
+
+export function useTasks({ watch = false }: { watch?: boolean } = {}) {
   return useQuery<Task[]>({
     queryKey: ["tasks"],
     queryFn: async () => {
@@ -265,6 +267,12 @@ export function useTasks() {
       return (raw as Array<Record<string, unknown>>).map(_toTask);
     },
     staleTime: 1000,
+    // The global sidebar stays mounted while other routes launch Tasks. Keep
+    // its authoritative list current without polling from a hidden tab.
+    refetchInterval: watch ? SIDEBAR_TASK_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
   });
 }
