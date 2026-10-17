@@ -1515,12 +1515,15 @@ class PlatformControlStore:
                 )
                 self.append_receipt(
                     window_id=window_id,
-                    # Recovery settles the original execute_task admission; it
-                    # neither admits nor executes the terminal Task's checker.
+                    # Claim existence does not prove an earlier authorization.
+                    # A persisted result is reconciled, without evaluating or
+                    # granting any new capability or executing its checker.
                     operation_type="task_claim_reconciliation" if persisted_host_recovery else "task_execution",
-                    capability="execute_task" if persisted_host_recovery else self._claim_operation(task_id),
+                    capability="not_applicable" if persisted_host_recovery else self._claim_operation(task_id),
                     repository=self.task_store.get_task(task_id).repository,
-                    subject_id=task_id, decision="allowed", reason=receipt_reason,
+                    subject_id=task_id,
+                    decision="not_evaluated" if persisted_host_recovery else "allowed",
+                    reason=receipt_reason,
                     input_payload=({"task_id": task_id, "claim_epoch": epoch,
                                     "claim_owner": owner, "persisted_result_only": True}
                                    if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),

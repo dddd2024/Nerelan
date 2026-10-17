@@ -340,7 +340,7 @@ def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatc
             reconciled = [r for r in receipts if r.operation_type == "task_claim_reconciliation"]
             assert len(reconciled) == 1
             receipt = reconciled[0]
-            assert receipt.capability == "execute_task" and receipt.decision == "allowed"
+            assert receipt.capability == "not_applicable" and receipt.decision == "not_evaluated"
             assert receipt.reason == "coordinator_persisted_result_reconciled"
             assert receipt.result == "persisted_host_result:UNKNOWN"
             assert receipt.subject_id == task_id and receipt.repository == task.repository
@@ -350,8 +350,11 @@ def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatc
             assert receipt.confirmation_mode == control.window_policy_binding(window.id)["confirmation_mode"]
             assert receipt.input_digest == sha256_json({"task_id": task_id, "claim_epoch": 1,
                 "claim_owner": "original", "persisted_result_only": True})
-            assert not any(r.decision == "allowed" and r.capability == "validate_task" for r in receipts)
+            assert not any(r.decision == "allowed" and r.capability in {"validate_task", "execute_task"}
+                           for r in receipts)
             assert not any(r.operation_type == "task_execution" for r in receipts)
+            assert all(r.decision != "allowed" for r in reconciled)
+            assert control.receipt_totals(window_id=window.id)["total"] == len(receipts)
             assert coordinator.tick() == 0
             with pytest.raises(TaskStoreError):
                 control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
