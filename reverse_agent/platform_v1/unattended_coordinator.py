@@ -71,6 +71,18 @@ class UnattendedCoordinator:
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
         self._dispatch_active = False
+        # The live poller may refill idle slots while older batches are running.
+        # Direct tick() remains synchronous for deterministic host/test callers.
+        self._batch_threads: dict[threading.Thread, int] = {}
+        self._active_task_ids: set[str] = set()
+        # A later retry can overlap an older graph batch that still drains
+        # another task. Epoch ownership keeps old finally blocks from erasing
+        # the retry's active marker.
+        self._active_task_epochs: dict[str, int] = {}
+        self._worker_thread_ids: set[int] = set()
+        self._manual_tick_active = False
+        self._manual_tick_idle = threading.Event()
+        self._manual_tick_idle.set()
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
@@ -98,9 +110,11 @@ class UnattendedCoordinator:
         with self._lifecycle_lock:
             self._stop.set()
             thread = self._thread
+            in_worker = (threading.current_thread() in self._batch_threads
+                         or threading.get_ident() in self._worker_thread_ids)
         if thread is None:
             return
-        if thread is threading.current_thread():
+        if thread is threading.current_thread() or in_worker:
             self._last_error = "coordinator_stop_requested_from_worker"
             return
         thread.join(timeout=max(0.0, timeout))
@@ -138,7 +152,29 @@ class UnattendedCoordinator:
             self._last_error = f"budget_reconcile_failed:{type(exc).__name__}"
         return tuple(reconciled)
 
-    def tick(self) -> int:
+    def tick(self, *, background: bool = False) -> int:
+        # External synchronous ticks must not race the live poller: they are
+        # a separate deterministic invocation mode, not an extra worker slot.
+        with self._lifecycle_lock:
+            if background:
+                if self._manual_tick_active:
+                    return 0
+            else:
+                if (self._manual_tick_active
+                        or (self._thread is not None and self._thread.is_alive())):
+                    return 0
+                self._manual_tick_active = True
+                self._manual_tick_idle.clear()
+        if background:
+            return self._tick_impl(background=True)
+        try:
+            return self._tick_impl(background=False)
+        finally:
+            with self._lifecycle_lock:
+                self._manual_tick_active = False
+                self._manual_tick_idle.set()
+
+    def _tick_impl(self, *, background: bool) -> int:
         if self._stop.is_set():
             return 0
         self._ticks += 1
@@ -156,13 +192,31 @@ class UnattendedCoordinator:
                 return 0
             if self._stop.is_set():
                 return 0
+        with self._lifecycle_lock:
+            # Bound admission *before* claiming: old graph batches continue
+            # running and still occupy slots even if newer tasks arrive.
+            if self._dispatch_active and not background:
+                return 0
+            running_slots = len(self._active_task_ids) if background else 0
+            free_slots = max(0, window.max_concurrent_tasks - running_slots)
+        if free_slots == 0:
+            return 0
         claimed: dict[str, int] = {}
         recovered = 0
+        # A claimed task can still be QUEUED while its executor is running.
+        # Scan past already-claimed rows instead of starving later candidates.
         for task_id in self.control_store.runnable_tasks(
-            window.id, limit=window.max_concurrent_tasks
+            window.id, limit=500
         ):
+            if len(claimed) >= free_slots:
+                break
             if self._stop.is_set():
                 break
+            with self._lifecycle_lock:
+                if task_id in self._active_task_ids:
+                    # A live executor may outlast a DB Claim lease while the
+                    # task stays QUEUED. Never create a second executor.
+                    continue
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
@@ -216,29 +270,82 @@ class UnattendedCoordinator:
                 break
         if not claimed:
             return recovered
-        if not self._begin_dispatch():
+        if not self._begin_dispatch(background=background):
             self._abandon_claimed_before_dispatch(
                 window_id=window.id,
                 claimed=claimed,
                 reason="coordinator_stop_requested_before_dispatch",
             )
             return 0
+        if background:
+            # The poller never blocks on a slow graph invocation. A later tick
+            # can claim a *different* task up to the persisted window WIP cap.
+            return recovered + (len(claimed) if self._launch_background_batch(window.id, claimed) else 0)
         try:
             return recovered + self._execute_claimed_batch(window_id=window.id, claimed=claimed)
         finally:
             self._finish_dispatch()
 
-    def _begin_dispatch(self) -> bool:
-        """Linearize batch dispatch against stop intent without holding the lock while work runs."""
+    def _begin_dispatch(self, *, background: bool = False) -> bool:
+        """Linearize admissions against stop intent without holding the worker lock."""
         with self._lifecycle_lock:
-            if self._stop.is_set() or self._dispatch_active:
+            if self._stop.is_set() or (self._dispatch_active and not background):
                 return False
             self._dispatch_active = True
             return True
 
     def _finish_dispatch(self) -> None:
         with self._lifecycle_lock:
-            self._dispatch_active = False
+            self._dispatch_active = bool(self._batch_threads)
+
+    def _launch_background_batch(self, window_id: str, claimed: dict[str, int]) -> bool:
+        """Keep graph batches tracked until all their worker claims settle."""
+        def run_batch() -> None:
+            try:
+                self._execute_claimed_batch(window_id=window_id, claimed=claimed)
+            except Exception as exc:
+                # Durable leases/claim reconciliation remains authoritative if
+                # an unforeseen worker-level exception escapes a batch.
+                self._last_error = f"parallel_batch_failed:{type(exc).__name__}"
+            finally:
+                with self._lifecycle_lock:
+                    for task_id, epoch in claimed.items():
+                        if self._active_task_epochs.get(task_id) == epoch:
+                            self._active_task_epochs.pop(task_id, None)
+                            self._active_task_ids.discard(task_id)
+                    self._batch_threads.pop(threading.current_thread(), None)
+                    self._dispatch_active = bool(self._batch_threads)
+
+        thread = threading.Thread(
+            target=run_batch, name=f"reverse-agent-batch-{uuid.uuid4().hex[:8]}", daemon=True,
+        )
+        with self._lifecycle_lock:
+            if self._stop.is_set():
+                reason = "coordinator_stop_requested_before_dispatch"
+            else:
+                self._batch_threads[thread] = len(claimed)
+                for task_id, epoch in claimed.items():
+                    self._active_task_epochs[task_id] = epoch
+                    self._active_task_ids.add(task_id)
+                try:
+                    thread.start()
+                except Exception as exc:
+                    # An OS/thread-start error must release the just-admitted
+                    # claim immediately; do not wait for lease expiry.
+                    self._batch_threads.pop(thread, None)
+                    for task_id, epoch in claimed.items():
+                        if self._active_task_epochs.get(task_id) == epoch:
+                            self._active_task_epochs.pop(task_id, None)
+                            self._active_task_ids.discard(task_id)
+                    self._last_error = f"batch_start_failed:{type(exc).__name__}"
+                    reason = "batch_start_failed"
+                else:
+                    return True
+            self._dispatch_active = bool(self._batch_threads)
+        self._abandon_claimed_before_dispatch(
+            window_id=window_id, claimed=claimed, reason=reason,
+        )
+        return False
 
     def _abandon_claimed_before_dispatch(
         self,
@@ -291,6 +398,8 @@ class UnattendedCoordinator:
         ) -> WorkerExecutionResult:
             task_id = assignment.task_id
             epoch = claimed[task_id]
+            with self._lifecycle_lock:
+                self._worker_thread_ids.add(threading.get_ident())
             try:
                 stored = self.store.get_task(task_id)
                 if stored.status in {"READY_FOR_REVIEW", "FAILED"} and self.control_store.can_complete_host_claim(
@@ -356,6 +465,14 @@ class UnattendedCoordinator:
                     failure_detail=type(exc).__name__,
                     reasons=("claim_abandoned", f"worker_exception:{type(exc).__name__}"),
                 )
+            finally:
+                # Individual graph workers release their own slots on terminal
+                # claim settlement. A slow sibling must not block replacement.
+                with self._lifecycle_lock:
+                    if self._active_task_epochs.get(task_id) == epoch:
+                        self._active_task_epochs.pop(task_id, None)
+                        self._active_task_ids.discard(task_id)
+                    self._worker_thread_ids.discard(threading.get_ident())
 
         assignments = [
             WorkerAssignment(
@@ -456,11 +573,13 @@ class UnattendedCoordinator:
                 lifecycle = "STOPPED"
             accepting_work = lifecycle == "RUNNING"
             inflight_batch = self._dispatch_active
+            inflight_task_count = len(self._active_task_ids)
         return {
             "enabled": alive,
             "lifecycle": lifecycle,
             "accepting_work": accepting_work,
             "inflight_batch": inflight_batch,
+            "inflight_task_count": inflight_task_count,
             "owner": self.owner,
             "ticks": self._ticks,
             "executions": self._executions,
@@ -475,11 +594,23 @@ class UnattendedCoordinator:
         try:
             while not self._stop.is_set():
                 try:
-                    self.tick()
+                    self.tick(background=True)
                 except Exception as exc:
                     self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
                 self._stop.wait(self.poll_interval)
         finally:
+            # Stop is draining, not cancellation. Retain thread ownership and
+            # all original lease/claim semantics until each live batch finishes.
+            while True:
+                with self._lifecycle_lock:
+                    batches = tuple(self._batch_threads)
+                if not batches:
+                    break
+                for batch in batches:
+                    batch.join()
+            # start() may have raced an already-running manual tick. Do not
+            # report STOPPED while that synchronous execution is unfinished.
+            self._manual_tick_idle.wait()
             with self._lifecycle_lock:
                 self._dispatch_active = False
                 if self._thread is current:
