@@ -516,9 +516,13 @@ def _usage_evidence(usage: Mapping[str, Any]) -> dict[str, Any]:
             state = "NO_USAGE_RECEIPT"
         elif known == 0:
             state = "USAGE_UNKNOWN"
+        elif type(usage.get("total_token_units")) is not int or usage["total_token_units"] < 0:
+            # A malformed/missing aggregate is not proof of model usage.
+            # In particular, bool is an int subclass but not a token total.
+            state = "UNKNOWN"
         elif unknown:
             state = "PARTIALLY_OBSERVED"
-        elif usage.get("total_token_units", 0) == 0:
+        elif usage["total_token_units"] == 0:
             state = "ZERO_TOKEN_USAGE_OBSERVED"
         else:
             state = "USAGE_OBSERVED"

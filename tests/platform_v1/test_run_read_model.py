@@ -11,7 +11,7 @@ import pytest
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
-from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel
+from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel, _usage_evidence
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
 
@@ -828,3 +828,31 @@ def test_proven_positive_task_usage_is_not_attributed_to_magpie_by_default(read_
     assert data["task_usage_records"] == 1
     assert data["served_magpie_route"] == "UNKNOWN"
     assert data["provider_request_receipt"] == "UNVERIFIED"
+
+
+@pytest.mark.parametrize(
+    "token_fields,expected",
+    [
+        ({}, "UNKNOWN"),
+        ({"total_token_units": None}, "UNKNOWN"),
+        ({"total_token_units": "invalid"}, "UNKNOWN"),
+        ({"total_token_units": -1}, "UNKNOWN"),
+        ({"total_token_units": True}, "UNKNOWN"),
+        ({"total_token_units": 0}, "ZERO_TOKEN_USAGE_OBSERVED"),
+        ({"total_token_units": 42}, "USAGE_OBSERVED"),
+    ],
+)
+def test_malformed_token_totals_never_claim_observed_model_usage(
+    token_fields, expected
+) -> None:
+    evidence = _usage_evidence({
+        "observation_count": 1,
+        "unknown_observation_count": 0,
+        **token_fields,
+    })
+    assert evidence["state"] == expected
+    assert evidence["confirmed_numeric_records"] == 1
+    assert evidence["positive_token_units"] == (
+        42 if token_fields.get("total_token_units") == 42 else 0
+    )
+    assert evidence["provider_request_receipt"] == "UNVERIFIED"
