@@ -164,9 +164,22 @@ class CombinedTrustedHost:
         self._local_client_session = local_client_session or LocalClientSession()
         self._trusted_client = None
 
+        from .native_goal_admission import NativeGoalAdmission
+        self._native_goal_admission = NativeGoalAdmission(self)
+
         self.model_control_url = ""
         self.task_api_url = ""
         self.relay_url = ""
+
+    def _native_owner_admit_goal(self, goal_id: str):
+        """Trusted native bootstrap only; never register on a transport/router.
+
+        The host process must run as the interactive Owner at construction.
+        This method displays native consent and atomically enqueues existing
+        persisted work. It neither dispatches nor changes API authentication,
+        account selection, or executor sandbox policy.
+        """
+        return self._native_goal_admission.admit(goal_id)
 
     @property
     def store(self) -> ModelProfileStore:

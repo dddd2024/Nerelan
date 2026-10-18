@@ -949,8 +949,9 @@ class PlatformControlStore:
         """Create the window and optional trusted-host SQL admission in one commit.
 
         `_host_sql_admit` is INTERNAL and never accepted from HTTP. The callback
-        must only update SQLite state on this connection; no commits, external
-        I/O, Task execution or nondurable side effects are permitted. This
+        may update SQLite state on this connection and perform bounded read-only
+        local scope validation; no commits, external effects, Task execution or
+        nondurable side effects are permitted. This
         hook itself is NOT an Owner consent or production authorization issuer.
         """
         reject_sensitive_keys(payload)
