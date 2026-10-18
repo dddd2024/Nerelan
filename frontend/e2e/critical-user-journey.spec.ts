@@ -26,7 +26,9 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await settle(appPage);
 
   await navigateFromShell(appPage, "设置");
-  await expect(appPage.getByTestId("settings-page")).toBeVisible();
+  await expect(appPage.getByTestId("settings-hub")).toBeVisible();
+  await appPage.getByRole("link", { name: /AI 资源与账号/ }).click();
+  await expect(appPage.getByTestId("settings-model-access-layout")).toBeVisible();
 
   await navigateFromShell(appPage, "首页");
   await expect(appPage.getByTestId("platform-home")).toBeVisible();

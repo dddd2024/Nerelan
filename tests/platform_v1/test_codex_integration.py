@@ -64,7 +64,8 @@ def source(tmp_path, monkeypatch):
     return root, git("rev-parse", "HEAD")
 
 
-def native_factory(calls, *, value=2, command_helper_failure=False, helper_setup_diagnostic=False):
+def native_factory(calls, *, value=2, command_helper_failure=False, helper_setup_diagnostic=False,
+                   no_product_changes=False):
     events = [
         {"type": "thread.started", "thread_id": "native-fixture-thread"},
         {"type": "turn.started"},
@@ -78,7 +79,7 @@ def native_factory(calls, *, value=2, command_helper_failure=False, helper_setup
             else "Fixture changed app.py; independent review pending."}},
         {"type": "turn.completed"},
     ]
-    edit = "" if command_helper_failure else "Path('app.py').write_text(" + repr(f"value = {value}\n") + ");"
+    edit = "" if command_helper_failure or no_product_changes else "Path('app.py').write_text(" + repr(f"value = {value}\n") + ");"
     script = "import sys;from pathlib import Path;sys.stdin.read();" + edit + "print(" + repr("\n".join(json.dumps(e) for e in events)) + ")"
     def factory(**kwargs):
         def launch(argv, **options):
@@ -219,6 +220,48 @@ def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(
         assert len(calls) == 1
         assert any(event["type"] == "EXECUTOR_PROGRESS" for event in task.events)
         assert not any(event["type"] == "EXECUTOR_COMPLETED" for event in task.events)
+    finally:
+        store._conn.close()
+
+
+def test_real_native_noop_result_blocks_goal_instead_of_claiming_review_ready(source, tmp_path):
+    _, base = source
+    store = TaskStore(str(tmp_path / "noop.sqlite3"))
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Change app.py to value two",
+        "repository": "owner/native-fixture", "idempotency_key": "native-noop",
+        "executor_kind": "codex", "orchestration_mode": "single", "binding_ref": "native-binding"})
+    goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+        {"id": "T001", "title": "Change app.py value to two",
+         "instruction": "Modify app.py to pass the requested test"}]).goal
+    goals.approve(goal.id, expected_revision=goal.revision)
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "native-noop-window", "policy_revision": 1,
+        "owner_identity": "fixture-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+        "repositories": [goal.repository], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "confirmation": "ACTIVATE"})
+    goals.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    assert store.get_task(task_id).branch == base
+    calls = []
+    router = ExecutorRouter()
+    router.replace("codex", native_factory(calls, no_product_changes=True))
+    service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(models()),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
+    try:
+        result = service.execute_durable_single(task_id, workspace_root=str(tmp_path / "workspaces"))
+        task = store.get_task(task_id)
+        assert not result.success
+        assert task.status == "FAILED"
+        assert task.failure_classification == "codex_no_product_changes"
+        assert not task.changed_files
+        assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+        assert len(calls) == 1
     finally:
         store._conn.close()
 

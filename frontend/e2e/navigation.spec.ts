@@ -6,7 +6,7 @@ const routes = [
   ["/inbox", "inbox-page"],
   ["/roadmap", "roadmap-page"],
   ["/runs", "runs-page"],
-  ["/settings", "settings-page"],
+  ["/settings", "settings-hub"],
 ] as const;
 
 function routeLabel(path: string) {
@@ -52,7 +52,7 @@ test("keeps all six product routes reachable through task-first desktop IA", asy
     await expect(settings).toBeVisible();
     await settings.click();
     await settle(appPage);
-    await expect(appPage.getByTestId("settings-page")).toBeVisible();
+    await expect(appPage.getByTestId("settings-hub")).toBeVisible();
     await expect(settings).toHaveClass(/bg-ra-tertiary/);
   }
 });

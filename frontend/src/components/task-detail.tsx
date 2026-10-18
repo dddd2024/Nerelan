@@ -23,6 +23,7 @@ import { usePlatformStatus } from "@/hooks/use-platform";
 import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
 import { displayObjective, displayTitle } from "@/lib/display-title";
+import { taskActionCopy, taskBlockerCopy, taskReviewNotice } from "@/lib/task-status-copy";
 import {
   authorityStatusLabel,
   testStatusLabel,
@@ -329,7 +330,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
         </h1>
         {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (
           <p className="mt-2 text-sm text-ra-text-secondary">
-            等待独立模型审查。执行完成和本地检查通过，不代表不同模型审查或最终验收已完成。
+            {taskReviewNotice()}
           </p>
         )}
 
@@ -364,14 +365,14 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       >
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">下一步：</dt>
-          <dd className="text-ra-text-secondary">{displayTask.nextAction ?? "无待办动作"}</dd>
+          <dd className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
               gap, so each pair now carries the same `标签：值` colon the rest of
               the product uses (阶段：/ 目标：/ 活跃度：). */}
           <dt className="text-ra-text-tertiary">阻塞项：</dt>
-          <dd className="text-ra-text-secondary">{displayTask.blocker ?? "无"}</dd>
+          <dd className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">验证：</dt>
@@ -407,6 +408,12 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           />
           <Meta label="执行 ID" value={displayTask.executionId ?? "—"} />
           <Meta label="任务 ID" value={displayTask.id} />
+          {displayTask.nextAction && displayTask.nextAction !== taskActionCopy(displayTask.nextAction) ? (
+            <Meta label="原始下一步" value={displayTask.nextAction} />
+          ) : null}
+          {displayTask.blocker && displayTask.blocker !== taskBlockerCopy(displayTask.blocker) ? (
+            <Meta label="原始阻塞原因" value={displayTask.blocker} />
+          ) : null}
         </dl>
       </details>
 
