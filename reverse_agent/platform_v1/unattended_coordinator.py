@@ -75,6 +75,10 @@ class UnattendedCoordinator:
         # Direct tick() remains synchronous for deterministic host/test callers.
         self._batch_threads: dict[threading.Thread, int] = {}
         self._active_task_ids: set[str] = set()
+        # A later retry can overlap an older graph batch that still drains
+        # another task. Epoch ownership keeps old finally blocks from erasing
+        # the retry's active marker.
+        self._active_task_epochs: dict[str, int] = {}
         self._worker_thread_ids: set[int] = set()
         self._manual_tick_active = False
         self._manual_tick_idle = threading.Event()
@@ -305,7 +309,10 @@ class UnattendedCoordinator:
                 self._last_error = f"parallel_batch_failed:{type(exc).__name__}"
             finally:
                 with self._lifecycle_lock:
-                    self._active_task_ids.difference_update(claimed)
+                    for task_id, epoch in claimed.items():
+                        if self._active_task_epochs.get(task_id) == epoch:
+                            self._active_task_epochs.pop(task_id, None)
+                            self._active_task_ids.discard(task_id)
                     self._batch_threads.pop(threading.current_thread(), None)
                     self._dispatch_active = bool(self._batch_threads)
 
@@ -317,14 +324,19 @@ class UnattendedCoordinator:
                 reason = "coordinator_stop_requested_before_dispatch"
             else:
                 self._batch_threads[thread] = len(claimed)
-                self._active_task_ids.update(claimed)
+                for task_id, epoch in claimed.items():
+                    self._active_task_epochs[task_id] = epoch
+                    self._active_task_ids.add(task_id)
                 try:
                     thread.start()
                 except Exception as exc:
                     # An OS/thread-start error must release the just-admitted
                     # claim immediately; do not wait for lease expiry.
                     self._batch_threads.pop(thread, None)
-                    self._active_task_ids.difference_update(claimed)
+                    for task_id, epoch in claimed.items():
+                        if self._active_task_epochs.get(task_id) == epoch:
+                            self._active_task_epochs.pop(task_id, None)
+                            self._active_task_ids.discard(task_id)
                     self._last_error = f"batch_start_failed:{type(exc).__name__}"
                     reason = "batch_start_failed"
                 else:
@@ -457,7 +469,9 @@ class UnattendedCoordinator:
                 # Individual graph workers release their own slots on terminal
                 # claim settlement. A slow sibling must not block replacement.
                 with self._lifecycle_lock:
-                    self._active_task_ids.discard(task_id)
+                    if self._active_task_epochs.get(task_id) == epoch:
+                        self._active_task_epochs.pop(task_id, None)
+                        self._active_task_ids.discard(task_id)
                     self._worker_thread_ids.discard(threading.get_ident())
 
         assignments = [

@@ -340,3 +340,45 @@ def test_synchronous_tick_is_drained_and_not_raced_by_background_poller(tmp_path
     assert _wait_for(lambda: coordinator.status()["lifecycle"] == "STOPPED")
     assert store.get_task(first).status == "READY_FOR_REVIEW_FIXTURE"
     assert store.get_task(later).status == "QUEUED"
+
+
+def test_old_batch_cleanup_cannot_clear_later_epoch_active_marker(tmp_path):
+    store, control, autonomy, goals, window = _setup(tmp_path, max_concurrent=2)
+    _initial, tasks = _goal(goals, control, window, "epoch-ownership", count=2)
+    slow, fast = tasks
+    entered = threading.Event()
+    release = threading.Event()
+
+    def execute(task_id):
+        if task_id == slow:
+            entered.set()
+            assert release.wait(10)
+        return _done(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path,
+        task_executor=execute, poll_interval=0.1,
+    )
+    try:
+        coordinator.start()
+        assert entered.wait(5)
+        assert _wait_for(
+            lambda: store.get_task(fast).status == "READY_FOR_REVIEW_FIXTURE"
+        )
+        # A newer retry can start while the old batch waits on a slow sibling.
+        # Its epoch owns its marker; the old graph finalizer must not erase it.
+        with coordinator._lifecycle_lock:
+            assert slow in coordinator._active_task_ids
+            coordinator._active_task_epochs[fast] = 99
+            coordinator._active_task_ids.add(fast)
+        release.set()
+        assert _wait_for(lambda: not coordinator._batch_threads)
+        with coordinator._lifecycle_lock:
+            assert coordinator._active_task_epochs[fast] == 99
+            assert fast in coordinator._active_task_ids
+            coordinator._active_task_epochs.pop(fast)
+            coordinator._active_task_ids.discard(fast)
+    finally:
+        release.set()
+        coordinator.stop(timeout=6)
