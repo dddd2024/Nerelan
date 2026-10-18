@@ -262,6 +262,107 @@ def _ready_fixture(store: TaskStore, task_id: str):
     return SimpleNamespace(success=True)
 
 
+@pytest.mark.parametrize("failed", [False, True])
+@pytest.mark.parametrize("mutation", [None, "goal", "window", "task", "revision", "epoch", "future", "missing_result", "false_result", "artifact", "policy"])
+def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatch, failed, mutation):
+    from test_goal_service import _persisted_host_result
+    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+    from reverse_agent.platform_v1.control_store import sha256_json
+
+    store, control, window, goal, task_id = _persisted_host_result(
+        tmp_path, monkeypatch, strict=True, failed=failed)
+    try:
+        store._conn.execute("UPDATE platform_autonomous_windows SET expires_at=? WHERE id=?",
+            ((datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(), window.id))
+        store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?", (task_id,))
+        task = store.get_task(task_id)
+        store.append_usage_observation(task_id, observation_id="original-unknown", execution_id=task.execution_id,
+            role="executor", model_id="fixture", provider_id="", source_kind="fixture", source_id="original", status="UNKNOWN")
+        if mutation == "goal":
+            store._conn.execute("UPDATE platform_goals SET window_id='' WHERE id=?", (goal.id,))
+        elif mutation == "window":
+            store._conn.execute("UPDATE platform_coordinator_claims SET window_id='foreign' WHERE task_id=?", (task_id,))
+        elif mutation == "task":
+            foreign = store.create_task(title="Foreign", repository=goal.repository, executor_kind=goal.executor_kind)
+            store._conn.execute("UPDATE platform_goal_task_links SET task_id=? WHERE task_id=?", (foreign.id, task_id))
+        elif mutation == "revision":
+            store._conn.execute("UPDATE platform_goal_task_links SET goal_revision=2 WHERE task_id=?", (task_id,))
+        elif mutation == "epoch":
+            store._conn.execute("UPDATE platform_coordinator_claims SET epoch=epoch+1 WHERE task_id=?", (task_id,))
+        elif mutation == "future":
+            store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=9999999999999 WHERE task_id=?", (task_id,))
+        elif mutation == "missing_result":
+            store._conn.execute("UPDATE tasks SET validation_output_digest='' WHERE id=?", (task_id,))
+        elif mutation == "false_result":
+            store._conn.execute("UPDATE tasks SET validation_exit_code=? WHERE id=?", (0 if failed else 1, task_id))
+        elif mutation == "artifact":
+            store._conn.execute("UPDATE platform_goals SET artifact_digest=? WHERE id=?", ("f" * 64, goal.id))
+        elif mutation == "policy":
+            store._conn.execute("UPDATE platform_autonomous_windows SET policy_digest=? WHERE id=?", ("f" * 64, window.id))
+        def forbidden(*args, **kwargs):
+            pytest.fail("Result-only recovery dispatched work")
+        router = ExecutorRouter()
+        monkeypatch.setattr(router, "create_executor", forbidden)
+        monkeypatch.setattr(router, "dispatch_execute", forbidden)
+        monkeypatch.setattr(LocalValidationRunner, "run", forbidden)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        assert not autonomy.authorize(window_id=window.id, operation="validate_task", repository=task.repository,
+            subject_id=task_id, input_payload={"task_id": task_id})
+        monkeypatch.setattr(autonomy, "authorize", forbidden)
+        monkeypatch.setattr(control, "claim_task", forbidden)
+        coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+            router=router, workspace_root=tmp_path, task_executor=forbidden)
+        if mutation is not None:
+            # Even a stale/foreign candidate from discovery must fail at the
+            # transactional completion boundary without admission side effects.
+            monkeypatch.setattr(control, "runnable_tasks", lambda *args, **kwargs: (task_id,))
+        # tick is the actual single-pass coordinator entry point in this checkout.
+        before = tuple(store._conn.iterdump())
+        assert coordinator.tick() == (1 if mutation is None else 0)
+        if mutation is not None:
+            assert tuple(store._conn.iterdump()) == before
+            with pytest.raises(TaskStoreError):
+                control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
+            assert tuple(store._conn.iterdump()) == before
+        else:
+            assert store.get_task(task_id) == task
+            final = control.get_window(window.id)
+            assert (final.tasks_started, final.tasks_completed, final.retries_used) == (1, 1, 0)
+            assert final.capabilities == ("execute_task",)
+            assert final.unknown_observation_count == 1
+            claim = store._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
+            assert claim["status"] == "COMPLETE" and claim["epoch"] == 1 and claim["owner"] == "original"
+            reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
+            assert reservation["state"] == "UNKNOWN" and reservation["claim_epoch"] == 1
+            assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
+            assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 1
+            receipts = control.list_receipts(window_id=window.id)
+            reconciled = [r for r in receipts if r.operation_type == "task_claim_reconciliation"]
+            assert len(reconciled) == 1
+            receipt = reconciled[0]
+            assert receipt.capability == "not_applicable" and receipt.decision == "not_evaluated"
+            assert receipt.reason == "coordinator_persisted_result_reconciled"
+            assert receipt.result == "persisted_host_result:UNKNOWN"
+            assert receipt.subject_id == task_id and receipt.repository == task.repository
+            assert receipt.actor == final.owner_identity
+            assert receipt.policy_revision == final.policy_revision
+            assert receipt.policy_digest == final.policy_digest
+            assert receipt.confirmation_mode == control.window_policy_binding(window.id)["confirmation_mode"]
+            assert receipt.input_digest == sha256_json({"task_id": task_id, "claim_epoch": 1,
+                "claim_owner": "original", "persisted_result_only": True})
+            assert not any(r.decision == "allowed" and r.capability in {"validate_task", "execute_task"}
+                           for r in receipts)
+            assert not any(r.operation_type == "task_execution" for r in receipts)
+            assert all(r.decision != "allowed" for r in reconciled)
+            assert control.receipt_totals(window_id=window.id)["total"] == len(receipts)
+            assert coordinator.tick() == 0
+            with pytest.raises(TaskStoreError):
+                control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
+            assert control.list_receipts(window_id=window.id) == receipts
+    finally:
+        store._conn.close()
+
+
 def test_coordinator_respects_dependencies_and_restart_does_not_duplicate(tmp_path):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)

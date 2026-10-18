@@ -157,6 +157,7 @@ class UnattendedCoordinator:
             if self._stop.is_set():
                 return 0
         claimed: dict[str, int] = {}
+        recovered = 0
         for task_id in self.control_store.runnable_tasks(
             window.id, limit=window.max_concurrent_tasks
         ):
@@ -165,6 +166,20 @@ class UnattendedCoordinator:
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
+            if (self.control_store.is_strict_owner_window(window)
+                    and task.status in {"READY_FOR_REVIEW", "FAILED"}):
+                # Result-only recovery is not admission to validate_task. The
+                # store rechecks identity and evidence atomically and finalizes
+                # the original epoch/reservation without invoking any executor.
+                try:
+                    self.control_store.complete_persisted_host_claim(
+                        window_id=window.id, task_id=task_id)
+                except TaskStoreError as exc:
+                    self._last_error = str(exc)
+                    continue
+                recovered += 1
+                self._executions += 1
+                continue
             operation = task_operation(task)
             if task.status == "INTERRUPTED" and operation != "validate_task":
                 operation = "resume_task"
@@ -200,7 +215,7 @@ class UnattendedCoordinator:
             if self._stop.is_set():
                 break
         if not claimed:
-            return 0
+            return recovered
         if not self._begin_dispatch():
             self._abandon_claimed_before_dispatch(
                 window_id=window.id,
@@ -209,7 +224,7 @@ class UnattendedCoordinator:
             )
             return 0
         try:
-            return self._execute_claimed_batch(window_id=window.id, claimed=claimed)
+            return recovered + self._execute_claimed_batch(window_id=window.id, claimed=claimed)
         finally:
             self._finish_dispatch()
 

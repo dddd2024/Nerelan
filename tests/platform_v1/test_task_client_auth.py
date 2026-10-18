@@ -127,3 +127,43 @@ def test_unconfigured_handler_has_no_unauthenticated_compatibility_mode(tmp_path
         assert request(server.server_address[1], "GET", "/api/health")[1] == {"ready": True}
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("assertions", [
+    {},  # An arbitrary first Goal is not a human selection.
+    {"selected_goal_id": "first-goal"},
+    {"selected_goal_id": "other-goal"},
+    {"selected_goal_id": "first-goal", "expected_revision": 2},
+    {"executor_kind": "codex"},
+    {"executor_kind": "claude_code", "binding_ref": "other-account"},
+    {"human_confirmed": True, "confirmation_mode": "OWNER"},
+    {"client_nonce": TOKEN, "receipt": {"approved": True}},
+    {"policy_revision": 0, "policy_digest": "stale"},
+    {"window_id": "other-window", "receipt_window_id": "first-window"},
+    {"confirmation_mode": "DELEGATED_CONTROLLER"},
+])
+def test_authenticated_client_assertions_cannot_activate_owner_window(authenticated_server, assertions):
+    from datetime import datetime, timedelta, timezone
+    port, _, _, actions, store = authenticated_server
+    now = datetime.now(timezone.utc)
+    payload = {
+        "policy_id": "untrusted-owner-selection", "policy_revision": 1,
+        "owner_identity": "human-owner", "confirmation": "ACTIVATE",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "selected_goal_id": "first-goal", "expected_revision": 1,
+        "executor_kind": "deterministic_fixture", "binding_ref": "fixture",
+        **assertions,
+    }
+    before = store._conn.total_changes
+    # Identical replay and a second window must both fail without reservations.
+    for candidate in (payload, payload, {**payload, "policy_id": "second-window"}):
+        status, result, _ = request(port, "POST", "/api/windows/activate",
+                                    capability=TOKEN, origin=ORIGIN,
+                                    body=json.dumps(candidate).encode())
+        assert status == 409
+        assert result == {"error": "owner_selection_confirmation_unavailable"}
+    assert not actions  # Neither activation path nor model dispatch was reached.
+    assert store._conn.total_changes == before
