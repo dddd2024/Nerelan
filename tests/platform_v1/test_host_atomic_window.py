@@ -238,3 +238,30 @@ def test_atomic_hook_rejects_wide_or_expired_window(store, delta):
         control.activate_window(data, confirmation="ACTIVATE",
                                 _host_expected_goal_id="persisted-goal", _host_sql_admit=lambda _: None)
     assert control.list_windows() == ()
+
+
+def test_host_interrupt_rolls_back_and_connection_recovers(store):
+    db, control = store
+    def interrupted(window_id):
+        db._conn.execute("CREATE TABLE IF NOT EXISTS transient (id TEXT)")
+        db._conn.execute("INSERT INTO transient VALUES (?)", (window_id,))
+        raise KeyboardInterrupt("host interrupted")
+
+    with pytest.raises(KeyboardInterrupt, match="host interrupted"):
+        control.activate_window(_payload(), confirmation="ACTIVATE",
+                                _host_expected_goal_id="persisted-goal", _host_sql_admit=interrupted)
+    assert not db._conn.in_transaction
+    assert control.list_windows() == ()
+    assert db._conn.execute("SELECT name FROM sqlite_master WHERE name='transient'").fetchone() is None
+
+
+@pytest.mark.parametrize("overrides", [
+    {"starts_at": "2026-W42-7T00:00:00Z"},
+    {"expires_at": "2026-W42-7T23:00:00+00:00"},
+])
+def test_host_window_rejects_python_only_calendar_formats(store, overrides):
+    _, control = store
+    with pytest.raises(TaskStoreError, match="host_atomic_window_time_invalid"):
+        control.activate_window({**_payload(), **overrides}, confirmation="ACTIVATE",
+                                _host_expected_goal_id="persisted-goal", _host_sql_admit=lambda _: None)
+    assert control.list_windows() == ()

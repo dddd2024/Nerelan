@@ -964,6 +964,12 @@ class PlatformControlStore:
                     or len(payload.get("repositories", ())) != 1):
                 raise TaskStoreError("host_atomic_window_scope_invalid")
             try:
+                # SQLite julianday must parse the exact same RFC3339 values;
+                # Python also accepts week dates that SQLite treats as NULL.
+                canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                if not (re.fullmatch(canonical_time, str(payload["starts_at"]))
+                        and re.fullmatch(canonical_time, str(payload["expires_at"]))):
+                    raise ValueError
                 starts = datetime.fromisoformat(str(payload["starts_at"]).replace("Z", "+00:00"))
                 expires = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
                 clock = datetime.now(timezone.utc)
@@ -1085,9 +1091,11 @@ class PlatformControlStore:
                         raise TaskStoreError("host_atomic_task_binding_missing")
                     self.check_strict_task_admission(window_id, links[0]["task_id"])
                 self._conn.commit()
-            except Exception as exc:
+            except BaseException as exc:
+                # Even KeyboardInterrupt/SystemExit from a host callback must
+                # release the write transaction before the host can recover.
                 self._conn.rollback()
-                if isinstance(exc, TaskStoreError):
+                if not isinstance(exc, Exception) or isinstance(exc, TaskStoreError):
                     raise
                 raise TaskStoreError(f"window_activation_failed:{exc}") from exc
         return self.get_window(window_id)
