@@ -38,6 +38,9 @@ class CodexTurn:
     thread_id: str = ""
     completed: bool = False
     failed: bool = False
+    # A tool runner that never created its child process is an infrastructure
+    # failure, even when the model turn itself later reports completed.
+    tool_launch_failed: bool = False
     final_text: str = ""
     failure_classification: str = ""
     usage: dict[str, int] | None = None
@@ -162,10 +165,35 @@ class CodexJsonl:
                 if kind == "item.completed":
                     self.turn.final_text = text
             elif item_type == "command_execution":
+                output = item.get("aggregated_output")
+                exit_code = item.get("exit_code")
+                setup_failed = (
+                    kind == "item.completed" and isinstance(output, str)
+                    and "helper_unknown_error" in output.casefold()
+                    and "setup refresh had errors" in output.casefold()
+                    # A nonnegative child exit code proves a command was
+                    # launched. Its stdout may quote these diagnostic words.
+                    and not (type(exit_code) is int and exit_code >= 0)
+                )
                 public["command"] = public_text(item.get("command"), 512)
                 if type(item.get("exit_code")) is int:
                     public["exit_code"] = item["exit_code"]
                 public["status"] = public_text(item.get("status"), 80)
+                # An exit code of -1 on a failed command_execution is a CLI
+                # helper/launch failure, not a normal nonzero command exit.
+                # Do not let a later turn.completed erase this evidence.
+                if (kind == "item.completed" and public["status"] == "failed"
+                        and item.get("exit_code") == -1):
+                    self.turn.tool_launch_failed = True
+                if setup_failed:
+                    # Inspect only the bounded command output, never model prose.
+                    # Some CLI versions omit the launch exit code. Publish fixed
+                    # evidence instead of helper output or a path-bearing command.
+                    self.turn.tool_launch_failed = True
+                    public["command"] = "[command omitted: helper setup failure]"
+                    public["status"] = "failed"
+                    public["failure_classification"] = "codex_tool_launch_failed"
+                    public["diagnostic"] = "helper_unknown_error: setup refresh had errors"
             elif item_type == "file_change":
                 public["status"] = public_text(item.get("status"), 80)
             else:

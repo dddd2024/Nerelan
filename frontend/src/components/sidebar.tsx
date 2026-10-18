@@ -138,7 +138,7 @@ export function Sidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { data: tasks = [], isLoading, isError } = useTasks();
+  const { data: tasks = [], isLoading, isError } = useTasks({ watch: true });
   const platformQuery = usePlatformStatus();
 
   useEffect(() => {
