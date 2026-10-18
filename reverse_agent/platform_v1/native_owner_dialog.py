@@ -33,7 +33,7 @@ class OwnerDialogScope:
 
     def text(self) -> str:
         rows = vars(self)
-        if any(type(value) is not str or not value or len(value) > 8000
+        if any(type(value) is not str or not value.strip() or len(value) > 8000
                or any(ord(c) < 32 or ord(c) > 126 for c in value)
                for key, value in rows.items()
                if key not in {"goal_revision", "policy_revision"}):

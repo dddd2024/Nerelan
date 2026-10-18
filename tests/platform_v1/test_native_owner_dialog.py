@@ -33,6 +33,9 @@ def test_callback_requires_literal_true(answer):
 
 @pytest.mark.parametrize("changes", [
     {"goal_revision": True}, {"policy_revision": 0}, {"goal_id": ""},
+    {"goal_id": "   "}, {"host_instance_id": " \t "},
+    {"policy_digest": "   "}, {"window_id": " \t"},
+    {"effective_policy": "    "}, {"repository": "  "},
     {"repository": "repo\nwindow: forged"}, {"binding_ref": "x\u202ey"},
     {"effective_policy": "x" * 8001},
 ])
