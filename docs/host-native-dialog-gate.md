@@ -28,3 +28,30 @@ resolve the exact effective policy and account binding, establish Owner identity
 and compare-and-consume a short-lived host-memory grant atomically with window
 activation and launch, then fence claim admission, expiry, revocation and restart.
 Connecting this boolean directly to the legacy activation API would be unsafe.
+
+## Test-only grant preparer (P0 #1207 continuation)
+
+`owner_grant_preparer.py` is an isolated protocol prototype with **no production
+caller**, including no TrustedHost integration. Only isolated fixtures may
+instantiate it. `FixturePolicy` is not a resolved production execution policy.
+It loads a persisted PLANNED Goal, requires one single-mode Codex task, pinned
+binding and exact repository, and verifies the configured repository workspace.
+The dialog displays the entire serialized Goal, workspace, fixture policy, host
+and preview window, including instructions. Oversized scopes deny without
+truncation; non-ASCII data is JSON escaped.
+
+OS YES produces a 256-bit random host-memory token valid for 30 seconds from
+before the dialog. Only one outstanding selection is retained. Consumption burns
+the token under a lock before checking Goal identity, expiry and the full stored
+snapshot again. Revision, executor or binding changes, wrong Goal, replay and
+other host instances deny. The preparer accepts no dialog callback; fixture code
+alone injects the native platform callback.
+
+`ConsentPreview` is **not production permission or a durable receipt**. There is
+no atomic transaction covering consumption, Goal/window/Claim activation and
+receipt persistence. Exact effective production policy and account readiness,
+authenticated Owner identity, restart/revocation fencing and Claim admission
+remain gaps. No HTTP bypass, production TaskStore modification, second dispatcher,
+live Goal launch or model call is introduced. The three historical ACTIVE Claims
+still have UNKNOWN remote effects; production rollout remains blocked. Mock
+dialog tests are not Windows desktop or product acceptance.
