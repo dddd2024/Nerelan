@@ -21,7 +21,7 @@ This is a provider-free, non-authoritative diagnostic. It is NOT a working headl
 
 Run python -m reverse_agent.platform_v1.headless_cli doctor --json.
 
-Doctor makes exactly one GET against a fixed local address http://127.0.0.1:8766/api/health. It suppresses ambient HTTP proxies, sends no bearer capability, allows at most 4096 bytes and uses a two-second timeout. It never follows to a different response URL. PUBLIC_HEALTH_OBSERVED/exit 0 means only that the public Task API is responding. It must NOT imply authority, available models, healthy coordinator, quota availability or running tasks.
+Doctor makes exactly one GET against a fixed local address http://127.0.0.1:8766/api/health. It suppresses ambient HTTP proxies, sends no bearer capability, allows at most 4096 bytes and uses one two-second monotonic deadline covering connect, headers and the entire bounded body read. Each socket receive uses only the remaining budget, so slow-drip responses cannot reset the deadline. It rejects every redirect. PUBLIC_HEALTH_OBSERVED/exit 0 means only that the public Task API is responding. It must NOT imply authority, available models, healthy coordinator, quota availability or running tasks.
 
 Run python -m reverse_agent.platform_v1.headless_cli status --json.
 
@@ -45,4 +45,4 @@ CLI-5: full SDK and remote access remain under #806, not implemented by CLI-0.
 
 ## Tests and limits
 
-Tests for headless_cli include fixed request target, proxy disabling, malformed response, strict bool readiness, no secret reflection, no mutations through unsupported commands, machine-readable nonzero codes and no privilege conflation. Zero model/provider calls. Do not describe passing CLI-0 tests as autonomous Task/Run success.
+Tests for headless_cli include fixed request target, proxy disabling, malformed response, strict bool readiness, no secret reflection, no mutations through unsupported commands, machine-readable nonzero codes and no privilege conflation. Real ephemeral localhost socket fixtures drip headers and bodies into child processes and assert completion below four seconds. Only internal socket injection changes the test port; there is no endpoint override in the CLI. Zero model/provider calls. Do not describe passing CLI-0 tests as autonomous Task/Run success.

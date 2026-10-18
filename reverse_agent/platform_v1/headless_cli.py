@@ -6,10 +6,12 @@ read TaskStore SQLite directly, or infer authorization from localhost.
 from __future__ import annotations
 
 import json
+import socket
 import sys
+import time
 from collections.abc import Callable, Sequence
+from http.client import HTTPResponse
 from typing import Any
-from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 PROTOCOL = "nerelan-control/v1"
 HEALTH_URL = "http://127.0.0.1:8766/api/health"
@@ -17,22 +19,49 @@ BLOCKED = 50
 MAX_HEALTH_BYTES = 4096
 
 
-class _NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        # Do not send even an unauthenticated probe to a redirected host.
-        return None
+class _DeadlineSocket(socket.socket):
+    """Socket file reads share the connect/send monotonic deadline."""
+
+    def __init__(self, deadline: float):
+        super().__init__(socket.AF_INET, socket.SOCK_STREAM)
+        self.deadline = deadline
+
+    def remaining(self) -> float:
+        remaining = self.deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("health deadline")
+        return remaining
+
+    def recv_into(self, buffer, nbytes=0, flags=0):
+        # SocketIO (used by HTTPResponse.makefile) calls this for EVERY recv,
+        # including status, headers, chunk framing and the entire body.
+        self.settimeout(self.remaining())
+        return super().recv_into(buffer, nbytes, flags)
+
+
+def _read_public_health() -> bytes:
+    deadline = time.monotonic() + 2.0
+    with _DeadlineSocket(deadline) as sock:
+        sock.settimeout(sock.remaining())
+        # Numeric IPv4 only: no DNS, proxy, URL override or ambient auth.
+        sock.connect(("127.0.0.1", 8766))
+        sock.settimeout(sock.remaining())
+        sock.sendall(b"GET /api/health HTTP/1.1\r\nHost: 127.0.0.1:8766\r\nConnection: close\r\n\r\n")
+        with HTTPResponse(sock) as response:
+            response.begin()
+            # HTTPResponse does not follow redirects. Reject every non-200.
+            if response.status != 200:
+                raise ValueError("health status")
+            raw = response.read(MAX_HEALTH_BYTES + 1)
+        sock.remaining()
+        return raw
 
 
 def _public_health(probe: Callable[[], bytes] | None = None) -> bool:
     """Observe only the deliberately unauthenticated loopback health route."""
     try:
         if probe is None:
-            # Never use ambient HTTP proxies or user-supplied endpoints.
-            opener = build_opener(ProxyHandler({}), _NoRedirect())
-            with opener.open(Request(HEALTH_URL, method="GET"), timeout=2) as response:
-                if response.geturl() != HEALTH_URL or response.status != 200:
-                    return False
-                raw = response.read(MAX_HEALTH_BYTES + 1)
+            raw = _read_public_health()
         else:
             raw = probe()
         if not isinstance(raw, bytes) or len(raw) > MAX_HEALTH_BYTES:
