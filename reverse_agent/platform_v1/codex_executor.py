@@ -273,6 +273,11 @@ class CodexExecutor:
             turn = parser.finish()
             if code != 0 or turn.failed:
                 raise CodexProtocolError(turn.failure_classification or self._e("process_failed"))
+            if turn.tool_launch_failed:
+                # The model may finish its turn after a Windows sandbox helper
+                # failure. Patch hygiene cannot convert that into a successful
+                # executor result or an eligible READY_FOR_REVIEW Task.
+                raise CodexProtocolError(self._e("tool_launch_failed"))
             self._verify_workspace(prepared.worktree, prepared.base_sha)
         except (ExecutorRuntimeError, OSError) as exc:
             persist_unknown_usage()

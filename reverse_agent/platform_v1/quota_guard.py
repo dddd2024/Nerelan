@@ -5,7 +5,8 @@ what the account's windows have left with what this binding's tasks typically us
 
 * ``switch`` - the limit is reached, or even the optimistic estimate cannot fit the next
   task: an agent-team role moves to an alternative binding on another account, when one
-  exists; otherwise the run goes ahead with a recorded warning.
+  exists; otherwise *confirmed* account exhaustion is refused, while an
+  uncertain task-size estimate is only recorded as a warning.
 * ``warn`` - the pessimistic estimate does not fit, or the account is near its limit:
   the run goes ahead and the warning is recorded.
 * ``ok`` - nothing indicates a shortfall.
@@ -61,6 +62,25 @@ def check(connection: Mapping[str, Any], quotas: Mapping[str, Any], need_units: 
     windows = quota.get("windows") if isinstance(quota, Mapping) else None
     if not windows:
         return {"decision": "ok", "reason": "quota_unknown", "provider": provider}
+    # Provider-confirmed exhaustion must not be reduced to an estimate, and a
+    # near-exhaustion threshold (98%) is NOT equivalent to 100% observed use.
+    exhausted = next((
+        window for window in windows
+        if isinstance(window, Mapping)
+        and not window.get("reset_passed")
+        and (
+            window.get("availability") == "limit_reached"
+            or window.get("status") == "rejected"
+            or (
+                window.get("basis") == "official_percent"
+                and type(window.get("used_percent")) in (int, float)
+                and window["used_percent"] >= 100
+            )
+        )
+    ), None)
+    if exhausted is not None:
+        return {"decision": "switch", "reason": "observed_exhausted",
+                "provider": provider, "window": exhausted.get("window")}
     decision = worst(guard(window, need_units) | {"window": window.get("window")} for window in windows)
     return decision | {"provider": provider, "need_units": need_units}
 
@@ -94,6 +114,11 @@ def alternatives(role: str, current: Mapping[str, Any], *, bindings: Sequence[Ma
             if eligible(binding) and binding not in ordered:
                 ordered.append(binding)
     return ordered
+
+
+# Hard refusal is restricted to verified provider evidence, not an uncertain
+# task-size forecast or a stale/unknown quota projection.
+CONFIRMED_EXHAUSTION_REASONS = frozenset({"limit_hit", "limit_reached", "observed_exhausted"})
 
 
 # Answers in which the account itself said it is out of quota; only these start or extend a hold.

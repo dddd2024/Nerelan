@@ -46,6 +46,79 @@ def test_actual_token_usage_is_not_a_cost_estimate():
     assert "cost" not in parser.turn.__dict__
 
 
+@pytest.mark.parametrize("status,exit_code,expected", [
+    ("failed", -1, True),   # Windows sandbox helper never launched the child.
+    ("failed", 1, False),   # Ordinary command failure may be exploratory.
+    ("completed", 0, False),
+    ("failed", None, False),  # Do not invent an unavailable exit code.
+])
+def test_failed_command_helper_is_preserved_after_completed_turn(status, exit_code, expected):
+    item = {"type": "command_execution", "status": status, "command": "git status"}
+    if exit_code is not None:
+        item["exit_code"] = exit_code
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE))
+    result = parser.finish()
+    assert result.completed
+    assert result.tool_launch_failed is expected
+
+
+def test_transient_command_updates_do_not_fabricate_launch_failure():
+    parser = CodexJsonl()
+    item = {"type": "command_execution", "status": "failed", "exit_code": -1}
+    parser.feed(wire(*START, {"type": "item.updated", "item": item}, MESSAGE, DONE))
+    assert parser.finish().tool_launch_failed is False
+
+
+@pytest.mark.parametrize("fields", [{}, {"exit_code": None}, {"status": "completed"}, {"status": "failed", "exit_code": -1}])
+def test_helper_setup_diagnostic_without_launch_exit_code_is_sanitized(fields):
+    seen = []
+    parser = CodexJsonl(seen.append)
+    item = {"type": "command_execution", "command": "C:\\private-workspace\\tool.exe",
+            "aggregated_output": "helper_unknown_error: setup refresh had errors "
+                                 "C:\\private-workspace Authorization: Bearer fixture-private-token",
+            **fields}
+    stream = wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE)
+    for byte in stream:
+        parser.feed(bytes([byte]))
+    turn = parser.finish()
+    assert turn.completed and turn.tool_launch_failed
+    assert seen[0]["failure_classification"] == "codex_tool_launch_failed"
+    assert seen[0]["diagnostic"] == "helper_unknown_error: setup refresh had errors"
+    assert "private-workspace" not in repr(turn) + repr(seen)
+    assert "fixture-private-token" not in repr(turn) + repr(seen)
+
+
+@pytest.mark.parametrize("exit_code", [0, 1, 2])
+def test_successfully_launched_command_may_print_helper_error_words(exit_code):
+    # Grep/search output can quote documentation about the helper itself.
+    seen = []
+    parser = CodexJsonl(seen.append)
+    status = "completed" if exit_code == 0 else "failed"
+    item = {"type": "command_execution", "command": "rg -n helper_unknown_error .",
+            "status": status, "exit_code": exit_code,
+            "aggregated_output": "docs/notes: helper_unknown_error: setup refresh had errors"}
+    parser.feed(wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed and not turn.tool_launch_failed
+    assert seen[0]["status"] == status
+    assert "failure_classification" not in seen[0]
+
+
+@pytest.mark.parametrize("kind,item_type,output", [
+    ("item.updated", "command_execution", "helper_unknown_error: setup refresh had errors"),
+    ("item.completed", "agent_message", "helper_unknown_error: setup refresh had errors"),
+    ("item.completed", "command_execution", "helper_unknown_error"),
+    ("item.completed", "command_execution", "setup refresh had errors"),
+])
+def test_setup_failure_requires_specific_completed_command_diagnostic(kind, item_type, output):
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": kind, "item": {
+        "type": item_type, "text": output, "aggregated_output": output,
+    }}, MESSAGE, DONE))
+    assert not parser.finish().tool_launch_failed
+
+
 @pytest.mark.parametrize("stream,classification", [
     (b"not-json\n", "codex_invalid_jsonl"),
     (b"\xff\n", "codex_invalid_jsonl"),

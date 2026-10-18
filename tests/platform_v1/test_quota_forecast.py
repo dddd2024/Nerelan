@@ -14,6 +14,7 @@ from reverse_agent.model_access.quota_forecast import (
 from reverse_agent.model_access.quota_history import read_claude_history, read_codex_history
 from reverse_agent.model_access.subscription_quota import claude_quota, codex_quota
 from reverse_agent.model_access.store import ModelProfileStore
+from reverse_agent.platform_v1.run_store import TaskStoreError
 from reverse_agent.platform_v1.quota_guard import alternatives, check, typical_task_units
 
 H = 3600
@@ -276,7 +277,8 @@ def test_host_refuses_and_reroutes_after_the_account_answered_with_its_limit(mon
     verdict = host._quota_check(sonnet)
     assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
     roster = {"complex": {"binding_id": "claude-sonnet"}}
-    assert host._quota_guarded("complex", "claude_code", "claude-sonnet", roster) == ("claude_code", "claude-sonnet")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:limit_hit:no_alternative"):
+        host._quota_guarded("complex", "claude_code", "claude-sonnet", roster)
     assert host._quota_guarded("complex", "claude_code", "claude-sonnet", roster,
                                standins=["chatgpt-gpt"]) == ("codex", "chatgpt-gpt")
     resolver = host._binding_resolver_factory("http://127.0.0.1:1")
@@ -314,10 +316,12 @@ def test_host_switches_a_role_off_an_exhausted_account_and_logs_it(monkeypatch):
     assert host._quota_guarded("coder", "claude_code", "claude-opus", roster) == ("codex", "chatgpt-gpt")
     entry = host._quota_guard_entries()[0]
     assert (entry["decision"], entry["reason"], entry["switched_to"]) == ("switch", "limit_reached", "chatgpt-gpt")
-    # With no acceptable stand-in the role keeps its agent and the warning is recorded.
+    # With no acceptable stand-in confirmed exhaustion must block the role.
     verdicts["chatgpt-account"] = {"decision": "switch", "reason": "limit_reached"}
-    assert host._quota_guarded("coder", "claude_code", "claude-opus", roster) == ("claude_code", "claude-opus")
-    assert host._quota_guard_entries()[0]["reason"] == "limit_reached:no_alternative"
+    with pytest.raises(TaskStoreError, match="quota_exhausted:limit_reached:no_alternative"):
+        host._quota_guarded("coder", "claude_code", "claude-opus", roster)
+    assert (host._quota_guard_entries()[0]["decision"], host._quota_guard_entries()[0]["reason"]) == (
+        "refuse", "limit_reached:no_alternative")
 
 
 def _guard_host(monkeypatch, verdicts):
@@ -342,12 +346,14 @@ def test_guard_never_switches_to_a_binding_that_cannot_run(monkeypatch):
                              "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": False})
     store.upsert_binding({"binding_id": "opus-relay", "name": "opus relay", "connection_id": "api",
                           "executor_id": "claude_code", "model_id": "opus", "enabled": True})
-    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:limit_reached:no_alternative"):
+        host._quota_guarded("coder", "claude_code", "claude-opus", {})
     assert host._quota_guard_entries()[0]["reason"] == "limit_reached:no_alternative"
     # Enabled but still without a key: also not a stand-in.
     store.upsert_connection({"connection_id": "api", "name": "API", "provider": "anthropic-compatible",
                              "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": True})
-    assert host._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:limit_reached:no_alternative"):
+        host._quota_guarded("coder", "claude_code", "claude-opus", {})
     # With a usable key it is taken.
     store.upsert_connection({"connection_id": "api", "name": "API", "provider": "anthropic-compatible",
                              "base_url": "https://api.example.test", "auth_method": "api_key", "enabled": True,
@@ -370,7 +376,8 @@ def test_failed_quota_checks_never_move_or_admit_a_role(monkeypatch):
     host2, _ = _guard_host(monkeypatch, {"claude-account": {"decision": "switch", "reason": "limit_reached"},
                                          "chatgpt-account": error})
     host2._store = store
-    assert host2._quota_guarded("coder", "claude_code", "claude-opus", {}) == ("claude_code", "claude-opus")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:limit_reached:no_alternative"):
+        host2._quota_guarded("coder", "claude_code", "claude-opus", {})
 
 
 def test_repeated_identical_warnings_are_logged_once(monkeypatch):
