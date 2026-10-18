@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import type { Task } from "@/types";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { taskProjectName } from "@/lib/task-project";
 import {
   formatRelativeTime,
   permissionModeLabel,
@@ -79,6 +80,10 @@ export function TaskCard({ task }: TaskCardProps) {
       </div>
 
       <div className="mt-1 flex items-center gap-2 pl-3.5 text-[11px] text-ra-text-tertiary">
+        <span className="max-w-40 shrink-0 truncate text-ra-text-secondary"
+              data-testid={`task-project-${task.id}`} title={task.repository?.trim() || "未归属"}>
+          项目：{taskProjectName(task.repository)}
+        </span>
         <span className="min-w-0 truncate font-mono text-ra-text-secondary">
           {task.branch}
         </span>
