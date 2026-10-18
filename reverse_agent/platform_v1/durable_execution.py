@@ -937,10 +937,10 @@ class DurableExecutionService:
         try:
             executor_kwargs = self._build_executor_kwargs(task)
         except ExecutorRuntimeError as exc:
-            if not str(exc).startswith("quota_exhausted"):
+            if not str(exc).startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
                 raise
-            # The host refused dispatch because the account already answered with its limit.
-            # A FAILED terminal lets the Goal reroute the role (or block) instead of retrying here.
+            # No external call has started. Record a durable failure instead of
+            # leaving a stale RUNNING task or retrying with another model.
             self.store._fenced_classify_failure(
                 lease.run_id, task_id, classification=str(exc)[:120], detail=str(exc),
                 owner=lease.owner, epoch=lease.epoch,
