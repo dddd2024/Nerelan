@@ -52,9 +52,28 @@ def _read_public_health() -> bytes:
             # HTTPResponse does not follow redirects. Reject every non-200.
             if response.status != 200:
                 raise ValueError("health status")
+            # read(amt) may silently return a short body at EOF even when
+            # Content-Length advertises more bytes. An incomplete body is not
+            # an authenticated health observation.
+            expected_length = response.length
             raw = response.read(MAX_HEALTH_BYTES + 1)
+            if expected_length is not None and len(raw) != expected_length:
+                raise ValueError("health body truncated")
         sock.remaining()
         return raw
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate health key")
+        result[key] = value
+    return result
+
+
+def _nonstandard_json_constant(_: str) -> None:
+    raise ValueError("nonstandard health constant")
 
 
 def _public_health(probe: Callable[[], bytes] | None = None) -> bool:
@@ -66,7 +85,10 @@ def _public_health(probe: Callable[[], bytes] | None = None) -> bool:
             raw = probe()
         if not isinstance(raw, bytes) or len(raw) > MAX_HEALTH_BYTES:
             return False
-        payload = json.loads(raw)
+        payload = json.loads(
+            raw, object_pairs_hook=_unique_json_object,
+            parse_constant=_nonstandard_json_constant,
+        )
         return type(payload) is dict and payload.get("ready") is True
     except (Exception,):
         # No exception strings, file paths, response bodies, or credentials

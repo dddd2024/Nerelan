@@ -68,6 +68,9 @@ def health_peer():
 
 @pytest.mark.parametrize("response, expected", [
     (b'HTTP/1.1 200 OK\r\nContent-Length: 14\r\n\r\n{"ready":true}', 0),
+    (b'HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{"ready":true}', 50),
+    (b'HTTP/1.1 200 OK\r\nContent-Length: 40\r\n\r\n{"ready":true,"ready":true}', 50),
+    (b'HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\n{"ready":true,"a":NaN}', 50),
     (b'HTTP/1.1 302 Found\r\nLocation: http://external.invalid/\r\n\r\n', 50),
     (b'HTTP/1.1 307 Redirect\r\nLocation: /api/health\r\n\r\n', 50),
     (b'HTTP/1.1 200 OK\r\n\r\n{"ready":true}' + b' ' * 4096, 50),
@@ -138,6 +141,8 @@ def test_public_health_is_explicitly_not_execution_authority():
 
 @pytest.mark.parametrize("payload", [
     b'{"ready":false}', b'{"ready":"true"}', b'[]', b'invalid',
+    b'{"ready":false,"ready":true}', b'{"ready":true,"ready":false}',
+    b'{"ready":true,"unexpected":NaN}', b'{"ready":true,"infinite":Infinity}',
     b'{"ready":true}' + b" " * 4096, b'{"ready":true,"private_key":"x"}' * 1000,
 ])
 def test_bad_health_payload_is_not_auth_or_success(payload):

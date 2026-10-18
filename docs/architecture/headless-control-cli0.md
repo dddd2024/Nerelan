@@ -21,7 +21,7 @@ This is a provider-free, non-authoritative diagnostic. It is NOT a working headl
 
 Run python -m reverse_agent.platform_v1.headless_cli doctor --json.
 
-Doctor makes exactly one GET against a fixed local address http://127.0.0.1:8766/api/health. It suppresses ambient HTTP proxies, sends no bearer capability, allows at most 4096 bytes and uses one two-second monotonic deadline covering connect, headers and the entire bounded body read. Each socket receive uses only the remaining budget, so slow-drip responses cannot reset the deadline. It rejects every redirect. PUBLIC_HEALTH_OBSERVED/exit 0 means only that the public Task API is responding. It must NOT imply authority, available models, healthy coordinator, quota availability or running tasks.
+Doctor makes exactly one GET against a fixed local address http://127.0.0.1:8766/api/health. It suppresses ambient HTTP proxies, sends no bearer capability, allows at most 4096 bytes and uses one two-second monotonic deadline covering connect, headers and the entire bounded body read. Each socket receive uses only the remaining budget, so slow-drip responses cannot reset the deadline. It rejects every redirect, duplicate JSON key, nonstandard JSON constant and short HTTP body that contradicts Content-Length. PUBLIC_HEALTH_OBSERVED/exit 0 means only that the public Task API is responding. It must NOT imply authority, available models, healthy coordinator, quota availability or running tasks.
 
 Run python -m reverse_agent.platform_v1.headless_cli status --json.
 
