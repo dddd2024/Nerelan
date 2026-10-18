@@ -780,6 +780,41 @@ class PlatformControlStore:
                 raise TaskStoreError(f"goal_link_not_found:{task_id}")
             return str(row["goal_id"])
 
+    @staticmethod
+    def is_strict_owner_window(window: AutonomousWindowRecord) -> bool:
+        return (window.confirmation_mode != "DELEGATED_CONTROLLER"
+                and window.max_tasks == 1 and window.max_concurrent_tasks == 1
+                and window.max_retries == 0 and len(window.repositories) == 1
+                and window.capabilities == ("execute_task",))
+
+    def check_strict_task_admission(self, window_id: str, task_id: str) -> None:
+        """Caller holds the store lock; claims call this inside BEGIN IMMEDIATE.
+
+        This binds to the first launched Goal, not an Owner-selected Goal: legacy
+        activation does not carry that identity or a selected executor.
+        """
+        window = self.get_window(window_id)
+        if not self.is_strict_owner_window(window):
+            return
+        goals = self.list_window_goals(window_id)
+        if len(goals) != 1:
+            raise TaskStoreError("strict_window_goal_binding_required")
+        goal = goals[0]
+        links = self.list_goal_tasks(goal.id)
+        task = self.task_store.get_task(task_id)
+        completion_recovery = (goal.status in {"COMPLETED", "BLOCKED"}
+                               and self.can_complete_host_claim(window_id=window_id, task_id=task_id))
+        if ((goal.status != "RUNNING" and not completion_recovery)
+                or goal.repository != window.repositories[0]
+                or goal.orchestration_mode != "single" or len(goal.tasks) != 1
+                or len(links) != 1 or links[0]["task_id"] != task_id
+                or links[0]["goal_revision"] != goal.revision
+                or task.repository != goal.repository
+                or task.executor_kind != goal.executor_kind
+                or task.binding_ref != goal.binding_ref
+                or task.orchestration_mode != goal.orchestration_mode):
+            raise TaskStoreError("strict_window_task_binding_mismatch")
+
     def runnable_tasks(self, window_id: str, *, limit: int = 100) -> tuple[str, ...]:
         with self._lock:
             # Limit ready tasks, not queue positions: waiting dependencies must
@@ -814,6 +849,10 @@ class PlatformControlStore:
             ).fetchall()
             ready = []
             for row in rows:
+                try:
+                    self.check_strict_task_admission(window_id, row["task_id"])
+                except TaskStoreError:
+                    continue
                 if row["status"] in {"READY_FOR_REVIEW", "FAILED"} and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
                     continue
@@ -1076,6 +1115,7 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
+            self.check_strict_task_admission(window_id, task_id)
             if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
@@ -1240,6 +1280,20 @@ class PlatformControlStore:
         from .task_runtime import task_operation
         return task_operation(self.task_store.get_task(task_id))
 
+    def complete_persisted_host_claim(self, *, window_id: str, task_id: str) -> None:
+        """Finish one strict Owner admission's original result, never dispatch work."""
+        with self._lock:
+            claim = self._conn.execute(
+                "SELECT owner, epoch FROM platform_coordinator_claims WHERE task_id=? AND window_id=?",
+                (task_id, window_id)).fetchone()
+            if claim is None:
+                raise TaskStoreError("host_result_recovery_unavailable")
+            self._finalize_task_claim(
+                window_id=window_id, task_id=task_id, owner=claim["owner"], epoch=claim["epoch"],
+                claim_status="COMPLETE", count_completion=True,
+                receipt_reason="coordinator_persisted_result_reconciled", receipt_result="persisted_host_result",
+                persisted_host_recovery=True)
+
     def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
         """Narrow recovery of an existing result, never permission to rerun a checker."""
         with self._lock:
@@ -1302,6 +1356,7 @@ class PlatformControlStore:
         count_completion: bool,
         receipt_reason: str,
         receipt_result: str,
+        persisted_host_recovery: bool = False,
     ) -> str:
         """Fence a claim and reconcile its reservation exactly once."""
 
@@ -1318,6 +1373,29 @@ class PlatformControlStore:
                 ).fetchone()
                 if claim is None:
                     raise TaskStoreError("coordinator_claim_fenced")
+                if persisted_host_recovery:
+                    window_record = self.get_window(window_id)
+                    active = self.active_window()
+                    task_record = self.task_store.get_task(task_id)
+                    if (not self.is_strict_owner_window(window_record)
+                            or active is None or active.id != window_id
+                            or window_record.tasks_started != 1 or window_record.tasks_completed != 0
+                            or int(claim["expires_at_ms"]) > _utc_now_ms()
+                            or task_record.status not in {"READY_FOR_REVIEW", "FAILED"}
+                            or not self.can_complete_host_claim(window_id=window_id, task_id=task_id)):
+                        raise TaskStoreError("host_result_recovery_unavailable")
+                    self.check_strict_task_admission(window_id, task_id)
+                    from .task_runtime import load_host_validation_contract
+                    contract = load_host_validation_contract(task_record)
+                    goal = self.list_window_goals(window_id)[0]
+                    link = self.list_goal_tasks(goal.id)[0]
+                    if (contract["goal_id"] != goal.id
+                            or contract["goal_revision"] != goal.revision
+                            or contract["goal_artifact_digest"] != goal.artifact_digest
+                            or contract["goal_idempotency_key"] != goal.idempotency_key
+                            or contract["policy_digest"] != window_record.policy_digest
+                            or contract["plan_task_id"] != link["plan_task_id"]):
+                        raise TaskStoreError("host_result_recovery_binding_mismatch")
                 reservation = cur.execute(
                     "SELECT * FROM platform_budget_reservations WHERE task_id = ? "
                     "AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
@@ -1436,11 +1514,19 @@ class PlatformControlStore:
                     values,
                 )
                 self.append_receipt(
-                    window_id=window_id, operation_type="task_execution",
-                    capability=self._claim_operation(task_id),
+                    window_id=window_id,
+                    # Claim existence does not prove an earlier authorization.
+                    # A persisted result is reconciled, without evaluating or
+                    # granting any new capability or executing its checker.
+                    operation_type="task_claim_reconciliation" if persisted_host_recovery else "task_execution",
+                    capability="not_applicable" if persisted_host_recovery else self._claim_operation(task_id),
                     repository=self.task_store.get_task(task_id).repository,
-                    subject_id=task_id, decision="allowed", reason=receipt_reason,
-                    input_payload={"task_id": task_id, "claim_epoch": epoch},
+                    subject_id=task_id,
+                    decision="not_evaluated" if persisted_host_recovery else "allowed",
+                    reason=receipt_reason,
+                    input_payload=({"task_id": task_id, "claim_epoch": epoch,
+                                    "claim_owner": owner, "persisted_result_only": True}
+                                   if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
                     result=f"{receipt_result}:{reservation_state}",
                 )
                 cur.execute("COMMIT")

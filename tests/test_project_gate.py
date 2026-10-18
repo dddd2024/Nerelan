@@ -31989,7 +31989,8 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         assert f"run: {contract['install_command']}" in text
     ci = workflows["ci.yml"]
     assert "fetch-depth: 0" in ci
-    assert [line.strip() for line in ci.splitlines() if line.strip().startswith("- name:")] == [
+    baseline_ci, diagnostic_ci = ci.split("\n  repository-diagnostic:\n", 1)
+    assert [line.strip() for line in baseline_ci.splitlines() if line.strip().startswith("- name:")] == [
         "- name: Checkout",
         "- name: Set up Python",
         "- name: Install package",
@@ -32000,10 +32001,18 @@ def test_transition_packaging_and_workflow_boundary() -> None:
         "- name: Codex skills sync tests",
         "- name: Integration baseline, mainline landing and project audit tests",
         "- name: Platform V1 blocking gate",
+    ]
+    assert [line.strip() for line in diagnostic_ci.splitlines() if line.strip().startswith("- name:")] == [
+        "- name: Checkout",
+        "- name: Set up Python",
+        "- name: Install package",
         "- name: Repository-wide diagnostic (legacy debt, nonblocking)",
         "- name: Summarize repository diagnostic",
         "- name: Upload repository diagnostic",
     ]
+    assert "continue-on-error: true" not in baseline_ci
+    assert "continue-on-error: true" in diagnostic_ci
+    assert "needs: baseline" not in diagnostic_ci
     assert f"run: {contract['focused_test_command']}" in ci
     assert "run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q" in ci
     assert "run: python -m pytest tests/test_codex_skills.py -q" in ci
