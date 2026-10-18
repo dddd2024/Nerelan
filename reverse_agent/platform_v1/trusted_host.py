@@ -877,7 +877,12 @@ def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) ->
             thread.join(timeout=poll_interval)
 
 
-def run_combined_trusted_host() -> None:
+def run_combined_trusted_host(*, native_goal_id: str | None = None) -> None:
+    """Run the official lifecycle; native_goal_entry validates explicit CLI requests.
+
+    Admission follows successful port ownership and failures use normal cleanup.
+    No consent material is printed or added to host metadata.
+    """
     from .codex_executor import probe_codex_readiness
     from .claude_executor import probe_claude_code_readiness
     auth_sha = _resolve_trusted_authority_sha()
@@ -898,6 +903,8 @@ def run_combined_trusted_host() -> None:
     )
     try:
         host.start()
+        if native_goal_id is not None:
+            host._native_owner_admit_goal(native_goal_id)
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(
