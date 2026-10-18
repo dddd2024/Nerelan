@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import { RunsPage } from "@/routes/runs";
+import { GoalProgress } from "@/components/goal-progress";
+import { fetchGoal } from "@/lib/platform-client";
 
 describe("source-backed Goal to Task to Run navigation", () => {
   it("links a run to its exact Goal and Task without mutating history", async () => {
@@ -21,6 +23,13 @@ describe("source-backed Goal to Task to Run navigation", () => {
     expect(screen.getByTestId("runs-goal-filter")).toHaveTextContent("当前页 3 条关联运行");
     expect(screen.getByTestId("runs-goal-filter")).toHaveTextContent("未跨页汇总");
     expect(screen.getByRole("link", { name: "查看全部运行" })).toHaveAttribute("href", "/runs");
+  });
+
+  it("offers an exact Goal-to-Run history link only when tasks have been materialized", async () => {
+    const goal = await fetchGoal("goal-demo-platform");
+    renderWithProviders(<GoalProgress goal={goal} />);
+    expect(screen.getByTestId("goal-linked-runs-link"))
+      .toHaveAttribute("href", "/runs?goal=goal-demo-platform");
   });
 
   it("does not claim nonexistent global history from an empty current page", async () => {

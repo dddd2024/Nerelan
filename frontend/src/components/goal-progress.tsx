@@ -77,6 +77,15 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
           {reviewReady}/{links.length}
         </span>
       </div>
+      {materialized && (
+        <Link
+          to={`/runs?goal=${encodeURIComponent(goal.id)}`}
+          data-testid="goal-linked-runs-link"
+          className="mb-2 inline-flex min-h-6 items-center text-xs text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+        >
+          查看该目标的运行记录（按当前页筛选）
+        </Link>
+      )}
       {materialized && <p className="mb-2 rounded-lg bg-ra-light/60 px-3 py-2 text-xs leading-5 text-ra-text-secondary">
         执行进度不代表功能验证或交付完成。远端审查、合并与交付尚未确认。
       </p>}
