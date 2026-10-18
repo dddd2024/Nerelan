@@ -65,7 +65,11 @@ transaction, before COMMIT. The caller must supply the exact trusted-host
 `_host_expected_goal_id`, and the store rejects scopes exceeding one task,
 one concurrent worker, zero retries or 30 minutes. It refuses to commit until
 exactly that persisted Goal is RUNNING with one QUEUED, Codex-bound Task under
-the new window; an empty callback cannot leave a dispatchable window. If a
+the new window; an empty callback cannot leave a dispatchable window.
+Host-window timestamps must be canonical UTC RFC3339 (`Z` or `+00:00`),
+and the actual SQLite `julianday` parser must accept both values before any
+window insert; Python-only ISO variants or extended offsets cannot strand an
+ACTIVE window that SQLite will never consider dispatchable. If a
 trusted SQL-only admission raises, the window and all its in-transaction SQL
 writes roll back together. Identical policy
 replay with a hook is rejected instead of silently returning an old window;

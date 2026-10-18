@@ -258,6 +258,8 @@ def test_host_interrupt_rolls_back_and_connection_recovers(store):
 @pytest.mark.parametrize("overrides", [
     {"starts_at": "2026-W42-7T00:00:00Z"},
     {"expires_at": "2026-W42-7T23:00:00+00:00"},
+    {"starts_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "+23:00")},
+    {"expires_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "-23:00")},
 ])
 def test_host_window_rejects_python_only_calendar_formats(store, overrides):
     _, control = store

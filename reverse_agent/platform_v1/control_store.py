@@ -966,7 +966,7 @@ class PlatformControlStore:
             try:
                 # SQLite julianday must parse the exact same RFC3339 values;
                 # Python also accepts week dates that SQLite treats as NULL.
-                canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})"
+                canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)"
                 if not (re.fullmatch(canonical_time, str(payload["starts_at"]))
                         and re.fullmatch(canonical_time, str(payload["expires_at"]))):
                     raise ValueError
@@ -995,6 +995,11 @@ class PlatformControlStore:
                 # The service's earlier observation is not an activation lock.
                 # BEGIN IMMEDIATE also serializes independent TaskStore hosts.
                 cur.execute("BEGIN IMMEDIATE")
+                if _host_sql_admit is not None:
+                    sql_dates = cur.execute("SELECT julianday(?), julianday(?)",
+                                            (str(payload["starts_at"]), str(payload["expires_at"]))).fetchone()
+                    if sql_dates is None or sql_dates[0] is None or sql_dates[1] is None:
+                        raise TaskStoreError("host_atomic_window_time_invalid")
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
                     "stop_reason = 'window_expired', updated_at = ? "
