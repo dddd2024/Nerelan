@@ -132,8 +132,20 @@ class NativeGoalAdmission:
                                            policy_ref=payload["policy_id"])
                 host._goal_service._launch(goal.id, expected_revision=goal.revision, window_id=window_id)
                 validate(admitted=True)
+                approved = json.loads(before)
+                from .binding_resolver import _validate_provider_base_url
+                pinned_binding = {
+                    "binding_ref": goal.binding_ref,
+                    "model_id": approved["binding"]["model_id"],
+                    "connection_id": approved["binding"]["connection_id"],
+                    "executor_id": approved["binding"]["executor_id"],
+                    "provider_id": approved["connection"]["provider"],
+                    "auth_method": approved["connection"]["auth_method"],
+                    "base_url": _validate_provider_base_url(approved["connection"]["base_url"]),
+                }
                 provenance = {"host_instance_id": self._instance,
                               "owner": asdict(self._identity), "scope_digest": sha256_json(before),
+                              "approved_binding": pinned_binding,
                               "goal_revision": goal.revision, "binding_ref": goal.binding_ref,
                               "workspace": json.loads(before)["workspace"],
                               "base_sha": json.loads(before)["base_sha"],
@@ -150,6 +162,11 @@ class NativeGoalAdmission:
                     (canonical_json(provenance), "NATIVE_OWNER", receipt.id, window_id))
                 if updated.rowcount != 1:
                     raise TaskStoreError("native_admission_receipt_missing")
+                marked = host._control_store._conn.execute(
+                    "UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
+                    ("NATIVE_OWNER", window_id))
+                if marked.rowcount != 1:
+                    raise TaskStoreError("native_admission_window_missing")
                 validate(admitted=True)
 
             with host._task_store._lock, host._store._lock:

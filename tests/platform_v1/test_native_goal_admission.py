@@ -70,6 +70,7 @@ def test_success_exact_scope_and_atomic_receipt(setup):
     proof = json.loads(row["evidence_json"])
     assert proof["base_sha"] == task.branch and proof["owner"]["session_id"] == 3
     assert row["confirmation_mode"] == "NATIVE_OWNER"
+    assert control.get_window(window.id).confirmation_mode == "NATIVE_OWNER"
     for text in (goal.tasks[0]["instruction"], goal.binding_ref, goal.repository, "a" * 40,
                  proof["workspace"].replace("\\", "\\\\"), '"max_tasks":1', '"max_retries":0'):
         assert text in seen[0]
@@ -259,3 +260,57 @@ def test_two_host_instances_cannot_double_admit(setup, monkeypatch):
             assert host._task_store._conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 1
     finally:
         second_db._conn.close()
+
+
+def test_dispatch_binding_guard_fences_late_model_mutation(setup):
+    """A consented queued Task cannot silently execute a later model ID."""
+    from dataclasses import replace
+    from reverse_agent.platform_v1.binding_resolver import CodexBindingResolution
+    from reverse_agent.platform_v1.durable_execution import _require_native_owner_execution_binding
+    from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
+
+    host, goal, _ = setup
+    window = host._native_owner_admit_goal(goal.id)
+    task_id = host._control_store.list_goal_tasks(goal.id)[0]["task_id"]
+    task = host._task_store.get_task(task_id)
+    assert task.policy_ref == window.policy_id
+    row = host._task_store._conn.execute(
+        "SELECT evidence_json FROM platform_operation_receipts "
+        "WHERE operation_type = 'native_goal_admission'").fetchone()
+    proof = json.loads(row["evidence_json"])
+    pinned = proof["approved_binding"]
+    good = CodexBindingResolution(
+        **pinned, external_session_status="executor_managed", relay_required=False)
+    _require_native_owner_execution_binding(host._task_store, task, good)
+    with pytest.raises(ExecutorRuntimeError, match="native_owner_execution_binding_changed_or_missing"):
+        _require_native_owner_execution_binding(
+            host._task_store, task, replace(good, model_id="model-after"))
+    with pytest.raises(ExecutorRuntimeError, match="native_owner_execution_binding_changed_or_missing"):
+        _require_native_owner_execution_binding(
+            host._task_store, task, replace(good, connection_id="other"))
+    with pytest.raises(ExecutorRuntimeError, match="native_owner_execution_binding_changed_or_missing"):
+        _require_native_owner_execution_binding(
+            host._task_store, task, replace(good, base_url="https://other.example"))
+    assert host._task_store.get_task(task_id).status == "QUEUED"
+
+
+def test_dispatch_binding_guard_requires_authentic_single_receipt(setup):
+    from reverse_agent.platform_v1.binding_resolver import CodexBindingResolution
+    from reverse_agent.platform_v1.durable_execution import _require_native_owner_execution_binding
+    from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
+
+    host, goal, _ = setup
+    host._native_owner_admit_goal(goal.id)
+    task_id = host._control_store.list_goal_tasks(goal.id)[0]["task_id"]
+    task = host._task_store.get_task(task_id)
+    proof = json.loads(host._task_store._conn.execute(
+        "SELECT evidence_json FROM platform_operation_receipts "
+        "WHERE operation_type='native_goal_admission'").fetchone()[0])
+    good = CodexBindingResolution(**proof["approved_binding"],
+                                   external_session_status="executor_managed", relay_required=False)
+    host._task_store._conn.execute(
+        "UPDATE platform_operation_receipts SET evidence_json = '{}' "
+        "WHERE operation_type='native_goal_admission'")
+    with pytest.raises(ExecutorRuntimeError, match="native_owner_execution_binding_changed_or_missing"):
+        _require_native_owner_execution_binding(host._task_store, task, good)
+    assert host._task_store.get_task(task_id).status == "QUEUED"

@@ -568,6 +568,58 @@ def executor_timeout_seconds() -> int:
         return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
     return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
 
+def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolution: Any) -> None:
+    """Enforce the exact nonsecret binding approved in a native Owner receipt.
+
+    The saved Task normally contains only a mutable binding_ref. Native Owner
+    admission instead records the chosen effective model/connection in the same
+    SQLite transaction as its Task. Re-resolution at dispatch must not silently
+    substitute a different model or connection. Read-only guard, before CLI launch.
+    """
+    policy_ref = getattr(task, "policy_ref", "")
+    if getattr(task, "executor_kind", "") != "codex" or not policy_ref:
+        return
+    try:
+        with store._lock:
+            native_window = store._conn.execute(
+                "SELECT confirmation_mode FROM platform_autonomous_windows "
+                "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1",
+                (policy_ref,),
+            ).fetchone()
+            # Ordinary pre-existing Codex windows keep their legacy behavior.
+            # Only windows atomically marked by native Owner admission are pinned.
+            if native_window is None or native_window["confirmation_mode"] != "NATIVE_OWNER":
+                return
+            rows = store._conn.execute(
+                "SELECT r.evidence_json FROM platform_operation_receipts r "
+                "JOIN platform_goal_task_links l ON l.goal_id = r.subject_id "
+                "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id = r.window_id "
+                "WHERE l.task_id = ? AND w.policy_id = ? "
+                "AND r.operation_type = 'native_goal_admission' AND r.decision = 'allowed'",
+                (task.id, policy_ref),
+            ).fetchall()
+        if len(rows) != 1:
+            raise ValueError("missing_or_ambiguous_receipt")
+        proof = json.loads(rows[0]["evidence_json"])
+        expected = proof["approved_binding"]
+        observed = {
+            "binding_ref": resolution.binding_ref,
+            "model_id": resolution.model_id,
+            "connection_id": resolution.connection_id,
+            "executor_id": resolution.executor_id,
+            "provider_id": resolution.provider_id,
+            "auth_method": resolution.auth_method,
+            "base_url": resolution.base_url,
+        }
+        if (type(expected) is not dict or expected != observed
+                or resolution.relay_required
+                or resolution.executor_id != "codex"):
+            raise ValueError("binding_changed")
+    except Exception as exc:
+        raise ExecutorRuntimeError("native_owner_execution_binding_changed_or_missing") from exc
+
+
 class DurableExecutionService:
     """Level-1 durable sequential-team execution with lease fencing.
 
@@ -2215,6 +2267,7 @@ class DurableExecutionService:
             from .codex_executor import codex_executor_kwargs
             native = codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
                                            kind=task.executor_kind)
+            _require_native_owner_execution_binding(self.store, task, native["binding_resolution"])
             if getattr(native.get("binding_resolution"), "relay_required", False) and self.lease_provider is not None:
                 native["lease_provider"] = self.lease_provider  # API-key model inside Claude Code
             return {**native, "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
