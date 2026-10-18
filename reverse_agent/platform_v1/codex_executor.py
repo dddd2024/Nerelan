@@ -295,10 +295,19 @@ class CodexExecutor:
                 **({"cli_reported_cost_usd": turn.reported_cost_usd}
                    if turn.reported_cost_usd is not None else {})}})
         exit_code, summary, digest = LocalValidationRunner().run(task_id=task_id, command_id="git_diff_check", cwd=str(prepared.worktree))
-        return ExecutorResult(exit_code == 0, exit_code, "git_diff_check", digest, summary,
-            changed_files=_collect_final_product_files(prepared.worktree), workspace=str(prepared.worktree),
+        changed_files = _collect_final_product_files(prepared.worktree)
+        # git diff --check returns zero for an unchanged worktree. That proves
+        # only patch hygiene, not that an implementation task produced work.
+        # An empty result must never be promoted to READY_FOR_REVIEW.
+        no_product_changes = exit_code == 0 and not changed_files
+        return ExecutorResult(exit_code == 0 and not no_product_changes, exit_code,
+            "git_diff_check", digest,
+            "No product changes were produced; patch hygiene is not functional acceptance."
+            if no_product_changes else summary,
+            changed_files=changed_files, workspace=str(prepared.worktree),
             execution_id=prepared.execution_id, process_exit_code=code,
-            failure_classification="" if exit_code == 0 else "patch_hygiene_failed")
+            failure_classification=(self._e("no_product_changes") if no_product_changes
+                                    else ("" if exit_code == 0 else "patch_hygiene_failed")))
 
     def _stream(self, prepared, prompt, parser):
         from .functional_validation import _WindowsJob, _terminate
