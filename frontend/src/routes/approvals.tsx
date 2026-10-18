@@ -13,6 +13,7 @@ import {
 } from "@/hooks/use-goal-continuation";
 import { useGoal, useGoals } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
+import { PlatformClientError } from "@/lib/platform-client";
 import type { GoalStatus, PlatformGoal } from "@/lib/platform-client";
 
 const PENDING_STATUSES = new Set<GoalStatus>(["DRAFT", "PLANNED", "APPROVED"]);
@@ -42,6 +43,9 @@ const STATUS_LABELS: Record<GoalStatus, string> = {
 };
 
 function mutationMessage(error: unknown) {
+  if (error instanceof PlatformClientError && error.code === "owner_selection_confirmation_unavailable") {
+    return "可信 Owner 授权入口尚未接通；旧网页启动方式已停用。当前 Goal 未启动，不能视为已获授权或正在执行。";
+  }
   if (error instanceof Error) return error.message;
   return "目标操作未完成，请读取最新状态后重试。";
 }
