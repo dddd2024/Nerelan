@@ -55,3 +55,34 @@ remain gaps. No HTTP bypass, production TaskStore modification, second dispatche
 live Goal launch or model call is introduced. The three historical ACTIVE Claims
 still have UNKNOWN remote effects; production rollout remains blocked. Mock
 dialog tests are not Windows desktop or product acceptance.
+
+## Transactional host admission seam (2026-10-18)
+
+`PlatformControlStore.activate_window(..., _host_sql_admit=...)` is an **internal
+SQLite transaction hook** for a future trusted-host Owner entrypoint. When a
+new window is inserted, the hook runs under the **same BEGIN IMMEDIATE**
+transaction, before COMMIT. The caller must supply the exact trusted-host
+`_host_expected_goal_id`, and the store rejects scopes exceeding one task,
+one concurrent worker, zero retries or 30 minutes. It refuses to commit until
+exactly that persisted Goal is RUNNING with one QUEUED, Codex-bound Task under
+the new window; an empty callback cannot leave a dispatchable window. If a
+trusted SQL-only admission raises, the window and all its in-transaction SQL
+writes roll back together. Identical policy
+replay with a hook is rejected instead of silently returning an old window;
+competing window activations remain serialized across SQLite connections.
+Legacy no-hook activation and delegated-controller activation are not changed.
+
+**Not a permission issuer:** the hook is never passed from renderer JSON,
+not connected to `TrustedHost` or its HTTP handlers, and does not itself
+confirm the Owner identity, verify the one-use token, select/pin a Goal,
+materialize a Task, settle an orphan Claim, or dispatch a model. An authorized
+future caller must verify the immutable persisted Goal and verified host-only
+Owner selection *inside* this transaction, enforce the exact one-Task/30-minute/
+zero-retry envelope, persist an admission receipt, and then commit. It must
+not commit independently, invoke nontransactional filesystem operations,
+spawn an executor, or perform external effects in the callback. No claim
+that arbitrary callbacks can be rolled back after calling COMMIT is made.
+
+Provider-free tests assert common-commit, rollback, replay rejection,
+invalid trusted/delegated callback mixing, and two independent SQLite-host
+races. Production work remains blocked until all above conditions are met.

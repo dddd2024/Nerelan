@@ -13,10 +13,10 @@ import re
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import base64
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
@@ -942,8 +942,40 @@ class PlatformControlStore:
                     "authority": json.loads(row["policy_authority_json"])}
 
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
-                        _trusted_binding: Mapping[str, Any] | None = None) -> AutonomousWindowRecord:
+                        _trusted_binding: Mapping[str, Any] | None = None,
+                        _host_sql_admit: Callable[[str], None] | None = None,
+                        _host_expected_goal_id: str | None = None) -> AutonomousWindowRecord:
+        """Create the window and optional trusted-host SQL admission in one commit.
+
+        `_host_sql_admit` is INTERNAL and never accepted from HTTP. The callback
+        must only update SQLite state on this connection; no commits, external
+        I/O, Task execution or nondurable side effects are permitted. This
+        hook itself is NOT an Owner consent or production authorization issuer.
+        """
         reject_sensitive_keys(payload)
+        if _host_sql_admit is not None:
+            if (_trusted_binding is not None or not callable(_host_sql_admit)
+                    or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
+                raise TaskStoreError("host_atomic_admission_invalid")
+            if (type(payload.get("max_tasks")) is not int or payload["max_tasks"] != 1
+                    or type(payload.get("max_concurrent_tasks")) is not int or payload["max_concurrent_tasks"] != 1
+                    or type(payload.get("max_retries")) is not int or payload["max_retries"] != 0
+                    or list(payload.get("capabilities", ())) != ["execute_task"]
+                    or len(payload.get("repositories", ())) != 1):
+                raise TaskStoreError("host_atomic_window_scope_invalid")
+            try:
+                starts = datetime.fromisoformat(str(payload["starts_at"]).replace("Z", "+00:00"))
+                expires = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
+                clock = datetime.now(timezone.utc)
+                if (starts.tzinfo is None or expires.tzinfo is None
+                        or not starts <= clock + timedelta(seconds=5)
+                        or not clock < expires <= clock + timedelta(minutes=30)
+                        or not starts < expires):
+                    raise ValueError
+            except (KeyError, ValueError, TypeError) as exc:
+                raise TaskStoreError("host_atomic_window_time_invalid") from exc
+        elif _host_expected_goal_id is not None:
+            raise TaskStoreError("host_atomic_admission_invalid")
         if confirmation.strip() != ("DELEGATED_CONTROLLER" if _trusted_binding else "ACTIVATE"):
             raise TaskStoreError("owner_activation_confirmation_required")
         digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
@@ -977,6 +1009,10 @@ class PlatformControlStore:
                         or existing["canonical_policy_json"] != canonical_json(_trusted_binding["canonical_policy"])
                     ):
                         raise TaskStoreError("policy_revision_authority_conflict")
+                    # A host admission must never silently re-use a previous
+                    # window without executing its Goal transaction.
+                    if _host_sql_admit is not None:
+                        raise TaskStoreError("host_atomic_admission_replay")
                     # Replaying a terminal revision returns history, never a
                     # fresh ACTIVE window or a fresh set of budget counters.
                     record = self._row_to_window(existing)
@@ -1031,6 +1067,23 @@ class PlatformControlStore:
                          _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
+                if _host_sql_admit is not None:
+                    _host_sql_admit(window_id)
+                    if not self._conn.in_transaction:
+                        raise TaskStoreError("host_atomic_admission_committed_early")
+                    # The trusted callback must leave exactly one approved
+                    # Goal and one queued task, not a window with no work.
+                    bound = self.list_window_goals(window_id)
+                    if (len(bound) != 1 or bound[0].id != _host_expected_goal_id
+                            or bound[0].status != "RUNNING" or bound[0].executor_kind != "codex"):
+                        raise TaskStoreError("host_atomic_goal_binding_missing")
+                    window = self.get_window(window_id)
+                    if not self.is_strict_owner_window(window):
+                        raise TaskStoreError("host_atomic_window_scope_invalid")
+                    links = self.list_goal_tasks(bound[0].id)
+                    if len(links) != 1 or links[0]["status"] != "QUEUED":
+                        raise TaskStoreError("host_atomic_task_binding_missing")
+                    self.check_strict_task_admission(window_id, links[0]["task_id"])
                 self._conn.commit()
             except Exception as exc:
                 self._conn.rollback()
