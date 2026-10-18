@@ -17,6 +17,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -65,9 +66,34 @@ def resolve_claude_cli(exe: str | None = None) -> str:
     return str(path)
 
 
+def _managed_mcp_path(platform: str) -> Path:
+    """Documented machine policy location; never consult project or user config."""
+    if platform == "win32":
+        return Path(r"C:\Program Files\ClaudeCode\managed-mcp.json")
+    if platform == "darwin":
+        return Path("/Library/Application Support/ClaudeCode/managed-mcp.json")
+    # WSL uses the Linux location too.
+    return Path("/etc/claude-code/managed-mcp.json")
+
+
+def _managed_mcp_blocks_strict_config() -> bool:
+    # Enterprise policy conflicts with --strict-mcp-config at CLI startup.
+    # Refuse conservatively for any entry (including a dangling symlink), or
+    # inaccessible metadata. Never open/parse policy or expose exception text.
+    try:
+        _managed_mcp_path(sys.platform).lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
 def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run) -> str:
     """Opt-in metadata probe; no inference and no raw credential-file access."""
     try:
+        if _managed_mcp_blocks_strict_config():
+            return "cli_incompatible"
         cli = resolve_claude_cli(exe)
         environment = claude_child_env(os.environ)
         outputs = []
