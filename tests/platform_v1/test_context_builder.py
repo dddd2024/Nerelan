@@ -343,7 +343,7 @@ def test_native_goal_context_survives_reopen_and_reaches_real_subprocess(tmp_pat
     result=executor.execute_role_prepared(prepared,reopened,
         role_context=RoleContext('executor',first.id,prepared.worktree),event_callback=service._store_event_callback)
     assert result.success
-    assert result.changed_files == ['a.txt']
+    assert [(record['path'], record['status']) for record in result.changed_files] == [('a.txt', 'modified')]
     assert (prepared.worktree / 'a.txt').read_text(encoding='utf-8') == 'updated\n'
     records=reopened.get_events(first.id)
     assert any(e.metadata.get('context_packet_digest') for e in records)
