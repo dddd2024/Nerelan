@@ -2,7 +2,7 @@ import { test, expect, open, settle } from "./fixtures";
 
 test.describe("appearance preferences", () => {
   test("supports system, light, dark, accent, reload and media emulation", async ({ appPage }) => {
-    await open(appPage, "/settings");
+    await open(appPage, "/settings/appearance");
     await settle(appPage);
     await appPage.getByRole("radio", { name: /深色/ }).check({ force: true });
     await appPage.getByRole("radio", { name: /紫色/ }).check({ force: true });
