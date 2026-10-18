@@ -115,4 +115,8 @@ class TestOnlyHostGrantPreparer:
             window = json.loads(preview.snapshot_json)["window"]
             if self._snapshot(selected, window) != preview:
                 raise ValueError("stale_grant")
+            # Snapshot/repository verification may itself cross the deadline.
+            # A grant is never returned after expiry, even under lock contention.
+            if time.monotonic() >= deadline:
+                raise ValueError("grant_scope_or_expiry")
             return preview

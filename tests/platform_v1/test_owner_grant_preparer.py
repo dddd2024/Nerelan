@@ -61,6 +61,25 @@ def test_stored_mutation_burns_grant(fixture, monkeypatch, change):
         host.consume_for_test(token, goal_id=goal.id)
 
 
+def test_snapshot_validation_crossing_deadline_burns_token(fixture, monkeypatch):
+    host, _, goal, _ = fixture
+    now = [100.0]
+    monkeypatch.setattr(grants.time, "monotonic", lambda: now[0])
+    token = host.prepare_for_test(goal.id)
+    original_snapshot = host._snapshot
+
+    def delayed_snapshot(*args, **kwargs):
+        snapshot = original_snapshot(*args, **kwargs)
+        now[0] = 130.0  # Expire only after the first consume deadline check.
+        return snapshot
+
+    monkeypatch.setattr(host, "_snapshot", delayed_snapshot)
+    with pytest.raises(ValueError, match="grant_scope_or_expiry"):
+        host.consume_for_test(token, goal_id=goal.id)
+    with pytest.raises(ValueError, match="unknown_or_consumed_grant"):
+        host.consume_for_test(token, goal_id=goal.id)
+
+
 def test_wrong_goal_forgery_and_other_host(fixture):
     host, control, goal, _ = fixture
     token = host.prepare_for_test(goal.id)
