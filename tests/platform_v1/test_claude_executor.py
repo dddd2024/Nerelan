@@ -69,7 +69,8 @@ def fixture_executor(repo, base, script, *, timeout=5):
 
 def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_path):
     repo, base = repository
-    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    edit_script = "from pathlib import Path;Path('fixture.txt').write_text('updated\\n');" + SUCCESS_SCRIPT
+    executor, launched = fixture_executor(repo, base, edit_script)
     seen = []
     store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Bounded fixture instruction"))
     result = executor.execute("claude-1", store, workspace_root=str(tmp_path / "workspaces"),
@@ -89,6 +90,23 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     assert any(e["metadata"]["event"].get("command") == "git status --short" for e in progress)
     # Tool results can echo file contents; they are never relayed.
     assert "SECRET FILE BODY" not in json.dumps(seen)
+
+
+def test_native_claude_noop_turn_not_accepted_as_implementation(repository, tmp_path):
+    repo, base = repository
+    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(
+        title="Change fixture.txt so the requested regression passes"))
+    result = executor.execute("claude-noop", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert not result.success
+    assert result.failure_classification == "claude_code_no_product_changes"
+    assert result.validation_command_id == "git_diff_check"
+    assert result.validation_exit_code == 0
+    assert result.process_exit_code == 0
+    assert not result.changed_files
+    assert git(Path(result.workspace), "status", "--short") == ""
+    assert len(launched) == 1 and launched[0].poll() == 0
 
 
 @pytest.mark.parametrize("script,classification", [
