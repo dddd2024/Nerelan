@@ -25,6 +25,8 @@ class OrphanClaimPlan:
     window_id: str | None
     policy_binding: tuple[str, int, str] | None
     reservation_binding: tuple[str, int, str, int, int] | None
+    run_lease_owner: str | None
+    run_lease_epoch: int | None
     budget_state: Literal["UNKNOWN"] = "UNKNOWN"
     release_allowed: Literal[False] = False
 
@@ -71,7 +73,13 @@ def plan_orphan_claim(
         reason = "original_claim_or_window_not_expired"
     elif row["run_id"] is None:
         reason = "task_run_binding_missing"
-    elif row["lease_expiry_ms"] > now_ms:
+    elif (not isinstance(row["owner"], str) or not row["owner"].strip()
+          or type(row["epoch"]) is not int or row["epoch"] < 1):
+        reason = "original_claim_fence_missing"
+    elif (not isinstance(row["lease_owner"], str) or not row["lease_owner"].strip()
+          or type(row["lease_epoch"]) is not int or row["lease_epoch"] < 1):
+        reason = "original_run_lease_fence_missing"
+    elif row["lease_expiry_ms"] is None or row["lease_expiry_ms"] > now_ms:
         reason = "run_lease_not_expired"
     # Run lease owner/epoch and coordinator owner/epoch are separate fences;
     # equality would not establish a trusted association between them.
@@ -86,4 +94,6 @@ def plan_orphan_claim(
         task_id, run_id, "UNKNOWN", reason,
         row["owner"] if row else None, row["epoch"] if row else None,
         row["window_id"] if row else None, policy, reservation,
+        row["lease_owner"] if row else None,
+        row["lease_epoch"] if row else None,
     )

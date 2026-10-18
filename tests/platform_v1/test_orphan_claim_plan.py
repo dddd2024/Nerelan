@@ -64,6 +64,8 @@ def test_absent_remote_operations_cannot_prove_terminal(subject, status):
     assert (plan.owner, plan.epoch, plan.window_id) == ("owner", 7, "old")
     assert plan.policy_binding == ("policy", 1, "digest")
     assert plan.reservation_binding == (task_id, 7, "old", 50, 60)
+    assert plan.run_lease_owner == "worker"
+    assert plan.run_lease_epoch == 2
 
 
 @pytest.mark.parametrize("kind", ["counterfeit", "mismatched_task", "mismatched_run", "stale", "pending"])
@@ -93,6 +95,10 @@ def test_dispatch_bookkeeping_is_never_a_terminal_receipt(subject, kind):
     ("UPDATE platform_autonomous_windows SET expires_at='2999-01-01T00:00:00Z'", "original_claim_or_window_not_expired"),
     ("UPDATE platform_coordinator_claims SET expires_at_ms=9999999999999", "original_claim_or_window_not_expired"),
     ("UPDATE durable_runs SET lease_expiry_ms=9999999999999", "run_lease_not_expired"),
+    ("UPDATE durable_runs SET lease_owner=''", "original_run_lease_fence_missing"),
+    ("UPDATE durable_runs SET lease_epoch=0", "original_run_lease_fence_missing"),
+    ("UPDATE platform_coordinator_claims SET owner=''", "original_claim_fence_missing"),
+    ("UPDATE platform_coordinator_claims SET epoch=0", "active_claim_reservation_pair_missing"),
     ("UPDATE durable_runs SET run_id='different'", "task_run_binding_missing"),
     ("UPDATE tasks SET status='RUNNING'", "task_not_terminal_candidate"),
 ])
