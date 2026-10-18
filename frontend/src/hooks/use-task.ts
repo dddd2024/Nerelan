@@ -1,4 +1,5 @@
 import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
+import { linkedGoalId } from "@/lib/task-project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchTask,
@@ -266,6 +267,7 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
       (String(source.executor ?? raw.executor_kind ?? "") ||
         undefined) as Task["executor"],
     repository: String(raw.repository ?? ""),
+    goalId: linkedGoalId(raw.goal_id),
     executionId:
       (String(source.executionId ?? source.execution_id ?? raw.execution_id ?? "") ||
         undefined) as Task["executionId"],

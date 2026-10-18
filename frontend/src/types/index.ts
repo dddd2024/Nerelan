@@ -132,6 +132,7 @@ export interface Task {
   workflowStatus: WorkflowStatus;
   executor?: string;
   repository?: string;
+  goalId?: string;
   executionId?: string;
   failureClassification?: string;
   validationCommandId?: string;

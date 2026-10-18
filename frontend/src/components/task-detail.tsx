@@ -24,6 +24,7 @@ import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
 import { displayObjective, displayTitle } from "@/lib/display-title";
 import { taskActionCopy, taskBlockerCopy, taskReviewNotice } from "@/lib/task-status-copy";
+import { taskProjectHref, taskProjectName } from "@/lib/task-project";
 import {
   authorityStatusLabel,
   testStatusLabel,
@@ -260,6 +261,23 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       className="flex flex-col h-full gap-3 p-3 md:p-0"
     >
       <header className="flex flex-col gap-3 md:px-6 md:pt-5 md:pb-2" data-testid="task-detail-header">
+      <nav aria-label="任务归属" className="flex items-center gap-2 text-xs text-ra-text-tertiary" data-testid="task-project-context">
+        <Link to="/tasks" className="hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">任务</Link>
+        <span aria-hidden="true">/</span>
+        {taskProjectHref(displayTask.repository) ? (
+          <Link to={taskProjectHref(displayTask.repository)!} title={displayTask.repository}
+                data-testid="task-project-link" className="max-w-60 truncate hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">
+            {taskProjectName(displayTask.repository)}
+          </Link>
+        ) : <span data-testid="task-project-unassigned">未归属</span>}
+        <span aria-hidden="true">/</span>
+        {displayTask.goalId ? (
+          <Link to={`/approvals?goal=${encodeURIComponent(displayTask.goalId)}`}
+                data-testid="task-goal-link" className="max-w-44 truncate hover:text-ra-text">
+            目标 {displayTask.goalId}
+          </Link>
+        ) : <span data-testid="task-goal-unavailable">目标关联未提供</span>}
+      </nav>
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="group relative flex-shrink-0">
