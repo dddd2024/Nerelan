@@ -2,15 +2,63 @@
 from __future__ import annotations
 
 import json
+import ctypes
+from ctypes import wintypes
 import multiprocessing
 import os
 import threading
-from multiprocessing.connection import Client
+from multiprocessing.connection import Client, Listener
 
 import pytest
 
 from reverse_agent.platform_v1 import native_pipe_peer
 from reverse_agent.platform_v1.native_pipe_probe import NativePipeProbe, PROTOCOL
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows kernel pipe DACL inspection")
+def test_stdlib_pipe_uses_default_security_and_has_no_protected_dacl(monkeypatch):
+    """Negative proof on a real pipe, not a claim of restrictive ACL enforcement."""
+    import _winapi
+    import secrets
+
+    original = _winapi.CreateNamedPipe
+    security_attributes = []
+
+    def capture(*args):
+        security_attributes.append(args[-1])
+        return original(*args)
+
+    monkeypatch.setattr(_winapi, "CreateNamedPipe", capture)
+    advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_security = advapi.GetSecurityInfo
+    get_security.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+                             ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+                             ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+    get_security.restype = wintypes.DWORD
+    get_control = advapi.GetSecurityDescriptorControl
+    get_control.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.WORD),
+                            ctypes.POINTER(wintypes.DWORD)]
+    get_control.restype = wintypes.BOOL
+    kernel.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel.LocalFree.restype = ctypes.c_void_p
+    descriptor = ctypes.c_void_p()
+    address = r"\\.\pipe\nerelan-dacl-negative-" + secrets.token_hex(16)
+    with Listener(address, family="AF_PIPE", authkey=None) as listener:
+        # Private stdlib handle access is confined to this version-sensitive
+        # negative test; product code must not depend on these internals.
+        handle = listener._listener._handle_queue[0]
+        assert security_attributes == [0]  # NULL => inherited token default DACL
+        assert get_security(handle, 6, 4, None, None, None, None,
+                            ctypes.byref(descriptor)) == 0
+        try:
+            control = wintypes.WORD()
+            revision = wintypes.DWORD()
+            assert get_control(descriptor, ctypes.byref(control), ctypes.byref(revision))
+            assert control.value & 0x0004  # SE_DACL_PRESENT
+            assert not control.value & 0x1000  # no SE_DACL_PROTECTED
+        finally:
+            kernel.LocalFree(descriptor)
 
 
 def _foreign_client_with_valid_key(address: str, key: bytes, output) -> None:
