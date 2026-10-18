@@ -392,3 +392,35 @@ def test_host_window_expiring_while_waiting_for_sqlite_lock_denies(tmp_path):
         competing.rollback()
         competing.close()
         db._conn.close()
+
+
+def test_expired_committed_window_cannot_claim_a_queued_task(store, monkeypatch):
+    import time
+
+    db, control = store
+    goals, planned = _planned_goal(db, control, monkeypatch)
+    data = {**_payload(), "repositories": [planned.repository],
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=1)).isoformat()}
+
+    def admit(window_id):
+        control.approve_goal(planned.id, expected_revision=planned.revision)
+        goals._launch(planned.id, expected_revision=planned.revision, window_id=window_id)
+
+    window = control.activate_window(data, confirmation="ACTIVATE",
+                                     _host_expected_goal_id=planned.id, _host_sql_admit=admit)
+    links = control.list_goal_tasks(planned.id)
+    assert len(links) == 1 and links[0]["status"] == "QUEUED"
+
+    time.sleep(1.1)
+    assert control.active_window() is None
+    with pytest.raises(TaskStoreError, match="window_not_active|window_expired"):
+        control.claim_task(window_id=window.id, task_id=links[0]["task_id"],
+                           owner="test-worker", lease_ms=5000)
+    assert db._conn.execute(
+        "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id = ?",
+        (window.id,),
+    ).fetchone()[0] == 0
+    assert db._conn.execute(
+        "SELECT COUNT(*) FROM platform_budget_reservations WHERE window_id = ?",
+        (window.id,),
+    ).fetchone()[0] == 0

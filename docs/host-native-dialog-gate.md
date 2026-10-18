@@ -85,11 +85,21 @@ Owner selection *inside* this transaction, enforce the exact one-Task/30-minute/
 zero-retry envelope, persist an admission receipt, and then commit. During the callback SQLite transaction control (COMMIT / ROLLBACK,
 including executescript's implicit commit) is denied by an authorizer;
 this prevents accidental premature commits in a trusted callback. Expiry is
-checked again after acquiring the write lock and after callback return,
-before final COMMIT. A malicious in-process callback could remove this
-authorizer or perform external effects; this is NOT a sandbox or permission
-boundary for arbitrary callback code. The trusted caller must not invoke
-nondurable filesystem writes or spawn an executor.
+checked again after acquiring the write lock and after callback return.
+The LAST authorization decision before COMMIT is a same-transaction SQLite
+conditional UPDATE with `julianday('now')` and canonical start/expiry bounds.
+It must affect the exact new window row; otherwise all writes roll back.
+There is no hard real-time guarantee that the OS schedules COMMIT before the
+deadline: if the thread stalls immediately after this SQL gate, rows may
+become durable after expiry. This is NOT renewed execution permission.
+`claim_task` independently checks the current time while holding its own
+`BEGIN IMMEDIATE` lock, and an expired window cannot start a new Claim or
+budget reservation. Such late-durable rows need explicit fenced recovery,
+not automatic re-dispatch or pretending the expired Goal executed.
+A malicious in-process callback could remove the authorizer or perform
+external effects; this is NOT a sandbox or permission boundary for arbitrary
+callback code. The trusted caller must not invoke nondurable filesystem
+writes or spawn an executor.
 
 Provider-free tests assert common-commit, rollback, replay rejection,
 invalid trusted/delegated callback mixing, and two independent SQLite-host

@@ -1122,6 +1122,20 @@ class PlatformControlStore:
                     # A slow final binding check cannot extend the Owner window.
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
+                    # This is the final authoritative PRE-COMMIT admission point:
+                    # SQLite tests its current clock on the same write connection,
+                    # immediately before COMMIT. Wall-clock expiry during a delayed
+                    # COMMIT cannot grant later dispatch: claim_task() independently
+                    # rechecks expiry inside its own BEGIN IMMEDIATE transaction.
+                    updated = cur.execute(
+                        "UPDATE platform_autonomous_windows SET updated_at = updated_at "
+                        "WHERE id = ? AND status = 'ACTIVE' "
+                        "AND julianday(starts_at) <= julianday('now') "
+                        "AND julianday(expires_at) > julianday('now')",
+                        (window_id,),
+                    )
+                    if updated.rowcount != 1:
+                        raise TaskStoreError("host_atomic_window_expired")
                 self._conn.commit()
             except BaseException as exc:
                 # Even KeyboardInterrupt/SystemExit from a host callback must
