@@ -116,12 +116,22 @@ class NativeGoalAdmission:
             displayed = json.loads(before)
             isolation = displayed["unknown_claim_isolation"]
             if isolation is not None:
-                # The digest binds every retained byte; show old claim identities
-                # and unchanged accounting without duplicating task/run artifacts.
+                # Display-only projection of a separate JSON decode. `before`
+                # remains full for exact readback, SHA/CAS and receipt evidence.
+                # Never truncate the fresh Goal or its authority fields to fit.
+                isolation["old_claim_semantics"] = "UNKNOWN; no release; no refund; no old retry"
                 isolation["snapshot"]["claims"] = [
-                    {"claim": item["claim"],
+                    {"claim": {key: item["claim"][key] for key in
+                               ("task_id", "window_id", "epoch", "status", "expires_at_ms")},
                      "provider_terminal_state": "UNKNOWN",
-                     "reservations": item["reservations"],
+                     "runs": [{key: run[key] for key in
+                               ("run_id", "execution_id", "lease_epoch", "lease_expiry_ms")}
+                              for run in item["runs"]],
+                     "reservations": [{key: reservation[key] for key in
+                         ("task_id", "claim_epoch", "window_id", "state",
+                          "reserved_token_units", "reserved_cost_micro_units",
+                          "observed_token_units", "observed_cost_micro_units")}
+                         for reservation in item["reservations"]],
                      "window_accounting": {key: value for key, value in item["window"].items()
                          if key in {"id", "tasks_started", "tasks_completed", "retries_used",
                                     "max_tasks", "max_token_units", "max_cost_micro_units",

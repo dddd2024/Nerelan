@@ -1,12 +1,13 @@
 """Synthetic provider-free isolation tests; these do not establish human consent."""
 import json
+from dataclasses import asdict
 from types import SimpleNamespace
 
 import pytest
 
 from test_native_goal_admission import setup
 from reverse_agent.platform_v1 import native_goal_admission as native
-from reverse_agent.platform_v1.control_store import sha256_json
+from reverse_agent.platform_v1.control_store import canonical_json, sha256_json
 from reverse_agent.platform_v1.unknown_claim_isolation import snapshot
 from reverse_agent.platform_v1.run_store import TaskStoreError
 from reverse_agent.platform_v1.durable_execution import DurableExecutionService
@@ -188,6 +189,140 @@ def test_three_historical_claims_fit_native_dialog(isolated):
     assert len(seen) == 1
     for item in before["claims"]:
         assert item["task"]["id"] in seen[0]
+
+
+@pytest.fixture
+def large_isolation(isolated):
+    host, goal, old, window, _, _, seen = isolated
+    db = host._task_store._conn
+    for index in range(2):
+        task = host._task_store.create_task(
+            title="Historical retained task", executor_kind="codex", binding_ref="pinned")
+        db.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task.id,))
+        epoch = 8 + index
+        db.execute("INSERT INTO platform_coordinator_claims VALUES (?, ?, 'original', ?, 1, 'ACTIVE', 'old', 'old')",
+                   (task.id, window.id, epoch))
+        db.execute("INSERT INTO platform_budget_reservations VALUES (?, ?, ?, ?, ?, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
+                   (task.id, epoch, window.id, 124 + index, 457 + index))
+        db.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, "
+                   "lease_expiry_ms, created_at, updated_at) VALUES (?, ?, ?, 'fixture', ?, 1, 'old', 'old')",
+                   (f"large-run-{index}", task.id, f"large-execution-{index}", epoch + 2))
+    # Realistic retained execution instructions/metadata, never new authority.
+    for row in db.execute("SELECT task_id FROM platform_coordinator_claims").fetchall():
+        db.execute("UPDATE tasks SET title=? WHERE id=?",
+                   ("Historical instruction: " + "Preserve prior implementation details. " * 220, row[0]))
+        db.execute("UPDATE durable_runs SET validation_output_digest=? WHERE task_id=?",
+                   ("retained-validation-metadata-" * 40, row[0]))
+    before = snapshot(db)
+    assert len(before["claims"]) == 3
+    assert len(canonical_json(before).encode("ascii")) >= 22025
+    return host, goal, old, window, before, sha256_json(before), seen
+
+
+def test_large_snapshot_confirmation_and_full_evidence(large_isolation, monkeypatch):
+    host, goal, _, _, before, digest, _ = large_isolation
+    scopes = []
+    full_scopes = []
+    original_scope = host._native_goal_admission._scope
+    def read_scope(*args, **kwargs):
+        value = original_scope(*args, **kwargs)
+        full_scopes.append(json.loads(value))
+        return value
+    monkeypatch.setattr(host._native_goal_admission, "_scope", read_scope)
+    def consent(scope):
+        text = scope.text(admission=True)  # Exercise the actual unchanged bounds.
+        assert len(scope.effective_policy) <= 8000
+        assert len(text) <= 12000
+        scopes.append(scope)
+        return True
+    monkeypatch.setattr(native.native_owner_dialog, "confirm_admission", consent)
+    window = admit(large_isolation)
+    assert len(scopes) == 1
+    shown = json.loads(scopes[0].effective_policy)
+    assert shown["goal"] == json.loads(canonical_json(asdict(goal)))
+    assert shown["binding"] == host._store.get_binding_public(goal.binding_ref)
+    assert shown["base_sha"] == "a" * 40
+    assert shown["workspace"] == full_scopes[0]["workspace"]
+    assert shown["window"]["window_id"] == window.id
+    assert shown["window"]["max_tasks"] == 1
+    assert shown["window"]["max_retries"] == 0
+    from datetime import datetime
+    assert (datetime.fromisoformat(shown["window"]["expires_at"]) -
+            datetime.fromisoformat(shown["window"]["starts_at"])).total_seconds() == 1800
+    isolation = shown["unknown_claim_isolation"]
+    assert isolation["sha256"] == digest
+    assert isolation["old_claim_semantics"] == "UNKNOWN; no release; no refund; no old retry"
+    assert isolation["snapshot"]["automatic_retry"] is False
+    for item, displayed in zip(before["claims"], isolation["snapshot"]["claims"], strict=True):
+        assert displayed["provider_terminal_state"] == "UNKNOWN"
+        for key, value in displayed["claim"].items():
+            assert value == item["claim"][key]
+        assert displayed["claim"]["task_id"] == item["task"]["id"]
+        for reservation, original in zip(displayed["reservations"], item["reservations"], strict=True):
+            assert reservation == {key: original[key] for key in (
+                "task_id", "claim_epoch", "window_id", "state", "reserved_token_units",
+                "reserved_cost_micro_units", "observed_token_units", "observed_cost_micro_units")}
+        assert displayed["window_accounting"] == {
+            key: item["window"][key] for key in (
+                "id", "tasks_started", "tasks_completed", "retries_used", "max_tasks",
+                "max_token_units", "max_cost_micro_units", "observed_token_units",
+                "observed_cost_micro_units", "unknown_observation_count")}
+        assert displayed["runs"] == [{key: run[key] for key in (
+            "run_id", "execution_id", "lease_epoch", "lease_expiry_ms")} for run in item["runs"]]
+        assert item["task"]["title"] not in scopes[0].effective_policy
+    assert all(value["unknown_claim_isolation"]["snapshot"] == before for value in full_scopes)
+    retained(host._task_store._conn, before)
+    proof = json.loads(host._task_store._conn.execute(
+        "SELECT evidence_json FROM platform_operation_receipts WHERE subject_id=?", (goal.id,)).fetchone()[0])
+    assert proof["unknown_claim_isolation"] == {"sha256": digest, "snapshot": before}
+
+
+def test_large_fresh_goal_is_not_truncated_to_fit(large_isolation, monkeypatch):
+    host, goal, _, _, before, _, _ = large_isolation
+    db = host._task_store._conn
+    objective = "Fresh Goal requires full display. " * 300
+    db.execute("UPDATE platform_goals SET objective=? WHERE id=?", (objective, goal.id))
+    monkeypatch.setattr(native.native_owner_dialog, "confirm_admission",
+                        lambda _: pytest.fail("oversized fresh Goal prompted"))
+    with pytest.raises(ValueError, match="scope_text_invalid"):
+        admit(large_isolation)
+    assert host._control_store.get_goal(goal.id).objective == objective
+    assert host._control_store.list_goal_tasks(goal.id) == ()
+    assert len(host._control_store.list_windows()) == 1
+    assert db.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=?", (goal.id,)).fetchone()[0] == 0
+    retained(db, before)
+
+
+@pytest.mark.parametrize("point", ["dialog", "transaction"])
+def test_large_snapshot_nondisplayed_drift_refuses(large_isolation, monkeypatch, point):
+    host, goal, old, _, before, _, _ = large_isolation
+    db = host._task_store._conn
+    def mutate():
+        db.execute("UPDATE tasks SET title='Changed nondisplayed old instruction' WHERE id=?", (old,))
+    def consent(scope):
+        assert before["claims"][0]["task"]["title"] not in scope.text(admission=True)
+        if point == "dialog":
+            mutate()
+        return True
+    monkeypatch.setattr(native.native_owner_dialog, "confirm_admission", consent)
+    if point == "transaction":
+        activate = host._control_store.activate_window
+        def wrapped(*args, **kwargs):
+            callback = kwargs["_host_sql_admit"]
+            def inside(window_id):
+                mutate()
+                callback(window_id)
+            return activate(*args, **{**kwargs, "_host_sql_admit": inside})
+        monkeypatch.setattr(host._control_store, "activate_window", wrapped)
+    with pytest.raises(TaskStoreError, match="unknown_snapshot_changed"):
+        admit(large_isolation)
+    assert host._control_store.get_goal(goal.id) == goal
+    assert host._control_store.list_goal_tasks(goal.id) == ()
+    assert len(host._control_store.list_windows()) == 1
+    assert db.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 3
+    assert db.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=?", (goal.id,)).fetchone()[0] == 0
+    if point == "transaction":
+        retained(db, before)
 
 
 @pytest.mark.parametrize("change", ["unbounded", "bad_window", "live_lease", "missing_run"])
