@@ -210,6 +210,33 @@ def test_default_launch_denies_owner_activation_without_human_confirmation(produ
     assert server.RequestHandlerClass.control_store.active_window() is None
 
 
+def test_owner_activation_partial_body_rejected_before_json_parse(production_policy_server, monkeypatch):
+    import time
+    base, server = production_policy_server
+    handler = server.RequestHandlerClass
+    def forbidden(*args, **kwargs):
+        pytest.fail("unconfirmed Owner activation must not parse JSON or create a window")
+    monkeypatch.setattr(handler, "_read_json", forbidden)
+    host, port = base.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=3)
+    before = handler.store._conn.total_changes
+    try:
+        start = time.monotonic()
+        # Advertise more than transmitted. The bounded discard must return
+        # an explicit authorization denial rather than waiting for JSON EOF.
+        conn.request("POST", "/api/windows/activate", body=b"{", headers=client_headers({
+            "Content-Length": "64", "Origin": "http://localhost:5173",
+        }))
+        response = conn.getresponse()
+        assert response.status == 409
+        assert json.loads(response.read()) == {"error": "owner_selection_confirmation_unavailable"}
+        assert time.monotonic() - start < 3
+        assert handler.store._conn.total_changes == before
+        assert handler.control_store.active_window() is None
+    finally:
+        conn.close()
+
+
 def test_pinned_authority_never_falls_back_to_owner_activation(production_policy_server, monkeypatch):
     from reverse_agent.platform_v1.task_service import _configured_autonomy
     base, server = production_policy_server

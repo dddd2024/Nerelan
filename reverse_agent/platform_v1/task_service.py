@@ -751,9 +751,13 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 # Native session possession authenticates the client, not a human
                 # selection. No host-native Goal confirmation channel exists yet.
                 # Do not accept renderer assertions (including ACTIVATE) as proof.
-                payload = self._read_json()
                 if not self.autonomy_service.delegated_mode:
+                    # Renderer assertions cannot authenticate an Owner choice.
+                    # Reject before JSON parsing; incomplete framed bodies
+                    # must not turn this policy denial into a timeout/500.
+                    self._discard_bounded_request_body()
                     raise TaskStoreError("owner_selection_confirmation_unavailable")
+                payload = self._read_json()
                 window = self.autonomy_service.activate_policy(payload)
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
