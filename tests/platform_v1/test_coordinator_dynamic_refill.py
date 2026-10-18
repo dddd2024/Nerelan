@@ -255,3 +255,88 @@ def test_worker_initiated_stop_does_not_self_join(tmp_path):
     assert _wait_for(lambda: coordinator.status()["lifecycle"] == "STOPPED", timeout=5)
     assert store.get_task(task).status == "READY_FOR_REVIEW_FIXTURE"
     assert control.get_window(window.id).tasks_completed == 1
+
+
+def test_expired_lease_does_not_relaunch_a_still_running_local_executor(tmp_path):
+    store, control, autonomy, goals, window = _setup(tmp_path, max_concurrent=2)
+    _first_goal, [first] = _goal(goals, control, window, "lease-running")
+    entered = threading.Event()
+    release = threading.Event()
+    late_started = threading.Event()
+    seen = []
+    lock = threading.Lock()
+
+    def execute(task_id):
+        with lock:
+            seen.append(task_id)
+        if task_id == first:
+            entered.set()
+            assert release.wait(10)
+        else:
+            late_started.set()
+        return _done(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path,
+        task_executor=execute, poll_interval=0.1,
+    )
+    try:
+        coordinator.start()
+        assert entered.wait(5)
+        # Simulate an overdue lease while the original local executor is alive.
+        # Claim epochs alone must not license a second invocation.
+        with store._lock:
+            store._conn.execute(
+                "UPDATE platform_coordinator_claims SET expires_at_ms = 1 WHERE task_id = ?",
+                (first,),
+            )
+        _later_goal, [later] = _goal(goals, control, window, "lease-later")
+        assert late_started.wait(5), "an independent free slot should still refill"
+        time.sleep(0.35)
+        with lock:
+            assert seen.count(first) == 1, "a still-live task was dispatched twice"
+            assert seen.count(later) == 1
+    finally:
+        release.set()
+        coordinator.stop(timeout=6)
+
+
+def test_synchronous_tick_is_drained_and_not_raced_by_background_poller(tmp_path):
+    store, control, autonomy, goals, window = _setup(tmp_path, max_concurrent=2)
+    _initial, [first] = _goal(goals, control, window, "manual-first")
+    entered = threading.Event()
+    release = threading.Event()
+    seen = []
+
+    def execute(task_id):
+        seen.append(task_id)
+        if task_id == first:
+            entered.set()
+            assert release.wait(10)
+        return _done(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path,
+        task_executor=execute, poll_interval=0.1,
+    )
+    manual = threading.Thread(target=coordinator.tick)
+    try:
+        manual.start()
+        assert entered.wait(5)
+        coordinator.start()
+        _later, [later] = _goal(goals, control, window, "manual-later")
+        time.sleep(0.35)
+        assert store.get_task(later).status == "QUEUED"
+        assert seen == [first], "background poller raced the synchronous tick"
+        coordinator.stop(timeout=0.05)
+        assert coordinator.status()["lifecycle"] == "DRAINING"
+    finally:
+        release.set()
+        manual.join(timeout=6)
+        coordinator.stop(timeout=6)
+    assert not manual.is_alive()
+    assert _wait_for(lambda: coordinator.status()["lifecycle"] == "STOPPED")
+    assert store.get_task(first).status == "READY_FOR_REVIEW_FIXTURE"
+    assert store.get_task(later).status == "QUEUED"

@@ -76,6 +76,9 @@ class UnattendedCoordinator:
         self._batch_threads: dict[threading.Thread, int] = {}
         self._active_task_ids: set[str] = set()
         self._worker_thread_ids: set[int] = set()
+        self._manual_tick_active = False
+        self._manual_tick_idle = threading.Event()
+        self._manual_tick_idle.set()
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
@@ -146,6 +149,28 @@ class UnattendedCoordinator:
         return tuple(reconciled)
 
     def tick(self, *, background: bool = False) -> int:
+        # External synchronous ticks must not race the live poller: they are
+        # a separate deterministic invocation mode, not an extra worker slot.
+        with self._lifecycle_lock:
+            if background:
+                if self._manual_tick_active:
+                    return 0
+            else:
+                if (self._manual_tick_active
+                        or (self._thread is not None and self._thread.is_alive())):
+                    return 0
+                self._manual_tick_active = True
+                self._manual_tick_idle.clear()
+        if background:
+            return self._tick_impl(background=True)
+        try:
+            return self._tick_impl(background=False)
+        finally:
+            with self._lifecycle_lock:
+                self._manual_tick_active = False
+                self._manual_tick_idle.set()
+
+    def _tick_impl(self, *, background: bool) -> int:
         if self._stop.is_set():
             return 0
         self._ticks += 1
@@ -183,6 +208,11 @@ class UnattendedCoordinator:
                 break
             if self._stop.is_set():
                 break
+            with self._lifecycle_lock:
+                if task_id in self._active_task_ids:
+                    # A live executor may outlast a DB Claim lease while the
+                    # task stays QUEUED. Never create a second executor.
+                    continue
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
@@ -564,6 +594,9 @@ class UnattendedCoordinator:
                     break
                 for batch in batches:
                     batch.join()
+            # start() may have raced an already-running manual tick. Do not
+            # report STOPPED while that synchronous execution is unfinished.
+            self._manual_tick_idle.wait()
             with self._lifecycle_lock:
                 self._dispatch_active = False
                 if self._thread is current:
