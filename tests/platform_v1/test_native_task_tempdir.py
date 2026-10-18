@@ -93,6 +93,25 @@ def test_real_child_scoped_temp_and_product_detection(repository, tmp_path, kind
     assert {k: os.environ.get(k) for k in host_temp} == host_temp
 
 
+def test_plain_directory_for_read_only_planner_gets_scoped_temp(tmp_path):
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    child = _task_temp_env(plain, {"PATH": "test", "TEMP": "untrusted"})
+    assert child["TEMP"] == child["TMP"] == str(plain / ".nt")
+    if os.name != "nt":
+        assert child["TMPDIR"] == str(plain / ".nt")
+    assert (plain / ".nt" / ".gitignore").read_text() == "*\n"
+
+
+def test_broken_git_marker_never_downgrades_index_failure(tmp_path):
+    repo = tmp_path / "broken-repo"
+    repo.mkdir()
+    (repo / ".git").write_text("gitdir: /missing/git/worktree\\n")
+    with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
+        _task_temp_env(repo, {})
+    assert not (repo / ".nt").exists()
+
+
 @pytest.mark.parametrize("entry", ["directory", "file", "tracked", "symlink", "junction"])
 def test_preexisting_scratch_refused(repository, tmp_path, entry):
     root, _ = repository

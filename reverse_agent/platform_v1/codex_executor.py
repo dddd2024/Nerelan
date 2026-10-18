@@ -41,7 +41,20 @@ def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, 
             raise OSError("unverifiable workspace")
         tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP], cwd=root,
             capture_output=True, timeout=10, check=False)
-        if tracked.returncode or tracked.stdout:
+        if tracked.returncode:
+            # A read-only planner may operate in an ordinary (non-Git)
+            # directory. Do not require a Git index where none exists.
+            # Any visible Git marker, including a worktree .git file,
+            # means a failed index check must remain fatal.
+            for ancestor in (root, *root.parents):
+                try:
+                    (ancestor / ".git").lstat()
+                except FileNotFoundError:
+                    continue
+                raise OSError("Git index unavailable")
+            if b"not a git repository" not in tracked.stderr.lower():
+                raise OSError("Git index unavailable")
+        if tracked.stdout:
             raise OSError("reserved scratch is tracked")
         scratch = root / _TASK_TEMP
         scratch.mkdir()  # Inherit workspace permissions; no exist_ok or parents.
