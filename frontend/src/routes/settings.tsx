@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
+import { Link } from "react-router";
 import { ConnectionBindingEditor, executorManagedAuth, externalSessionStatusLabel } from "@/components/connection-binding-editor";
 import {
   useBindings,
@@ -29,7 +30,7 @@ import { ResourceOverview } from "@/components/resource-overview";
 
 type EditorView = "connection" | "binding";
 
-export function SettingsPage() {
+export function SettingsPage({ section = "all" }: { section?: "all" | "resources" }) {
   const connectionsQuery = useConnections();
   const connectionsMutation = useUpsertConnection();
   const deleteConnMutation = useDeleteConnection();
@@ -309,6 +310,11 @@ export function SettingsPage() {
        * as if it were de-emphasised metadata.
        */}
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        {section === "resources" ? (
+          <Link to="/settings" className="self-start text-sm text-ra-text-tertiary hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            ← 返回设置
+          </Link>
+        ) : null}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
@@ -398,7 +404,7 @@ export function SettingsPage() {
           </div>
         )}
 
-        <ThemeSelector />
+        {section === "all" ? <ThemeSelector /> : null}
 
         <div
           data-testid="settings-model-access-layout"
@@ -552,8 +558,8 @@ export function SettingsPage() {
             onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
-        <ResourceOverview />
-        <AgentTeamEditor bindings={bindings} />
+        {section === "all" ? <ResourceOverview /> : null}
+        {section === "all" ? <AgentTeamEditor bindings={bindings} /> : null}
       </div>
     </main>
   );
