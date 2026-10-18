@@ -70,6 +70,39 @@ def test_transient_command_updates_do_not_fabricate_launch_failure():
     assert parser.finish().tool_launch_failed is False
 
 
+@pytest.mark.parametrize("fields", [{}, {"exit_code": None}, {"status": "completed", "exit_code": 0}])
+def test_helper_setup_diagnostic_without_launch_exit_code_is_sanitized(fields):
+    seen = []
+    parser = CodexJsonl(seen.append)
+    item = {"type": "command_execution", "command": "C:\\private-workspace\\tool.exe",
+            "aggregated_output": "helper_unknown_error: setup refresh had errors "
+                                 "C:\\private-workspace Authorization: Bearer fixture-private-token",
+            **fields}
+    stream = wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE)
+    for byte in stream:
+        parser.feed(bytes([byte]))
+    turn = parser.finish()
+    assert turn.completed and turn.tool_launch_failed
+    assert seen[0]["failure_classification"] == "codex_tool_launch_failed"
+    assert seen[0]["diagnostic"] == "helper_unknown_error: setup refresh had errors"
+    assert "private-workspace" not in repr(turn) + repr(seen)
+    assert "fixture-private-token" not in repr(turn) + repr(seen)
+
+
+@pytest.mark.parametrize("kind,item_type,output", [
+    ("item.updated", "command_execution", "helper_unknown_error: setup refresh had errors"),
+    ("item.completed", "agent_message", "helper_unknown_error: setup refresh had errors"),
+    ("item.completed", "command_execution", "helper_unknown_error"),
+    ("item.completed", "command_execution", "setup refresh had errors"),
+])
+def test_setup_failure_requires_specific_completed_command_diagnostic(kind, item_type, output):
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": kind, "item": {
+        "type": item_type, "text": output, "aggregated_output": output,
+    }}, MESSAGE, DONE))
+    assert not parser.finish().tool_launch_failed
+
+
 @pytest.mark.parametrize("stream,classification", [
     (b"not-json\n", "codex_invalid_jsonl"),
     (b"\xff\n", "codex_invalid_jsonl"),
