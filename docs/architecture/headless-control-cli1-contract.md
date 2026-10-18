@@ -8,6 +8,10 @@
 
 The parser reserves `doctor`, `status`, `goal.create/inspect/plan/approve/launch`, `task.list/inspect`, `run.status/watch/stop`, `window.status` as versioned operation names. Parsing is **not** endpoint support. No transport or operation handler is installed. Every valid parsed request sent to `unavailable_response` yields `WAITING`, `authenticated:false`, `dispatch_permitted:false`, `execution_started:false`.
 
+Every control operation requires an authenticated principal, including `doctor`. The existing `/api/platform/doctor` is private and exposes TaskStore/runtime information; this contract adds no unauthenticated generic doctor. Public health remains only the separate CLI-0 fixed `/api/health` endpoint.
+
+For `goal.plan`, `goal.approve` and `goal.launch`, `expected_revision` must be an integer from 1 through 2147483647, matching persisted Goals starting at revision 1. Zero, booleans and non-integer values are rejected. A syntactically valid revision does not attest to the current persisted revision or authorize dispatch.
+
 Example **schema-only** request (not runnable or approved):
 
 ```json
@@ -37,7 +41,7 @@ Example **schema-only** request (not runnable or approved):
 3. **Mutations:** secure human-reviewed Goal ID/revision, task, repository, workspace, executor/binding, allowed operation, time window, concurrency and cost budget must be checked by shared `GoalService`/`ControlStore` inside durable CAS/Claim admission. Request schema validation cannot authorize anything.
 4. **Idempotency:** `goal.create/plan/approve/launch` and `run.stop` require bounded idempotency keys; the host must persist and compare key + canonical request digest, never treat repeated key for a different Goal/revision as equivalent. The present parser does not track prior requests.
 5. **Resume:** #1206 old ACTIVE Claims and unknown external terminal receipts are not replay rights. A previous `RUNNING` Goal is not a live Agent. Unknown spending is UNKNOWN, not zero.
-6. **Visibility:** read-only `task.list`, `run.watch`, private `status` still require authenticated identity; only CLI-0 public GET /api/health is unauthenticated. Never claim doctor means provider/model available.
+6. **Visibility:** all operations, including read-only `doctor`, `task.list`, `run.watch` and `status`, require authenticated identity; only CLI-0 public GET /api/health is unauthenticated. Never claim doctor means provider/model available.
 
 ## Verification and next exact deliverable
 

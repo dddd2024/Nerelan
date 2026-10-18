@@ -68,9 +68,9 @@ class ControlRequest:
 
     @property
     def requires_authority(self) -> bool:
-        # Even private reads require authenticated identity; doctor is an
-        # explicitly public health-only operation, not the private doctor API.
-        return self.operation != "doctor"
+        # All control operations, including private doctor reads, require an
+        # authenticated principal. Public health belongs only to CLI-0 /api/health.
+        return True
 
     @property
     def mutating(self) -> bool:
@@ -92,7 +92,7 @@ def _bad_constant(_: str) -> None:
 
 def _validate_value(field: str, value: object) -> str | int:
     if field == "expected_revision":
-        if type(value) is not int or not (0 <= value <= 2**31 - 1):
+        if type(value) is not int or not (1 <= value <= 2**31 - 1):
             raise ControlContractError("invalid_argument")
         return value
     if type(value) is not str:

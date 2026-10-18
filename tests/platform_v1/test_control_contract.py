@@ -32,7 +32,7 @@ def wire(operation="status", args=None, **extra):
     ("goal.inspect", {"goal_id": "goal-1770000000000-abcdef012345"}, False),
     ("goal.plan", {
         "goal_id": "goal-1770000000000-abcdef012345",
-        "expected_revision": 0, "idempotency_key": "plan-repeat-1",
+        "expected_revision": 1, "idempotency_key": "plan-repeat-1",
     }, True),
     ("goal.approve", {
         "goal_id": "goal-1770000000000-abcdef012345",
@@ -56,7 +56,7 @@ def test_known_operations_are_parsed_but_never_executed(operation, arguments, mu
     parsed = parse_request(wire(operation, arguments))
     assert parsed.operation == operation
     assert parsed.mutating is mutating
-    assert parsed.requires_authority is (operation != "doctor")
+    assert parsed.requires_authority is True
     assert dict(parsed.arguments) == arguments
     reply = unavailable_response(parsed)
     assert reply == {
@@ -122,11 +122,35 @@ def test_launch_must_explicitly_bind_exact_scope_and_revision():
         with pytest.raises(ControlContractError) as err:
             parse_request(json.dumps(bad).encode())
         assert err.value.code == "invalid_arguments", key
-    for value in (True, -1, "5", 2**50):
+    for value in (True, -1, 0, "5", 2**50):
         bad = json.loads(json.dumps(data))
         bad["args"]["expected_revision"] = value
         with pytest.raises(ControlContractError) as err:
             parse_request(json.dumps(bad).encode())
+        assert err.value.code == "invalid_argument"
+
+
+@pytest.mark.parametrize("operation", ["goal.plan", "goal.approve", "goal.launch"])
+@pytest.mark.parametrize("revision", [1, 2**31 - 1, 0, -1, True, False, "1", 1.0, None, 2**31])
+def test_goal_revision_bounds_and_types(operation, revision):
+    arguments = {
+        "goal_id": "goal-1", "expected_revision": revision,
+        "idempotency_key": "revision-1",
+    }
+    if operation == "goal.launch":
+        arguments.update({
+            "window_id": "window-1", "repository": "dddd2024/Nerelan",
+            "executor_kind": "codex", "binding_ref": "binding-1",
+            "policy_digest": "a" * 64,
+        })
+    if type(revision) is int and 1 <= revision <= 2**31 - 1:
+        parsed = parse_request(wire(operation, arguments))
+        assert dict(parsed.arguments)["expected_revision"] == revision
+        assert parsed.requires_authority is True
+        assert unavailable_response(parsed)["dispatch_permitted"] is False
+    else:
+        with pytest.raises(ControlContractError) as err:
+            parse_request(wire(operation, arguments))
         assert err.value.code == "invalid_argument"
 
 
