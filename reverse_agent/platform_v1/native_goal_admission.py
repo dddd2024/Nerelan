@@ -28,13 +28,17 @@ class NativeGoalAdmission:
         self._lock = threading.Lock()
         self._nonce = None
 
-    def _scope(self, goal_id, payload, *, admitted=False, original=None):
+    def _scope(self, goal_id, payload, *, admitted=False, original=None, isolation_digest=None):
         host = self._host
         identity = native_owner_identity.interactive_owner()
         if identity is None or identity != self._identity:
             raise TaskStoreError("native_owner_identity_unavailable_or_changed")
         control = host._control_store
-        if control._conn.execute(
+        isolation = None
+        if isolation_digest is not None:
+            from .unknown_claim_isolation import selected_snapshot
+            isolation = selected_snapshot(control._conn, isolation_digest)
+        if isolation is None and control._conn.execute(
                 "SELECT 1 FROM platform_coordinator_claims WHERE status = 'ACTIVE' LIMIT 1").fetchone():
             raise TaskStoreError("native_admission_old_active_claims_hold")
         goal = control.get_goal(goal_id)
@@ -79,14 +83,14 @@ class NativeGoalAdmission:
         # Public metadata only: no execution snapshot, vault, credentials or tokens.
         return json.dumps({"goal": asdict(goal), "binding": binding,
                            "connection": connection, "workspace": str(workspace.repo_dir),
-                           "base_sha": base, "window": payload,
+                           "base_sha": base, "window": payload, "unknown_claim_isolation": isolation,
                            "owner": asdict(identity), "host_instance": self._instance,
                            "consent_valid_seconds": 30,
                            "sandbox": "existing Codex sandbox; no changes",
                            "api_auth": "unchanged", "account_switching": False},
                           ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
-    def admit(self, goal_id: str):
+    def admit(self, goal_id: str, *, unknown_claims_sha256=None):
         if not self._lock.acquire(blocking=False):
             raise TaskStoreError("native_admission_in_progress")
         try:
@@ -106,13 +110,31 @@ class NativeGoalAdmission:
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_id)
                 payload["repositories"] = [goal.repository]
-                before = self._scope(goal_id, payload)
+                before = self._scope(goal_id, payload, isolation_digest=unknown_claims_sha256)
                 if canonical_json(asdict(goal)) != canonical_json(json.loads(before)["goal"]):
                     raise TaskStoreError("native_owner_scope_changed")
+            displayed = json.loads(before)
+            isolation = displayed["unknown_claim_isolation"]
+            if isolation is not None:
+                # The digest binds every retained byte; show old claim identities
+                # and unchanged accounting without duplicating task/run artifacts.
+                isolation["snapshot"]["claims"] = [
+                    {"claim": item["claim"],
+                     "provider_terminal_state": "UNKNOWN",
+                     "reservations": item["reservations"],
+                     "window_accounting": {key: value for key, value in item["window"].items()
+                         if key in {"id", "tasks_started", "tasks_completed", "retries_used",
+                                    "max_tasks", "max_token_units", "max_cost_micro_units",
+                                    "observed_token_units", "observed_cost_micro_units",
+                                    "unknown_observation_count"}}}
+                    for item in isolation["snapshot"]["claims"]]
+            display_text = json.dumps(displayed, ensure_ascii=True, sort_keys=True,
+                                      separators=(",", ":"))
             scope = native_owner_dialog.OwnerDialogScope(
                 self._instance, goal.id, goal.revision, goal.artifact_digest, goal.repository,
                 goal.executor_kind, goal.binding_ref, str(goal.tasks[0]["id"]), payload["window_id"],
-                1, sha256_json(payload), before)
+                1, sha256_json(payload), display_text)
+            scope.text(admission=True)  # Native display bounds also apply before any callback.
             if not native_owner_dialog.confirm_admission(scope):
                 raise TaskStoreError("native_owner_consent_refused")
             # Burn before any validation or write. No retry/consumer can reuse it.
@@ -121,7 +143,8 @@ class NativeGoalAdmission:
                 raise TaskStoreError("native_owner_consent_consumed")
 
             def validate(*, admitted=False):
-                if self._scope(goal_id, payload, admitted=admitted, original=goal) != before:
+                if self._scope(goal_id, payload, admitted=admitted, original=goal,
+                               isolation_digest=unknown_claims_sha256) != before:
                     raise TaskStoreError("native_owner_scope_changed")
                 if time.monotonic() >= deadline:
                     raise TaskStoreError("native_owner_consent_expired")
@@ -146,6 +169,7 @@ class NativeGoalAdmission:
                 provenance = {"host_instance_id": self._instance,
                               "owner": asdict(self._identity), "scope_digest": sha256_json(before),
                               "approved_binding": pinned_binding,
+                              "unknown_claim_isolation": approved["unknown_claim_isolation"],
                               "goal_revision": goal.revision, "binding_ref": goal.binding_ref,
                               "workspace": json.loads(before)["workspace"],
                               "base_sha": json.loads(before)["base_sha"],
@@ -153,7 +177,9 @@ class NativeGoalAdmission:
                 receipt = host._control_store.append_receipt(
                     window_id=window_id, operation_type="native_goal_admission", capability="execute_task",
                     repository=goal.repository, subject_id=goal.id, decision="allowed",
-                    reason="native_owner_exact_scope", input_payload=provenance,
+                    reason="native_owner_exact_scope", input_payload={**provenance, "unknown_claim_isolation":
+                                   ({"sha256": unknown_claims_sha256}
+                                    if unknown_claims_sha256 is not None else None)},
                     result=canonical_json(provenance))
                 # Store full nonsecret provenance; append_receipt's result is bounded.
                 updated = host._control_store._conn.execute(
@@ -173,7 +199,8 @@ class NativeGoalAdmission:
                 validate()  # after consent, before the transaction
                 return host._control_store.activate_window(
                     payload, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
-                    _host_expected_goal_id=goal.id)
+                    _host_expected_goal_id=goal.id,
+                    _host_preserve_claim_windows=unknown_claims_sha256 is not None)
         finally:
             self._nonce = None  # refusal, timeout, native/SQL errors, interrupts
             self._lock.release()

@@ -748,6 +748,8 @@ class DurableExecutionService:
         non-empty. None, empty, or whitespace-only values all fail closed
         BEFORE durable run creation.
         """
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         self._assert_trusted_identity_for_execute()
         task = self.store.get_task(task_id)
         if task.executor_kind == "opencode":
@@ -802,6 +804,8 @@ class DurableExecutionService:
         external-operation journaling, and resume-capable terminal state.
         """
         from .task_execution import TaskExecutionOutcome
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         self._assert_trusted_identity_for_execute()
         task = self.store.get_task(task_id)
         if task.orchestration_mode != "single":
@@ -2608,6 +2612,8 @@ class DurableExecutionService:
         """
         from .task_execution import TaskExecutionOutcome
 
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
             execution_authority_sha=execution_authority_sha,
             planning_sha=planning_sha,
@@ -2778,6 +2784,8 @@ class DurableExecutionService:
         """
         from .task_execution import TaskExecutionOutcome
 
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
             execution_authority_sha=execution_authority_sha,
             planning_sha=planning_sha,

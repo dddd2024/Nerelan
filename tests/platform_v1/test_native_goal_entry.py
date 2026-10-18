@@ -157,7 +157,8 @@ def test_lifecycle_cleanup_and_no_attach(monkeypatch, tmp_path, point, error):
     events = []
     class Host:
         model_control_url = task_api_url = relay_url = "fixture"
-        def start(self):
+        def start(self, *, coordinator_paused=False):
+            assert coordinator_paused
             events.append("start")
             if point == "start":
                 raise error("port already owned")
@@ -184,3 +185,50 @@ def test_lifecycle_cleanup_and_no_attach(monkeypatch, tmp_path, point, error):
     assert events == (["start", "stop"] if point == "start" else
                       ["start", "goal-exact", "stop"] if point == "admit" else
                       ["start", "goal-exact", "wait", "stop"])
+
+@pytest.mark.parametrize("mode", ["success", "refusal", "unavailable"])
+def test_autonomous_entry_pauses_same_coordinator_until_commit(setup, monkeypatch, tmp_path, mode):
+    host, goal, _ = setup
+    install_host(monkeypatch, tmp_path, host)
+    monkeypatch.setenv("REVERSE_AGENT_AUTONOMOUS", "1")
+    events = []
+    def start(coordinator):
+        assert coordinator is host._coordinator
+        assert host._control_store.get_goal(goal.id).status == "RUNNING"
+        assert not host._task_store._conn.in_transaction
+        assert host._task_store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=?", (goal.id,)).fetchone()[0] == 1
+        events.append("coordinator")
+    monkeypatch.setattr(trusted.UnattendedCoordinator, "start", start)
+    def consent(scope):
+        assert events == []
+        assert host._coordinator is not None and host._coordinator._thread is None
+        assert host._control_store.get_goal(goal.id) == goal
+        events.append("consent")
+        if mode == "unavailable":
+            raise OSError("fixture native desktop unavailable")
+        return mode == "success"
+    monkeypatch.setattr(native.native_owner_dialog, "confirm_admission", consent)
+    if mode == "success":
+        entry.main(["--native-admit-goal", goal.id])
+        assert events == ["consent", "coordinator"]
+    else:
+        with pytest.raises((TaskStoreError, OSError)):
+            entry.main(["--native-admit-goal", goal.id])
+        assert events == ["consent"]
+        unchanged(host, goal)
+    assert not host._started_servers
+    assert __import__("os").environ["REVERSE_AGENT_AUTONOMOUS"] == "1"
+
+
+@pytest.mark.parametrize("argv", [
+    ["--native-isolate-unknown-sha256", "0" * 64],
+    ["--native-admit-goal", "one", "--native-isolate-unknown-sha256", "bad"],
+    ["--native-admit-goal", "one", "--native-isolate-unknown-sha256", "0" * 64,
+     "--native-isolate-unknown-sha256", "0" * 64],
+])
+def test_isolation_arguments_fail_before_host(monkeypatch, argv):
+    monkeypatch.setattr(trusted, "run_combined_trusted_host",
+                        lambda **kw: pytest.fail("host reached"))
+    with pytest.raises(SystemExit):
+        entry.main(argv)

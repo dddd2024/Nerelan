@@ -794,6 +794,8 @@ class PlatformControlStore:
         This binds to the first launched Goal, not an Owner-selected Goal: legacy
         activation does not carry that identity or a selected executor.
         """
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.task_store, task_id)
         window = self.get_window(window_id)
         if not self.is_strict_owner_window(window):
             return
@@ -945,6 +947,7 @@ class PlatformControlStore:
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
                         _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
+                        _host_preserve_claim_windows: bool = False,
                         _host_expected_goal_id: str | None = None) -> AutonomousWindowRecord:
         """Create the window and optional trusted-host SQL admission in one commit.
 
@@ -955,6 +958,8 @@ class PlatformControlStore:
         hook itself is NOT an Owner consent or production authorization issuer.
         """
         reject_sensitive_keys(payload)
+        if _host_preserve_claim_windows and _host_sql_admit is None:
+            raise TaskStoreError("host_atomic_admission_required")
         if _host_sql_admit is not None:
             if (_trusted_binding is not None or not callable(_host_sql_admit)
                     or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
@@ -1008,8 +1013,13 @@ class PlatformControlStore:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
                     "stop_reason = 'window_expired', updated_at = ? "
-                    "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
-                    (now, _utc_now_precise()),
+                    "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
+                    "AND (? = 0 OR id NOT IN (SELECT window_id FROM platform_coordinator_claims WHERE status = 'ACTIVE')) "
+                    "AND id NOT IN (SELECT json_extract(item.value, '$.claim.window_id') "
+                    "FROM platform_operation_receipts r, "
+                    "json_each(r.evidence_json, '$.unknown_claim_isolation.snapshot.claims') item "
+                    "WHERE r.operation_type='native_goal_admission' AND r.confirmation_mode='NATIVE_OWNER')",
+                    (now, _utc_now_precise(), int(_host_preserve_claim_windows)),
                 )
                 existing = cur.execute(
                     "SELECT * FROM platform_autonomous_windows WHERE policy_id = ? AND policy_revision = ?",
@@ -1035,7 +1045,9 @@ class PlatformControlStore:
                     self._conn.commit()
                     return record
                 active = cur.execute(
-                    "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' LIMIT 1"
+                    "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
+                    "AND (? = 0 OR julianday(expires_at) > julianday('now')) LIMIT 1",
+                    (int(_host_preserve_claim_windows),)
                 ).fetchone()
                 if active is not None:
                     # A scheduled window also reserves activation, although
@@ -1169,7 +1181,11 @@ class PlatformControlStore:
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? "
-                "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
+                "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
+                "AND id NOT IN (SELECT json_extract(item.value, '$.claim.window_id') "
+                "FROM platform_operation_receipts r, "
+                "json_each(r.evidence_json, '$.unknown_claim_isolation.snapshot.claims') item "
+                "WHERE r.operation_type='native_goal_admission' AND r.confirmation_mode='NATIVE_OWNER')",
                 (_utc_now(), current),
             )
             row = self._conn.execute(
@@ -1405,6 +1421,9 @@ class PlatformControlStore:
     def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
         """Narrow recovery of an existing result, never permission to rerun a checker."""
         with self._lock:
+            from .unknown_claim_isolation import held_task
+            if held_task(self._conn, task_id):
+                return False
             task = self.task_store.get_task(task_id)
             claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND window_id = ?",
                                        (task_id, window_id)).fetchone()
@@ -1474,6 +1493,8 @@ class PlatformControlStore:
             cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN IMMEDIATE")
+                from .unknown_claim_isolation import refuse_held
+                refuse_held(self.task_store, task_id)
                 claim = cur.execute(
                     "SELECT * FROM platform_coordinator_claims WHERE task_id = ? "
                     "AND window_id = ? AND owner = ? AND epoch = ? AND status = 'ACTIVE'",
