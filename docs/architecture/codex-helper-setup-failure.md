@@ -12,7 +12,10 @@ causes. No live environment, account or native CLI was probed for this change.
 The existing guard rejects completed command items with status `failed` and exit
 code `-1`. The bounded extension also recognizes a completed `command_execution`
 whose `aggregated_output` contains both `helper_unknown_error` and
-`setup refresh had errors`, regardless of missing or contradictory exit metadata.
+`setup refresh had errors` when no nonnegative child exit code is reported.
+A nonnegative process exit (including a regular command failure exit code)
+proves the command launched; quoted helper error words in its ordinary output
+must not be treated as a CLI process-creation failure.
 Only fixed diagnostic evidence is projected for that item; its command and raw
 output are omitted. Intermediate updates, model prose and either phrase alone
 do not trigger this additional guard. Other diagnostic shapes remain unknown.
