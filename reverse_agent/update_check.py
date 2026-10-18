@@ -107,7 +107,12 @@ def probe_checkout(repo: str | Path) -> dict[str, object]:
             elif reverse == 0:
                 ancestry = "local_descendant"
             elif forward == 1 and reverse == 1:
-                ancestry = "diverged"
+                # Shallow boundaries hide parents even when both commit
+                # objects exist locally: two negative ancestry probes do not
+                # establish a genuine divergent history in that case.
+                shallow_code, shallow = git("rev-parse", "--is-shallow-repository")
+                ancestry = ("diverged" if shallow_code == 0 and shallow == "false"
+                            else "unknown")
             else:
                 ancestry = "unknown"
     return classify_revisions(installed=installed, remote=remote,

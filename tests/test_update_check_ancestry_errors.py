@@ -56,6 +56,7 @@ class GitScript:
         ls_remote_code: int = 0,
         ls_remote_line: str | None = None,
         rev_parse_code: int = 0,
+        shallow: bool | None = False,
     ) -> None:
         self.origin = origin
         self.installed = installed
@@ -69,6 +70,7 @@ class GitScript:
         self.ls_remote_code = ls_remote_code
         self.ls_remote_line = ls_remote_line
         self.rev_parse_code = rev_parse_code
+        self.shallow = shallow
         self.calls: list[list[str]] = []
 
     def run(self, cmd, **kwargs):
@@ -79,6 +81,9 @@ class GitScript:
         if head == "remote":
             return _Proc(0, self.origin)
         if head == "rev-parse":
+            if len(args) > 1 and args[1] == "--is-shallow-repository":
+                return (_Proc(128, "") if self.shallow is None
+                        else _Proc(0, str(self.shallow).lower()))
             return _Proc(self.rev_parse_code, self.installed)
         if head == "status":
             return _Proc(0, self.dirty)
@@ -352,6 +357,24 @@ def test_missing_installed_revision_reports_unknown(tmp_path, monkeypatch):
     assert not any(c[0] in ("status", "ls-remote") for c in script.calls)
     assert result["install_authorized"] is False
     assert result["verified_release"] is False
+
+
+@pytest.mark.parametrize(
+    "shallow,expected_status",
+    [
+        (False, "DIVERGED"),
+        (True, "REMOTE_CHANGE_UNVERIFIED"),
+        (None, "REMOTE_CHANGE_UNVERIFIED"),
+    ],
+)
+def test_two_negative_ancestry_results_require_complete_history(
+    tmp_path, monkeypatch, shallow, expected_status
+):
+    script = GitScript(merge_base=[1, 1], shallow=shallow)
+    result = _probe(tmp_path, monkeypatch, script)
+    assert result["status"] == expected_status
+    assert ["rev-parse", "--is-shallow-repository"] in script.calls
+    assert result["install_authorized"] is False
 
 
 def test_missing_checkout_reports_missing(tmp_path, monkeypatch):
