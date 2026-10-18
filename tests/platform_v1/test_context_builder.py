@@ -335,6 +335,7 @@ def test_native_goal_context_survives_reopen_and_reaches_real_subprocess(tmp_pat
     script=("import sys,json; p=sys.stdin.read(); c=json.loads(p.split("+repr(marker)+")[1]);"
             "assert c['authority']=='NONE';assert c['goal']['id']=="+repr(goal.id)+";"
             "assert c['goal']['objective']=='Ship it';"
+            "from pathlib import Path;Path('a.txt').write_text('updated\\n',encoding='utf-8',newline='\\n');"
             "print("+repr('\n'.join(json.dumps(e) for e in events))+")")
     executor,_=fixture_executor(repo,_head(repo),script)
     prepared=executor.prepare_worktree_once(first.id,tmp_path/'workspaces')
@@ -342,6 +343,8 @@ def test_native_goal_context_survives_reopen_and_reaches_real_subprocess(tmp_pat
     result=executor.execute_role_prepared(prepared,reopened,
         role_context=RoleContext('executor',first.id,prepared.worktree),event_callback=service._store_event_callback)
     assert result.success
+    assert result.changed_files == ['a.txt']
+    assert (prepared.worktree / 'a.txt').read_text(encoding='utf-8') == 'updated\n'
     records=reopened.get_events(first.id)
     assert any(e.metadata.get('context_packet_digest') for e in records)
     assert records[-1].metadata['final_text']=='context verified'
