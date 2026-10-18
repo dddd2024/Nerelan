@@ -185,9 +185,8 @@ def production_policy_server(tmp_path, monkeypatch):
         store._conn.close()
 
 
-def test_default_launch_activates_owner_confirmed_window_without_pins(production_policy_server):
-    # Without a pinned delegated authority, the launcher-authenticated local owner
-    # confirms the window (the pre-#1117 behaviour the product depends on).
+def test_default_launch_denies_owner_activation_without_human_confirmation(production_policy_server):
+    # A launcher-authenticated client is not proof of human Goal approval.
     base, server = production_policy_server
     status, template = _req(base, "GET", "/api/windows/policy")
     assert status == 200 and template == {"available": False, "reason": "trusted_policy_unavailable"}
@@ -206,8 +205,9 @@ def test_default_launch_activates_owner_confirmed_window_without_pins(production
         "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task", "validate_task"],
         "max_concurrent_tasks": 2, "max_tasks": 20, "max_retries": 1, "confirmation": "ACTIVATE",
     })
-    assert status == 201, window
-    assert server.RequestHandlerClass.control_store.active_window().id == window["id"]
+    assert status == 409, window
+    assert window == {"error": "owner_selection_confirmation_unavailable"}
+    assert server.RequestHandlerClass.control_store.active_window() is None
 
 
 def test_pinned_authority_never_falls_back_to_owner_activation(production_policy_server, monkeypatch):
@@ -477,7 +477,7 @@ def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
     assert approved["status"] == "APPROVED"
 
     now = datetime.now(timezone.utc)
-    status, window = _req(base, "POST", "/api/windows/activate", {
+    status, window = _synthetic_window(server, {
         "policy_id": "http-window-v1", "policy_revision": 1, "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
@@ -2646,7 +2646,7 @@ def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
 
     from datetime import datetime, timedelta, timezone
     now = datetime.now(timezone.utc)
-    status, window = _req(base, "POST", "/api/windows/activate", {
+    status, window = _synthetic_window(server, {
         "policy_id": "runs-window-1", "policy_revision": 1, "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
@@ -2713,7 +2713,7 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     _req(base, "POST", f"/api/goals/{goal_id}/approve", {"expected_revision": 1})
 
     now = datetime.now(timezone.utc)
-    status, window = _req(base, "POST", "/api/windows/activate", {
+    status, window = _synthetic_window(server, {
         "policy_id": "http-converge-window", "policy_revision": 1,
         "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
@@ -2762,7 +2762,7 @@ def _launch_http_goal(base, goal_key_suffix, server):
     _req(base, "POST", f"/api/goals/{goal_id}/plan", {"expected_revision": 1})
     _req(base, "POST", f"/api/goals/{goal_id}/approve", {"expected_revision": 1})
     now = datetime.now(timezone.utc)
-    status, window = _req(base, "POST", "/api/windows/activate", {
+    status, window = _synthetic_window(server, {
         "policy_id": "http-" + goal_key_suffix + "-window", "policy_revision": 1,
         "owner_identity": "owner",
         "starts_at": (now - timedelta(seconds=1)).isoformat(),
@@ -2999,3 +2999,9 @@ def test_rejected_body_discard_has_total_deadline_during_continued_progress(monk
     assert reads == [8, 7, 6]
     assert timeouts[:-1] == pytest.approx([0.25, 0.15, 0.05])
     assert timeouts[-1] is None
+
+
+def _synthetic_window(server, payload):
+    """In-process fixture setup only; never evidence of human authorization."""
+    from reverse_agent.platform_v1.autonomy import window_to_dict
+    return 201, window_to_dict(server.RequestHandlerClass.autonomy_service.activate(payload))
