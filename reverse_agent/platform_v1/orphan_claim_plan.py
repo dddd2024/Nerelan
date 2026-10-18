@@ -63,6 +63,12 @@ def plan_orphan_claim(
     reason = "authoritative_terminal_receipt_format_unavailable"
     if row is None:
         reason = "task_missing"
+    elif row["claim_status"] == "ACTIVE" and (
+        not isinstance(row["owner"], str) or not row["owner"].strip()
+        or type(row["epoch"]) is not int or row["epoch"] < 1
+    ):
+        # Inspect the original Claim fence before a reservation join can hide it.
+        reason = "original_claim_fence_missing"
     elif row["claim_status"] != "ACTIVE" or row["reservation_state"] != "ACTIVE":
         reason = "active_claim_reservation_pair_missing"
     elif not row["policy_digest"] or row["policy_revision"] is None:
@@ -73,9 +79,6 @@ def plan_orphan_claim(
         reason = "original_claim_or_window_not_expired"
     elif row["run_id"] is None:
         reason = "task_run_binding_missing"
-    elif (not isinstance(row["owner"], str) or not row["owner"].strip()
-          or type(row["epoch"]) is not int or row["epoch"] < 1):
-        reason = "original_claim_fence_missing"
     elif (not isinstance(row["lease_owner"], str) or not row["lease_owner"].strip()
           or type(row["lease_epoch"]) is not int or row["lease_epoch"] < 1):
         reason = "original_run_lease_fence_missing"

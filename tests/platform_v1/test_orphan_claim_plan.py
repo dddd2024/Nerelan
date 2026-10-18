@@ -98,7 +98,8 @@ def test_dispatch_bookkeeping_is_never_a_terminal_receipt(subject, kind):
     ("UPDATE durable_runs SET lease_owner=''", "original_run_lease_fence_missing"),
     ("UPDATE durable_runs SET lease_epoch=0", "original_run_lease_fence_missing"),
     ("UPDATE platform_coordinator_claims SET owner=''", "original_claim_fence_missing"),
-    ("UPDATE platform_coordinator_claims SET epoch=0", "active_claim_reservation_pair_missing"),
+    ("UPDATE platform_coordinator_claims SET epoch=0", "original_claim_fence_missing"),
+    ("UPDATE platform_coordinator_claims SET epoch=-1", "original_claim_fence_missing"),
     ("UPDATE durable_runs SET run_id='different'", "task_run_binding_missing"),
     ("UPDATE tasks SET status='RUNNING'", "task_not_terminal_candidate"),
 ])
