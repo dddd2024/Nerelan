@@ -64,13 +64,14 @@ def source(tmp_path, monkeypatch):
     return root, git("rev-parse", "HEAD")
 
 
-def native_factory(calls, *, value=2, command_helper_failure=False):
+def native_factory(calls, *, value=2, command_helper_failure=False, helper_setup_diagnostic=False):
     events = [
         {"type": "thread.started", "thread_id": "native-fixture-thread"},
         {"type": "turn.started"},
         *([{"type": "item.completed", "item": {
             "type": "command_execution", "command": "git rev-parse HEAD",
-            "status": "failed", "exit_code": -1,
+            **({"aggregated_output": "helper_unknown_error: setup refresh had errors"}
+               if helper_setup_diagnostic else {"status": "failed", "exit_code": -1}),
         }}] if command_helper_failure else []),
         {"type": "item.completed", "item": {"type": "agent_message", "text":
             "BLOCKED: command helper did not launch" if command_helper_failure
@@ -176,7 +177,8 @@ def test_real_http_native_task_freezes_base_and_preserves_executor_and_result(so
         host.stop()
 
 
-def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(source, tmp_path):
+@pytest.mark.parametrize("helper_setup_diagnostic", [False, True])
+def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(source, tmp_path, helper_setup_diagnostic):
     _, base = source
     store = TaskStore(str(tmp_path / "helper-failure.sqlite3"))
     control = PlatformControlStore(store)
@@ -202,7 +204,8 @@ def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(
     assert store.get_task(task_id).branch == base
     calls = []
     router = ExecutorRouter()
-    router.replace("codex", native_factory(calls, command_helper_failure=True))
+    router.replace("codex", native_factory(calls, command_helper_failure=True,
+                                         helper_setup_diagnostic=helper_setup_diagnostic))
     service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(models()),
         execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
     try:
