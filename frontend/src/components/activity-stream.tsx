@@ -61,7 +61,7 @@ function briefEvents(events: ActivityEvent[]): ActivityEvent[] {
   const notable = [...events].reverse().find((event) =>
     SIGNIFICANT_TYPES.has(event.type) ||
     /失败|阻塞|拒绝|异常|failed|blocked|denied|error/i.test(
-      event.description || event.title,
+      `${event.title} ${event.description}`,
     ),
   );
   // Only select observed events, preserving their original chronology and IDs.

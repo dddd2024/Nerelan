@@ -41,7 +41,7 @@ describe("three levels of truthful task activity", () => {
   it("brief mode keeps an earlier failure that recent chatter would otherwise hide", async () => {
     const user = userEvent.setup();
     const activity: ActivityEvent[] = [
-      { ...source[0], id: "early-failure", title: "工具调用失败", description: "Workspace access denied" },
+      { ...source[0], id: "early-failure", title: "工具调用失败", description: "Workspace unavailable" },
       ...source.slice(0, 3).map((event, i) => ({
         ...event, id: `later-${i}`, type: "EXECUTOR_PROGRESS" as const,
         title: "Codex activity", description: `Reading file ${i}`,
