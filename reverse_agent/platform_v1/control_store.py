@@ -1091,9 +1091,16 @@ class PlatformControlStore:
                             return sqlite3.SQLITE_DENY
                         return sqlite3.SQLITE_OK
                     self._conn.set_authorizer(deny_callback_tx)
+                    # INSERT OR ROLLBACK/trigger RAISE(ROLLBACK) can end SQLite's
+                    # transaction without an explicit COMMIT/ROLLBACK opcode.
+                    # Abort subsequent SQL VM instructions before they can
+                    # autocommit on the now-unprotected connection.
+                    self._conn.set_progress_handler(
+                        lambda: 0 if self._conn.in_transaction else 1, 1)
                     try:
                         _host_sql_admit(window_id)
                     finally:
+                        self._conn.set_progress_handler(None, 0)
                         self._conn.set_authorizer(None)
                     if not self._conn.in_transaction:
                         raise TaskStoreError("host_atomic_admission_committed_early")
@@ -1112,6 +1119,9 @@ class PlatformControlStore:
                     if len(links) != 1 or links[0]["status"] != "QUEUED":
                         raise TaskStoreError("host_atomic_task_binding_missing")
                     self.check_strict_task_admission(window_id, links[0]["task_id"])
+                    # A slow final binding check cannot extend the Owner window.
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
                 self._conn.commit()
             except BaseException as exc:
                 # Even KeyboardInterrupt/SystemExit from a host callback must

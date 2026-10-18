@@ -306,3 +306,89 @@ def test_host_callback_expiring_before_commit_rolls_back_all_writes(store):
     assert not db._conn.in_transaction
     assert control.list_windows() == ()
     assert db._conn.execute("SELECT name FROM sqlite_master WHERE name='test_slow'").fetchone() is None
+
+def test_callback_expiry_after_valid_goal_and_task_materialization(store, monkeypatch):
+    import time
+    db, control = store
+    goals, planned = _planned_goal(db, control, monkeypatch)
+    now = datetime.now(timezone.utc)
+    data = {**_payload(), "repositories": [planned.repository],
+            "expires_at": (now + timedelta(milliseconds=180)).isoformat()}
+
+    def slow_admission(window_id):
+        control.approve_goal(planned.id, expected_revision=planned.revision)
+        goals._launch(planned.id, expected_revision=planned.revision, window_id=window_id)
+        time.sleep(0.25)
+
+    with pytest.raises(TaskStoreError, match="host_atomic_window_expired"):
+        control.activate_window(data, confirmation="ACTIVATE",
+                                _host_expected_goal_id=planned.id,
+                                _host_sql_admit=slow_admission)
+    assert not db._conn.in_transaction
+    assert control.list_windows() == ()
+    assert control.get_goal(planned.id) == planned
+    assert control.list_goal_tasks(planned.id) == ()
+    assert db._conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 0
+
+
+def test_implicit_rollback_in_callback_cannot_escape_to_autocommit(store):
+    import sqlite3
+    db, control = store
+
+    def implicit_rollback(window_id):
+        db._conn.execute("CREATE TABLE rollback_probe (value TEXT)")
+        db._conn.execute(
+            "CREATE TRIGGER rollback_trigger BEFORE INSERT ON rollback_probe "
+            "BEGIN SELECT RAISE(ROLLBACK, 'rollback_requested'); END")
+        try:
+            db._conn.execute("INSERT INTO rollback_probe VALUES (?)", (window_id,))
+        except sqlite3.DatabaseError:
+            pass  # An unsafe callback could suppress the SQLite error.
+        # This MUST fail; a previous SQLite implicit ROLLBACK must never
+        # permit subsequent autocommitted writes in the same callback.
+        db._conn.execute("CREATE TABLE must_not_survive (value TEXT)")
+
+    with pytest.raises((TaskStoreError, sqlite3.DatabaseError)):
+        control.activate_window(_payload(), confirmation="ACTIVATE",
+                                _host_expected_goal_id="selected-goal",
+                                _host_sql_admit=implicit_rollback)
+    assert not db._conn.in_transaction
+    assert control.list_windows() == ()
+    assert db._conn.execute(
+        "SELECT name FROM sqlite_master WHERE name='must_not_survive'").fetchone() is None
+    assert db._conn.execute(
+        "SELECT name FROM sqlite_master WHERE name='rollback_probe'").fetchone() is None
+
+def test_host_window_expiring_while_waiting_for_sqlite_lock_denies(tmp_path):
+    import sqlite3
+    import time
+
+    db_path = str(tmp_path / "lock-expire.sqlite3")
+    db = TaskStore(db_path)
+    control = PlatformControlStore(db)
+    competing = sqlite3.connect(db_path, timeout=5)
+    competing.execute("BEGIN IMMEDIATE")
+    now = datetime.now(timezone.utc)
+    data = {**_payload(), "expires_at": (now + timedelta(milliseconds=180)).isoformat()}
+
+    def wait_then_try():
+        try:
+            control.activate_window(data, confirmation="ACTIVATE",
+                                    _host_expected_goal_id="selected-goal",
+                                    _host_sql_admit=lambda _: pytest.fail("expired window callback invoked"))
+        except TaskStoreError as exc:
+            return str(exc)
+        return "unexpected_success"
+
+    try:
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            attempted = pool.submit(wait_then_try)
+            time.sleep(0.3)
+            competing.commit()
+            assert "host_atomic_window_expired" in attempted.result(timeout=6)
+        assert control.list_windows() == ()
+        assert not db._conn.in_transaction
+    finally:
+        competing.rollback()
+        competing.close()
+        db._conn.close()
