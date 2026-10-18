@@ -70,7 +70,7 @@ def test_transient_command_updates_do_not_fabricate_launch_failure():
     assert parser.finish().tool_launch_failed is False
 
 
-@pytest.mark.parametrize("fields", [{}, {"exit_code": None}, {"status": "completed", "exit_code": 0}])
+@pytest.mark.parametrize("fields", [{}, {"exit_code": None}, {"status": "completed"}, {"status": "failed", "exit_code": -1}])
 def test_helper_setup_diagnostic_without_launch_exit_code_is_sanitized(fields):
     seen = []
     parser = CodexJsonl(seen.append)
@@ -87,6 +87,22 @@ def test_helper_setup_diagnostic_without_launch_exit_code_is_sanitized(fields):
     assert seen[0]["diagnostic"] == "helper_unknown_error: setup refresh had errors"
     assert "private-workspace" not in repr(turn) + repr(seen)
     assert "fixture-private-token" not in repr(turn) + repr(seen)
+
+
+@pytest.mark.parametrize("exit_code", [0, 1, 2])
+def test_successfully_launched_command_may_print_helper_error_words(exit_code):
+    # Grep/search output can quote documentation about the helper itself.
+    seen = []
+    parser = CodexJsonl(seen.append)
+    status = "completed" if exit_code == 0 else "failed"
+    item = {"type": "command_execution", "command": "rg -n helper_unknown_error .",
+            "status": status, "exit_code": exit_code,
+            "aggregated_output": "docs/notes: helper_unknown_error: setup refresh had errors"}
+    parser.feed(wire(*START, {"type": "item.completed", "item": item}, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed and not turn.tool_launch_failed
+    assert seen[0]["status"] == status
+    assert "failure_classification" not in seen[0]
 
 
 @pytest.mark.parametrize("kind,item_type,output", [
