@@ -267,3 +267,42 @@ def test_host_window_rejects_python_only_calendar_formats(store, overrides):
         control.activate_window({**_payload(), **overrides}, confirmation="ACTIVATE",
                                 _host_expected_goal_id="persisted-goal", _host_sql_admit=lambda _: None)
     assert control.list_windows() == ()
+
+
+@pytest.mark.parametrize("illegal", ["commit", "rollback", "executescript"])
+def test_host_callback_cannot_commit_or_rollback_behind_store(store, illegal):
+    db, control = store
+    def escape_transaction(window_id):
+        db._conn.execute("CREATE TABLE IF NOT EXISTS test_escape (window_id TEXT)")
+        db._conn.execute("INSERT INTO test_escape VALUES (?)", (window_id,))
+        if illegal == "commit":
+            db._conn.commit()
+        elif illegal == "rollback":
+            db._conn.rollback()
+        else:
+            db._conn.executescript("INSERT INTO test_escape VALUES ('unexpected')")
+
+    with pytest.raises(TaskStoreError, match="window_activation_failed"):
+        control.activate_window(_payload(), confirmation="ACTIVATE",
+                                _host_expected_goal_id="persisted-goal",
+                                _host_sql_admit=escape_transaction)
+    assert not db._conn.in_transaction
+    assert control.list_windows() == ()
+    assert db._conn.execute("SELECT name FROM sqlite_master WHERE name='test_escape'").fetchone() is None
+
+
+def test_host_callback_expiring_before_commit_rolls_back_all_writes(store):
+    import time
+    db, control = store
+    now = datetime.now(timezone.utc)
+    data = {**_payload(), "expires_at": (now + timedelta(milliseconds=180)).isoformat()}
+    def slow(window_id):
+        db._conn.execute("CREATE TABLE IF NOT EXISTS test_slow (window_id TEXT)")
+        db._conn.execute("INSERT INTO test_slow VALUES (?)", (window_id,))
+        time.sleep(0.3)
+    with pytest.raises(TaskStoreError, match="host_atomic_window_expired"):
+        control.activate_window(data, confirmation="ACTIVATE",
+                                _host_expected_goal_id="persisted-goal", _host_sql_admit=slow)
+    assert not db._conn.in_transaction
+    assert control.list_windows() == ()
+    assert db._conn.execute("SELECT name FROM sqlite_master WHERE name='test_slow'").fetchone() is None

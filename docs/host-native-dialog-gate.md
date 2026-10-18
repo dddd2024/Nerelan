@@ -82,10 +82,14 @@ confirm the Owner identity, verify the one-use token, select/pin a Goal,
 materialize a Task, settle an orphan Claim, or dispatch a model. An authorized
 future caller must verify the immutable persisted Goal and verified host-only
 Owner selection *inside* this transaction, enforce the exact one-Task/30-minute/
-zero-retry envelope, persist an admission receipt, and then commit. It must
-not commit independently, invoke nontransactional filesystem operations,
-spawn an executor, or perform external effects in the callback. No claim
-that arbitrary callbacks can be rolled back after calling COMMIT is made.
+zero-retry envelope, persist an admission receipt, and then commit. During the callback SQLite transaction control (COMMIT / ROLLBACK,
+including executescript's implicit commit) is denied by an authorizer;
+this prevents accidental premature commits in a trusted callback. Expiry is
+checked again after acquiring the write lock and after callback return,
+before final COMMIT. A malicious in-process callback could remove this
+authorizer or perform external effects; this is NOT a sandbox or permission
+boundary for arbitrary callback code. The trusted caller must not invoke
+nondurable filesystem writes or spawn an executor.
 
 Provider-free tests assert common-commit, rollback, replay rejection,
 invalid trusted/delegated callback mixing, and two independent SQLite-host

@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
 import time
 import uuid
 from dataclasses import dataclass
@@ -996,6 +997,9 @@ class PlatformControlStore:
                 # BEGIN IMMEDIATE also serializes independent TaskStore hosts.
                 cur.execute("BEGIN IMMEDIATE")
                 if _host_sql_admit is not None:
+                    # Preflight before acquiring the DB lock is not authority.
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
                     sql_dates = cur.execute("SELECT julianday(?), julianday(?)",
                                             (str(payload["starts_at"]), str(payload["expires_at"]))).fetchone()
                     if sql_dates is None or sql_dates[0] is None or sql_dates[1] is None:
@@ -1079,9 +1083,22 @@ class PlatformControlStore:
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
                 if _host_sql_admit is not None:
-                    _host_sql_admit(window_id)
+                    # A trusted callback still must not COMMIT, ROLLBACK or run
+                    # executescript (which implicitly COMMITs). Enforce this
+                    # at SQLite's transaction authorizer, not after-the-fact.
+                    def deny_callback_tx(action, operation, _name, _database, _source):
+                        if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
+                            return sqlite3.SQLITE_DENY
+                        return sqlite3.SQLITE_OK
+                    self._conn.set_authorizer(deny_callback_tx)
+                    try:
+                        _host_sql_admit(window_id)
+                    finally:
+                        self._conn.set_authorizer(None)
                     if not self._conn.in_transaction:
                         raise TaskStoreError("host_atomic_admission_committed_early")
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
                     # The trusted callback must leave exactly one approved
                     # Goal and one queued task, not a window with no work.
                     bound = self.list_window_goals(window_id)
