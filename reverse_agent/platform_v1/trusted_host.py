@@ -58,6 +58,7 @@ from .goal_service import GoalService
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
 from .local_client_session import LocalClientSession
+from .remote_jobs import configured_broker
 
 
 class CombinedTrustedHost:
@@ -163,6 +164,7 @@ class CombinedTrustedHost:
         # until the separately governed guard and native bootstrap are wired.
         self._local_client_session = local_client_session or LocalClientSession()
         self._trusted_client = None
+        self._remote_job_broker = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
@@ -696,11 +698,17 @@ class CombinedTrustedHost:
                 self._started_servers.append(server)
             if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
+            self._remote_job_broker = configured_broker()
+            if self._remote_job_broker is not None:
+                self._remote_job_broker.start()
         except BaseException:
             self._cleanup_runtime_resources(close_account_auth=True)
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        if self._remote_job_broker is not None:
+            self._remote_job_broker.stop()
+            self._remote_job_broker = None
         self._local_client_session.revoke()
         if self._trusted_client is not None:
             try:
