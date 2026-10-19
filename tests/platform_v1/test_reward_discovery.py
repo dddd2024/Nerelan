@@ -127,3 +127,39 @@ def test_explicit_no_claim_or_credit_grant_fields():
     r = result(opted_in={KEY})
     assert "api_key" not in r and "credited_units" not in r
     assert r["claim_performed"] is False
+
+
+
+def test_unhashable_claim_method_never_crashes_or_requests_optin():
+    for method in (["bad"], {"method": "OFFICIAL_API"}):
+        r = result(p(claim_method=method), opted_in={KEY})
+        assert r["state"] == "UNKNOWN" and r["action"] == "DISCOVER_ONLY"
+
+
+def test_unhashable_account_identifiers_ignored_without_crashing():
+    invalid = (
+        RewardAccount(["bad"], "ownerref_01123", eligible=True),
+        RewardAccount("service", {"bad": "identity"}, eligible=True),
+    )
+    r = discover_reward_needs([*invalid, ACCOUNT], [p()], now=NOW)
+    assert len(r) == 1 and r[0]["state"] == "OPT_IN_REQUIRED"
+
+
+def test_duplicate_account_eligibility_conflict_is_order_independent():
+    conflicting = replace(ACCOUNT, eligible=False)
+    for accounts in ([ACCOUNT, conflicting], [conflicting, ACCOUNT]):
+        r = discover_reward_needs(accounts, [p()], now=NOW, opted_in={KEY})
+        assert len(r) == 1
+        assert r[0]["state"] == "UNKNOWN"
+        assert r[0]["reason"] == "conflicting_account_eligibility"
+
+
+def test_provider_wide_no_rewards_conflicts_with_separately_named_daily():
+    programs = [
+        p(), p(program_id="no-reward", kind="NO_REWARD_PROGRAM"),
+    ]
+    for order in (programs, list(reversed(programs))):
+        records = discover_reward_needs([ACCOUNT], order, now=NOW, opted_in={KEY})
+        assert len(records) == 2
+        assert {x["state"] for x in records} == {"UNKNOWN"}
+        assert {x["reason"] for x in records} == {"provider_wide_no_reward_conflict"}

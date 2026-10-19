@@ -56,7 +56,9 @@ def _valid(p: RewardProgram, now: datetime) -> bool:
         url = urlsplit(p.evidence_url)
         t, expiry = _utc(p.verified_at), _utc(p.expires_at)
         return (
-            p.kind in KINDS and p.source_kind in SOURCE_KINDS
+            isinstance(p.kind, str) and p.kind in KINDS
+            and isinstance(p.source_kind, str) and p.source_kind in SOURCE_KINDS
+            and (p.claim_method is None or isinstance(p.claim_method, str))
             and p.evidence_verified is True
             and bool(_ID.fullmatch(p.provider_id)) and bool(_ID.fullmatch(p.program_id))
             and url.scheme == "https" and bool(url.hostname)
@@ -86,27 +88,45 @@ def discover_reward_needs(
                 and isinstance(p.provider_id, str) and _ID.fullmatch(p.provider_id)
                 and isinstance(p.program_id, str) and _ID.fullmatch(p.program_id)):
             program_map.setdefault(p.provider_id, {}).setdefault(p.program_id, []).append(p)
-    seen: set[tuple[str, str]] = set()
-    results = []
+    # Validate identities before hashing, and compare every duplicate account
+    # record so a caller cannot select eligibility simply by input ordering.
+    account_map: dict[tuple[str, str], RewardAccount] = {}
+    account_conflicts: set[tuple[str, str]] = set()
     for account in accounts:
         if not isinstance(account, RewardAccount):
             continue
-        key = (account.provider_id, account.opaque_account_ref)
-        if key in seen:
-            continue
-        seen.add(key)
-        if (not isinstance(account.provider_id, str) or not _ID.fullmatch(account.provider_id)
+        if (not isinstance(account.provider_id, str)
+                or not _ID.fullmatch(account.provider_id)
                 or not isinstance(account.opaque_account_ref, str)
                 or not _ACCOUNT.fullmatch(account.opaque_account_ref)):
             continue  # avoid echoing account PII/tokens as opaque refs
+        key = (account.provider_id, account.opaque_account_ref)
+        existing = account_map.setdefault(key, account)
+        if existing.eligible != account.eligible:
+            account_conflicts.add(key)
+
+    results = []
+    for key, account in account_map.items():
         matching = program_map.get(account.provider_id, {})
+        # NO_REWARD_PROGRAM is a provider-wide claim. A different program ID
+        # must never bypass that contradiction to become AUTO_ELIGIBLE.
+        has_no_reward = any(p.kind == "NO_REWARD_PROGRAM"
+                            for versions in matching.values() for p in versions
+                            if isinstance(p.kind, str))
+        has_other = any(p.kind != "NO_REWARD_PROGRAM"
+                        for versions in matching.values() for p in versions
+                        if isinstance(p.kind, str))
+        provider_conflict = has_no_reward and has_other
         if not matching:
             matching = {"": []}
         for program_id, candidates in sorted(matching.items()):
             p = candidates[0] if candidates else None
             kind = p.kind if p else "UNKNOWN"
             state, reason, action = "UNKNOWN", "unverified_reward_program", "DISCOVER_ONLY"
-            if p and len(candidates) == 1 and _valid(p, now):
+            if key in account_conflicts or provider_conflict:
+                reason = ("conflicting_account_eligibility" if key in account_conflicts
+                          else "provider_wide_no_reward_conflict")
+            elif p and len(candidates) == 1 and _valid(p, now):
                 if p.active is False:
                     state, reason, action = "NOT_REQUIRED", "inactive", "NONE"
                 elif p.active is not True:
