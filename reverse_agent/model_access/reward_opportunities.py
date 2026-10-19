@@ -17,8 +17,11 @@ _PROVIDER_HINTS = {
     "trae": ("TRAE Work", "DAILY_CHECK_IN", "VERIFY_FIRST_PARTY_UI", _TRae_URL),
     "traework": ("TRAE Work", "DAILY_CHECK_IN", "VERIFY_FIRST_PARTY_UI", _TRae_URL),
     "trae-work": ("TRAE Work", "DAILY_CHECK_IN", "VERIFY_FIRST_PARTY_UI", _TRae_URL),
-    "workbuddy": ("WorkBuddy", "ACTIVITY_REWARD_AUTO", "NO_CHECK_IN", _WORKBUDDY_URL),
-    "codebuddy": ("WorkBuddy", "ACTIVITY_REWARD_AUTO", "NO_CHECK_IN", _WORKBUDDY_URL),
+    # International Buddy AI daily-active rewards are NOT the same program
+    # as WorkBuddy mainland. The latter stays unknown without verified rules.
+    "workbuddy-ai": ("WorkBuddy International", "ACTIVITY_REWARD_AUTO", "NO_CHECK_IN", _WORKBUDDY_URL),
+    "workbuddy": ("WorkBuddy", "UNKNOWN", "VERIFY_FIRST_PARTY_UI", None),
+    "codebuddy": ("CodeBuddy", "UNKNOWN", "VERIFY_FIRST_PARTY_UI", None),
     "codex": ("Codex", "PASSIVE_QUOTA_RESET", "NO_CHECK_IN", None),
     "claude": ("Claude", "PASSIVE_QUOTA_RESET", "NO_CHECK_IN", None),
 }
@@ -54,10 +57,18 @@ def discover_reward_opportunities(
     for resource in snapshot.get("resources", []) if isinstance(snapshot.get("resources"), list) else []:
         row = _as_mapping(resource)
         name = row.get("upstream_provider_id")
+        protocol = row.get("protocol_family")
         if isinstance(name, str) and name.strip():
             connection_id = row.get("connection_id")
+            provider = name.lower().strip()
+            # A bare openai/anthropic provider is not necessarily a native
+            # subscription. Only explicitly identified CLI sessions qualify.
+            if provider == "openai" and protocol == "codex-cli":
+                provider = "codex"
+            elif provider == "anthropic" and protocol == "claude-code-cli":
+                provider = "claude"
             if isinstance(connection_id, str) and connection_id:
-                sources.append(("model_connection", name.lower().strip(), connection_id))
+                sources.append(("model_connection", provider, connection_id))
     magpie = _as_mapping(_as_mapping(snapshot.get("external_sources")).get("magpie"))
     if magpie.get("status") == "available":
         for entry in magpie.get("accounts", []) if isinstance(magpie.get("accounts"), list) else []:

@@ -34,7 +34,7 @@ def test_magpie_account_is_only_an_unverified_candidate():
     data = discover_reward_opportunities({
         "external_sources": {"magpie": {"status": "available", "accounts": [
             {"provider": "traework", "account_ref": "opaque12345678"},
-            {"provider": "workbuddy", "account_ref": "opaque24681357"},
+            {"provider": "workbuddy-ai", "account_ref": "opaque24681357"},
         ]}}
     })
     assert {r["kind"] for r in data["candidates"]} == {
@@ -46,8 +46,8 @@ def test_magpie_account_is_only_an_unverified_candidate():
 def test_running_workbuddy_is_not_evidence_of_login():
     data = discover_reward_opportunities({}, process_names=["WorkBuddy", "WorkBuddy"])
     assert len(data["candidates"]) == 1
-    assert data["candidates"][0]["kind"] == "ACTIVITY_REWARD_AUTO"
-    assert data["candidates"][0]["action"] == "NO_CHECK_IN"
+    assert data["candidates"][0]["kind"] == "UNKNOWN"
+    assert data["candidates"][0]["action"] == "VERIFY_FIRST_PARTY_UI"
     assert data["candidates"][0]["account_verified"] is False
 
 
@@ -65,6 +65,30 @@ def test_unknown_or_malformed_providers_are_ignored_without_false_claims():
             {}, {"provider": "traework", "account_ref": ["bad"]}]}},
     }, process_names=[None, "magpie", "trae-work-lookalike"])
     assert data["candidates"] == [] and data["actual_claims"] == 0
+
+
+def test_workbuddy_international_and_mainland_are_distinct():
+    rows = discover_reward_opportunities({"external_sources": {"magpie": {
+        "status": "available", "accounts": [
+            {"provider": "workbuddy", "account_ref": "workbuddy_cn_01"},
+            {"provider": "workbuddy-ai", "account_ref": "workbuddy_intl_01"},
+        ]}}})["candidates"]
+    assert [r["kind"] for r in rows] == ["UNKNOWN", "ACTIVITY_REWARD_AUTO"]
+    assert rows[0]["action"] == "VERIFY_FIRST_PARTY_UI"
+    assert rows[1]["action"] == "NO_CHECK_IN"
+
+
+def test_native_cli_upstream_provider_and_protocol_are_matched():
+    rows = discover_reward_opportunities({"resources": [
+        {"upstream_provider_id": "openai", "protocol_family": "codex-cli",
+         "connection_id": "codex-login-1"},
+        {"upstream_provider_id": "anthropic", "protocol_family": "claude-code-cli",
+         "connection_id": "claude-login-1"},
+        {"upstream_provider_id": "openai", "protocol_family": "openai-compatible",
+         "connection_id": "api-key-1"},
+    ]})["candidates"]
+    assert len(rows) == 2
+    assert all(r["kind"] == "PASSIVE_QUOTA_RESET" for r in rows)
 
 
 def test_passive_subscription_quota_is_not_signin():
