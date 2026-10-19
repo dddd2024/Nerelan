@@ -202,7 +202,7 @@ class CodexExecutor:
                  base_ref: str = "", codex_exe: str | None = None, timeout: float = 300,
                  sandbox: str = "workspace-write", parent_env=None, process_factory=None,
                  readiness_probe=None, lease_provider=None):
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 600:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
             raise ExecutorRuntimeError(self._e("timeout_invalid"))
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider

@@ -552,10 +552,9 @@ class _HeartbeatContext:
 
 # One agent turn may run this long. Free models are slow: 300 s timed out every free-model task
 # in the first real team runs. Trusted host configuration only (never a request field); it stays
-# below the coordinator's 15-minute claim lease, and native CLIs accept at most 600 s.
+# bounded at one hour. Nerelan enforces the deadline and renews the coordinator claim.
 DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 600
-MAX_EXECUTOR_TIMEOUT_SECONDS = 840
-NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS = 600
+MAX_EXECUTOR_TIMEOUT_SECONDS = 3600
 
 
 def executor_timeout_seconds() -> int:
@@ -2274,7 +2273,7 @@ class DurableExecutionService:
             _require_native_owner_execution_binding(self.store, task, native["binding_resolution"])
             if getattr(native.get("binding_resolution"), "relay_required", False) and self.lease_provider is not None:
                 native["lease_provider"] = self.lease_provider  # API-key model inside Claude Code
-            return {**native, "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
+            return {**native, "timeout": timeout}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:

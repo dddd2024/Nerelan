@@ -1360,6 +1360,29 @@ class PlatformControlStore:
                 pass
             raise TaskStoreError(f"coordinator_claim_failed:{exc}") from exc
 
+    def renew_claim(
+        self,
+        *,
+        window_id: str,
+        task_id: str,
+        owner: str,
+        epoch: int,
+        lease_ms: int,
+    ) -> bool:
+        """Extend only the caller's still-live admission claim, fenced by epoch."""
+        if lease_ms <= 0:
+            raise TaskStoreError("claim_lease_invalid")
+        with self._lock:
+            now_ms = _utc_now_ms()
+            cur = self._conn.execute(
+                "UPDATE platform_coordinator_claims "
+                "SET expires_at_ms = MAX(expires_at_ms, ?), updated_at = ? "
+                "WHERE window_id = ? AND task_id = ? AND owner = ? AND epoch = ? "
+                "AND status = 'ACTIVE' AND expires_at_ms > ?",
+                (now_ms + lease_ms, _utc_now(), window_id, task_id, owner, epoch, now_ms),
+            )
+            return cur.rowcount == 1
+
     def abandon_task_claim(
         self,
         *,
