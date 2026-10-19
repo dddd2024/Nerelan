@@ -185,6 +185,8 @@ def test_durable_observation_is_bounded_and_read_only(read_model) -> None:
         (0, "completed", "PASS"),
         (-1, "failed", "FAIL"),
         (7, "failed", "FAIL"),
+        (3221225477, "failed", "FAIL"),  # Windows 0xC0000005
+        (-1073741819, "failed", "FAIL"),  # Same NTSTATUS as signed int32
         (None, "completed", "UNKNOWN"),
     ],
 )

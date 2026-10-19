@@ -207,7 +207,7 @@ def _native_command_metadata(
     if phase not in {"item.started", "item.updated", "item.completed"}:
         return metadata
     raw_exit = nested.get("exit_code")
-    exit_code = raw_exit if type(raw_exit) is int and -100_000 <= raw_exit <= 100_000 else None
+    exit_code = raw_exit if type(raw_exit) is int and -(2 ** 31) <= raw_exit <= 0xFFFFFFFF else None
     if phase != "item.completed":
         status = "RUNNING"
     elif nested.get("status") == "failed" or (exit_code is not None and exit_code != 0):
