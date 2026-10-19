@@ -421,9 +421,27 @@ function Test-StackHealthy {
   return (Wait-ServiceReady -url "$FrontendUrl/" -attempts 8 -intervalMs 250)
 }
 
+function Resolve-TrustedClientMetadataPath {
+  # The actual TrustedHost writes its metadata under TASK_DB_DIR when that
+  # trusted override is set; dev-up's own PID log stays under repo runtime.
+  $dir = $script:runtimeDir
+  if (-not [string]::IsNullOrWhiteSpace($env:REVERSE_AGENT_TASK_DB_DIR)) {
+    # PowerShell's location need not update .NET's process cwd. Resolve using
+    # the real TrustedHost child cwd, including drive/root-relative paths.
+    $priorCwd = [Environment]::CurrentDirectory
+    try {
+      [Environment]::CurrentDirectory = $repoDir
+      $dir = [System.IO.Path]::GetFullPath($env:REVERSE_AGENT_TASK_DB_DIR)
+    } finally {
+      [Environment]::CurrentDirectory = $priorCwd
+    }
+  }
+  return (Join-Path $dir "trusted_host_meta.json")
+}
+
 function Test-TrustedClientReady {
   try {
-    $clientMeta = Get-Content -LiteralPath (Join-Path $script:runtimeDir "trusted_host_meta.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $clientMeta = Get-Content -LiteralPath (Resolve-TrustedClientMetadataPath) -Raw -Encoding UTF8 | ConvertFrom-Json
     if (-not $clientMeta.client_ui_enabled -or -not $clientMeta.client_ui_ready -or -not $clientMeta.client_process_pid) { return $false }
     $clientProcess = Get-Process -Id ([int]$clientMeta.client_process_pid) -ErrorAction Stop
     if ([string]$clientProcess.StartTime.ToUniversalTime().ToFileTimeUtc() -ne [string]$clientMeta.client_process_start_filetime) { return $false }
