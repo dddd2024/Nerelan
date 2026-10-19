@@ -406,6 +406,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "bindings"]:
                 self._send_json(HTTPStatus.OK, self.store.list_bindings_public())
                 return
+            if segments == ["api", "magpie"]:
+                self._send_json(HTTPStatus.OK, {"settings": self.store.get_magpie(), "runtime": self.store.magpie_status()})
+                return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.get_agent_roster_public())
                 return
@@ -414,7 +417,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
-                external = _magpie_external if magpie_enabled(os.environ) else None
+                config = self.store.get_magpie()
+                external = ((lambda: fetch_magpie_snapshot(config["base_url"])) if config["enabled"]
+                            else (_magpie_external if magpie_enabled(os.environ) else None))
                 mode = _resource_view_mode(self.path)
                 self._send_json(HTTPStatus.OK, build_resource_view(
                     self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
@@ -455,6 +460,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     self.store.get_connection_public(segments[2]),
                 )
+                return
+            if segments == ["api", "magpie"]:
+                self._send_json(HTTPStatus.OK, self.store.put_magpie(self._read_json()))
                 return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.put_agent_roster(self._read_json()))

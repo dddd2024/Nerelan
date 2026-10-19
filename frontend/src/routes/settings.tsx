@@ -1,3 +1,4 @@
+import { MagpieSettingsEditor } from "@/components/magpie-settings";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
 import { Link } from "react-router";
@@ -558,6 +559,7 @@ export function SettingsPage({ section = "all" }: { section?: "all" | "resources
             onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
+        <MagpieSettingsEditor />
         {section === "all" ? <ResourceOverview /> : null}
         {section === "all" ? <AgentTeamEditor bindings={bindings} /> : null}
       </div>
