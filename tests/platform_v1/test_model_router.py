@@ -14,22 +14,33 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 def candidate(ref, model, cost="free", executor="opencode", **extra):
     return dict(binding_id=ref, model_id=model, cost_class=cost, executor_id=executor,
-                enabled=True, **extra)
+                enabled=True, availability={"state": "AVAILABLE", "reason": "fixture"}, **extra)
+
+
+# Explicit fixture capability judgments; production has no name-based tier prior.
+FIXTURE_TIERS = {"gpt-6.1-sol": 5, "gpt-6-sol": 5, "gpt-6": 5, "claude-sonnet-4-6": 5,
+                 "opus": 5, "sonnet": 5, "kimi-k3": 4, "deepseek-v4-pro": 4,
+                 "glm-5.3": 3, "gemini-flash": 3, "flash-lite": 2, "gemini-flash-lite": 2}
+FIXTURE_TABLE = {model: {"tiers": {kind: tier for kind in ("code", "analysis", "writing", "review", "research_design")}}
+                 for model, tier in FIXTURE_TIERS.items()}
 
 
 def choose(candidates, **kwargs):
+    kwargs.setdefault("capability_table", FIXTURE_TABLE)
+    kwargs.setdefault("allow_paid", True)
+    if "profiles" not in kwargs:
+        kind = kwargs.get("kind", "code")
+        kwargs["profiles"] = {row["binding_id"]: {"task_buckets": {
+            f"{kind}:{FIXTURE_TIERS[row['model_id']]}": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}
+            for row in candidates if row["model_id"] in FIXTURE_TIERS}
     return select_model(candidates, difficulty=kwargs.pop("difficulty", 2),
                         kind=kwargs.pop("kind", "code"), **kwargs)
 
 
-@pytest.mark.parametrize("model,tier,unproven", [
-    ("gpt-6.1-sol", 5, False), ("claude-sonnet-4-6", 5, False),
-    ("kimi-k3", 4, False), ("deepseek-v4-pro", 4, False),
-    ("glm-5.3", 3, False), ("gemini-flash", 3, False),
-    ("gemini-flash-lite", 2, False), ("new-small", 2, True),
-])
-def test_priors(model, tier, unproven):
-    assert prior_tier(model) == (tier, unproven)
+@pytest.mark.parametrize("model", ["gpt-6.1-sol", "claude-sonnet-4-6", "kimi-k3", "deepseek-v4-pro",
+                                   "glm-5.3", "gemini-flash", "gemini-flash-lite", "new-small"])
+def test_priors(model):
+    assert prior_tier(model) == (2, True)
 
 
 def test_measurements_override_only_with_enough_kind_and_difficulty_samples():
@@ -144,13 +155,21 @@ def test_legacy_roles_map_to_difficulty(role, difficulty):
 
 def fixture_host(monkeypatch, tmp_path):
     from tests.platform_v1.test_agent_team import _models
-    monkeypatch.setattr("random.random", lambda: 1.)
+    import random
+    monkeypatch.setattr(random, "random", lambda: 1.)
     host = object.__new__(CombinedTrustedHost)
     host._store = _models(tmp_path)
+    (tmp_path / "model_capabilities.json").write_text(json.dumps({"version": 1, "models": FIXTURE_TABLE}))
+    monkeypatch.setattr(host, "_routing_availability", lambda *args, **kwargs: {"state": "AVAILABLE", "reason": "fixture"})
     monkeypatch.setattr(host, "_runnable_bindings", lambda: {"cheap", "mid", "strong"})
     monkeypatch.setattr(host, "_quota_check", lambda binding: None)
     monkeypatch.setattr(host, "_subscription_quotas", lambda: {})
-    monkeypatch.setattr(host, "_usage_profiles", lambda: {})
+    def measured_profiles():
+        return {row["binding_id"]: {"task_buckets": {
+            f"{kind}:{FIXTURE_TIERS[row['model_id']]}": {"attempts": 3, "success_rate": 1., "timeouts": 0}
+            for kind in ("code", "analysis", "writing", "review", "research_design")}}
+            for row in host._store.list_bindings_public() if row["model_id"] in FIXTURE_TIERS}
+    monkeypatch.setattr(host, "_usage_profiles", measured_profiles)
     return host
 
 
@@ -267,8 +286,9 @@ def test_unknown_quota_observations_do_not_block_routing(monkeypatch, tmp_path):
 
 def test_retry_compares_against_recorded_tier_before_new_failure_evidence(monkeypatch, tmp_path):
     host = fixture_host(monkeypatch, tmp_path)
-    monkeypatch.setattr(host, "_usage_profiles", lambda: {
-        "cheap": {"task_buckets": {"code:2": {"attempts": 3, "success_rate": 0, "timeouts": 3}}}})
+    profiles = host._usage_profiles()
+    profiles["cheap"] = {"task_buckets": {"code:2": {"attempts": 3, "success_rate": 0, "timeouts": 3}}}
+    monkeypatch.setattr(host, "_usage_profiles", lambda: profiles)
     result = host._resolve_task_model(PlannedTask("T001", "t", "i", difficulty=2),
                                       failed_binding="cheap", failed_tier=2)
     assert result["binding_ref"] == "strong" and result["tier"] > 2

@@ -7,8 +7,11 @@ its tier is one lower. Exploration uses an injected draw (no hidden randomness).
 from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
+import math
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
+from .routing_inputs import requirements, reset_decision
+import time
 
 KINDS = frozenset({"code", "analysis", "writing", "research_design", "review"})
 LEGACY_DIFFICULTY = {"simple": 2, "coder": 3, "complex": 4, "planner": 4, "reviewer": 4}
@@ -31,28 +34,14 @@ def task_traits(raw: Mapping[str, Any]) -> tuple[int, str]:
 
 
 def prior_tier(model: str) -> tuple[int, bool]:
-    """Bootstrap family table: flagship=5, strong open=4, flash=3, lite/unknown=2.
-
-    Match lite before flash; unknown families stay unproven until measured.
-    Provider prefixes and dated family suffixes do not affect these estimates.
-    """
-    model = model.lower()
-    if "flash-lite" in model:
-        return 2, False
-    for names, tier in ((("gpt-6", "opus", "sonnet"), 5),
-                        (("kimi-k3", "deepseek-v4-pro"), 4),
-                        (("glm-5.3", "flash"), 3)):
-        if any(name in model for name in names):
-            return tier, False
+    """Exact-id fallback carries no measured capability claim."""
     return 2, True
 
 
 def capability(model: str, profile: Mapping[str, Any], kind: str, difficulty: int) -> tuple[int, bool]:
-    bucket = profile.get("task_buckets", {}).get(f"{kind}:{difficulty}", {})
-    if bucket.get("attempts", 0) >= MIN_SAMPLES:
-        good = bucket.get("success_rate", 0) >= .8 and bucket.get("timeouts", 0) / bucket["attempts"] <= .2
-        return max(1, difficulty if good else difficulty - 1), False
-    return prior_tier(model)
+    from .routing_capabilities import tier_evidence
+    tier, unproven, _ = tier_evidence(model, profile, kind, difficulty)
+    return tier, unproven
 
 
 def model_identity(model: str) -> str:
@@ -60,11 +49,22 @@ def model_identity(model: str) -> str:
     return model.lower().rsplit("/", 1)[-1].removesuffix(":free").removesuffix("-free")
 
 
+class ModelSelectionError(ValueError):
+    def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = ()):
+        super().__init__(reason)
+        self.decision = {"reason": reason, "excluded_candidates": excluded[:10], "refusals": list(refusals)}
+
+
 def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, kind: str,
                  profiles: Mapping[str, Any] | None = None, role: str = "",
                  author_model: str = "", pin: str = "", failed_model: str = "",
                  failed_tier: int = 0, exploration_draw: float = 1.0,
-                 exploration_budget: float = .1) -> dict[str, Any]:
+                 exploration_budget: float = .1, context_need: int = 0,
+                 needs: Sequence[str] = (), overrides: Mapping[str, Any] | None = None,
+                 reset_signal: Mapping[str, Any] | None = None, now: float | None = None,
+                 reset_buffer: float = .03, refused_models: Sequence[str] = (),
+                 refusal_tier: int = 0, capability_table: Mapping[str, Any] | None = None,
+                 allow_paid: bool = False) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores are lexicographic: quota penalty, cost, negative success rate, median turn seconds.
@@ -73,40 +73,128 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     The injected uniform draw gives easy tasks a default 10% exploration rate.
     """
     task_traits({"difficulty": difficulty, "kind": kind})
-    ranked = []
+    context_need, needs = requirements({"context_need": context_need, "needs": needs})
+    content = "security_simulation" if "security_simulation" in needs else kind
+    now = time.time() if now is None else now
+    ranked, excluded, reset_observations = [], [], []
     for candidate in candidates:
-        if not candidate.get("enabled", True) or not candidate.get("runnable", True):
-            continue
-        if role == "planner" and candidate["executor_id"] not in {"codex", "claude_code"}:
-            continue
-        if (kind == "review" or role == "reviewer") and author_model and model_identity(candidate["model_id"]) == model_identity(author_model):
-            continue
+        profile = (profiles or {}).get(candidate["binding_id"], {})
+        override = (overrides or {}).get(candidate["binding_id"], {})
+        # Public metadata < measured evidence < explicit Owner values.
+        metadata = {**prior_characteristics(candidate["model_id"]),
+                    **{k: v for k, v in (candidate.get("metadata") or {}).items() if v is not None},
+                    **{k: v for k, v in profile.items() if v is not None}, **override}
+        window = metadata["context_window"]
+        if type(window) not in (int, float) or isinstance(window, float) and not math.isfinite(window) or window <= 0:
+            window = prior_characteristics(candidate["model_id"])["context_window"]
+        refusal = metadata.get("refusal_rates", {}).get(content)
+        refusal_risk = .25 if refusal is None else max(0., min(1., refusal))
         quota = candidate.get("quota") or {}
-        if quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
+        from .routing_capabilities import tier_evidence
+        tier, unproven, tier_source = tier_evidence(candidate["model_id"], profile, kind, difficulty, capability_table)
+        reset = reset_decision(reset_signal, now=now, buffer=reset_buffer,
+                               weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
+        if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
+            reset_observations.append({"binding_id": candidate["binding_id"], **reset})
+        reason = ""
+        endpoints = metadata.get("native_endpoints", ())
+        responses_only = endpoints and all(endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in endpoints)
+        if (not candidate.get("enabled", True) or not candidate.get("runnable", True)
+                or role == "planner" and candidate["executor_id"] not in {"codex", "claude_code"}
+                or responses_only and candidate["executor_id"] == "claude_code"):
+            reason = "executor_fitness"
+        elif (override.get("exclude") or difficulty > override.get("max_difficulty", 5)
+              or content in override.get("denied_content", ())
+              or ("allowed_content" in override and content not in override["allowed_content"])):
+            reason = "owner_override"
+        elif window * .7 < context_need:
+            reason = "context_window"
+        elif ("vision" in needs and "image" not in metadata.get("input_modalities", ())
+              or "tool_use" in needs and metadata.get("tool_use") is False
+              or "chinese" in needs and metadata.get("chinese") is False):
+            reason = "modality"
+        elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
+            reason = "quota_exhausted"
+        elif (candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription"
+              and reset["drain_target"] is not None and candidate.get("weekly_headroom") is not None
+              and candidate["weekly_headroom"] <= reset_buffer):
+            reason = "reset_buffer"
+        elif (candidate["executor_id"] == "codex" and reset["drain"]
+              and candidate.get("task_weekly_fraction") is not None
+              and candidate["weekly_headroom"] - candidate["task_weekly_fraction"] < reset_buffer):
+            reason = "reset_buffer"
+        elif (candidate["executor_id"] == "codex" and reset["drain"]
+              and candidate.get("task_short_fraction") is not None and candidate.get("short_headroom") is not None
+              and candidate["task_short_fraction"] > candidate["short_headroom"]):
+            reason = "short_window_capacity"
+        elif "security_simulation" in needs and refusal is not None and refusal >= .5:
+            reason = "refusal_rate"
+        elif (kind == "review" or role == "reviewer") and author_model and model_identity(candidate["model_id"]) == model_identity(author_model):
+            reason = "reviewer_is_author"
+        elif candidate.get("cost_class", "paid_api") == "paid_api" and not allow_paid:
+            reason = "paid_spend_disabled"
+        elif candidate.get("availability", {}).get("state") != "AVAILABLE":
+            reason = "availability:" + candidate.get("availability", {}).get("reason", "unverified")
+        elif model_identity(candidate["model_id"]) in {model_identity(m) for m in refused_models}:
+            reason = "model_refused"
+        elif unproven and difficulty >= 3:
+            reason = "calibration_required"
+        elif refused_models and tier < refusal_tier:
+            reason = "refusal_retry_tier"
+        if reason:
+            excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason})
             continue
         quota_penalty = int(quota.get("decision") in {"switch", "warn"})
-        profile = (profiles or {}).get(candidate["binding_id"], {})
-        tier, unproven = capability(candidate["model_id"], profile, kind, difficulty)
+        if (candidate["executor_id"] == "codex" and reset["drain"]
+                and quota.get("window") in {"weekly", "7d", "week"}):
+            quota_penalty = 0  # announced draining replaces the weekly pacing reserve
         bucket = profile.get("task_buckets", {}).get(f"{kind}:{difficulty}", profile)
         cost_class = candidate.get("cost_class", "paid_api")
-        headroom = max(.01, min(1., candidate.get("quota_headroom", 1.)))
+        observed_headroom = candidate.get("quota_headroom")
+        headroom = max(.01, min(1., observed_headroom)) if observed_headroom is not None else 1.
         cost = {"free": 0., "subscription": 1. + (1. - headroom), "paid_api": 3.}[cost_class]
+        base_cost = cost
+        if candidate["executor_id"] == "codex" and cost_class == "subscription" and reset["drain"]:
+            cost = 1.
+        reset["cost_adjustment"] = cost - base_cost
+        for entry in reset_observations:
+            if entry["binding_id"] == candidate["binding_id"]:
+                entry["cost_adjustment"] = reset["cost_adjustment"]
+        tool_penalty = 2 * (1 - metadata.get("tool_reliability", 1.)) if "tool_use" in needs else 0.
+        refusal_penalty = 2 * refusal_risk
+        context_bonus = min(.5, window / 2_000_000) if "long_context" in needs else 0.
+        latency_penalty = min(2., (override.get("median_ok_seconds", bucket.get("median_ok_seconds")) or 0) / 60) if "low_latency" in needs else 0.
+        availability_penalty = candidate.get("availability", {}).get("penalty", 0.)
+        adjusted = cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty - context_bonus
+        breakdown = {"base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
+                     "refusal_penalty": refusal_penalty, "context_bonus": context_bonus,
+                     "latency_penalty": latency_penalty, "reset_adjustment": cost - base_cost,
+                     "quota_pressure": 1. - headroom if observed_headroom is not None else None, "quota_penalty": quota_penalty}
         success = bucket.get("success_rate")
-        speed = bucket.get("median_ok_seconds")
-        tier_source = "measured" if bucket.get("attempts", 0) >= MIN_SAMPLES and profile.get(
-            "task_buckets", {}).get(f"{kind}:{difficulty}") else "prior"
-        ranked.append(dict(candidate, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
+        speed = override.get("median_ok_seconds", bucket.get("median_ok_seconds"))
+        characteristics = {key: metadata.get(key) for key in
+                           ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
+        characteristics["context_window"] = window
+        ranked.append(dict(candidate, context_window=window, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
-                           score=[quota_penalty, cost, -(success if success is not None else -1),
+                           reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
+                           score_breakdown=breakdown, refusal_risk=refusal_risk,
+                           score=[quota_penalty, adjusted, -(success if success is not None else -1),
                                   speed if speed is not None else float("inf")]))
     ranked.sort(key=lambda c: (*c["score"], c["binding_id"]))
     if not ranked:
-        raise ValueError("no_runnable_model")
+        error = ModelSelectionError("no_willing_model" if refused_models or "security_simulation" in needs else "no_runnable_model",
+                                    excluded=excluded, refusals=refused_models)
+        error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
+        raise error
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
-    if pin and pinned is None:
-        raise ValueError("pinned_model_unavailable")
+    if pin and pinned is None and not refused_models:
+        raise ModelSelectionError("pinned_model_unavailable", excluded=excluded)
     pool = ranked
-    if failed_model and not pinned:
+    if refused_models:
+        pool = sorted(pool, key=lambda c: (c["refusal_risk"], *c["score"], c["binding_id"]))
+        pinned = None  # a refusal never sends the task back to its pinned author
+    if failed_model and not pinned and not refused_models:
         distinct = [c for c in pool if model_identity(c["model_id"]) != model_identity(failed_model)]
         pool = distinct or pool
         higher = [c for c in pool if c["tier"] > failed_tier]
@@ -115,8 +203,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         else:
             same = [c for c in pool if c["tier"] == failed_tier]
             pool = same or [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
-    qualifying = [c for c in pool if c["tier"] >= difficulty]
     exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
+    # Evidence always outranks an unmeasured fallback outside bounded exploration.
+    measured_pool = [c for c in pool if c["tier_source"] == "measured" and c["tier"] >= difficulty]
+    if measured_pool and not refused_models:
+        pool = measured_pool
+    qualifying = [c for c in pool if c["tier"] >= difficulty]
     reason = "cheapest_qualifying"
     if pinned:
         chosen, reason = pinned, "pin"
@@ -126,7 +218,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         chosen = qualifying[0]
     else:
         chosen, reason = max(pool, key=lambda c: c["tier"]), "underpowered"
-    if failed_model and not pinned and reason != "underpowered":
+    if refused_models:
+        reason = "refusal_redispatch"
+    if failed_model and not pinned and reason != "underpowered" and not refused_models:
         reason = ("escalation_higher_tier" if chosen["tier"] > failed_tier else
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     # JSON-safe evidence: unknown speed is null, never Infinity.
@@ -137,8 +231,24 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if chosen not in top:
         top = [*top[:4], chosen]
     evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "tier", "tier_source", "unproven",
-                                            "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score")}
+                                            "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score", "score_breakdown", "refusal_risk", "characteristics", "quota_headroom", "reset")}
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],
-            "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,
-            "underpowered": chosen["tier"] < difficulty, "candidates": evidence}
+            "model_id": chosen["model_id"], "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,
+            "underpowered": chosen["tier"] < difficulty, "candidates": evidence,
+            "context_need": context_need, "needs": list(needs), "content_class": content,
+            "excluded_candidates": excluded[:10], "reset": chosen["reset"],
+            "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
+            "tier_source": chosen["tier_source"], "reset_observations": reset_observations,
+            "characteristics": chosen["characteristics"]}
+
+
+def prior_characteristics(model: str) -> dict[str, Any]:
+    """Conservative bootstrap windows, replaced by metadata/evidence/Owner values.
+
+    Unknown ids use 128k. The versioned exact-id table supplies other
+    conservative estimates, not guarantees. Vision is unknown by default.
+    """
+    from .routing_capabilities import PRIOR_MODELS
+    return {"context_window": 128_000, "input_modalities": ["text"],
+            **PRIOR_MODELS.get(model.lower().rsplit("/", 1)[-1], {})}

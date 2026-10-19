@@ -77,7 +77,7 @@ _METADATA_KEYS = frozenset({
     "execution_id", "path", "file", "validation_command_id",
     "validation_exit_code", "exit_code", "changed_file_count", "failure_classification",
     "waiting_reason", "checkpoint", "recovery_classification", "mutation_command_id",
-    "fixture_path", "binding_ref", "difficulty", "kind", "reason", "candidates",
+    "fixture_path", "binding_ref", "model_id", "excluded_candidates", "difficulty", "kind", "reason", "candidates",
 })
 
 
@@ -169,7 +169,8 @@ def _metadata(event: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(raw, Mapping):
         source = raw
     elif isinstance(raw, str):
-        if len(raw) > _MAX_METADATA_JSON:
+        limit = 65536 if event.get("type") in {"MODEL_SELECTED", "MODEL_SELECTION_FAILED"} else _MAX_METADATA_JSON
+        if len(raw) > limit:
             return {}
         try:
             decoded = json.loads(raw)
@@ -214,6 +215,8 @@ def _status_for_event(
     metadata: Mapping[str, Any],
     event_type: str = "",
 ) -> str:
+    if event_type == "MODEL_SELECTION_FAILED":
+        return "BLOCKED"
     if event_type == "QUEUE_CANCELLED":
         return "COMPLETED"
     explicit = _safe_text(metadata.get("status"), limit=32).upper()
@@ -234,6 +237,8 @@ def _status_for_event(
 
 
 def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
+    if event_type in {"MODEL_SELECTION_FAILED", "MODEL_REFUSED", "MODEL_UNAVAILABLE"}:
+        return "BLOCKED"
     if event_type == "QUEUE_CANCELLED":
         return "CHECKPOINT"
     explicit = _safe_text(
@@ -271,7 +276,7 @@ def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
 def _event_stage(
     event_type: str, category: str, metadata: Mapping[str, Any]
 ) -> str:
-    if event_type == "QUEUE_CANCELLED":
+    if event_type in {"MODEL_SELECTED", "MODEL_SELECTION_FAILED", "QUEUE_CANCELLED"}:
         return "PLAN"
     if category == "PLAN" or event_type == "DISCOVERED":
         return "PLAN"
@@ -313,7 +318,8 @@ def _activity_title(category: str) -> str:
 
 
 def _model_selection_description(metadata: Mapping[str, Any]) -> str:
-    summary = (f"{_safe_text(metadata.get('binding_ref'), limit=128)}: "
+    summary = (f"{_safe_text(metadata.get('model_id') or metadata.get('binding_ref'), limit=128)} "
+               f"[{_safe_text(metadata.get('binding_ref'), limit=128)}]: "
                f"{_safe_text(metadata.get('reason'), limit=64)} "
                f"(difficulty {_safe_int(metadata.get('difficulty'))}, "
                f"{_safe_text(metadata.get('kind'), limit=32)})")
@@ -334,6 +340,12 @@ def _model_selection_description(metadata: Mapping[str, Any]) -> str:
                     rows[-1] += " (" + ", ".join(metrics) + ")"
         if rows:
             summary += ". Candidates: " + "; ".join(rows)
+    exclusions = metadata.get("excluded_candidates")
+    if isinstance(exclusions, list):
+        rows = [f"{_safe_text(row.get('model_id'), limit=128)}: {_safe_text(row.get('filter'), limit=128)}"
+                for row in exclusions[:10] if isinstance(row, Mapping)]
+        if rows:
+            summary += ". Excluded: " + "; ".join(rows)
     return summary
 
 
@@ -390,7 +402,8 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
             if event_type == "QUEUE_CANCELLED"
             else "Model selected" if event_type == "MODEL_SELECTED" else _activity_title(category)
         ),
-        "description": _model_selection_description(metadata) if event_type == "MODEL_SELECTED" else "",
+        "description": (_model_selection_description(metadata) if event_type == "MODEL_SELECTED" else
+                        _safe_text(metadata.get("reason"), limit=512) if event_type == "MODEL_SELECTION_FAILED" else ""),
         "category": category,
         "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),

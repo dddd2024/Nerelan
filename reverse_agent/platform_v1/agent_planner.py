@@ -21,6 +21,7 @@ from typing import Any, Callable, Mapping
 
 from .functional_validation import _CATALOG as _CHECK_CATALOG
 from .model_router import task_traits
+from .routing_inputs import requirements
 from .opencode_executor import redact_secrets
 from .run_store import TaskStoreError
 
@@ -47,6 +48,9 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "You are the planner of a multi-agent software team. Read the repository in the current "
         "directory (read-only) and decompose the objective into a small set of concrete tasks. "
         "Assign every task difficulty (integer 1-5) and kind (code, analysis, writing, research_design, review). "
+        "Also estimate context_need (input tokens for files/data) and needs (a subset of long_context, "
+        "tool_use, vision, security_simulation, chinese, low_latency). security_simulation is only "
+        "Owner-authorized local/open-model research in the Owner lab, never third-party systems. "
         "Difficulty: 1 trivial edit/format; 2 small single-file change or short summary; "
         "3 normal feature/bug fix or data analysis; 4 multi-file design, subtle bug or experiment design; "
         "5 hard reasoning, architecture or research judgement.\n\n"
@@ -125,7 +129,7 @@ def extract_plan(text: str) -> dict[str, Any]:
     # Approved checks and predecessor artifacts let a chain build on earlier work; GoalService
     # validation still requires catalog profiles and an artifact from a declared dependency.
     allowed = {"id", "title", "instruction", "agent_role", "difficulty", "kind", "dependencies",
-               "validation_checks", "artifact_input"}
+               "validation_checks", "artifact_input", "context_need", "needs"}
     tasks = []
     for raw in plan["tasks"]:
         if not isinstance(raw, dict):
@@ -136,6 +140,7 @@ def extract_plan(text: str) -> dict[str, Any]:
         task = {key: raw[key] for key in allowed if key in raw}
         try:
             task["difficulty"], task["kind"] = task_traits(task)
+            task["context_need"], task["needs"] = requirements(task)
         except ValueError as exc:
             raise TaskStoreError(str(exc)) from exc
         if task.get("agent_role") == "reviewer" or task["kind"] == "review":

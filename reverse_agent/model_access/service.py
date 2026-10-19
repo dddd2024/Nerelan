@@ -291,6 +291,7 @@ def discover_connection_models(
     if not connection.enabled:
         return _discovery("disabled", "Connection is disabled")
     model_ids: list[str] = []
+    metadata = {}
     if connection.executor_provider_id in NATIVE_MODEL_CATALOG:
         model_ids = list(NATIVE_MODEL_CATALOG[connection.executor_provider_id])
     elif connection.auth_method in {"api_key", "none"}:
@@ -320,6 +321,10 @@ def discover_connection_models(
             value = row.get("id") if isinstance(row, dict) else None
             if isinstance(value, str) and _MODEL_ID_RE.fullmatch(value) and value not in model_ids:
                 model_ids.append(value)
+                from .magpie import parse_models
+                parsed = parse_models({"object": "list", "data": [row]})
+                if parsed:
+                    metadata[value] = parsed[0]
     else:
         return _discovery("unsupported_auth_method", "Listing models is not supported for this connection")
     bound: dict[str, list[dict[str, str]]] = {}
@@ -327,6 +332,7 @@ def discover_connection_models(
         if binding.get("connection_id") == connection_id:
             bound.setdefault(binding.get("model_id", ""), []).append(
                 {"binding_id": binding.get("binding_id", ""), "executor_id": binding.get("executor_id", "")})
+    store.record_model_catalog(connection_id, model_ids, metadata)
     return {**_discovery("discovered", f"{len(model_ids)} models available", ok=True), "models": model_ids,
             "bound": {model_id: bound[model_id] for model_id in model_ids if model_id in bound}}
 

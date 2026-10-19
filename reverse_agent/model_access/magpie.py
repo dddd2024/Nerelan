@@ -79,13 +79,21 @@ def parse_models(payload: Any) -> list[dict[str, Any]]:
         model_id = _text(item.get("id"), secrets)
         if model_id is None:
             continue
+        architecture = item.get("architecture") if isinstance(item.get("architecture"), dict) else {}
+        modalities = item.get("input_modalities", item.get("modalities", architecture.get("input_modalities", ["text"])))
+        top_provider = item.get("top_provider") if isinstance(item.get("top_provider"), dict) else {}
         result.append({
             "model_id": model_id,
             "provider": model_id.split("/", 1)[0] if "/" in model_id else _text(item.get("owned_by"), secrets),
             "display_name": _text(item.get("display_name"), secrets),
             "reasoning": item.get("reasoning") if isinstance(item.get("reasoning"), bool) else None,
-            "context_window": _number(item.get("context_window")),
-            "max_output_tokens": _number(item.get("max_output_tokens")),
+            "context_window": _number(item.get("context_window", item.get("context_length"))),
+            "max_output_tokens": _number(item.get("max_output_tokens", top_provider.get("max_completion_tokens"))),
+            "input_modalities": [m for m in modalities if isinstance(m, str) and m in {"text", "image", "audio", "video"}]
+                if isinstance(modalities, list) else ["text"],
+            "native_endpoints": [endpoint for endpoint in item.get("native_endpoints", [])
+                                 if isinstance(endpoint, str) and endpoint in {"/v1/responses", "/responses", "/v1/chat/completions", "/chat/completions", "responses", "chat/completions"}]
+                if isinstance(item.get("native_endpoints", []), list) else [],
             "is_group": "/" not in model_id,
         })
     return result

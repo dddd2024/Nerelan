@@ -7,7 +7,7 @@ truth.  Planning is deterministic and editable; it makes no model call.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import re
 import json
 import hashlib
@@ -26,6 +26,7 @@ from .functional_validation import (
 )
 from .quota_guard import LIMIT_HIT
 from .model_router import task_traits
+from .routing_inputs import requirements
 from .run_read_model import publication_projection
 from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
@@ -46,6 +47,8 @@ class PlannedTask:
     agent_role: str = ""
     difficulty: int = 3
     kind: str = "code"
+    context_need: int = 0
+    needs: tuple[str, ...] = ()
 
 
 AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
@@ -333,7 +336,18 @@ class GoalService:
                 if item.artifact_input:
                     source = indices[item.artifact_input["plan_task_id"]]
                     author_binding = resolve(source)[1]
-                decision = self.task_resolver(item, goal=goal, author_binding=author_binding)
+                    if not author_binding and decisions.get(source) is not None and not decisions[source].get("binding_ref"):
+                        decisions[seq] = {"reason": "review_author_unavailable", "author_plan_task_id": planned_tasks[source].id}
+                        resolved[seq] = ("opencode", "", "single")
+                        return resolved[seq]
+                try:
+                    decision = self.task_resolver(item, goal=replace(goal, window_id=window_id), author_binding=author_binding)
+                except TaskStoreError as exc:
+                    if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable"}:
+                        raise
+                    decisions[seq] = getattr(exc, "decision", {"reason": str(exc)})
+                    resolved[seq] = ("opencode", "", "single")
+                    return resolved[seq]
                 resolved[seq] = (decision["executor_kind"], decision["binding_ref"], "single")
                 decisions[seq] = decision
             else:
@@ -369,7 +383,10 @@ class GoalService:
                 orchestration_mode=orchestration_mode,
             )
             if decisions[seq] is not None:
-                self._record_model_selection(task, decisions[seq])
+                if not decisions[seq].get("binding_ref"):
+                    self.store.block_model_selection(task.id, decision=decisions[seq])
+                else:
+                    self._record_model_selection(task, decisions[seq])
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             if plan_task.validation_command_id:
@@ -389,9 +406,10 @@ class GoalService:
         current = self.control_store.get_goal(goal_id)
         if current.status == "RUNNING" and current.window_id == window_id:
             return current
-        return self.control_store.mark_goal_running(
-            goal.id, revision=goal.revision, window_id=window_id
-        )
+        running = self.control_store.mark_goal_running(goal.id, revision=goal.revision, window_id=window_id)
+        if any(decision is not None and not decision.get("binding_ref") for decision in decisions.values()):
+            return self.control_store.refresh_goal_status(goal.id)
+        return running
 
     def escalate_failed_tasks(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Retry FAILED agent_team tasks by measured tier (legacy resolvers use roles).
@@ -417,13 +435,19 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
+            refusal = failed.failure_classification == "MODEL_REFUSED"
+            unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            if not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
             if len(history) >= window.max_retries:
-                break  # escalations spend the window's retry budget
+                if refusal or unavailable:
+                    self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted",
+                        "attempt_classification": failed.failure_classification})
+                    self.control_store.refresh_goal_status(goal_id)
+                break  # routing retries also remain inside the Owner's window budget
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
@@ -442,15 +466,41 @@ class GoalService:
                 failed_tier = selected.get("tier")
                 if type(failed_tier) is not int or not 1 <= failed_tier <= 5:
                     failed_tier = None
+                refused_models = []
+                attempt_ids = [row["from_task_id"] for row in previous] + [failed.id]
+                for attempt_id in attempt_ids:
+                    attempt = self.store.get_task(attempt_id)
+                    events = self.store.get_events(attempt_id)
+                    if attempt.failure_classification != "MODEL_REFUSED" and not any(e.type == "MODEL_REFUSED" for e in events):
+                        continue
+                    for event in events:
+                        if event.type == "MODEL_SELECTED":
+                            model = event.metadata.get("model_id") or next((row.get("model_id")
+                                for row in event.metadata.get("candidates", ())
+                                if row.get("binding_id") == attempt.binding_ref), None)
+                            if model:
+                                refused_models.append(model)
                 try:
-                    decision = self.task_resolver(plan_task, goal=goal, failed_binding=failed.binding_ref,
-                                                  author_binding=author_binding, failed_tier=failed_tier)
+                    retry_args = {"refused_models": refused_models} if refused_models else {}
+                    decision = self.task_resolver(plan_task, goal=goal,
+                                                  failed_binding="" if refusal or refused_models or unavailable else failed.binding_ref,
+                                                  author_binding=author_binding, failed_tier=failed_tier if not unavailable else 0, **retry_args)
                 except TaskStoreError as exc:
+                    if refusal and str(exc) in {"no_willing_model", "pinned_model_unavailable", "no_runnable_model"}:
+                        self.store.block_refused_task(failed.id, refusals=refused_models, decision=getattr(exc, "decision", None))
+                        self.control_store.refresh_goal_status(goal_id)
+                        continue
+                    if unavailable:
+                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                        self.control_store.refresh_goal_status(goal_id)
+                        continue
                     self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
                                          title="Escalation model selection failed",
                                          description=str(exc), metadata={"reason": str(exc)})
                     continue
                 target = (role, decision["executor_kind"], decision["binding_ref"])
+            elif refusal:
+                continue  # legacy role-only routing has no refusal evidence
             elif quota_failure:
                 # The account was out of quota, not the agent out of skill: the same role moves to the
                 # stand-in the quota guard now picks, never up the ladder. No stand-in: stays BLOCKED.
@@ -742,16 +792,21 @@ class GoalService:
             raise TaskStoreError(f"unsupported_agent_role:{agent_role}")
         try:
             difficulty, kind = task_traits(raw)
+            context_need, needs = requirements(raw)
         except ValueError as exc:
             raise TaskStoreError(str(exc)) from exc
         if kind == "review" or agent_role == "reviewer":
             capability = "validate_task"
         return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command,
-                           agent_role, difficulty, kind)
+                           agent_role, difficulty, kind, context_need, needs)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
-        return f"[{goal.title}] {task.id} {task.title}\n\n{task.instruction}"
+        authorization = ("\n\nSecurity simulation scope: Owner-authorized research on locally hosted or open models "
+                         "in the Owner research environment. No third-party system is targeted. "
+                         "Perform only the authorized scope described below."
+                         if "security_simulation" in task.needs else "")
+        return f"[{goal.title}] {task.id} {task.title}{authorization}\n\n{task.instruction}"
 
     @staticmethod
     def _render_spec(goal: GoalRecord, criteria: Sequence[str]) -> str:
