@@ -91,6 +91,7 @@ class CombinedTrustedHost:
         claude_code_readiness_probe: Callable[[], str] | None = None,
         vault: Any = _PLATFORM_VAULT,
         local_client_session: LocalClientSession | None = None,
+        magpie_factory: Callable | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
@@ -111,6 +112,9 @@ class CombinedTrustedHost:
                 state_path=state_path,
                 vault=resolved_vault,
             )
+        from .magpie_launch import MagpieLaunch
+        self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
+        self._store.magpie_status = self._magpie.status
         self._task_store = task_store
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
@@ -538,6 +542,9 @@ class CombinedTrustedHost:
 
         class FreshExternalSessionBindingResolver:
             def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
+                binding_info = host._store.get_binding_public(binding_ref)
+                if not host._store.magpie_connection_runnable(binding_info["connection_id"]):
+                    raise BindingResolutionError("magpie_unreachable")
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
                 verdict = host._quota_check(binding) if binding else None
@@ -585,6 +592,7 @@ class CombinedTrustedHost:
     ) -> None:
         if self._started_servers:
             raise RuntimeError("trusted_host_already_started")
+        self._magpie.start()
         self._refresh_external_session_auth(True)
 
         # Startup reconciliation: find expired durable runs, mark stale
@@ -679,6 +687,7 @@ class CombinedTrustedHost:
                 publication_controller=self._publication_controller,
                 coordinator=self._coordinator,
                 local_client_session=self._local_client_session,
+                magpie_status=self._magpie.status,
             )
             self._task_server = ThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
@@ -701,6 +710,7 @@ class CombinedTrustedHost:
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        self._magpie.stop()
         self._local_client_session.revoke()
         if self._trusted_client is not None:
             try:

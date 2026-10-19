@@ -87,7 +87,13 @@ export interface BindModelsResult {
   reused: string[];
 }
 
+export interface MagpieSettings { enabled: boolean; executable: string; base_url: string }
+export interface MagpieRuntime { status: string; reason: string; last_probe_at: string | null; model_count: number }
+export interface MagpieState { settings: MagpieSettings; runtime: MagpieRuntime }
+
 export interface ModelControlClient {
+  getMagpie(): Promise<MagpieState>;
+  saveMagpie(settings: MagpieSettings): Promise<MagpieSettings>;
   listProfiles(): Promise<ModelProfile[]>;
   upsertProfile(input: ModelProfileInput): Promise<ModelProfile>;
   deleteProfile(profileId: string): Promise<void>;
@@ -342,6 +348,14 @@ export function createHttpModelControlClient(
   const resourcesUrl = `${baseUrl}/resources`;
 
   return {
+    async getMagpie() {
+      return await requestJson(`${baseUrl}/magpie`) as MagpieState;
+    },
+    async saveMagpie(settings) {
+      return await requestJson(`${baseUrl}/magpie`, {
+        method: "PUT", body: JSON.stringify(settings),
+      }) as MagpieSettings;
+    },
     async listProfiles() {
       const payload = await requestJson(profilesUrl);
       const values = Array.isArray(payload)
@@ -564,6 +578,7 @@ export function createHttpModelControlClient(
 export function createMockModelControlClient(
   initialProfiles: ModelProfile[] = DEFAULT_MOCK_PROFILES,
 ): ModelControlClient {
+  let magpie: MagpieSettings = { enabled: false, executable: "", base_url: "http://127.0.0.1:3425" };
   let profiles = initialProfiles.map((profile) =>
     ModelProfileSchema.parse(structuredClone(profile)),
   );
@@ -600,6 +615,15 @@ export function createMockModelControlClient(
   }
 
   return {
+    async getMagpie() {
+      return { settings: structuredClone(magpie), runtime: {
+        status: "MAGPIE_DISABLED", reason: "mock_mode", last_probe_at: null, model_count: 0,
+      } };
+    },
+    async saveMagpie(settings) {
+      magpie = structuredClone(settings);
+      return structuredClone(magpie);
+    },
     async listProfiles() {
       return structuredClone(profiles);
     },
