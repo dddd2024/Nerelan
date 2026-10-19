@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from reverse_agent.platform_v1.codex_executor import CodexExecutor, _task_temp_env
+from reverse_agent.platform_v1.codex_executor import CodexExecutor, _task_temp_env, _release_owned_task_temp
 from reverse_agent.platform_v1.claude_executor import ClaudeCodeExecutor
 from reverse_agent.platform_v1.opencode_executor import RoleContext, _collect_product_diff
 from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
@@ -91,6 +91,51 @@ def test_real_child_scoped_temp_and_product_detection(repository, tmp_path, kind
         assert result.failure_classification == executor._e("no_product_changes")
     assert parent == original
     assert {k: os.environ.get(k) for k in host_temp} == host_temp
+    assert not (prepared.worktree / ".nt").exists()
+    # A completed child must release only its owned scratch: another native
+    # attempt in this identical workspace should not be blocked by stale .nt.
+    result_again = executor.execute_role_prepared(prepared, store,
+        role_context=RoleContext("executor", "native-temp", prepared.worktree))
+    assert len(launched) == 2
+    assert result_again.success == edit
+    assert result_again.process_exit_code == 0
+    assert not (prepared.worktree / ".nt").exists()
+
+
+
+def test_failed_native_launch_releases_owned_scratch_for_new_attempt(repository, tmp_path):
+    repo, base = repository
+    calls = []
+    def fail_start(argv, **kwargs):
+        calls.append(True)
+        raise OSError("fixture spawn failure")
+    executor = CodexExecutor(model_id="fixture", repo_dir=str(repo), base_ref=base,
+                             codex_exe=sys.executable, readiness_probe=lambda _: "managed_login_ready",
+                             process_factory=fail_start, timeout=10)
+    prepared = executor.prepare_worktree_once("failed-launch", tmp_path / "workspaces")
+    task = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="fixture"))
+    role = RoleContext("executor", "failed-launch", prepared.worktree)
+    outcome = executor.execute_role_prepared(prepared, task, role_context=role)
+    assert not outcome.success
+    assert outcome.failure_classification == "codex_process_start_failed"
+    assert calls == [True]
+    assert not (prepared.worktree / ".nt").exists()
+
+    events = [
+        {"type": "thread.started", "thread_id": "fixture"},
+        {"type": "turn.started"},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "done"}},
+        {"type": "turn.completed"},
+    ]
+    script = ("import sys; from pathlib import Path; sys.stdin.read(); "
+              "Path('product.txt').write_text('success'); print(" +
+              repr("\n".join(json.dumps(e) for e in events)) + ")")
+    executor._process_factory = lambda argv, **kwargs: subprocess.Popen(
+        [sys.executable, "-c", script], **kwargs)
+    second = executor.execute_role_prepared(prepared, task, role_context=role)
+    assert second.success
+    assert [row["path"] for row in second.changed_files] == ["product.txt"]
+    assert not (prepared.worktree / ".nt").exists()
 
 
 def test_plain_directory_for_read_only_planner_gets_scoped_temp(tmp_path):
@@ -110,6 +155,22 @@ def test_broken_git_marker_never_downgrades_index_failure(tmp_path):
     with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
         _task_temp_env(repo, {})
     assert not (repo / ".nt").exists()
+
+
+def test_owned_scratch_cleanup_refuses_child_created_symlink(repository, tmp_path):
+    root, _ = repository
+    scratch = Path(_task_temp_env(root, {})["TEMP"])
+    outside = tmp_path / "outside-data"
+    outside.mkdir()
+    (outside / "sensitive").write_text("preserve")
+    try:
+        (scratch / "unsafe-link").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink privilege unavailable")
+    with pytest.raises(ExecutorRuntimeError, match="native_task_temp_cleanup_failed"):
+        _release_owned_task_temp(root)
+    assert (outside / "sensitive").read_text() == "preserve"
+    assert scratch.is_dir()
 
 
 @pytest.mark.parametrize("entry", ["directory", "file", "tracked", "symlink", "junction"])
