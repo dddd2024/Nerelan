@@ -16,12 +16,16 @@ Owner-written JSON profile. Invalid profiles leave the broker disabled.
   "gpu_devices": ["0"],
   "max_upload_bytes": 52428800,
   "max_download_bytes": 524288000,
-  "poll_seconds": 30
+  "poll_seconds": 30,
+  "termination_grace_seconds": 30
 }
 ```
 
 `remote_root` must be `wjc` or a relative path beneath `wjc/`. Absolute paths,
-`..`, backslashes and symlinked remote directories are refused. All research
+`..`, backslashes and symlinked remote directories are refused. This is
+fail-closed: a server where the home directory (`~`), `~/wjc`, or any parent
+component is a symlink is refused, even when its resolved target is otherwise
+inside the intended tree. Use a server/account with real directories. All research
 working directories, experiment files and raw data on the server must remain
 under `~/wjc`. Commands start in `~/<remote_root>/<job_id>/`: **write outputs,
 temporary files and data only inside that job directory**. Use relative paths
@@ -56,9 +60,10 @@ All seven fields are required; unknown fields are rejected. The id must match
 the outbox directory and `[a-z0-9][a-z0-9._-]{2,63}`. Commands contain 1–4000
 characters. Uploads must be regular files inside this directory, without
 symlinks, and their combined size must fit the profile. Output globs must be
-relative and contain no `..`. The wall time cannot exceed the profile limit.
+relative and contain no `..`. File names and output patterns containing newlines
+or other control characters are rejected. The wall time cannot exceed the profile limit.
 Broker control paths (`job.json`, `launch.json`, `pid`, `exit_code`, the two
-logs and `.nerelan-results`) cannot be uploaded as experiment files.
+logs, `launch.tmp` and `.nerelan-results`) cannot be uploaded as experiment files.
 
 `gpu: true` exports the profile's devices in `CUDA_VISIBLE_DEVICES`; false
 exports an empty value. Requests queue in discovery order when slots are full.
@@ -82,9 +87,17 @@ and manifest. Treat that result as evidence from a different request.
 Normal states are `PREPARED`, `UPLOADED`, `LAUNCHED`, `RUNNING`, a terminal
 outcome (`SUCCEEDED`, `FAILED`, `TIMED_OUT` or `LOST`), then `RESULT_COLLECTED`.
 `outcome` retains the terminal result after collection. `LOST` means there is no
-live recorded process and no exit code. Timeout sends TERM to the process group;
-it does not prove every descendant has exited. SSH failures preserve state and
-back off up to ten minutes. A lost launch response is reconciled using the
+trusted live process identity. Launch records the Linux `/proc/<pid>/stat`
+start time and boot id. A mismatched identity or a permission failure becomes
+`LOST`; the broker never signals a mismatched identity. Legacy launch markers
+without identity also become `LOST` and need Owner investigation.
+Timeout sends SIGTERM once, records the grace period in `launch.json`, then
+sends SIGKILL after `termination_grace_seconds` (default 30). The intermediate
+`TIMED_OUT_KILL_PENDING` state retains the concurrency slot until the group has
+no live members, including descendants surviving the leader. Processes that
+create a separate session/group are outside this group-based supervision.
+SSH failures and malformed replies preserve the affected job's state, record an
+error and back off up to ten minutes without aborting other jobs. A lost launch response is reconciled using the
 exclusive remote marker; an interrupted reservation can become `LOST`, never a
 second execution.
 
@@ -104,7 +117,40 @@ python -m reverse_agent.platform_v1.remote_jobs status --json
 python -m reverse_agent.platform_v1.remote_jobs tick
 ```
 
-The host runs a daemon tick loop and stops it during normal cleanup, waiting for
-an in-flight transport call to return (each transport call has a timeout).
+The host runs a daemon tick loop and stops it during normal cleanup, waiting
+at most one second for its worker. An in-flight transport call may finish in
+the daemon thread, but no further broker step starts after it returns. The
+worker retains the broker lock until it exits; restarting the same broker while
+that worker is alive is refused. Transport timeouts still bound abandoned calls.
 Manual ticks and the host share an OS-released local lock. Tests use a fake
 transport and make no network or SSH calls.
+
+
+## Owner-run real-server smoke (opt-in)
+
+After the Owner authorizes real-server execution, a supervisor runs:
+
+```text
+python -m reverse_agent.platform_v1.remote_jobs smoke --profile /path/to/owner-profile.json
+```
+
+This command is never run in CI or tests. It uses the configured SSH alias and
+remote root, with unique job ids and an isolated local evidence/scan directory
+under the profile's local root. Stop the regular broker or otherwise reserve
+server capacity first: this isolated smoke does not share its concurrency count
+with existing receipts. The profile needs `max_wall_seconds >= 10` and a nonempty
+GPU device list. No packages are installed.
+
+The four cases check normal output collection, `gpu: true` device visibility,
+a two-second timeout whose Python process ignores SIGTERM, and recovery after
+moving the complete local receipt directory into a retained evidence archive.
+Recovery checks the original launch timestamp/digest and the recovered-marker
+history. GPU visibility checks the exported device list, not hardware execution
+or available GPU memory. Each observation has a bounded deadline; failures may
+leave a remote job needing Owner investigation. No remote artifacts are deleted.
+
+Inspect the printed evidence directory, `smoke-report.json`, receipts, histories,
+logs and manifests. Confirm the timeout reached `TIMED_OUT_KILL_PENDING` before
+`TIMED_OUT` and recovery reused the original launch. Record the supervisor's
+real-server findings separately: a passing CLI report or provider-free tests
+alone do not satisfy functional acceptance.

@@ -8,12 +8,17 @@ import os
 from pathlib import Path
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
+
 from types import SimpleNamespace
 
 import pytest
 
+from reverse_agent.platform_v1 import remote_jobs, trusted_host
 from reverse_agent.platform_v1.remote_jobs import (
     REMOTE_HELPER, RemoteJobBroker, RemoteJobProfile, SSHTransport, configured_broker, main,
 )
@@ -31,6 +36,13 @@ class FakeTransport:
         self.alive = True
         self.fail = None
         self.fail_after_launch = False
+        self.start_time = 123
+        self.boot_id = "fake-boot"
+        self.deny_signal = False
+        self.ignore_term = True
+        self.ignore_kill = False
+        self.leader_alive = True
+        self.deny_on_signal = None
 
     def run(self, argv, timeout):
         assert argv[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "lab"]
@@ -45,19 +57,43 @@ class FakeTransport:
         output = io.StringIO()
         previous = Path.cwd()
         def spawn(args, **kwargs):
+            self.alive = True
             self.launches.append((args, kwargs["env"]["CUDA_VISIBLE_DEVICES"], Path.cwd()))
             return SimpleNamespace(pid=4321)
         def kill(pid, sig):
             assert pid == 4321 and sig == 0
             if not self.alive:
                 raise ProcessLookupError()
+        read_text = Path.read_text
+        iterdir = Path.iterdir
+        def read(path, *args, **kwargs):
+            if path.as_posix() == "/proc/sys/kernel/random/boot_id":
+                return self.boot_id
+            if path.as_posix() in {"/proc/4321/stat", "/proc/4322/stat"}:
+                if not self.alive or (path.parent.name == "4321" and not self.leader_alive):
+                    raise FileNotFoundError()
+                return "4321 (fake (worker)) S 1 4321 4321 " + "0 " * 15 + str(self.start_time)
+            return read_text(path, *args, **kwargs)
+        def killpg(pid, sig):
+            assert pid == 4321
+            if self.deny_signal or self.deny_on_signal == sig:
+                raise PermissionError("fake permission denied")
+            if not self.alive:
+                raise ProcessLookupError()
+            if sig:
+                self.killed.append((pid, sig))
+                if (sig == signal.SIGKILL and not self.ignore_kill) or (sig == signal.SIGTERM and not self.ignore_term):
+                    self.alive = False
         try:
             with self.monkeypatch.context() as patch, redirect_stdout(output):
                 patch.setattr(Path, "home", classmethod(lambda cls: self.home))
                 patch.setattr(sys, "argv", ["-c", words[3]])
                 patch.setattr(subprocess, "Popen", spawn)
                 patch.setattr(os, "kill", kill)
-                patch.setattr(os, "killpg", lambda pid, sig: self.killed.append((pid, sig)), raising=False)
+                patch.setattr(os, "killpg", killpg, raising=False)
+                patch.setattr(signal, "SIGKILL", 9, raising=False)
+                patch.setattr(Path, "read_text", read)
+                patch.setattr(Path, "iterdir", lambda path: iter([Path("/proc/4321"), Path("/proc/4322")]) if path.as_posix() == "/proc" else iterdir(path))
                 exec(compile(words[2], "<fixed-remote-helper>", "exec"), {})
         except SystemExit as exc:
             if exc.code:
@@ -257,7 +293,7 @@ def test_remote_marker_without_local_receipt(setup, alive, expected):
     request(broker)
     job = remote(transport)
     job.mkdir(parents=True)
-    (job / "launch.json").write_text(json.dumps({"launched_at": 1000}))
+    (job / "launch.json").write_text(json.dumps({"launched_at": 1000, "pid": 4321, "start_time": 123, "boot_id": "fake-boot"}))
     (job / "pid").write_text("4321")
     transport.alive = alive
     broker.tick()
@@ -334,7 +370,7 @@ def test_remote_digest_mismatch_is_preserved_as_evidence(setup):
     request(broker)
     job = remote(transport)
     job.mkdir(parents=True)
-    (job / "launch.json").write_text(json.dumps({"launched_at": 1000, "request_digest": "another-request"}))
+    (job / "launch.json").write_text(json.dumps({"launched_at": 1000, "request_digest": "another-request", "pid": 4321, "start_time": 123, "boot_id": "fake-boot"}))
     (job / "exit_code").write_text("0")
     broker.tick()
     result = receipt(broker)
@@ -375,7 +411,18 @@ def test_fifo_concurrency_and_timeout_process_group(setup):
     now[0] += 11
     broker.tick()
     first = receipt(broker, "e001-first")
+    assert first["state"] == "TIMED_OUT_KILL_PENDING", first["history"]
+    assert len(transport.launches) == 1
+    marker = json.loads((remote(transport, "e001-first") / "launch.json").read_text())
+    assert marker["termination_grace_seconds"] == 30
+    now[0] += 29
+    broker.tick()
+    assert len(transport.killed) == 1
+    now[0] += 1
+    broker.tick()
+    first = receipt(broker, "e001-first")
     assert first["state"] == "RESULT_COLLECTED" and first["outcome"] == "TIMED_OUT"
+    assert [sig for _, sig in transport.killed] == [signal.SIGTERM, 9]
     assert transport.killed[0][0] == 4321
     assert len(transport.launches) == 2
 
@@ -502,7 +549,7 @@ def test_cli_status(setup, monkeypatch, capsys):
     broker, _, _ = setup
     request(broker, unknown=True)
     broker.tick()
-    monkeypatch.setattr("reverse_agent.platform_v1.remote_jobs.configured_broker", lambda: broker)
+    monkeypatch.setattr(remote_jobs, "configured_broker", lambda: broker)
     main(["status", "--json"])
     assert json.loads(capsys.readouterr().out)[0]["state"] == "REJECTED"
 
@@ -520,7 +567,197 @@ def test_host_broker_lifecycle(tmp_path, monkeypatch):
         host.stop()
     events = []
     fake = SimpleNamespace(start=lambda: events.append("start"), stop=lambda: events.append("stop"))
-    monkeypatch.setattr("reverse_agent.platform_v1.trusted_host.configured_broker", lambda: fake)
+    monkeypatch.setattr(trusted_host, "configured_broker", lambda: fake)
     host.start(model_control_port=0, task_api_port=0)
     host.stop()
     assert events == ["start", "stop"]
+
+
+@pytest.mark.parametrize("field", ["files", "outputs"])
+@pytest.mark.parametrize("character", ["\n", "\r", "\t", "\x1b", "\x7f", "\x85"])
+def test_control_characters_rejected(setup, field, character):
+    broker, transport, _ = setup
+    request(broker, **{field: ["bad" + character + "name"]})
+    broker.tick()
+    assert receipt(broker)["state"] == "REJECTED"
+    assert not transport.calls
+
+
+@pytest.mark.parametrize("change", ["start", "boot", "permission"])
+@pytest.mark.parametrize("pending", [False, True])
+def test_identity_mismatch_and_permission_never_signal(setup, change, pending):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    if pending:
+        now[0] += 11
+        broker.tick()
+    signals_before = list(transport.killed)
+    if change == "start":
+        transport.start_time += 1
+    elif change == "boot":
+        transport.boot_id = "rebooted"
+    else:
+        transport.deny_signal = True
+    now[0] += 11
+    broker.tick()
+    assert receipt(broker)["outcome"] == "LOST"
+    assert transport.killed == signals_before
+
+
+@pytest.mark.parametrize("operation", ["poll", "collect", "probe"])
+@pytest.mark.parametrize("reply", ["not json", "{}", "[]", '{"state": []}', '{"files": [{}], "logs": {}}'])
+def test_malformed_reply_isolated_with_backoff(setup, monkeypatch, operation, reply):
+    broker, transport, now = setup
+    request(broker, "e001-bad")
+    request(broker, "e002-good")
+    if operation != "probe":
+        broker.tick()
+    if operation == "collect":
+        (remote(transport, "e001-bad") / "exit_code").write_text("0")
+    transport.calls.clear()
+    original = transport.run
+    def run(argv, timeout):
+        data = json.loads(shlex.split(" ".join(argv[6:]))[3])
+        if data["op"] == operation and data["job_id"] == "e001-bad":
+            return 0, reply, ""
+        return original(argv, timeout)
+    monkeypatch.setattr(transport, "run", run)
+    broker.tick()
+    bad = receipt(broker, "e001-bad")
+    assert bad["errors"] == 1
+    assert bad["retry_at"] > now[0]
+    assert "error" in bad["history"][-1]["detail"]
+    # The next job is still probed even when the first job's slot is retained.
+    assert any(c["job_id"] == "e002-good" for c in transport.calls)
+    assert receipt(broker, "e002-good")["state"] == ("PREPARED" if operation == "poll" else "RUNNING")
+    broker.tick()
+    assert receipt(broker, "e001-bad")["errors"] == 1
+
+
+def test_stop_abandons_blocked_transport_and_prevents_restart(setup, monkeypatch):
+    broker, transport, _ = setup
+    request(broker)
+    entered, release = threading.Event(), threading.Event()
+    def run(argv, timeout):
+        entered.set()
+        assert release.wait(5)
+        return 0, '{"marker": false}', ""
+    monkeypatch.setattr(transport, "run", run)
+    broker.start()
+    assert entered.wait(2)
+    try:
+        started = time.monotonic()
+        broker.stop()
+        assert time.monotonic() - started < 2
+        assert broker._thread.is_alive()
+        with pytest.raises(RuntimeError):
+            broker.start()
+    finally:
+        release.set()
+        broker._thread.join(2)
+    assert not broker._thread.is_alive()
+    assert receipt(broker)["state"] == "PREPARED"
+    assert not transport.launches
+
+
+
+def test_timeout_tracks_descendants_and_waits_for_kill_completion(setup):
+    broker, transport, now = setup
+    request(broker)
+    request(broker, "e002-next")
+    broker.tick()
+    transport.leader_alive = False
+    transport.ignore_kill = True
+    now[0] += 11
+    broker.tick()
+    assert receipt(broker)["state"] == "TIMED_OUT_KILL_PENDING"
+    (remote(transport) / "exit_code").write_text("0")
+    now[0] += 30
+    restarted = RemoteJobBroker(broker.profile, transport, lambda: now[0])
+    restarted.tick()
+    assert receipt(broker)["state"] == "TIMED_OUT_KILL_PENDING"
+    assert [sig for _, sig in transport.killed] == [signal.SIGTERM, 9]
+    assert len(transport.launches) == 1
+    transport.alive = False
+    restarted.tick()
+    assert receipt(broker)["outcome"] == "TIMED_OUT"
+    assert len(transport.launches) == 2
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, 9])
+def test_permission_failure_during_timeout_signal_is_lost(setup, sig):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    now[0] += 11
+    if sig == 9:
+        broker.tick()
+        now[0] += 30
+    transport.deny_on_signal = sig
+    broker.tick()
+    assert receipt(broker)["outcome"] == "LOST"
+    assert receipt(broker)["state"] == "RESULT_COLLECTED"
+
+
+@pytest.mark.parametrize("component", ["home", "wjc"])
+def test_remote_symlinked_home_or_wjc_refused(setup, monkeypatch, component):
+    broker, transport, _ = setup
+    request(broker)
+    original = Path.is_symlink
+    target = transport.home if component == "home" else transport.home / "wjc"
+    monkeypatch.setattr(Path, "is_symlink", lambda path: path == target or original(path))
+    broker.tick()
+    assert not transport.launches
+    assert "symlink" in receipt(broker)["history"][-1]["detail"]
+
+
+@pytest.mark.parametrize("operation", ["upload", "download"])
+def test_stop_abandons_scp_at_persisted_step(setup, monkeypatch, operation):
+    broker, transport, _ = setup
+    request(broker)
+    if operation == "download":
+        broker.tick()
+        (remote(transport) / "metrics.csv").write_bytes(b"result")
+        (remote(transport) / "exit_code").write_text("0")
+    entered, release = threading.Event(), threading.Event()
+    original = getattr(transport, operation)
+    def blocked(*args):
+        entered.set()
+        assert release.wait(5)
+        original(*args)
+    monkeypatch.setattr(transport, operation, blocked)
+    broker.start()
+    assert entered.wait(2)
+    try:
+        started = time.monotonic()
+        broker.stop()
+        assert time.monotonic() - started < 2
+    finally:
+        release.set()
+        broker._thread.join(2)
+    assert not broker._thread.is_alive()
+    assert receipt(broker)["state"] == ("PREPARED" if operation == "upload" else "SUCCEEDED")
+    assert not (broker.profile.local_root / "e001-baseline/manifest.json").exists()
+
+
+@pytest.mark.parametrize("data", [
+    {"state": []}, {"state": "BOGUS"}, {"state": "RUNNING"},
+    {"state": "RUNNING", "request_digest": 1},
+])
+def test_poll_schema_validation(setup, data):
+    broker, _, _ = setup
+    with pytest.raises(ValueError):
+        broker._validate_reply("poll", {"launched_at": 1000, **data})
+
+
+
+def test_timeout_term_can_finish_without_kill(setup):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    transport.ignore_term = False
+    now[0] += 11
+    broker.tick()
+    assert receipt(broker)["outcome"] == "TIMED_OUT"
+    assert transport.killed == [(4321, signal.SIGTERM)]
