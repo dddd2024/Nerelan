@@ -36,6 +36,10 @@ _GLOBAL_SCOPE = re.compile(
     r"\b(global|globally|all|everyone|everybody|across|for codex users)\b",
     re.IGNORECASE,
 )
+_NEGATED_OR_PENDING = re.compile(
+    r"\b(not|never|no|haven't|hasn't|didn't|pending|waiting|incomplete|yet to)\b",
+    re.IGNORECASE,
+)
 _PERSONAL_OR_BANKED = re.compile(
     r"\b(personal|banked|individual|my (?:own |codex |account |quota|limit)|"
     r"your (?:personal |own |account |quota|limit))\b",
@@ -100,6 +104,7 @@ def _global_codex_reset(text: str) -> bool:
         bool(re.search(r"\bcodex\b", text, re.I))
         and bool(_GLOBAL_SCOPE.search(text))
         and not bool(_PERSONAL_OR_BANKED.search(text))
+        and not bool(_NEGATED_OR_PENDING.search(text))
     )
 
 

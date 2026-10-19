@@ -62,6 +62,18 @@ def test_personal_banked_and_missing_codex_scope_are_not_global():
     assert all(x.action == "PLAN_ONLY" for x in result.events)
 
 
+def test_negated_or_pending_reset_is_never_completed():
+    posts = (
+        item(33, "Not all Codex users have been reset yet", explicit=True),
+        item(34, "We have not reset every Codex user", explicit=True),
+        item(35, "Global Codex reset is still pending: it has been reset soon", explicit=True),
+    )
+    result = parse_feed(feed(*posts), now=NOW)
+    assert len(result.events) == 3
+    assert all(e.kind != "RESET_REPORTED_COMPLETE" for e in result.events)
+    assert all(e.action == "PLAN_ONLY" for e in result.events)
+
+
 def test_banked_grant_remains_distinct_from_personal_limits():
     events = parse_feed(feed(item(6, "Loading a banked reset in paid accounts",
                                   kind="banked")), now=NOW).events
