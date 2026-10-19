@@ -124,7 +124,9 @@ def test_literal_posix_backslash_cannot_hide_tracked_bytecode(monkeypatch, tmp_p
     from reverse_agent.platform_v1 import opencode_executor as collector
 
     def fake_ls_files(argv, **_kwargs):
-        assert argv[:3] == ["git", "ls-files", "--others"]
+        if argv[:3] != ["git", "ls-files", "--others"]:
+            assert argv[:3] == ["git", "diff", "--no-renames"]
+            return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
         return SimpleNamespace(
             returncode=0,
             stdout=b"__pycache__" + bytes([92]) + b"fixture.pyc" + bytes([0]),
@@ -137,6 +139,28 @@ def test_literal_posix_backslash_cannot_hide_tracked_bytecode(monkeypatch, tmp_p
     ])
     files = collector._collect_final_product_files(tmp_path)
     assert [f["path"] for f in files] == ["__pycache__/fixture.pyc"]
+
+
+def test_head_tracked_change_wins_over_untracked_cache_view(monkeypatch, tmp_path):
+    """The same path in the HEAD delta must remain product evidence."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    path = "__pycache__/original.pyc"
+
+    def fake_git(argv, **_kwargs):
+        assert argv[0] == "git"
+        if argv[1] == "ls-files":
+            return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+        assert argv[1] == "diff"
+        return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_git)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": path, "status": "modified"}
+    ])
+    assert collector._collect_final_product_files(tmp_path) == [
+        {"path": path, "status": "modified"}
+    ]
 
 
 def test_tracked_python_bytecode_still_counts_as_product_change(repository):

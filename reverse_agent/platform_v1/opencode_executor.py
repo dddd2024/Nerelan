@@ -2367,13 +2367,33 @@ def _untracked_python_bytecode(worktree: Path) -> set[str]:
         result.stdout and not result.stdout.endswith(b"\x00")
     ):
         return set()
-    # Do not normalize backslashes: they are legal literal filename bytes on
-    # POSIX. Rewriting them to "/" can collide with a different *tracked*
-    # path and suppress genuine product evidence.
+    # A staged deletion can leave a previously tracked bytecode file in the
+    # worktree as "untracked" (git rm --cached). Such a path is still a real
+    # tracked product change relative to HEAD and must remain in evidence.
+    try:
+        tracked_diff = subprocess.run(
+            ["git", "diff", "--no-renames", "--name-only", "-z", "HEAD"],
+            cwd=str(worktree), stdin=subprocess.DEVNULL, capture_output=True,
+            timeout=15, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    if tracked_diff.returncode or len(tracked_diff.stdout) > 4 * 1024 * 1024 or (
+        tracked_diff.stdout and not tracked_diff.stdout.endswith(b"\x00")
+    ):
+        return set()
+    changed_from_head = {
+        entry.decode("utf-8", errors="surrogateescape")
+        for entry in tracked_diff.stdout.split(b"\x00") if entry
+    }
+
+    # Do not normalize backslashes: they are literal filename bytes on
+    # POSIX. Rewriting them to "/" can collide with a different tracked path.
     candidates = (entry.decode("utf-8", errors="surrogateescape")
                   for entry in result.stdout.split(b"\x00") if entry)
     return {path for path in candidates
-            if len(path.split("/")) >= 2 and path.split("/")[-2] == "__pycache__"
+            if path not in changed_from_head
+            and len(path.split("/")) >= 2 and path.split("/")[-2] == "__pycache__"
             and path.endswith((".pyc", ".pyo"))}
 
 
