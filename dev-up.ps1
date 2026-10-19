@@ -427,6 +427,10 @@ function Resolve-TrustedClientMetadataPath {
   $dir = $script:runtimeDir
   if (-not [string]::IsNullOrWhiteSpace($env:REVERSE_AGENT_TASK_DB_DIR)) {
     $dir = $env:REVERSE_AGENT_TASK_DB_DIR
+    # TrustedHost is launched with cwd=$repoDir, not the caller's cwd.
+    if (-not [System.IO.Path]::IsPathRooted($dir)) {
+      $dir = Join-Path $repoDir $dir
+    }
   }
   return (Join-Path $dir "trusted_host_meta.json")
 }

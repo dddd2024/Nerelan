@@ -80,12 +80,16 @@ $functions = @($tree.FindAll({ param($node)
 if ($functions.Count -ne 1) { throw 'expected exact resolver function' }
 . ([scriptblock]::Create($functions[0].Extent.Text))
 $base = [System.IO.Path]::GetTempPath()
+Set-Location $base  # caller cwd intentionally differs from child repo cwd
+$repoDir = Join-Path $base 'child-repo'
 $script:runtimeDir = Join-Path $base 'check-runtime'
 $env:REVERSE_AGENT_TASK_DB_DIR = Join-Path $base 'check-isolated-db'
 $override = Resolve-TrustedClientMetadataPath
+$env:REVERSE_AGENT_TASK_DB_DIR = 'relative-store'
+$relative = Resolve-TrustedClientMetadataPath
 $env:REVERSE_AGENT_TASK_DB_DIR = ''
 $default = Resolve-TrustedClientMetadataPath
-ConvertTo-Json -Compress -InputObject @{ base = $base; isolated = $override; fallback = $default }
+ConvertTo-Json -Compress -InputObject @{ base = $base; isolated = $override; relative = $relative; fallback = $default }
 """.replace("__SOURCE__", source_path)
     result = _run_ps(script)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -93,6 +97,9 @@ ConvertTo-Json -Compress -InputObject @{ base = $base; isolated = $override; fal
     root = ntpath.normpath(data["base"])
     assert ntpath.normpath(data["isolated"]) == ntpath.join(
         root, "check-isolated-db", "trusted_host_meta.json"
+    )
+    assert ntpath.normpath(data["relative"]) == ntpath.join(
+        root, "child-repo", "relative-store", "trusted_host_meta.json"
     )
     assert ntpath.normpath(data["fallback"]) == ntpath.join(
         root, "check-runtime", "trusted_host_meta.json"
