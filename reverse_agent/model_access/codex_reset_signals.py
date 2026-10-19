@@ -137,11 +137,12 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
         if entry.get("kind") == "banked" and re.search(r"\bbanked\b", text, re.I):
             kind = "BANKED_ANNOUNCEMENT"
         elif entry.get("explicit_reset_claim") is True and _RESET.search(text):
-            if _DONE.search(text):
-                # Third-party labels cannot turn a personal/banked statement into
-                # proof of a global Codex reset or clear a subscription limit.
-                kind = ("RESET_REPORTED_COMPLETE" if _global_codex_reset(text)
-                        else "RESET_SCOPE_UNVERIFIED")
+            # The strict completion allowlist is the *only* completion gate.
+            # Broader _DONE matches do not imply a global/account reset.
+            if _global_codex_reset(text):
+                kind = "RESET_REPORTED_COMPLETE"
+            elif _DONE.search(text):
+                kind = "RESET_SCOPE_UNVERIFIED"
             else:
                 kind = "RESET_ANNOUNCEMENT"
         elif entry.get("kind") == "signal" and entry.get("reset_verification_candidate") is True:

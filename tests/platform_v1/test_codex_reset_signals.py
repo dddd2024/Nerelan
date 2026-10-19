@@ -50,6 +50,18 @@ def test_completed_global_codex_reset_only_requests_real_quota_refresh():
     assert all(x.action != "DISPATCH" for x in result.events)
 
 
+def test_allowlisted_global_reset_completion_forms_really_refresh():
+    posts = (
+        item(31, "Global Codex limits reset complete", explicit=True),
+        item(32, "Global Codex quotas reset is completed", explicit=True),
+    )
+    result = parse_feed(feed(*posts), now=NOW)
+    assert [x.kind for x in result.events] == [
+        "RESET_REPORTED_COMPLETE", "RESET_REPORTED_COMPLETE"
+    ]
+    assert all(x.action == "REFRESH_QUOTA" for x in result.events)
+
+
 def test_personal_banked_and_missing_codex_scope_are_not_global():
     posts = (
         item(3, "My personal Codex quota has been reset", explicit=True),
