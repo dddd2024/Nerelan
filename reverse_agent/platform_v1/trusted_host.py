@@ -164,9 +164,22 @@ class CombinedTrustedHost:
         self._local_client_session = local_client_session or LocalClientSession()
         self._trusted_client = None
 
+        from .native_goal_admission import NativeGoalAdmission
+        self._native_goal_admission = NativeGoalAdmission(self)
+
         self.model_control_url = ""
         self.task_api_url = ""
         self.relay_url = ""
+
+    def _native_owner_admit_goal(self, goal_id: str, *, unknown_claims_sha256=None):
+        """Trusted native bootstrap only; never register on a transport/router.
+
+        The host process must run as the interactive Owner at construction.
+        This method displays native consent and atomically enqueues existing
+        persisted work. It neither dispatches nor changes API authentication,
+        account selection, or executor sandbox policy.
+        """
+        return self._native_goal_admission.admit(goal_id, unknown_claims_sha256=unknown_claims_sha256)
 
     @property
     def store(self) -> ModelProfileStore:
@@ -568,6 +581,7 @@ class CombinedTrustedHost:
         *,
         model_control_port: int | None = None,
         task_api_port: int | None = None,
+        coordinator_paused: bool = False,
     ) -> None:
         if self._started_servers:
             raise RuntimeError("trusted_host_already_started")
@@ -581,7 +595,8 @@ class CombinedTrustedHost:
             router=self._router,
         )
         try:
-            dur_svc.reconcile_expired_runs()
+            if not coordinator_paused:
+                dur_svc.reconcile_expired_runs()
         except Exception:
             pass
 
@@ -679,7 +694,7 @@ class CombinedTrustedHost:
                 t.start()
                 self._threads.append(t)
                 self._started_servers.append(server)
-            if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
+            if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
         except BaseException:
             self._cleanup_runtime_resources(close_account_auth=True)
@@ -864,7 +879,19 @@ def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) ->
             thread.join(timeout=poll_interval)
 
 
-def run_combined_trusted_host() -> None:
+def run_combined_trusted_host(*, native_goal_id: str | None = None,
+                              unknown_claims_sha256: str | None = None) -> None:
+    """Run the official lifecycle; native_goal_entry validates explicit CLI requests.
+
+    Admission follows successful port ownership and failures use normal cleanup.
+    No consent material is printed or added to host metadata.
+    """
+    import re
+    if ((native_goal_id is not None and
+         re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,255}", native_goal_id) is None)
+            or (unknown_claims_sha256 is not None and
+                (native_goal_id is None or re.fullmatch(r"[0-9a-f]{64}", unknown_claims_sha256) is None))):
+        raise ValueError("invalid_native_admission_arguments")
     from .codex_executor import probe_codex_readiness
     from .claude_executor import probe_claude_code_readiness
     auth_sha = _resolve_trusted_authority_sha()
@@ -884,7 +911,15 @@ def run_combined_trusted_host() -> None:
                                      if os.environ.get("REVERSE_AGENT_CLAUDE_CODE_ENABLED") == "1" else None),
     )
     try:
-        host.start()
+        if native_goal_id is None:
+            host.start()
+        else:
+            host.start(coordinator_paused=True)
+            host._native_owner_admit_goal(native_goal_id, **(
+                {"unknown_claims_sha256": unknown_claims_sha256}
+                if unknown_claims_sha256 is not None else {}))
+            if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
+                host._coordinator.start()
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(

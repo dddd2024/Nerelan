@@ -1,8 +1,8 @@
-"""Host-only Windows dialog gate; deliberately has NO production caller.
+"""Host-only Windows dialog gate.
 
-This is an input primitive, not an authorization issuer. A True result must
-never authorize activation/dispatch without a future transactional snapshot
-comparison and single-use admission implementation. No HTTP routes import it.
+This is an input primitive, not an authorization issuer. Admission requires
+the host's transactional snapshot comparison and single-use admission gate.
+No HTTP routes import it; standalone preview callers obtain no authority.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from collections.abc import Callable
 
 @dataclass(frozen=True)
 class OwnerDialogScope:
-    """Display-only frozen scope. Caller must eventually load persisted truth."""
+    """Display-only frozen scope. Admission caller must load persisted truth."""
 
     host_instance_id: str
     goal_id: str
@@ -31,7 +31,7 @@ class OwnerDialogScope:
     policy_digest: str
     effective_policy: str
 
-    def text(self) -> str:
+    def text(self, *, admission: bool = False) -> str:
         rows = vars(self)
         if any(type(value) is not str or not value.strip() or len(value) > 8000
                or any(ord(c) < 32 or ord(c) > 126 for c in value)
@@ -44,10 +44,23 @@ class OwnerDialogScope:
         text = "\n".join(f"{key}: {value}" for key, value in rows.items())
         if len(text) > 12000:
             raise ValueError("scope_too_large")
+        if admission:
+            return ("Nerelan native Owner consent: approve and enqueue this exact Goal\n\n"
+                    + text + "\n\nMaximum: exactly 1 task; 30 minutes; 0 retries.\n"
+                    "This admits execution under the existing coordinator and sandbox.\n"
+                    "No API authentication bypass or account switching. Confirm?")
         return ("Nerelan host consent preview (does not authorize execution)\n\n"
                 + text + "\n\nMaximum: exactly 1 task; 30 minutes; 0 retries.\n"
                 "No activation or dispatch is implemented by this dialog.\n"
                 "Confirm this displayed selection?")
+
+
+def confirm_admission(scope: OwnerDialogScope) -> bool:
+    """Native host only. A Yes still requires atomic scope validation/admission."""
+    try:
+        return _windows_confirm(scope.text(admission=True)) is True
+    except Exception:
+        return False
 
 
 def confirm_scope(scope: OwnerDialogScope, *,

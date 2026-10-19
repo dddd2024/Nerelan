@@ -380,3 +380,61 @@ def test_native_checkpoint_recovery_does_not_dispatch_a_second_cli(source, tmp_p
     finally:
         reset_crash_seam()
         store._conn.close()
+
+
+def test_native_owner_binding_drift_fails_task_before_codex_launch(source, tmp_path):
+    """Integration: late mutable model change returns a durable failed Task, not a model call."""
+    _, base = source
+    store = TaskStore(str(tmp_path / "binding-drift.sqlite3"))
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Check pinned native binding",
+        "repository": "owner/native-fixture", "idempotency_key": "native-binding-drift",
+        "executor_kind": "codex", "orchestration_mode": "single", "binding_ref": "native-binding"})
+    goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+        {"id": "ONE", "title": "One Codex action", "instruction": "Read the Git HEAD"}]).goal
+    goals.approve(goal.id, expected_revision=goal.revision)
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "native-binding-drift-fixture", "policy_revision": 1,
+        "owner_identity": "fixture-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+        "repositories": [goal.repository], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "confirmation": "ACTIVATE"})
+    goals.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    assert store.get_task(task_id).branch == base
+    model_store = models()
+    original = resolver(model_store).resolve("native-binding", task_executor="codex")
+    from dataclasses import asdict
+    pinned = {key: val for key, val in asdict(original).items() if key in {
+        "binding_ref", "model_id", "connection_id", "executor_id",
+        "provider_id", "auth_method", "base_url"}}
+    receipt = control.append_receipt(
+        window_id=window.id, operation_type="native_goal_admission",
+        capability="execute_task", repository=goal.repository,
+        subject_id=goal.id, decision="allowed", reason="provider_free_fixture",
+        input_payload={"scope": "fixture"}, result="fixture")
+    store._conn.execute("UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+                        (json.dumps({"approved_binding": pinned}), receipt.id))
+    store._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
+                        ("NATIVE_OWNER", window.id))
+    model_store.upsert_binding({"binding_id": "native-binding", "name": "Changed model",
+        "executor_id": "codex", "connection_id": "native-login", "model_id": "gpt-5.5"})
+    calls = []
+    router = ExecutorRouter()
+    router.replace("codex", native_factory(calls))
+    service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(model_store),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
+    try:
+        outcome = service.execute_durable_single(task_id, workspace_root=str(tmp_path / "workspaces"))
+        assert not outcome.success
+        task = store.get_task(task_id)
+        assert task.status == "FAILED"
+        assert task.failure_classification == "native_owner_execution_binding_changed_or_missing"
+        assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+        assert calls == []  # never construct or launch a Codex process
+    finally:
+        store._conn.close()
