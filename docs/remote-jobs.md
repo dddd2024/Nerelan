@@ -30,7 +30,8 @@ paths and sets the working directory; it is not an OS sandbox for shell commands
 The Owner must approve the remote work and choose the account/profile accordingly.
 
 The host needs `ssh` and `scp` already available, with the alias configured for
-noninteractive authentication. The server needs Python 3, bash, setsid and nohup.
+noninteractive authentication. The server needs `python3` (3.8+), `bash`, `setsid`
+and `nohup`.
 The broker uses BatchMode and never prompts for credentials. No dependency
 installation or model/provider access occurs at startup.
 

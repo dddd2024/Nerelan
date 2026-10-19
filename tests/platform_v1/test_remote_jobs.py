@@ -464,7 +464,8 @@ def test_profile_loading_does_not_start_transport(tmp_path, monkeypatch):
     assert configured._thread is None
 
 
-def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp_path):
+@pytest.mark.parametrize("with_files", [False, True])
+def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp_path, with_files):
     broker, _, _ = setup
     calls = []
     def run(argv, **kwargs):
@@ -476,8 +477,21 @@ def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp
     monkeypatch.setattr(subprocess, "run", run)
     transport = SSHTransport(broker.profile)
     path = "wjc/a 'quoted' $dollar/e001-job"
-    transport.upload(tmp_path / "source with spaces", path)
+    source = tmp_path / "source with spaces"
+    source.mkdir()
+    (source / "job.json").write_text('{}', encoding="utf-8")
+    entries = [source / "job.json"]
+    if with_files:
+        (source / "input file.txt").write_text("input", encoding="utf-8")
+        (source / "nested").mkdir()
+        (source / "nested" / "run.py").write_text("pass", encoding="utf-8")
+        entries = [source / "input file.txt", source / "job.json", source / "nested"]
+    transport.upload(source, path)
     transport.download(path + "/file with spaces", tmp_path / "destination")
+    assert calls[0] == [
+        "scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
+        "-r", *(str(entry) for entry in entries), "lab:" + shlex.quote(path + "/"),
+    ]
     for argv in calls:
         assert argv[:6] == ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"]
     assert shlex.split(calls[0][-1].split(":", 1)[1]) == [path + "/"]

@@ -102,7 +102,7 @@ class SSHTransport:
             raise OSError("scp failed: " + err[-2000:])
 
     def upload(self, local_dir, remote_dir):
-        self._scp(["-r", str(local_dir) + os.sep + ".",
+        self._scp(["-r", *(str(entry) for entry in sorted(local_dir.iterdir())),
                    self.alias + ":" + shlex.quote(remote_dir + "/")])
 
     def download(self, remote_path, local_path):
