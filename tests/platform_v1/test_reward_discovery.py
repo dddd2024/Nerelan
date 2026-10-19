@@ -182,3 +182,22 @@ def test_provider_wide_no_rewards_conflicts_with_separately_named_daily():
         assert len(records) == 2
         assert {x["state"] for x in records} == {"UNKNOWN"}
         assert {x["reason"] for x in records} == {"provider_wide_no_reward_conflict"}
+
+
+def test_malformed_challenge_evidence_is_not_eligible():
+    for evidence in (None, [], 0, "", {}):
+        row = result(p(requires_human_challenge=evidence), opted_in={KEY})
+        assert row["state"] == "UNKNOWN", evidence
+        assert row["claim_performed"] is False
+
+
+def test_utc_timestamp_overflow_is_unknown_not_batch_crash():
+    # Local year 1 midnight converts to a UTC instant before year 1.
+    bad_time = datetime(1, 1, 1, tzinfo=timezone(timedelta(hours=12)))
+    records = discover_reward_needs(
+        [ACCOUNT], [p(verified_at=bad_time), p(program_id="passive",
+                              kind="PASSIVE_QUOTA_RESET")], now=NOW,
+    )
+    assert len(records) == 2
+    assert [x for x in records if x["program_id"] == "daily"][0]["state"] == "UNKNOWN"
+    assert [x for x in records if x["program_id"] == "passive"][0]["state"] == "NOT_REQUIRED"

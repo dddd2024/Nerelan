@@ -59,13 +59,14 @@ def _valid(p: RewardProgram, now: datetime) -> bool:
             isinstance(p.kind, str) and p.kind in KINDS
             and isinstance(p.source_kind, str) and p.source_kind in SOURCE_KINDS
             and (p.claim_method is None or isinstance(p.claim_method, str))
+            and type(p.requires_human_challenge) is bool
             and p.evidence_verified is True
             and bool(_ID.fullmatch(p.provider_id)) and bool(_ID.fullmatch(p.program_id))
             and url.scheme == "https" and bool(url.hostname)
             and url.username is None and url.password is None and url.port in (None, 443)
             and t <= now < expiry and now-t <= timedelta(days=30)
         )
-    except (ValueError, TypeError, AttributeError):
+    except (ValueError, TypeError, AttributeError, OverflowError):
         return False
 
 
