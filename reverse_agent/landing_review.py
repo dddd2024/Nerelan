@@ -15,12 +15,14 @@ Two deterministic commands back the repository's required status checks:
     posted as a PR comment or review by an OWNER/MEMBER/COLLABORATOR. The most
     recent verdict for that head wins, so a later ``REJECT`` withdraws an
     earlier ``ACCEPT`` the next time the gate runs. A verdict for any other
-    commit is ignored, which makes a new push invalidate the previous
-    acceptance. The gate re-runs only on pull_request events, so whoever merges
+    commit requires a separate bounded proof of pure main update merges. The gate
+    re-runs only on pull_request events, so whoever merges
     re-checks the verdict immediately before merging (``verdict`` command).
 
-The verdict logic is pure (:func:`evaluate_review`) so it is testable without
-network access; the CLI only gathers GitHub REST data with the workflow token.
+The exact-head verdict logic remains pure (:func:`evaluate_review`). A separate
+evaluator can carry acceptance across at most 20 verified main update merges
+with identical PR diffs, excluding governance and dependency paths. The CLI
+gathers GitHub REST data; carry-over uses only already-fetched local Git objects.
 """
 
 from __future__ import annotations
@@ -77,8 +79,14 @@ class Verdict:
     reason: str
     reviewer: str = ""
 
+    accepted_head: str = ""
+    merge_commits: tuple[str, ...] = ()
+
     def to_dict(self) -> dict[str, Any]:
-        return {"accepted": self.accepted, "reason": self.reason, "reviewer": self.reviewer}
+        result = {"accepted": self.accepted, "reason": self.reason, "reviewer": self.reviewer}
+        if self.accepted_head:
+            result.update(accepted_head=self.accepted_head, merge_commits=list(self.merge_commits))
+        return result
 
 
 def strip_code_fences(body: str) -> str:
@@ -133,6 +141,86 @@ def evaluate_review(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
     if latest[1] != "ACCEPT":
         return Verdict(False, "latest_review_verdict_rejects_head", latest[2])
     return Verdict(True, "accepted", latest[2])
+
+
+def _carry_git(*args: str) -> bytes:
+    """Keep diff payloads and NUL-delimited paths as bytes; never invoke diff helpers."""
+    result = subprocess.run(
+        ["git", "--no-replace-objects", *args], capture_output=True, check=False)
+    if result.returncode:
+        raise RuntimeError("carry-over git operation failed: " + args[0])
+    return result.stdout
+
+
+def _excluded_carry_path(path: bytes) -> bool:
+    return (path in {b"AGENTS.md", b"reverse_agent/landing_review.py", b"pyproject.toml",
+                     b"frontend/package.json", b"frontend/package-lock.json"}
+            or path.startswith((b"docs/agents/", b".github/workflows/"))
+            or (path.startswith(b"requirements") and path.endswith(b".txt")))
+
+
+def _carry_diff(main: str, head: str) -> tuple[bytes, frozenset[bytes]]:
+    base = _carry_git("merge-base", main, head).strip().decode("ascii")
+    options = ("--no-ext-diff", "--no-textconv", "--no-renames",
+               "--no-relative", "--ignore-submodules=none")
+    paths = _carry_git("diff", *options, "--name-only", "-z", base, head, "--")
+    changed = frozenset(paths.rstrip(b"\0").split(b"\0")) if paths else frozenset()
+    if any(_excluded_carry_path(path) for path in changed):
+        raise ValueError("excluded carry-over path")
+    diff = _carry_git("diff", *options, "--binary", "--full-index", "--no-color",
+                      "--src-prefix=a/", "--dst-prefix=b/", "--no-indent-heuristic",
+                      "--diff-algorithm=myers", "--unified=3", base, head, "--")
+    return diff, changed
+
+
+def evaluate_review_with_carry_over(head_sha: str, entries: Iterable[ReviewEntry]) -> Verdict:
+    """Keep exact-head precedence, then prove at most 20 pure main update merges.
+
+    origin/main must already be fetched by the caller. No network is used here.
+    Merge metadata is ordered from the accepted head toward the current head.
+    """
+    entries = list(entries)
+    exact = evaluate_review(head_sha, entries)
+    if exact.reason != "no_review_verdict_for_exact_head":
+        return exact
+    heads = {sha.lower() for e in entries
+             if e.association in TRUSTED_ASSOCIATIONS and e.created_at
+             for _, sha in VERDICT_RE.findall(e.body or "")}
+    decisions = {sha: evaluate_review(sha, entries) for sha in heads}
+    current = head_sha.lower()
+    merges: list[str] = []
+    try:
+        main = _carry_git("rev-parse", "--verify", "refs/remotes/origin/main^{commit}").strip().decode("ascii")
+        expected_diff = _carry_diff(main, current)
+        for _ in range(20):
+            fields = _carry_git("show", "-s", "--format=%T %P", current).strip().decode("ascii").split()
+            if len(fields) != 3:
+                return exact
+            tree, first, second = fields
+            _carry_git("merge-base", "--is-ancestor", second, main)
+            computed = _carry_git("merge-tree", "--write-tree", first, second).strip().decode("ascii")
+            if computed != tree:
+                return exact
+            merges.append(current)
+            current = first
+            candidate = decisions.get(current)
+            if candidate and candidate.accepted:
+                # Any newer REJECT along this chain withdraws the earlier acceptance,
+                # including one later superseded on an intermediate head.
+                accepted_entries = [e for e in entries
+                                    if e.association in TRUSTED_ASSOCIATIONS and e.created_at
+                                    and _entry_decisions(e.body or "", current)]
+                accepted_at = max(e.created_at for e in accepted_entries)
+                if any(e.association in TRUSTED_ASSOCIATIONS and e.created_at > accepted_at
+                       and any("REJECT" in _entry_decisions(e.body or "", sha)
+                               for sha in [current, *merges]) for e in entries):
+                    continue
+                if _carry_diff(main, current) == expected_diff:
+                    return Verdict(True, "accepted_carried_over", candidate.reviewer,
+                                   current, tuple(reversed(merges)))
+    except (RuntimeError, OSError, ValueError, UnicodeError):
+        return exact
+    return exact
 
 
 def check_paths(paths: Sequence[str]) -> list[str]:
@@ -198,7 +286,7 @@ def run_verdict(repository: str, number: int, expected_head: str, token: str,
         return {**base, "passed": False, "reason": "draft_pull_request"}
     if (pr.get("base") or {}).get("ref") != "main":
         return {**base, "passed": False, "reason": "base_is_not_main"}
-    found = evaluate_review(head, fetch_review_entries(repository, number, token, api_url))
+    found = evaluate_review_with_carry_over(head, fetch_review_entries(repository, number, token, api_url))
     return {**base, "passed": found.accepted, **found.to_dict()}
 
 
@@ -241,7 +329,7 @@ def run_review(event: Mapping[str, Any], repository: str, token: str) -> dict[st
     if (pr.get("base") or {}).get("ref") != "main":
         return {"gate": "review", "head": head, "passed": False, "reason": "base_is_not_main"}
     entries = fetch_review_entries(repository, int(pr["number"]), token)
-    verdict = evaluate_review(head, entries)
+    verdict = evaluate_review_with_carry_over(head, entries)
     return {"gate": "review", "head": head, "passed": verdict.accepted, **verdict.to_dict()}
 
 
