@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import logging
 import os
 from pathlib import Path
 import threading
@@ -21,6 +22,9 @@ from reverse_agent.architecture.contracts import (
     WorkerExecutionResult,
 )
 from reverse_agent.workflows.team_graph import build_team_graph
+
+
+_logger = logging.getLogger(__name__)
 
 
 TaskExecutor = Callable[[str], Any]
@@ -65,7 +69,7 @@ class UnattendedCoordinator:
         self.planning_sha = planning_sha
         self.task_executor = task_executor
         self.poll_interval = max(0.1, poll_interval)
-        self.claim_lease_ms = max(10_000, claim_lease_ms)
+        self.claim_lease_ms = max(1, claim_lease_ms)
         self.owner = owner or f"coordinator-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -378,6 +382,30 @@ class UnattendedCoordinator:
             "cleanup_failures": failures,
         }
 
+    def _execute_with_claim_renewal(self, window_id: str, task_id: str, epoch: int) -> Any:
+        stopped = threading.Event()
+
+        def renew() -> None:
+            while not stopped.wait(self.claim_lease_ms / 3000):
+                try:
+                    if self.control_store.renew_claim(
+                        window_id=window_id, task_id=task_id, owner=self.owner,
+                        epoch=epoch, lease_ms=self.claim_lease_ms,
+                    ):
+                        continue
+                    _logger.warning("Coordinator claim renewal fenced: task=%s epoch=%s", task_id, epoch)
+                except Exception:
+                    _logger.exception("Coordinator claim renewal failed: task=%s epoch=%s", task_id, epoch)
+                return
+
+        thread = threading.Thread(target=renew, name="coordinator-claim-renewal", daemon=True)
+        thread.start()
+        try:
+            return self._execute_task(task_id)
+        finally:
+            stopped.set()
+            thread.join()
+
     def _execute_claimed_batch(
         self,
         *,
@@ -415,7 +443,7 @@ class UnattendedCoordinator:
                         validation_exit_code=int(stored.validation_exit_code),
                         failure_classification=stored.failure_classification, failure_detail=stored.failure_detail)
                 else:
-                    outcome = self._execute_task(task_id)
+                    outcome = self._execute_with_claim_renewal(window_id, task_id, epoch)
                 final = self.store.get_task(task_id)
                 success = bool(getattr(outcome, "success", True)) and final.status in {
                     "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
