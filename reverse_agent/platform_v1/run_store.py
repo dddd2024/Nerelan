@@ -51,6 +51,7 @@ TERMINAL_STATUSES = frozenset({
 })
 
 VALID_EVENT_TYPES = frozenset({
+    "MODEL_SELECTED",
     "DISCOVERED",
     "VALIDATED",
     "WORKSPACE_READY",
