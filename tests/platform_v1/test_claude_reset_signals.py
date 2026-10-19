@@ -195,6 +195,8 @@ def test_watcher_persists_dedupe_and_new_revision(tmp_path):
     assert len(state["new_events"]) == 1
     assert watcher.poll_once()["new_events"] == []
     restart = signals.ClaudeResetWatcher(tmp_path, fetcher=lambda: current[0])
+    assert restart.snapshot()["status"] == "UNKNOWN"
+    assert restart.snapshot()["reason"] == "awaiting_fresh_poll"
     assert restart.poll_once()["new_events"] == []
     current[0] = signals.ClaudeResetObservation(
         "FRESH", iso(NOW), iso(NOW), parse(status(latest=event(revision=2,status="retracted"))).events)
@@ -382,3 +384,26 @@ def test_64_receipt_cap_preserves_revision_of_oldest(tmp_path):
     assert output["events"]["claude-reset:history-old"]["revision"] == 2
     assert "claude-reset:history-new" in output["events"]
     assert len(watcher.poll_once()["new_events"]) == 0
+
+
+def test_same_revision_state_changes_are_recorded_without_reactivation(tmp_path):
+    calls = []
+    status_items = [
+        parse(status(latest=event("same-revision-claude", status="announced"))),
+        parse(status(latest=event("same-revision-claude", status="confirmed"))),
+        parse(status(latest=event("same-revision-claude", status="retracted"))),
+        parse(status(latest=event("same-revision-claude", status="confirmed"))),
+    ]
+    watcher = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: status_items.pop(0),
+        on_quota_refresh=lambda: calls.append("readonly_quota_check"))
+    out1 = watcher.poll_once()
+    assert out1["new_events"][0]["action"] == "PLAN_ONLY"
+    out2 = watcher.poll_once()
+    assert out2["new_events"][0]["action"] == "REFRESH_QUOTA"
+    out3 = watcher.poll_once()
+    assert out3["new_events"][0]["action"] == "INVALIDATE_HINT"
+    out4 = watcher.poll_once()
+    assert out4["new_events"] == []
+    assert watcher.snapshot()["events"]["claude-reset:same-revision-claude"]["action"] == "INVALIDATE_HINT"
+    assert calls == ["readonly_quota_check"]

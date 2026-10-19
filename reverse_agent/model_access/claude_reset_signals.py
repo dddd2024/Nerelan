@@ -329,13 +329,20 @@ class ClaudeResetWatcher:
             "last_checked_at": None, "editorial_reviewed_at": None,
             "reason": "not_checked", "events": {}, "new_events": [],
         }
+        restored = False
         if self._path.exists():
             try:
                 stored = json.loads(self._path.read_text(encoding="utf-8"))
                 if isinstance(stored, dict) and stored.get("provider") == "claude-code":
                     self._state.update({k: stored[k] for k in self._state if k in stored})
+                    restored = True
             except (OSError, ValueError, TypeError):
                 pass
+        # Persisted source freshness is not a live fact across restarts.
+        if restored:
+            self._state["status"] = "UNKNOWN"
+            self._state["reason"] = "awaiting_fresh_poll"
+            self._state["last_checked_at"] = None
         # Restore must never advertise a claim that expired during downtime,
         # even before the first network request finishes.
         self._state["new_events"] = []
@@ -391,7 +398,22 @@ class ClaudeResetWatcher:
                 for event in observation.events:
                     prior = updated.get(event.event_id)
                     prior_rev = prior.get("revision") if isinstance(prior, dict) else None
-                    if type(prior_rev) is not int or prior_rev < event.revision:
+                    # A mirror may change its classification without bumping
+                    # revision. Track material transitions even at equal
+                    # revision, but never re-activate a locally expired or
+                    # retracted hint until a strictly newer revision exists.
+                    same_rev_changed = (
+                        type(prior_rev) is int and prior_rev == event.revision
+                        and prior.get("action") != "INVALIDATE_HINT"
+                        and (
+                            prior.get("action") != event.action
+                            or prior.get("kind") != event.kind
+                            or tuple(prior.get("plans") or ()) != event.plans
+                            or tuple(prior.get("windows") or ()) != event.windows
+                            or prior.get("expires_on") != event.expires_on
+                        )
+                    )
+                    if type(prior_rev) is not int or prior_rev < event.revision or same_rev_changed:
                         detail = asdict(event)
                         new_events.append(detail)
                         # Reinsert revisions at the newest end before enforcing
@@ -444,4 +466,5 @@ class ClaudeResetWatcher:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=MAX_FETCH_SECONDS + 1)
-            self._thread = None
+            if not self._thread.is_alive():
+                self._thread = None
