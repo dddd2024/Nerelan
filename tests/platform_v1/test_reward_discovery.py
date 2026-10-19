@@ -123,6 +123,16 @@ def test_malformed_unhashable_program_id_is_ignored_not_a_crash():
     assert len(r) == 1 and r[0]["state"] == "UNKNOWN"
 
 
+def test_inactive_no_rewards_history_does_not_block_live_daily_program():
+    records = discover_reward_needs(
+        [ACCOUNT], [p(), p(program_id="no_rewards", kind="NO_REWARD_PROGRAM", active=False)],
+        now=NOW, opted_in={KEY},
+    )
+    assert len(records) == 2
+    assert [r for r in records if r["program_id"] == "daily"][0]["state"] == "AUTO_ELIGIBLE"
+    assert [r for r in records if r["program_id"] == "no_rewards"][0]["state"] == "NOT_REQUIRED"
+
+
 def test_explicit_no_claim_or_credit_grant_fields():
     r = result(opted_in={KEY})
     assert "api_key" not in r and "credited_units" not in r

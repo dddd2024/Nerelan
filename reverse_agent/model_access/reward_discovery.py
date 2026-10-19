@@ -117,12 +117,14 @@ def discover_reward_needs(
         matching = program_map.get(account.provider_id, {})
         # NO_REWARD_PROGRAM is a provider-wide claim. A different program ID
         # must never bypass that contradiction to become AUTO_ELIGIBLE.
-        has_no_reward = any(p.kind == "NO_REWARD_PROGRAM"
-                            for versions in matching.values() for p in versions
-                            if isinstance(p.kind, str))
-        has_other = any(p.kind != "NO_REWARD_PROGRAM"
-                        for versions in matching.values() for p in versions
-                        if isinstance(p.kind, str))
+        has_no_reward = any(
+            p.kind == "NO_REWARD_PROGRAM" and p.active is True and _valid(p, now)
+            for versions in matching.values() for p in versions
+        )
+        has_other = any(
+            p.kind != "NO_REWARD_PROGRAM" and p.active is True and _valid(p, now)
+            for versions in matching.values() for p in versions
+        )
         provider_conflict = has_no_reward and has_other
         if not matching:
             matching = {"": []}
