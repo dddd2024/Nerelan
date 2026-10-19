@@ -1,29 +1,30 @@
-# Codex global reset signals (read-only adapter; #1246)
+# Codex global reset signals — read-only adapter (#1246)
 
-Public reset announcements are **not account authorization**.
+**Public reset announcements are not individual account quota evidence.** This module has no scheduler, dispatch, tokens, cookies, or model API access.
 
-## Source and ownership
+## Source and limits
 
-- Direct anonymous X page retrieval for `@thsottiaux` returned HTTP 403 on 2026-10-19; do not scrape X behind login or ask for user cookies.
-- Optional third-party mirror: https://codex-reset.com/api/feed (source posts link to original X).
-- Read-only prototype: `reverse_agent/model_access/codex_reset_signals.py`, functions `fetch_feed` and `parse_feed`. No host polling, background task, persisted event store, frontend or dispatcher wiring has been shipped in this slice.
-- The provider may become unavailable or change its API. Only a valid, fresh `version:1` feed is accepted. Results are an untrusted observation. The provider's forecast is experimental and intentionally **not consumed** by this module.
+- Anonymous direct X for Tibo (@thsottiaux) returned HTTP 403. The optional untrusted public mirror is https://codex-reset.com/api/feed; it can also return HTTP 403 or become unavailable, which correctly yields UNKNOWN.
+- The adapter is \`reverse_agent/model_access/codex_reset_signals.py\` with \`fetch_feed\` (bounded unauthenticated GET, rejects redirects) and \`parse_feed\` (no network). It does not persist events, poll automatically or override routing.
+- Accept only a fresh \`version:1\` feed with \`source:"x-api"\` (this label is a claim by the mirror, not verified X credentials), valid UTC timestamps, valid original \`x.com/thsottiaux/status/<id>\` URLs, and X Snowflake timestamp agreement (5 minute bound). Old/replayed IDs, bad parent links, unhashable IDs, stale provider data and invalid JSON are ignored or classified UNKNOWN.
+- Body length is capped at 256 KiB; per-fetch wall-clock budget is 5 seconds. Read chunks with \`read1\`, and when using real urllib HTTPS enforce the remaining deadline on its socket. If socket deadline control is unavailable, fail closed rather than allow a slow feed to stall the host.
+- Experimental forecast probabilities are intentionally **not** consumed as quota estimates.
 
-## Output and rules
+## Interpretations
 
-Each valid recent original post is returned as a `ResetEvent` with a stable `event_id`, `published_at`, `source_url`, limited `excerpt` and advisory `action`.
-
-| Event kind | Meaning | Advisory action |
+| Event kind | Description | Advisory action |
 | --- | --- | --- |
-| `RESET_ANNOUNCEMENT` | Explicit prospective public reset report | `PLAN_ONLY` |
-| `POSSIBLE_HINT` | Third-party tease classifier; no guarantee | `PLAN_ONLY` |
-| `RESET_REPORTED_COMPLETE` | Public author claims completed reset, not account evidence | `REFRESH_QUOTA` |
-| `BANKED_ANNOUNCEMENT` | Grant into account bank may need redemption | `PLAN_ONLY` |
+| \`POSSIBLE_HINT\` | Third-party tease classification | \`PLAN_ONLY\` |
+| \`RESET_ANNOUNCEMENT\` | Announcement or validated reply context | \`PLAN_ONLY\` |
+| \`BANKED_ANNOUNCEMENT\` | Banked grant, may need claim | \`PLAN_ONLY\` |
+| \`RESET_SCOPE_UNVERIFIED\` | Mirror claims completion but post lacks global Codex scope or is personal/banked | \`PLAN_ONLY\` |
+| \`RESET_REPORTED_COMPLETE\` | Explicit post claims finished global Codex reset | \`REFRESH_QUOTA\` |
 
-The interpreter does **not** accept arbitrary discussion of a reset as a completion claim. If the feed is stale, malformed or unreachable it returns `STALE`/`UNKNOWN`, not an available quota.
+The event ID is stable (\`tibo-x:<original ID>\`), even after mirror reclassification, so a later scheduler can persist/dedupe it. Mirror text is untrusted evidence, not an instruction.
 
-The downstream #1193/#1244 implementation must persist deduped events, perform an authorized local vendor quota refresh after `REFRESH_QUOTA`, and independently verify BOTH subscription windows and current Owner authority before dispatch. A third-party quote, a reset forecast, or a banked announcement must not clear a known provider limit, start a paid task, change the selected account, or extend a window.
+The #1193/#1244 scheduler must check account-specific 5-hour **and** weekly quota, timestamp freshness, execution authority, current task budgets and model eligibility before *any* Codex dispatch. An announced reset must **never** change CONFIRMED_EXHAUSTED to available or launch a paid probe. Banked grants must be claimed and individually verified. The adapter's \`REFRESH_QUOTA\` is a request for a read-only vendor telemetry refresh, not a claim of verified available capacity.
 
 ## Verification
 
-Provider-free test: `python -m pytest tests/test_codex_reset_signals.py -q` (fake HTTP, no X login, no paid inference). On a current X mirror feed, `fetch_feed()` is only a read-only reachability check, not a declaration of account availability.
+- Blocking platform suite: \`python -m pytest tests/platform_v1/test_codex_reset_signals.py -q\` (provider-free, fake responses). The entire \`tests/platform_v1\` directory runs in the required GitHub baseline gate.
+- A manual live \`fetch_feed()\` probe is read-only and optional; third-party reachability fluctuates. Do not assume background monitoring is deployed based on a successful probe.

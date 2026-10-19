@@ -1,13 +1,14 @@
-"""Untrusted public Codex reset announcements; never an account quota grant.
+"""Bounded, untrusted public Codex reset announcements; never account quota evidence.
 
-The caller/scheduler owns polling, persistent deduplication, authorisation and
-vendor quota refresh. This observer only returns conservative advisory events.
+The host scheduler owns polling, durable event deduplication, owner authorisation
+and actual vendor quota refresh. This observer cannot create/dispatch a task.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -19,11 +20,24 @@ MAX_FEED_BYTES = 262_144
 MAX_FEED_AGE = timedelta(hours=1)
 MAX_POST_AGE = timedelta(days=7)
 MAX_CLOCK_SKEW = timedelta(minutes=5)
+MAX_ID_TIME_SKEW = timedelta(minutes=5)
+MAX_FETCH_SECONDS = 5.0
+X_EPOCH_MS = 1288834974657
+
 _POST_ID = re.compile(r"[0-9]{10,25}\Z")
 _RESET = re.compile(r"\breset\b", re.IGNORECASE)
 _DONE = re.compile(
-    r"\b(we have reset|has been reset|have been reset|"
+    r"\b(we have reset|we've reset|has been reset|have been reset|"
     r"reset has been processed|fully reset|reset is done|reset completed)\b",
+    re.IGNORECASE,
+)
+_GLOBAL_SCOPE = re.compile(
+    r"\b(global|globally|all|everyone|everybody|across|for codex users)\b",
+    re.IGNORECASE,
+)
+_PERSONAL_OR_BANKED = re.compile(
+    r"\b(personal|banked|individual|my (?:own |codex |account |quota|limit)|"
+    r"your (?:personal |own |account |quota|limit))\b",
     re.IGNORECASE,
 )
 
@@ -49,19 +63,45 @@ class ResetObservation:
 def _parse_time(value: object) -> datetime:
     if not isinstance(value, str) or not value.endswith("Z"):
         raise ValueError("timestamp must be UTC ISO-8601")
-    value = value[:-1] + "+00:00"
-    parsed = datetime.fromisoformat(value)
+    parsed = datetime.fromisoformat(value[:-1] + "+00:00")
     if parsed.utcoffset() != timedelta(0):
         raise ValueError("non-UTC timestamp")
     return parsed
 
 
-def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservation:
-    """Validate the public feed and return *advisory* events with original links.
+def _valid_post(entry: object, now: datetime) -> tuple[str, str, datetime] | None:
+    """Check ID, immutable original permalink and X Snowflake creation time."""
+    if not isinstance(entry, dict):
+        return None
+    identity, text, url = entry.get("id"), entry.get("text"), entry.get("url")
+    if (not isinstance(identity, str) or not _POST_ID.fullmatch(identity)
+            or not isinstance(text, str) or len(text) > 8000
+            or not isinstance(url, str)
+            or url != f"https://x.com/thsottiaux/status/{identity}"):
+        return None
+    try:
+        when = _parse_time(entry.get("at"))
+        snowflake_ms = (int(identity) >> 22) + X_EPOCH_MS
+        created = datetime.fromtimestamp(snowflake_ms / 1000, timezone.utc)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+    if (abs(when - created) > MAX_ID_TIME_SKEW
+            or when > now + MAX_CLOCK_SKEW
+            or now - when > MAX_POST_AGE):
+        return None
+    return identity, text, when
 
-    An unverified forecast, unrelated post, or third-party classifier is not a
-    proof that the current account has capacity. No dispatch action is returned.
-    """
+
+def _global_codex_reset(text: str) -> bool:
+    return (
+        bool(re.search(r"\bcodex\b", text, re.I))
+        and bool(_GLOBAL_SCOPE.search(text))
+        and not bool(_PERSONAL_OR_BANKED.search(text))
+    )
+
+
+def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservation:
+    """Return advisory classifications only; ignore invalid/replayed mirror data."""
     now = now or datetime.now(timezone.utc)
     if now.utcoffset() != timedelta(0):
         raise ValueError("now must be UTC")
@@ -79,32 +119,33 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
     tweets = payload.get("tweets")
     if not isinstance(tweets, list) or len(tweets) > 200:
         return ResetObservation("UNKNOWN", checked_at, (), "invalid_tweet_list")
-    by_id = {t.get("id"): t for t in tweets if isinstance(t, dict)}
-    events: list[ResetEvent] = []
-    seen: set[str] = set()
+
+    # Parent must pass all the same checks as the child. Validate before indexing,
+    # so malformed mirror IDs (e.g. a list) can never raise an exception.
+    valid: dict[str, tuple[dict, str, datetime]] = {}
     for entry in tweets:
-        if not isinstance(entry, dict):
-            continue
-        identity, text, url = entry.get("id"), entry.get("text"), entry.get("url")
-        if (not isinstance(identity, str) or not _POST_ID.fullmatch(identity)
-                or not isinstance(text, str) or not isinstance(url, str)
-                or len(text) > 8000
-                or url != f"https://x.com/thsottiaux/status/{identity}"):
-            continue
-        try:
-            when = _parse_time(entry.get("at"))
-        except (TypeError, ValueError):
-            continue
-        if when > now + MAX_CLOCK_SKEW or now - when > MAX_POST_AGE:
-            continue
+        record = _valid_post(entry, now)
+        if record is not None:
+            identity, text, when = record
+            valid.setdefault(identity, (entry, text, when))
+
+    events: list[ResetEvent] = []
+    for identity, (entry, text, when) in valid.items():
         kind = None
         if entry.get("kind") == "banked" and re.search(r"\bbanked\b", text, re.I):
             kind = "BANKED_ANNOUNCEMENT"
         elif entry.get("explicit_reset_claim") is True and _RESET.search(text):
-            kind = "RESET_REPORTED_COMPLETE" if _DONE.search(text) else "RESET_ANNOUNCEMENT"
+            if _DONE.search(text):
+                # Third-party labels cannot turn a personal/banked statement into
+                # proof of a global Codex reset or clear a subscription limit.
+                kind = ("RESET_REPORTED_COMPLETE" if _global_codex_reset(text)
+                        else "RESET_SCOPE_UNVERIFIED")
+            else:
+                kind = "RESET_ANNOUNCEMENT"
         elif entry.get("kind") == "signal" and entry.get("reset_verification_candidate") is True:
-            parent = by_id.get(entry.get("in_reply_to_tweet_id"))
-            if (isinstance(parent, dict) and _RESET.search(str(parent.get("text", "")))
+            parent_id = entry.get("in_reply_to_tweet_id")
+            parent = valid.get(parent_id) if isinstance(parent_id, str) else None
+            if (parent is not None and _RESET.search(parent[1])
                     and re.search(r"\blanding\b", text, re.I)):
                 kind = "RESET_ANNOUNCEMENT"
         elif isinstance(entry.get("tease_classification"), dict):
@@ -112,12 +153,10 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
                 kind = "POSSIBLE_HINT"
         if kind is None:
             continue
-        event_id = f"tibo-x:{identity}:{kind}"
-        if event_id in seen:
-            continue
-        seen.add(event_id)
         events.append(ResetEvent(
-            event_id=event_id, kind=kind, source_url=url,
+            event_id=f"tibo-x:{identity}",  # stable even if the mirror reclassifies a post
+            kind=kind,
+            source_url=f"https://x.com/thsottiaux/status/{identity}",
             published_at=when.isoformat().replace("+00:00", "Z"),
             excerpt=text[:240],
             action="REFRESH_QUOTA" if kind == "RESET_REPORTED_COMPLETE" else "PLAN_ONLY",
@@ -125,23 +164,52 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
     return ResetObservation("FRESH", checked_at, tuple(events))
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def fetch_feed(*, opener: Callable[..., Any] | None = None,
                now: datetime | None = None) -> ResetObservation:
-    """Bounded unauthenticated public GET; no X cookies or model calls."""
+    """Fetch a bounded third-party JSON feed. No X login, account or model calls."""
     request = urllib.request.Request(
         FEED_URL,
         headers={"Accept": "application/json", "User-Agent": "Nerelan-readonly-reset-observer/1"},
         method="GET",
     )
+    deadline = time.monotonic() + MAX_FETCH_SECONDS
     try:
-        stream = (opener or urllib.request.urlopen)(request, timeout=5)
+        handler = opener or urllib.request.build_opener(_NoRedirect()).open
+        stream = handler(request, timeout=MAX_FETCH_SECONDS)
         with stream as response:
             content_type = response.headers.get("Content-Type", "")
             if "application/json" not in content_type.lower():
                 return ResetObservation("UNKNOWN", None, (), "wrong_content_type")
-            raw = response.read(MAX_FEED_BYTES + 1)
-        if len(raw) > MAX_FEED_BYTES:
+            chunks: list[bytes] = []
+            total = 0
+            while total <= MAX_FEED_BYTES:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return ResetObservation("UNKNOWN", None, (), "fetch_deadline_exceeded")
+                # HTTPResponse.read1() makes one raw read per iteration; set its
+                # socket timeout to the actual *remaining total* time. Without
+                # socket control a real response cannot claim a hard deadline.
+                socket = getattr(
+                    getattr(getattr(response, "fp", None), "raw", None), "_sock", None
+                )
+                if opener is None and socket is None:
+                    return ResetObservation("UNKNOWN", None, (), "socket_deadline_unavailable")
+                if socket is not None:
+                    socket.settimeout(remaining)
+                chunk = response.read1(min(8192, MAX_FEED_BYTES - total + 1))
+                if time.monotonic() > deadline:
+                    return ResetObservation("UNKNOWN", None, (), "fetch_deadline_exceeded")
+                if not chunk:
+                    break
+                total += len(chunk)
+                chunks.append(chunk)
+        if total > MAX_FEED_BYTES:
             return ResetObservation("UNKNOWN", None, (), "response_too_large")
-        return parse_feed(json.loads(raw), now=now)
-    except (OSError, URLError, HTTPError, ValueError, TypeError, json.JSONDecodeError):
+        return parse_feed(json.loads(b"".join(chunks)), now=now)
+    except (OSError, URLError, HTTPError, ValueError, TypeError):
         return ResetObservation("UNKNOWN", None, (), "feed_unavailable_or_invalid")
