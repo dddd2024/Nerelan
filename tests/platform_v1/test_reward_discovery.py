@@ -201,3 +201,13 @@ def test_utc_timestamp_overflow_is_unknown_not_batch_crash():
     assert len(records) == 2
     assert [x for x in records if x["program_id"] == "daily"][0]["state"] == "UNKNOWN"
     assert [x for x in records if x["program_id"] == "passive"][0]["state"] == "NOT_REQUIRED"
+
+
+def test_provider_local_receipt_boundary_overflow_is_unknown():
+    earliest = datetime(1, 1, 1, tzinfo=timezone.utc)
+    result_row = result(
+        p(provider_timezone="America/New_York"),
+        opted_in={KEY}, verified_claims={KEY: earliest},
+    )
+    assert result_row["state"] == "UNKNOWN"
+    assert result_row["reason"] == "invalid_receipt_timezone"

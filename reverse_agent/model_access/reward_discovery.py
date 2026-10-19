@@ -151,16 +151,22 @@ def discover_reward_needs(
                     state, reason, action = "MANUAL_REQUIRED", "redeem_in_first_party_ui", "MANUAL"
                 elif kind in {"DAILY_CHECK_IN", "CAMPAIGN_CLAIM"}:
                     claim_key = (*key, program_id)
-                    eligibility = check_claim_eligibility(
-                        program=program_id, opaque_account_ref=account.opaque_account_ref,
-                        now=now, provider_timezone=p.provider_timezone,
-                        last_verified_at=(verified_claims or {}).get(claim_key),
-                        reset_policy=p.reset_policy, claim_method=p.claim_method,
-                        automation_allowed=p.automation_allowed,
-                        user_opted_in=claim_key in opted_in,
-                        requires_human_challenge=p.requires_human_challenge,
-                        active_campaign=p.active,
-                    )
+                    try:
+                        eligibility = check_claim_eligibility(
+                            program=program_id, opaque_account_ref=account.opaque_account_ref,
+                            now=now, provider_timezone=p.provider_timezone,
+                            last_verified_at=(verified_claims or {}).get(claim_key),
+                            reset_policy=p.reset_policy, claim_method=p.claim_method,
+                            automation_allowed=p.automation_allowed,
+                            user_opted_in=claim_key in opted_in,
+                            requires_human_challenge=p.requires_human_challenge,
+                            active_campaign=p.active,
+                        )
+                    except (OverflowError, ValueError, TypeError):
+                        # Provider-local day conversion of boundary receipt
+                        # timestamps can overflow even after valid UTC input.
+                        eligibility = {"state": "UNKNOWN",
+                                       "reason": "invalid_receipt_timezone"}
                     reason = eligibility["reason"]
                     state, action = {
                         "ELIGIBLE": ("AUTO_ELIGIBLE", "AUTO_ELIGIBLE"),
