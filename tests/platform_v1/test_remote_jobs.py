@@ -1,0 +1,526 @@
+"""Provider-free broker tests: no SSH, network or experiment execution."""
+
+from contextlib import redirect_stdout
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import shlex
+import shutil
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from reverse_agent.platform_v1.remote_jobs import (
+    REMOTE_HELPER, RemoteJobBroker, RemoteJobProfile, SSHTransport, configured_broker, main,
+)
+
+
+class FakeTransport:
+    """Run the fixed helper against a fake home and fake OS processes."""
+    def __init__(self, home, monkeypatch):
+        self.home = home
+        home.mkdir()
+        self.monkeypatch = monkeypatch
+        self.launches = []
+        self.calls = []
+        self.killed = []
+        self.alive = True
+        self.fail = None
+        self.fail_after_launch = False
+
+    def run(self, argv, timeout):
+        assert argv[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "lab"]
+        words = shlex.split(" ".join(argv[6:]))
+        assert words[:2] == ["python3", "-c"]
+        assert words[2] == REMOTE_HELPER
+        data = json.loads(words[3])
+        self.calls.append(data)
+        if self.fail == data["op"]:
+            self.fail = None
+            return 255, "", "fake disconnected"
+        output = io.StringIO()
+        previous = Path.cwd()
+        def spawn(args, **kwargs):
+            self.launches.append((args, kwargs["env"]["CUDA_VISIBLE_DEVICES"], Path.cwd()))
+            return SimpleNamespace(pid=4321)
+        def kill(pid, sig):
+            assert pid == 4321 and sig == 0
+            if not self.alive:
+                raise ProcessLookupError()
+        try:
+            with self.monkeypatch.context() as patch, redirect_stdout(output):
+                patch.setattr(Path, "home", classmethod(lambda cls: self.home))
+                patch.setattr(sys, "argv", ["-c", words[3]])
+                patch.setattr(subprocess, "Popen", spawn)
+                patch.setattr(os, "kill", kill)
+                patch.setattr(os, "killpg", lambda pid, sig: self.killed.append((pid, sig)), raising=False)
+                exec(compile(words[2], "<fixed-remote-helper>", "exec"), {})
+        except SystemExit as exc:
+            if exc.code:
+                return 1, "", str(exc)
+        except Exception as exc:
+            return 1, "", str(exc)
+        finally:
+            os.chdir(previous)
+        if data["op"] == "launch" and self.fail_after_launch:
+            self.fail_after_launch = False
+            return 255, "", "fake lost launch response"
+        return 0, output.getvalue(), ""
+
+    def upload(self, local_dir, remote_dir):
+        if self.fail == "upload":
+            self.fail = None
+            raise OSError("fake upload failure")
+        shutil.copytree(local_dir, self.home / remote_dir, dirs_exist_ok=True)
+
+    def download(self, remote_path, local_path):
+        if self.fail == "download":
+            self.fail = None
+            raise OSError("fake download failure")
+        shutil.copyfile(self.home / remote_path, local_path)
+
+
+@pytest.fixture
+def setup(tmp_path, monkeypatch):
+    profile = RemoteJobProfile("lab", "wjc/jobs", tmp_path / "receipts", (tmp_path / "ws",),
+                               max_wall_seconds=100, poll_seconds=1, max_upload_bytes=1024,
+                               max_download_bytes=2048)
+    transport = FakeTransport(tmp_path / "home", monkeypatch)
+    now = [1000.0]
+    broker = RemoteJobBroker(profile, transport, lambda: now[0])
+    return broker, transport, now
+
+
+def request(broker, job_id="e001-baseline", **changes):
+    directory = broker.profile.scan_roots[0] / "task" / ".nerelan-remote/outbox" / job_id
+    directory.mkdir(parents=True, exist_ok=True)
+    data = {"job_id": job_id, "command": "python run.py --seed 0", "files": ["run.py"],
+            "outputs": ["results/*.json", "metrics.csv"], "max_wall_seconds": 10,
+            "gpu": True, "purpose": "baseline"}
+    data.update(changes)
+    (directory / "run.py").write_text("print('fixture')", encoding="utf-8")
+    (directory / "job.json").write_text(json.dumps(data), encoding="utf-8")
+    return directory
+
+
+def receipt(broker, job_id="e001-baseline"):
+    return next(r for r in broker.receipts() if r["job_id"] == job_id)
+
+
+def remote(transport, job_id="e001-baseline"):
+    return transport.home / "wjc/jobs" / job_id
+
+
+def test_full_lifecycle_and_manifest(setup):
+    broker, transport, now = setup
+    source = request(broker)
+    broker.tick()
+    assert receipt(broker)["state"] == "RUNNING"
+    job = remote(transport)
+    (job / "results").mkdir()
+    (job / "results/a.json").write_bytes(b'{"score": 42}')
+    (job / "metrics.csv").write_bytes(b"seed,score\n0,42\n")
+    (job / "stdout.log").write_bytes(b"x" * (1024 * 1024 + 20))
+    (job / "exit_code").write_text("0")
+    (source / "run.py").write_text("changed after launch")
+    broker.tick()
+    result = receipt(broker)
+    assert [e["state"] for e in result["history"] if not e["detail"]] == [
+        "PREPARED", "UPLOADED", "LAUNCHED", "RUNNING", "SUCCEEDED"]
+    assert result["state"] == "RESULT_COLLECTED" and result["outcome"] == "SUCCEEDED", result["history"]
+    local = broker.profile.local_root / result["job_id"]
+    manifest = json.loads((local / "manifest.json").read_text())
+    assert manifest["request_digest"] == result["request_digest"]
+    assert {f["path"] for f in manifest["files"]} == {
+        "outputs/results/a.json", "outputs/metrics.csv", "stdout.log", "stderr.log"}
+    for entry in manifest["files"]:
+        content = (local / entry["path"]).read_bytes()
+        assert entry["sha256"] == hashlib.sha256(content).hexdigest()
+        assert entry["size"] == len(content)
+    assert (local / "stdout.log").stat().st_size == 1024 * 1024
+    assert (local / "request/run.py").read_text() == "print('fixture')"
+
+
+@pytest.mark.parametrize("changes,reason", [
+    ({"job_id": "BAD"}, "job_id"),
+    ({"files": ["../run.py"]}, "relative"),
+    ({"files": ["/run.py"]}, "relative"),
+    ({"files": ["C:/run.py"]}, "relative"),
+    ({"outputs": ["../*.json"]}, "relative"),
+    ({"outputs": ["/tmp/*"]}, "relative"),
+    ({"unknown": 1}, "unknown"),
+    ({"max_wall_seconds": 101}, "profile limit"),
+    ({"max_wall_seconds": True}, "positive integer"),
+    ({"command": ""}, "command"),
+    ({"gpu": "true"}, "gpu"),
+    ({"files": ["launch.json"]}, "reserved"),
+])
+def test_invalid_requests_rejected(setup, changes, reason):
+    broker, transport, _ = setup
+    request(broker, **changes)
+    broker.tick()
+    result = broker.receipts()[0]
+    assert result["state"] == "REJECTED"
+    assert reason in result["history"][-1]["detail"]
+    assert transport.calls == []
+
+
+def test_bad_directory_id_has_safe_rejected_receipt(setup):
+    broker, transport, _ = setup
+    request(broker, "BAD")
+    broker.tick()
+    assert broker.receipts()[0]["state"] == "REJECTED"
+    assert broker.receipts()[0]["job_id"].startswith("rejected-")
+
+
+def test_oversized_file_rejected(setup):
+    broker, _, _ = setup
+    directory = request(broker)
+    (directory / "run.py").write_bytes(b"x" * 1025)
+    broker.tick()
+    assert "max_upload_bytes" in receipt(broker)["history"][-1]["detail"]
+
+
+def test_symlink_file_rejected(setup, tmp_path):
+    broker, _, _ = setup
+    directory = request(broker, files=["link"])
+    target = tmp_path / "outside"
+    target.write_text("outside")
+    try:
+        (directory / "link").symlink_to(target)
+    except OSError:
+        pytest.skip("OS does not permit creating symlinks")
+    broker.tick()
+    assert "symlink" in receipt(broker)["history"][-1]["detail"]
+
+
+def test_symlink_validation_without_os_symlink_privilege(setup, monkeypatch):
+    broker, transport, _ = setup
+    directory = request(broker)
+    original = Path.is_symlink
+    monkeypatch.setattr(Path, "is_symlink", lambda path: path == directory / "run.py" or original(path))
+    broker.tick()
+    assert receipt(broker)["state"] == "REJECTED"
+    assert "symlink" in receipt(broker)["history"][-1]["detail"]
+    assert transport.calls == []
+
+
+def test_duplicate_and_changed_id_never_relaunch(setup):
+    broker, transport, _ = setup
+    directory = request(broker)
+    broker.tick()
+    broker.tick()
+    request(broker, command="echo changed")
+    broker.tick()
+    broker.tick()
+    assert len(transport.launches) == 1
+    assert sum(e["detail"] == "DUPLICATE_ID_CHANGED_REQUEST" for e in receipt(broker)["history"]) == 1
+    assert json.loads((broker.profile.local_root / "e001-baseline/request/job.json").read_text())["command"] != "echo changed"
+
+
+def test_duplicate_ids_across_worktrees_do_not_repeat_events(setup):
+    broker, transport, _ = setup
+    source = request(broker)
+    other = broker.profile.scan_roots[0] / "other" / ".nerelan-remote/outbox/e001-baseline"
+    shutil.copytree(source, other)
+    broker.tick()
+    data = json.loads((other / "job.json").read_text())
+    data["command"] = "echo another request"
+    (other / "job.json").write_text(json.dumps(data))
+    broker.tick()
+    broker.tick()
+    assert len(transport.launches) == 1
+    assert sum(e["detail"] == "DUPLICATE_ID_CHANGED_REQUEST" for e in receipt(broker)["history"]) == 1
+
+
+@pytest.mark.parametrize("state", ["LAUNCHED", "RUNNING"])
+def test_restart_polls_without_launch(setup, state):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    saved = receipt(broker)
+    broker._event(saved, state, "restart fixture")
+    transport.calls.clear()
+    restarted = RemoteJobBroker(broker.profile, transport, lambda: now[0])
+    restarted.tick()
+    assert [c["op"] for c in transport.calls] == ["poll"]
+    assert len(transport.launches) == 1
+
+
+@pytest.mark.parametrize("alive,expected", [(True, "RUNNING"), (False, "RESULT_COLLECTED")])
+def test_remote_marker_without_local_receipt(setup, alive, expected):
+    broker, transport, _ = setup
+    request(broker)
+    job = remote(transport)
+    job.mkdir(parents=True)
+    (job / "launch.json").write_text(json.dumps({"launched_at": 1000}))
+    (job / "pid").write_text("4321")
+    transport.alive = alive
+    broker.tick()
+    assert receipt(broker)["state"] == expected
+    assert transport.launches == []
+    assert all(c["op"] != "launch" for c in transport.calls)
+    if not alive:
+        assert receipt(broker)["outcome"] == "LOST"
+
+
+@pytest.mark.parametrize("operation,expected", [("upload", "PREPARED"), ("launch", "UPLOADED"), ("poll", "LAUNCHED")])
+def test_transport_failure_preserves_state_and_retries(setup, operation, expected):
+    broker, transport, now = setup
+    request(broker)
+    transport.fail = operation
+    broker.tick()
+    result = receipt(broker)
+    assert result["state"] == expected
+    assert "error" in result["history"][-1]["detail"]
+    calls = len(transport.calls)
+    broker.tick()
+    assert len(transport.calls) == calls  # backoff
+    now[0] += 601
+    broker.tick()
+    assert len(transport.launches) == 1
+
+
+def test_launch_response_lost_then_restart_is_idempotent(setup):
+    broker, transport, now = setup
+    request(broker)
+    transport.fail_after_launch = True
+    broker.tick()
+    assert receipt(broker)["state"] == "UPLOADED"
+    assert len(transport.launches) == 1
+    now[0] += 3
+    restarted = RemoteJobBroker(broker.profile, transport, lambda: now[0])
+    restarted.tick()
+    assert receipt(broker)["state"] == "RUNNING"
+    assert len(transport.launches) == 1
+
+
+def test_incomplete_remote_reservation_is_lost_without_launch(setup):
+    broker, transport, _ = setup
+    request(broker)
+    job = remote(transport)
+    job.mkdir(parents=True)
+    (job / "launch.json").write_text('{"job_id":')
+    broker.tick()
+    assert receipt(broker)["outcome"] == "LOST"
+    assert receipt(broker)["state"] == "RESULT_COLLECTED"
+    assert transport.launches == []
+
+
+def test_download_failure_resumes_frozen_results_after_restart(setup):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    (remote(transport) / "metrics.csv").write_bytes(b"original result")
+    (remote(transport) / "exit_code").write_text("0")
+    transport.fail = "download"
+    broker.tick()
+    assert receipt(broker)["state"] == "SUCCEEDED"
+    (remote(transport) / "metrics.csv").write_bytes(b"modified after snapshot")
+    now[0] += 3
+    restarted = RemoteJobBroker(broker.profile, transport, lambda: now[0])
+    restarted.tick()
+    assert receipt(broker)["state"] == "RESULT_COLLECTED"
+    assert (broker.profile.local_root / "e001-baseline/outputs/metrics.csv").read_bytes() == b"original result"
+    assert len(transport.launches) == 1
+
+
+def test_remote_digest_mismatch_is_preserved_as_evidence(setup):
+    broker, transport, _ = setup
+    request(broker)
+    job = remote(transport)
+    job.mkdir(parents=True)
+    (job / "launch.json").write_text(json.dumps({"launched_at": 1000, "request_digest": "another-request"}))
+    (job / "exit_code").write_text("0")
+    broker.tick()
+    result = receipt(broker)
+    assert result["remote_request_digest"] == "another-request"
+    manifest = json.loads((broker.profile.local_root / "e001-baseline/manifest.json").read_text())
+    assert manifest["remote_request_digest"] == "another-request"
+    assert any("different request digest" in e["detail"] for e in result["history"])
+    assert transport.launches == []
+
+
+def test_unfinished_local_snapshot_is_not_reused(setup):
+    broker, transport, _ = setup
+    request(broker)
+    frozen = broker.profile.local_root / "e001-baseline/request"
+    frozen.mkdir(parents=True)
+    (frozen / "unexpected.py").write_text("old partial snapshot")
+    broker.tick()
+    assert receipt(broker)["state"] == "REJECTED"
+    assert "incomplete local preparation" in receipt(broker)["history"][-1]["detail"]
+    assert transport.launches == []
+
+
+def test_daemon_stops_without_transport_calls(setup):
+    broker, transport, _ = setup
+    broker.start()
+    broker.stop()
+    assert not broker._thread.is_alive()
+    assert transport.calls == []
+
+
+def test_fifo_concurrency_and_timeout_process_group(setup):
+    broker, transport, now = setup
+    request(broker, "e001-first")
+    request(broker, "e002-second")
+    broker.tick()
+    assert len(transport.launches) == 1
+    assert receipt(broker, "e002-second")["state"] == "PREPARED"
+    now[0] += 11
+    broker.tick()
+    first = receipt(broker, "e001-first")
+    assert first["state"] == "RESULT_COLLECTED" and first["outcome"] == "TIMED_OUT"
+    assert transport.killed[0][0] == 4321
+    assert len(transport.launches) == 2
+
+
+@pytest.mark.parametrize("exit_code,outcome", [("0", "SUCCEEDED"), ("17", "FAILED")])
+def test_exit_status(setup, exit_code, outcome):
+    broker, transport, _ = setup
+    request(broker)
+    broker.tick()
+    (remote(transport) / "exit_code").write_text(exit_code)
+    broker.tick()
+    assert receipt(broker)["outcome"] == outcome
+
+
+@pytest.mark.parametrize("gpu,devices", [(True, "0"), (False, "")])
+def test_gpu_and_command_quoting(setup, gpu, devices):
+    broker, transport, _ = setup
+    command = '''python run.py --name 'a $HOME' --other "$(echo unsafe)"'''
+    request(broker, command=command, gpu=gpu)
+    broker.tick()
+    args, actual_devices, cwd = transport.launches[0]
+    assert actual_devices == devices
+    assert cwd == remote(transport)
+    assert args[:4] == ["setsid", "nohup", "bash", "-c"]
+    # bash receives one quoted command argument, including literal quotes/$.
+    assert shlex.split(args[4].split("; rc=$?", 1)[0]) == ["bash", "-c", command]
+    marker = json.loads((cwd / "launch.json").read_text())
+    assert marker["request_digest"] == receipt(broker)["request_digest"]
+
+
+def test_download_limit_and_retry(setup):
+    broker, transport, now = setup
+    request(broker)
+    broker.tick()
+    (remote(transport) / "metrics.csv").write_bytes(b"x" * 2049)
+    (remote(transport) / "exit_code").write_text("0")
+    broker.tick()
+    result = receipt(broker)
+    assert result["state"] == "SUCCEEDED"
+    assert "max_download_bytes" in result["history"][-1]["detail"]
+    assert not (broker.profile.local_root / "e001-baseline/manifest.json").exists()
+    (remote(transport) / "metrics.csv").write_bytes(b"ok")
+    now[0] += 3
+    broker.tick()
+    assert receipt(broker)["state"] == "RESULT_COLLECTED"
+    assert len(transport.launches) == 1
+
+
+@pytest.mark.parametrize("root", ["/wjc/jobs", "../wjc", "wjc/../other", "other/jobs", "wjc-other", "wjc\\jobs", "C:/wjc"])
+def test_remote_root_rule(setup, root):
+    broker, _, _ = setup
+    with pytest.raises(ValueError):
+        RemoteJobProfile("lab", root, broker.profile.local_root, broker.profile.scan_roots)
+
+
+@pytest.mark.parametrize("root", ["wjc", "wjc/jobs", "wjc/experiments/jobs"])
+def test_valid_remote_roots(setup, root):
+    broker, _, _ = setup
+    assert RemoteJobProfile("lab", root, broker.profile.local_root, broker.profile.scan_roots).remote_root == root
+
+
+def test_config_disabled_and_invalid_profile(tmp_path, monkeypatch):
+    monkeypatch.delenv("REVERSE_AGENT_REMOTE_JOB_PROFILE", raising=False)
+    assert configured_broker() is None
+    path = tmp_path / "profile.json"
+    path.write_text(json.dumps({"ssh_alias": "lab", "remote_root": "outside", "local_root": str(tmp_path), "scan_roots": [str(tmp_path)]}))
+    monkeypatch.setenv("REVERSE_AGENT_REMOTE_JOB_PROFILE", str(path))
+    assert configured_broker() is None
+    with pytest.raises(SystemExit):
+        main(["status"])
+
+
+def test_profile_loading_does_not_start_transport(tmp_path, monkeypatch):
+    profile = {"ssh_alias": "lab", "remote_root": "wjc/research",
+               "local_root": str(tmp_path / "receipts"), "scan_roots": [str(tmp_path / "ws")],
+               "gpu_devices": ["0", "2"], "poll_seconds": 5}
+    path = tmp_path / "profile.json"
+    path.write_text(json.dumps(profile))
+    monkeypatch.setenv("REVERSE_AGENT_REMOTE_JOB_PROFILE", str(path))
+    def no_subprocess(*args, **kwargs):
+        raise AssertionError("loading a profile must not start SSH")
+    monkeypatch.setattr(subprocess, "run", no_subprocess)
+    configured = configured_broker()
+    assert configured.profile.remote_root == "wjc/research"
+    assert configured.profile.gpu_devices == ["0", "2"]
+    assert configured._thread is None
+
+
+@pytest.mark.parametrize("with_files", [False, True])
+def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp_path, with_files):
+    broker, _, _ = setup
+    calls = []
+    def run(argv, **kwargs):
+        calls.append(argv)
+        assert isinstance(argv, list)
+        assert not kwargs.get("shell", False)
+        assert kwargs["timeout"] == 120
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+    monkeypatch.setattr(subprocess, "run", run)
+    transport = SSHTransport(broker.profile)
+    path = "wjc/a 'quoted' $dollar/e001-job"
+    source = tmp_path / "source with spaces"
+    source.mkdir()
+    (source / "job.json").write_text('{}', encoding="utf-8")
+    entries = [source / "job.json"]
+    if with_files:
+        (source / "input file.txt").write_text("input", encoding="utf-8")
+        (source / "nested").mkdir()
+        (source / "nested" / "run.py").write_text("pass", encoding="utf-8")
+        entries = [source / "input file.txt", source / "job.json", source / "nested"]
+    transport.upload(source, path)
+    transport.download(path + "/file with spaces", tmp_path / "destination")
+    assert calls[0] == [
+        "scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
+        "-r", *(str(entry) for entry in entries), "lab:" + shlex.quote(path + "/"),
+    ]
+    for argv in calls:
+        assert argv[:6] == ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"]
+    assert shlex.split(calls[0][-1].split(":", 1)[1]) == [path + "/"]
+    assert shlex.split(calls[1][-2].split(":", 1)[1]) == [path + "/file with spaces"]
+
+
+def test_cli_status(setup, monkeypatch, capsys):
+    broker, _, _ = setup
+    request(broker, unknown=True)
+    broker.tick()
+    monkeypatch.setattr("reverse_agent.platform_v1.remote_jobs.configured_broker", lambda: broker)
+    main(["status", "--json"])
+    assert json.loads(capsys.readouterr().out)[0]["state"] == "REJECTED"
+
+
+def test_host_broker_lifecycle(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    monkeypatch.delenv("REVERSE_AGENT_REMOTE_JOB_PROFILE", raising=False)
+    monkeypatch.delenv("REVERSE_AGENT_AUTONOMOUS", raising=False)
+    host = CombinedTrustedHost(task_store=TaskStore(db_path=str(tmp_path / "tasks.sqlite3")), vault=None)
+    host.start(model_control_port=0, task_api_port=0)
+    try:
+        assert host._remote_job_broker is None
+    finally:
+        host.stop()
+    events = []
+    fake = SimpleNamespace(start=lambda: events.append("start"), stop=lambda: events.append("stop"))
+    monkeypatch.setattr("reverse_agent.platform_v1.trusted_host.configured_broker", lambda: fake)
+    host.start(model_control_port=0, task_api_port=0)
+    host.stop()
+    assert events == ["start", "stop"]
