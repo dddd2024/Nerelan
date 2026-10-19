@@ -95,6 +95,17 @@ def test_reply_parent_must_be_older_than_reply():
     assert parse_feed(feed(same_time_parent, same_time_reply), now=NOW).events == ()
 
 
+def test_timestamp_skew_cannot_reverse_x_snowflake_reply_order():
+    parent = item(50, "Global Codex reset", when=POST_TIME + timedelta(minutes=2))
+    child = item(51, "Landing now", kind="signal",
+                 reset_verification_candidate=True, in_reply_to_tweet_id=parent["id"])
+    # Both claimed timestamps are within 5m of their Snowflakes, but the
+    # mirror can make the truly newer parent *appear* earlier than the reply.
+    parent["at"] = (POST_TIME - timedelta(minutes=2)).isoformat().replace("+00:00", "Z")
+    child["at"] = (POST_TIME + timedelta(minutes=1)).isoformat().replace("+00:00", "Z")
+    assert not parse_feed(feed(parent, child), now=NOW).events
+
+
 def test_spoofed_original_url_and_unhashable_id_do_not_throw():
     a = item(9, "Global Codex reset landing", explicit=True)
     assert parse_feed(feed({**a, "url": "https://evil.example/status/x"}), now=NOW).events == ()
@@ -160,6 +171,33 @@ def test_bounded_fetch_without_secrets_or_provider_calls():
                       now=NOW).reason == "wrong_content_type"
     assert fetch_feed(opener=lambda *a, **k: (_ for _ in ()).throw(OSError("down")),
                       now=NOW).status == "UNKNOWN"
+
+
+def test_dns_like_open_stall_does_not_block_host_or_spawn_more_workers(monkeypatch):
+    import threading
+    import time
+    from reverse_agent.model_access import codex_reset_signals as mod
+
+    opened = threading.Event()
+    release = threading.Event()
+
+    def slow_open(request, *, timeout):
+        opened.set()
+        release.wait(1.0)
+        return FakeResponse(json.dumps(feed()).encode())
+
+    monkeypatch.setattr(mod, "MAX_FETCH_SECONDS", 0.025)
+    started = time.perf_counter()
+    first = fetch_feed(opener=slow_open, now=NOW)
+    assert first.reason == "fetch_deadline_exceeded"
+    assert time.perf_counter() - started < 0.25
+    assert opened.is_set()
+    second = fetch_feed(opener=slow_open, now=NOW)
+    assert second.reason == "previous_fetch_still_running"
+    release.set()
+    # Clean up this finite fake worker to avoid making later tests observe a
+    # deliberately in-flight fetch. Production DNS can remain blocked safely.
+    mod._FETCH_WORKER.join(timeout=1.0)
 
 
 def test_fetch_respects_deadline_even_when_chunks_are_dribbled(monkeypatch):

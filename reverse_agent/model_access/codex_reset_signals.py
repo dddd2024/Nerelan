@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 import urllib.request
 from dataclasses import dataclass
@@ -86,10 +87,12 @@ def _valid_post(entry: object, now: datetime) -> tuple[str, str, datetime] | Non
     except (ValueError, TypeError, OverflowError, OSError):
         return None
     if (abs(when - created) > MAX_ID_TIME_SKEW
-            or when > now + MAX_CLOCK_SKEW
-            or now - when > MAX_POST_AGE):
+            or created > now + MAX_CLOCK_SKEW
+            or now - created > MAX_POST_AGE):
         return None
-    return identity, text, when
+    # The source may skew `at` inside tolerance; only the X Snowflake is
+    # immutable enough to order replies and timestamp advisory events.
+    return identity, text, created
 
 
 def _global_codex_reset(text: str) -> bool:
@@ -170,9 +173,9 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def fetch_feed(*, opener: Callable[..., Any] | None = None,
-               now: datetime | None = None) -> ResetObservation:
-    """Fetch a bounded third-party JSON feed. No X login, account or model calls."""
+def _fetch_feed_worker(*, opener: Callable[..., Any] | None = None,
+                       now: datetime | None = None) -> ResetObservation:
+    """Internal HTTP worker; caller applies a hard wall-clock deadline."""
     request = urllib.request.Request(
         FEED_URL,
         headers={"Accept": "application/json", "User-Agent": "Nerelan-readonly-reset-observer/1"},
@@ -214,3 +217,40 @@ def fetch_feed(*, opener: Callable[..., Any] | None = None,
         return parse_feed(json.loads(b"".join(chunks)), now=now)
     except (OSError, URLError, HTTPError, ValueError, TypeError):
         return ResetObservation("UNKNOWN", None, (), "feed_unavailable_or_invalid")
+
+
+# A DNS resolver can ignore socket timeouts. Keep at most one daemon worker
+# outstanding, so no host caller waits past the 5s deadline and repeated
+# polling cannot accumulate blocked DNS threads.
+_FETCH_LOCK = threading.Lock()
+_FETCH_WORKER: threading.Thread | None = None
+
+
+def fetch_feed(*, opener: Callable[..., Any] | None = None,
+               now: datetime | None = None) -> ResetObservation:
+    """Bound the full HTTP operation including DNS/connection establishment.
+
+    A stuck DNS worker may finish later, but its result is discarded and a
+    second worker will not start until it exits. No task or quota is mutated.
+    """
+    global _FETCH_WORKER
+    completed = threading.Event()
+    result = [ResetObservation("UNKNOWN", None, (), "worker_not_completed")]
+
+    def work() -> None:
+        try:
+            result[0] = _fetch_feed_worker(opener=opener, now=now)
+        except Exception:
+            result[0] = ResetObservation("UNKNOWN", None, (), "feed_unavailable_or_invalid")
+        finally:
+            completed.set()
+
+    with _FETCH_LOCK:
+        if _FETCH_WORKER is not None and _FETCH_WORKER.is_alive():
+            return ResetObservation("UNKNOWN", None, (), "previous_fetch_still_running")
+        worker = threading.Thread(target=work, name="nerelan-reset-feed", daemon=True)
+        _FETCH_WORKER = worker
+        worker.start()
+    if not completed.wait(MAX_FETCH_SECONDS):
+        return ResetObservation("UNKNOWN", None, (), "fetch_deadline_exceeded")
+    return result[0]
