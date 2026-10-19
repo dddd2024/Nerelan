@@ -426,10 +426,14 @@ function Resolve-TrustedClientMetadataPath {
   # trusted override is set; dev-up's own PID log stays under repo runtime.
   $dir = $script:runtimeDir
   if (-not [string]::IsNullOrWhiteSpace($env:REVERSE_AGENT_TASK_DB_DIR)) {
-    $dir = $env:REVERSE_AGENT_TASK_DB_DIR
-    # TrustedHost is launched with cwd=$repoDir, not the caller's cwd.
-    if (-not [System.IO.Path]::IsPathRooted($dir)) {
-      $dir = Join-Path $repoDir $dir
+    # PowerShell's location need not update .NET's process cwd. Resolve using
+    # the real TrustedHost child cwd, including drive/root-relative paths.
+    $priorCwd = [Environment]::CurrentDirectory
+    try {
+      [Environment]::CurrentDirectory = $repoDir
+      $dir = [System.IO.Path]::GetFullPath($env:REVERSE_AGENT_TASK_DB_DIR)
+    } finally {
+      [Environment]::CurrentDirectory = $priorCwd
     }
   }
   return (Join-Path $dir "trusted_host_meta.json")
