@@ -98,7 +98,10 @@ class UnattendedCoordinator:
             if thread is not None:
                 self._thread = None
             Path(self.workspace_root).mkdir(parents=True, exist_ok=True)
-            self.reconcile()
+            # Refuse to activate dispatch while persisted durable-run state
+            # cannot be reconciled. A paused host may expose read-only state,
+            # but the coordinator must never poll with unknown recovery truth.
+            self.reconcile(fail_closed_on_durable=True)
             self._stop.clear()
             thread = threading.Thread(
                 target=self._run, name="reverse-agent-unattended", daemon=True
@@ -132,13 +135,15 @@ class UnattendedCoordinator:
             }:
                 self._last_error = ""
 
-    def reconcile(self) -> tuple[str, ...]:
+    def reconcile(self, *, fail_closed_on_durable: bool = False) -> tuple[str, ...]:
         durable = self._durable_service()
         reconciled: list[str] = []
         try:
             result = durable.reconcile_expired_runs()
         except Exception as exc:
             self._last_error = f"reconcile_failed:{type(exc).__name__}"
+            if fail_closed_on_durable:
+                raise RuntimeError("coordinator_startup_reconciliation_failed") from exc
             result = None
         if isinstance(result, (list, tuple)):
             reconciled.extend(str(value) for value in result)
