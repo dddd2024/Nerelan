@@ -146,6 +146,7 @@ class CombinedTrustedHost:
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
+        self._claude_reset_watcher: Any | None = None
 
         self._model_control_host = validate_bind_host(model_control_host)
         self._model_control_port = model_control_port
@@ -512,6 +513,18 @@ class CombinedTrustedHost:
                     "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
         return _cached(self, "_subscription_quota_cache", read)
 
+    def _claude_reset_quota_recheck(self) -> None:
+        # Read-only official CLI telemetry; never change entitlement/limits.
+        # Invalidate any minute-old presentation cache after public notice.
+        self._subscription_quota_cache = None
+        self._subscription_quotas()
+
+    def _claude_reset_status(self) -> dict[str, Any]:
+        watcher = self._claude_reset_watcher
+        if watcher is None:
+            return {"provider": "claude-code", "enabled": False, "status": "UNKNOWN", "reason": "monitor_disabled"}
+        return {"enabled": True, **watcher.snapshot()}
+
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
         """Same model, another executor: let real outcomes pick the pairing that works better."""
         from .model_profiles import best_pairing, cached_agent_profiles
@@ -615,6 +628,7 @@ class CombinedTrustedHost:
                 token_usage=self._token_usage,
                 subscription_quotas=self._subscription_quotas,
                 quota_guard_log=self._quota_guard_entries,
+                claude_reset_status=self._claude_reset_status,
             )
             self._model_server = ThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
@@ -696,11 +710,29 @@ class CombinedTrustedHost:
                 self._started_servers.append(server)
             if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
+            # Optional, independent public-announcement observer. This never
+            # changes a quota guard decision or starts any model execution.
+            if os.environ.get("REVERSE_AGENT_CLAUDE_RESET_WATCH") == "1":
+                db_path = self._task_store.db_path
+                if db_path and db_path != ":memory:":
+                    from ..model_access.claude_reset_signals import ClaudeResetWatcher
+                    self._claude_reset_watcher = ClaudeResetWatcher(
+                        os.path.dirname(os.path.abspath(db_path)) or ".",
+                        on_quota_refresh=self._claude_reset_quota_recheck,
+                    )
+                    self._claude_reset_watcher.start()
         except BaseException:
             self._cleanup_runtime_resources(close_account_auth=True)
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        watcher = self._claude_reset_watcher
+        self._claude_reset_watcher = None
+        if watcher is not None:
+            try:
+                watcher.stop()
+            except Exception:
+                pass
         self._local_client_session.revoke()
         if self._trusted_client is not None:
             try:

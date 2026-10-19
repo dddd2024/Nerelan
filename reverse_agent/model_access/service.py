@@ -347,6 +347,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     token_usage: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
     subscription_quotas: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
     quota_guard_log: Callable[[], list[Any]] = staticmethod(lambda: [])
+    claude_reset_status: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {"enabled": False, "provider": "claude-code", "status": "UNKNOWN"})
 
     server_version = "reverse-agent-model-control/1"
 
@@ -407,6 +408,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.get_agent_roster_public())
+                return
+            if segments == ["api", "reset-announcements"]:
+                self._send_json(HTTPStatus.OK, self.claude_reset_status())
                 return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
@@ -708,6 +712,7 @@ def _handler_factory(
     token_usage: Callable[[], Mapping[str, Any]] | None = None,
     subscription_quotas: Callable[[], Mapping[str, Any]] | None = None,
     quota_guard_log: Callable[[], list[Any]] | None = None,
+    claude_reset_status: Callable[[], Mapping[str, Any]] | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -723,6 +728,7 @@ def _handler_factory(
     ConfiguredHandler.token_usage = staticmethod(token_usage or (lambda: {}))
     ConfiguredHandler.subscription_quotas = staticmethod(subscription_quotas or (lambda: {}))
     ConfiguredHandler.quota_guard_log = staticmethod(quota_guard_log or (lambda: []))
+    ConfiguredHandler.claude_reset_status = staticmethod(claude_reset_status or (lambda: {"provider": "claude-code", "enabled": False, "status": "UNKNOWN"}))
     return ConfiguredHandler
 
 
