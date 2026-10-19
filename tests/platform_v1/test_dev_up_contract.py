@@ -88,15 +88,20 @@ $env:REVERSE_AGENT_TASK_DB_DIR = Join-Path $base 'check-isolated-db'
 $override = Resolve-TrustedClientMetadataPath
 $env:REVERSE_AGENT_TASK_DB_DIR = 'relative-store'
 $relative = Resolve-TrustedClientMetadataPath
-$env:REVERSE_AGENT_TASK_DB_DIR = ([char]92) + 'root-relative-store'
-$rootRelative = Resolve-TrustedClientMetadataPath
-$drive = [System.IO.Path]::GetPathRoot($repoDir).Substring(0, 2)
-$env:REVERSE_AGENT_TASK_DB_DIR = $drive + 'drive-relative-store'
-$driveRelative = Resolve-TrustedClientMetadataPath
+$onWindows = [System.IO.Path]::DirectorySeparatorChar -eq ([char]92)
+$rootRelative = $null
+$driveRelative = $null
+if ($onWindows) {
+  $env:REVERSE_AGENT_TASK_DB_DIR = ([char]92) + 'root-relative-store'
+  $rootRelative = Resolve-TrustedClientMetadataPath
+  $drive = [System.IO.Path]::GetPathRoot($repoDir).Substring(0, 2)
+  $env:REVERSE_AGENT_TASK_DB_DIR = $drive + 'drive-relative-store'
+  $driveRelative = Resolve-TrustedClientMetadataPath
+}
 $env:REVERSE_AGENT_TASK_DB_DIR = ''
 $default = Resolve-TrustedClientMetadataPath
 $cwdUnchanged = [Environment]::CurrentDirectory -eq $ambientCwd
-ConvertTo-Json -Compress -InputObject @{ base = $base; repo = $repoDir; isolated = $override; relative = $relative; rootRelative = $rootRelative; driveRelative = $driveRelative; fallback = $default; cwdUnchanged = $cwdUnchanged }
+ConvertTo-Json -Compress -InputObject @{ base = $base; repo = $repoDir; isolated = $override; relative = $relative; rootRelative = $rootRelative; driveRelative = $driveRelative; fallback = $default; cwdUnchanged = $cwdUnchanged; onWindows = $onWindows }
 """.replace("__SOURCE__", source_path)
     result = _run_ps(script)
     assert result.returncode == 0, result.stdout + result.stderr
@@ -108,12 +113,18 @@ ConvertTo-Json -Compress -InputObject @{ base = $base; repo = $repoDir; isolated
     assert ntpath.normpath(data["relative"]) == ntpath.join(
         ntpath.normpath(data["repo"]), "relative-store", "trusted_host_meta.json"
     )
-    assert ntpath.normpath(data["rootRelative"]) == ntpath.join(
-        ntpath.splitdrive(root)[0] + chr(92), "root-relative-store", "trusted_host_meta.json"
-    )
-    assert ntpath.normpath(data["driveRelative"]) == ntpath.join(
-        ntpath.normpath(data["repo"]), "drive-relative-store", "trusted_host_meta.json"
-    )
+    # Root- and drive-relative paths follow Windows-only semantics. On Linux,
+    # pwsh runs this contract too, but backslash is an ordinary filename char.
+    if data["onWindows"]:
+        assert ntpath.normpath(data["rootRelative"]) == ntpath.join(
+            ntpath.splitdrive(root)[0] + chr(92), "root-relative-store", "trusted_host_meta.json"
+        )
+        assert ntpath.normpath(data["driveRelative"]) == ntpath.join(
+            ntpath.normpath(data["repo"]), "drive-relative-store", "trusted_host_meta.json"
+        )
+    else:
+        assert data["rootRelative"] is None
+        assert data["driveRelative"] is None
     assert ntpath.normpath(data["fallback"]) == ntpath.join(
         root, "check-runtime", "trusted_host_meta.json"
     )
