@@ -1,4 +1,4 @@
-"""Planner agent: decompose a Goal into role-tagged tasks for the Agent team.
+"""Planner agent: decompose a Goal into difficulty-tagged tasks for the Agent team.
 
 The planner role's agent (a native CLI executor: Claude Code or Codex) runs
 read-only in the configured repository and must answer with one JSON object.
@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .functional_validation import _CATALOG as _CHECK_CATALOG
+from .model_router import task_traits
 from .opencode_executor import redact_secrets
 from .run_store import TaskStoreError
 
@@ -45,8 +46,11 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
     return (
         "You are the planner of a multi-agent software team. Read the repository in the current "
         "directory (read-only) and decompose the objective into a small set of concrete tasks. "
-        "Assign each task the cheapest role that can do it well, so most work goes to cheaper agents.\n\n"
-        f"Repository: {repository}\nObjective: {objective}\n\nRoles:\n{roles}\n\n"
+        "Assign every task difficulty (integer 1-5) and kind (code, analysis, writing, research_design, review). "
+        "Difficulty: 1 trivial edit/format; 2 small single-file change or short summary; "
+        "3 normal feature/bug fix or data analysis; 4 multi-file design, subtle bug or experiment design; "
+        "5 hard reasoning, architecture or research judgement.\n\n"
+        f"Repository: {repository}\nObjective: {objective}\n\nLegacy roles (optional):\n{roles}\n\n"
         "Rules: at most " + str(MAX_PLAN_TASKS) + " tasks; ids T001, T002, ...; dependencies reference "
         "earlier ids only; each instruction is self-contained (the agent sees only its own task); do not "
         "plan commits, pushes, releases or dependency installs.\n"
@@ -64,10 +68,10 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "focused test files (unit tests for the modules the task changes), not large integration suites. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
-        '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "agent_role": "coder", '
+        '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "difficulty": 3, "kind": "code", '
         '"dependencies": [], "validation_checks": [{"profile_id": "python_pytest", "working_directory": ".", '
         '"targets": ["tests/test_existing.py"]}]}, '
-        '{"id": "T002", "title": "...", "instruction": "...", "agent_role": "simple", "dependencies": ["T001"], '
+        '{"id": "T002", "title": "...", "instruction": "...", "difficulty": 2, "kind": "code", "dependencies": ["T001"], '
         '"artifact_input": {"plan_task_id": "T001"}, '
         '"validation_checks": [{"profile_id": "python_pytest", "working_directory": ".", '
         '"targets": ["tests/test_new_feature.py"]}]}], '
@@ -120,7 +124,8 @@ def extract_plan(text: str) -> dict[str, Any]:
         raise TaskStoreError("agent_plan_too_many_tasks")
     # Approved checks and predecessor artifacts let a chain build on earlier work; GoalService
     # validation still requires catalog profiles and an artifact from a declared dependency.
-    allowed = {"id", "title", "instruction", "agent_role", "dependencies", "validation_checks", "artifact_input"}
+    allowed = {"id", "title", "instruction", "agent_role", "difficulty", "kind", "dependencies",
+               "validation_checks", "artifact_input"}
     tasks = []
     for raw in plan["tasks"]:
         if not isinstance(raw, dict):
@@ -129,7 +134,11 @@ def extract_plan(text: str) -> dict[str, Any]:
         # validates its input artifact without changing it, so reviewer tasks are derived as
         # validate_task (the host rejects any tree change); everything else stays execute_task.
         task = {key: raw[key] for key in allowed if key in raw}
-        if task.get("agent_role") == "reviewer":
+        try:
+            task["difficulty"], task["kind"] = task_traits(task)
+        except ValueError as exc:
+            raise TaskStoreError(str(exc)) from exc
+        if task.get("agent_role") == "reviewer" or task["kind"] == "review":
             task["capability"] = "validate_task"
         tasks.append(task)
     criteria = plan.get("acceptance_criteria", [])
