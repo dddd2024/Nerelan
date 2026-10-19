@@ -518,6 +518,37 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
         self.assertEqual(self.round()["imports"]["r1-lost"]["error"], "JOB_WAIT_EXPIRED")
 
+    def test_deadline_preserves_collected_results(self):
+        self.launch()
+        self.complete([self.task("task", {
+            ".nerelan-remote/outbox/r1-a/job.json": "{}",
+            ".nerelan-remote/outbox/r1-b/job.json": "{}"})])
+        write_json(self.broker / "r1-b/receipt.json", {"state": "RUNNING"})
+        for _ in range(4):
+            self.tick()
+        record = self.round()
+        self.assertEqual(record["state"], "WAITING_JOBS")
+        self.assertEqual(record["job_states"], {"r1-a": "NO_RECEIPT", "r1-b": "RUNNING"})
+        self.receipt("r1-a")
+        self.now = record["waiting_since"] + self.config["max_job_wait_hours"] * 3600
+        self.assertLess(self.now - self.state()["started_at"], self.config["max_hours"] * 3600)
+        self.tick()
+        record = self.round()
+        self.assertEqual(record["state"], "RESULTS_IMPORTED")
+        self.assertTrue(record["imports"]["r1-a"]["imported"])
+        self.assertNotIn("error", record["imports"]["r1-a"])
+        self.assertEqual((self.repo / "results/r1-a/outputs/value.txt").read_bytes(), b"measurement\n")
+        self.assertEqual(record["imports"]["r1-b"]["error"], "JOB_WAIT_EXPIRED")
+        self.assertFalse((self.repo / "results/r1-b").exists())
+        committed = self.git("show", "--pretty=format:", "--name-only", "HEAD").split()
+        self.assertIn("results/r1-a/outputs/value.txt", committed)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        for _ in range(2):
+            self.tick()
+        self.assertEqual(self.round()["state"], "DONE")
+        self.assertEqual(self.state()["round"], 2)
+        self.assertEqual(self.state()["state"], "RUNNING")
+
     def test_failed_goal_with_queued_dependents_finishes(self):
         self.launch()
         self.complete([{ "task_id": "failed", "status": "FAILED"},

@@ -278,36 +278,31 @@ class ResearchLoop:
                 return
             record.setdefault("waiting_since", self.clock())
             expired = self.clock() - record["waiting_since"] >= self.config["max_job_wait_hours"] * 3600
-            ready = not expired
             observed = {}
+            ready = {}
             for job in record["jobs"]:
                 source = self.broker_root / job
                 if not (source / "receipt.json").exists():
                     observed[job] = "NO_RECEIPT"
-                    ready = False
+                    ready[job] = False
                     continue
                 receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
                 observed[job] = receipt["state"]
                 # Ready means the result was actually collected, or the job was
                 # rejected with nothing to collect. LOST/TIMED_OUT/FAILED leave
                 # collection pending until the broker actually collects a result.
-                if receipt["state"] in {"RESULT_COLLECTED", "REJECTED"}:
-                    continue
-                if receipt["state"] == "FAILED" and (source / "manifest.json").exists():
-                    continue
-                ready = False
+                ready[job] = (receipt["state"] in {"RESULT_COLLECTED", "REJECTED"} or
+                              receipt["state"] == "FAILED" and (source / "manifest.json").exists())
             if observed != record.get("job_states"):
                 record["job_states"] = observed
                 self._event(record, "WAITING_JOBS", json.dumps(observed, sort_keys=True), path)
             if expired:
                 for job in record["jobs"]:
-                    if record["imports"].get(job, {}).get("error"):
-                        continue
-                    if not record["imports"].get(job):
+                    if not ready[job] and job not in record["imports"]:
                         record["imports"][job] = {"error": "JOB_WAIT_EXPIRED"}
                 self._save(record, path)
                 self._import(campaign, record, path)
-            elif ready:
+            elif all(ready.values()):
                 self._import(campaign, record, path)
         elif state == "RESULTS_IMPORTED":
             if self.config.get("push") and not record.get("push_attempted"):
