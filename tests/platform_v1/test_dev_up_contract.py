@@ -66,7 +66,8 @@ def test_task_api_origin_is_frontend() -> None:
 
 @requires_powershell
 def test_trusted_client_metadata_path_matches_host_owned_task_db_dir() -> None:
-    # Evaluate only the actual function AST, never start UI/provider processes.
+    # Execute only the actual resolver AST; the test does not start services.
+    # The path must be anchored to an existing host temp drive (CI has no F:).
     source_path = str(DEV_UP).replace("'", "''")
     script = r"""
 $errors = $null; $tokens = $null
@@ -78,19 +79,24 @@ $functions = @($tree.FindAll({ param($node)
 }, $true))
 if ($functions.Count -ne 1) { throw 'expected exact resolver function' }
 . ([scriptblock]::Create($functions[0].Extent.Text))
-$script:runtimeDir = 'F:\check-runtime'
-$env:REVERSE_AGENT_TASK_DB_DIR = 'F:\check-isolated-db'
+$base = [System.IO.Path]::GetTempPath()
+$script:runtimeDir = Join-Path $base 'check-runtime'
+$env:REVERSE_AGENT_TASK_DB_DIR = Join-Path $base 'check-isolated-db'
 $override = Resolve-TrustedClientMetadataPath
 $env:REVERSE_AGENT_TASK_DB_DIR = ''
 $default = Resolve-TrustedClientMetadataPath
-ConvertTo-Json -Compress -InputObject @($override, $default)
+ConvertTo-Json -Compress -InputObject @{ base = $base; isolated = $override; fallback = $default }
 """.replace("__SOURCE__", source_path)
     result = _run_ps(script)
     assert result.returncode == 0, result.stdout + result.stderr
-    assert [ntpath.normpath(v) for v in json.loads(result.stdout)] == [
-        ntpath.normpath("F:/check-isolated-db/trusted_host_meta.json"),
-        ntpath.normpath("F:/check-runtime/trusted_host_meta.json"),
-    ]
+    data = json.loads(result.stdout)
+    root = ntpath.normpath(data["base"])
+    assert ntpath.normpath(data["isolated"]) == ntpath.join(
+        root, "check-isolated-db", "trusted_host_meta.json"
+    )
+    assert ntpath.normpath(data["fallback"]) == ntpath.join(
+        root, "check-runtime", "trusted_host_meta.json"
+    )
     assert "Get-Content -LiteralPath (Resolve-TrustedClientMetadataPath)" in _DEV_UP
 
 
