@@ -71,10 +71,10 @@ def test_paused_real_host_starts_on_isolated_ports_and_releases_all(tmp_path, mo
     assert not host._started_servers
     for port in ports:
         with socket.socket() as probe:
-            # Match ThreadingHTTPServer.allow_reuse_address: an accepted
-            # local GET may leave a TIME_WAIT connection on Linux.
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            probe.bind(("127.0.0.1", port))
+            probe.settimeout(0.5)
+            # Rebinding with SO_REUSEADDR can succeed while a listener remains
+            # active on Windows; connection refusal checks the actual listener.
+            assert probe.connect_ex(("127.0.0.1", port)) != 0
 
 
 def test_occupied_port_refuses_without_start_or_durable_write(tmp_path, monkeypatch):
