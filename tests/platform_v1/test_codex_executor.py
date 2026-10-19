@@ -119,6 +119,26 @@ def test_native_bytecode_only_cannot_mask_no_product_changes(repository, tmp_pat
     assert (Path(result.workspace) / "__pycache__" / "fixture.cpython-313.pyc").exists()
 
 
+def test_literal_posix_backslash_cannot_hide_tracked_bytecode(monkeypatch, tmp_path):
+    """Git byte paths must not be folded across POSIX backslash/slash identities."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    def fake_ls_files(argv, **_kwargs):
+        assert argv[:3] == ["git", "ls-files", "--others"]
+        return SimpleNamespace(
+            returncode=0,
+            stdout=b"__pycache__" + bytes([92]) + b"fixture.pyc" + bytes([0]),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_ls_files)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": "__pycache__/fixture.pyc", "status": "modified"}
+    ])
+    files = collector._collect_final_product_files(tmp_path)
+    assert [f["path"] for f in files] == ["__pycache__/fixture.pyc"]
+
+
 def test_tracked_python_bytecode_still_counts_as_product_change(repository):
     from reverse_agent.platform_v1.opencode_executor import _collect_final_product_files
     repo, _ = repository

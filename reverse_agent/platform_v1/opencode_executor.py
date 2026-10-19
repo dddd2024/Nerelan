@@ -2367,7 +2367,10 @@ def _untracked_python_bytecode(worktree: Path) -> set[str]:
         result.stdout and not result.stdout.endswith(b"\x00")
     ):
         return set()
-    candidates = (entry.decode("utf-8", errors="surrogateescape").replace("\\", "/")
+    # Do not normalize backslashes: they are legal literal filename bytes on
+    # POSIX. Rewriting them to "/" can collide with a different *tracked*
+    # path and suppress genuine product evidence.
+    candidates = (entry.decode("utf-8", errors="surrogateescape")
                   for entry in result.stdout.split(b"\x00") if entry)
     return {path for path in candidates
             if len(path.split("/")) >= 2 and path.split("/")[-2] == "__pycache__"
@@ -2385,7 +2388,7 @@ def _collect_final_product_files(worktree: Path) -> list[dict[str, Any]]:
         f
         for f in _collect_changed_files(worktree)
         if f.get("path") and not _is_handoff_path(f["path"])
-        and f["path"].replace("\\", "/") not in generated
+        and f["path"] not in generated
     ]
 
 
