@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from datetime import datetime, timezone
+from typing import Any, Callable, Mapping
 
 from .opencode_executor import redact_event, redact_secrets
 from .task_runtime import ExecutorRuntimeError
@@ -18,6 +19,21 @@ from .task_runtime import ExecutorRuntimeError
 
 class CodexProtocolError(ExecutorRuntimeError):
     """Finite classification; raw provider output is never part of the error."""
+
+
+# The account's own answer that it is out of quota. This mirrors quota_guard.ACCOUNT_LIMIT,
+# but matches the free-text wording the CLI turns carry instead of a classification string.
+_USAGE_LIMIT_RE = re.compile(
+    r"(?i)usage\s+limit|rate\s+limit|\b429\b|try\s+again\s+at|you'?ve\s+hit\s+your|"
+    r"limit\s+reached|quota\s+exceeded"
+)
+
+# A stated reset time inside a usage-limit message: an ISO-8601 timestamp, or a
+# "try again at HH:MM" style hint (the latter resolved against the current day).
+_RESET_ISO_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)\b")
+_RESET_CLOCK_RE = re.compile(r"(?i)try\s+again\s+at\s+(\d{1,2}):(\d{2})")
+
+_FAILURE_DETAIL_LIMIT = 500
 
 
 def public_text(value: Any, limit: int = 4096) -> str:
@@ -33,6 +49,46 @@ def public_text(value: Any, limit: int = 4096) -> str:
     )
 
 
+def _usage_limit_message(event: Mapping[str, Any] | None) -> str:
+    """The bounded, redacted error message from an error/turn.failed event, or ''."""
+    if not isinstance(event, Mapping):
+        return ""
+    error = event.get("error")
+    if not isinstance(error, Mapping):
+        return ""
+    message = error.get("message")
+    return public_text(message, _FAILURE_DETAIL_LIMIT) if isinstance(message, str) else ""
+
+
+def usage_limit_hit(message: str) -> bool:
+    return bool(_USAGE_LIMIT_RE.search(message))
+
+
+def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
+    """An ISO-8601 reset timestamp stated in a usage-limit message, or None."""
+    match = _RESET_ISO_RE.search(message)
+    if match:
+        try:
+            parsed = datetime.fromisoformat(match.group(1).replace("Z", "+00:00").replace(" ", "T"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        except ValueError:
+            return None
+    clock = _RESET_CLOCK_RE.search(message)
+    if clock:
+        now = now or datetime.now(timezone.utc)
+        try:
+            hour, minute = int(clock.group(1)), int(clock.group(2))
+            reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if reset <= now:
+                reset = reset.replace(day=reset.day + 1) if reset.day < 28 else reset
+            return reset.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        except ValueError:
+            return None
+    return None
+
+
 @dataclass
 class CodexTurn:
     thread_id: str = ""
@@ -43,6 +99,10 @@ class CodexTurn:
     tool_launch_failed: bool = False
     final_text: str = ""
     failure_classification: str = ""
+    # Bounded, redacted copy of the provider's error message (empty on success).
+    failure_detail: str = ""
+    # Reset timestamp the provider stated inside the failure message, when it did.
+    failure_reset_at: str = ""
     usage: dict[str, int] | None = None
     items: list[dict[str, Any]] = field(default_factory=list)
     # Optional, allowlisted facts a CLI reports about the turn (empty when it says nothing).
@@ -61,6 +121,7 @@ class CodexJsonl:
         max_frame_bytes: int = 256 * 1024,
         max_stream_bytes: int = 2 * 1024 * 1024,
         max_events: int = 2000,
+        limit_classification: str = "codex_usage_limit",
     ) -> None:
         if not (0 < max_frame_bytes <= max_stream_bytes <= 8 * 1024 * 1024):
             raise ValueError("codex_protocol_limits_invalid")
@@ -71,11 +132,29 @@ class CodexJsonl:
         self._frame_limit = max_frame_bytes
         self._stream_limit = max_stream_bytes
         self._event_limit = max_events
+        self._limit_classification = limit_classification
         self._buffer = bytearray()
         self._bytes = 0
         self._events = 0
         self._started = False
         self._error_seen = False
+        self._error_detail = ""
+
+    def _publish_failure(self, classification: str, detail: str) -> None:
+        self.turn.failed = True
+        self.turn.completed = False
+        self.turn.failure_classification = classification
+        self.turn.failure_detail = detail
+        reset_at = parse_reset_time(detail) if detail else None
+        self.turn.failure_reset_at = reset_at or ""
+        if detail:
+            public = redact_event({"type": "turn.error", "failure_classification": classification,
+                                   "detail": public_text(detail, _FAILURE_DETAIL_LIMIT),
+                                   **({"resets_at": reset_at} if reset_at else {})})
+            if len(self.turn.items) < 100:
+                self.turn.items.append(public)
+            if self._callback:
+                self._callback(public)
 
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
@@ -98,8 +177,10 @@ class CodexJsonl:
             self._buffer.clear()
         if not (self.turn.completed or self.turn.failed):
             if self._error_seen:
-                self.turn.failed = True
-                self.turn.failure_classification = "codex_turn_failed"
+                if usage_limit_hit(self._error_detail):
+                    self._publish_failure(self._limit_classification, self._error_detail)
+                else:
+                    self._publish_failure("codex_turn_failed", self._error_detail)
                 return self.turn
             raise CodexProtocolError("codex_turn_incomplete")
         if self.turn.completed and not self.turn.final_text:
@@ -137,14 +218,25 @@ class CodexJsonl:
         elif kind == "error":
             # CLI diagnostics (including reconnect attempts) are not a turn
             # terminal. Only a later completed/failed event settles the turn;
-            # EOF after a diagnostic remains a failure.
+            # EOF after a diagnostic remains a failure. Keep a bounded, redacted
+            # copy so a usage-limit diagnostic is distinguishable from noise.
             self._error_seen = True
+            detail = _usage_limit_message(event)
+            if detail:
+                self._error_detail = detail
         elif kind in {"turn.completed", "turn.failed"}:
             if not self._started:
                 raise CodexProtocolError("codex_turn_identity_invalid")
-            self.turn.completed = kind == "turn.completed"
-            self.turn.failed = not self.turn.completed
-            self.turn.failure_classification = "" if self.turn.completed else "codex_turn_failed"
+            if kind == "turn.failed":
+                detail = _usage_limit_message(event) or self._error_detail
+                if detail and usage_limit_hit(detail):
+                    self._publish_failure(self._limit_classification, detail)
+                else:
+                    self._publish_failure("codex_turn_failed", detail)
+            else:
+                self.turn.completed = True
+                self.turn.failed = False
+                self.turn.failure_classification = ""
             usage = event.get("usage")
             if isinstance(usage, dict):
                 keys = ("input_tokens", "cached_input_tokens", "output_tokens")

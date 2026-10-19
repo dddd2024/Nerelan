@@ -4,7 +4,9 @@ import json
 
 import pytest
 
-from reverse_agent.platform_v1.codex_protocol import CodexJsonl, CodexProtocolError
+from reverse_agent.platform_v1.codex_protocol import (
+    CodexJsonl, CodexProtocolError, parse_reset_time,
+)
 
 
 def wire(*events):
@@ -152,9 +154,6 @@ def test_failed_turn_never_echoes_secret_bearing_error_object():
     assert result.failed and not result.completed
     assert result.failure_classification == "codex_turn_failed"
     assert "private-value" not in repr(result)
-
-
-def test_public_allowlist_redacts_before_truncation_and_discards_opaque_payloads():
     seen = []
     parser = CodexJsonl(seen.append)
     message = {"type": "item.completed", "item": {
@@ -187,3 +186,74 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))
+
+
+# --- #1260: usage-limit classification from error/turn.failed messages ---
+
+
+def test_turn_failed_usage_limit_is_classified_and_redacted():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START, {"type": "turn.failed", "error": {
+        "message": "You've hit your usage limit. Try again at 2026-10-20T00:00:00Z",
+        "api_key": "opaque-key"}}))
+    result = parser.finish()
+    assert result.failed and not result.completed
+    assert result.failure_classification == "codex_usage_limit"
+    assert "usage limit" in result.failure_detail
+    assert "opaque-key" not in result.failure_detail
+    assert seen and seen[-1]["type"] == "turn.error"
+    assert seen[-1]["failure_classification"] == "codex_usage_limit"
+
+
+def test_error_event_then_usage_limit_turn_failed_classifies():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "error", "error": {"message": "rate limit reached"}},
+                     {"type": "turn.failed", "error": {"message": "rate limit reached"}}))
+    result = parser.finish()
+    assert result.failure_classification == "codex_usage_limit"
+
+
+def test_generic_error_stays_turn_failed_but_keeps_detail():
+    seen = []
+    parser = CodexJsonl(seen.append)
+    parser.feed(wire(*START, {"type": "turn.failed", "error": {"message": "the model blew up"}}))
+    result = parser.finish()
+    assert result.failure_classification == "codex_turn_failed"
+    assert result.failure_detail == "the model blew up"
+    assert seen and seen[-1]["type"] == "turn.error"
+    assert seen[-1]["failure_classification"] == "codex_turn_failed"
+
+
+def test_error_event_only_at_eof_classifies_usage_limit():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "error", "error": {"message": "429 usage limit"}}))
+    result = parser.finish()
+    assert result.failed
+    assert result.failure_classification == "codex_usage_limit"
+
+
+def test_secret_in_usage_limit_message_is_redacted():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "turn.failed", "error": {
+        "message": "usage limit hit; token: sk-verysecretvalue Authorization: Bearer abc123"}}))
+    result = parser.finish()
+    assert result.failure_classification == "codex_usage_limit"
+    assert "sk-verysecretvalue" not in result.failure_detail
+    assert "abc123" not in result.failure_detail
+    assert "REDACTED" in result.failure_detail
+
+
+def test_failure_detail_is_bounded_to_500_chars():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "turn.failed", "error": {"message": "usage limit " + "x" * 2000}}))
+    result = parser.finish()
+    assert len(result.failure_detail) <= 500
+
+
+def test_parse_reset_time_from_message():
+    from datetime import datetime, timezone
+    assert parse_reset_time("try again at 2026-10-20T00:00:00Z") == "2026-10-20T00:00:00Z"
+    assert parse_reset_time("no reset here") is None
+    now = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
+    assert parse_reset_time("try again at 14:30", now) == "2026-10-19T14:30:00Z"

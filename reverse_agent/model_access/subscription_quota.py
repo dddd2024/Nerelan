@@ -345,3 +345,68 @@ def claude_quota(notices: tuple[list, str | None] | None, config_dir: str | os.P
 def iso_or_none(epoch: float | None) -> str | None:
     from .quota_forecast import iso
     return iso(epoch)
+
+
+# ---- Magpie observation: official numbers first, local CLI logs as fallback ----
+
+# Magpie account `provider` strings are not the executor provider ids the guard keys by.
+_MAGPIE_PROVIDER_KEYS = {
+    "codex": "codex",
+    "openai": "codex",
+    "chatgpt": "codex",
+    "claude-code": "claude-code",
+    "claude_code": "claude-code",
+    "anthropic": "claude-code",
+    "claude": "claude-code",
+}
+
+
+def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = None) -> dict[str, dict[str, Any]]:
+    """Map a Magpie snapshot's fresh subscription accounts onto the guard's quota shape.
+
+    Only ``FRESH`` accounts (already age-checked by :func:`parse_quotas` at <= 15 min)
+    contribute; anything else is dropped so the caller can fall back to the local CLI
+    source. The official ``used_percent``/``resets_at`` are kept verbatim, so a 100% 5h
+    window drives ``switch`` and the account is held until its stated reset.
+    """
+    now = time.time() if now is None else now
+    result: dict[str, dict[str, Any]] = {}
+    if not isinstance(snapshot, Mapping) or snapshot.get("status") != "available":
+        return result
+    for account in snapshot.get("accounts") or []:
+        if not isinstance(account, Mapping) or account.get("state") != "FRESH":
+            continue
+        key = _MAGPIE_PROVIDER_KEYS.get(account.get("provider"))
+        if key is None:
+            continue
+        windows = []
+        for window in account.get("windows") or []:
+            if not isinstance(window, Mapping):
+                continue
+            used = window.get("used_percent")
+            if type(used) not in (int, float) or not 0 <= used <= 100:
+                continue
+            resets_at = window.get("resets_at")
+            reset = parse_iso_time(resets_at)
+            windows.append({
+                "window": window.get("name") if isinstance(window.get("name"), str) else "window",
+                "basis": "official_percent",
+                "used_percent": used,
+                "resets_at": resets_at if isinstance(resets_at, str) else None,
+                "reset_passed": bool(reset is not None and reset <= now),
+                "status": None,
+                "source": "magpie",
+            })
+        if windows:
+            result[key] = {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie",
+                           "observed_at": account.get("observed_at"), "windows": windows}
+    return result
+
+
+def parse_iso_time(value: Any) -> float | None:
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None

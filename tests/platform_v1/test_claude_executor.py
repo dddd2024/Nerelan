@@ -228,6 +228,30 @@ def test_router_registers_claude_code_executor():
     assert isinstance(executor, ClaudeCodeExecutor) and executor.KIND == "claude_code"
 
 
+def test_result_usage_limit_message_classifies_and_redacts():
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n'
+                b'{"type":"result","subtype":"success","is_error":true,'
+                b'"error":"You\'ve hit your usage limit sk-verysecret"}\n')
+    turn = parser.finish()
+    assert turn.failed
+    assert turn.failure_classification == "claude_code_usage_limit"
+    assert "usage limit" in turn.failure_detail
+    assert "sk-verysecret" not in turn.failure_detail
+    assert seen and seen[-1]["type"] == "turn.error"
+
+
+def test_result_generic_error_stays_turn_failed_with_detail():
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n'
+                b'{"type":"result","subtype":"error_max_turns","is_error":true,"error":"boom"}\n')
+    turn = parser.finish()
+    assert turn.failure_classification == "claude_code_turn_failed:error_max_turns"
+    assert turn.failure_detail == "boom"
+
+
 def test_claude_account_connection_and_binding_never_accept_api_keys(tmp_path):
     store = ModelProfileStore(state_path=tmp_path / "state.json")
     connection = {"connection_id": "claude-account", "name": "Claude 账号", "provider": "claude-code",

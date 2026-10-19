@@ -95,3 +95,102 @@ def test_uncertain_insufficient_forecast_does_not_automatically_block_agent_team
     assert host._quota_guarded("coder", "claude_code", "account-model", {}) == (
         "claude_code", "account-model")
     assert host._quota_guard_entries()[0]["decision"] == "warn"
+
+
+# --- #1260: Magpie subscription windows feed the guard ---
+
+
+def _magpie_snapshot(*accounts):
+    return {"status": "available", "version": "0.1.1250", "models": [], "accounts": list(accounts)}
+
+
+def _magpie_account(provider, used, resets_at, state="FRESH", name="five_hour"):
+    return {"provider": provider, "kind": "subscription", "plan": "Pro", "state": state,
+            "reason": None if state == "FRESH" else "stale_reading",
+            "observed_at": "2026-10-19T11:00:00Z",
+            "windows": [{"name": name, "used_percent": used, "remaining_percent": 100 - used,
+                         "resets_at": resets_at, "unlimited": False}]}
+
+
+def test_magpie_full_window_drives_switch_until_resets_at():
+    from reverse_agent.model_access.subscription_quota import magpie_quota_windows
+    snapshot = _magpie_snapshot(_magpie_account("codex", 100.0, "2026-10-19T16:00:00Z"))
+    quotas = magpie_quota_windows(snapshot, now=1761487200.0)  # 2026-10-19T11:00Z
+    verdict = check(_connection(), quotas, None)
+    assert (verdict["decision"], verdict["reason"]) == ("switch", "observed_exhausted")
+    assert quotas["codex"]["windows"][0]["resets_at"] == "2026-10-19T16:00:00Z"
+    assert quotas["codex"]["windows"][0]["reset_passed"] is False
+
+
+def test_stale_magpie_account_contributes_no_windows():
+    from reverse_agent.model_access.subscription_quota import magpie_quota_windows
+    snapshot = _magpie_snapshot(_magpie_account("codex", 100.0, "2026-10-19T16:00:00Z", state="STALE"))
+    assert magpie_quota_windows(snapshot) == {}
+
+
+def test_unknown_magpie_provider_is_ignored():
+    from reverse_agent.model_access.subscription_quota import magpie_quota_windows
+    snapshot = _magpie_snapshot(_magpie_account("workbuddy", 100.0, "2026-10-19T16:00:00Z"))
+    assert magpie_quota_windows(snapshot) == {}
+
+
+def test_host_falls_back_to_local_when_magpie_disabled(monkeypatch):
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "codex-account", "name": "Codex", "provider": "codex",
+                             "base_url": "https://chatgpt.com", "auth_method": "external_cli_session",
+                             "enabled": True})
+    host = object.__new__(CombinedTrustedHost)
+    host._store = store
+    host._task_store = TaskStore(":memory:")
+    local = {"codex": {"state": "UNKNOWN", "windows": []}}
+    monkeypatch.delenv("REVERSE_AGENT_MAGPIE", raising=False)
+    assert host._merge_magpie_quotas(local) == local
+
+
+def test_host_uses_fresh_magpie_windows_over_local(monkeypatch):
+    from reverse_agent.model_access import magpie
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = ModelProfileStore()
+    host = object.__new__(CombinedTrustedHost)
+    host._store = store
+    host._task_store = TaskStore(":memory:")
+    local = {"codex": {"state": "UNKNOWN", "windows": []}}
+    snapshot = _magpie_snapshot(_magpie_account("codex", 100.0, "2026-10-19T16:00:00Z"))
+    monkeypatch.setenv("REVERSE_AGENT_MAGPIE", "1")
+    monkeypatch.setattr(magpie, "fetch_magpie_snapshot", lambda *a, **k: snapshot)
+    merged = host._merge_magpie_quotas(local)
+    assert merged["codex"]["provenance"] == "EXTERNAL_MAGPIE"
+    assert merged["codex"]["windows"][0]["used_percent"] == 100.0
+
+
+def test_limit_hit_failure_holds_until_reported_reset(monkeypatch):
+    from reverse_agent.platform_v1.run_store import TaskStore
+    import time
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "codex-account", "name": "Codex", "provider": "codex",
+                             "base_url": "https://chatgpt.com", "auth_method": "external_cli_session",
+                             "enabled": True})
+    store.upsert_binding({"binding_id": "codex-gpt", "name": "Codex", "connection_id": "codex-account",
+                          "executor_id": "codex", "model_id": "gpt-test", "enabled": True})
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    future = int(time.time()) + 3600
+    quota = {"codex": {"windows": [{"window": "five_hour", "basis": "official_percent",
+                                     "used_percent": 100.0, "resets_at": _iso(future),
+                                     "reset_passed": False}]}}
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: quota, raising=False)
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="codex", binding_ref="codex-gpt")
+    tasks._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = ? WHERE id = ?",
+                        ("codex_usage_limit", failed.id))
+    tasks._conn.commit()
+    until = host._limit_hit_until(store.get_connection_public("codex-account"))
+    assert until == pytest.approx(future)
+    verdict = host._quota_check(store.list_bindings_public()[0])
+    assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
+
+
+def _iso(epoch):
+    from datetime import datetime, timezone
+    return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")

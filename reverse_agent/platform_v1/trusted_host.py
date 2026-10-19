@@ -567,9 +567,27 @@ class CombinedTrustedHost:
             account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
                        and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
             # Official numbers first; the local CLI logs fill in what they do not say.
-            return {"codex": codex_quota(),
-                    "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            local = {"codex": codex_quota(),
+                     "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            return self._merge_magpie_quotas(local)
         return _cached(self, "_subscription_quota_cache", read)
+
+    def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
+        """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        from ..model_access.subscription_quota import magpie_quota_windows
+        if not magpie_enabled(os.environ):
+            return local
+        try:
+            snapshot = fetch_magpie_snapshot(
+                os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
+        except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            return local
+        magpie = magpie_quota_windows(snapshot)
+        merged = dict(local)
+        for key, quota in magpie.items():
+            merged[key] = quota
+        return merged
 
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
         """Same model, another executor: let real outcomes pick the pairing that works better."""
