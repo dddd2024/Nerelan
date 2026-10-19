@@ -21,6 +21,12 @@ ENV_CAMPAIGN = "REVERSE_AGENT_RESEARCH_CAMPAIGN"
 LOG = logging.getLogger(__name__)
 FINAL = {"STOPPED", "COMPLETED", "EXPIRED", "PAUSED_FAILING"}
 ROUND_FINAL = {"DONE", "FAILED", "INTERRUPTED"}
+COMMIT_IDENTITY = {
+    "GIT_AUTHOR_NAME": "Nerelan research",
+    "GIT_COMMITTER_NAME": "Nerelan research",
+    "GIT_AUTHOR_EMAIL": "research@nerelan.invalid",
+    "GIT_COMMITTER_EMAIL": "research@nerelan.invalid",
+}
 
 
 def load_campaign(path):
@@ -28,7 +34,8 @@ def load_campaign(path):
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}", config["campaign_id"]):
         raise ValueError("invalid campaign_id")
     for name, default in (("max_rounds", 12), ("max_hours", 72),
-                          ("max_consecutive_failed_rounds", 2), ("poll_seconds", 30)):
+                          ("max_consecutive_failed_rounds", 2), ("poll_seconds", 30),
+                          ("max_job_wait_hours", 24)):
         value = config.setdefault(name, default)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value < float("inf"):
             raise ValueError(name + " must be positive and finite")
@@ -65,11 +72,18 @@ class ResearchLoop:
 
     def _git(self, *args, check=True, env=None):
         result = subprocess.run(["git", "-C", str(self.repo), *args],
-                                capture_output=True, text=True, check=False,
-                                stdin=subprocess.DEVNULL, timeout=120, env=env)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                check=False, stdin=subprocess.DEVNULL, timeout=120, env=env)
         if check and result.returncode:
             raise RuntimeError(result.stderr.strip() or result.stdout.strip())
         return result
+
+    def _commit_env(self, extra=None):
+        env = dict(os.environ, **COMMIT_IDENTITY, GIT_CONFIG_NOSYSTEM="1",
+                   GIT_CONFIG_GLOBAL=os.devnull)
+        if extra:
+            env.update(extra)
+        return env
 
     def _save(self, record, path):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -81,6 +95,23 @@ class ResearchLoop:
             {"state": state, "at": self.clock(), "detail": detail})
         self._save(record, path)
 
+    def _record_stopped_round(self, campaign, stop):
+        # The goal itself is left to its window, never cancelled here; record
+        # that the bound was hit while it was still in flight.
+        path = self.root / "rounds" / f"{campaign['round']}.json"
+        if not path.exists():
+            return
+        record = json.loads(path.read_text(encoding="utf-8"))
+        if record["state"] in ROUND_FINAL:
+            return
+        goal_id = record.get("goal_id")
+        running = goal_id and self.goals.detail(goal_id)["status"] in {
+            "DRAFT", "PLANNED", "APPROVED", "RUNNING"}
+        detail = f"campaign {stop.lower()} while goal still running" if running else f"campaign {stop.lower()}"
+        record.setdefault("history", []).append(
+            {"state": record["state"], "at": self.clock(), "detail": detail})
+        self._save(record, path)
+
     def start(self):
         if self._thread is None:
             self._stop.clear()
@@ -90,7 +121,7 @@ class ResearchLoop:
     def stop(self):
         self._stop.set()
         if self._thread is not None:
-            self._thread.join()
+            self._thread.join(timeout=5.0)
             self._thread = None
 
     def _run(self):
@@ -117,6 +148,8 @@ class ResearchLoop:
                 self._tick()
 
     def _tick(self):
+        if self._stop.is_set():
+            return
         if self.state_path.exists():
             campaign = json.loads(self.state_path.read_text(encoding="utf-8"))
             if campaign["repository"] != self.config["repository"]:
@@ -139,6 +172,7 @@ class ResearchLoop:
         stop = ("STOPPED" if (self.root / "STOP").exists() else
                 "EXPIRED" if self.clock() - campaign["started_at"] >= self.config["max_hours"] * 3600 else "")
         if stop:
+            self._record_stopped_round(campaign, stop)
             self._event(campaign, stop, "campaign bound reached", self.state_path)
             return
         n = campaign["round"]
@@ -234,24 +268,46 @@ class ResearchLoop:
         elif state == "INTEGRATED":
             self._event(record, "WAITING_JOBS", "waiting for broker collections", path)
         elif state == "WAITING_JOBS":
-            ready = True
+            if not self.broker_root:
+                if record["jobs"]:
+                    for job in record["jobs"]:
+                        if job not in record["imports"]:
+                            record["imports"][job] = {"error": "NO_BROKER"}
+                self._save(record, path)
+                self._import(campaign, record, path)
+                return
+            record.setdefault("waiting_since", self.clock())
+            expired = self.clock() - record["waiting_since"] >= self.config["max_job_wait_hours"] * 3600
+            ready = not expired
             observed = {}
             for job in record["jobs"]:
-                source = self.broker_root / job if self.broker_root else None
-                if source is None or not (source / "receipt.json").exists():
+                source = self.broker_root / job
+                if not (source / "receipt.json").exists():
                     observed[job] = "NO_RECEIPT"
                     ready = False
                     continue
                 receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
                 observed[job] = receipt["state"]
-                if receipt["state"] not in {"RESULT_COLLECTED", "REJECTED", "LOST", "TIMED_OUT"} and not (
-                        receipt["state"] == "FAILED" and (source / "manifest.json").exists()):
-                    # A failed execution is not ready while collection is pending.
-                    ready = False
+                # Ready means the result was actually collected, or the job was
+                # rejected with nothing to collect. LOST/TIMED_OUT/FAILED leave
+                # collection pending until the broker actually collects a result.
+                if receipt["state"] in {"RESULT_COLLECTED", "REJECTED"}:
+                    continue
+                if receipt["state"] == "FAILED" and (source / "manifest.json").exists():
+                    continue
+                ready = False
             if observed != record.get("job_states"):
                 record["job_states"] = observed
                 self._event(record, "WAITING_JOBS", json.dumps(observed, sort_keys=True), path)
-            if ready:
+            if expired:
+                for job in record["jobs"]:
+                    if record["imports"].get(job, {}).get("error"):
+                        continue
+                    if not record["imports"].get(job):
+                        record["imports"][job] = {"error": "JOB_WAIT_EXPIRED"}
+                self._save(record, path)
+                self._import(campaign, record, path)
+            elif ready:
                 self._import(campaign, record, path)
         elif state == "RESULTS_IMPORTED":
             if self.config.get("push") and not record.get("push_attempted"):
@@ -279,10 +335,38 @@ class ResearchLoop:
                 "Write CAMPAIGN_DONE.md with justification when the objective is met or cannot be met. "
                 "Successful CLI execution is not functional or scientific acceptance.")
 
-    def _checkout(self, campaign):
+    def _checkout(self, campaign, record=None):
+        self._self_heal()
         if self._git("status", "--porcelain").stdout.strip():
             raise RuntimeError("research repository has existing work; integration paused")
         self._git("switch", campaign["branch"])
+
+    def _self_heal(self):
+        # A crash can leave the loop's own uncommitted import temporaries or a
+        # partially written results/<job_id>/ behind, which would otherwise block
+        # every future checkout. Remove only files the round records prove the
+        # loop itself created, and only when they are not committed.
+        owned = {}
+        for round_path in sorted(self.root.glob("rounds/*.json")):
+            try:
+                record = json.loads(round_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for job, entry in record.get("imports", {}).items():
+                for name in entry.get("files", {}):
+                    owned.setdefault(job, set()).add(name)
+        for job, names in owned.items():
+            for name in names:
+                dest = self.repo / "results" / job / name
+                for candidate in (dest, dest.with_name("." + dest.name + ".nerelan-import")):
+                    if not candidate.exists() and not candidate.is_symlink():
+                        continue
+                    rel = candidate.relative_to(self.repo).as_posix()
+                    if self._git("cat-file", "-e", "HEAD:" + rel, check=False).returncode == 0:
+                        continue
+                    if self._git("ls-files", "--error-unmatch", "--", rel, check=False).returncode == 0:
+                        self._git("reset", "-q", "--", rel)
+                    candidate.unlink()
 
     def _task_commit(self, link):
         if "commit_sha" in link:
@@ -353,8 +437,10 @@ class ResearchLoop:
                 self._git("merge", "--abort")
                 record["integrations"][record.pop("merging")] = {"error": "interrupted conflicting merge"}
                 self._save(record, path)
-        self._checkout(campaign)
+        self._checkout(campaign, record)
         for task in record.get("tasks", []):
+            if self._stop.is_set():
+                return
             task_id = task["task_id"]
             if task_id in record["integrations"] or task["status"] not in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
                 continue
@@ -371,7 +457,7 @@ class ResearchLoop:
             self._save(record, path)
             ancestor = self._git("merge-base", "--is-ancestor", sha, "HEAD", check=False).returncode == 0
             result = None if ancestor else self._git("merge", "--no-ff", "-m",
-                f"round {record['number']}: {task_id}", sha, check=False)
+                f"round {record['number']}: {task_id}", sha, check=False, env=self._commit_env())
             if result is not None and result.returncode:
                 if self._git("rev-parse", "--verify", "MERGE_HEAD", check=False).returncode == 0:
                     self._git("merge", "--abort")
@@ -398,7 +484,7 @@ class ResearchLoop:
     def _import(self, campaign, record, path):
         message = f"round {record['number']}: results"
         if not record.get("import_pending"):
-            self._checkout(campaign)
+            self._checkout(campaign, record)
             record["import_pending"] = True
             record["import_base"] = self._git("rev-parse", "HEAD").stdout.strip()
             self._save(record, path)
@@ -414,6 +500,8 @@ class ResearchLoop:
             return
         paths = []
         for job in record["jobs"]:
+            if self._stop.is_set():
+                return
             if record["imports"].get(job, {}).get("error"):
                 continue
             source = self.broker_root / job
@@ -428,6 +516,8 @@ class ResearchLoop:
                     receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
                     files = {"receipt.json": None}
                     if receipt["state"] != "REJECTED":
+                        if not (source / "manifest.json").exists():
+                            raise ValueError("collection manifest missing")
                         manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
                         files["manifest.json"] = None
                         for item in manifest["files"]:
@@ -482,14 +572,14 @@ class ResearchLoop:
                 entry["imported"] = True
                 paths.extend(job_paths)
             except (OSError, ValueError, KeyError) as exc:
-                record["imports"][job] = {"error": str(exc)}
+                record["imports"][job] = {**record["imports"].get(job, {}), "error": str(exc)}
         if paths:
             self._git("add", "--", *paths)
             staged = self._git("diff", "--cached", "--name-only").stdout.splitlines()
             if set(staged) != set(paths):
                 raise RuntimeError("unrelated staged files; results commit paused")
             self._save(record, path)
-            self._git("commit", "-m", message)
+            self._git("commit", "-m", message, env=self._commit_env())
         self._event(record, "RESULTS_IMPORTED", "broker evidence import finished", path)
 
 

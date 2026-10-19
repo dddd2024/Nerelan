@@ -15,6 +15,7 @@ The host starts the remote job broker first, when configured.
   "binding_ref": "chatgpt-gpt",
   "max_rounds": 12,
   "max_hours": 72,
+  "max_job_wait_hours": 24,
   "max_consecutive_failed_rounds": 2,
   "poll_seconds": 30,
   "push": false
@@ -53,9 +54,13 @@ prefixed `r<n>-`. All server research directories, experiment files, raw data,
 temporary files and caches must remain inside the broker job directory under
 `~/wjc`. The campaign loop never submits or replays jobs itself. It discovers
 new outbox requests in integrated commits and reads the broker's local receipts.
-Jobs can remain pending for hours without creating another Goal. Failed jobs
-wait for collection; LOST and TIMED_OUT receipts can finish the wait even when
-collection is unavailable (missing manifests are recorded as import failures).
+Jobs can remain pending for hours without creating another Goal. A round waits
+for each job to reach RESULT_COLLECTED (or REJECTED, with nothing to collect);
+FAILED, LOST and TIMED_OUT receipts stay pending until the broker actually
+collects a result. Waiting is bounded by `max_job_wait_hours` (default 24);
+past it, unfinished jobs are recorded as JOB_WAIT_EXPIRED and whatever is
+collected is imported. Without a configured broker, a round with jobs records
+NO_BROKER and continues instead of waiting.
 
 Results, manifests, receipts and logs are copied into `results/<job_id>/` after
 manifest size/hash verification, then verified again and committed as
@@ -63,6 +68,11 @@ manifest size/hash verification, then verified again and committed as
 interrupted copy or commit to resume without overwriting unrelated files.
 Manifest mismatches are recorded for the affected job. Receipt collection or
 successful commands alone do not establish functional or scientific acceptance.
+Merge and results commits use an explicit loop identity, independent of the
+host repository's git config. A crash can leave the loop's own uncommitted
+import temporaries; on the next tick they are removed only when the round
+records prove the loop created them, while any other working-tree changes still
+pause integration.
 
 State is stored under `<state_dir>/<campaign_id>/state.json` and
 `rounds/<n>.json`, with append-only transition histories and atomic replacement.
@@ -79,6 +89,8 @@ as failed when its Goal failed or no task commit was integrated. STOPPED,
 COMPLETED, EXPIRED and PAUSED_FAILING are durable terminal decisions; restarting
 the host does not clear them. Start a new campaign id after addressing a failed
 setup. Window pauses resume automatically when an eligible window appears.
+When STOP or `max_hours` lands while a round's goal is still running, the round
+records it clearly; the goal itself is left to its window, never cancelled.
 
 Optional `"push": true` attempts `git push origin <branch>` once after each
 round. Errors are recorded; pushes are not retried automatically. Local-only is
