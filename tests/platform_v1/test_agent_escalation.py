@@ -214,3 +214,22 @@ def test_a_claim_still_in_recovery_does_not_escalate(monkeypatch):
     _fail(store, _link(control, goal.id, "T001")["task_id"])
     monkeypatch.setattr(control, "can_complete_host_claim", lambda **kwargs: True)
     assert goals.escalate_failed_tasks(goal.id) == ()
+
+
+def test_escalation_records_task_resolver_failure_on_failed_task(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first)
+    control.refresh_goal_status(goal.id)
+
+    def unavailable(*args, **kwargs):
+        raise TaskStoreError("no_runnable_model")
+
+    goals.task_resolver = unavailable
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    [event] = [e for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"]
+    assert event.description == "no_runnable_model"
+    assert event.metadata == {"reason": "no_runnable_model"}
+    assert store.get_task(first).status == "FAILED"
+    assert _link(control, goal.id, "T001")["task_id"] == first
+    assert control.list_task_escalations(goal.id) == ()

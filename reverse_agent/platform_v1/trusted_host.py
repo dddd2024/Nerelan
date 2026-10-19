@@ -144,6 +144,7 @@ class CombinedTrustedHost:
             store=self._task_store,
             control_store=self._control_store,
             roster_resolver=self._resolve_agent_role,
+            task_resolver=self._resolve_task_model,
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -381,8 +382,64 @@ class CombinedTrustedHost:
         return PolicyConfigurator(bindings=bindings, health=lambda: binding_health(self._task_store),
                                   interpreter=interpreter, apply_roster=self._store.put_agent_roster)
 
+    def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
+                            author_binding: str = "", failed_tier: int | None = None) -> dict[str, Any]:
+        """Route across the entire runnable catalog, including discovered connections."""
+        import random
+        from .model_router import capability, select_model
+        bindings = self._store.list_bindings_public()
+        by_id = {b["binding_id"]: b for b in bindings}
+        connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        runnable = self._runnable_bindings()
+        profiles = self._usage_profiles()
+        candidates = []
+        for binding in bindings:
+            if binding["binding_id"] not in runnable:
+                continue
+            connection = connections.get(binding["connection_id"], {})
+            native = connection.get("auth_method") == "external_cli_session"
+            # No-auth endpoints and explicit free gateway model ids have no account cost.
+            free = (binding.get("cost_class") == "free" or connection.get("auth_method") == "none"
+                    or binding["model_id"].lower().endswith((":free", "-free")))
+            quota = self._quota_check(binding)
+            provider = connection.get("executor_provider_id", "")
+            try:
+                windows = self._subscription_quotas().get(provider, {}).get("windows", ()) if native else ()
+            except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
+                windows = ()
+            remaining = [1 - w["used_percent"] / 100 for w in windows
+                         if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
+            candidates.append({**binding, "runnable": True, "quota": quota,
+                               "quota_headroom": min(remaining, default=1.),
+                               "cost_class": "free" if free else "subscription" if native else "paid_api"})
+        # Legacy labels only identify optional pins; unpinned tasks use the full pool.
+        role = task.agent_role or (
+            "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
+            "coder" if task.difficulty == 3 else "complex")
+        if (role == "reviewer" or task.kind == "review") and task.artifact_input and author_binding not in by_id:
+            raise TaskStoreError("review_author_binding_required")
+        entry = self._store.get_agent_roster_public()["roles"].get(role, {})
+        pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
+        failed = by_id.get(failed_binding, {})
+        tier = failed_tier if failed_tier is not None else (
+            capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
+                       task.kind, task.difficulty)[0] if failed_binding else 0)
+        try:
+            return select_model(candidates, difficulty=task.difficulty, kind=task.kind, role=role,
+                                profiles=profiles, pin=pin,
+                                author_model=by_id.get(author_binding, {}).get("model_id", ""),
+                                failed_model=failed.get("model_id", ""), failed_tier=tier,
+                                exploration_draw=random.random())
+        except ValueError as exc:
+            raise TaskStoreError(str(exc)) from exc
+
     def _resolve_agent_role(self, role: str) -> tuple[str, str]:
-        """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
+        """Legacy role resolution; planning also uses the task-aware candidate pool."""
+        if role == "planner":
+            from .goal_service import PlannedTask
+            decision = self._resolve_task_model(PlannedTask("planner", "Plan", "Plan", agent_role="planner",
+                                                           difficulty=4, kind="research_design"))
+            return decision["executor_kind"], decision["binding_ref"]
         roster = self._store.get_agent_roster_public()
         entry = roster["roles"].get(role)
         if not entry or not entry["available"]:
