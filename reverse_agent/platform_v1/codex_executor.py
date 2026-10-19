@@ -78,43 +78,6 @@ def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, 
     return result
 
 
-
-def _release_owned_task_temp(worktree: Path) -> None:
-    """Remove scratch owned by this completed child, refusing links/reparse entries.
-
-    The caller must terminate and reap the entire native child process tree first.
-    Never adopt or clean scratch left by an earlier host crash: _task_temp_env
-    still refuses pre-existing .nt before any child is launched.
-    """
-    root = worktree.absolute()
-    scratch = root / _TASK_TEMP
-    try:
-        for component in (*reversed(root.parents), root):
-            info = component.lstat()
-            if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                    or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
-                raise OSError("unverifiable workspace")
-        if root.resolve(strict=True) != root:
-            raise OSError("unverifiable workspace")
-        info = scratch.lstat()
-        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
-                or scratch.resolve(strict=True) != scratch):
-            raise OSError("unverifiable scratch")
-        # Contents come from a model-invoked subprocess. Do not follow (or
-        # delete through) symlinks, junctions or other reparse-point entries.
-        for folder, folders, files in os.walk(scratch, followlinks=False):
-            for name in (*folders, *files):
-                item = Path(folder) / name
-                item_info = item.lstat()
-                if (stat.S_ISLNK(item_info.st_mode)
-                        or getattr(item_info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
-                        or item.resolve(strict=True) != item):
-                    raise OSError("unsafe scratch entry")
-        shutil.rmtree(scratch)
-    except (OSError, ValueError, RuntimeError) as exc:
-        raise ExecutorRuntimeError("native_task_temp_cleanup_failed") from exc
-
 def validate_codex_model(value: Any) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value):
         raise ExecutorRuntimeError("codex_model_id_invalid")
@@ -406,16 +369,8 @@ class CodexExecutor:
                                     else ("" if exit_code == 0 else "patch_hygiene_failed")))
 
     def _stream(self, prepared, prompt, parser):
-        environment = _task_temp_env(prepared.worktree, self._child_env())
-        try:
-            return self._stream_with_environment(prepared, prompt, parser, environment)
-        finally:
-            # Even a nonzero exit/timeout must not poison the next invocation.
-            # Any unexpected scratch entry instead leaves the worktree blocked.
-            _release_owned_task_temp(prepared.worktree)
-
-    def _stream_with_environment(self, prepared, prompt, parser, environment):
         from .functional_validation import _WindowsJob, _terminate
+        environment = _task_temp_env(prepared.worktree, self._child_env())
         job = _WindowsJob() if os.name == "nt" else None
         try:
             proc = self._process_factory(self._argv(prepared),
