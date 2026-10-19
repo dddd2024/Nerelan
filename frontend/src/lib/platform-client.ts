@@ -230,6 +230,7 @@ export interface PlatformBudgetSummary {
 }
 
 export interface PlatformStatus {
+  magpie?: { status: string; reason: string; last_probe_at: string | null; model_count: number };
   service: string;
   instance?: { id: string; kind: string };
   autonomy: {
