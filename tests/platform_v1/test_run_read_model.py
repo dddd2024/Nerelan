@@ -179,6 +179,69 @@ def test_durable_observation_is_bounded_and_read_only(read_model) -> None:
     assert store._get_durable_run(lease.run_id).run_id == observation.run_id
 
 
+@pytest.mark.parametrize(
+    ("exit_code", "cli_status", "expected"),
+    [
+        (0, "completed", "PASS"),
+        (-1, "failed", "FAIL"),
+        (7, "failed", "FAIL"),
+        (3221225477, "failed", "FAIL"),  # Windows 0xC0000005
+        (-1073741819, "failed", "FAIL"),  # Same NTSTATUS as signed int32
+        (None, "completed", "UNKNOWN"),
+    ],
+)
+def test_native_cli_command_exit_is_visible_without_tool_payload(
+    read_model, exit_code, cli_status, expected
+) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="native command provenance", executor_kind="codex", binding_ref="native-fixture-binding")
+    item = {
+        "type": "item.completed",
+        "item_type": "command_execution",
+        "status": cli_status,
+        "command": "echo Authorization: Bearer private-workspace-secret",
+        "aggregated_output": "helper diagnostic with API_KEY=private-secret",
+    }
+    if exit_code is not None:
+        item["exit_code"] = exit_code
+    store.add_event(
+        task.id, event_type="EXECUTOR_PROGRESS", title="Codex activity",
+        raw_log="raw provider output must not leave read model",
+        metadata={"executor_kind": "codex", "event": item},
+    )
+    projected = model.run_detail(task.id)["events"][-1]
+    assert projected["category"] == "COMMAND"
+    assert projected["stage"] == "EXECUTE"
+    assert projected["title"] == "Native CLI command"
+    assert projected["status"] == expected
+    assert projected["command"] == {
+        "summary": "native_cli_command",
+        "status": expected,
+        "exit_code": exit_code,
+    }
+    serialized = json.dumps(projected)
+    assert "private-workspace-secret" not in serialized
+    assert "private-secret" not in serialized
+    assert "aggregated_output" not in serialized
+    assert "raw_log" not in serialized
+
+
+def test_non_command_executor_progress_is_not_misrepresented_as_tool_success(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="no inferred CLI command")
+    store.add_event(
+        task.id, event_type="EXECUTOR_PROGRESS", title="Codex activity",
+        metadata={"event": {
+            "type": "item.completed", "item_type": "agent_message",
+            "status": "completed", "exit_code": 0,
+            "text": "pretend command succeeded",
+        }},
+    )
+    projected = model.run_detail(task.id)["events"][-1]
+    assert projected["category"] != "COMMAND"
+    assert projected["command"] is None
+
+
 def test_structured_activity_allowlist_never_returns_raw_metadata_or_log(read_model) -> None:
     model, store, _ = read_model
     task = store.create_task(title="allowlisted activity")

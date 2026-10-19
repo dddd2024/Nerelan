@@ -70,6 +70,7 @@ _MAX_METADATA_JSON = 4096
 _TRUSTED_COMMAND_IDS = frozenset({
     "approved_functional_checks",
     "git_diff_check", "git_status_porcelain", "append_to_file", "write_file",
+    "native_cli_command",
 })
 _METADATA_KEYS = frozenset({
     "activity_kind", "category", "status", "role", "agent_id", "worker_id",
@@ -178,6 +179,52 @@ def _metadata(event: Mapping[str, Any]) -> dict[str, Any]:
     else:
         return {}
     return {key: source[key] for key in _METADATA_KEYS if key in source}
+
+
+def _native_command_metadata(
+    event: Mapping[str, Any], metadata: dict[str, Any]
+) -> dict[str, Any]:
+    """Allowlist native CLI tool status without exporting commands or output.
+
+    The signed-in native CLI emits command_execution inside an executor
+    progress event, not as top-level metadata. Never export command text,
+    aggregated output, arbitrary provider item fields or raw diagnostics.
+    """
+    if event.get("type") != "EXECUTOR_PROGRESS":
+        return metadata
+    raw = event.get("metadata")
+    if isinstance(raw, str):
+        if len(raw) > _MAX_METADATA_JSON:
+            return metadata
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return metadata
+    nested = raw.get("event") if isinstance(raw, Mapping) else None
+    if not isinstance(nested, Mapping) or nested.get("item_type") != "command_execution":
+        return metadata
+    phase = nested.get("type")
+    if phase not in {"item.started", "item.updated", "item.completed"}:
+        return metadata
+    raw_exit = nested.get("exit_code")
+    exit_code = raw_exit if type(raw_exit) is int and -(2 ** 31) <= raw_exit <= 0xFFFFFFFF else None
+    if phase != "item.completed":
+        status = "RUNNING"
+    elif nested.get("status") == "failed" or (exit_code is not None and exit_code != 0):
+        status = "FAIL"
+    elif exit_code == 0:
+        status = "PASS"
+    else:
+        status = "UNKNOWN"
+    projected: dict[str, Any] = {
+        **metadata,
+        "activity_kind": "COMMAND",
+        "mutation_command_id": "native_cli_command",
+        "status": status,
+    }
+    if exit_code is not None:
+        projected["exit_code"] = exit_code
+    return projected
 
 
 def _parse_time(value: Any) -> datetime | None:
@@ -312,7 +359,7 @@ def _activity_title(category: str) -> str:
 
 
 def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
-    metadata = _metadata(event)
+    metadata = _native_command_metadata(event, _metadata(event))
     event_type = _safe_text(event.get("type"), limit=64)
     category = _category_for_event(event_type, metadata)
     worker_originated = event_type in WORKER_EVENT_TYPES
@@ -362,7 +409,7 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
         "title": (
             "Queued task cancelled"
             if event_type == "QUEUE_CANCELLED"
-            else _activity_title(category)
+            else ("Native CLI command" if command == "native_cli_command" else _activity_title(category))
         ),
         "description": "",
         "category": category,
