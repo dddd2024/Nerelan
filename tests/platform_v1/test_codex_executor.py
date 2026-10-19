@@ -59,7 +59,8 @@ SUCCESS_SCRIPT = "import sys,json;sys.stdin.read();print(" + repr("\n".join(json
 
 def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_path):
     repo, base = repository
-    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    edit_script = "from pathlib import Path;Path('fixture.txt').write_text('updated\\n');" + SUCCESS_SCRIPT
+    executor, launched = fixture_executor(repo, base, edit_script)
     seen = []
     store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Bounded fixture instruction"))
     result = executor.execute("native-1", store, workspace_root=str(tmp_path / "workspaces"),
@@ -74,6 +75,23 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     assert final["metadata"]["usage_status"] == "unknown"
     assert final["metadata"]["cost_status"] == "unknown"
     assert any(e["type"] == "EXECUTOR_PROGRESS" for e in seen)
+
+
+def test_native_noop_turn_is_not_accepted_as_implementation(repository, tmp_path):
+    repo, base = repository
+    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(
+        title="Change fixture.txt so the requested regression passes"))
+    result = executor.execute("native-noop", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert not result.success
+    assert result.failure_classification == "codex_no_product_changes"
+    assert result.validation_command_id == "git_diff_check"
+    assert result.validation_exit_code == 0  # Patch hygiene alone is green.
+    assert result.process_exit_code == 0
+    assert not result.changed_files
+    assert git(Path(result.workspace), "status", "--short") == ""
+    assert len(launched) == 1 and launched[0].poll() == 0
 
 
 @pytest.mark.parametrize("helper_fields", [
