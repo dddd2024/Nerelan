@@ -73,12 +73,26 @@ def test_banked_grant_remains_distinct_from_personal_limits():
 def test_reply_requires_valid_original_parent():
     parent = item(7, "Day 13: Codex global reset")
     child = item(8, "Landing sometime today", kind="signal",
+                 when=POST_TIME + timedelta(minutes=1),
                  reset_verification_candidate=True, in_reply_to_tweet_id=parent["id"])
     malformed_parent = {**parent, "url": "https://malicious.example/status/" + parent["id"]}
     assert len(parse_feed(feed(parent, child), now=NOW).events) == 2-1 # child only
     assert not parse_feed(feed(malformed_parent, child), now=NOW).events
     stale_parent = {**parent, "at": "2026-10-01T10:00:00Z"}
     assert not parse_feed(feed(stale_parent, child), now=NOW).events
+
+
+def test_reply_parent_must_be_older_than_reply():
+    younger_parent = item(40, "Codex global reset", when=POST_TIME + timedelta(minutes=2))
+    older_reply = item(41, "Landing today", kind="signal",
+                       reset_verification_candidate=True,
+                       in_reply_to_tweet_id=younger_parent["id"])
+    assert parse_feed(feed(younger_parent, older_reply), now=NOW).events == ()
+    same_time_parent = item(42, "Codex global reset")
+    same_time_reply = item(43, "Landing today", kind="signal",
+                           reset_verification_candidate=True,
+                           in_reply_to_tweet_id=same_time_parent["id"])
+    assert parse_feed(feed(same_time_parent, same_time_reply), now=NOW).events == ()
 
 
 def test_spoofed_original_url_and_unhashable_id_do_not_throw():
@@ -116,12 +130,15 @@ def test_event_id_deduped_by_original_post_even_on_reclassification():
 
 def test_only_contextual_verified_reply_promoted():
     parent = item(12, "Day 13 / Codex reset")
-    child = item(13, "Landing today", kind="signal", reset_verification_candidate=True,
+    child = item(13, "Landing today", kind="signal",
+                 when=POST_TIME + timedelta(minutes=1), reset_verification_candidate=True,
                  in_reply_to_tweet_id=parent["id"])
     stranger = item(14, "Landing today", kind="signal", reset_verification_candidate=True,
                     in_reply_to_tweet_id=post_id(666))
     events = parse_feed(feed(parent, child, stranger), now=NOW).events
-    assert [x.event_id for x in events] == ["tibo-x:" + post_id(13)]
+    assert [x.event_id for x in events] == [
+        "tibo-x:" + post_id(13, POST_TIME + timedelta(minutes=1))
+    ]
 
 
 class FakeResponse(BytesIO):

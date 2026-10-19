@@ -145,7 +145,8 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
         elif entry.get("kind") == "signal" and entry.get("reset_verification_candidate") is True:
             parent_id = entry.get("in_reply_to_tweet_id")
             parent = valid.get(parent_id) if isinstance(parent_id, str) else None
-            if (parent is not None and _RESET.search(parent[1])
+            if (parent is not None and parent[2] < when
+                    and _RESET.search(parent[1])
                     and re.search(r"\blanding\b", text, re.I)):
                 kind = "RESET_ANNOUNCEMENT"
         elif isinstance(entry.get("tease_classification"), dict):
