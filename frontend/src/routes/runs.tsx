@@ -241,7 +241,7 @@ function ActivityRow({ event }: { event: PlatformRunActivityEvent }) {
         </div>
         {event.description ? <p className="ra-measure mt-1 text-xs leading-5 text-ra-text-tertiary">{event.description}</p> : null}
         {event.path ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.path}>{event.path}</p> : null}
-        {event.command && !event.test ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.command.summary}>{event.command.summary || "命令"} · {event.command.status || event.status || "UNKNOWN"}</p> : null}
+        {event.command && !event.test ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.command.summary}>{event.command.summary || "命令"} · {event.command.status || event.status || "UNKNOWN"}{typeof event.command.exit_code === "number" ? ` · exit ${event.command.exit_code}` : ""}</p> : null}
         {event.test ? <p className="ra-measure mt-1 text-xs text-ra-text-secondary">{event.test.summary || "测试"} · {event.test.status || (event.test.exit_code === 0 ? "PASS" : event.test.exit_code == null ? "UNKNOWN" : "FAIL")}</p> : null}
       </div>
     </li>
