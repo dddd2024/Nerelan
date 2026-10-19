@@ -94,6 +94,46 @@ def test_native_noop_turn_is_not_accepted_as_implementation(repository, tmp_path
     assert len(launched) == 1 and launched[0].poll() == 0
 
 
+@pytest.mark.parametrize("write_product", [False, True])
+def test_native_bytecode_only_cannot_mask_no_product_changes(repository, tmp_path, write_product):
+    repo, base = repository
+    generate = (
+        "from pathlib import Path;"
+        "Path('__pycache__').mkdir();"
+        "Path('__pycache__/fixture.cpython-313.pyc').write_bytes(b'compiled');"
+    )
+    if write_product:
+        generate += "Path('fixture.txt').write_text('changed\\n');"
+    executor, _ = fixture_executor(repo, base, generate + SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Change fixture.txt"))
+    result = executor.execute("bytecode-work", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert result.process_exit_code == result.validation_exit_code == 0
+    if write_product:
+        assert result.success
+        assert [item["path"] for item in result.changed_files] == ["fixture.txt"]
+    else:
+        assert not result.success
+        assert result.failure_classification == "codex_no_product_changes"
+        assert not result.changed_files
+    assert (Path(result.workspace) / "__pycache__" / "fixture.cpython-313.pyc").exists()
+
+
+def test_tracked_python_bytecode_still_counts_as_product_change(repository):
+    from reverse_agent.platform_v1.opencode_executor import _collect_final_product_files
+    repo, _ = repository
+    cache = repo / "__pycache__"
+    cache.mkdir()
+    tracked = cache / "intentionally-tracked.pyc"
+    tracked.write_bytes(b"original")
+    git(repo, "add", "--", "__pycache__/intentionally-tracked.pyc")
+    git(repo, "commit", "-m", "track binary fixture")
+    tracked.write_bytes(b"changed")
+    (cache / "runtime.pyc").write_bytes(b"generated")
+    files = _collect_final_product_files(repo)
+    assert [item["path"] for item in files] == ["__pycache__/intentionally-tracked.pyc"]
+
+
 @pytest.mark.parametrize("helper_fields", [
     {"status": "failed", "exit_code": -1},
     {"aggregated_output": "helper_unknown_error: setup refresh had errors"},
