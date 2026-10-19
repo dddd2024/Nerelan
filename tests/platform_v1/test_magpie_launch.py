@@ -11,10 +11,13 @@ from reverse_agent.model_access.magpie import DEFAULT_MAGPIE, validate_settings
 
 @pytest.fixture(autouse=True)
 def forbid_live_io(monkeypatch):
+    import reverse_agent.platform_v1.magpie_launch as magpie_launch_module
+    import subprocess
+
     def forbidden(*args, **kwargs):
         pytest.fail("test attempted live network or process launch")
-    monkeypatch.setattr("reverse_agent.platform_v1.magpie_launch.urlopen", forbidden)
-    monkeypatch.setattr("subprocess.Popen", forbidden)
+    monkeypatch.setattr(magpie_launch_module, "urlopen", forbidden)
+    monkeypatch.setattr(subprocess, "Popen", forbidden)
 
 
 @pytest.fixture
@@ -193,8 +196,10 @@ def test_persistence_and_missing_executable_do_not_block_state_load(config, tmp_
 
 
 def test_persistence_failure_rolls_back(config, tmp_path, monkeypatch):
+    import reverse_agent.model_access.store as store_module
+
     store = ModelProfileStore(state_path=tmp_path / "state.json")
-    monkeypatch.setattr("reverse_agent.model_access.store._write_atomic", Mock(side_effect=OSError()))
+    monkeypatch.setattr(store_module, "_write_atomic", Mock(side_effect=OSError()))
     with pytest.raises(StoreError):
         store.put_magpie(config)
     assert store.get_magpie() == DEFAULT_MAGPIE
@@ -207,6 +212,7 @@ def test_legacy_state_defaults_disabled(tmp_path):
 
 
 def test_settings_routes_and_automatic_observation(config, monkeypatch):
+    import reverse_agent.model_access.service as service_module
     from reverse_agent.model_access.service import _handler_factory
     store = ModelProfileStore()
     handler_type = _handler_factory(store, live_enabled=False, allowed_origin="http://localhost")
@@ -221,7 +227,7 @@ def test_settings_routes_and_automatic_observation(config, monkeypatch):
     handler.do_GET()
     assert sent.call_args.args[1]["settings"] == config
     snapshot = Mock(return_value={"status": "available", "models": [], "accounts": []})
-    monkeypatch.setattr("reverse_agent.model_access.service.fetch_magpie_snapshot", snapshot)
+    monkeypatch.setattr(service_module, "fetch_magpie_snapshot", snapshot)
     monkeypatch.delenv("REVERSE_AGENT_MAGPIE", raising=False)
     handler._segments = lambda: ["api", "resources"]
     handler.path = "/api/resources"
@@ -231,6 +237,8 @@ def test_settings_routes_and_automatic_observation(config, monkeypatch):
 
 @pytest.mark.parametrize("launch_error,reason", [(OSError(), "OSError"), (None, "health_timeout")])
 def test_status_route_fields_and_failed_launch_host_still_starts(config, tmp_path, monkeypatch, launch_error, reason):
+    import reverse_agent.platform_v1.trusted_host as trusted_host_module
+    import reverse_agent.model_access.credential_relay as credential_relay_module
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
     from reverse_agent.platform_v1.run_store import TaskStore
     class Server:
@@ -240,8 +248,8 @@ def test_status_route_fields_and_failed_launch_host_still_starts(config, tmp_pat
         def serve_forever(self): pass
         def shutdown(self): pass
         def server_close(self): pass
-    monkeypatch.setattr("reverse_agent.platform_v1.trusted_host.ThreadingHTTPServer", Server)
-    monkeypatch.setattr("reverse_agent.model_access.credential_relay.run_credential_relay_server", lambda **kw: Server())
+    monkeypatch.setattr(trusted_host_module, "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(credential_relay_module, "run_credential_relay_server", lambda **kw: Server())
     store = ModelProfileStore()
     store.put_magpie(config)
     instance, _, launch, _, _ = manager(config, launch_error=launch_error)
@@ -298,6 +306,7 @@ def test_magpie_bindings_not_runnable_when_gateway_unreachable(config):
 
 
 def test_probe_adapter_uses_models_get_and_two_second_timeout(monkeypatch):
+    import reverse_agent.platform_v1.magpie_launch as magpie_launch_module
     from reverse_agent.platform_v1.magpie_launch import probe_models
     response = Mock()
     response.status = 200
@@ -306,7 +315,7 @@ def test_probe_adapter_uses_models_get_and_two_second_timeout(monkeypatch):
     opened.__enter__ = Mock(return_value=response)
     opened.__exit__ = Mock(return_value=False)
     opener = Mock(return_value=opened)
-    monkeypatch.setattr("reverse_agent.platform_v1.magpie_launch.urlopen", opener)
+    monkeypatch.setattr(magpie_launch_module, "urlopen", opener)
     assert probe_models("http://127.0.0.1:3425") == 2
     assert opener.call_args.args[0].full_url == "http://127.0.0.1:3425/v1/models"
     assert opener.call_args.args[0].get_method() == "GET"
@@ -333,6 +342,8 @@ def test_launcher_adapter_detaches_without_arguments_or_shell(config, monkeypatc
 
 
 def test_watcher_checks_every_sixty_seconds_and_stop_only_stops_watcher(config, monkeypatch):
+    import reverse_agent.platform_v1.magpie_launch as magpie_launch_module
+
     instance, probe, launch, _, _ = manager(config, [1, 1, 1])
     event = Mock()
     event.wait.side_effect = [False, False, True]
@@ -343,7 +354,7 @@ def test_watcher_checks_every_sixty_seconds_and_stop_only_stops_watcher(config, 
         def start(self):
             self.target()
         def join(self, **kwargs): pass
-    monkeypatch.setattr("reverse_agent.platform_v1.magpie_launch.threading.Thread", Thread)
+    monkeypatch.setattr(magpie_launch_module.threading, "Thread", Thread)
     instance.start()
     assert probe.call_count == 3
     assert [call.args for call in event.wait.call_args_list] == [(60,), (60,), (60,)]
