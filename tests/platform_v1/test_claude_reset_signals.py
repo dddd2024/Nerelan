@@ -334,3 +334,51 @@ def test_banked_and_retracted_not_trigger_quota_refresh(tmp_path):
     watcher.poll_once()
     watcher.poll_once()
     assert calls == []
+
+
+def test_date_precision_source_must_be_same_utc_day():
+    original = event()
+    original["time_precision"] = "date"
+    original["announced_at"] = None
+    original["announced_on"] = NOW.date().isoformat()
+    original["sources"][0] = source(NOW - timedelta(days=3))
+    assert parse(status(latest=original)).events == ()
+    original["sources"][0] = source(NOW - timedelta(minutes=3))
+    assert parse(status(latest=original)).events[0].kind == "RESET_REPORTED_COMPLETE"
+    original["announced_on"] = "2026-10-19T10:45:00Z"
+    assert parse(status(latest=original)).events == ()
+
+
+def test_restarted_watcher_expires_offer_before_first_poll(tmp_path):
+    offer = event("bank-restart", kind="credit", when=NOW-timedelta(days=5),
+                  plans=["max"], scope="limited", windows=["unspecified"],
+                  expires="2026-10-22")
+    before = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: parse(status(offers=[offer])),
+        clock=lambda: datetime(2026, 10, 21, tzinfo=timezone.utc))
+    before.poll_once()
+    after = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: (_ for _ in ()).throw(RuntimeError("offline")),
+        clock=lambda: datetime(2026, 10, 23, tzinfo=timezone.utc))
+    snapshot = after.snapshot()  # no poll, no network, no delay
+    saved = snapshot["events"]["claude-reset:bank-restart"]
+    assert saved["kind"] == "BANKED_OFFER_EXPIRED"
+    assert saved["action"] == "INVALIDATE_HINT"
+    assert snapshot["new_events"][0]["kind"] == "BANKED_OFFER_EXPIRED"
+
+
+def test_64_receipt_cap_preserves_revision_of_oldest(tmp_path):
+    old = event("history-old", revision=2)
+    fresh = event("history-new", kind="credit", windows=["unspecified"],
+                  plans=["max"], scope="limited", expires="2026-10-22")
+    result = parse(status(latest=old, offers=[fresh]))
+    watcher = signals.ClaudeResetWatcher(tmp_path, fetcher=lambda: result)
+    watcher._state["events"] = {
+        "claude-reset:history-old": {"revision": 1, "action": "PLAN_ONLY"},
+        **{f"claude-reset:fill-{n}": {"revision": 1, "action": "PLAN_ONLY"} for n in range(63)}
+    }
+    output = watcher.poll_once()
+    assert len(output["events"]) == 64
+    assert output["events"]["claude-reset:history-old"]["revision"] == 2
+    assert "claude-reset:history-new" in output["events"]
+    assert len(watcher.poll_once()["new_events"]) == 0

@@ -132,7 +132,10 @@ def _event(item: object, *, slot: str, now: datetime) -> ClaudeResetEvent | None
     try:
         when = _utc(announced) if precise == "exact" else None
         if precise == "date" and isinstance(item.get("announced_on"), str):
-            when = datetime.fromisoformat(item["announced_on"]).replace(tzinfo=timezone.utc)
+            day = item["announced_on"]
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day):
+                return None
+            when = datetime.combine(date.fromisoformat(day), datetime.min.time(), tzinfo=timezone.utc)
         elif precise not in ("exact", "date"):
             return None
     except (ValueError, TypeError, OverflowError):
@@ -143,13 +146,15 @@ def _event(item: object, *, slot: str, now: datetime) -> ClaudeResetEvent | None
 
     # A published X original should agree with its Snowflake timestamp.
     original_match = _X_POST.fullmatch(source_url)
-    if original_match and precise == "exact":
+    if original_match:
         try:
             snowflake = datetime.fromtimestamp(
                 ((int(original_match.group(2)) >> 22) + _X_EPOCH_MS) / 1000, timezone.utc)
         except (ValueError, OSError, OverflowError):
             return None
-        if abs(snowflake - when) > MAX_CLOCK_SKEW:
+        if precise == "exact" and abs(snowflake - when) > MAX_CLOCK_SKEW:
+            return None
+        if precise == "date" and snowflake.date() != when.date():
             return None
 
     expired = False
@@ -331,6 +336,24 @@ class ClaudeResetWatcher:
                     self._state.update({k: stored[k] for k in self._state if k in stored})
             except (OSError, ValueError, TypeError):
                 pass
+        # Restore must never advertise a claim that expired during downtime,
+        # even before the first network request finishes.
+        self._state["new_events"] = []
+        retained = self._state.get("events")
+        if isinstance(retained, dict):
+            for identity, saved in list(retained.items()):
+                if (isinstance(saved, dict)
+                        and saved.get("action") == "CLAIM_MANUALLY"
+                        and isinstance(saved.get("expires_on"), str)):
+                    try:
+                        expired = date.fromisoformat(saved["expires_on"]) < self._clock().date()
+                    except ValueError:
+                        expired = True
+                    if expired:
+                        updated = {**saved, "action": "INVALIDATE_HINT",
+                                   "kind": "BANKED_OFFER_EXPIRED"}
+                        retained[identity] = updated
+                        self._state["new_events"].append(updated)
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -371,6 +394,10 @@ class ClaudeResetWatcher:
                     if type(prior_rev) is not int or prior_rev < event.revision:
                         detail = asdict(event)
                         new_events.append(detail)
+                        # Reinsert revisions at the newest end before enforcing
+                        # the bounded-history cap; otherwise a revised oldest
+                        # receipt is immediately lost and re-notified next poll.
+                        updated.pop(event.event_id, None)
                         updated[event.event_id] = detail
                 # Keep a bounded history. Retracted updates keep the same ID.
                 updated = dict(list(updated.items())[-64:])
