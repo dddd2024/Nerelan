@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ntpath
 import os
 import re
 import shutil
@@ -61,6 +62,36 @@ def test_model_control_origin_is_frontend() -> None:
 
 def test_task_api_origin_is_frontend() -> None:
     assert '"REVERSE_AGENT_TASK_SERVICE_ORIGIN"' in _DEV_UP
+
+
+@requires_powershell
+def test_trusted_client_metadata_path_matches_host_owned_task_db_dir() -> None:
+    # Evaluate only the actual function AST, never start UI/provider processes.
+    source_path = str(DEV_UP).replace("'", "''")
+    script = r"""
+$errors = $null; $tokens = $null
+$tree = [System.Management.Automation.Language.Parser]::ParseFile('__SOURCE__', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'dev-up parse failed' }
+$functions = @($tree.FindAll({ param($node)
+  $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+  $node.Name -eq 'Resolve-TrustedClientMetadataPath'
+}, $true))
+if ($functions.Count -ne 1) { throw 'expected exact resolver function' }
+. ([scriptblock]::Create($functions[0].Extent.Text))
+$script:runtimeDir = 'F:\check-runtime'
+$env:REVERSE_AGENT_TASK_DB_DIR = 'F:\check-isolated-db'
+$override = Resolve-TrustedClientMetadataPath
+$env:REVERSE_AGENT_TASK_DB_DIR = ''
+$default = Resolve-TrustedClientMetadataPath
+ConvertTo-Json -Compress -InputObject @($override, $default)
+""".replace("__SOURCE__", source_path)
+    result = _run_ps(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert [ntpath.normpath(v) for v in json.loads(result.stdout)] == [
+        ntpath.normpath("F:/check-isolated-db/trusted_host_meta.json"),
+        ntpath.normpath("F:/check-runtime/trusted_host_meta.json"),
+    ]
+    assert "Get-Content -LiteralPath (Resolve-TrustedClientMetadataPath)" in _DEV_UP
 
 
 def test_launcher_uses_public_health_and_owned_private_browser_bootstrap() -> None:
