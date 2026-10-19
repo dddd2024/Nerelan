@@ -25,6 +25,7 @@ from .functional_validation import (
     freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
 )
 from .quota_guard import LIMIT_HIT
+from .model_router import task_traits
 from .run_read_model import publication_projection
 from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
@@ -43,10 +44,12 @@ class PlannedTask:
     artifact_input: dict[str, str] | None = None
     validation_command_id: str = ""
     agent_role: str = ""
+    difficulty: int = 3
+    kind: str = "code"
 
 
 AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
-# A failed task is retried once per step by a stronger agent; complex is the top.
+# Compatibility fallback for callers supplying only a legacy role resolver.
 ESCALATION_LADDER = {"simple": "coder", "coder": "complex"}
 # Failures a pricier agent would hit the same way (login, workspace, base,
 # contract, artifact, budget, cancellation, transport) never escalate.
@@ -59,7 +62,7 @@ _NON_AGENT_FAILURE = re.compile(
 def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
     payload = asdict(task)
     if not payload["agent_role"]:
-        # Unrouted tasks keep their existing stored shape (and plan digest).
+        # Keep the legacy role optional; difficulty and kind are always explicit.
         del payload["agent_role"]
     return payload
 DEFAULT_AGENT_ROLE = "coder"
@@ -87,16 +90,19 @@ class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
-                 roster_resolver: Any | None = None) -> None:
+                 roster_resolver: Any | None = None, task_resolver: Any | None = None) -> None:
         self.store = store
         self.control_store = control_store
         # role -> (executor_kind, binding_ref); supplied by the trusted host.
         self.roster_resolver = roster_resolver
+        self.task_resolver = task_resolver
 
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
         """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
         if goal.orchestration_mode != "agent_team":
             return goal.executor_kind, goal.binding_ref, goal.orchestration_mode
+        if goal.binding_ref:
+            return goal.executor_kind, goal.binding_ref, "single"
         if self.roster_resolver is None:
             raise TaskStoreError("agent_roster_unavailable")
         role = plan_task.agent_role or DEFAULT_AGENT_ROLE
@@ -312,9 +318,30 @@ class GoalService:
             if item.validation_command_id and (goal.orchestration_mode not in {"single", "agent_team"} or item.artifact_input
                                                or item.validation_checks):
                 raise TaskStoreError("host_validation_requires_standalone_single_task")
-        # Resolve every task's agent before creating any, so a missing role never
-        # leaves a half-materialized Goal behind.
-        routes = [self._task_route(goal, item) for item in planned_tasks]
+        # Resolve every task before creating any. Artifact authors are resolved first
+        # so review independence also holds for plans saved in any order.
+        decisions: dict[int, Any] = {}
+        resolved: dict[int, tuple[str, str, str]] = {}
+        indices = {item.id: i for i, item in enumerate(planned_tasks)}
+
+        def resolve(seq: int) -> tuple[str, str, str]:
+            if seq in resolved:
+                return resolved[seq]
+            item = planned_tasks[seq]
+            if goal.orchestration_mode == "agent_team" and self.task_resolver is not None:
+                author_binding = ""
+                if item.artifact_input:
+                    source = indices[item.artifact_input["plan_task_id"]]
+                    author_binding = resolve(source)[1]
+                decision = self.task_resolver(item, goal=goal, author_binding=author_binding)
+                resolved[seq] = (decision["executor_kind"], decision["binding_ref"], "single")
+                decisions[seq] = decision
+            else:
+                resolved[seq] = self._task_route(goal, item)
+                decisions[seq] = None
+            return resolved[seq]
+
+        routes = [resolve(seq) for seq in range(len(planned_tasks))]
         if any(kind in {"opencode", "codex", "claude_code"} for kind, _, _ in routes):
             try:
                 resolve_repository_workspace(goal.repository)
@@ -341,6 +368,8 @@ class GoalService:
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
                 orchestration_mode=orchestration_mode,
             )
+            if decisions[seq] is not None:
+                self._record_model_selection(task, decisions[seq])
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             if plan_task.validation_command_id:
@@ -365,14 +394,15 @@ class GoalService:
         )
 
     def escalate_failed_tasks(self, goal_id: str) -> tuple[dict[str, Any], ...]:
-        """Hand each FAILED agent_team task to the next stronger distinct agent, once per step.
+        """Retry FAILED agent_team tasks by measured tier (legacy resolvers use roles).
 
         Only FAILED tasks escalate: BLOCKED (policy/blocker) and CANCELLED never do,
         and nothing escalates outside the Goal's still-active window. The failed task
         and its evidence stay in place; only the plan task's link moves on.
         """
         goal = self.control_store.get_goal(goal_id)
-        if goal.orchestration_mode != "agent_team" or self.roster_resolver is None or not goal.window_id:
+        if (goal.orchestration_mode != "agent_team" or not goal.window_id
+                or (self.roster_resolver is None and self.task_resolver is None)):
             return ()
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE":
@@ -396,7 +426,32 @@ class GoalService:
                 break  # escalations spend the window's retry budget
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
-            if quota_failure:
+            decision = None
+            if self.task_resolver is not None:
+                author_binding = ""
+                if plan_task.artifact_input:
+                    source = plan_task.artifact_input["plan_task_id"]
+                    author_link = next((x for x in self.control_store.list_goal_tasks(goal_id)
+                                        if x["plan_task_id"] == source), None)
+                    if author_link:
+                        author_binding = self.store.get_task(author_link["task_id"]).binding_ref
+                # Compare with the tier actually selected for this attempt, rather
+                # than a tier that fresh failure evidence may already have lowered.
+                selected = next((event.metadata for event in reversed(self.store.get_events(failed.id))
+                                 if event.type == "MODEL_SELECTED"), {})
+                failed_tier = selected.get("tier")
+                if type(failed_tier) is not int or not 1 <= failed_tier <= 5:
+                    failed_tier = None
+                try:
+                    decision = self.task_resolver(plan_task, goal=goal, failed_binding=failed.binding_ref,
+                                                  author_binding=author_binding, failed_tier=failed_tier)
+                except TaskStoreError as exc:
+                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
+                                         title="Escalation model selection failed",
+                                         description=str(exc), metadata={"reason": str(exc)})
+                    continue
+                target = (role, decision["executor_kind"], decision["binding_ref"])
+            elif quota_failure:
                 # The account was out of quota, not the agent out of skill: the same role moves to the
                 # stand-in the quota guard now picks, never up the ladder. No stand-in: stays BLOCKED.
                 try:
@@ -434,6 +489,8 @@ class GoalService:
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                 orchestration_mode="single",
             )
+            if decision is not None:
+                self._record_model_selection(task, decision)
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
             reason = f"failed:{failed.failure_classification or 'unknown'}"
@@ -447,6 +504,12 @@ class GoalService:
         if outcomes:
             self.control_store.refresh_goal_status(goal_id)
         return tuple(outcomes)
+
+    def _record_model_selection(self, task: Any, decision: Mapping[str, Any]) -> None:
+        if any(event.type == "MODEL_SELECTED" for event in self.store.get_events(task.id)):
+            return
+        self.store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected",
+                             description=f"{decision['binding_ref']}: {decision['reason']}", metadata=decision)
 
     @staticmethod
     def _approved_base(failed: Any) -> str:
@@ -677,8 +740,14 @@ class GoalService:
         agent_role = str(raw.get("agent_role", "") or "").strip()
         if agent_role and agent_role not in AGENT_TASK_ROLES:
             raise TaskStoreError(f"unsupported_agent_role:{agent_role}")
+        try:
+            difficulty, kind = task_traits(raw)
+        except ValueError as exc:
+            raise TaskStoreError(str(exc)) from exc
+        if kind == "review" or agent_role == "reviewer":
+            capability = "validate_task"
         return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command,
-                           agent_role)
+                           agent_role, difficulty, kind)
 
     @staticmethod
     def _execution_title(goal: GoalRecord, task: PlannedTask) -> str:
@@ -707,6 +776,7 @@ class GoalService:
                     "",
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
+                    f"Difficulty: {item.difficulty}; kind: `{item.kind}`",
                     *([f"Host check: `{item.validation_command_id}` (patch hygiene only)"]
                       if item.validation_command_id else []),
                     "Functional checks: " + (", ".join(

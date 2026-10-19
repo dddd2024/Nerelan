@@ -23,7 +23,7 @@ PLAN = {"tasks": [
 
 def test_prompt_names_roles_and_demands_json():
     prompt = build_planner_prompt(objective="Add a status page", repository="dddd2024/Nerelan")
-    for token in ("Add a status page", "dddd2024/Nerelan", "simple", "complex", '"tasks"', "cheapest role"):
+    for token in ("Add a status page", "dddd2024/Nerelan", "simple", "complex", '"tasks"', "difficulty"):
         assert token in prompt
 
 
@@ -64,7 +64,8 @@ def test_extract_plan_strips_fields_a_planner_may_not_request():
     raw = {"tasks": [{"id": "T001", "title": "x", "instruction": "y", "capability": "validate_task",
                       "validation_command_id": "git_diff_check", "artifact_input": {"plan_task_id": "T0"}}]}
     assert extract_plan(json.dumps(raw))["tasks"] == [
-        {"id": "T001", "title": "x", "instruction": "y", "artifact_input": {"plan_task_id": "T0"}}]
+        {"id": "T001", "title": "x", "instruction": "y", "artifact_input": {"plan_task_id": "T0"},
+         "difficulty": 3, "kind": "code"}]
 
 
 def test_reviewer_tasks_validate_without_changing_their_input():

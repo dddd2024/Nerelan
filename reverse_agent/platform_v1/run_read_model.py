@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import re
 from typing import Any, Callable, Mapping, Sequence
 
@@ -76,7 +77,7 @@ _METADATA_KEYS = frozenset({
     "execution_id", "path", "file", "validation_command_id",
     "validation_exit_code", "exit_code", "changed_file_count", "failure_classification",
     "waiting_reason", "checkpoint", "recovery_classification", "mutation_command_id",
-    "fixture_path",
+    "fixture_path", "binding_ref", "difficulty", "kind", "reason", "candidates",
 })
 
 
@@ -248,7 +249,7 @@ def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
         return "AGENT_WAITING"
     if _safe_text(metadata.get("failure_classification")):
         return "BLOCKED"
-    if event_type == "DISCOVERED":
+    if event_type in {"DISCOVERED", "MODEL_SELECTED"}:
         return "PLAN"
     if event_type == "WORKSPACE_READY":
         return "AGENT_STARTED"
@@ -311,6 +312,31 @@ def _activity_title(category: str) -> str:
     }.get(category, "Run activity")
 
 
+def _model_selection_description(metadata: Mapping[str, Any]) -> str:
+    summary = (f"{_safe_text(metadata.get('binding_ref'), limit=128)}: "
+               f"{_safe_text(metadata.get('reason'), limit=64)} "
+               f"(difficulty {_safe_int(metadata.get('difficulty'))}, "
+               f"{_safe_text(metadata.get('kind'), limit=32)})")
+    candidates = metadata.get("candidates")
+    if isinstance(candidates, list):
+        rows = []
+        for candidate in candidates[:5]:
+            if isinstance(candidate, Mapping):
+                rows.append(f"{_safe_text(candidate.get('binding_id'), limit=128)} "
+                            f"tier {_safe_int(candidate.get('tier'))} "
+                            f"{_safe_text(candidate.get('cost_class'), limit=32)}")
+                metrics = []
+                for label, key in (("cost", "cost"), ("success", "success_rate"), ("seconds", "speed")):
+                    value = candidate.get(key)
+                    if type(value) in (int, float) and math.isfinite(value):
+                        metrics.append(f"{label} {value:g}")
+                if metrics:
+                    rows[-1] += " (" + ", ".join(metrics) + ")"
+        if rows:
+            summary += ". Candidates: " + "; ".join(rows)
+    return summary
+
+
 def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
     metadata = _metadata(event)
     event_type = _safe_text(event.get("type"), limit=64)
@@ -362,9 +388,9 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
         "title": (
             "Queued task cancelled"
             if event_type == "QUEUE_CANCELLED"
-            else _activity_title(category)
+            else "Model selected" if event_type == "MODEL_SELECTED" else _activity_title(category)
         ),
-        "description": "",
+        "description": _model_selection_description(metadata) if event_type == "MODEL_SELECTED" else "",
         "category": category,
         "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),
