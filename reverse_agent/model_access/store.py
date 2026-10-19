@@ -421,6 +421,7 @@ class ModelProfileStore:
         }
         self._bindings: dict[str, Binding] = {}
         self._agent_roster: dict[str, str] = {}
+        self._agent_pins: set[str] = set()
         self._agent_policy: dict[str, Any] = {}
         # Owner-declared stand-ins per coding role, used only when the role's account is exhausted.
         self._agent_standins: dict[str, list[str]] = {}
@@ -1110,6 +1111,7 @@ class ModelProfileStore:
             raise StoreError("invalid agent roster file")
         self._agent_roster = {role: binding for role, binding in roles.items()
                               if role in AGENT_ROLES and isinstance(binding, str) and binding}
+        self._agent_pins = {role for role in data.get("pins", []) if role in self._agent_roster}
         policy = data.get("policy")
         self._agent_policy = _sanitize_agent_policy(policy) if isinstance(policy, dict) else {}
         standins = data.get("standins")
@@ -1124,6 +1126,7 @@ class ModelProfileStore:
                 binding = self._bindings.get(binding_id)
                 roles[role] = {
                     "binding_id": binding_id,
+                    **({"pin": True} if role in self._agent_pins else {}),
                     # A deleted or disabled binding leaves the role unfilled, never silently remapped.
                     "available": bool(binding and binding.enabled),
                     "executor_id": binding.executor_id if binding else "",
@@ -1136,15 +1139,25 @@ class ModelProfileStore:
                     "standins": {role: ids for role, ids in standins.items() if ids}}
 
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Legacy role hints, or explicit {binding_id, pin: True} task-route pins."""
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
         if not isinstance(roles, Mapping):
             raise ValueError("agent_roster_roles_required")
         with self._lock:
             self._ensure_connection_binding_ready()
             roster: dict[str, str] = {}
+            pins: set[str] = set()
             for role, binding_id in roles.items():
                 if role not in AGENT_ROLES:
                     raise ValueError(f"unknown_agent_role:{role}")
+                if isinstance(binding_id, Mapping):
+                    if type(binding_id.get("pin", False)) is not bool:
+                        raise ValueError(f"agent_role_pin_invalid:{role}")
+                    if binding_id.get("pin"):
+                        pins.add(role)
+                    binding_id = binding_id.get("binding_id", "")
+                elif role in self._agent_pins:
+                    pins.add(role)
                 if binding_id in (None, ""):
                     continue
                 if not isinstance(binding_id, str) or binding_id not in self._bindings:
@@ -1152,6 +1165,7 @@ class ModelProfileStore:
                 if not self._bindings[binding_id].enabled:
                     raise ValueError(f"agent_role_binding_disabled:{role}")
                 roster[role] = binding_id
+            pins.intersection_update(roster)
             reviewer, coder = roster.get("reviewer"), roster.get("coder")
             if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
                 # Independent review needs a different underlying model, not just another label.
@@ -1174,6 +1188,8 @@ class ModelProfileStore:
             path = self._roster_path()
             if path is not None:
                 document: dict[str, Any] = {"schema_version": 1, "roles": roster}
+                if pins:
+                    document["pins"] = sorted(pins)
                 if policy:
                     document["policy"] = policy
                 if standins:
@@ -1181,6 +1197,7 @@ class ModelProfileStore:
                 _write_atomic(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
                               .encode("utf-8"), path)
             self._agent_roster = roster
+            self._agent_pins = pins
             self._agent_standins = standins
             # A manual role edit drops the stored natural-language policy it no longer reflects.
             self._agent_policy = policy
