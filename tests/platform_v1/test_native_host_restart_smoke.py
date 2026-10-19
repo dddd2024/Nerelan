@@ -36,13 +36,13 @@ def test_clean_host_restart_rebinds_fresh_ports_without_reviving_coordinator(tmp
             store._conn.close()
         for port in ports:
             with socket.socket() as probe:
-                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                probe.bind(("127.0.0.1", port))
+                probe.settimeout(0.5)
+                assert probe.connect_ex(("127.0.0.1", port)) != 0
     assert len(observed) == 2
 
 
-def test_stale_running_run_reconciles_once_after_host_restart_without_dispatch(tmp_path, monkeypatch):
-    """Paused startup preserves a stale lease; unpaused safe startup interrupts once."""
+def test_synthetic_stale_lease_reconciles_once_across_host_reopenings(tmp_path, monkeypatch):
+    """A synthetic stale lease is reconciled once; no real model crash is simulated."""
     import time
 
     monkeypatch.setenv("REVERSE_AGENT_AUTONOMOUS", "0")
@@ -54,10 +54,12 @@ def test_stale_running_run_reconciles_once_after_host_restart_without_dispatch(t
         lease_owner="disconnected-worker", repository_base_sha="", worktree_path="",
     )
     store.transition_to(task.id, "RUNNING")
+    expired_at_ms = int(time.time() * 1000) - 10000
     store._conn.execute(
         "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
-        (int(time.time() * 1000) - 10000, lease.run_id),
+        (expired_at_ms, lease.run_id),
     )
+    store._conn.commit()
     store._conn.close()
 
     for paused, expected_status in ((True, "RUNNING"), (False, "INTERRUPTED"), (False, "INTERRUPTED")):
@@ -74,6 +76,7 @@ def test_stale_running_run_reconciles_once_after_host_restart_without_dispatch(t
             assert reopened.get_task(task.id).status == expected_status
             durable = reopened._get_durable_run(lease.run_id)
             assert durable.run_id == lease.run_id
+            assert durable.lease_expiry_ms == expired_at_ms
             if not paused:
                 assert durable.recovery_classification == "orphan_stale_lease"
             events = reopened._conn.execute(
