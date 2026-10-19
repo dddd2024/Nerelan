@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import logging
@@ -19,6 +19,7 @@ import shlex
 import subprocess
 import threading
 import time
+import uuid
 from typing import Callable, Protocol
 
 
@@ -31,7 +32,8 @@ LOG_LIMIT = 1024 * 1024
 
 def _relative(value: str) -> str:
     if (not isinstance(value, str) or not value or "\\" in value
-            or "\x00" in value or PurePosixPath(value).is_absolute()
+            or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in value)
+            or PurePosixPath(value).is_absolute()
             or PureWindowsPath(value).drive
             or any(p in {"", ".", ".."} for p in value.split("/"))):
         raise ValueError("expected relative path without '..': %r" % (value,))
@@ -56,6 +58,7 @@ class RemoteJobProfile:
     max_upload_bytes: int = 52428800
     max_download_bytes: int = 524288000
     poll_seconds: int = 30
+    termination_grace_seconds: int = 30
 
     def __post_init__(self):
         _relative(self.remote_root)
@@ -64,7 +67,7 @@ class RemoteJobProfile:
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._-]*", self.ssh_alias):
             raise ValueError("invalid ssh_alias")
         for name in ("max_concurrent", "max_wall_seconds", "max_upload_bytes",
-                     "max_download_bytes", "poll_seconds"):
+                     "max_download_bytes", "poll_seconds", "termination_grace_seconds"):
             _positive(getattr(self, name), name)
         if not isinstance(self.gpu_devices, (list, tuple)) or any(
                 not isinstance(d, str) or not re.fullmatch(r"[0-9]+", d)
@@ -128,8 +131,54 @@ safe(job)
 job.mkdir(parents=True, exist_ok=True)
 os.chdir(job)
 marker = job / 'launch.json'
-for name in ('launch.json', 'pid', 'exit_code', 'stdout.log', 'stderr.log'):
+for name in ('launch.json', 'pid', 'exit_code', 'stdout.log', 'stderr.log', 'launch.tmp'):
     safe(job / name)
+def save_marker(info):
+    temporary = safe(job / 'launch.tmp')
+    with temporary.open('w') as f:
+        json.dump(info, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(temporary, marker)
+
+def stat(pid):
+    # comm may contain spaces and parentheses. Fields after its last ')' start at 3.
+    fields = pathlib.Path('/proc/%s/stat' % pid).read_text().rsplit(')', 1)[1].split()
+    return fields[0], int(fields[2]), int(fields[3]), int(fields[19])
+
+def group_alive(pid, info):
+    if (type(info.get('start_time')) is not int or info['start_time'] < 0
+            or not isinstance(info.get('boot_id'), str) or not info['boot_id']):
+        raise ValueError('missing process identity')
+    if pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip() != info['boot_id']:
+        raise ValueError('boot identity mismatch')
+    try:
+        leader = stat(pid)
+    except (FileNotFoundError, ProcessLookupError):
+        leader = None
+    if leader is not None and leader[3] != info['start_time']:
+        raise ValueError('process identity mismatch')
+    # A dead leader does not imply a dead group. Include surviving descendants,
+    # but never a group/session whose members predate the recorded leader.
+    alive = False
+    for entry in pathlib.Path('/proc').iterdir():
+        if not entry.name.isdecimal():
+            continue
+        try:
+            state, group, session, start = stat(int(entry.name))
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        if group == pid:
+            if session != pid or start < info['start_time']:
+                raise ValueError('process group identity mismatch')
+            alive |= state != 'Z'
+    if alive:
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            return False
+    return alive
+
 op = p['op']
 answer = {}
 if op == 'probe':
@@ -155,33 +204,49 @@ elif op == 'launch':
             proc = subprocess.Popen(['setsid', 'nohup', 'bash', '-c', wrapper],
                                     stdin=subprocess.DEVNULL, stdout=out, stderr=err, env=env)
         pathlib.Path('pid').write_text(str(proc.pid))
+        info = json.loads(marker.read_text())
+        info.update(pid=proc.pid, start_time=stat(proc.pid)[3],
+                    boot_id=pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                    termination_grace_seconds=p['grace'])
+        save_marker(info)
         answer = {'marker': True}
 elif op == 'poll':
     try:
         info = json.loads(marker.read_text())
+        if not isinstance(info, dict):
+            info = {}
     except (FileNotFoundError, ValueError):
         info = {}
     answer['launched_at'] = info.get('launched_at', p['fallback_launched_at'])
     answer['request_digest'] = info.get('request_digest')
-    if pathlib.Path('exit_code').exists():
-        answer['state'] = 'SUCCEEDED' if int(pathlib.Path('exit_code').read_text()) == 0 else 'FAILED'
-    else:
-        try:
-            pid = int(pathlib.Path('pid').read_text())
-            if pid <= 1:
-                raise ValueError('invalid pid')
-            os.kill(pid, 0)
-        except (FileNotFoundError, ProcessLookupError, ValueError):
-            answer['state'] = 'LOST'
+    try:
+        pid = info['pid']
+        if type(pid) is not int or pid <= 1:
+            raise ValueError('invalid pid')
+        alive = group_alive(pid, info)
+        timed_out = 'term_sent_at' in info
+        if timed_out or (alive and p['now'] - answer['launched_at'] > p['wall']):
+            if alive:
+                if not timed_out:
+                    info['term_sent_at'] = p['now']
+                    save_marker(info)
+                    try:
+                        os.killpg(pid, signal.SIGTERM)
+                    except ProcessLookupError:
+                        pass
+                elif p['now'] - info['term_sent_at'] >= info['termination_grace_seconds']:
+                    try:
+                        os.killpg(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                alive = group_alive(pid, info)
+            answer['state'] = 'TIMED_OUT_KILL_PENDING' if alive else 'TIMED_OUT'
+        elif pathlib.Path('exit_code').exists():
+            answer['state'] = 'SUCCEEDED' if int(pathlib.Path('exit_code').read_text()) == 0 else 'FAILED'
         else:
-            if p['now'] - answer['launched_at'] > p['wall']:
-                try:
-                    os.killpg(pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
-                answer['state'] = 'TIMED_OUT'
-            else:
-                answer['state'] = 'RUNNING'
+            answer['state'] = 'RUNNING' if alive else 'LOST'
+    except (FileNotFoundError, ProcessLookupError, PermissionError, KeyError, TypeError, ValueError):
+        answer['state'] = 'LOST'
 elif op == 'collect':
     snapshot = safe(job / '.nerelan-results' / p['digest'])
     snapshot.mkdir(parents=True, exist_ok=True)
@@ -280,6 +345,10 @@ def _fingerprint(path):
         return "unreadable:" + str(exc)
 
 
+class _BrokerStopped(Exception):
+    pass
+
+
 class RemoteJobBroker:
     def __init__(self, profile: RemoteJobProfile, transport: Transport | None = None,
                  clock: Callable[[], float] = time.time):
@@ -330,7 +399,7 @@ class RemoteJobBroker:
                 _relative(value)
         hashes, total = {}, 0
         for name in request["files"]:
-            if name.split("/")[0] in {"job.json", "launch.json", "pid", "exit_code", "stdout.log", "stderr.log", ".nerelan-results"}:
+            if name.split("/")[0] in {"job.json", "launch.json", "pid", "exit_code", "stdout.log", "stderr.log", "launch.tmp", ".nerelan-results"}:
                 raise ValueError("broker control paths are reserved")
             file = path.parent / name
             if any(p.is_symlink() for p in (file, *file.parents)):
@@ -410,13 +479,48 @@ class RemoteJobBroker:
                 "command": request["command"], "outputs": request["outputs"],
                 "wall": request["max_wall_seconds"], "cap": self.profile.max_download_bytes,
                 "fallback_launched_at": receipt.get("launch_attempted_at", receipt["discovered_at"]),
+                "grace": self.profile.termination_grace_seconds,
                 "devices": ",".join(self.profile.gpu_devices) if request["gpu"] else ""}
         argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
                 self.profile.ssh_alias, *map(shlex.quote, ["python3", "-c", REMOTE_HELPER, json.dumps(data)])]
         code, out, err = self.transport.run(argv, 120)
+        if self._stop.is_set():
+            raise _BrokerStopped()
         if code:
             raise OSError("ssh failed: " + err[-2000:])
-        return json.loads(out)
+        result = json.loads(out)
+        self._validate_reply(op, result)
+        return result
+
+    def _validate_reply(self, op, result):
+        if not isinstance(result, dict):
+            raise ValueError("remote reply must be an object")
+        if op in {"probe", "launch"}:
+            if type(result.get("marker")) is not bool:
+                raise ValueError("remote reply requires boolean marker")
+        elif op == "poll":
+            if (type(result.get("launched_at")) not in {int, float}
+                    or "request_digest" not in result
+                    or (result["request_digest"] is not None and not isinstance(result["request_digest"], str))):
+                raise ValueError("invalid remote poll metadata")
+            if not isinstance(result.get("state"), str) or result["state"] not in TERMINAL | {"RUNNING", "TIMED_OUT_KILL_PENDING"}:
+                raise ValueError("invalid remote state")
+        elif op == "collect":
+            if not isinstance(result.get("files"), list) or not isinstance(result.get("logs"), dict):
+                raise ValueError("remote collection requires files and logs")
+            for item in result["files"]:
+                if not isinstance(item, dict):
+                    raise ValueError("invalid collection file")
+                _relative(item.get("path"))
+                _relative(item.get("remote_path"))
+                if (type(item.get("size")) is not int or item["size"] < 0
+                        or not isinstance(item.get("sha256"), str)
+                        or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])):
+                    raise ValueError("invalid collection metadata")
+            for name in ("stdout.log", "stderr.log"):
+                data = result["logs"].get(name)
+                if not isinstance(data, str) or len(base64.b64decode(data, validate=True)) > LOG_LIMIT:
+                    raise ValueError("invalid log tail")
 
     def _collect(self, receipt):
         listing = self._remote(receipt, "collect")
@@ -424,7 +528,7 @@ class RemoteJobBroker:
         manifest, total = [], 0
         for item in listing["files"]:
             if self._stop.is_set():
-                return
+                raise _BrokerStopped()
             name = _relative(item["path"])
             total += item["size"]
             if total > self.profile.max_download_bytes:
@@ -433,6 +537,8 @@ class RemoteJobBroker:
             dest.parent.mkdir(parents=True, exist_ok=True)
             remote_path = _relative(item["remote_path"])
             self.transport.download(self.profile.remote_root + "/" + receipt["job_id"] + "/" + remote_path, dest)
+            if self._stop.is_set():
+                raise _BrokerStopped()
             if dest.is_symlink() or dest.stat().st_size != item["size"]:
                 raise ValueError("download changed size or is symlink")
             digest = _hash(dest)
@@ -465,9 +571,11 @@ class RemoteJobBroker:
                 try:
                     if self._remote(receipt, "probe")["marker"]:
                         self._event(receipt, "LAUNCHED", "recovered remote launch marker")
+                except _BrokerStopped:
+                    return
                 except (OSError, ValueError, subprocess.SubprocessError) as exc:
                     self._error(receipt, exc)
-            active = sum(r["state"] in {"LAUNCHED", "RUNNING", "UPLOADED"} for r in receipts)
+            active = sum(r["state"] in {"LAUNCHED", "RUNNING", "UPLOADED", "TIMED_OUT_KILL_PENDING"} for r in receipts)
             for receipt in receipts:
                 if self._stop.is_set():
                     return
@@ -480,6 +588,8 @@ class RemoteJobBroker:
                             continue
                         self.transport.upload(self.profile.local_root / receipt["job_id"] / "request",
                             self.profile.remote_root + "/" + receipt["job_id"])
+                        if self._stop.is_set():
+                            return
                         self._event(receipt, "UPLOADED")
                         active += 1
                     if self._stop.is_set():
@@ -490,7 +600,7 @@ class RemoteJobBroker:
                             self._save(receipt)
                         self._remote(receipt, "launch")
                         self._event(receipt, "LAUNCHED")
-                    if receipt["state"] in {"LAUNCHED", "RUNNING"}:
+                    if receipt["state"] in {"LAUNCHED", "RUNNING", "TIMED_OUT_KILL_PENDING"}:
                         result = self._remote(receipt, "poll")
                         remote_digest = result.get("request_digest")
                         if remote_digest and remote_digest != receipt.get("remote_request_digest"):
@@ -498,7 +608,7 @@ class RemoteJobBroker:
                             if remote_digest != receipt["request_digest"]:
                                 self._event(receipt, receipt["state"], "remote launch marker has a different request digest")
                         state = result["state"]
-                        if state not in TERMINAL | {"RUNNING"}:
+                        if state not in TERMINAL | {"RUNNING", "TIMED_OUT_KILL_PENDING"}:
                             raise ValueError("invalid remote state")
                         if state in TERMINAL:
                             receipt["outcome"] = state
@@ -510,6 +620,8 @@ class RemoteJobBroker:
                     receipt["errors"] = 0
                     receipt["retry_at"] = 0
                     self._save(receipt)
+                except _BrokerStopped:
+                    return
                 except (OSError, ValueError, subprocess.SubprocessError) as exc:
                     self._error(receipt, exc)
 
@@ -535,7 +647,7 @@ class RemoteJobBroker:
     def stop(self):
         self._stop.set()
         if self._thread:
-            self._thread.join()
+            self._thread.join(timeout=1.0)
 
 
 class _BrokerLock:
@@ -576,12 +688,112 @@ def configured_broker():
         return None
 
 
+def smoke(profile: RemoteJobProfile):
+    """Opt-in real-server check. Never invoked by startup, CI or unit tests.
+
+    Retain requests, receipts and the displaced receipt directory as evidence.
+    The GPU case checks device visibility; it does not benchmark GPU hardware.
+    """
+    if profile.max_wall_seconds < 10 or not profile.gpu_devices:
+        raise ValueError("smoke needs max_wall_seconds >= 10 and configured GPU devices")
+    prefix = "smoke-" + uuid.uuid4().hex[:16]
+    evidence = profile.local_root / prefix
+    workspace = evidence / "workspaces"
+    isolated = replace(profile, local_root=evidence / "receipts", scan_roots=(workspace,),
+                       poll_seconds=1)
+    broker = RemoteJobBroker(isolated)
+    report = {"smoke_id": prefix, "status": "RUNNING", "cases": []}
+    evidence.mkdir(parents=True, exist_ok=True)
+    report_path = evidence / "smoke-report.json"
+    _atomic_json(report_path, report)
+    print("Smoke evidence:", evidence, flush=True)
+
+    def submit(label, command, gpu=False, wall=10):
+        job_id = prefix + "-" + label
+        directory = workspace / "task" / ".nerelan-remote" / "outbox" / job_id
+        directory.mkdir(parents=True)
+        _atomic_json(directory / "job.json", {
+            "job_id": job_id, "command": command, "files": [],
+            "outputs": ["result.json"], "max_wall_seconds": wall,
+            "gpu": gpu, "purpose": "Owner-run remote broker smoke: " + label})
+        return job_id
+
+    def wait(job_id, wanted):
+        deadline = time.monotonic() + 300 + profile.termination_grace_seconds
+        while time.monotonic() < deadline:
+            broker.tick()
+            current = next(r for r in broker.receipts() if r["job_id"] == job_id)
+            if current["state"] in wanted:
+                return current
+            if current["state"] in TERMINAL | {"REJECTED", "RESULT_COLLECTED"}:
+                raise RuntimeError("unexpected smoke state: " + json.dumps(current))
+            time.sleep(1)
+        raise TimeoutError("smoke observation deadline exceeded for " + job_id)
+
+    def check_result(current, expected_devices):
+        if current.get("outcome") != "SUCCEEDED":
+            raise RuntimeError("smoke job did not succeed: " + json.dumps(current))
+        result = json.loads((isolated.local_root / current["job_id"] / "outputs/result.json").read_text())
+        if result != {"devices": expected_devices}:
+            raise RuntimeError("unexpected device visibility: " + repr(result))
+
+    program = "import json,os; open('result.json','w').write(json.dumps({'devices':os.environ.get('CUDA_VISIBLE_DEVICES')}))"
+    normal_command = "python3 -c " + shlex.quote(program)
+    try:
+        for label, gpu in (("normal", False), ("gpu", True)):
+            job_id = submit(label, normal_command, gpu=gpu)
+            current = wait(job_id, {"RESULT_COLLECTED"})
+            check_result(current, ",".join(profile.gpu_devices) if gpu else "")
+            report["cases"].append({"case": label, "receipt": current})
+            _atomic_json(report_path, report)
+
+        stubborn = "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(600)"
+        job_id = submit("timeout", "python3 -c " + shlex.quote(stubborn), wall=2)
+        current = wait(job_id, {"RESULT_COLLECTED"})
+        if (current.get("outcome") != "TIMED_OUT" or not any(
+                event["state"] == "TIMED_OUT_KILL_PENDING" for event in current["history"])):
+            raise RuntimeError("timeout escalation was not observed: " + json.dumps(current))
+        report["cases"].append({"case": "timeout-ignoring-term", "receipt": current})
+        _atomic_json(report_path, report)
+
+        job_id = submit("recovery", "sleep 5; " + normal_command)
+        before = wait(job_id, {"RUNNING"})
+        original = broker._remote(before, "poll")
+        # Simulate receipt loss by moving, never deleting, all local job evidence.
+        archive = evidence / "displaced-receipts"
+        archive.mkdir()
+        (isolated.local_root / job_id).rename(archive / job_id)
+        current = wait(job_id, {"RESULT_COLLECTED"})
+        check_result(current, "")
+        recovered = broker._remote(current, "poll")
+        if (original["launched_at"] != recovered["launched_at"]
+                or original["request_digest"] != recovered["request_digest"]
+                or not any(event["detail"] == "recovered remote launch marker" for event in current["history"])):
+            raise RuntimeError("recovery did not preserve the original launch")
+        report["cases"].append({"case": "receipt-loss-recovery", "receipt": current})
+        report["status"] = "PASSED"
+    except Exception as exc:
+        report["status"] = "FAILED"
+        report["error"] = str(exc)
+        raise
+    finally:
+        _atomic_json(report_path, report)
+    print("Smoke checks passed; supervisor must inspect", report_path)
+    return report
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["status", "tick"])
+    parser.add_argument("action", choices=["status", "tick", "smoke"])
+    parser.add_argument("--profile", type=Path, help="Owner-written remote job profile")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
-    broker = configured_broker()
+    if args.action == "smoke":
+        if args.profile is None:
+            parser.error("smoke requires an explicit --profile")
+        smoke(RemoteJobProfile.load(args.profile))
+        return
+    broker = RemoteJobBroker(RemoteJobProfile.load(args.profile)) if args.profile else configured_broker()
     if broker is None:
         parser.error("a valid " + ENV_PROFILE + " is required")
     if args.action == "tick":
