@@ -32,17 +32,14 @@ _DONE = re.compile(
     r"reset has been processed|fully reset|reset is done|reset completed)\b",
     re.IGNORECASE,
 )
-_GLOBAL_SCOPE = re.compile(
-    r"\b(global|globally|all|everyone|everybody|across|for codex users)\b",
-    re.IGNORECASE,
-)
-_NEGATED_OR_PENDING = re.compile(
-    r"\b(not|never|no|haven't|hasn't|didn't|pending|waiting|incomplete|yet to)\b",
-    re.IGNORECASE,
-)
-_PERSONAL_OR_BANKED = re.compile(
-    r"\b(personal|banked|individual|my (?:own |codex |account |quota|limit)|"
-    r"your (?:personal |own |account |quota|limit))\b",
+# This is deliberately an allowlist, not a keyword/negation classifier.
+# Only a small number of unambiguous complete Codex-wide reset statements can
+# prompt a *read-only* account quota refresh. Every other sentence is advisory.
+_UNAMBIGUOUS_GLOBAL_DONE = re.compile(
+    r"(?:we (?:have|'ve) reset (?:the )?(?:usage )?limits for all codex users|"
+    r"we (?:have|'ve) reset (?:all )?codex (?:usage )?limits for everyone|"
+    r"global codex (?:usage )?(?:limits?|quotas?) reset (?:is )?(?:done|complete|completed))"
+    r"[.!]?\Z",
     re.IGNORECASE,
 )
 
@@ -100,12 +97,9 @@ def _valid_post(entry: object, now: datetime) -> tuple[str, str, datetime] | Non
 
 
 def _global_codex_reset(text: str) -> bool:
-    return (
-        bool(re.search(r"\bcodex\b", text, re.I))
-        and bool(_GLOBAL_SCOPE.search(text))
-        and not bool(_PERSONAL_OR_BANKED.search(text))
-        and not bool(_NEGATED_OR_PENDING.search(text))
-    )
+    # Reject negations, exceptions, partial scope and trailing clauses by
+    # requiring the entire message to match a narrow completion grammar.
+    return bool(_UNAMBIGUOUS_GLOBAL_DONE.fullmatch(text.strip()))
 
 
 def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservation:

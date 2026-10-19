@@ -74,6 +74,19 @@ def test_negated_or_pending_reset_is_never_completed():
     assert all(e.action == "PLAN_ONLY" for e in result.events)
 
 
+def test_codex_exclusion_and_partial_scope_never_refresh():
+    posts = (
+        item(36, "We have reset all products except Codex", explicit=True),
+        item(37, "Almost all Codex users have been reset", explicit=True),
+        item(38, "We have reset limits for all Codex users except Pro", explicit=True),
+        item(39, "We have reset limits for all Codex users, but it is incomplete", explicit=True),
+    )
+    result = parse_feed(feed(*posts), now=NOW)
+    assert len(result.events) == 4
+    assert all(x.kind != "RESET_REPORTED_COMPLETE" for x in result.events)
+    assert all(x.action == "PLAN_ONLY" for x in result.events)
+
+
 def test_banked_grant_remains_distinct_from_personal_limits():
     events = parse_feed(feed(item(6, "Loading a banked reset in paid accounts",
                                   kind="banked")), now=NOW).events
