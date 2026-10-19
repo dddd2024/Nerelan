@@ -32,6 +32,15 @@ describe("source-backed Goal to Task to Run navigation", () => {
       .toHaveAttribute("href", "/runs?goal=goal-demo-platform");
   });
 
+  it("never shows an unrelated exact run inside a Goal filter", async () => {
+    renderWithProviders(<RunsPage />, {
+      initialEntries: ["/runs?goal=not-loaded-goal&task=task-demo-1"],
+    });
+    expect(await screen.findByTestId("run-selected-goal-mismatch"))
+      .toHaveTextContent("不属于当前筛选的目标");
+    expect(screen.queryByTestId("run-task-demo-1")).not.toBeInTheDocument();
+  });
+
   it("does not claim nonexistent global history from an empty current page", async () => {
     renderWithProviders(<RunsPage />, { initialEntries: ["/runs?goal=not-loaded-goal"] });
     expect(await screen.findByTestId("runs-goal-page-empty")).toHaveTextContent(

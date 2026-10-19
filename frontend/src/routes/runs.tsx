@@ -858,7 +858,11 @@ export function RunsPage() {
     staleTime: 2_000,
     refetchInterval: requestedTaskId ? 4_000 : false,
   });
-  const selectedRun = selectedQuery.data?.task_id === requestedTaskId ? selectedQuery.data : undefined;
+  const selectedRun = selectedQuery.data?.task_id === requestedTaskId
+    && (!requestedGoalId || selectedQuery.data.goal_id === requestedGoalId)
+    ? selectedQuery.data : undefined;
+  const selectedGoalMismatch = Boolean(requestedGoalId && selectedQuery.data
+    && selectedQuery.data.task_id === requestedTaskId && selectedQuery.data.goal_id !== requestedGoalId);
 
   return (
     <PageSurface data-testid="runs-page">
@@ -897,6 +901,11 @@ export function RunsPage() {
             error={selectedQuery.error}
             onRetry={() => void selectedQuery.refetch()}
           />}
+          {selectedGoalMismatch && (
+            <p data-testid="run-selected-goal-mismatch" className="text-xs text-ra-text-secondary">
+              指定运行不属于当前筛选的目标；可清除目标筛选后查看该运行。
+            </p>
+          )}
           {selectedRun && <ul><RunCard key={selectedRun.task_id} run={selectedRun} defaultOpen /></ul>}
         </section>
       )}
