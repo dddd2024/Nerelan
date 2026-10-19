@@ -14,7 +14,7 @@ import json
 from typing import Any, Callable
 
 from .codex_protocol import (
-    CodexProtocolError, CodexTurn, public_text, usage_limit_hit,
+    CodexProtocolError, CodexTurn, public_text, usage_limit_hit, parse_reset_time,
 )
 from .opencode_executor import redact_event
 
@@ -181,12 +181,17 @@ class ClaudeStreamJson:
                     status = event.get("api_error_status")
                     reason = f"api_error_{status}" if type(status) is int and 100 <= status <= 599 else "api_error"
                 detail = public_text(event.get("error"), 500) if isinstance(event.get("error"), str) else ""
-                if usage_limit_hit(detail):
+                result_text = public_text(event.get("result"), 500)
+                failure_texts = (detail, result_text)
+                detail = public_text("\n".join(text for text in failure_texts if text), 500)
+                if any(usage_limit_hit(text) for text in failure_texts):
                     self.turn.failure_classification = "claude_code_usage_limit"
                     self.turn.failure_detail = detail
                 else:
                     self.turn.failure_classification = f"claude_code_turn_failed:{reason[:60]}"
                     self.turn.failure_detail = detail
+                self.turn.failure_reset_at = next(
+                    (reset for text in failure_texts if (reset := parse_reset_time(text))), "")
                 if detail:
                     self._publish({"type": "turn.error",
                                    "failure_classification": self.turn.failure_classification,

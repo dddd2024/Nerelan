@@ -194,3 +194,98 @@ def test_limit_hit_failure_holds_until_reported_reset(monkeypatch):
 def _iso(epoch):
     from datetime import datetime, timezone
     return datetime.fromtimestamp(epoch, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+
+@pytest.fixture
+def reset_host(monkeypatch):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import trusted_host, run_store
+    now = 1792407600.0
+    monkeypatch.setattr(trusted_host.time, "time", lambda: now)
+    monkeypatch.setattr(run_store, "_utc_now", lambda: _iso(now))
+    tasks = run_store.TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store = tasks
+    host._store = SimpleNamespace(list_bindings_public=lambda: [
+        {"binding_id": "b", "connection_id": "account"}])
+    # Offline stand-in for unavailable quota sources (including Magpie).
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {})
+    connection = {"connection_id": "account", "executor_provider_id": "codex"}
+
+    def fail(reset="", age=0, classification="codex_usage_limit"):
+        task = tasks.create_task(title="failure", repository="o/r", executor_kind="codex", binding_ref="b")
+        task = tasks.classify_failure(task.id, classification=classification, failure_reset_at=reset)
+        tasks._conn.execute("UPDATE tasks SET failure_at = ?, updated_at = ? WHERE id = ?",
+                            (_iso(now - age), _iso(now - age), task.id))
+        tasks._conn.commit()
+        return task
+
+    yield host, connection, now, fail
+    tasks._conn.close()
+
+
+def test_stated_five_hour_reset_without_magpie(reset_host, monkeypatch):
+    host, connection, now, fail = reset_host
+    from reverse_agent.model_access import magpie
+    monkeypatch.setenv("REVERSE_AGENT_MAGPIE", "1")
+    monkeypatch.setattr(magpie, "fetch_magpie_snapshot", lambda *a, **k: {"status": "unavailable"})
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: host._merge_magpie_quotas({}))
+    task = fail(_iso(now + 5 * 3600))
+    persisted = host._task_store.get_task(task.id)
+    assert persisted.failure_reset_at == _iso(now + 5 * 3600)
+    assert persisted.failure_at == _iso(now)
+    assert host._limit_hit_until(connection) == pytest.approx(now + 5 * 3600)
+
+
+@pytest.mark.parametrize("hours", [2, 8])
+def test_stated_reset_uses_latest_quota_window(reset_host, monkeypatch, hours):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 5 * 3600))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+        {"resets_at": _iso(now + 3600)}, {"resets_at": _iso(now + hours * 3600)}]}})
+    assert host._limit_hit_until(connection) == now + max(5, hours) * 3600
+
+
+def test_multiple_failures_and_hold_older_than_one_day(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 86400), age=2 * 86400)
+    fail(_iso(now + 5 * 3600))
+    fail(_iso(now + 6 * 86400), classification="quota_exhausted:limit_hit")
+    assert host._limit_hit_until(connection) == now + 2 * 86400
+
+
+@pytest.mark.parametrize("reset", ["", "bad", "2026-10-19T15:00:00", "past", "over"])
+def test_invalid_stated_resets_preserve_fallback(reset_host, monkeypatch, reset):
+    host, connection, now, fail = reset_host
+    reset = {"past": _iso(now - 1), "over": _iso(now + 7 * 86400 + 1)}.get(reset, reset)
+    fail(reset)
+    assert host._limit_hit_until(connection) == now + 3600
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+        {"resets_at": _iso(now + 7200)}]}})
+    assert host._limit_hit_until(connection) == now + 7200
+
+
+def test_expired_stated_failure_cannot_renew(reset_host, monkeypatch):
+    host, connection, now, fail = reset_host
+    fail(_iso(now - 1), age=7200)
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+        {"resets_at": _iso(now + 7200)}]}})
+    assert host._limit_hit_until(connection) is None
+
+
+def test_seven_day_bound_is_anchored_to_failure(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 6 * 86400), age=2 * 86400)
+    assert host._limit_hit_until(connection) is None
+
+
+def test_expired_legacy_failure_and_host_refusal_do_not_renew(reset_host):
+    host, connection, now, fail = reset_host
+    fail(age=2 * 86400)
+    fail(_iso(now + 86400), classification="quota_exhausted:limit_hit")
+    assert host._limit_hit_until(connection) is None
+
+
+def test_exact_seven_day_stated_reset_is_accepted(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 5 * 86400), age=2 * 86400)
+    assert host._limit_hit_until(connection) == now + 5 * 86400

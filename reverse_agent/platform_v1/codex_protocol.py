@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping
 
 from .opencode_executor import redact_event, redact_secrets
@@ -24,8 +24,13 @@ class CodexProtocolError(ExecutorRuntimeError):
 # The account's own answer that it is out of quota. This mirrors quota_guard.ACCOUNT_LIMIT,
 # but matches the free-text wording the CLI turns carry instead of a classification string.
 _USAGE_LIMIT_RE = re.compile(
-    r"(?i)usage\s+limit|rate\s+limit|\b429\b|try\s+again\s+at|you'?ve\s+hit\s+your|"
-    r"limit\s+reached|quota\s+exceeded"
+    r"(?i)\b(?:usage|rate)[ -]+limit\b|"
+    r"\byou['?]?ve\s+hit\s+your\s+limit\b|"
+    r"\b(?:account|plan)\s+(?:quota|limit)\s+(?:exceeded|reached)\b|"
+    r"\b(?:exceeded|exhausted)\s+(?:your\s+)?(?:current\s+|account\s+|plan\s+)?quota\b|"
+    r"\bquota\s+(?:exceeded|exhausted)\b|"
+    r"\b(?:HTTP(?:/\d(?:\.\d)?)?\s+|status\s*[:=]?\s*)429\b|"
+    r"\b429\s+Too\s+Many\s+Requests\b"
 )
 
 # A stated reset time inside a usage-limit message: an ISO-8601 timestamp, or a
@@ -44,6 +49,7 @@ def public_text(value: Any, limit: int = 4096) -> str:
     # Authorization substitution can consume only 'Bearer', leaving the token.
     value = re.sub(r"(?im)\bauthorization\s*:\s*[^\r\n]*", "Authorization: [REDACTED]", value)
     value = re.sub(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTED]", value)
+    value = re.sub(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+", "[REDACTED EMAIL]", value)
     return redact_secrets(value).replace("\x00", "").encode("utf-8")[:limit].decode(
         "utf-8", errors="ignore"
     )
@@ -65,26 +71,34 @@ def usage_limit_hit(message: str) -> bool:
 
 
 def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
-    """An ISO-8601 reset timestamp stated in a usage-limit message, or None."""
+    """Return a stated reset in UTC. Explicit offsets need no reference time.
+
+    Clock forms and naive ISO timestamps require an explicitly supplied aware
+    ``now`` and use its timezone. Ambiguous forms otherwise return None.
+    """
+    aware_now = now is not None and now.tzinfo is not None and now.utcoffset() is not None
     match = _RESET_ISO_RE.search(message)
     if match:
         try:
             parsed = datetime.fromisoformat(match.group(1).replace("Z", "+00:00").replace(" ", "T"))
             if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
+                if not aware_now:
+                    return None
+                parsed = parsed.replace(tzinfo=now.tzinfo)
             return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-        except ValueError:
+        except (ValueError, OverflowError):
             return None
     clock = _RESET_CLOCK_RE.search(message)
     if clock:
-        now = now or datetime.now(timezone.utc)
+        if not aware_now:
+            return None
         try:
             hour, minute = int(clock.group(1)), int(clock.group(2))
             reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if reset <= now:
-                reset = reset.replace(day=reset.day + 1) if reset.day < 28 else reset
+                reset += timedelta(days=1)
             return reset.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-        except ValueError:
+        except (ValueError, OverflowError):
             return None
     return None
 
@@ -139,17 +153,23 @@ class CodexJsonl:
         self._started = False
         self._error_seen = False
         self._error_detail = ""
+        self._error_fresh = False
 
-    def _publish_failure(self, classification: str, detail: str) -> None:
+    def _publish_failure(self, classification: str, detail: str, *, terminal: str | None = None) -> None:
         self.turn.failed = True
         self.turn.completed = False
         self.turn.failure_classification = classification
-        self.turn.failure_detail = detail
+        evidence = detail
+        if self._error_seen and (terminal is not None or not self._error_fresh):
+            terminal_evidence = terminal if terminal is not None else detail
+            evidence = (f"Terminal: {public_text(terminal_evidence, 220)}\n"
+                        f"Earlier diagnostic: {public_text(self._error_detail, 240)}")
+        self.turn.failure_detail = public_text(evidence, _FAILURE_DETAIL_LIMIT)
         reset_at = parse_reset_time(detail) if detail else None
         self.turn.failure_reset_at = reset_at or ""
-        if detail:
+        if self.turn.failure_detail:
             public = redact_event({"type": "turn.error", "failure_classification": classification,
-                                   "detail": public_text(detail, _FAILURE_DETAIL_LIMIT),
+                                   "detail": self.turn.failure_detail,
                                    **({"resets_at": reset_at} if reset_at else {})})
             if len(self.turn.items) < 100:
                 self.turn.items.append(public)
@@ -177,10 +197,11 @@ class CodexJsonl:
             self._buffer.clear()
         if not (self.turn.completed or self.turn.failed):
             if self._error_seen:
-                if usage_limit_hit(self._error_detail):
-                    self._publish_failure(self._limit_classification, self._error_detail)
+                detail = self._error_detail if self._error_fresh else ""
+                if usage_limit_hit(detail):
+                    self._publish_failure(self._limit_classification, detail)
                 else:
-                    self._publish_failure("codex_turn_failed", self._error_detail)
+                    self._publish_failure("codex_turn_failed", detail)
                 return self.turn
             raise CodexProtocolError("codex_turn_incomplete")
         if self.turn.completed and not self.turn.final_text:
@@ -222,17 +243,18 @@ class CodexJsonl:
             # copy so a usage-limit diagnostic is distinguishable from noise.
             self._error_seen = True
             detail = _usage_limit_message(event)
-            if detail:
-                self._error_detail = detail
+            self._error_detail = detail
+            self._error_fresh = True
         elif kind in {"turn.completed", "turn.failed"}:
             if not self._started:
                 raise CodexProtocolError("codex_turn_identity_invalid")
             if kind == "turn.failed":
-                detail = _usage_limit_message(event) or self._error_detail
+                terminal = _usage_limit_message(event)
+                detail = terminal or (self._error_detail if self._error_fresh else "")
                 if detail and usage_limit_hit(detail):
-                    self._publish_failure(self._limit_classification, detail)
+                    self._publish_failure(self._limit_classification, detail, terminal=terminal)
                 else:
-                    self._publish_failure("codex_turn_failed", detail)
+                    self._publish_failure("codex_turn_failed", detail, terminal=terminal)
             else:
                 self.turn.completed = True
                 self.turn.failed = False
@@ -248,6 +270,7 @@ class CodexJsonl:
             item = event.get("item")
             if not isinstance(item, dict) or not isinstance(item.get("type"), str):
                 raise CodexProtocolError("codex_invalid_item")
+            self._error_fresh = False
             item_type = item["type"]
             # Allowlisted projection only: never relay arbitrary provider/MCP data.
             public: dict[str, Any] = {"type": kind, "item_type": public_text(item_type, 80)}

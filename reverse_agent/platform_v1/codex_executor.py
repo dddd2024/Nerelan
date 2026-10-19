@@ -344,7 +344,8 @@ class CodexExecutor:
             error = classification if not detail else f"{classification}: {detail}"
             return ExecutorResult(False, -1, "", "", "", error=error,
                 workspace=str(prepared.worktree), execution_id=prepared.execution_id,
-                process_exit_code=code, failure_classification=classification)
+                process_exit_code=code, failure_classification=classification,
+                failure_reset_at=parser.turn.failure_reset_at)
         persist_unknown_usage()
         _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": f"{self.LABEL} response",
             "description": public_text(turn.final_text), "metadata": {"executor_kind": self.KIND,

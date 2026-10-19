@@ -368,11 +368,19 @@ def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = Non
     contribute; anything else is dropped so the caller can fall back to the local CLI
     source. The official ``used_percent``/``resets_at`` are kept verbatim, so a 100% 5h
     window drives ``switch`` and the account is held until its stated reset.
+
+    One account is chosen per provider: the one with the least remaining headroom in its
+    most constrained active window, matching the guard's per-window admission rule. Stale
+    or unknown accounts, invalid windows, and windows whose stated reset has passed do not
+    influence that choice. Ties are broken by sanitized ``account_ref``, then observation
+    time and window content, so input order never decides the result. When no usable
+    account exists the provider is omitted and the caller keeps its local fallback.
     """
     now = time.time() if now is None else now
     result: dict[str, dict[str, Any]] = {}
     if not isinstance(snapshot, Mapping) or snapshot.get("status") != "available":
         return result
+    candidates: dict[str, list[tuple[tuple[Any, ...], Mapping[str, Any], list[dict[str, Any]]]]] = {}
     for account in snapshot.get("accounts") or []:
         if not isinstance(account, Mapping) or account.get("state") != "FRESH":
             continue
@@ -388,6 +396,8 @@ def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = Non
                 continue
             resets_at = window.get("resets_at")
             reset = parse_iso_time(resets_at)
+            if resets_at is not None and reset is None:
+                continue  # a stated reset that cannot be read makes the window invalid
             windows.append({
                 "window": window.get("name") if isinstance(window.get("name"), str) else "window",
                 "basis": "official_percent",
@@ -397,9 +407,26 @@ def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = Non
                 "status": None,
                 "source": "magpie",
             })
-        if windows:
-            result[key] = {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie",
-                           "observed_at": account.get("observed_at"), "windows": windows}
+        active = [window for window in windows if not window["reset_passed"]]
+        if not active:
+            continue
+        headroom = min(100 - window["used_percent"] for window in active)
+        ref = account.get("account_ref")
+        observed = account.get("observed_at")
+        signature = tuple(
+            (window["window"], window["used_percent"], window["resets_at"] or "")
+            for window in windows)
+        order = (headroom, ref if isinstance(ref, str) and ref else "\uffff",
+                 observed if isinstance(observed, str) else "", signature)
+        candidates.setdefault(key, []).append((order, account, windows))
+    for key, choices in candidates.items():
+        _, account, windows = min(choices, key=lambda choice: choice[0])
+        evidence: dict[str, Any] = {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie",
+                                    "observed_at": account.get("observed_at"), "windows": windows}
+        ref = account.get("account_ref")
+        if isinstance(ref, str) and ref:
+            evidence["account_ref"] = ref
+        result[key] = evidence
     return result
 
 

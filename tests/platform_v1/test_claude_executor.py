@@ -272,3 +272,27 @@ def test_claude_account_connection_and_binding_never_accept_api_keys(tmp_path):
                               "executor_id": "opencode", "model_id": "claude-sonnet-5-5", "enabled": True})
     with pytest.raises(ValueError, match="claude_code_requires_managed_session_connection"):
         store.upsert_connection({**connection, "connection_id": "claude-key", "auth_method": "api_key"})
+
+
+@pytest.mark.parametrize('field', ['error', 'result'])
+def test_failed_result_text_limit_reset_and_email_redaction(field):
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    event = {'type': 'result', 'subtype': 'success', 'is_error': True,
+             field: 'Account quota exceeded; try again at 2026-10-20T02:00:00+02:00 owner@example.invalid token: sk-verysecret'}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.failure_classification == 'claude_code_usage_limit'
+    assert turn.failure_reset_at == '2026-10-20T00:00:00Z'
+    assert 'owner@example.invalid' not in repr(turn) + repr(seen)
+    assert 'sk-verysecret' not in repr(turn) + repr(seen)
+    assert len(turn.failure_detail) <= 500
+
+
+def test_successful_result_limit_words_remain_success():
+    parser = ClaudeStreamJson()
+    event = {'type': 'result', 'subtype': 'success', 'result': 'Explained usage limit', 'is_error': False}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == 'Explained usage limit'
+    assert not turn.failure_classification and not turn.failure_reset_at

@@ -257,3 +257,90 @@ def test_parse_reset_time_from_message():
     assert parse_reset_time("no reset here") is None
     now = datetime(2026, 10, 19, 12, 0, tzinfo=timezone.utc)
     assert parse_reset_time("try again at 14:30", now) == "2026-10-19T14:30:00Z"
+
+
+@pytest.mark.parametrize('message, expected', [
+    ('context limit reached', False), ('output token limit reached', False),
+    ('max limit reached for file size', False), ('failed at foo.py:429', False),
+    ("you've hit your upper bound", False), ('/logs/429/error', False),
+    ("You've hit your limit ? resets 5pm", True),
+    ('HTTP 429', True), ('status 429', True), ('429 Too Many Requests', True),
+    ("You've hit your usage limit. Upgrade to Pro", True),
+    ("You've hit your rate limit. Please try again later", True),
+    ('account quota exceeded', True), ('plan quota exceeded', True),
+    ('You exceeded your current quota, please check your plan', True),
+])
+def test_precise_limit_wording(message, expected):
+    from reverse_agent.platform_v1.codex_protocol import usage_limit_hit
+    assert usage_limit_hit(message) is expected
+
+
+@pytest.mark.parametrize('progress, terminal, expected', [
+    (False, '', 'codex_usage_limit'),
+    (True, '', 'codex_turn_failed'),
+    (False, 'unrelated terminal failure', 'codex_turn_failed'),
+])
+def test_terminal_classification_uses_only_fresh_eligible_text(progress, terminal, expected):
+    seen = []
+    parser = CodexJsonl(seen.append)
+    diagnostic = "usage limit; reset 2026-10-20T00:00:00Z owner@example.invalid"
+    events = [*START, {'type': 'error', 'error': {'message': diagnostic}}]
+    if progress:
+        events.append(MESSAGE)
+    events.append({'type': 'turn.failed', 'error': {'message': terminal}})
+    parser.feed(wire(*events))
+    turn = parser.finish()
+    assert turn.failure_classification == expected
+    assert 'Earlier diagnostic:' in turn.failure_detail
+    assert 'owner@example.invalid' not in repr(turn) + repr(seen)
+    assert turn.failure_reset_at == ('2026-10-20T00:00:00Z' if expected == 'codex_usage_limit' else '')
+
+
+@pytest.mark.parametrize('latest', ['', 'connection failed', 'rate limit reached'])
+def test_latest_diagnostic_including_empty_replaces_previous(latest):
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {'type': 'error', 'error': {'message': 'usage limit'}},
+                     {'type': 'error', 'error': {'message': latest}}, {'type': 'turn.failed'}))
+    assert parser.finish().failure_classification == (
+        'codex_usage_limit' if latest == 'rate limit reached' else 'codex_turn_failed')
+
+
+def test_eof_after_progress_does_not_reuse_limit_or_reset():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {'type': 'error', 'error': {
+        'message': 'usage limit 2026-10-20T00:00:00Z'}}, MESSAGE))
+    turn = parser.finish()
+    assert turn.failure_classification == 'codex_turn_failed'
+    assert not turn.failure_reset_at
+    assert 'Earlier diagnostic:' in turn.failure_detail
+
+
+def test_recovered_completion_clears_diagnostic_failure():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {'type': 'error', 'error': {'message': 'usage limit'}}, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed and not turn.failed
+    assert not turn.failure_detail and not turn.failure_reset_at
+
+
+@pytest.mark.parametrize('date, expected', [
+    ('2026-01-31', '2026-02-01'), ('2026-12-31', '2027-01-01'),
+    ('2024-02-28', '2024-02-29'), ('2024-02-29', '2024-03-01'),
+])
+def test_clock_reset_calendar_rollover(date, expected):
+    from datetime import datetime
+    now = datetime.fromisoformat(date + 'T23:00:00+00:00')
+    assert parse_reset_time('try again at 01:30', now) == expected + 'T01:30:00Z'
+
+
+def test_reset_timezone_and_ambiguity_contract():
+    from datetime import datetime
+    aware = datetime.fromisoformat('2026-10-19T12:00:00-04:00')
+    assert parse_reset_time('try again at 14:30', aware) == '2026-10-19T18:30:00Z'
+    assert parse_reset_time('2026-10-19T14:30', aware) == '2026-10-19T18:30:00Z'
+    assert parse_reset_time('2026-10-19T14:30+02:00') == '2026-10-19T12:30:00Z'
+    for now in (None, datetime(2026, 10, 19, 12)):
+        assert parse_reset_time('try again at 14:30', now) is None
+        assert parse_reset_time('2026-10-19T14:30', now) is None
+    for text in ('try again at 25:99', '2026-02-30T12:00Z', 'garbage'):
+        assert parse_reset_time(text, aware) is None

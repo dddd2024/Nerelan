@@ -1261,6 +1261,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.validation_output_digest,
                 failure_classification=classification,
                 failure_detail=exec_result.error,
+                failure_reset_at=getattr(exec_result, "failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -1282,6 +1283,7 @@ class DurableExecutionService:
                 "validation_exit_code": exec_result.validation_exit_code,
                 "error": exec_result.error,
                 "failure_classification": exec_result.failure_classification,
+                "failure_reset_at": getattr(exec_result, "failure_reset_at", ""),
             })),
             1, lease.owner, lease.epoch,
         )
@@ -1514,6 +1516,7 @@ class DurableExecutionService:
             "failure_classification": getattr(
                 exec_raw, "failure_classification", ""
             ),
+            "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
         }
 
         self.store._reconcile_external_operation(
@@ -1556,6 +1559,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.get("validation_output_digest", ""),
                 failure_classification=classification,
                 failure_detail=exec_result.get("error", "executor failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -3205,6 +3209,7 @@ class DurableExecutionService:
                     "failure_classification": getattr(
                         exec_raw, "failure_classification", ""
                     ),
+                    "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
                 }
             else:
                 exec_raw = executor.execute(
@@ -3232,6 +3237,7 @@ class DurableExecutionService:
                     "failure_classification": getattr(
                         exec_raw, "failure_classification", ""
                     ),
+                    "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
                 }
         except Exception as exc:
             self.store._fenced_classify_failure(
@@ -3309,6 +3315,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.get("validation_output_digest", ""),
                 failure_classification=classification,
                 failure_detail=exec_result.get("error", "executor failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
