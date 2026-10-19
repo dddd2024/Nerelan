@@ -74,6 +74,15 @@ def test_banked_reset_with_plan_scope_and_expiry_cannot_refresh():
     assert not parse(status(offers=[{**e, "reset_offer": {"expires_on": "2026-10-18"}}])).events
 
 
+def test_unconfirmed_banked_offer_is_not_yet_claimable():
+    draft = event("future-claude-grant", kind="credit", status="announced",
+                  when=EARLIER, plans=["pro", "max"], scope="limited",
+                  windows=["unspecified"], expires="2026-10-22")
+    v = parse(status(offers=[draft]))
+    assert [x.kind for x in v.events] == ["BANKED_ANNOUNCEMENT"]
+    assert [x.action for x in v.events] == ["PLAN_ONLY"]
+
+
 def test_old_applied_reset_must_not_reopen_quota():
     e = event(when=NOW-timedelta(days=35))
     assert parse(status(latest=e)).events == ()

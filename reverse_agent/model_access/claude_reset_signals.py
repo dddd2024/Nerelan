@@ -171,7 +171,10 @@ def _event(item: object, *, slot: str, now: datetime) -> ClaudeResetEvent | None
     elif kind == "credit":
         if expired:
             return None
-        action, event_kind = "CLAIM_MANUALLY", "BANKED_OFFER"
+        # Only a *confirmed* banked grant is actionable for the user. An
+        # announced future offer is advisory, not something to redeem today.
+        action = "CLAIM_MANUALLY" if status == "confirmed" else "PLAN_ONLY"
+        event_kind = "BANKED_OFFER" if status == "confirmed" else "BANKED_ANNOUNCEMENT"
     elif slot == "announced_reset" or status == "announced":
         action, event_kind = "PLAN_ONLY", "RESET_ANNOUNCEMENT"
     elif status == "confirmed" and kind == "usage_reset":
@@ -364,8 +367,8 @@ class ClaudeResetWatcher:
             if observation.status == "FRESH":
                 for event in observation.events:
                     prior = updated.get(event.event_id)
-                    if (not isinstance(prior, dict)
-                            or int(prior.get("revision", 0)) < event.revision):
+                    prior_rev = prior.get("revision") if isinstance(prior, dict) else None
+                    if type(prior_rev) is not int or prior_rev < event.revision:
                         detail = asdict(event)
                         new_events.append(detail)
                         updated[event.event_id] = detail
