@@ -117,6 +117,12 @@ def test_invalid_identity_is_not_echoed():
     assert discover_reward_needs([bad], [p()], now=NOW) == []
 
 
+def test_malformed_unhashable_program_id_is_ignored_not_a_crash():
+    bad = p(program_id=["unhashable"])
+    r = discover_reward_needs([ACCOUNT], [bad], now=NOW)
+    assert len(r) == 1 and r[0]["state"] == "UNKNOWN"
+
+
 def test_explicit_no_claim_or_credit_grant_fields():
     r = result(opted_in={KEY})
     assert "api_key" not in r and "credited_units" not in r

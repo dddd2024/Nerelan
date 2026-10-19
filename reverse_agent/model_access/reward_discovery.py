@@ -82,7 +82,9 @@ def discover_reward_needs(
     now = _utc(now)
     program_map: dict[str, dict[str, list[RewardProgram]]] = {}
     for p in programs:
-        if isinstance(p, RewardProgram) and isinstance(p.provider_id, str) and _ID.fullmatch(p.provider_id):
+        if (isinstance(p, RewardProgram)
+                and isinstance(p.provider_id, str) and _ID.fullmatch(p.provider_id)
+                and isinstance(p.program_id, str) and _ID.fullmatch(p.program_id)):
             program_map.setdefault(p.provider_id, {}).setdefault(p.program_id, []).append(p)
     seen: set[tuple[str, str]] = set()
     results = []
