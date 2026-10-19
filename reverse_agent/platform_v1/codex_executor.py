@@ -6,6 +6,7 @@ import os
 import hashlib
 import queue
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -22,13 +23,17 @@ from .task_runtime import ExecutorResult, ExecutorRuntimeError, LocalValidationR
 
 
 _TASK_TEMP = ".nt"
+_TASK_TEMP_PREFIX = ".nt-"
+_MAX_TASK_TEMP_DIRS = 32
 
 
 def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, str]:
-    """Create fresh, short execution scratch, never reuse repository content.
+    """Create exclusive per-invocation workspace scratch without deleting old files.
 
-    No readiness probe calls this. Exclusive creation refuses existing entries,
-    including dangling links, junctions and directories from earlier executions.
+    Every native attempt gets a fresh unpredictable directory with its own
+    Git ignore. Prior scratch is never adopted, reused, or recursively removed;
+    after a host crash the previous files stay untouched. A bounded number
+    of old entries fails closed rather than silently filling the worktree.
     """
     try:
         root = worktree.absolute()
@@ -39,13 +44,9 @@ def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, 
                 raise OSError("unverifiable workspace")
         if root.resolve(strict=True) != root:
             raise OSError("unverifiable workspace")
-        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP], cwd=root,
+        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP, _TASK_TEMP_PREFIX + "*"], cwd=root,
             capture_output=True, timeout=10, check=False)
         if tracked.returncode:
-            # A read-only planner may operate in an ordinary (non-Git)
-            # directory. Do not require a Git index where none exists.
-            # Any visible Git marker, including a worktree .git file,
-            # means a failed index check must remain fatal.
             for ancestor in (root, *root.parents):
                 try:
                     (ancestor / ".git").lstat()
@@ -55,16 +56,27 @@ def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, 
             if b"not a git repository" not in tracked.stderr.lower():
                 raise OSError("Git index unavailable")
         if tracked.stdout:
-            raise OSError("reserved scratch is tracked")
-        scratch = root / _TASK_TEMP
-        scratch.mkdir()  # Inherit workspace permissions; no exist_ok or parents.
+            raise OSError("reserved scratch path is tracked")
+        # Old one-shot scratch has no independent ownership attestation.
+        # Never auto-delete or migrate it into this new namespace.
+        try:
+            (root / _TASK_TEMP).lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            raise OSError("legacy scratch requires separately governed recovery")
+        existing = sum(1 for child in root.iterdir() if child.name.startswith(_TASK_TEMP_PREFIX))
+        if existing >= _MAX_TASK_TEMP_DIRS:
+            raise OSError("scratch attempt cap reached")
+        scratch = root / (_TASK_TEMP_PREFIX + secrets.token_hex(12))
+        scratch.mkdir()  # Cryptographically unpredictable name, exclusive create.
         info = scratch.lstat()
         if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
                 or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
                 or scratch.resolve(strict=True) != scratch):
             raise OSError("unverifiable scratch")
-        # Local ignore only: no shared Git configuration or exclude-file edits.
-        # This also keeps ordinary Git-based role snapshots free of scratch.
+        # Locally ignore this directory's own contents. No repository-level
+        # exclude edits or concealment of other pre-existing .nt-* paths.
         with (scratch / ".gitignore").open("x", encoding="utf-8") as handle:
             handle.write("*\n")
         if scratch.resolve(strict=True) != scratch:

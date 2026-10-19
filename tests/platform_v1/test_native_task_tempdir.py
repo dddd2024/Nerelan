@@ -49,7 +49,8 @@ def test_real_child_scoped_temp_and_product_detection(repository, tmp_path, kind
         "import os, sys, tempfile",
         "from pathlib import Path",
         "sys.stdin.read()",
-        "root = Path.cwd() / '.nt'",
+        "root = Path(os.environ['TEMP'])",
+        "assert root.parent == Path.cwd() and root.name.startswith('.nt-')",
         "assert Path(tempfile.gettempdir()) == root",
         "assert os.environ['TEMP'] == os.environ['TMP'] == str(root)",
         "assert 'OPENAI_API_KEY' not in os.environ and 'ANTHROPIC_API_KEY' not in os.environ",
@@ -91,16 +92,29 @@ def test_real_child_scoped_temp_and_product_detection(repository, tmp_path, kind
         assert result.failure_classification == executor._e("no_product_changes")
     assert parent == original
     assert {k: os.environ.get(k) for k in host_temp} == host_temp
+    first_scratch = list(prepared.worktree.glob(".nt-*"))
+    assert len(first_scratch) == 1 and first_scratch[0].is_dir()
+    again = executor.execute_role_prepared(prepared, store,
+        role_context=RoleContext("executor", "native-temp", prepared.worktree))
+    assert len(launched) == 2 and again.success == edit
+    scratches = list(prepared.worktree.glob(".nt-*"))
+    assert len(scratches) == 2 and first_scratch[0] in scratches
+    assert all(directory.is_dir() for directory in scratches)
+    # Scratch contains only locally ignored temporary entries, not products.
+    assert [f["path"] for f in _collect_product_diff(prepared.worktree)] == (
+        ["product.txt"] if edit else [])
 
 
 def test_plain_directory_for_read_only_planner_gets_scoped_temp(tmp_path):
     plain = tmp_path / "plain"
     plain.mkdir()
     child = _task_temp_env(plain, {"PATH": "test", "TEMP": "untrusted"})
-    assert child["TEMP"] == child["TMP"] == str(plain / ".nt")
+    scratch = Path(child["TEMP"])
+    assert child["TEMP"] == child["TMP"] == str(scratch)
+    assert scratch.parent == plain and scratch.name.startswith(".nt-")
     if os.name != "nt":
-        assert child["TMPDIR"] == str(plain / ".nt")
-    assert (plain / ".nt" / ".gitignore").read_text() == "*\n"
+        assert child["TMPDIR"] == str(scratch)
+    assert (scratch / ".gitignore").read_text() == "*\n"
 
 
 def test_broken_git_marker_never_downgrades_index_failure(tmp_path):
@@ -110,6 +124,43 @@ def test_broken_git_marker_never_downgrades_index_failure(tmp_path):
     with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
         _task_temp_env(repo, {})
     assert not (repo / ".nt").exists()
+
+
+
+def test_stale_namespaced_scratch_is_not_adopted_or_deleted(repository):
+    root, _ = repository
+    stale = root / ".nt-historical"
+    stale.mkdir()
+    (stale / "keep").write_text("do not delete")
+    child = _task_temp_env(root, {})
+    fresh = Path(child["TEMP"])
+    assert fresh != stale and fresh.name.startswith(".nt-")
+    assert stale.joinpath("keep").read_text() == "do not delete"
+    assert fresh.joinpath(".gitignore").read_text() == "*\n"
+
+
+def test_attempt_cap_refuses_unbounded_scratch_growth(repository, monkeypatch):
+    from reverse_agent.platform_v1 import codex_executor
+    root, _ = repository
+    monkeypatch.setattr(codex_executor, "_MAX_TASK_TEMP_DIRS", 1)
+    first = Path(_task_temp_env(root, {})["TEMP"])
+    with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
+        _task_temp_env(root, {})
+    assert first.is_dir()
+    assert len(list(root.glob(".nt-*"))) == 1
+
+
+
+def test_tracked_namespaced_scratch_is_never_hidden(repository):
+    root, _ = repository
+    reserved = root / ".nt-business-data"
+    reserved.mkdir()
+    (reserved / "tracked.txt").write_text("must remain product evidence")
+    git(root, "add", ".nt-business-data/tracked.txt")
+    with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
+        _task_temp_env(root, {})
+    assert (reserved / "tracked.txt").read_text() == "must remain product evidence"
+    assert len(list(root.glob(".nt-*"))) == 1
 
 
 @pytest.mark.parametrize("entry", ["directory", "file", "tracked", "symlink", "junction"])
