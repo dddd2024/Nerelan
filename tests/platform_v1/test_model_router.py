@@ -73,11 +73,32 @@ def test_exploration_budget_is_injected_and_bounded_to_easy_tasks():
 
 
 @pytest.mark.parametrize("decision", ["switch", "warn"])
-def test_quota_short_candidates_are_skipped_even_for_pins(decision):
-    pool = [candidate("a", "flash-lite", quota={"decision": decision}), candidate("b", "opus")]
-    assert choose(pool)["binding_ref"] == "b"
+def test_unconfirmed_quota_shortfall_remains_eligible_with_penalty(decision):
+    pool = [candidate("a", "flash-lite", quota={"decision": decision, "reason": "estimated_shortfall"})]
+    result = choose(pool)
+    assert result["binding_ref"] == "a"
+    assert result["candidates"][0]["quota_penalty"] == 1
+    assert result["candidates"][0]["score"][0] == 1
+    assert choose(pool, pin="a")["binding_ref"] == "a"
+    json.dumps(result, allow_nan=False)
+
+
+@pytest.mark.parametrize("reason", ["limit_hit", "limit_reached", "observed_exhausted"])
+def test_confirmed_quota_exhaustion_is_unavailable_even_for_pins(reason):
+    exhausted = candidate("a", "flash-lite", quota={"decision": "switch", "reason": reason})
+    with pytest.raises(ValueError, match="no_runnable_model"):
+        choose([exhausted])
     with pytest.raises(ValueError, match="pinned_model_unavailable"):
-        choose(pool, pin="a")
+        choose([exhausted, candidate("b", "opus")], pin="a")
+
+
+@pytest.mark.parametrize("decision", ["warn", "switch"])
+def test_quota_ok_candidate_preferred_over_cheaper_shortfall(decision):
+    result = choose([candidate("cheap", "flash-lite", quota={"decision": decision}),
+                     candidate("ok", "opus", "paid_api", quota={"decision": "ok"})])
+    assert result["binding_ref"] == "ok"
+    assert [item["quota_penalty"] for item in result["candidates"]] == [0, 1]
+
 
 
 def test_fitness_review_model_identity_and_pin_precedence():
@@ -208,7 +229,8 @@ def test_review_resolves_author_before_selection_even_in_reordered_plan(monkeypa
     assert reviewer_model != author_model
     assert control.get_goal(goal.id).tasks[0]["capability"] == "validate_task"
     with pytest.raises(TaskStoreError, match="review_author_binding_required"):
-        host._resolve_task_model(PlannedTask("review", "review", "review", kind="review"))
+        host._resolve_task_model(PlannedTask("review", "review", "review", kind="review",
+                                               artifact_input={"plan_task_id": "T001"}))
 
 
 def test_host_quota_skip_uses_other_qualifying_catalog_binding(monkeypatch, tmp_path):
@@ -258,3 +280,10 @@ def test_difficulty_only_plans_honor_corresponding_legacy_role_pins(monkeypatch,
     host._store.put_agent_roster({"roles": {role: {"binding_id": binding, "pin": True}}})
     result = host._resolve_task_model(PlannedTask("T001", "t", "i", difficulty=difficulty))
     assert result["binding_ref"] == binding and result["reason"] == "pin"
+
+
+@pytest.mark.parametrize("traits", [{"agent_role": "reviewer"}, {"kind": "review"}])
+def test_reviewer_without_artifact_input_routes_normally(monkeypatch, tmp_path, traits):
+    host = fixture_host(monkeypatch, tmp_path)
+    result = host._resolve_task_model(PlannedTask("review", "Review", "Review", **traits))
+    assert result["binding_ref"] == "strong"

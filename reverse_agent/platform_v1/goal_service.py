@@ -445,7 +445,10 @@ class GoalService:
                 try:
                     decision = self.task_resolver(plan_task, goal=goal, failed_binding=failed.binding_ref,
                                                   author_binding=author_binding, failed_tier=failed_tier)
-                except TaskStoreError:
+                except TaskStoreError as exc:
+                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
+                                         title="Escalation model selection failed",
+                                         description=str(exc), metadata={"reason": str(exc)})
                     continue
                 target = (role, decision["executor_kind"], decision["binding_ref"])
             elif quota_failure:

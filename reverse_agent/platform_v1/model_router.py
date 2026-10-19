@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 
+from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
+
 KINDS = frozenset({"code", "analysis", "writing", "research_design", "review"})
 LEGACY_DIFFICULTY = {"simple": 2, "coder": 3, "complex": 4, "planner": 4, "reviewer": 4}
 MIN_SAMPLES = 3
@@ -65,7 +67,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  exploration_budget: float = .1) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
-    Scores are lexicographic: cost, negative success rate, median turn seconds.
+    Scores are lexicographic: quota penalty, cost, negative success rate, median turn seconds.
     Subscription cost ranges from 1 to 2 as headroom falls; paid API cost is 3.
     Pins override price/tier, while readiness, quota and review fitness still apply.
     The injected uniform draw gives easy tasks a default 10% exploration rate.
@@ -80,8 +82,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         if (kind == "review" or role == "reviewer") and author_model and model_identity(candidate["model_id"]) == model_identity(author_model):
             continue
         quota = candidate.get("quota") or {}
-        if quota.get("decision") in {"switch", "warn"}:
+        if quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
             continue
+        quota_penalty = int(quota.get("decision") in {"switch", "warn"})
         profile = (profiles or {}).get(candidate["binding_id"], {})
         tier, unproven = capability(candidate["model_id"], profile, kind, difficulty)
         bucket = profile.get("task_buckets", {}).get(f"{kind}:{difficulty}", profile)
@@ -93,8 +96,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         tier_source = "measured" if bucket.get("attempts", 0) >= MIN_SAMPLES and profile.get(
             "task_buckets", {}).get(f"{kind}:{difficulty}") else "prior"
         ranked.append(dict(candidate, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
-                           cost=cost, success_rate=success, speed=speed,
-                           score=[cost, -(success if success is not None else -1),
+                           cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
+                           score=[quota_penalty, cost, -(success if success is not None else -1),
                                   speed if speed is not None else float("inf")]))
     ranked.sort(key=lambda c: (*c["score"], c["binding_id"]))
     if not ranked:
@@ -128,13 +131,13 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     # JSON-safe evidence: unknown speed is null, never Infinity.
     for item in ranked:
-        if item["score"][2] == float("inf"):
-            item["score"][2] = None
+        if item["score"][3] == float("inf"):
+            item["score"][3] = None
     top = ranked[:5]
     if chosen not in top:
         top = [*top[:4], chosen]
     evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "tier", "tier_source", "unproven",
-                                            "cost_class", "cost", "success_rate", "speed", "score")}
+                                            "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score")}
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],
             "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,

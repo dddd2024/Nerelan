@@ -413,7 +413,7 @@ class CombinedTrustedHost:
         role = task.agent_role or (
             "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
             "coder" if task.difficulty == 3 else "complex")
-        if (role == "reviewer" or task.kind == "review") and author_binding not in by_id:
+        if (role == "reviewer" or task.kind == "review") and task.artifact_input and author_binding not in by_id:
             raise TaskStoreError("review_author_binding_required")
         entry = self._store.get_agent_roster_public()["roles"].get(role, {})
         pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
