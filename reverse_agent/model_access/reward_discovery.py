@@ -101,8 +101,15 @@ def discover_reward_needs(
                 or not _ACCOUNT.fullmatch(account.opaque_account_ref)):
             continue  # avoid echoing account PII/tokens as opaque refs
         key = (account.provider_id, account.opaque_account_ref)
-        existing = account_map.setdefault(key, account)
-        if existing.eligible != account.eligible:
+        # bool compares equal to int(1); untrusted account-level evidence must
+        # be normalized before dedupe, otherwise input order selects authority.
+        verified_eligibility = (account.eligible if
+                                account.eligible is None or type(account.eligible) is bool
+                                else None)
+        canonical = RewardAccount(account.provider_id, account.opaque_account_ref,
+                                  eligible=verified_eligibility)
+        existing = account_map.setdefault(key, canonical)
+        if existing.eligible != canonical.eligible:
             account_conflicts.add(key)
 
     results = []

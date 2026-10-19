@@ -154,6 +154,15 @@ def test_duplicate_account_eligibility_conflict_is_order_independent():
         assert r[0]["reason"] == "conflicting_account_eligibility"
 
 
+def test_malformed_eligibility_does_not_override_verified_boolean():
+    malformed = replace(ACCOUNT, eligible=1)
+    for order in ([ACCOUNT, malformed], [malformed, ACCOUNT]):
+        r = discover_reward_needs(order, [p()], now=NOW, opted_in={KEY})
+        assert len(r) == 1 and r[0]["state"] == "UNKNOWN"
+        assert r[0]["reason"] == "conflicting_account_eligibility"
+    assert result(account=malformed, opted_in={KEY})["state"] == "UNKNOWN"
+
+
 def test_provider_wide_no_rewards_conflicts_with_separately_named_daily():
     programs = [
         p(), p(program_id="no-reward", kind="NO_REWARD_PROGRAM"),
