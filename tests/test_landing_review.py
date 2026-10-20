@@ -291,6 +291,21 @@ def test_newer_reject_blocks_chain(repo: Path, which: int) -> None:
     assert not carry(merges[-1], accepted, reject).accepted
 
 
+def test_accept_and_reject_in_same_entry_blocks_chain(repo: Path) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    both = entry(f"Nerelan-Review: ACCEPT {accepted}\nNerelan-Review: REJECT {merges[0]}")
+    assert not landing_review.evaluate_review_with_carry_over(merges[-1], [both]).accepted
+
+
+@pytest.mark.parametrize("reject_first", [True, False])
+def test_equal_timestamp_reject_blocks_chain(repo: Path, reject_first: bool) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    accept = entry(f"Nerelan-Review: ACCEPT {accepted}")
+    reject = entry(f"Nerelan-Review: REJECT {merges[0]}")
+    entries = [reject, accept] if reject_first else [accept, reject]
+    assert not landing_review.evaluate_review_with_carry_over(merges[-1], entries).accepted
+
+
 def test_latest_verdict_at_accepted_head(repo: Path) -> None:
     accepted, merges = carry_chain(repo)
     reject = entry(f"Nerelan-Review: REJECT {accepted}", at="2026-10-12T00:00:00Z")
