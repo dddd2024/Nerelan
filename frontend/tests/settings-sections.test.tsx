@@ -107,4 +107,14 @@ describe("modular settings navigation", () => {
     expect(await screen.findByText("数据不可用")).toBeInTheDocument();
     expect(screen.getByTestId("migration-magpie")).toHaveTextContent("这不代表 Magpie 未运行");
   });
+
+  it("migration status shows an unrecognised Magpie state as unknown, not unreachable", async () => {
+    vi.spyOn(getDefaultModelControlClient(), "getMagpie").mockResolvedValue({
+      settings: { enabled: true, executable: "", base_url: "http://127.0.0.1:3425" },
+      runtime: { status: "SOMETHING_NEW", reason: "", last_probe_at: null, model_count: 0 },
+    });
+    renderWithProviders(<SettingsPage section="resources" />);
+    expect(await screen.findByText("未知")).toBeInTheDocument();
+    expect(screen.getByTestId("migration-magpie")).not.toHaveTextContent("不可达");
+  });
 });

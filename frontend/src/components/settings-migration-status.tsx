@@ -43,7 +43,7 @@ export function SettingsMigrationStatus({ connections, connectionsFailed }: {
       <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-3">
         <StatusItem name="Magpie 接入" testId="migration-magpie" {...magpieBadge} />
         <StatusItem name="实际路由" testId="migration-routing" label="实际路由待验证" tone="pending"
-          detail="Magpie 尚未接管任务路由，请以运行记录中的实际模型为准。" />
+          detail="尚未验证任务是否经由 Magpie 路由，请以运行记录中的实际模型为准。" />
         <StatusItem name="本地连接" testId="migration-local" {...localBadge} />
       </dl>
     </section>
@@ -57,11 +57,14 @@ function magpieRuntimeBadge(runtime: MagpieRuntime): { label: string; tone: Tone
       return { label: "只读已接入", tone: "ok", detail: `已观测到 Magpie，提供 ${runtime.model_count} 个模型；仅用于只读展示。` };
     case "MAGPIE_DISABLED":
       return { label: "未接入", tone: "muted", detail: "未启用 Magpie。" };
-    default:
+    case "UNREACHABLE":
+    case "START_FAILED":
       return {
         label: "不可用", tone: "error",
         detail: `Magpie 当前不可达（${runtime.status}${runtime.reason ? `：${runtime.reason}` : ""}）。`,
       };
+    default:
+      return { label: "未知", tone: "muted", detail: `无法识别的 Magpie 状态（${runtime.status || "空"}）。` };
   }
 }
 
