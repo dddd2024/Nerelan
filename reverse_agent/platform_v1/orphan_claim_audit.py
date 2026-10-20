@@ -122,6 +122,41 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
         if any(type(value) is not int or value < 0
                for value in operation_counts.values()):
             return _unknown("invalid_operation_count")
+        # An ACTIVE reservation whose matching claim is no longer ACTIVE still
+        # consumes window budget at admission, so it must not read as clear.
+        # Match in Python against the bounded claim rows: one reservation scan,
+        # independent of which indexes a damaged or migrated store retains.
+        reservation_count = int(conn.execute(
+            "SELECT COUNT(*) FROM platform_budget_reservations WHERE state='ACTIVE'"
+        ).fetchone()[0])
+        if reservation_count > 1000:
+            return _unknown("reservation_count_limit_exceeded")
+        claimed = {(row["task_id"], row["window_id"], row["epoch"]) for row in rows}
+        reservation_rows = [
+            row for row in conn.execute(
+                "SELECT task_id, window_id, claim_epoch, observed_token_units, "
+                "observed_cost_micro_units FROM platform_budget_reservations "
+                "WHERE state='ACTIVE' ORDER BY task_id, claim_epoch"
+            ).fetchall()
+            if (row["task_id"], row["window_id"], row["claim_epoch"]) not in claimed
+        ]
+        if len(reservation_rows) > 500:
+            return _unknown("reservation_count_limit_exceeded")
+        for row in reservation_rows:
+            if (
+                any(not _safe_id(row[key]) for key in ("task_id", "window_id"))
+                or type(row["claim_epoch"]) is not int or row["claim_epoch"] < 0
+                or row["observed_token_units"] is not None
+                or row["observed_cost_micro_units"] is not None
+            ):
+                return _unknown("invalid_reservation_row")
+        orphan_reservations = [{
+            "task_id": _reported_id(row["task_id"]),
+            "window_id": _reported_id(row["window_id"]),
+            "claim_epoch": row["claim_epoch"],
+            "reason": "ACTIVE_RESERVATION_WITHOUT_ACTIVE_CLAIM",
+            "safe_to_release": False,
+        } for row in reservation_rows]
         observations = []
         for row in rows:
             external_operations = operation_counts.get(row["task_id"], 0)
@@ -157,10 +192,12 @@ def inspect_orphan_claims(db: str | Path, *, now_ms: int | None = None) -> dict:
                 "safe_to_release": False,
                 "safe_to_dispatch": False,
             })
+        held = bool(observations or orphan_reservations)
         return {
-            "state": "HOLD_REMOTE_RECONCILIATION" if observations else "NO_ACTIVE_CLAIMS",
-            "reason": "remote_terminal_receipt_not_proven" if observations else "claims_absent",
+            "state": "HOLD_REMOTE_RECONCILIATION" if held else "NO_ACTIVE_CLAIMS",
+            "reason": "remote_terminal_receipt_not_proven" if held else "claims_absent",
             "claims": observations,
+            "orphan_reservations": orphan_reservations,
             "dispatch_permitted": False,
             "reconcile_permitted": False,
             "auto_release_permitted": False,

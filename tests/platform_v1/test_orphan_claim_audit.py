@@ -160,6 +160,7 @@ def test_empty_claims_are_not_authorization(tmp_path, monkeypatch):
     path = fixture_db(tmp_path)
     with sqlite3.connect(path) as db:
         db.execute("UPDATE platform_coordinator_claims SET status = 'FAILED'")
+        db.execute("UPDATE platform_budget_reservations SET state = 'RECONCILED'")
     connect = sqlite3.connect
     journal_queries = []
 
@@ -176,6 +177,7 @@ def test_empty_claims_are_not_authorization(tmp_path, monkeypatch):
     assert journal_queries == []
     assert result["state"] == "NO_ACTIVE_CLAIMS"
     assert result["claims"] == []
+    assert result["orphan_reservations"] == []
     assert result["dispatch_permitted"] is False
     assert result["reconcile_permitted"] is False
     assert result["auto_release_permitted"] is False
@@ -497,3 +499,70 @@ def test_canonical_looking_caller_ids_stay_opaque(tmp_path, monkeypatch, capsys,
     assert main() == 0
     assert json.loads(capsys.readouterr().out) == result
     assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("change", [
+    "UPDATE platform_coordinator_claims SET status = 'FAILED'",
+    "DELETE FROM platform_coordinator_claims",
+    "UPDATE platform_coordinator_claims SET epoch = 2",
+])
+def test_active_reservation_without_active_claim_is_held(tmp_path, monkeypatch, capsys, change):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute(change)
+    before = path.read_bytes()
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert path.read_bytes() == before
+    assert result["state"] == "HOLD_REMOTE_RECONCILIATION"
+    assert result["dispatch_permitted"] is False
+    assert result["reconcile_permitted"] is False
+    assert result["auto_release_permitted"] is False
+    assert result["orphan_reservations"] == [{
+        "task_id": "sha256:" + hashlib.sha256(b"task-example").hexdigest(),
+        "window_id": "sha256:" + hashlib.sha256(b"window-expired").hexdigest(),
+        "claim_epoch": 1,
+        "reason": "ACTIVE_RESERVATION_WITHOUT_ACTIVE_CLAIM",
+        "safe_to_release": False,
+    }]
+    monkeypatch.setattr("sys.argv", ["orphan_claim_audit", "--db", str(path)])
+    assert main() == 0
+    output = capsys.readouterr().out
+    assert json.loads(output) == result
+    assert "task-example" not in output and "window-expired" not in output
+
+
+def test_matched_active_reservation_is_not_reported_twice(tmp_path):
+    result = inspect_orphan_claims(fixture_db(tmp_path), now_ms=NOW)
+    assert len(result["claims"]) == 1
+    assert result["orphan_reservations"] == []
+
+
+@pytest.mark.parametrize("column,value", [
+    ("task_id", sqlite3.Binary(b"private-secret")),
+    ("window_id", "x" * 129),
+    ("claim_epoch", -1),
+    ("observed_token_units", 5),
+])
+def test_invalid_orphan_reservation_fails_closed(tmp_path, column, value):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM platform_coordinator_claims")
+        db.execute(f"UPDATE platform_budget_reservations SET {column} = ?", (value,))
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result == {
+        "state": "UNKNOWN", "reason": "invalid_reservation_row", "claims": [],
+        "dispatch_permitted": False, "reconcile_permitted": False,
+        "auto_release_permitted": False,
+    }
+
+
+def test_large_orphan_reservation_set_is_bounded(tmp_path):
+    path = fixture_db(tmp_path)
+    with sqlite3.connect(path) as db:
+        db.execute("DELETE FROM platform_coordinator_claims")
+        db.executemany("INSERT INTO platform_budget_reservations VALUES(?,?,?,?,?,?)",
+                       [("task-example", "window-expired", epoch, "ACTIVE", None, None)
+                        for epoch in range(2, 503)])
+    result = inspect_orphan_claims(path, now_ms=NOW)
+    assert result["state"] == "UNKNOWN"
+    assert result["reason"] == "reservation_count_limit_exceeded"
