@@ -125,7 +125,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "modality"
         elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
             reason = "quota_exhausted"
-        elif (candidate.get("cost_class") == "subscription" and any(
+        elif (candidate.get("cost_class") == "subscription"
+              # An announced Codex reset drains to reset_buffer instead (Owner rule, #1248/#1281).
+              and not (candidate["executor_id"] == "codex" and reset["drain"]) and any(
                 candidate.get(need) is not None and candidate.get(headroom) is not None
                 and candidate[need] > candidate[headroom] - quota_buffer
                 for need, headroom in (("task_weekly_fraction", "weekly_headroom"),
