@@ -20,7 +20,8 @@ only when every check below proves no work can be lost:
 "Pushed" means reachable from a local remote-tracking ref; run ``git fetch
 --prune`` first if those may be stale. Deleting a clone that other repositories
 borrow objects from (``clone --shared``/``--reference``) breaks them; such
-clones are rare and not detected.
+clones are rare and not detected. Per-worktree refs (``refs/worktree/*``,
+``refs/bisect/*``) are not checked.
 
 Anything else is kept and reported with the reason. The default is a dry run;
 ``apply=True`` re-checks each candidate immediately before deleting it. Deletion
@@ -289,12 +290,13 @@ def _remove_tree(path: Path) -> None:
 
 def remove(record: dict) -> dict:
     path = Path(record["path"])
-    common = None
     if record["kind"] == "worktree":
         common = _git(["rev-parse", "--path-format=absolute", "--git-common-dir"], path)
         if common is None:
             return {**record, "removed": False, "error": "git common dir unknown"}
         # Plain remove (no --force): git's own refusal (dirty, locked) is final.
+        # It also drops the registration, so no repository-wide prune runs:
+        # that would unregister unrelated missing worktrees outside the root.
         code, err = _run(["worktree", "remove", str(path)], Path(common))
         if code != 0:
             return {**record, "removed": False, "error": f"git worktree remove: {err}"}
@@ -302,9 +304,6 @@ def remove(record: dict) -> dict:
         _remove_tree(path)
     except OSError as exc:
         return {**record, "removed": False, "error": f"{type(exc).__name__}: {exc}"}
-    finally:
-        if common is not None:
-            _git(["worktree", "prune"], Path(common))
     if path.exists():
         return {**record, "removed": False, "error": "files remain (locked or in use)"}
     return {**record, "removed": True}

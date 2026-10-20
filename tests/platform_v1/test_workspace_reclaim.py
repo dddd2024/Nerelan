@@ -301,6 +301,15 @@ def test_reflog_only_commits_are_kept(repo, root, tmp_path, kind):
     assert entry["reason"] == "commits not on any remote branch" and target.exists()
 
 
+def test_other_missing_worktrees_stay_registered(repo, root, tmp_path):
+    add_worktree(repo, root, "task-1")
+    away = tmp_path / "away"
+    git(repo, "worktree", "add", "-q", "--detach", str(away), "origin/main")
+    away.rename(tmp_path / "away-moved")  # missing but unlocked: prune would drop it
+    assert by_name(sweep([root], now=LATER, apply=True))["task-1"]["removed"] is True
+    assert str(away) in git(repo, "worktree", "list", "--porcelain")
+
+
 def test_locked_worktree_is_kept(repo, root):
     wt = add_worktree(repo, root, "task-1")
     git(repo, "worktree", "lock", str(wt))
