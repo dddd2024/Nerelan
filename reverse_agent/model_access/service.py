@@ -421,6 +421,28 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "reset-announcements"]:
                 self._send_json(HTTPStatus.OK, self.claude_reset_status())
                 return
+            if segments == ["api", "reward-opportunities"]:
+                # Reuse the existing sanitized resource read model; this is
+                # only a discovery view, never a login or a reward claim.
+                from .reward_opportunities import (
+                    discover_reward_opportunities, running_reward_app_names,
+                )
+                self.external_session_refresh(False, None)
+                config = self.store.get_magpie()
+                external = (
+                    (lambda: fetch_magpie_snapshot(config["base_url"]))
+                    if config["enabled"]
+                    else (_magpie_external if magpie_enabled(os.environ) else None)
+                )
+                snapshot = build_resource_view(
+                    self.store, self.usage_profiles,
+                    tokens=self.token_usage, quotas=self.subscription_quotas,
+                    guard_log=self.quota_guard_log, external=external,
+                    mode="hybrid",
+                )
+                self._send_json(HTTPStatus.OK, discover_reward_opportunities(
+                    snapshot, process_names=running_reward_app_names()))
+                return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
                 config = self.store.get_magpie()
