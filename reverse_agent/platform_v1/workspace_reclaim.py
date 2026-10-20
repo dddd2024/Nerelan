@@ -30,6 +30,12 @@ Anything else is kept and reported with the reason. The default is a dry run;
 tolerates Windows long paths and read-only files. A worktree is removed only
 through ``git worktree remove`` without ``--force``; if git refuses, or a file
 is locked, the failure is reported and the sweep continues.
+
+``AutoReclaimer`` runs the same checks unattended inside the trusted host. It
+is off unless ``REVERSE_AGENT_WORKSPACE_RECLAIM`` is ``report`` (log only) or
+``apply``. Every poll it reclaims the workspace of each task that finished
+(terminal status, last update) more than the retention period ago, and once per
+sweep interval it sweeps the whole root. Standalone clones are never included.
 """
 
 from __future__ import annotations
@@ -37,7 +43,9 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import logging
 import os
+import threading
 from pathlib import Path
 import re
 import shutil
@@ -50,6 +58,7 @@ from urllib.parse import quote
 
 from .run_store import TERMINAL_STATUSES
 
+LOG = logging.getLogger(__name__)
 DEFAULT_RETENTION_DAYS = 3.0
 _GIT = ("git", "-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false",
         "-c", "core.longpaths=true")
@@ -153,21 +162,32 @@ def _gitdir(path: Path) -> Path | None:
     return None
 
 
-def _task_statuses(db) -> dict[str, str] | None:
-    if db is None:
-        return {}
+def _read_tasks(db, columns: str) -> list[tuple] | None:
     conn = None
     try:
         path = Path(db).expanduser().resolve()
         conn = sqlite3.connect("file:" + quote(path.as_posix(), safe="/:") + "?mode=ro",
                                uri=True, timeout=3)
         conn.execute("PRAGMA query_only=ON")
-        return {str(i): str(s) for i, s in conn.execute("SELECT id, status FROM tasks")}
+        return [tuple(str(v) for v in row) for row in conn.execute(f"SELECT {columns} FROM tasks")]
     except (sqlite3.Error, OSError, ValueError):
         return None
     finally:
         if conn is not None:
             conn.close()
+
+
+def _task_statuses(db) -> dict[str, str] | None:
+    if db is None:
+        return {}
+    rows = _read_tasks(db, "id, status")
+    return None if rows is None else dict(rows)
+
+
+def _task_rows(db) -> dict[str, tuple[str, str]] | None:
+    """Return ``{task_id: (status, updated_at)}``; ``None`` if unreadable."""
+    rows = _read_tasks(db, "id, status, updated_at")
+    return None if rows is None else {i: (s, u) for i, s, u in rows}
 
 
 def inspect(path: Path, *, now: float, retention_days: float,
@@ -322,9 +342,19 @@ def remove(record: dict) -> dict:
     return {**record, "removed": True}
 
 
+def _reclaim_one(child: Path, opts: dict, apply: bool) -> dict:
+    record = inspect(child, **opts)
+    if apply and record["reclaim"]:
+        # Re-check right before deletion: state may have changed.
+        record = inspect(child, **opts)
+        if record["reclaim"]:
+            record = remove(record)
+    return record
+
+
 def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
           patterns=None, include_clones: bool = False, task_db=None,
-          apply: bool = False, now: float | None = None) -> dict:
+          apply: bool = False, now: float | None = None, stop=None) -> dict:
     now = time.time() if now is None else now
     compiled = [re.compile(p, re.IGNORECASE) for p in (patterns or [])]
     statuses = _task_statuses(task_db)
@@ -338,19 +368,15 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
                             "reclaim": False, "reason": f"root unreadable: {exc}"})
             continue
         for child in children:
+            if stop is not None and stop():
+                break
             if child.name.endswith(".planner-owner.json"):
                 continue
             if compiled and not any(p.search(child.name) for p in compiled):
                 continue
             opts = dict(now=now, retention_days=retention_days,
                         include_clones=include_clones, task_statuses=statuses)
-            record = inspect(child, **opts)
-            if apply and record["reclaim"]:
-                # Re-check right before deletion: state may have changed.
-                record = inspect(child, **opts)
-                if record["reclaim"]:
-                    record = remove(record)
-            entries.append(record)
+            entries.append(_reclaim_one(child, opts, apply))
     return {
         "generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
         "applied": apply,
@@ -360,6 +386,196 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
         "removed": sum(bool(e.get("removed")) for e in entries),
         "failed": sum(e.get("removed") is False for e in entries),
     }
+
+
+AUTO_MODES = ("off", "report", "apply")
+DEFAULT_SWEEP_INTERVAL_HOURS = 24.0
+DEFAULT_POLL_MINUTES = 15.0
+
+
+def _env_number(env, name, default, minimum):
+    raw = env.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        value = None
+    if value is None or value != value or value < minimum:
+        # An unusable value falls back to the conservative default.
+        LOG.warning("workspace reclaim: ignoring %s=%r; using %g", name, raw, default)
+        return default
+    return value
+
+
+def auto_config(env=None) -> dict:
+    """Read the automatic reclaim settings; anything invalid falls back safely."""
+    env = os.environ if env is None else env
+    mode = env.get("REVERSE_AGENT_WORKSPACE_RECLAIM", "").strip().lower() or "off"
+    if mode not in AUTO_MODES:
+        LOG.warning("workspace reclaim: unknown mode %r; staying off", mode)
+        mode = "off"
+    return {
+        "mode": mode,
+        "retention_days": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS",
+                                      DEFAULT_RETENTION_DAYS, 0.0),
+        "interval_hours": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS",
+                                      DEFAULT_SWEEP_INTERVAL_HOURS, 1.0),
+        "poll_minutes": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES",
+                                    DEFAULT_POLL_MINUTES, 1.0),
+    }
+
+
+def _parse_utc(text: str) -> float | None:
+    try:
+        moment = datetime.fromisoformat(text.strip())
+    except (AttributeError, ValueError):
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.timestamp()
+
+
+class AutoReclaimer:
+    """Reclaim finished task workspaces under one root in the background.
+
+    A task's workspace is considered once the task has been terminal for the
+    retention period; ``inspect`` still applies every safety check, including
+    the tree-wide modification time. Each (task, last update) pair is handled
+    once per process, so a kept or locked workspace is not retried every poll;
+    the periodic full sweep retries it. The full sweep's time and report are
+    kept in ``state_path`` so a host restart does not sweep again early.
+    """
+
+    def __init__(self, root, task_db, *, mode="report",
+                 retention_days=DEFAULT_RETENTION_DAYS,
+                 interval_hours=DEFAULT_SWEEP_INTERVAL_HOURS,
+                 poll_minutes=DEFAULT_POLL_MINUTES, state_path=None, clock=time.time):
+        if mode not in ("report", "apply"):
+            raise ValueError(f"unsupported reclaim mode: {mode}")
+        self.root = Path(root).absolute()
+        self.task_db = task_db
+        self.apply = mode == "apply"
+        self.retention_days = float(retention_days)
+        self.interval_seconds = float(interval_hours) * 3600
+        self.poll_seconds = float(poll_minutes) * 60
+        self.state_path = Path(state_path) if state_path else None
+        self.clock = clock
+        self._handled: set[tuple[str, str]] = set()
+        self._memory_state: dict = {}
+        self._stop = threading.Event()
+        self._mutex = threading.Lock()
+        self._thread: threading.Thread | None = None
+
+    def start(self):
+        if self._thread is None:
+            self._stop.clear()
+            self._thread = threading.Thread(target=self._run, name="workspace-reclaim",
+                                            daemon=True)
+            self._thread.start()
+
+    def stop(self):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=5.0)
+            self._thread = None
+
+    def _run(self):
+        # The first pass waits one poll, so host startup does no extra I/O.
+        while not self._stop.wait(self.poll_seconds):
+            try:
+                self.tick()
+            except Exception:
+                LOG.exception("workspace reclaim tick failed")
+
+    def tick(self) -> dict:
+        with self._mutex:
+            now = self.clock()
+            finished = self.reclaim_finished(now)
+            swept = self.full_sweep(now) if self._sweep_due(now) else None
+            return {"finished": finished, "sweep": swept}
+
+    def _opts(self, now, statuses):
+        return dict(now=now, retention_days=self.retention_days, include_clones=False,
+                    task_statuses=statuses)
+
+    def reclaim_finished(self, now: float) -> list[dict]:
+        rows = _task_rows(self.task_db)
+        if rows is None:
+            LOG.warning("workspace reclaim: task store unreadable; skipping")
+            return []
+        statuses = {k: v[0] for k, v in rows.items()}
+        records = []
+        for task_id, (status, updated_at) in sorted(rows.items()):
+            if self._stop.is_set():
+                break
+            if status not in TERMINAL_STATUSES or (task_id, updated_at) in self._handled:
+                continue
+            finished_at = _parse_utc(updated_at)
+            if finished_at is None or now - finished_at < self.retention_days * 86400:
+                continue
+            child = self.root / task_id
+            if Path(task_id).name != task_id or not os.path.lexists(child):
+                continue
+            self._handled.add((task_id, updated_at))
+            record = _reclaim_one(child, self._opts(now, statuses), self.apply)
+            self._log(record)
+            records.append(record)
+        return records
+
+    def _sweep_due(self, now: float) -> bool:
+        last = self._state().get("last_sweep_at")
+        return not isinstance(last, (int, float)) or now - last >= self.interval_seconds
+
+    def _state(self) -> dict:
+        if self.state_path is None:
+            return self._memory_state
+        try:
+            data = json.loads(self.state_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def full_sweep(self, now: float) -> dict:
+        report = sweep([self.root], retention_days=self.retention_days, task_db=self.task_db,
+                       apply=self.apply, now=now, stop=self._stop.is_set)
+        for record in report["entries"]:
+            self._log(record)
+        LOG.info("workspace reclaim sweep: %d checked, %d reclaimable, %d removed, %d failed%s",
+                 len(report["entries"]), report["reclaimable"], report["removed"],
+                 report["failed"], "" if self.apply else " (report only)")
+        state = {"last_sweep_at": now, "report": report}
+        if self.state_path is None:
+            self._memory_state = state
+        else:
+            try:
+                self.state_path.parent.mkdir(parents=True, exist_ok=True)
+                tmp = self.state_path.with_name(self.state_path.name + ".tmp")
+                tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+                os.replace(tmp, self.state_path)
+            except OSError:
+                LOG.warning("workspace reclaim: could not write %s", self.state_path)
+        return report
+
+    def _log(self, record: dict) -> None:
+        if record.get("removed"):
+            LOG.info("workspace reclaim: removed %s", record["path"])
+        elif record.get("removed") is False:
+            LOG.warning("workspace reclaim: kept %s: %s", record["path"], record.get("error"))
+        elif record["reclaim"]:
+            LOG.info("workspace reclaim: would remove %s", record["path"])
+
+
+def configured_reclaimer(workspace_root, task_db, env=None) -> AutoReclaimer | None:
+    """Build the host's reclaimer from the environment, or ``None`` when off."""
+    config = auto_config(env)
+    if config["mode"] == "off" or not task_db or task_db == ":memory:":
+        return None
+    state_path = Path(task_db).absolute().parent / "workspace_reclaim_state.json"
+    return AutoReclaimer(workspace_root, task_db, mode=config["mode"],
+                         retention_days=config["retention_days"],
+                         interval_hours=config["interval_hours"],
+                         poll_minutes=config["poll_minutes"], state_path=state_path)
 
 
 def main(argv=None) -> int:
