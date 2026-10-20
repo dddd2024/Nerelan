@@ -168,6 +168,44 @@ def test_owner_file_and_host_context(monkeypatch, tmp_path):
     assert result["excluded_candidates"][0]["filter"] == "owner_override"
 
 
+@pytest.mark.parametrize("config", [
+    {"models": {"m": {"cost_class": "bogus"}}},
+    {"models": {"m": 123}},
+    {"models": {"m": {}}},
+    {"models": "free"},
+    {"models": {"": "free"}},
+    {"connections": {"c": {"cost_class": "paid"}}},
+    {"connections": {"c": 1}},
+    {"connections": []},
+    {"bindings": {"b": {"cost_class": "cheap"}}},
+    {"paid_api_windows": [1]},
+    {"reset_buffer": "high"},
+])
+def test_malformed_cost_configuration_is_rejected(tmp_path, config):
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid_model_routing_overrides"):
+        routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+
+
+def test_malformed_cost_configuration_blocks_host_selection(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    (tmp_path / "model_routing_overrides.json").write_text(
+        json.dumps({"connections": {"c": {"cost_class": "bogus"}}}), encoding="utf-8")
+    with pytest.raises(TaskStoreError, match="invalid_model_routing_overrides"):
+        host._resolve_task_model(PlannedTask("T1", "t", "i"))
+
+
+def test_model_level_cost_override_round_trips_and_beats_connection(tmp_path):
+    config = {"models": {"workbuddy/glm-5.3": {"cost_class": "free"}},
+              "connections": {"magpie": {"cost_class": "paid_api"}}}
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps(config), encoding="utf-8")
+    owner = routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+    row = {"binding_id": "b", "connection_id": "magpie", "model_id": "workbuddy/glm-5.3"}
+    assert routing_inputs.binding_cost_class(row, {"auth_method": "api_key"}, owner) == "free"
+    row["model_id"] = "workbuddy/other"
+    assert routing_inputs.binding_cost_class(row, {"auth_method": "api_key"}, owner) == "paid_api"
+
+
 def test_refusal_retry_same_difficulty_distinct_model_and_all_refuse(monkeypatch, tmp_path):
     from tests.platform_v1.test_agent_team import _team, _window_payload
     host = fixture_host(monkeypatch, tmp_path)

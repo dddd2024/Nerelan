@@ -247,7 +247,7 @@ def test_review_resolves_author_before_selection_even_in_reordered_plan(monkeypa
     reviewer_model = host._store.get_binding_public(tasks["T002"].binding_ref)["model_id"]
     assert reviewer_model != author_model
     assert control.get_goal(goal.id).tasks[0]["capability"] == "validate_task"
-    with pytest.raises(TaskStoreError, match="review_author_binding_required"):
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
         host._resolve_task_model(PlannedTask("review", "review", "review", kind="review",
                                                artifact_input={"plan_task_id": "T001"}))
 
@@ -307,3 +307,131 @@ def test_reviewer_without_artifact_input_routes_normally(monkeypatch, tmp_path, 
     host = fixture_host(monkeypatch, tmp_path)
     result = host._resolve_task_model(PlannedTask("review", "Review", "Review", **traits))
     assert result["binding_ref"] == "strong"
+
+
+@pytest.mark.parametrize("role", ["coder", "complex", "planner", "reviewer"])
+def test_legacy_roles_can_route_with_only_prior(role):
+    from reverse_agent.platform_v1 import model_router
+    difficulty, kind = model_router.task_traits({"agent_role": role})
+    result = model_router.select_model([candidate("a", "unknown", executor="codex")],
+                                      difficulty=difficulty, kind=kind, role=role)
+    assert result["reason"] == "prior_only_unproven"
+    assert result["underpowered"] and result["tier_source"] == "prior"
+
+
+@pytest.mark.parametrize("source", ["measured", "owner_table", "owner_override"])
+def test_proven_candidate_preferred_to_cheap_prior(source):
+    from reverse_agent.platform_v1 import model_router
+    kwargs = {}
+    if source == "measured":
+        kwargs["profiles"] = {"proven": {"task_buckets": {
+            "code:4": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}}
+    elif source == "owner_table":
+        kwargs["capability_table"] = {"known": {"tiers": {"code": 4}}}
+    else:
+        kwargs["overrides"] = {"proven": {"tiers": {"code": 4}}}
+    result = model_router.select_model([candidate("prior", "unknown"),
+        candidate("proven", "known", "subscription")], difficulty=4, kind="code", **kwargs)
+    assert result["binding_ref"] == "proven" and not result["underpowered"]
+    assert result["tier_source"] == source
+    assert not next(c for c in result["candidates"] if c["binding_id"] == "proven")["unproven"]
+
+
+def test_binding_tier_precedence_and_pinned_hard_limit():
+    from reverse_agent.platform_v1 import model_router
+    pool = [candidate("a", "known"), candidate("b", "unknown")]
+    kwargs = dict(difficulty=4, kind="code",
+        profiles={"a": {"task_buckets": {"code:4": {
+            "attempts": 3, "success_rate": 0., "timeouts": 0}}}},
+        capability_table={"known": {"tiers": {"code": 1}}},
+        overrides={"a": {"tiers": {"code": 5}}})
+    result = model_router.select_model(pool, **kwargs)
+    assert result["tier"] == 5 and result["tier_source"] == "owner_override"
+    kwargs["overrides"]["a"]["max_difficulty"] = 3
+    with pytest.raises(model_router.ModelSelectionError, match="pinned_model_unavailable") as caught:
+        model_router.select_model(pool, pin="a", **kwargs)
+    assert caught.value.decision["excluded_candidates"][0]["filter"] == "owner_override"
+
+
+@pytest.mark.parametrize("tiers", [None, [], {"code": True}, {"code": 0},
+                                    {"code": 6}, {"unknown": 4}])
+def test_binding_tier_override_validation(tmp_path, tiers):
+    from reverse_agent.platform_v1 import routing_inputs
+    (tmp_path / "model_routing_overrides.json").write_text(
+        json.dumps({"bindings": {"a": {"tiers": tiers}}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid_model_routing_overrides"):
+        routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+
+
+def test_insufficient_measurements_fall_through_to_owner_then_prior():
+    from reverse_agent.platform_v1 import routing_capabilities
+    profile = {"task_buckets": {"code:4": {
+        "attempts": 2, "success_rate": 0., "timeouts": 0}}}
+    table = {"known": {"tiers": {"code": 4}}}
+    assert routing_capabilities.tier_evidence("known", profile, "code", 4, table) == (4, False, "owner_table")
+    assert routing_capabilities.tier_evidence("known", profile, "code", 4) == (2, True, "prior")
+    profile["task_buckets"]["code:4"]["attempts"] = 3
+    assert routing_capabilities.tier_evidence("known", profile, "code", 4, table) == (3, False, "measured")
+
+
+def test_valid_binding_tiers_round_trip_and_lower_measured_tier(tmp_path):
+    from reverse_agent.platform_v1 import routing_inputs, model_router
+    config = {"bindings": {"a": {"tiers": {"code": 1, "review": 5}}}}
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps(config), encoding="utf-8")
+    overrides = routing_inputs.read_overrides(tmp_path / "model_setup_state.json")["bindings"]
+    result = model_router.select_model([candidate("a", "known")], difficulty=4, kind="code",
+        overrides=overrides, profiles={"a": {"task_buckets": {
+            "code:5": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}})
+    assert result["tier"] == 1 and result["underpowered"]
+    assert result["tier_source"] == "owner_override"
+
+
+@pytest.mark.parametrize("extra,expected", [
+    ({"availability": {"state": "UNAVAILABLE", "reason": "model_not_supported"}}, "availability:model_not_supported"),
+    ({"quota": {"reason": "observed_exhausted"}}, "quota_exhausted"),
+    ({"runnable": False}, "executor_fitness"),
+])
+def test_prior_fallback_pin_does_not_bypass_hard_gates(extra, expected):
+    from reverse_agent.platform_v1 import model_router
+    blocked = candidate("blocked", "unknown")
+    blocked.update(extra)
+    with pytest.raises(model_router.ModelSelectionError, match="pinned_model_unavailable") as caught:
+        model_router.select_model([blocked, candidate("other", "another")],
+                                  difficulty=4, kind="code", pin="blocked")
+    assert caught.value.decision["excluded_candidates"][0]["filter"] == expected
+
+
+@pytest.mark.parametrize("pin", ["", "alias"])
+def test_chain_authors_excluded_for_pins_and_underpowered_fallback(pin):
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate("alias", "gateway/vendor/Opus-free:free"), candidate("other", "flash-lite")]
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose(pool, kind="review", difficulty=4, author_models=["opus", "glm-5.3"], pin=pin)
+    result = choose(pool, kind="review", author_models=["vendor/opus:free", "glm-5.3"])
+    assert result["binding_ref"] == "other"
+    assert result["excluded_candidates"][0]["filter"] == "reviewer_is_author"
+
+
+def test_review_ancestry_shared_ancestors_and_missing_required_source():
+    planned = {name: PlannedTask(name, name, name, dependencies=deps) for name, deps in
+               [("A", ()), ("B", ("A",)), ("C", ("A",)), ("D", ("B", "C"))]}
+    review = PlannedTask("R", "R", "R", kind="review", artifact_input={"plan_task_id": "D"})
+    assert GoalService._review_ancestry(review, planned) == ("A", "B", "C", "D")
+    del planned["A"]
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        GoalService._review_ancestry(review, planned)
+
+
+def test_review_retry_retains_only_qualifying_independent_model():
+    result = choose([candidate("author", "opus"), candidate("reviewer", "gpt-6-sol"),
+                     candidate("weak", "flash-lite")], kind="review", difficulty=4,
+                    author_models=["opus"], failed_model="gpt-6-sol", failed_tier=5)
+    assert result["binding_ref"] == "reviewer" and not result["underpowered"]
+
+
+def test_review_missing_chain_binding_cannot_grant_independence(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    task = PlannedTask("R", "Review", "Review", kind="review", difficulty=2,
+                       artifact_input={"plan_task_id": "P"})
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        host._resolve_task_model(task, author_models=["opus"], author_bindings=["deleted-author"])

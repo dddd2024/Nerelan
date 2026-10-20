@@ -332,18 +332,20 @@ class GoalService:
                 return resolved[seq]
             item = planned_tasks[seq]
             if goal.orchestration_mode == "agent_team" and self.task_resolver is not None:
-                author_binding = ""
-                if item.artifact_input:
-                    source = indices[item.artifact_input["plan_task_id"]]
-                    author_binding = resolve(source)[1]
-                    if not author_binding and decisions.get(source) is not None and not decisions[source].get("binding_ref"):
-                        decisions[seq] = {"reason": "review_author_unavailable", "author_plan_task_id": planned_tasks[source].id}
-                        resolved[seq] = ("opencode", "", "single")
-                        return resolved[seq]
                 try:
-                    decision = self.task_resolver(item, goal=replace(goal, window_id=window_id), author_binding=author_binding)
+                    ancestry = self._review_ancestry(item, {t.id: t for t in planned_tasks})
+                    author_bindings = tuple(resolve(indices[source])[1] for source in ancestry)
+                    if ancestry and not all(author_bindings):
+                        raise TaskStoreError("review_not_independent")
+                    # Preserve the chosen identity even if binding configuration
+                    # changes while resolving the rest of the plan.
+                    author_models = tuple(decisions[indices[source]].get("model_id", "") for source in ancestry)
+                    args = {"author_models": tuple(m for m in author_models if m),
+                            "author_bindings": tuple(binding for binding, model in zip(author_bindings, author_models)
+                                                     if not model)} if ancestry else {}
+                    decision = self.task_resolver(item, goal=replace(goal, window_id=window_id), **args)
                 except TaskStoreError as exc:
-                    if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable"}:
+                    if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable", "review_not_independent"}:
                         raise
                     decisions[seq] = getattr(exc, "decision", {"reason": str(exc)})
                     resolved[seq] = ("opencode", "", "single")
@@ -411,6 +413,59 @@ class GoalService:
             return self.control_store.refresh_goal_status(goal.id)
         return running
 
+    @staticmethod
+    def _review_ancestry(task: PlannedTask, planned: Mapping[str, PlannedTask]) -> tuple[str, ...]:
+        if not task.artifact_input or not (task.kind == "review" or task.agent_role == "reviewer"):
+            return ()
+        visited: set[str] = set()
+        active: set[str] = set()
+        def visit(task_id: str) -> None:
+            if task_id in active or task_id not in planned:
+                raise TaskStoreError("review_not_independent")
+            if task_id in visited:
+                return
+            active.add(task_id)
+            for dependency in planned[task_id].dependencies:
+                visit(dependency)
+            active.remove(task_id)
+            visited.add(task_id)
+        visit(task.artifact_input["plan_task_id"])
+        return tuple(sorted(visited))
+
+    def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask]) -> dict[str, Any]:
+        """Resolve authors from execution facts, retaining replaced attempts."""
+        ancestry = self._review_ancestry(task, planned)
+        if not ancestry:
+            return {}
+        links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
+                 if int(row["goal_revision"]) == goal.revision}
+        models, bindings = set(), set()
+        history = self.control_store.list_task_escalations(goal.id)
+        for source in ancestry:
+            if source not in links:
+                raise TaskStoreError("review_not_independent")
+            ids = {links[source]["task_id"]}
+            ids.update(row["from_task_id"] for row in history
+                       if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
+            for task_id in ids:
+                attempt = self.store.get_task(task_id)
+                recorded = {row.model_id for row in self.store.list_usage_observations(task_id) if row.model_id}
+                if not recorded:
+                    for event in self.store.get_events(task_id):
+                        if event.type == "MODEL_SELECTED":
+                            model = event.metadata.get("model_id") or next((row.get("model_id")
+                                for row in event.metadata.get("candidates", ())
+                                if row.get("binding_id") == attempt.binding_ref), None)
+                            if model:
+                                recorded.add(model)
+                if recorded:
+                    models.update(recorded)
+                elif attempt.binding_ref and attempt.status == "QUEUED":
+                    bindings.add(attempt.binding_ref)
+                else:
+                    raise TaskStoreError("review_not_independent")
+        return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings))}
+
     def escalate_failed_tasks(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Retry FAILED agent_team tasks by measured tier (legacy resolvers use roles).
 
@@ -452,13 +507,6 @@ class GoalService:
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
             if self.task_resolver is not None:
-                author_binding = ""
-                if plan_task.artifact_input:
-                    source = plan_task.artifact_input["plan_task_id"]
-                    author_link = next((x for x in self.control_store.list_goal_tasks(goal_id)
-                                        if x["plan_task_id"] == source), None)
-                    if author_link:
-                        author_binding = self.store.get_task(author_link["task_id"]).binding_ref
                 # Compare with the tier actually selected for this attempt, rather
                 # than a tier that fresh failure evidence may already have lowered.
                 selected = next((event.metadata for event in reversed(self.store.get_events(failed.id))
@@ -482,10 +530,15 @@ class GoalService:
                                 refused_models.append(model)
                 try:
                     retry_args = {"refused_models": refused_models} if refused_models else {}
+                    retry_args.update(self._review_authors(plan_task, goal, planned))
                     decision = self.task_resolver(plan_task, goal=goal,
                                                   failed_binding="" if refusal or refused_models or unavailable else failed.binding_ref,
-                                                  author_binding=author_binding, failed_tier=failed_tier if not unavailable else 0, **retry_args)
+                                                  failed_tier=failed_tier if not unavailable else 0, **retry_args)
                 except TaskStoreError as exc:
+                    if str(exc) == "review_not_independent":
+                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                        self.control_store.refresh_goal_status(goal_id)
+                        continue
                     if refusal and str(exc) in {"no_willing_model", "pinned_model_unavailable", "no_runnable_model"}:
                         self.store.block_refused_task(failed.id, refusals=refused_models, decision=getattr(exc, "decision", None))
                         self.control_store.refresh_goal_status(goal_id)

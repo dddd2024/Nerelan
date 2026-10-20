@@ -46,7 +46,10 @@ def capability(model: str, profile: Mapping[str, Any], kind: str, difficulty: in
 
 def model_identity(model: str) -> str:
     """Provider namespaces and free gateway suffixes do not make a new author."""
-    return model.lower().rsplit("/", 1)[-1].removesuffix(":free").removesuffix("-free")
+    identity = model.strip().lower().rsplit("/", 1)[-1]
+    while identity.endswith((":free", "-free")):
+        identity = identity.removesuffix(":free").removesuffix("-free")
+    return identity
 
 
 class ModelSelectionError(ValueError):
@@ -57,7 +60,7 @@ class ModelSelectionError(ValueError):
 
 def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, kind: str,
                  profiles: Mapping[str, Any] | None = None, role: str = "",
-                 author_model: str = "", pin: str = "", failed_model: str = "",
+                 author_model: str = "", author_models: Sequence[str] = (), pin: str = "", failed_model: str = "",
                  failed_tier: int = 0, exploration_draw: float = 1.0,
                  exploration_budget: float = .1, context_need: int = 0,
                  needs: Sequence[str] = (), overrides: Mapping[str, Any] | None = None,
@@ -67,7 +70,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  allow_paid: bool = False) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
-    Scores are lexicographic: quota penalty, cost, negative success rate, median turn seconds.
+    Scores prefer known availability/readiness, then quota, cost, success and speed.
     Subscription cost ranges from 1 to 2 as headroom falls; paid API cost is 3.
     Pins override price/tier, while readiness, quota and review fitness still apply.
     The injected uniform draw gives easy tasks a default 10% exploration rate.
@@ -77,6 +80,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     content = "security_simulation" if "security_simulation" in needs else kind
     now = time.time() if now is None else now
     ranked, excluded, reset_observations = [], [], []
+    authors = {model_identity(m) for m in (*author_models, author_model) if m}
+    artifact_review = (kind == "review" or role == "reviewer") and bool(author_models)
     for candidate in candidates:
         profile = (profiles or {}).get(candidate["binding_id"], {})
         override = (overrides or {}).get(candidate["binding_id"], {})
@@ -91,7 +96,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         refusal_risk = .25 if refusal is None else max(0., min(1., refusal))
         quota = candidate.get("quota") or {}
         from .routing_capabilities import tier_evidence
-        tier, unproven, tier_source = tier_evidence(candidate["model_id"], profile, kind, difficulty, capability_table)
+        tier, unproven, tier_source = tier_evidence(candidate["model_id"], profile, kind, difficulty, capability_table, override)
         reset = reset_decision(reset_signal, now=now, buffer=reset_buffer,
                                weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
         if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
@@ -129,16 +134,14 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "short_window_capacity"
         elif "security_simulation" in needs and refusal is not None and refusal >= .5:
             reason = "refusal_rate"
-        elif (kind == "review" or role == "reviewer") and author_model and model_identity(candidate["model_id"]) == model_identity(author_model):
+        elif (kind == "review" or role == "reviewer") and model_identity(candidate["model_id"]) in authors:
             reason = "reviewer_is_author"
         elif candidate.get("cost_class", "paid_api") == "paid_api" and not allow_paid:
             reason = "paid_spend_disabled"
-        elif candidate.get("availability", {}).get("state") != "AVAILABLE":
+        elif candidate.get("availability", {}).get("state") == "UNAVAILABLE":
             reason = "availability:" + candidate.get("availability", {}).get("reason", "unverified")
         elif model_identity(candidate["model_id"]) in {model_identity(m) for m in refused_models}:
             reason = "model_refused"
-        elif unproven and difficulty >= 3:
-            reason = "calibration_required"
         elif refused_models and tier < refusal_tier:
             reason = "refusal_retry_tier"
         if reason:
@@ -166,7 +169,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         latency_penalty = min(2., (override.get("median_ok_seconds", bucket.get("median_ok_seconds")) or 0) / 60) if "low_latency" in needs else 0.
         availability_penalty = candidate.get("availability", {}).get("penalty", 0.)
         adjusted = cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty - context_bonus
-        breakdown = {"base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
+        breakdown = {"availability_rank": int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
+                     "base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
                      "refusal_penalty": refusal_penalty, "context_bonus": context_bonus,
                      "latency_penalty": latency_penalty, "reset_adjustment": cost - base_cost,
                      "quota_pressure": 1. - headroom if observed_headroom is not None else None, "quota_penalty": quota_penalty}
@@ -175,24 +179,29 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         characteristics = {key: metadata.get(key) for key in
                            ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
         characteristics["context_window"] = window
-        ranked.append(dict(candidate, context_window=window, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
+        ranked.append(dict(candidate, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
                            reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
                            score_breakdown=breakdown, refusal_risk=refusal_risk,
+                           availability_rank=int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
                            score=[quota_penalty, adjusted, -(success if success is not None else -1),
                                   speed if speed is not None else float("inf")]))
-    ranked.sort(key=lambda c: (*c["score"], c["binding_id"]))
+    ranked.sort(key=lambda c: (c["availability_rank"], *c["score"], c["binding_id"]))
     if not ranked:
-        error = ModelSelectionError("no_willing_model" if refused_models or "security_simulation" in needs else "no_runnable_model",
+        error = ModelSelectionError("review_not_independent" if artifact_review else "no_willing_model" if refused_models or "security_simulation" in needs else "no_runnable_model",
                                     excluded=excluded, refusals=refused_models)
         error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
         raise error
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
     if pin and pinned is None and not refused_models:
-        raise ModelSelectionError("pinned_model_unavailable", excluded=excluded)
-    pool = ranked
+        raise ModelSelectionError("review_not_independent" if artifact_review else "pinned_model_unavailable", excluded=excluded)
+    # Review fitness is a hard boundary before retry preferences. A weaker
+    # different model must not displace the only qualifying independent model.
+    pool = [c for c in ranked if c["tier"] >= difficulty] if artifact_review else ranked
+    if not pool:
+        raise ModelSelectionError("review_not_independent", excluded=excluded)
     if refused_models:
-        pool = sorted(pool, key=lambda c: (c["refusal_risk"], *c["score"], c["binding_id"]))
+        pool = sorted(pool, key=lambda c: (c["availability_rank"], c["refusal_risk"], *c["score"], c["binding_id"]))
         pinned = None  # a refusal never sends the task back to its pinned author
     if failed_model and not pinned and not refused_models:
         distinct = [c for c in pool if model_identity(c["model_id"]) != model_identity(failed_model)]
@@ -205,10 +214,14 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             pool = same or [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
     exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
     # Evidence always outranks an unmeasured fallback outside bounded exploration.
-    measured_pool = [c for c in pool if c["tier_source"] == "measured" and c["tier"] >= difficulty]
-    if measured_pool and not refused_models:
-        pool = measured_pool
+    proven_pool = [c for c in pool if not c["unproven"] and c["tier"] >= difficulty]
+    if proven_pool:
+        pool = proven_pool
     qualifying = [c for c in pool if c["tier"] >= difficulty]
+    # Exploration must not turn unknown availability into a prerequisite probe
+    # or displace an otherwise qualifying ready/available connection.
+    if any(c["availability_rank"] == 0 for c in qualifying):
+        exploratory = [c for c in exploratory if c["availability_rank"] == 0]
     reason = "cheapest_qualifying"
     if pinned:
         chosen, reason = pinned, "pin"
@@ -223,6 +236,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if failed_model and not pinned and reason != "underpowered" and not refused_models:
         reason = ("escalation_higher_tier" if chosen["tier"] > failed_tier else
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
+    if artifact_review and chosen["tier"] < difficulty:
+        raise ModelSelectionError("review_not_independent", excluded=excluded)
+    if chosen["unproven"] and difficulty >= 3:
+        reason = "prior_only_unproven"
     # JSON-safe evidence: unknown speed is null, never Infinity.
     for item in ranked:
         if item["score"][3] == float("inf"):
@@ -230,7 +247,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     top = ranked[:5]
     if chosen not in top:
         top = [*top[:4], chosen]
-    evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "tier", "tier_source", "unproven",
+    evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "availability", "tier", "tier_source", "unproven",
                                             "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score", "score_breakdown", "refusal_risk", "characteristics", "quota_headroom", "reset")}
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],

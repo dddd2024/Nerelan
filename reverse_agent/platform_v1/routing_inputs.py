@@ -11,12 +11,42 @@ import math
 from pathlib import Path
 import re
 from typing import Any, Mapping
+from urllib.parse import urlsplit
+
+from .routing_capabilities import KINDS
 
 NEEDS = frozenset({"long_context", "tool_use", "vision", "security_simulation", "chinese", "low_latency"})
-# Owner-observed gateway plans, 2026-10-19; entitlement still needs verification.
-GATEWAY_COST_CLASSES = {"workbuddy": "free", "workbuddy-ai": "free", "trae-cn": "free",
-                        "opencode-zen-free": "free", "copilot": "subscription",
-                        "codex": "subscription", "claude": "subscription"}
+COST_CLASSES = frozenset({"free", "subscription", "paid_api"})
+
+# Built-in, Owner-editable cost defaults keyed by model-id namespace (the part
+# before the first "/"). WorkBuddy/WorkBuddy-AI and Trae expose credit/plan
+# subscriptions (docs/resource-management.md), so they are subscription rather
+# than per-token paid routes. OpenCode Zen's free namespace and SenseNova's free
+# gateway are free. Every entry can be overridden per binding, model or
+# connection in model_routing_overrides.json; paid_api is reserved for
+# per-token billed routes such as a non-free OpenRouter key.
+GATEWAY_COST_CLASSES = {
+    "workbuddy": "subscription",
+    "workbuddy-ai": "subscription",
+    "trae-cn": "subscription",
+    "opencode-zen-free": "free",
+    "sensenova": "free",
+    "sensetime": "free",
+    "copilot": "subscription",
+    "codex": "subscription",
+    "claude": "subscription",
+}
+
+# Shipped shape of the Owner-editable file. The maps start empty so no runtime
+# connection id is hard-coded; the namespace defaults above already apply.
+# Copy this structure with `default_overrides()` into model_routing_overrides.json
+# beside model_setup_state.json to override any decision.
+DEFAULT_MODEL_ROUTING_OVERRIDES: dict[str, Any] = {
+    "bindings": {}, "models": {}, "connections": {}, "paid_api_windows": [], "reset_buffer": .03,
+}
+
+_SENSENOVA_HOST_SUFFIX = "sensenova.cn"
+_SENSENOVA_PROVIDER_IDS = frozenset({"sensetime", "sensenova"})
 
 REFUSAL_PATTERNS = tuple(re.compile(pattern, re.I) for pattern in (
     r"^\s*(?:(?:I'm sorry|I am sorry|Sorry)[, .!\s]*(?:but\s+)?)?I (?:cannot|can't|won't|will not|am unable to) (?:help|assist|comply|perform|provide|carry out|fulfill|participate)",
@@ -43,24 +73,89 @@ def model_refused(final_text: str, *, changed_files: Any = (), policy_refusal: b
     return policy_refusal or (not changed_files and any(p.search(text) for p in REFUSAL_PATTERNS))
 
 
+def default_overrides() -> dict[str, Any]:
+    """A fresh copy of the shipped, Owner-editable configuration template."""
+    return json.loads(json.dumps(DEFAULT_MODEL_ROUTING_OVERRIDES))
+
+
+def _cost_entry(value: Any) -> str | None:
+    """The validated cost class of one Owner override entry, or ``None``."""
+    if isinstance(value, str):
+        return value if value in COST_CLASSES else None
+    if isinstance(value, Mapping):
+        cost = value.get("cost_class")
+        return cost if cost in COST_CLASSES else None
+    return None
+
+
+def _owner_cost(owner: Mapping[str, Any] | None, section: str, key: Any) -> str | None:
+    if not isinstance(owner, Mapping) or not isinstance(key, str) or not key:
+        return None
+    entries = owner.get(section)
+    if not isinstance(entries, Mapping):
+        return None
+    value = entries.get(key)
+    if value is None:
+        lowered = key.lower()
+        value = next((entry for name, entry in entries.items()
+                      if isinstance(name, str) and name.lower() == lowered), None)
+    return _cost_entry(value)
+
+
+def _connection_host(connection: Mapping[str, Any] | None) -> str:
+    base = connection.get("base_url") if isinstance(connection, Mapping) else None
+    if not isinstance(base, str):
+        return ""
+    try:
+        return (urlsplit(base).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _is_sensenova_gateway(connection: Mapping[str, Any] | None) -> bool:
+    connection = connection or {}
+    if any(isinstance(connection.get(key), str)
+           and connection[key].lower() in _SENSENOVA_PROVIDER_IDS
+           for key in ("upstream_provider_id", "executor_provider_id", "provider")):
+        return True
+    host = _connection_host(connection)
+    return host == _SENSENOVA_HOST_SUFFIX or host.endswith("." + _SENSENOVA_HOST_SUFFIX)
+
+
 def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
-    explicit = owner.get("bindings", {}).get(binding["binding_id"], {}).get("cost_class")
-    explicit = explicit or owner.get("connections", {}).get(binding["connection_id"], {}).get("cost_class")
+    """Resolve a binding's cost class with explicit Owner precedence.
+
+    Precedence: Owner per-binding, then per-model, then per-connection override.
+    Otherwise native CLI accounts are subscriptions, ids ending ``:free`` or
+    ``-free`` are free, known namespaces and the SenseNova gateway use their
+    built-in class, keyless endpoints are free, and every other per-token route
+    is ``paid_api``. An API key alone never grants free access.
+    """
+    binding, connection = binding or {}, connection or {}
+    model_id = binding.get("model_id")
+    model_id = model_id if isinstance(model_id, str) else ""
+    explicit = (_owner_cost(owner, "bindings", binding.get("binding_id"))
+                or _owner_cost(owner, "models", model_id)
+                or _owner_cost(owner, "connections", binding.get("connection_id")))
     if explicit:
         return explicit
     if connection.get("auth_method") == "external_cli_session":
         return "subscription"
-    model = binding["model_id"].lower()
+    model = model_id.lower()
+    if model.endswith((":free", "-free")):
+        return "free"
     namespace = model.split("/", 1)[0]
     if namespace in GATEWAY_COST_CLASSES:
         return GATEWAY_COST_CLASSES[namespace]
-    if connection.get("auth_method") == "none" or model.endswith((":free", "-free")):
+    if _is_sensenova_gateway(connection):
         return "free"
-    return GATEWAY_COST_CLASSES.get(model.split("/", 1)[0], "paid_api") if "/" in model else "paid_api"
+    if connection.get("auth_method") == "none":
+        return "free"
+    return "paid_api"
 
 
 def read_overrides(state_path: Path | None) -> dict[str, Any]:
-    """Owner-owned JSON beside setup state: {bindings: {id: {...}}, reset_buffer: .03}."""
+    """Owner-owned JSON beside setup state: {bindings/models/connections, reset_buffer}."""
     if state_path is None:
         return {}
     path = Path(state_path).with_name("model_routing_overrides.json")
@@ -75,7 +170,11 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
     for override in data.get("bindings", {}).values():
         if not isinstance(override, dict):
             raise ValueError("invalid_model_routing_overrides")
-        if "cost_class" in override and (not isinstance(override["cost_class"], str) or override["cost_class"] not in {"free", "subscription", "paid_api"}):
+        if "tiers" in override and (not isinstance(override["tiers"], dict)
+                or any(k not in KINDS or type(v) is not int or not 1 <= v <= 5
+                       for k, v in override["tiers"].items())):
+            raise ValueError("invalid_model_routing_overrides")
+        if "cost_class" in override and _cost_entry(override) is None:
             raise ValueError("invalid_model_routing_overrides")
         for key in ("reasoning", "chinese", "tool_use"):
             if key in override and type(override[key]) is not bool:
@@ -104,10 +203,12 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         for key in ("allowed_content", "denied_content"):
             if key in override and (not isinstance(override[key], list) or any(not isinstance(x, str) for x in override[key])):
                 raise ValueError("invalid_model_routing_overrides")
-    connections = data.get("connections", {})
-    if not isinstance(connections, dict) or any(not isinstance(v, dict) or not isinstance(v.get("cost_class"), str) or v.get("cost_class") not in
-            {"free", "subscription", "paid_api"} for v in connections.values()):
-        raise ValueError("invalid_model_routing_overrides")
+    for section in ("connections", "models"):
+        entries = data.get(section, {})
+        if (not isinstance(entries, dict) or any(
+                not isinstance(name, str) or not name or _cost_entry(value) is None
+                for name, value in entries.items())):
+            raise ValueError("invalid_model_routing_overrides")
     paid = data.get("paid_api_windows", [])
     if not isinstance(paid, list) or any(not isinstance(v, str) or not v for v in paid):
         raise ValueError("invalid_model_routing_overrides")

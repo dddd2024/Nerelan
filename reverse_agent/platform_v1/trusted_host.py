@@ -390,7 +390,8 @@ class CombinedTrustedHost:
                                   interpreter=interpreter, apply_roster=self._store.put_agent_roster)
 
     def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
-                            author_binding: str = "", failed_tier: int | None = None,
+                            author_binding: str = "", author_bindings: Sequence[str] = (),
+                            author_models: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = ()) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         import random
@@ -412,11 +413,20 @@ class CombinedTrustedHost:
         role = task.agent_role or (
             "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
             "coder" if task.difficulty == 3 else "complex")
-        if (role == "reviewer" or task.kind == "review") and task.artifact_input and author_binding not in by_id:
-            raise TaskStoreError("review_author_binding_required")
+        chain_models = list(author_models)
+        required = (*author_bindings, *((author_binding,) if author_binding else ()))
+        if (role == "reviewer" or task.kind == "review") and task.artifact_input:
+            if not chain_models and not required:
+                raise TaskStoreError("review_not_independent")
+            for binding_id in required:
+                model = by_id.get(binding_id, {}).get("model_id")
+                if not model:
+                    raise TaskStoreError("review_not_independent")
+                chain_models.append(model)
         candidates = []
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
+        availability_history = self._routing_availability_history()
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
@@ -457,13 +467,15 @@ class CombinedTrustedHost:
                     capability_table=capability_table, allow_paid=allow_paid,
                     context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
-                    refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""),
+                    refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models,
                     reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03))
                 can_probe = True
             except ValueError:
                 can_probe = False
             candidate["availability"] = self._routing_availability(binding, connection, allow_paid=allow_paid,
-                cost_class=cost_class, probe_allowed=can_probe and self._routing_probe_window_allowed(goal))
+                cost_class=cost_class, probe_allowed=can_probe and self._routing_probe_window_allowed(goal),
+                history=availability_history.get(binding["binding_id"], ()),
+                runnable=binding["binding_id"] in runnable)
             candidates.append(candidate)
         # Legacy labels only identify optional pins; unpinned tasks use the full pool.
         entry = self._store.get_agent_roster_public()["roles"].get(role, {})
@@ -479,7 +491,7 @@ class CombinedTrustedHost:
                                 needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                                 reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
                                 refused_models=refused_models, refusal_tier=tier if refused_models else 0,
-                                author_model=by_id.get(author_binding, {}).get("model_id", ""),
+                                author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=random.random())
             decision["context_packet_reservation"] = 16384 + 256
@@ -533,42 +545,66 @@ class CombinedTrustedHost:
         except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
             return False
 
+    def _routing_availability_history(self) -> dict[str, list[Any]]:
+        """One snapshot per selection, bounded to the latest 20 tasks per binding."""
+        store = getattr(self, "_task_store", None)
+        if store is None:
+            return {}
+        rows = store._conn.execute(
+            "SELECT * FROM (SELECT binding_ref, status, failure_classification, failure_detail, updated_at, "
+            "ROW_NUMBER() OVER (PARTITION BY binding_ref ORDER BY updated_at DESC, rowid DESC) AS recency "
+            "FROM tasks) WHERE recency <= 20 ORDER BY binding_ref, recency DESC").fetchall()
+        result: dict[str, list[Any]] = {}
+        for row in rows:
+            result.setdefault(row["binding_ref"], []).append(row)
+        return result
+
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
-                              allow_paid: bool, cost_class: str, probe_allowed: bool = True) -> dict[str, Any]:
-        from .model_availability import AvailabilityCache, observation, availability_error
+                              allow_paid: bool, cost_class: str, probe_allowed: bool = True,
+                              history: Sequence[Any] | None = None, runnable: bool | None = None) -> dict[str, Any]:
+        from .model_availability import AvailabilityCache, observation, native_owner_account
         cache = getattr(self, "_availability_cache", None)
         if cache is None:
             path = getattr(self._store, "_state_path", None)
             cache = self._availability_cache = AvailabilityCache(
                 Path(path).with_name("model_availability.json") if path else None)
-        recent = None
-        store = getattr(self, "_task_store", None)
-        if store is not None:
-            rows = store._conn.execute(
-                "SELECT status, failure_classification, failure_detail, updated_at FROM tasks "
-                "WHERE binding_ref=? ORDER BY updated_at DESC LIMIT 20", (binding["binding_id"],)).fetchall()
-            for row in reversed(rows):
-                try:
-                    at = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).timestamp()
-                except (ValueError, TypeError):
-                    continue
-                entry = cache.entries.get(cache.key(binding, connection), {})
-                if at <= entry.get("observed_at", 0):
-                    continue
-                classification = row["failure_classification"] or ""
-                if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
-                    cache.remember(binding, connection, observation(now=at, success=True))
-                elif classification == "MODEL_UNAVAILABLE":
-                    cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
-                elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
-                        ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
-                    cache.remember(binding, connection, observation(now=at, error="transient"))
+        if history is None:
+            history = self._routing_availability_history().get(binding["binding_id"], ())
+        for row in history:
+            try:
+                at = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError):
+                continue
+            entry = cache.entries.get(cache.key(binding, connection), {})
+            if at <= entry.get("observed_at", 0):
+                continue
+            classification = row["failure_classification"] or ""
+            if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
+                cache.remember(binding, connection, observation(now=at, success=True))
+            elif classification == "MODEL_UNAVAILABLE":
+                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
+            elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
+                    ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
+                cache.remember(binding, connection, observation(now=at, error="transient"))
         probe = getattr(self, "_availability_probe", None)
         live = (os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
                 and os.environ.get("REVERSE_AGENT_ROUTING_PROBES") == "1")
-        return cache.check(binding, connection, recent_success=recent,
+        result = cache.check(binding, connection,
                            probe=probe or self._probe_routing_binding,
                            allow_probe=probe_allowed and (probe is not None or live) and (cost_class != "paid_api" or allow_paid))
+        if native_owner_account(binding, connection) and result["state"] in {"UNKNOWN", "TRANSIENT"}:
+            if runnable is None:
+                runnable = binding["binding_id"] in self._runnable_bindings()
+            if runnable:
+                # A relay executor can be runnable without a native login. Do not
+                # label that API connection as a managed native account.
+                executor = self._store.get_executor_public(binding["executor_id"])
+                if executor.get("readiness_status") == "managed_login_ready":
+                    return {"state": "READY", "reason": "managed_login_ready"}
+                if (connection.get("auth_method") == "external_cli_session"
+                        and binding["executor_id"] not in {"codex", "claude_code"}):
+                    return {"state": "READY", "reason": "external_session_ready"}
+        return result
 
     def _probe_routing_binding(self, binding: Mapping[str, Any]) -> Mapping[str, Any]:
         """One tiny request through the host relay's confined transport."""

@@ -9,8 +9,14 @@ import threading
 import time
 from typing import Any, Callable, Mapping
 
-UNAVAILABLE_MARKERS = ('model_not_supported', 'not allowed for user type',
+UNAVAILABLE_MARKERS = ('model_not_supported', 'not allowed for user type', 'not_allowed', 'not-allowed', 'not allowed',
                        'model_not_found', 'invalid_api_key', 'authentication_error')
+
+
+def native_owner_account(binding: Mapping[str, Any], connection: Mapping[str, Any]) -> bool:
+    return (connection.get('auth_method') == 'external_cli_session'
+            or binding.get('executor_id') in {'codex', 'claude_code'}
+            or binding.get('model_id', '').lower().split('/', 1)[0] in {'codex', 'claude'})
 
 
 def availability_error(value: str) -> str | None:
@@ -88,8 +94,7 @@ class AvailabilityCache:
                 if entry.get('state') == 'TRANSIENT' and entry.get('verified_until', 0) > now:
                     return dict(entry, state='AVAILABLE', penalty=.5)
                 return dict(entry)
-            owner_account = (connection.get('auth_method') == 'external_cli_session'
-                             or binding.get('model_id', '').lower().split('/', 1)[0] in {'codex', 'claude'})
+            owner_account = native_owner_account(binding, connection)
             if not allow_probe or owner_account or probe is None or now < self.next_probe:
                 return {'state': 'UNKNOWN', 'reason': 'unverified'}
             self.next_probe = now + 60

@@ -100,7 +100,12 @@ def calibration_profiles(results: Sequence[Mapping[str, Any]], *, version: int =
 
 
 def tier_evidence(model: str, profile: Mapping[str, Any], kind: str, difficulty: int,
-                  table: Mapping[str, Any] | None = None) -> tuple[int, bool, str]:
+                  table: Mapping[str, Any] | None = None,
+                  override: Mapping[str, Any] | None = None) -> tuple[int, bool, str]:
+    """Resolve binding Owner tiers > measured buckets > Owner table > prior."""
+    tier = (override or {}).get("tiers", {}).get(kind)
+    if tier is not None:
+        return tier, False, "owner_override"
     measured = []
     for level in range(1, 6):
         bucket = profile.get('task_buckets', {}).get(f'{kind}:{level}', {})
@@ -113,6 +118,6 @@ def tier_evidence(model: str, profile: Mapping[str, Any], kind: str, difficulty:
     entry = (table or {}).get(model, (table or {}).get(model.rsplit('/', 1)[-1], {}))
     tier = entry.get('tiers', {}).get(kind)
     if tier is not None:
-        return tier, True, 'owner_table'
-    # No name heuristic can establish competence. Calibrate difficulty >=3.
+        return tier, False, 'owner_table'
+    # No name heuristic can establish competence; the prior remains unproven.
     return 2, True, 'prior'
