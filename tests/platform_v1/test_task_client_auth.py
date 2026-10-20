@@ -68,7 +68,7 @@ def request(port, method, path, *, capability=None, origin=None, duplicate=False
 @pytest.mark.parametrize("method,path", [
     ("POST", "/api/tasks/unknown/execute"), ("POST", "/api/tasks/unknown/publish"),
     ("POST", "/api/tasks"), ("POST", "/api/windows/activate"),
-    ("POST", "/api/goals/unknown/launch"), ("POST", "/api/inbox"),
+    ("POST", "/api/goals/unknown/launch"), ("POST", "/api/goals/unknown/rebind"), ("POST", "/api/inbox"),
     ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/goals"),
     ("GET", "/api/windows/policy"),
 ])

@@ -43,6 +43,11 @@ USAGE_ENFORCEMENT_CLASSES = frozenset(
     {"HARD_ADMISSION_ENFORCED", "POST_RUN_OBSERVED", "USAGE_UNKNOWN"}
 )
 PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
+# Tasks a window rebind may move (#1277); terminal tasks keep their original window.
+REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED"})
+TERMINAL_TASK_STATES = frozenset(
+    {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED", "CANCELLED"}
+)
 
 
 def _utc_now() -> str:
@@ -883,6 +888,169 @@ class PlatformControlStore:
             )
         return self.get_goal(goal_id)
 
+    # Window rebind (#1277) -------------------------------------------
+
+    def rebind_goal_to_window(self, goal_id: str, *, window_id: str) -> dict[str, Any]:
+        """Move a stranded Goal's unfinished tasks under a new, explicitly activated window.
+
+        Never extends the old window. Trusted host/Owner entry only: callers are the
+        native-session HTTP route and explicit activation adoption, not the renderer.
+        """
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                outcome = self._rebind_goal_locked(goal_id, window_id=window_id, reason="owner_rebind")
+                cur.execute("COMMIT")
+                return outcome
+            except BaseException as exc:
+                self._conn.rollback()
+                if isinstance(exc, TaskStoreError) and str(exc) == "receipt_persistence_failed":
+                    self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                                       "stop_reason='receipt_persistence_failed', updated_at=? WHERE id=?",
+                                       (_utc_now(), window_id))
+                if not isinstance(exc, Exception) or isinstance(exc, TaskStoreError):
+                    raise
+                raise TaskStoreError(f"goal_rebind_failed:{exc}") from exc
+
+    def _window_current_locked(self, window_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
+            "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?)",
+            (window_id, _utc_now_precise(), _utc_now_precise())).fetchone()
+        return row is not None
+
+    def _rebind_goal_locked(self, goal_id: str, *, window_id: str, reason: str) -> dict[str, Any]:
+        """Caller holds the store lock inside BEGIN IMMEDIATE; all checks precede any write."""
+        from .task_runtime import task_operation
+        from .unknown_claim_isolation import held_task
+        goal = self.get_goal(goal_id)
+        if goal.status == "RUNNING" and goal.window_id == window_id:
+            # A concurrent or repeated rebind already won; nothing is charged twice.
+            return {"goal_id": goal.id, "window_id": window_id, "status": "ALREADY_BOUND",
+                    "from_window_id": "", "tasks": [], "held_tasks": [], "retired_claims": []}
+        if goal.status != "RUNNING" or not goal.window_id:
+            raise TaskStoreError("goal_not_rebindable")
+        old = self.get_window(goal.window_id)
+        if self._window_current_locked(old.id):
+            raise TaskStoreError("goal_window_still_active")
+        window = self.get_window(window_id)
+        if not self._window_current_locked(window.id):
+            raise TaskStoreError("rebind_window_not_active")
+        if self.is_strict_owner_window(window):
+            # Strict Owner windows bind exactly one natively admitted Goal.
+            raise TaskStoreError("rebind_strict_window_unsupported")
+        if goal.repository not in window.repositories:
+            raise TaskStoreError("rebind_window_repository_mismatch")
+        links = self.list_goal_tasks(goal.id)
+        unfinished = [link for link in links if link["status"] in REBINDABLE_TASK_STATES]
+        if any(link["status"] not in REBINDABLE_TASK_STATES | TERMINAL_TASK_STATES for link in links):
+            raise TaskStoreError("goal_task_in_flight")
+        if not unfinished:
+            raise TaskStoreError("goal_has_no_unfinished_tasks")
+        now_ms = _utc_now_ms()
+        planned: list[dict[str, Any]] = []
+        held: list[str] = []
+        for link in unfinished:
+            task = self.task_store.get_task(link["task_id"])
+            if task.status not in REBINDABLE_TASK_STATES:
+                raise TaskStoreError("goal_task_in_flight")
+            if task.repository not in window.repositories:
+                raise TaskStoreError("rebind_window_repository_mismatch")
+            if held_task(self._conn, task.id):
+                # Unknown external side effects stay on HOLD (#1206): the claim and its
+                # reservation are retained and the scheduler keeps refusing the task.
+                held.append(task.id)
+                continue
+            operation = task_operation(task)
+            if task.status == "INTERRUPTED" and operation != "validate_task":
+                operation = "resume_task"
+            if operation not in window.capabilities:
+                raise TaskStoreError(f"rebind_window_missing_{operation}_capability")
+            claim = self._conn.execute(
+                "SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE'",
+                (task.id,)).fetchone()
+            if claim is not None and int(claim["expires_at_ms"]) > now_ms:
+                raise TaskStoreError("goal_task_claim_live")
+            if claim is not None and claim["window_id"] != old.id:
+                raise TaskStoreError("goal_task_claim_window_mismatch")
+            planned.append({"task_id": task.id, "status": task.status, "operation": operation, "claim": claim})
+        if not planned:
+            raise TaskStoreError("goal_unfinished_tasks_held")
+        queued = sum(1 for item in planned if item["status"] == "QUEUED")
+        interrupted = len(planned) - queued
+        tasks_remaining = window.max_tasks - window.tasks_started
+        if queued > tasks_remaining or (interrupted and tasks_remaining < 1):
+            raise TaskStoreError("rebind_window_task_budget_insufficient")
+        if interrupted > window.max_retries - window.retries_used:
+            raise TaskStoreError("rebind_window_retry_budget_insufficient")
+        retired = []
+        for item in planned:
+            claim = item.pop("claim")
+            if claim is None:
+                continue
+            epoch = int(claim["epoch"])
+            updated = self._conn.execute(
+                "UPDATE platform_coordinator_claims SET status = 'RETIRED', updated_at = ? "
+                "WHERE task_id = ? AND window_id = ? AND epoch = ? AND status = 'ACTIVE' AND expires_at_ms <= ?",
+                (_utc_now(), item["task_id"], old.id, epoch, now_ms))
+            if updated.rowcount != 1:
+                raise TaskStoreError("coordinator_claim_fenced")
+            # Usage of the abandoned attempt is unknown: no release, refund or zero-cost inference.
+            self._conn.execute(
+                "UPDATE platform_budget_reservations SET state = 'UNKNOWN', updated_at = ?, reconciled_at = ? "
+                "WHERE task_id = ? AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
+                (_utc_now(), _utc_now(), item["task_id"], epoch, old.id))
+            self.append_receipt(
+                window_id=old.id, operation_type="claim_retirement", capability="not_applicable",
+                repository=goal.repository, subject_id=item["task_id"], decision="not_evaluated",
+                reason="goal_rebound_to_window",
+                input_payload={"task_id": item["task_id"], "claim_epoch": epoch,
+                               "claim_owner": claim["owner"], "to_window_id": window.id},
+                result=f"retired:{window.id}")
+            retired.append({"task_id": item["task_id"], "window_id": old.id, "epoch": epoch})
+        moved = self._conn.execute(
+            "UPDATE platform_goals SET window_id = ?, updated_at = ? "
+            "WHERE id = ? AND window_id = ? AND status = 'RUNNING'",
+            (window.id, _utc_now(), goal.id, old.id))
+        if moved.rowcount != 1:
+            raise TaskStoreError("goal_not_rebindable")
+        self.append_receipt(
+            window_id=window.id, operation_type="goal_window_rebind", capability="not_applicable",
+            repository=goal.repository, subject_id=goal.id, decision="allowed", reason=reason,
+            input_payload={"goal_id": goal.id, "from_window_id": old.id, "to_window_id": window.id,
+                           "tasks": [item["task_id"] for item in planned], "held_tasks": held,
+                           "retired_claims": [item["task_id"] for item in retired]},
+            result=f"rebound:{len(planned)}:held:{len(held)}")
+        return {"goal_id": goal.id, "window_id": window.id, "status": "REBOUND",
+                "from_window_id": old.id, "tasks": planned, "held_tasks": held, "retired_claims": retired}
+
+    def window_adopted_goals(self, window_id: str) -> tuple[str, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT subject_id FROM platform_operation_receipts WHERE window_id = ? "
+                "AND operation_type = 'goal_window_rebind' AND reason = 'adopted_on_activation' "
+                "ORDER BY created_at, id", (window_id,)).fetchall()
+        return tuple(str(row["subject_id"]) for row in rows)
+
+    def stranded_goals(self, *, limit: int = 100) -> tuple[dict[str, Any], ...]:
+        """RUNNING Goals whose unfinished tasks are bound to a window that can no longer dispatch."""
+        now = _utc_now_precise()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT g.id AS goal_id, g.title, g.window_id, COALESCE(w.status, 'MISSING') AS window_status, "
+                "SUM(t.status = 'QUEUED') AS queued, SUM(t.status = 'INTERRUPTED') AS interrupted "
+                "FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "LEFT JOIN platform_autonomous_windows w ON w.id = g.window_id "
+                "WHERE g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED') "
+                "AND (w.id IS NULL OR w.status <> 'ACTIVE' OR julianday(w.expires_at) <= julianday(?)) "
+                "GROUP BY g.id ORDER BY g.created_at ASC LIMIT ?",
+                (now, max(1, min(limit, 500)))).fetchall()
+        return tuple({**dict(row), "window_status": ("EXPIRED" if row["window_status"] == "ACTIVE"
+                                                     else row["window_status"])} for row in rows)
+
     # Autonomous windows and receipts ---------------------------------
 
     def activate_policy_window(self, payload: Mapping[str, Any], *, authority: Mapping[str, Any]) -> AutonomousWindowRecord:
@@ -996,6 +1164,14 @@ class PlatformControlStore:
         now = _utc_now()
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
         capabilities = tuple(str(v) for v in payload.get("capabilities", ()))
+        adopted = payload.get("adopt_unfinished_goals") or ()
+        if adopted:
+            # Explicit Owner listing only; host-native and delegated windows never adopt.
+            if (_host_sql_admit is not None or _trusted_binding is not None
+                    or not isinstance(adopted, (list, tuple)) or len(adopted) > 100
+                    or any(type(goal_id) is not str or not goal_id.strip() for goal_id in adopted)
+                    or len(set(adopted)) != len(adopted)):
+                raise TaskStoreError("window_adoption_invalid")
         with self._lock:
             cur = self._conn.cursor()
             try:
@@ -1095,6 +1271,8 @@ class PlatformControlStore:
                          _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
+                for goal_id in adopted:
+                    self._rebind_goal_locked(goal_id, window_id=window_id, reason="adopted_on_activation")
                 if _host_sql_admit is not None:
                     # A trusted callback still must not COMMIT, ROLLBACK or run
                     # executescript (which implicitly COMMITs). Enforce this
