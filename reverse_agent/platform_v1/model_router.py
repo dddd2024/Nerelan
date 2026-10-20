@@ -95,8 +95,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         refusal = metadata.get("refusal_rates", {}).get(content)
         refusal_risk = .25 if refusal is None else max(0., min(1., refusal))
         quota = candidate.get("quota") or {}
-        from .routing_capabilities import tier_evidence
-        tier, unproven, tier_source = tier_evidence(candidate["model_id"], profile, kind, difficulty, capability_table, override)
+        from .routing_capabilities import tier_detail
+        detail = tier_detail(candidate["model_id"], profile, kind, difficulty, capability_table, override)
+        tier, unproven, tier_source = detail["tier"], detail["unproven"], detail["source"]
+        # The decision record cites benchmark sources and confidence (issue 1264).
+        tier_basis = {key: detail[key] for key in ("benchmark", "prior_gap") if key in detail}
         reset = reset_decision(reset_signal, now=now, buffer=reset_buffer,
                                weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
         if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
@@ -179,7 +182,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         characteristics = {key: metadata.get(key) for key in
                            ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
         characteristics["context_window"] = window
-        ranked.append(dict(candidate, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, unproven=unproven, cost_class=cost_class,
+        ranked.append(dict(candidate, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, tier_basis=tier_basis, unproven=unproven, cost_class=cost_class,
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
                            reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
                            score_breakdown=breakdown, refusal_risk=refusal_risk,
@@ -247,7 +250,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     top = ranked[:5]
     if chosen not in top:
         top = [*top[:4], chosen]
-    evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "availability", "tier", "tier_source", "unproven",
+    evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "availability", "tier", "tier_source", "tier_basis", "unproven",
                                             "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score", "score_breakdown", "refusal_risk", "characteristics", "quota_headroom", "reset")}
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],
@@ -256,7 +259,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "context_need": context_need, "needs": list(needs), "content_class": content,
             "excluded_candidates": excluded[:10], "reset": chosen["reset"],
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
-            "tier_source": chosen["tier_source"], "reset_observations": reset_observations,
+            "tier_source": chosen["tier_source"], "tier_basis": chosen["tier_basis"], "reset_observations": reset_observations,
             "characteristics": chosen["characteristics"]}
 
 
