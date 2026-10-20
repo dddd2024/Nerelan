@@ -190,10 +190,12 @@ class TaskExecutionService:
                 lease_provider=self.lease_provider,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(
@@ -230,10 +232,12 @@ class TaskExecutionService:
                 executor_kwargs=executor_kwargs,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(
@@ -501,10 +505,12 @@ class TaskExecutionService:
                 **executor_kwargs,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(ev.get("id", "") for ev in final.evidence_refs)
@@ -1128,6 +1134,23 @@ class TaskExecutionService:
                 event_callback=self._store_event_callback,
                 **executor_kwargs,
             )
+        from .routing_inputs import model_refused
+        from .model_availability import availability_error
+        events = self.store.get_events(task.id)
+        final_text = next((event.metadata.get("final_text", "") for event in reversed(events)
+                           if event.type == "EXECUTOR_COMPLETED"), "")
+        unavailable = availability_error(str(result.error or "") + " " + str(result.failure_classification or ""))
+        if unavailable:
+            result.success, result.failure_classification, result.error = False, "MODEL_UNAVAILABLE", unavailable
+            self._store_event_callback(task.id, {"type": "MODEL_UNAVAILABLE", "title": "Model unavailable",
+                                                "metadata": {"reason": unavailable}})
+        elif model_refused(final_text, changed_files=result.changed_files,
+                           policy_refusal=result.failure_classification in {"policy_refusal", "MODEL_REFUSED"}):
+            result.success, result.failure_classification, result.error = False, "MODEL_REFUSED", "MODEL_REFUSED"
+            content = next((event.metadata.get("content_class", "code") for event in events
+                            if event.type == "MODEL_SELECTED"), "code")
+            self._store_event_callback(task.id, {"type": "MODEL_REFUSED", "title": "Model declined task",
+                                                "metadata": {"content_class": content}})
         from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
         if result.success and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
             command, code, output, identity = run_task_validation(
