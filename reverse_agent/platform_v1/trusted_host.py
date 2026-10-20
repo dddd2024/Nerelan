@@ -177,6 +177,7 @@ class CombinedTrustedHost:
         self._trusted_client = None
         self._remote_job_broker = None
         self._research_loop = None
+        self._workspace_reclaimer = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
@@ -322,6 +323,10 @@ class CombinedTrustedHost:
 
         return _provider
 
+    def _task_workspace_root(self) -> str:
+        return os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip() or os.path.join(
+            os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".", "task_workspaces")
+
     def _agent_planner(self) -> Any:
         from .agent_planner import AgentPlanner
         from .repository_workspace import resolve_repository_workspace
@@ -330,6 +335,7 @@ class CombinedTrustedHost:
             roster_resolver=self._resolve_agent_role,
             binding_model=lambda binding_ref: self._store.get_binding_public(binding_ref)["model_id"],
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
+            workspace_root=self._task_workspace_root(),
         )
 
     def _context_recovery(self) -> Any:
@@ -726,19 +732,54 @@ class CombinedTrustedHost:
                     if b["connection_id"] == connection.get("connection_id")]
         if not bindings:
             return None
-        since = datetime.fromtimestamp(time.time() - 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = time.time()
+        # Stated resets are bounded to seven days from the recorded failure,
+        # never from a later admission check. Keep those older failures discoverable.
+        since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, updated_at FROM tasks WHERE status IN ('FAILED', 'BLOCKED') "
+            "SELECT failure_classification, failure_reset_at, failure_at, updated_at FROM tasks "
+            "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
-        # Our own refusals are not new answers from the account and must never extend the hold.
-        hit = next((row["updated_at"] for row in rows if ACCOUNT_LIMIT.search(row["failure_classification"] or "")), None)
-        if hit is None:
-            return None
-        hit_at = datetime.fromisoformat(hit.replace("Z", "+00:00")).timestamp()
-        quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "")
-        until = limit_hit_until(hit_at, quota)
-        return until if until > time.time() else None
+        quota = None
+        holds = []
+        for row in rows:
+            # Host refusals are not fresh account evidence.
+            if not ACCOUNT_LIMIT.search(row["failure_classification"] or ""):
+                continue
+            hit_at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            if hit_at > now:
+                continue
+            if quota is None:
+                quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "", {})
+            stated = None
+            try:
+                reset = datetime.fromisoformat(row["failure_reset_at"].replace("Z", "+00:00"))
+                if reset.utcoffset() is not None and hit_at < reset.timestamp() <= hit_at + 7 * 86400:
+                    stated = reset.timestamp()
+            except (ValueError, TypeError, OverflowError):
+                pass
+            if stated is not None and stated <= now:
+                continue  # An expired stated failure cannot renew on a later quota window.
+            if stated is not None:
+                # Only exhausted windows may extend a stated account hold.
+                from .quota_guard import parse_time
+                resets = [stated]
+                for window in quota.get("windows", ()):
+                    used = window.get("used_percent")
+                    remaining = window.get("remaining_percent")
+                    if not ((type(used) in (int, float) and used >= 100)
+                            or (type(remaining) in (int, float) and remaining == 0)):
+                        continue
+                    value = window.get("resets_at")
+                    reset = float(value) if type(value) in (int, float) else parse_time(value)
+                    if reset is not None and reset > hit_at:
+                        resets.append(reset)
+                holds.append(max(resets))
+            elif hit_at >= now - 86400:
+                holds.append(limit_hit_until(hit_at, quota))
+        until = max(holds, default=0)
+        return until if until > now else None
 
     def _runnable_bindings(self) -> set[str]:
         """Bindings that could dispatch now: enabled, credential usable, executor ready (resolver rules)."""
@@ -822,9 +863,27 @@ class CombinedTrustedHost:
             account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
                        and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
             # Official numbers first; the local CLI logs fill in what they do not say.
-            return {"codex": codex_quota(),
-                    "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            local = {"codex": codex_quota(),
+                     "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            return self._merge_magpie_quotas(local)
         return _cached(self, "_subscription_quota_cache", read)
+
+    def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
+        """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        from ..model_access.subscription_quota import magpie_quota_windows
+        if not magpie_enabled(os.environ):
+            return local
+        try:
+            snapshot = fetch_magpie_snapshot(
+                os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
+        except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            return local
+        magpie = magpie_quota_windows(snapshot)
+        merged = dict(local)
+        for key, quota in magpie.items():
+            merged[key] = quota
+        return merged
 
     def _claude_reset_quota_recheck(self) -> None:
         # Read-only official CLI telemetry; never change entitlement/limits.
@@ -974,12 +1033,7 @@ class CombinedTrustedHost:
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
             )
-            workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
-            if not workspace_root:
-                workspace_root = os.path.join(
-                    os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
-                    "task_workspaces",
-                )
+            workspace_root = self._task_workspace_root()
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -1038,6 +1092,13 @@ class CombinedTrustedHost:
                 broker=self._remote_job_broker)
             if self._research_loop is not None:
                 self._research_loop.start()
+            # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
+            # dirty, unpushed, recent or still-running task workspaces.
+            from .workspace_reclaim import configured_reclaimer
+            self._workspace_reclaimer = configured_reclaimer(
+                workspace_root, self._task_store.db_path)
+            if self._workspace_reclaimer is not None:
+                self._workspace_reclaimer.start()
             # Optional, independent public-announcement observer. This never
             # changes a quota guard decision or starts any model execution.
             if os.environ.get("REVERSE_AGENT_CLAUDE_RESET_WATCH") == "1":
@@ -1055,6 +1116,9 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        reclaimer, self._workspace_reclaimer = getattr(self, "_workspace_reclaimer", None), None
+        if reclaimer is not None:
+            reclaimer.stop()
         if self._research_loop is not None:
             self._research_loop.stop()
             self._research_loop = None

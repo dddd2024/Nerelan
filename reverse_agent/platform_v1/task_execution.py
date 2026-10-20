@@ -286,6 +286,7 @@ class TaskExecutionService:
                 task_id,
                 classification=classification,
                 detail=exec_result.get("error", "execution failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
             )
             self.store.add_event(
                 task_id,
@@ -1224,6 +1225,7 @@ class TaskExecutionService:
             "changed_files": result.changed_files,
             "error": result.error,
             "failure_classification": getattr(result, "failure_classification", ""),
+            "failure_reset_at": getattr(result, "failure_reset_at", ""),
         }
 
     def _store_event_callback(self, task_id: str, event: dict[str, Any]) -> None:

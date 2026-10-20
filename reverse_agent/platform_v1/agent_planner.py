@@ -1,7 +1,7 @@
 """Planner agent: decompose a Goal into difficulty-tagged tasks for the Agent team.
 
 The planner role's agent (a native CLI executor: Claude Code or Codex) runs
-read-only in the configured repository and must answer with one JSON object.
+read-only in a disposable detached worktree and must answer with one JSON object.
 That plan then goes through the ordinary GoalService validation, so a
 malformed or out-of-policy plan is rejected exactly like a hand-written one.
 Planning runs as a background job because it can take minutes; callers poll
@@ -24,6 +24,8 @@ from .model_router import task_traits
 from .routing_inputs import requirements
 from .opencode_executor import redact_secrets
 from .run_store import TaskStoreError
+from .task_runtime import ExecutorRuntimeError
+from . import repository_preparation
 
 ROLE_GUIDE = {
     "planner": "decomposition and design only (expensive; avoid for implementation)",
@@ -158,7 +160,7 @@ def extract_plan(text: str) -> dict[str, Any]:
 
 def run_planner_cli(*, executor_kind: str, model_id: str, repo_dir: str, prompt: str,
                     timeout: float = PLAN_TIMEOUT_SECONDS, executor_factory: Callable[..., Any] | None = None) -> str:
-    """Run the planner read-only in the source repository; return its final text."""
+    """Run the planner read-only in its isolated workspace; return its final text."""
     from .codex_executor import CodexExecutor, CodexPreparedContext
     from .claude_executor import ClaudeCodeExecutor
     classes = {"claude_code": ClaudeCodeExecutor, "codex": CodexExecutor}
@@ -169,7 +171,7 @@ def run_planner_cli(*, executor_kind: str, model_id: str, repo_dir: str, prompt:
     cli = executor._resolve_cli()
     if executor._readiness_probe(cli) != "managed_login_ready":
         raise TaskStoreError(f"{executor_kind}_managed_login_unavailable")
-    # Read-only: no worktree is prepared and no host checks run; the repo is only read.
+    # AgentPlanner owns the disposable worktree; native tools remain read-only.
     prepared = CodexPreparedContext(Path(repo_dir).resolve(), "", f"plan-{int(time.time())}", cli, executor.KIND)
     parser = executor._parser(None)
     code = executor._stream(prepared, prompt, parser)
@@ -221,17 +223,38 @@ class PlanJob:
         return data
 
 
+_RUNTIME_CODES = frozenset({
+    "native_task_temp_unavailable", "planner_path_invalid", "planner_base_invalid",
+    "planner_git_failed", "planner_preparation_failed", "planner_identity_invalid",
+    "planner_busy", "planner_destination_exists", "planner_head_mismatch",
+} | {f"{kind}_{suffix}" for kind in ("codex", "claude_code") for suffix in (
+    "cli_missing", "cli_requires_native_executable", "cli_unavailable", "model_id_invalid",
+    "sandbox_invalid", "timeout_invalid", "managed_login_unavailable", "process_start_failed",
+    "requires_managed_session_binding", "session_unavailable", "relay_requires_lease_provider",
+)})
+
+
+def _runtime_error_code(exc: ExecutorRuntimeError) -> str:
+    # Runtime errors have no code attribute: args[0] is a string, sometimes with
+    # diagnostic output appended after a colon. Never publish that diagnostic.
+    value = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
+    code = value.split(":", 1)[0]
+    return code if code in _RUNTIME_CODES else "ExecutorRuntimeError"
+
+
 class AgentPlanner:
     """Process-local registry of background planning jobs (one per Goal)."""
 
     def __init__(self, *, goal_service: Any, roster_resolver: Callable[[str], tuple[str, str]],
                  binding_model: Callable[[str], str], repo_dir_for: Callable[[str], str],
-                 runner: Callable[..., str] = run_planner_cli) -> None:
+                 runner: Callable[..., str] = run_planner_cli,
+                 workspace_root: str | Path | None = None) -> None:
         self._goals = goal_service
         self._roster = roster_resolver
         self._binding_model = binding_model
         self._repo_dir_for = repo_dir_for
         self._runner = runner
+        self._workspace_root = workspace_root or (Path(goal_service.store.db_path).absolute().parent / "task_workspaces")
         self._jobs: dict[str, PlanJob] = {}
         self._lock = threading.Lock()
 
@@ -240,7 +263,8 @@ class AgentPlanner:
             job = self._jobs.get(goal_id)
             return job.to_dict() if job else {"goal_id": goal_id, "status": "NONE", "error": ""}
 
-    def start(self, goal_id: str, *, expected_revision: int, background: bool = True) -> dict[str, Any]:
+    def start(self, goal_id: str, *, expected_revision: int, background: bool = True,
+              base_commit: str | None = None) -> dict[str, Any]:
         goal = self._goals.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_revision_mismatch")
@@ -257,18 +281,36 @@ class AgentPlanner:
                 return current.to_dict()
             job = PlanJob(goal_id, planner={"executor_kind": executor_kind, "binding_ref": binding_ref})
             self._jobs[goal_id] = job
-        work = lambda: self._run(job, goal, executor_kind, binding_ref)  # noqa: E731
+        # No frozen-goal-base contract is exposed by this GoalRecord. Callers
+        # can supply an explicit base without adding a persistent goal field.
+        # Pin before dispatch: the source HEAD may move while this job is queued.
+        try:
+            source = repository_preparation._planner_path(self._repo_dir_for(goal.repository))
+            base = "HEAD" if base_commit is None else base_commit
+            if not isinstance(base, str) or not base or base.startswith("-"):
+                raise ExecutorRuntimeError("planner_base_invalid")
+            pinned = repository_preparation._planner_git(source, "rev-parse", "--verify", base + "^{commit}")
+        except Exception as exc:
+            code = _runtime_error_code(exc) if isinstance(exc, ExecutorRuntimeError) else type(exc).__name__
+            with self._lock:
+                job.status, job.error, job.finished_at = "FAILED", f"agent_planner_error:{code}", time.time()
+            return self.status(goal_id)
+        work = lambda: self._run(job, goal, executor_kind, binding_ref, source, pinned)  # noqa: E731
         if background:
             threading.Thread(target=work, name=f"agent-plan-{goal_id}", daemon=True).start()
         else:
             work()
         return self.status(goal_id)
 
-    def _run(self, job: PlanJob, goal: Any, executor_kind: str, binding_ref: str) -> None:
+    def _run(self, job: PlanJob, goal: Any, executor_kind: str, binding_ref: str,
+             source: Path, base_commit: str) -> None:
         try:
-            output = self._runner(executor_kind=executor_kind, model_id=self._binding_model(binding_ref),
-                                  repo_dir=self._repo_dir_for(goal.repository),
-                                  prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
+            with repository_preparation.planner_worktree(
+                    source, self._workspace_root, goal.id, goal.revision, base_commit) as (workspace, _):
+                output = self._runner(
+                    executor_kind=executor_kind, model_id=self._binding_model(binding_ref),
+                    repo_dir=str(workspace),
+                    prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
             if isinstance(output, PlannerOutput):
                 text, job.usage = output.text, output.usage
             else:
@@ -289,6 +331,8 @@ class AgentPlanner:
             self._goals.plan(goal.id, expected_revision=goal.revision, tasks=plan["tasks"],
                              acceptance_criteria=plan["acceptance_criteria"])
             outcome, error = "PLANNED", ""
+        except ExecutorRuntimeError as exc:
+            outcome, error = "FAILED", f"agent_planner_error:{_runtime_error_code(exc)}"
         except TaskStoreError as exc:
             outcome, error = "FAILED", str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 - surface any planner failure as a finite code

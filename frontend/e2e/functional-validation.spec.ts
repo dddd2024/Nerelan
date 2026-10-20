@@ -5,7 +5,7 @@ test("keeps mock Goal completion unverified and opens its exact Run evidence", a
   await settle(appPage);
   const task = appPage.getByTestId("goal-task-task-demo-1");
   await expect(task.getByText("执行完成，待审查")).toBeVisible();
-  await expect(task.getByTestId("goal-functional-status-task-demo-1")).toHaveText("功能尚未验证");
+  await expect(task.getByTestId("goal-functional-status-task-demo-1")).toHaveText("尚未完成测试");
   await expect(task.getByTestId("goal-publication-task-demo-1")).toHaveText("尚无发布记录");
   await task.getByRole("link", { name: "查看 分析目标与代码库 的运行" }).click();
   await expect(appPage).toHaveURL(/\/runs\?task=task-demo-1$/);

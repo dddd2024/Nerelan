@@ -297,6 +297,11 @@ class GoalService:
                 self.store._conn.execute("ROLLBACK")
                 raise
 
+    def rebind(self, goal_id: str, *, window_id: str) -> dict[str, Any]:
+        """Explicit Owner rebind of a stranded Goal to a new active window (#1277)."""
+        outcome = self.control_store.rebind_goal_to_window(goal_id, window_id=window_id)
+        return {**outcome, "goal": self.detail(goal_id)}
+
     def _launch(self, goal_id: str, *, expected_revision: int, window_id: str) -> GoalRecord:
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:

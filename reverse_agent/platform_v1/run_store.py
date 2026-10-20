@@ -154,6 +154,8 @@ class Task:
     orchestration_mode: str = "single"
     failure_classification: str = ""
     failure_detail: str = ""
+    failure_reset_at: str = ""
+    failure_at: str = ""
     validation_command_id: str = ""
     validation_exit_code: int | None = None
     validation_output_digest: str = ""
@@ -305,6 +307,8 @@ def _row_to_task(
         updated_at=row["updated_at"],
         failure_classification=row["failure_classification"] or "",
         failure_detail=row["failure_detail"] or "",
+        failure_reset_at=row["failure_reset_at"] or "",
+        failure_at=row["failure_at"] or "",
         validation_command_id=row["validation_command_id"] or "",
         validation_exit_code=row["validation_exit_code"],
         validation_output_digest=row["validation_output_digest"] or "",
@@ -483,6 +487,9 @@ class TaskStore:
         task_columns = {
             row["name"] for row in self._conn.execute("PRAGMA table_info(tasks)")
         }
+        for column in ("failure_reset_at", "failure_at"):
+            if column not in task_columns:
+                self._conn.execute(f"ALTER TABLE tasks ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
         if "binding_ref" not in task_columns:
             self._conn.execute(
                 "ALTER TABLE tasks ADD COLUMN binding_ref TEXT NOT NULL DEFAULT ''"
@@ -1010,6 +1017,7 @@ class TaskStore:
         *,
         classification: str,
         detail: str = "",
+        failure_reset_at: str = "",
     ) -> Task:
         with self._lock:
             task = self.get_task(task_id)
@@ -1020,6 +1028,8 @@ class TaskStore:
                 {
                     "failure_classification": classification,
                     "failure_detail": detail,
+                    "failure_reset_at": failure_reset_at[:128],
+                    "failure_at": _utc_now(),
                 },
             )
             target = "BLOCKED" if classification == "blocked" else "FAILED"
@@ -3109,6 +3119,7 @@ class TaskStore:
         *,
         classification: str,
         detail: str = "",
+        failure_reset_at: str = "",
         owner: str,
         epoch: int,
     ) -> Task:
@@ -3129,8 +3140,8 @@ class TaskStore:
             target = "BLOCKED" if classification == "blocked" else "FAILED"
             cur.execute(
                 "UPDATE tasks SET failure_classification = ?, failure_detail = ?, "
-                "status = ?, updated_at = ? WHERE id = ?",
-                (classification, detail, target, _utc_now(), task_id),
+                "failure_reset_at = ?, failure_at = ?, status = ?, updated_at = ? WHERE id = ?",
+                (classification, detail, failure_reset_at[:128], _utc_now(), target, _utc_now(), task_id),
             )
             now = _utc_now()
             event_id = f"event-{task_id}-{_short_uuid()}"
@@ -3216,6 +3227,7 @@ class TaskStore:
         validation_output_digest: str,
         failure_classification: str,
         failure_detail: str,
+        failure_reset_at: str = "",
         owner: str,
         epoch: int,
     ) -> Task:
@@ -3240,12 +3252,12 @@ class TaskStore:
                 "UPDATE tasks SET "
                 "validation_command_id = ?, validation_exit_code = ?, "
                 "validation_output_digest = ?, failure_classification = ?, "
-                "failure_detail = ?, status = ?, updated_at = ? "
+                "failure_detail = ?, failure_reset_at = ?, failure_at = ?, status = ?, updated_at = ? "
                 "WHERE id = ?",
                 (
                     validation_command_id, validation_exit_code,
                     validation_output_digest, failure_classification,
-                    failure_detail, terminal_status, _utc_now(), task_id,
+                    failure_detail, failure_reset_at[:128], _utc_now(), terminal_status, _utc_now(), task_id,
                 ),
             )
             cur.execute("COMMIT")

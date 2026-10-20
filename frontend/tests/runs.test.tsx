@@ -767,7 +767,7 @@ describe("Agent Runs page", () => {
 });
 
 it.each([
-  ["UNVERIFIED", false, "功能尚未验证"], ["FIXTURE_VERIFIED", false, "仅测试夹具通过"], ["FAILED", false, "功能检查未通过"],
+  ["UNVERIFIED", false, "尚未完成测试"], ["FIXTURE_VERIFIED", false, "仅测试夹具通过"], ["FAILED", false, "测试未通过"],
 ])("renders Run %s functional evidence without promoting legacy zero-exit SUCCESS", async (status, verified, label) => {
   vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
   const run = { ...httpRun("functional-run"), status: "READY_FOR_REVIEW", state: "READY_FOR_REVIEW", executor_kind: "opencode",
