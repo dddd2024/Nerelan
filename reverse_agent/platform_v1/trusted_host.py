@@ -321,6 +321,10 @@ class CombinedTrustedHost:
 
         return _provider
 
+    def _task_workspace_root(self) -> str:
+        return os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip() or os.path.join(
+            os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".", "task_workspaces")
+
     def _agent_planner(self) -> Any:
         from .agent_planner import AgentPlanner
         from .repository_workspace import resolve_repository_workspace
@@ -329,6 +333,7 @@ class CombinedTrustedHost:
             roster_resolver=self._resolve_agent_role,
             binding_model=lambda binding_ref: self._store.get_binding_public(binding_ref)["model_id"],
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
+            workspace_root=self._task_workspace_root(),
         )
 
     def _context_recovery(self) -> Any:
@@ -971,12 +976,7 @@ class CombinedTrustedHost:
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
             )
-            workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
-            if not workspace_root:
-                workspace_root = os.path.join(
-                    os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
-                    "task_workspaces",
-                )
+            workspace_root = self._task_workspace_root()
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
