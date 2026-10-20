@@ -291,7 +291,8 @@ def test_consecutive_runs_use_fresh_real_scratch_and_preserve_source(tmp_path):
         assert subprocess.run(["git", "symbolic-ref", "-q", "HEAD"], cwd=workspace,
                               capture_output=True).returncode == 1
         environment = codex_executor._task_temp_env(workspace, {})
-        assert Path(environment["TMP"]) == workspace / ".nt"
+        assert Path(environment["TMP"]).parent == workspace
+        assert Path(environment["TMP"]).name.startswith(".nt-")
         seen.append(workspace)
         return agent_planner.PlannerOutput(json.dumps(PLAN), {"input_tokens": 7})
 
@@ -305,7 +306,7 @@ def test_consecutive_runs_use_fresh_real_scratch_and_preserve_source(tmp_path):
         assert status["status"] == "PLANNED"
         assert status["token_usage"] == {"input_tokens": 7}
     assert len(set(seen)) == 2 and all(not path.exists() for path in seen)
-    assert not (source / ".nt").exists()
+    assert not list(source.glob(".nt*"))
     assert _git(source, "status", "--porcelain", "--ignored") == before
     assert (source / "tracked.txt").read_text() == "owner edits"
     assert (source / "untracked.txt").read_text() == "owner work"
@@ -377,7 +378,7 @@ def test_failure_cleanup_and_safe_runtime_codes(tmp_path, failure, code):
     status = planner.start(goal.id, expected_revision=1, background=False)
     assert status["status"] == "FAILED" and status["error"] == code
     assert len(seen) == 1 and not seen[0].exists()
-    assert not (tmp_path / "source" / ".nt").exists()
+    assert not list((tmp_path / "source").glob(".nt*"))
     assert goals.control_store.get_goal(goal.id).status == "DRAFT"
     if failure != "parse":
         assert "raw_excerpt" not in status
@@ -447,7 +448,7 @@ def test_base_capture_failure_is_safe_and_does_not_invoke_runner(tmp_path, base)
     assert status["status"] == "FAILED"
     assert status["error"] in {"agent_planner_error:planner_base_invalid", "agent_planner_error:planner_git_failed"}
     assert not calls
-    assert not (tmp_path / "source" / ".nt").exists()
+    assert not list((tmp_path / "source").glob(".nt*"))
 
 
 @pytest.mark.parametrize("args", [(), (object(),), ("private/path",), ("codex_cli_missing raw output",)])
