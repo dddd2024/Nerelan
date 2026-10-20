@@ -1190,8 +1190,10 @@ class TaskStore:
         import hashlib
         import json
 
-        if category not in {"ArtifactContract", "AcceptedArtifact", "ArtifactInput"}:
+        if category not in {"ArtifactContract", "AcceptedArtifact", "ArtifactInput", "ModelReview", "ReviewRepair"}:
             raise TaskStoreError("artifact_evidence_category_invalid")
+        if category == "ModelReview" and lease is None:
+            raise TaskStoreError("model_review_lease_required")
         detail = json.dumps(document, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
         identity = hashlib.sha256(detail.encode("utf-8")).hexdigest()
         status = "APPROVED" if category == "ArtifactContract" else "BOUND"

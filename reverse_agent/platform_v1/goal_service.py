@@ -475,6 +475,121 @@ class GoalService:
                     raise TaskStoreError("review_not_independent")
         return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings))}
 
+    def _repair_rejected_reviews(self, goal_id: str) -> tuple[dict[str, Any], ...]:
+        """Atomically admit at most one repair per producer/revision.
+
+        Escalation history counts review rounds separately from routing attempts;
+        both replacement executions still spend the existing window retry budget.
+        """
+        from . import model_review, artifact_handoff as artifacts
+        outcomes = []
+        with self.store._lock:
+            owns_transaction = not self.store._conn.in_transaction
+            if owns_transaction:
+                self.store._conn.execute("BEGIN IMMEDIATE")
+            try:
+                goal = self.control_store.get_goal(goal_id)
+                active = self.store._conn.execute(
+                    "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
+                    "AND julianday(starts_at) <= julianday('now') AND julianday(expires_at) > julianday('now')",
+                    (goal.window_id,)).fetchone()
+                if goal.orchestration_mode != "agent_team" or not active:
+                    if owns_transaction:
+                        self.store._conn.execute("COMMIT")
+                    return ()
+                window = self.control_store.get_window(goal.window_id)
+                planned = {raw["id"]: self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks)}
+                links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal_id)}
+                history = self.control_store.list_task_escalations(goal_id)
+                for review_id, link in links.items():
+                    review_plan = planned[review_id]
+                    failed = self.store.get_task(link["task_id"])
+                    if review_plan.artifact_input and artifacts.model_review_input(failed):
+                        source_id = review_plan.artifact_input["plan_task_id"]
+                        producer = self.store.get_task(links[source_id]["task_id"])
+                        feedback = artifacts._load_evidence(producer, "ReviewRepair", producer.execution_id)
+                        if (producer.status == "READY_FOR_REVIEW" and feedback is not None
+                                and feedback["review_task_id"] == failed.id):
+                            if len(history) >= window.max_retries:
+                                self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
+                                continue
+                            base = self._approved_base(producer)
+                            decision = None
+                            if self.task_resolver is not None:
+                                try:
+                                    decision = self.task_resolver(review_plan, goal=goal,
+                                        **self._review_authors(review_plan, goal, planned))
+                                except TaskStoreError as exc:
+                                    self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                                    continue
+                            executor = decision["executor_kind"] if decision is not None else failed.executor_kind
+                            binding_ref = decision["binding_ref"] if decision is not None else failed.binding_ref
+                            fresh = self.store.create_task(title=self._execution_title(goal, review_plan), repository=goal.repository,
+                                executor_kind=executor, binding_ref=binding_ref,
+                                model_profile_ref="" if decision is not None else failed.model_profile_ref,
+                                branch=base if executor in {"codex", "claude_code"} else "",
+                                permission_profile=failed.permission_profile, policy_ref=failed.policy_ref,
+                                idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round2:review")
+                            if decision is not None:
+                                self._record_model_selection(fresh, decision)
+                            freeze_contract(self.store, fresh, goal=goal, plan_task=review_plan, base_commit=base)
+                            freeze_handoff_contract(self.store, fresh, goal=goal, plan_task=review_plan, base_commit=base)
+                            self.control_store.escalate_goal_task(goal.id, goal_revision=goal.revision, plan_task_id=review_id,
+                                from_task_id=failed.id, to_task_id=fresh.id, from_role=review_plan.agent_role,
+                                to_role=review_plan.agent_role, reason=f"model_review_refresh:{failed.id}")
+                            outcomes.append({"plan_task_id": review_id, "from_task_id": failed.id, "to_task_id": fresh.id})
+                            history = self.control_store.list_task_escalations(goal_id)
+                            continue
+                    if (failed.status != "FAILED" or failed.failure_classification != "model_review_rejected"
+                            or not artifacts.model_review_input(failed)
+                            or self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id)):
+                        continue
+                    try:
+                        rows = [row for row in failed.evidence_refs if row.get("category") == "ModelReview"]
+                        if len(rows) != 1:
+                            continue
+                        run = self.store._get_durable_run(json.loads(rows[0]["detail"])["run_id"])
+                        evidence = model_review.verified_evidence(self.store, failed, run, require_accept=False)
+                        if evidence["result"]["verdict"] != "REJECT":
+                            continue
+                        binding = artifacts.load_input_binding(failed)
+                    except (TaskStoreError, KeyError, ValueError, TypeError, OSError):
+                        continue
+                    source_id = review_plan.artifact_input["plan_task_id"]
+                    producer = self.store.get_task(links[source_id]["task_id"])
+                    rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
+                              and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
+                    if rounds or len(history) + 2 > window.max_retries:
+                        self.store.block_model_selection(failed.id, decision={"reason":
+                            "model_review_round_limit" if rounds else "routing_retry_budget_exhausted"})
+                        continue
+                    source_plan = planned[source_id]
+                    base = self._approved_base(producer)
+                    repair = self.store.create_task(title=self._execution_title(goal, source_plan), repository=goal.repository,
+                        executor_kind=producer.executor_kind, binding_ref=producer.binding_ref,
+                        model_profile_ref=producer.model_profile_ref,
+                        branch=base if producer.executor_kind in {"codex", "claude_code"} else "",
+                        permission_profile=producer.permission_profile, policy_ref=producer.policy_ref,
+                        idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round2:repair")
+                    freeze_contract(self.store, repair, goal=goal, plan_task=source_plan, base_commit=base)
+                    freeze_handoff_contract(self.store, repair, goal=goal, plan_task=source_plan, base_commit=base)
+                    self.store._bind_artifact_evidence(repair.id, category="ReviewRepair", label=repair.execution_id,
+                        document={"review_task_id": failed.id, "review_digest": model_review.digest(evidence),
+                                  "findings": evidence["result"]["findings"], "producer": binding["producer"]})
+                    self.control_store.escalate_goal_task(goal.id, goal_revision=goal.revision, plan_task_id=source_id,
+                        from_task_id=producer.id, to_task_id=repair.id, from_role=source_plan.agent_role,
+                        to_role=source_plan.agent_role, reason=f"model_review_repair:{failed.id}")
+                    outcomes.append({"plan_task_id": source_id, "from_task_id": producer.id, "to_task_id": repair.id})
+                    history = self.control_store.list_task_escalations(goal_id)
+                if owns_transaction:
+                    self.store._conn.execute("COMMIT")
+            except BaseException:
+                if owns_transaction:
+                    self.store._conn.execute("ROLLBACK")
+                raise
+        self.control_store.refresh_goal_status(goal_id)
+        return tuple(outcomes)
+
     def escalate_failed_tasks(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Retry FAILED agent_team tasks by measured tier (legacy resolvers use roles).
 
@@ -482,16 +597,20 @@ class GoalService:
         and nothing escalates outside the Goal's still-active window. The failed task
         and its evidence stay in place; only the plan task's link moves on.
         """
+        repairs = self._repair_rejected_reviews(goal_id)
         goal = self.control_store.get_goal(goal_id)
         if (goal.orchestration_mode != "agent_team" or not goal.window_id
                 or (self.roster_resolver is None and self.task_resolver is None)):
-            return ()
+            return repairs
         window = self.control_store.get_window(goal.window_id)
-        if window.status != "ACTIVE":
-            return ()
+        if window.status != "ACTIVE" or not self.store._conn.execute(
+                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
+                "AND julianday(expires_at) > julianday('now')",
+                (window.id,)).fetchone():
+            return repairs
         history = self.control_store.list_task_escalations(goal_id)
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
-        outcomes = []
+        outcomes = list(repairs)
         for link in self.control_store.list_goal_tasks(goal_id):
             if link["status"] != "FAILED" or int(link["goal_revision"]) != goal.revision:
                 continue
@@ -499,10 +618,16 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
+            model_review = (load_handoff_contract(failed) or {}).get("validation_mode") == "model_review"
+            # Rejections belong to the verified repair loop above, including when
+            # their evidence is invalid. An attempt without a verdict retries the
+            # review itself and must never authorize a producer repair.
+            if model_review and failed.failure_classification == "model_review_rejected":
+                continue
             refusal = failed.failure_classification == "MODEL_REFUSED"
             unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            if not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
@@ -605,6 +730,11 @@ class GoalService:
                 self._record_model_selection(task, decision)
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+            from .artifact_handoff import _load_evidence
+            repair = _load_evidence(failed, "ReviewRepair", failed.execution_id)
+            if repair is not None:
+                self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
+                                                 document=repair)
             reason = f"failed:{failed.failure_classification or 'unknown'}"
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
@@ -860,6 +990,8 @@ class GoalService:
         except ValueError as exc:
             raise TaskStoreError(str(exc)) from exc
         if kind == "review" or agent_role == "reviewer":
+            if artifact_input is None:
+                raise TaskStoreError("model_review_artifact_input_required")
             capability = "validate_task"
         return PlannedTask(task_id, title, instruction, dependencies, capability, checks, artifact_input, command,
                            agent_role, difficulty, kind, context_need, needs)

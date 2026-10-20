@@ -11,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import threading
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -368,14 +369,19 @@ class CodexExecutor:
                 "cache_read_units": counters["cache_read"], "cache_write_units": counters["cache_write"],
                 "reasoning_units": counters["reasoning"],
             }
+            models = parser.turn.models or [self._model_id]
             identity = hashlib.sha256((prepared.execution_id + ":" + (parser.turn.thread_id or "no-thread")).encode()).hexdigest()
             _persist_usage_observations(store, task_id, [{
-                "observation_id": f"usage-{self.KIND}-" + identity, "execution_id": prepared.execution_id,
-                "role": "executor", "model_id": self._model_id, "provider_id": self.PROVIDER_ID,
-                "source_kind": "native_summary", "source_id": f"{self.KIND}-turn-" + identity,
+                "observation_id": f"usage-{self.KIND}-" + hashlib.sha256((identity + model).encode()).hexdigest(),
+                "execution_id": prepared.execution_id,
+                "role": "executor", "model_id": model, "provider_id": self.PROVIDER_ID,
+                # Turn totals belong to one model; with several observed models they stay UNKNOWN.
+                "source_kind": "native_summary" if counters is not None and len(models) == 1 else "assistant_message",
+                "source_id": f"{self.KIND}-turn-" + identity,
                 # CLI tokens do not provide reasoning/cache-write or dollar cost.
-                "status": "PARTIAL" if counters is not None else "UNKNOWN", **metrics,
-            }])
+                "status": "PARTIAL" if counters is not None and len(models) == 1 else "UNKNOWN",
+                **(metrics if len(models) == 1 else {}),
+            } for model in models])
         try:
             code = self._stream(prepared, prompt, parser)
             turn = parser.finish()
@@ -421,9 +427,50 @@ class CodexExecutor:
             failure_classification=(self._e("no_product_changes") if no_product_changes
                                     else ("" if exit_code == 0 else "patch_hygiene_failed")))
 
-    def _stream(self, prepared, prompt, parser):
+    def enforces_read_only_review(self):
+        # Subclasses have different permission semantics and must opt in explicitly.
+        return self.KIND == "codex" and self._sandbox == "read-only"
+
+    def execute_review_prepared(self, prepared, store, *, task_id, prompt):
+        """Run only the reviewer with native sandbox enforcement and external scratch."""
+        if not self.enforces_read_only_review():
+            raise ExecutorRuntimeError("model_review_sandbox_unsupported")
+        if (prepared.execution_id != f"exec-{task_id}" or prepared.worktree.name != task_id
+                or prepared.executor_kind != self.KIND):
+            raise ExecutorRuntimeError("model_review_prepared_identity_mismatch")
+        self._verify_workspace(prepared.worktree, prepared.base_sha)
+        if any((prepared.worktree / relative).exists() for relative in self.PROJECT_CONFIG):
+            raise ExecutorRuntimeError("codex_project_configuration_unapproved")
+        if self._binding_resolution is None:
+            raise ExecutorRuntimeError("review_not_independent")
+        parser = self._parser(None)
+        with tempfile.TemporaryDirectory(prefix="nerelan-review-") as runtime:
+            runtime_path = Path(runtime).resolve()
+            if runtime_path == prepared.worktree or prepared.worktree in runtime_path.parents:
+                raise ExecutorRuntimeError("model_review_runtime_inside_product")
+            code = self._stream(prepared, prompt, parser, runtime_path=runtime_path)
+            turn = parser.finish()
+        if code != 0 or turn.failed or turn.tool_launch_failed:
+            raise ExecutorRuntimeError("model_review_process_failed")
+        self._verify_workspace(prepared.worktree, prepared.base_sha)
+        if not turn.thread_id or not turn.models:
+            raise ExecutorRuntimeError("review_not_independent")
+        identity = hashlib.sha256((prepared.execution_id + ":" + turn.thread_id).encode()).hexdigest()
+        _persist_usage_observations(store, task_id, [{
+            "observation_id": "usage-review-" + hashlib.sha256((identity + model).encode()).hexdigest(),
+            "execution_id": prepared.execution_id, "role": "reviewer",
+            "model_id": model, "provider_id": self.PROVIDER_ID,
+            "source_kind": "assistant_message", "source_id": "review-turn-" + identity,
+            "status": "UNKNOWN",
+        } for model in turn.models])
+        return {"response": turn.final_text, "actual_models": turn.models,
+                "request_id": turn.thread_id, "execution_id": prepared.execution_id,
+                "binding_ref": self._binding_resolution.binding_ref,
+                "quota_observations": turn.rate_limits}
+
+    def _stream(self, prepared, prompt, parser, *, runtime_path=None):
         from .functional_validation import _WindowsJob, _terminate
-        environment = _task_temp_env(prepared.worktree, self._child_env())
+        environment = _task_temp_env(runtime_path or prepared.worktree, self._child_env())
         job = _WindowsJob() if os.name == "nt" else None
         try:
             proc = self._process_factory(self._argv(prepared),
