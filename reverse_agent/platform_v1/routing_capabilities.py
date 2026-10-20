@@ -22,13 +22,21 @@ PRIOR_MODELS = {
 }
 
 
+class CapabilityTable(dict):
+    """Owner tiers keyed by model id, plus adopted benchmark priors (issue 1264)."""
+    benchmarks: Any = None
+
+
 def read_capability_table(state_path: Path | None) -> dict[str, Any]:
     if state_path is None:
         return {}
+    from .capability_benchmarks import read_benchmark_priors
+    table = CapabilityTable()
+    table.benchmarks = read_benchmark_priors(state_path)
     try:
         data = json.loads(Path(state_path).with_name('model_capabilities.json').read_text(encoding='utf-8'))
     except FileNotFoundError:
-        return {}
+        return table
     except (OSError, ValueError) as exc:
         raise ValueError('invalid_model_capabilities') from exc
     if not isinstance(data, dict) or type(data.get('version')) is not int or data.get('version') != VERSION or not isinstance(data.get('models'), dict):
@@ -39,7 +47,8 @@ def read_capability_table(state_path: Path | None) -> dict[str, Any]:
             raise ValueError('invalid_model_capabilities')
         if any(k not in KINDS or type(v) is not int or not 1 <= v <= 5 for k, v in entry.get('tiers', {}).items()):
             raise ValueError('invalid_model_capabilities')
-    return data['models']
+    table.update(data['models'])
+    return table
 
 
 def calibration_profiles(results: Sequence[Mapping[str, Any]], *, version: int = VERSION) -> dict[str, Any]:
@@ -102,22 +111,57 @@ def calibration_profiles(results: Sequence[Mapping[str, Any]], *, version: int =
 def tier_evidence(model: str, profile: Mapping[str, Any], kind: str, difficulty: int,
                   table: Mapping[str, Any] | None = None,
                   override: Mapping[str, Any] | None = None) -> tuple[int, bool, str]:
-    """Resolve binding Owner tiers > measured buckets > Owner table > prior."""
+    detail = tier_detail(model, profile, kind, difficulty, table, override)
+    return detail['tier'], detail['unproven'], detail['source']
+
+
+def tier_detail(model: str, profile: Mapping[str, Any], kind: str, difficulty: int,
+                table: Mapping[str, Any] | None = None,
+                override: Mapping[str, Any] | None = None, benchmarks: Any = None) -> dict[str, Any]:
+    """Resolve binding Owner tiers > measured buckets > Owner table > benchmark prior > fallback.
+
+    A benchmark prior also enters measured buckets as pseudo-observations, so a
+    few real runs refine it and about ``MEASURED_DOMINATES`` attempts outweigh it.
+    """
+    from .capability_benchmarks import (DEMONSTRATED, MEASURED_DOMINATES, PRIOR_GAP, PRIOR_GAP_MIN_ATTEMPTS,
+                                        blend, expected_success, pseudo_count)
     tier = (override or {}).get("tiers", {}).get(kind)
     if tier is not None:
-        return tier, False, "owner_override"
-    measured = []
+        return {'tier': tier, 'unproven': False, 'source': 'owner_override'}
+    benchmarks = benchmarks if benchmarks is not None else getattr(table, 'benchmarks', None)
+    prior = benchmarks.lookup(model, kind) if benchmarks is not None else None
+    measured, gaps, attempts_seen = [], [], 0
     for level in range(1, 6):
         bucket = profile.get('task_buckets', {}).get(f'{kind}:{level}', {})
-        if bucket.get('attempts', 0) >= 3:
-            good = (bucket.get('success_rate') or 0) >= .8 and bucket.get('timeouts', 0) / bucket['attempts'] <= .2
+        attempts = bucket.get('attempts', 0)
+        if attempts >= 3:
+            rate = bucket.get('success_rate') or 0
+            if prior is not None:
+                expected = expected_success(prior['tier'], level)
+                rate_used = blend(expected, pseudo_count(prior['confidence']), bucket.get('ok', round(rate * attempts)), attempts)
+                if attempts >= PRIOR_GAP_MIN_ATTEMPTS and abs(rate - expected) >= PRIOR_GAP:
+                    gaps.append(f'{kind}:{level}')
+            else:
+                rate_used = rate
+            good = rate_used >= DEMONSTRATED and bucket.get('timeouts', 0) / attempts <= .2
             measured.append((level, max(1, level if good else level - 1)))
+            attempts_seen = max(attempts_seen, attempts)
+    detail: dict[str, Any] = {}
+    if prior is not None:
+        detail['benchmark'] = {key: prior[key] for key in ('family', 'tier', 'percentile', 'confidence', 'snapshot_id', 'sources')}
+        if gaps:
+            detail['prior_gap'] = gaps
     if measured:
         exact = next((tier for level, tier in measured if level == difficulty), None)
-        return exact if exact is not None else max(tier for _, tier in measured), False, 'measured'
+        source = 'measured' if prior is None or attempts_seen >= MEASURED_DOMINATES else 'measured_with_prior'
+        return {**detail, 'tier': exact if exact is not None else max(tier for _, tier in measured),
+                'unproven': False, 'source': source}
     entry = (table or {}).get(model, (table or {}).get(model.rsplit('/', 1)[-1], {}))
     tier = entry.get('tiers', {}).get(kind)
     if tier is not None:
-        return tier, False, 'owner_table'
+        return {**detail, 'tier': tier, 'unproven': False, 'source': 'owner_table'}
+    if prior is not None:
+        # One source, or conflicting sources, still needs calibration before hard work.
+        return {**detail, 'tier': prior['tier'], 'unproven': prior['confidence'] != 'high', 'source': 'benchmark'}
     # No name heuristic can establish competence; the prior remains unproven.
-    return 2, True, 'prior'
+    return {'tier': 2, 'unproven': True, 'source': 'prior'}
