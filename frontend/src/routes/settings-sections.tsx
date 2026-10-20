@@ -5,10 +5,12 @@ import { ThemeSelector } from "@/components/theme-selector";
 import { useBindings } from "@/hooks/use-model-access";
 
 const SECTIONS = [
-  { path: "/settings/resources", title: "AI 资源与账号", description: "管理本地连接、账号会话与模型绑定" },
+  { path: "/settings/resources", title: "AI 资源与账号", description: "本地连接、账号会话、Magpie 与迁移状态" },
+  { path: "/settings/models", title: "模型与路由", description: "执行器到模型的绑定；实际使用的模型以运行记录为准" },
   { path: "/settings/usage", title: "用量与额度", description: "查看实际观测和估算用量；未知额度不会显示为零" },
   { path: "/settings/agents", title: "Agent 与执行", description: "配置执行团队及已保存的角色绑定" },
   { path: "/settings/appearance", title: "外观", description: "主题和配色；仅影响当前界面" },
+  { path: "/settings/advanced", title: "高级配置", description: "旧版连接与绑定合并编辑器，迁移完成前保留" },
 ] as const;
 
 export function SettingsHubPage() {

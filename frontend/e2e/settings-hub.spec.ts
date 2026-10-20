@@ -9,9 +9,11 @@ test("settings hub opens independent sections without mixing their controls", as
 
   for (const [name, route] of [
     ["AI 资源与账号", "/settings/resources"],
+    ["模型与路由", "/settings/models"],
     ["用量与额度", "/settings/usage"],
     ["Agent 与执行", "/settings/agents"],
     ["外观", "/settings/appearance"],
+    ["高级配置", "/settings/advanced"],
   ] as const) {
     await appPage.getByRole("link", { name: new RegExp(name) }).click();
     await expect(appPage).toHaveURL(new RegExp(route.replaceAll("/", "\\/") + "$"));
@@ -27,4 +29,20 @@ test("settings hub opens independent sections without mixing their controls", as
   await appPage.getByRole("link", { name: /外观/ }).click();
   await expect(appPage.getByTestId("theme-selector")).toBeVisible();
   await expect(appPage.getByTestId("settings-model-access-layout")).toHaveCount(0);
+
+  await appPage.getByRole("link", { name: /返回设置/ }).click();
+  await appPage.getByRole("link", { name: /AI 资源与账号/ }).click();
+  // The e2e mock server has no Model Control backend, so assert list ownership by heading.
+  const connectionsHeading = appPage.getByTestId("settings-model-access-index").getByRole("heading", { name: "连接", exact: true });
+  const bindingsHeading = appPage.getByTestId("settings-model-access-index").getByRole("heading", { name: "绑定", exact: true });
+  await expect(connectionsHeading).toBeVisible();
+  await expect(bindingsHeading).toHaveCount(0);
+  await appPage.getByTestId("settings-section-note").getByRole("link", { name: "模型与路由" }).click();
+  await expect(appPage).toHaveURL(/\/settings\/models$/);
+  await expect(bindingsHeading).toBeVisible();
+  await expect(connectionsHeading).toHaveCount(0);
+  await appPage.goBack();
+  await expect(appPage).toHaveURL(/\/settings\/resources$/);
+  await expect(connectionsHeading).toBeVisible();
+  await expect(appPage.getByTestId("settings-migration-status")).toBeVisible();
 });
