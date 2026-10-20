@@ -177,6 +177,7 @@ class CombinedTrustedHost:
         self._trusted_client = None
         self._remote_job_broker = None
         self._research_loop = None
+        self._workspace_reclaimer = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
@@ -1089,6 +1090,13 @@ class CombinedTrustedHost:
                 broker=self._remote_job_broker)
             if self._research_loop is not None:
                 self._research_loop.start()
+            # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
+            # dirty, unpushed, recent or still-running task workspaces.
+            from .workspace_reclaim import configured_reclaimer
+            self._workspace_reclaimer = configured_reclaimer(
+                workspace_root, self._task_store.db_path)
+            if self._workspace_reclaimer is not None:
+                self._workspace_reclaimer.start()
             # Optional, independent public-announcement observer. This never
             # changes a quota guard decision or starts any model execution.
             if os.environ.get("REVERSE_AGENT_CLAUDE_RESET_WATCH") == "1":
@@ -1106,6 +1114,9 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        reclaimer, self._workspace_reclaimer = getattr(self, "_workspace_reclaimer", None), None
+        if reclaimer is not None:
+            reclaimer.stop()
         if self._research_loop is not None:
             self._research_loop.stop()
             self._research_loop = None

@@ -414,3 +414,166 @@ def test_pattern_filter_and_cli(repo, root, tmp_path, capsys):
     assert report["applied"] is False
     assert "(dry run)" in capsys.readouterr().out
     assert (root / "nerelan-1").exists()
+
+
+def _store_db(path, rows):
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE tasks(id TEXT PRIMARY KEY, status TEXT, updated_at TEXT)")
+        db.executemany("INSERT INTO tasks VALUES(?,?,?)", rows)
+    return path
+
+
+def _iso(ts):
+    return workspace_reclaim.datetime.fromtimestamp(ts, workspace_reclaim.timezone.utc) \
+        .replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _reclaimer(root, db, mode="apply", **kw):
+    return workspace_reclaim.AutoReclaimer(root, db, mode=mode, clock=lambda: LATER, **kw)
+
+
+def test_auto_config_is_off_by_default_and_rejects_bad_values():
+    assert workspace_reclaim.auto_config({}) == {
+        "mode": "off", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0}
+    config = workspace_reclaim.auto_config({
+        "REVERSE_AGENT_WORKSPACE_RECLAIM": "delete-all",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "-1",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS": "nan",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES": "0.1",
+    })
+    assert config == {"mode": "off", "retention_days": 3.0, "interval_hours": 24.0,
+                      "poll_minutes": 15.0}
+    config = workspace_reclaim.auto_config({
+        "REVERSE_AGENT_WORKSPACE_RECLAIM": " Apply ",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "7"})
+    assert config["mode"] == "apply" and config["retention_days"] == 7.0
+
+
+def test_configured_reclaimer_needs_opt_in_and_a_file_store(root, tmp_path):
+    db = str(tmp_path / "tasks.sqlite3")
+    assert workspace_reclaim.configured_reclaimer(root, db, env={}) is None
+    on = {"REVERSE_AGENT_WORKSPACE_RECLAIM": "report"}
+    assert workspace_reclaim.configured_reclaimer(root, ":memory:", env=on) is None
+    reclaimer = workspace_reclaim.configured_reclaimer(root, db, env=on)
+    assert reclaimer.apply is False
+    assert reclaimer.state_path == tmp_path / "workspace_reclaim_state.json"
+
+
+def test_finished_task_is_reclaimed_after_retention_once(repo, root, tmp_path):
+    old = add_worktree(repo, root, "task-old")
+    fresh = add_worktree(repo, root, "task-fresh")
+    running = add_worktree(repo, root, "task-run")
+    db = _store_db(tmp_path / "tasks.sqlite3", [
+        ("task-old", "READY_FOR_REVIEW", _iso(LATER - 4 * 86400)),
+        ("task-fresh", "FAILED", _iso(LATER - 3600)),
+        ("task-run", "RUNNING", _iso(LATER - 10 * 86400)),
+        ("task-gone", "FAILED", _iso(LATER - 10 * 86400)),
+    ])
+    reclaimer = _reclaimer(root, db)
+    records = reclaimer.reclaim_finished(LATER)
+    assert [Path(r["path"]).name for r in records] == ["task-old"]
+    assert records[0]["removed"] is True and not old.exists()
+    assert fresh.exists() and running.exists()
+    assert str(old) not in git(repo, "worktree", "list", "--porcelain")
+    assert reclaimer.reclaim_finished(LATER) == []
+
+
+def test_finished_task_with_unsafe_work_is_kept(repo, root, tmp_path):
+    dirty = add_worktree(repo, root, "task-dirty")
+    (dirty / "a.txt").write_text("changed\n")
+    unpushed = add_worktree(repo, root, "task-unpushed")
+    git(unpushed, "commit", "-q", "--allow-empty", "-m", "local")
+    done = _iso(LATER - 5 * 86400)
+    db = _store_db(tmp_path / "tasks.sqlite3",
+                   [("task-dirty", "FAILED", done), ("task-unpushed", "READY_FOR_REVIEW", done)])
+    records = {Path(r["path"]).name: r for r in _reclaimer(root, db).reclaim_finished(LATER)}
+    assert records["task-dirty"]["reason"] == "uncommitted or untracked changes"
+    assert records["task-unpushed"]["reason"] == "commits not on any remote branch"
+    assert dirty.exists() and unpushed.exists()
+
+
+def test_report_mode_never_deletes(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    result = _reclaimer(root, db, mode="report", state_path=tmp_path / "state.json").tick()
+    assert result["finished"][0]["reclaim"] is True
+    assert result["sweep"]["applied"] is False and wt.exists()
+
+
+def test_full_sweep_runs_once_per_interval_across_restarts(repo, root, tmp_path):
+    db = _store_db(tmp_path / "tasks.sqlite3", [])
+    wt = add_worktree(repo, root, "untracked-task")
+    state = tmp_path / "state.json"
+    first = _reclaimer(root, db, state_path=state).tick()
+    assert first["sweep"]["removed"] == 1 and not wt.exists()
+    assert json.loads(state.read_text())["last_sweep_at"] == LATER
+    assert _reclaimer(root, db, state_path=state).tick()["sweep"] is None
+    later = workspace_reclaim.AutoReclaimer(root, db, mode="apply", state_path=state,
+                                            clock=lambda: LATER + 25 * 3600)
+    assert later.tick()["sweep"] is not None
+
+
+def test_unreadable_store_skips_finished_pass(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    (tmp_path / "bad.sqlite3").write_text("not sqlite")
+    result = _reclaimer(root, tmp_path / "bad.sqlite3").tick()
+    assert result["finished"] == []
+    assert by_name(result["sweep"])["task-1"]["reason"] == "task store unreadable"
+    assert wt.exists()
+
+
+def test_background_thread_starts_and_stops(root, tmp_path):
+    reclaimer = _reclaimer(root, _store_db(tmp_path / "tasks.sqlite3", []))
+    reclaimer.start()
+    assert reclaimer._thread.is_alive()
+    reclaimer.stop()
+    assert reclaimer._thread is None
+
+
+def test_auto_config_rejects_non_finite_durations():
+    config = workspace_reclaim.auto_config({
+        "REVERSE_AGENT_WORKSPACE_RECLAIM": "apply",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "inf",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS": "1e309",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES": "Infinity"})
+    assert (config["retention_days"], config["interval_hours"], config["poll_minutes"]) == (
+        3.0, 24.0, 15.0)
+
+
+def test_stop_during_a_slow_check_skips_removal_and_keeps_the_worker(
+        repo, root, tmp_path, monkeypatch):
+    import threading
+    wt = add_worktree(repo, root, "task-1")
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    reclaimer = _reclaimer(root, db, state_path=tmp_path / "state.json")
+    entered, release = threading.Event(), threading.Event()
+    real_inspect = workspace_reclaim.inspect
+
+    def slow_inspect(path, **kw):
+        record = real_inspect(path, **kw)
+        entered.set()
+        release.wait(10)
+        return record
+
+    monkeypatch.setattr(workspace_reclaim, "inspect", slow_inspect)
+    worker = threading.Thread(target=reclaimer.tick)
+    reclaimer._thread = worker
+    worker.start()
+    assert entered.wait(10)
+    assert reclaimer.stop(timeout=0.05) is False
+    assert reclaimer._thread is worker
+    reclaimer.start()
+    assert reclaimer._thread is worker
+    release.set()
+    worker.join(10)
+    assert wt.exists()
+    assert reclaimer.stop() is True and reclaimer._thread is None
+
+
+def test_finished_pass_ignores_task_ids_that_are_not_plain_children(repo, root, tmp_path):
+    done = _iso(LATER - 5 * 86400)
+    db = _store_db(tmp_path / "tasks.sqlite3",
+                   [("..", "FAILED", done), (".", "FAILED", done), ("", "FAILED", done),
+                    ("a/b", "FAILED", done)])
+    assert _reclaimer(root, db).reclaim_finished(LATER) == []
+    assert root.exists()
