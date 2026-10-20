@@ -272,6 +272,35 @@ def test_scratch_name_below_top_level_is_not_special(repo, root):
     assert entry["reason"].startswith("ignored files present") and wt.exists()
 
 
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+@pytest.mark.parametrize("kind", ["worktree", "clone"])
+def test_hidden_index_edits_are_kept(repo, root, tmp_path, flag, kind):
+    if kind == "worktree":
+        target = add_worktree(repo, root, "task-1")
+    else:
+        target = root / "task-1"
+        git(root, "clone", "-q", str(tmp_path / "remote.git"), str(target))
+    git(target, "update-index", flag, "a.txt")
+    (target / "a.txt").write_text("local secret\n")
+    os.utime(target / "a.txt", (0, 0))
+    entry = by_name(sweep([root], now=LATER, apply=True, include_clones=True))["task-1"]
+    assert entry["reason"] == "assume-unchanged or skip-worktree entries"
+    assert (target / "a.txt").read_text() == "local secret\n"
+
+
+@pytest.mark.parametrize("kind", ["worktree", "clone"])
+def test_reflog_only_commits_are_kept(repo, root, tmp_path, kind):
+    if kind == "worktree":
+        target = add_worktree(repo, root, "task-1")
+    else:
+        target = root / "task-1"
+        git(root, "clone", "-q", str(tmp_path / "remote.git"), str(target))
+    git(target, "commit", "-q", "--allow-empty", "-m", "abandoned")
+    git(target, "reset", "-q", "--hard", "origin/main")
+    entry = by_name(sweep([root], now=LATER, apply=True, include_clones=True))["task-1"]
+    assert entry["reason"] == "commits not on any remote branch" and target.exists()
+
+
 def test_locked_worktree_is_kept(repo, root):
     wt = add_worktree(repo, root, "task-1")
     git(repo, "worktree", "lock", str(wt))

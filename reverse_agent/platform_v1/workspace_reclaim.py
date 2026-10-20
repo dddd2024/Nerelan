@@ -10,11 +10,17 @@ only when every check below proves no work can be lost:
 * ``git status`` shows no tracked change and no untracked file, and every
   ignored path is a regenerable cache (``__pycache__``, ``node_modules``,
   native execution scratch ``.nt``/``.nt-<12 hex>``...);
-* HEAD, and for a clone every ref (branches, tags, stash), is reachable from a
-  remote-tracking ref;
+* no index entry is assume-unchanged or skip-worktree (status hides those);
+* HEAD and its reflog, and for a clone every ref and reflog (branches, tags,
+  stash), is reachable from a remote-tracking ref;
 * nothing anywhere in the tree was modified within the retention window;
 * when a TaskStore is given, the matching task is not in a non-terminal state;
 * it is not a planner worktree, which recovers itself from owner records.
+
+"Pushed" means reachable from a local remote-tracking ref; run ``git fetch
+--prune`` first if those may be stale. Deleting a clone that other repositories
+borrow objects from (``clone --shared``/``--reference``) breaks them; such
+clones are rare and not detected.
 
 Anything else is kept and reported with the reason. The default is a dry run;
 ``apply=True`` re-checks each candidate immediately before deleting it. Deletion
@@ -55,12 +61,13 @@ _CACHE_SUFFIXES = (".pyc", ".pyo")
 _SCRATCH_RE = re.compile(r"\.nt(?:-[0-9a-f]{12})?")
 
 
-def _run(args, cwd, timeout=60):
+def _run(args, cwd, timeout=60, stdin_text=None):
     try:
         proc = subprocess.run(
             [*_GIT, *args], cwd=str(cwd), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout,
-            stdin=subprocess.DEVNULL, env={**os.environ, **_GIT_ENV},
+            input=stdin_text, stdin=None if stdin_text is not None else subprocess.DEVNULL,
+            env={**os.environ, **_GIT_ENV},
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, str(exc)
@@ -223,6 +230,13 @@ def inspect(path: Path, *, now: float, retention_days: float,
         return keep("git status failed")
     if porcelain:
         return keep("uncommitted or untracked changes")
+    # status hides edits to assume-unchanged (lowercase tag) and
+    # skip-worktree (S) entries, so their presence alone keeps the checkout.
+    flags = _git(["ls-files", "-v", "-z"], path, timeout=300)
+    if flags is None:
+        return keep("index flags unreadable")
+    if any(e and (e[0].islower() or e[0] == "S") for e in flags.split("\0")):
+        return keep("assume-unchanged or skip-worktree entries")
     # Per file, not --directory: git collapses a parent whose children are all
     # ignored, which would hide whether they are only caches.
     ignored = _git(["ls-files", "-z", "--others", "--ignored", "--exclude-standard"],
@@ -235,13 +249,20 @@ def inspect(path: Path, *, now: float, retention_days: float,
     head = _git(["rev-parse", "--verify", "HEAD^{commit}"], path)
     if not head:
         return keep("head unknown")
+    # Commits left behind by reset/checkout survive only in the reflog.
+    reflog = _git(["log", "-g", "--format=%H", "HEAD", "--"], path, timeout=120)
+    if reflog is None and _git(["reflog", "exists", "HEAD"], path) is not None:
+        return keep("reflog unreadable")
     if record["kind"] == "clone":
-        refs = ["--all", "HEAD"]
+        refs = ["--all", "--reflog", "HEAD"]
         if _git(["stash", "list"], path) != "":
             return keep("stash present or unreadable")
     else:
         refs = ["HEAD"]
-    unpushed = _git(["rev-list", "-n1", *refs, "--not", "--remotes"], path)
+    code, unpushed = _run(["rev-list", "-n1", "--stdin", *refs, "--not", "--remotes"], path,
+                          stdin_text="\n".join(sorted(set((reflog or "").split()))) + "\n")
+    if code != 0:
+        unpushed = None
     if unpushed is None:
         return keep("remote reachability unknown")
     if unpushed:
