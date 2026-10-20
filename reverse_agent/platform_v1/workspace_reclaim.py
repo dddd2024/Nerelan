@@ -481,8 +481,8 @@ class AutoReclaimer:
     def stop(self, timeout: float = 5.0) -> bool:
         """Signal the worker and wait; ``False`` if it is still finishing a check.
 
-        Removal is skipped once stop is signalled, so a worker still inside a
-        slow git call never deletes anything after this returns.
+        Once stop is signalled no new removal starts; one already running
+        when it was signalled may finish.
         """
         self._stop.set()
         thread = self._thread
@@ -529,7 +529,9 @@ class AutoReclaimer:
             if finished_at is None or now - finished_at < self.retention_days * 86400:
                 continue
             child = self.root / task_id
-            if Path(task_id).name != task_id or not os.path.lexists(child):
+            # Only a plain direct child of the root; never "", "." or "..".
+            if (task_id in ("", ".", "..") or Path(task_id).name != task_id
+                    or child.parent != self.root or not os.path.lexists(child)):
                 continue
             self._handled.add((task_id, updated_at))
             record = _reclaim_one(child, self._opts(now, statuses), self.apply,

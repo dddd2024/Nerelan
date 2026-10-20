@@ -568,3 +568,12 @@ def test_stop_during_a_slow_check_skips_removal_and_keeps_the_worker(
     worker.join(10)
     assert wt.exists()
     assert reclaimer.stop() is True and reclaimer._thread is None
+
+
+def test_finished_pass_ignores_task_ids_that_are_not_plain_children(repo, root, tmp_path):
+    done = _iso(LATER - 5 * 86400)
+    db = _store_db(tmp_path / "tasks.sqlite3",
+                   [("..", "FAILED", done), (".", "FAILED", done), ("", "FAILED", done),
+                    ("a/b", "FAILED", done)])
+    assert _reclaimer(root, db).reclaim_finished(LATER) == []
+    assert root.exists()
