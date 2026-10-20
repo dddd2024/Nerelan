@@ -729,19 +729,54 @@ class CombinedTrustedHost:
                     if b["connection_id"] == connection.get("connection_id")]
         if not bindings:
             return None
-        since = datetime.fromtimestamp(time.time() - 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = time.time()
+        # Stated resets are bounded to seven days from the recorded failure,
+        # never from a later admission check. Keep those older failures discoverable.
+        since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, updated_at FROM tasks WHERE status IN ('FAILED', 'BLOCKED') "
+            "SELECT failure_classification, failure_reset_at, failure_at, updated_at FROM tasks "
+            "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
-        # Our own refusals are not new answers from the account and must never extend the hold.
-        hit = next((row["updated_at"] for row in rows if ACCOUNT_LIMIT.search(row["failure_classification"] or "")), None)
-        if hit is None:
-            return None
-        hit_at = datetime.fromisoformat(hit.replace("Z", "+00:00")).timestamp()
-        quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "")
-        until = limit_hit_until(hit_at, quota)
-        return until if until > time.time() else None
+        quota = None
+        holds = []
+        for row in rows:
+            # Host refusals are not fresh account evidence.
+            if not ACCOUNT_LIMIT.search(row["failure_classification"] or ""):
+                continue
+            hit_at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            if hit_at > now:
+                continue
+            if quota is None:
+                quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "", {})
+            stated = None
+            try:
+                reset = datetime.fromisoformat(row["failure_reset_at"].replace("Z", "+00:00"))
+                if reset.utcoffset() is not None and hit_at < reset.timestamp() <= hit_at + 7 * 86400:
+                    stated = reset.timestamp()
+            except (ValueError, TypeError, OverflowError):
+                pass
+            if stated is not None and stated <= now:
+                continue  # An expired stated failure cannot renew on a later quota window.
+            if stated is not None:
+                # Only exhausted windows may extend a stated account hold.
+                from .quota_guard import parse_time
+                resets = [stated]
+                for window in quota.get("windows", ()):
+                    used = window.get("used_percent")
+                    remaining = window.get("remaining_percent")
+                    if not ((type(used) in (int, float) and used >= 100)
+                            or (type(remaining) in (int, float) and remaining == 0)):
+                        continue
+                    value = window.get("resets_at")
+                    reset = float(value) if type(value) in (int, float) else parse_time(value)
+                    if reset is not None and reset > hit_at:
+                        resets.append(reset)
+                holds.append(max(resets))
+            elif hit_at >= now - 86400:
+                holds.append(limit_hit_until(hit_at, quota))
+        until = max(holds, default=0)
+        return until if until > now else None
 
     def _runnable_bindings(self) -> set[str]:
         """Bindings that could dispatch now: enabled, credential usable, executor ready (resolver rules)."""
@@ -825,9 +860,27 @@ class CombinedTrustedHost:
             account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
                        and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
             # Official numbers first; the local CLI logs fill in what they do not say.
-            return {"codex": codex_quota(),
-                    "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            local = {"codex": codex_quota(),
+                     "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            return self._merge_magpie_quotas(local)
         return _cached(self, "_subscription_quota_cache", read)
+
+    def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
+        """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        from ..model_access.subscription_quota import magpie_quota_windows
+        if not magpie_enabled(os.environ):
+            return local
+        try:
+            snapshot = fetch_magpie_snapshot(
+                os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
+        except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            return local
+        magpie = magpie_quota_windows(snapshot)
+        merged = dict(local)
+        for key, quota in magpie.items():
+            merged[key] = quota
+        return merged
 
     def _claude_reset_quota_recheck(self) -> None:
         # Read-only official CLI telemetry; never change entitlement/limits.
