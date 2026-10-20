@@ -741,3 +741,41 @@ def test_state_gate_keeps_target_base_and_exact_head_checks() -> None:
     assert "control-plane-mode" in content
     # The checkout fix must not remove the path-a / transition dispatch.
     assert "path-a-r1-gate" in content or "path_a_r1" in content
+
+
+FRONTEND_VISUAL_BASELINES_PATH = WORKFLOWS_DIR / "frontend-visual-baselines.yml"
+
+
+def _workflow_job_block(content: str, job: str) -> str:
+    match = re.search(rf"^  {job}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)", content, re.MULTILINE | re.DOTALL)
+    assert match, f"job {job} missing"
+    return match.group(1)
+
+
+def test_frontend_visual_baselines_workflow_only_stages_outside_pr_branch() -> None:
+    content = FRONTEND_VISUAL_BASELINES_PATH.read_text(encoding="utf-8")
+    assert re.search(r"^permissions:\n  contents: read$", content, re.MULTILINE)
+    assert "[update-visual-baselines]" in content
+    assert "head.repo.full_name == github.repository" in content
+    assert "pull_request_target" not in content
+
+    regenerate = _workflow_job_block(content, "regenerate")
+    assert "contents: write" not in regenerate
+    assert "persist-credentials: false" in regenerate
+    assert "--update-snapshots=changed" in regenerate
+    assert "run: npm run e2e:visual\n" in regenerate, "regenerated baselines must be re-checked"
+
+    stage = _workflow_job_block(content, "stage")
+    assert "contents: write" in stage
+    for forbidden in ("npm ", "npx ", "playwright"):
+        assert forbidden not in stage, f"write-capable job must not run PR code: {forbidden}"
+    pushes = re.findall(r"git push[^\n]*", content.split("\njobs:\n", 1)[1])
+    assert pushes == ['git push origin "HEAD:refs/heads/$staging"'], "staging refs are never force-pushed"
+    assert 'staging="ci-visual-baselines/$HEAD_SHA"' in stage
+    assert 'git ls-remote origin "refs/heads/$staging"' in stage
+    assert "! -name '*.png'" in stage
+
+    # The check itself stays untouched: it never updates snapshots on its own.
+    check = FRONTEND_PLAYWRIGHT_PATH.read_text(encoding="utf-8")
+    assert "--update-snapshots" not in check
+    assert "contents: write" not in check
