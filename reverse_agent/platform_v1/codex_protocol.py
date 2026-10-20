@@ -253,6 +253,15 @@ class CodexJsonl:
             if self._started or not self.turn.thread_id:
                 raise CodexProtocolError("codex_turn_identity_invalid")
             self._started = True
+        elif kind == "token_count":
+            info = event.get("info")
+            usage = info.get("total_token_usage") if isinstance(info, dict) else None
+            keys = ("input_tokens", "cached_input_tokens", "output_tokens")
+            if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in keys):
+                # Cumulative counters are a projection signal, not a completed
+                # native_summary observation (which would double-charge usage).
+                if self._callback:
+                    self._callback({"type": "quota.signal", "tokens": {k: usage[k] for k in keys}})
         elif kind == "error":
             # CLI diagnostics (including reconnect attempts) are not a turn
             # terminal. Only a later completed/failed event settles the turn;

@@ -67,7 +67,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  reset_signal: Mapping[str, Any] | None = None, now: float | None = None,
                  reset_buffer: float = .03, refused_models: Sequence[str] = (),
                  refusal_tier: int = 0, capability_table: Mapping[str, Any] | None = None,
-                 allow_paid: bool = False) -> dict[str, Any]:
+                 allow_paid: bool = False, quota_buffer: float = .10) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -75,6 +75,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     Pins override price/tier, while readiness, quota and review fitness still apply.
     The injected uniform draw gives easy tasks a default 10% exploration rate.
     """
+    if type(quota_buffer) not in (int, float) or not 0 <= quota_buffer <= 1:
+        raise ValueError("invalid_quota_buffer")
     task_traits({"difficulty": difficulty, "kind": kind})
     context_need, needs = requirements({"context_need": context_need, "needs": needs})
     content = "security_simulation" if "security_simulation" in needs else kind
@@ -121,8 +123,16 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
               or "tool_use" in needs and metadata.get("tool_use") is False
               or "chinese" in needs and metadata.get("chinese") is False):
             reason = "modality"
-        elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
+        elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
             reason = "quota_exhausted"
+        elif (candidate.get("cost_class") == "subscription"
+              # An announced Codex reset drains to reset_buffer instead (Owner rule, #1248/#1281).
+              and not (candidate["executor_id"] == "codex" and reset["drain"]) and any(
+                candidate.get(need) is not None and candidate.get(headroom) is not None
+                and candidate[need] > candidate[headroom] - quota_buffer
+                for need, headroom in (("task_weekly_fraction", "weekly_headroom"),
+                                       ("task_short_fraction", "short_headroom")))):
+            reason = "quota_capacity"
         elif (candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription"
               and reset["drain_target"] is not None and candidate.get("weekly_headroom") is not None
               and candidate["weekly_headroom"] <= reset_buffer):
@@ -133,7 +143,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "reset_buffer"
         elif (candidate["executor_id"] == "codex" and reset["drain"]
               and candidate.get("task_short_fraction") is not None and candidate.get("short_headroom") is not None
-              and candidate["task_short_fraction"] > candidate["short_headroom"]):
+              and candidate["task_short_fraction"] > candidate["short_headroom"] - reset_buffer):
             reason = "short_window_capacity"
         elif "security_simulation" in needs and refusal is not None and refusal >= .5:
             reason = "refusal_rate"

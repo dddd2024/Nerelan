@@ -697,6 +697,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         tasks=payload.get("tasks", ()),
                     )
                     response = goal_to_dict(result.goal)
+                    response["quota_fit"] = result.quota_fit
                     response["planner"] = result.planner
                     response["spec_kit_available"] = result.spec_kit_available
                     self._send_json(HTTPStatus.OK, response)

@@ -55,8 +55,10 @@ class UnattendedCoordinator:
         claim_lease_ms: int = 15 * 60 * 1000,
         owner: str | None = None,
         goal_escalator: Any | None = None,
+        quota_preparer: Any | None = None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
+        self.quota_preparer = quota_preparer
         self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
@@ -252,6 +254,8 @@ class UnattendedCoordinator:
             if self._stop.is_set():
                 break
             try:
+                if self.quota_preparer is not None:
+                    self.quota_preparer(task)
                 epoch, _ = self.control_store.claim_task(
                     window_id=window.id,
                     task_id=task_id,

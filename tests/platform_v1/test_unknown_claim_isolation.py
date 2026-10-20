@@ -25,7 +25,8 @@ def isolated(setup):
                (old_window.id,))
     db.execute("INSERT INTO platform_coordinator_claims VALUES (?, ?, 'original', 7, 1, 'ACTIVE', 'old', 'old')",
                (old_id, old_window.id))
-    db.execute("INSERT INTO platform_budget_reservations VALUES (?, 7, ?, 123, 456, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
+    db.execute("INSERT INTO platform_budget_reservations "
+        "(task_id, claim_epoch, window_id, reserved_token_units, reserved_cost_micro_units, state, observed_token_units, observed_cost_micro_units, created_at, updated_at, reconciled_at) VALUES (?, 7, ?, 123, 456, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
                (old_id, old_window.id))
     db.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, "
                "lease_expiry_ms, created_at, updated_at) VALUES ('old-run', ?, 'old-execution', 'fixture', 9, 1, 'old', 'old')",
@@ -178,7 +179,8 @@ def test_three_historical_claims_fit_native_dialog(isolated):
         db.execute("UPDATE tasks SET status='FAILED' WHERE id=?", (task.id,))
         db.execute("INSERT INTO platform_coordinator_claims VALUES (?, ?, 'original', 7, 1, 'ACTIVE', 'old', 'old')",
                    (task.id, window.id))
-        db.execute("INSERT INTO platform_budget_reservations VALUES (?, 7, ?, 123, 456, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
+        db.execute("INSERT INTO platform_budget_reservations "
+        "(task_id, claim_epoch, window_id, reserved_token_units, reserved_cost_micro_units, state, observed_token_units, observed_cost_micro_units, created_at, updated_at, reconciled_at) VALUES (?, 7, ?, 123, 456, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
                    (task.id, window.id))
         db.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, "
                    "lease_expiry_ms, created_at, updated_at) VALUES (?, ?, 'old', 'fixture', 1, 'old', 'old')",
@@ -202,7 +204,8 @@ def large_isolation(isolated):
         epoch = 8 + index
         db.execute("INSERT INTO platform_coordinator_claims VALUES (?, ?, 'original', ?, 1, 'ACTIVE', 'old', 'old')",
                    (task.id, window.id, epoch))
-        db.execute("INSERT INTO platform_budget_reservations VALUES (?, ?, ?, ?, ?, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
+        db.execute("INSERT INTO platform_budget_reservations "
+        "(task_id, claim_epoch, window_id, reserved_token_units, reserved_cost_micro_units, state, observed_token_units, observed_cost_micro_units, created_at, updated_at, reconciled_at) VALUES (?, ?, ?, ?, ?, 'ACTIVE', NULL, NULL, 'old', 'old', '')",
                    (task.id, epoch, window.id, 124 + index, 457 + index))
         db.execute("INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, "
                    "lease_expiry_ms, created_at, updated_at) VALUES (?, ?, ?, 'fixture', ?, 1, 'old', 'old')",

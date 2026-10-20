@@ -128,6 +128,7 @@ class ClaudeStreamJson:
             if limit is not None:
                 kept = [item for item in self.turn.rate_limits if item.get("window") != limit.get("window")]
                 self.turn.rate_limits = (kept + [limit])[-_MAX_RATE_LIMITS:]
+                self._publish({"type": "quota.signal", "rate_limit": limit})
             return
         if self.turn.completed or self.turn.failed:
             raise ClaudeProtocolError("claude_code_event_after_terminal")

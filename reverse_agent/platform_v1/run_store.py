@@ -460,6 +460,13 @@ class TaskStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS quota_partial_checkpoints (
+                checkpoint_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES durable_runs(run_id),
+                request_epoch INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                payload_json TEXT NOT NULL DEFAULT '{}'
+            );
             CREATE TABLE IF NOT EXISTS durable_checkpoint_history (
                 checkpoint_id TEXT NOT NULL,
                 run_id TEXT NOT NULL REFERENCES durable_runs(run_id),
@@ -1292,7 +1299,7 @@ class TaskStore:
                 raise TaskStoreError(f"invalid_usage_label:{name}")
             if not safe_label.fullmatch(value) or "://" in value:
                 raise TaskStoreError(f"invalid_usage_label:{name}")
-        if status not in {"OBSERVED", "UNKNOWN"}:
+        if status not in {"OBSERVED", "PARTIAL", "UNKNOWN"}:
             raise TaskStoreError("invalid_usage_status")
         metrics = {
             "input_units": input_units,
@@ -1305,6 +1312,12 @@ class TaskStore:
         if status == "OBSERVED":
             for name, value in metrics.items():
                 if type(value) is not int or value < 0:
+                    raise TaskStoreError(f"invalid_usage_metric:{name}")
+        elif status == "PARTIAL":
+            if not any(value is not None for value in metrics.values()):
+                raise TaskStoreError("partial_usage_requires_measurement")
+            for name, value in metrics.items():
+                if value is not None and (type(value) is not int or value < 0):
                     raise TaskStoreError(f"invalid_usage_metric:{name}")
         elif any(value is not None for value in metrics.values()):
             raise TaskStoreError("unknown_usage_must_not_carry_numeric_zero")
@@ -1404,7 +1417,7 @@ class TaskStore:
             )
             role_totals["observation_count"] += 1
             role_totals["provenance_ids"].append(observation.id)
-            if observation.status == "UNKNOWN":
+            if observation.status != "OBSERVED":
                 unknown += 1
                 role_totals["unknown_observation_count"] += 1
                 continue
@@ -1478,7 +1491,7 @@ class TaskStore:
                 return dict(zero)
             usage = self._conn.execute(
                 "SELECT COUNT(*) AS observation_count, "
-                "COALESCE(SUM(CASE WHEN status = 'UNKNOWN' THEN 1 ELSE 0 END), 0) "
+                "COALESCE(SUM(CASE WHEN status <> 'OBSERVED' THEN 1 ELSE 0 END), 0) "
                 "AS unknown_count, "
                 "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
                 "COALESCE(input_units, 0) + COALESCE(output_units, 0) + "
@@ -1498,6 +1511,20 @@ class TaskStore:
                 "unknown_observation_count": int(usage["unknown_count"]),
                 "observation_count": int(usage["observation_count"]),
             }
+
+    def active_quota_reservation(self, task_id: str) -> dict[str, Any] | None:
+        """Return account metadata only through the existing active claim fence."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT r.account_ref, r.binding_ref, r.quota_windows_json, r.quota_state "
+                "FROM platform_budget_reservations r JOIN platform_coordinator_claims c "
+                "ON r.task_id=c.task_id AND r.claim_epoch=c.epoch AND r.window_id=c.window_id "
+                "WHERE r.task_id=? AND r.state='ACTIVE' AND c.status='ACTIVE' AND c.expires_at_ms>?",
+                (task_id, int(time.time() * 1000))).fetchone()
+            if row is None:
+                return None
+            return {"account_ref": row["account_ref"], "binding_ref": row["binding_ref"],
+                    "windows": json.loads(row["quota_windows_json"]), "state": row["quota_state"]}
 
     def active_usage_reservation(self, task_id: str) -> dict[str, int]:
         """Compatibility projection of the exact active reservation limits."""
@@ -1979,6 +2006,58 @@ class TaskStore:
                 raise TaskStoreError(
                     f"set_repository_base_failed:{exc}"
                 ) from exc
+
+    def quota_checkpoint(self, run_id, checkpoint_id, owner, epoch, *, state=None, payload=None):
+        """Fenced partial-work journal, separate from completed role milestones.
+
+        REQUESTED is never resume evidence. SAVED requires a host-verified payload;
+        the transport/controller must verify workspace and artifact proof first.
+        Mutations and lease validation share one SQLite transaction.
+        """
+        transitions = {None: {"REQUESTED", "LIMIT_HIT"}, "REQUESTED": {"SAVED", "LIMIT_HIT", "FAILED"},
+                       "SAVED": {"PAUSED", "LIMIT_HIT"}, "PAUSED": {"RESUMING"},
+                       "RESUMING": {"RESUMED", "FAILED"}}
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                lease = cur.execute("SELECT lease_expiry_ms FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+                if lease[0] <= int(time.time() * 1000):
+                    raise TaskStoreError("quota_checkpoint_lease_expired")
+                row = cur.execute("SELECT * FROM quota_partial_checkpoints WHERE checkpoint_id=?",
+                                  (checkpoint_id,)).fetchone()
+                if row is not None and row["run_id"] != run_id:
+                    raise TaskStoreError("quota_checkpoint_identity_mismatch")
+                old = row["state"] if row else None
+                if payload is not None and state != "SAVED":
+                    raise TaskStoreError("quota_checkpoint_payload_immutable")
+                encoded = json.dumps(payload, sort_keys=True) if payload is not None else None
+                transitioned = False
+                if state is not None:
+                    if old == state:
+                        if encoded is not None and encoded != row["payload_json"]:
+                            raise TaskStoreError("quota_checkpoint_conflicting_retry")
+                    elif state not in transitions.get(old, set()):
+                        raise TaskStoreError("quota_checkpoint_invalid_transition")
+                    elif old is None:
+                        cur.execute("INSERT INTO quota_partial_checkpoints VALUES (?,?,?,?,?)",
+                                    (checkpoint_id, run_id, epoch, state, encoded or '{}'))
+                    else:
+                        if state == "SAVED" and (not payload or any(not payload.get(k) for k in
+                                ("workspace", "artifact_digest", "summary", "remaining_work", "resume_state"))):
+                            raise TaskStoreError("quota_checkpoint_save_proof_missing")
+                        cur.execute("UPDATE quota_partial_checkpoints SET state=?, payload_json=? WHERE checkpoint_id=?",
+                                    (state, encoded or row["payload_json"], checkpoint_id))
+                    transitioned = old != state
+                result = cur.execute("SELECT * FROM quota_partial_checkpoints WHERE checkpoint_id=?",
+                                     (checkpoint_id,)).fetchone()
+                cur.execute("COMMIT")
+                return dict(result, transitioned=transitioned) if result else None
+            except BaseException:
+                if self._conn.in_transaction:
+                    cur.execute("ROLLBACK")
+                raise
 
     def _accept_checkpoint(
         self,

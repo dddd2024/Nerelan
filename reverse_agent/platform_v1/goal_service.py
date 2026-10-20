@@ -76,6 +76,7 @@ class GoalPlan:
     goal: GoalRecord
     planner: str
     spec_kit_available: bool
+    quota_fit: dict[str, Any] | None = None
 
 
 def goal_to_dict(goal: GoalRecord, *, links: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
@@ -93,12 +94,13 @@ class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
-                 roster_resolver: Any | None = None, task_resolver: Any | None = None) -> None:
+                 roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None) -> None:
         self.store = store
         self.control_store = control_store
         # role -> (executor_kind, binding_ref); supplied by the trusted host.
         self.roster_resolver = roster_resolver
         self.task_resolver = task_resolver
+        self.quota_forecaster = quota_forecaster
 
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
         """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
@@ -151,7 +153,8 @@ class GoalService:
         criteria = tuple(self._clean_lines(acceptance_criteria)) or self._derive_acceptance(goal.objective)
         planned = self._normalize_tasks(tasks) if tasks else self._derive_tasks(goal, criteria)
         spec = self._render_spec(goal, criteria)
-        plan = self._render_plan(goal, planned)
+        fit = self._quota_fit(goal, planned)
+        plan = self._render_plan(goal, planned, fit)
         saved = self.control_store.save_goal_plan(
             goal_id,
             expected_revision=expected_revision,
@@ -164,6 +167,7 @@ class GoalService:
             goal=saved,
             planner="spec-kit-compatible/deterministic",
             spec_kit_available=shutil.which("specify") is not None,
+            quota_fit=fit,
         )
 
     def approve(self, goal_id: str, *, expected_revision: int, policy_ref: str = "") -> GoalRecord:
@@ -854,6 +858,8 @@ class GoalService:
                         # changed a Task during reconciliation on this connection.
                         goal = self.control_store.refresh_goal_status(goal_id)
                 response = goal_to_dict(goal, links=links)
+                response["quota_fit"] = self._quota_fit(goal, self._normalize_tasks(goal.tasks)) if goal.tasks else None
+                response["account_accounting"] = self.control_store.account_budget_summary(goal.window_id) if goal.window_id else {}
                 conn.execute("COMMIT" if owns_transaction else "RELEASE goal_response_snapshot")
                 return response
             except BaseException:
@@ -1008,8 +1014,14 @@ class GoalService:
             f"## Acceptance criteria\n\n{acceptance}\n"
         )
 
+    def _quota_fit(self, goal, tasks):
+        if self.quota_forecaster is None:
+            return {"status": "UNKNOWN", "uncertain": True, "forecast_only": True,
+                    "availability_guaranteed": False, "accounts": {}}
+        return self.quota_forecaster(goal, tasks)
+
     @staticmethod
-    def _render_plan(goal: GoalRecord, tasks: Sequence[PlannedTask]) -> str:
+    def _render_plan(goal: GoalRecord, tasks: Sequence[PlannedTask], fit=None) -> str:
         lines = [f"# Plan: {goal.title}", "", "## Execution tasks", ""]
         for item in tasks:
             deps = ", ".join(item.dependencies) if item.dependencies else "none"
@@ -1034,4 +1046,7 @@ class GoalService:
                     "",
                 ]
             )
+        if fit is not None:
+            lines.extend(["## Quota fit forecast", "", "Read-only forecast; no capacity reserved or future availability promised.",
+                          "", "```json", json.dumps(fit, sort_keys=True), "```", ""])
         return "\n".join(lines)

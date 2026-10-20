@@ -362,15 +362,26 @@ class CodexExecutor:
         parser = self._parser(progress)
         code = None
         def persist_unknown_usage():
+            from .usage_ledger import _native
+            counters = _native(parser.turn.usage, self.KIND) if parser.turn.usage else None
+            metrics = {} if counters is None else {
+                "input_units": counters["input"], "output_units": counters["output"],
+                "cache_read_units": counters["cache_read"], "cache_write_units": counters["cache_write"],
+                "reasoning_units": counters["reasoning"],
+            }
+            models = parser.turn.models or [self._model_id]
             identity = hashlib.sha256((prepared.execution_id + ":" + (parser.turn.thread_id or "no-thread")).encode()).hexdigest()
             _persist_usage_observations(store, task_id, [{
                 "observation_id": f"usage-{self.KIND}-" + hashlib.sha256((identity + model).encode()).hexdigest(),
                 "execution_id": prepared.execution_id,
                 "role": "executor", "model_id": model, "provider_id": self.PROVIDER_ID,
-                "source_kind": "assistant_message", "source_id": f"{self.KIND}-turn-" + identity,
+                # Turn totals belong to one model; with several observed models they stay UNKNOWN.
+                "source_kind": "native_summary" if counters is not None and len(models) == 1 else "assistant_message",
+                "source_id": f"{self.KIND}-turn-" + identity,
                 # CLI tokens do not provide reasoning/cache-write or dollar cost.
-                "status": "UNKNOWN",
-            } for model in (parser.turn.models or [self._model_id])])
+                "status": "PARTIAL" if counters is not None and len(models) == 1 else "UNKNOWN",
+                **(metrics if len(models) == 1 else {}),
+            } for model in models])
         try:
             code = self._stream(prepared, prompt, parser)
             turn = parser.finish()
