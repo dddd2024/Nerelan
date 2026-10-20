@@ -220,3 +220,16 @@ def test_window_state_reads_expiry_and_future_start_without_store():
     assert window_state(SimpleNamespace(**{**base, "expires_at": "2026-10-19T12:00:00Z"}), now) == "EXPIRED"
     assert window_state(SimpleNamespace(**{**base, "starts_at": "2026-10-20T01:00:00Z"}), now) == "PENDING"
     assert window_state(SimpleNamespace(**{**base, "status": "STOPPED"}), now) == "STOPPED"
+
+
+def test_blocked_goal_is_not_offered_window_renewal():
+    store, control, autonomy, goals = _services()
+    window = _window(autonomy, policy_id="blocked-goal", wip=1)
+    goal = _goal(goals, key="blocked-goal", tasks=TWO_INDEPENDENT_ONE_DEPENDENT[:2], window_id=window.id)
+    first = control.list_goal_tasks(goal.id)[0]["task_id"]
+    store.set_state(first, "FAILED")
+    assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+    later = datetime.now(timezone.utc) + timedelta(hours=2)
+    view = ProjectOverview(store=store, control_store=control, clock=lambda: later).goal_summary(
+        control.get_goal(goal.id))
+    assert [a["action"] for a in view["owner_actions"]] == ["resolve_blocked_task"]

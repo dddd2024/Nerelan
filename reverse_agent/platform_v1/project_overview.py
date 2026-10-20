@@ -116,8 +116,9 @@ class ProjectOverview:
         window = self._window(goal.window_id)
         effective_window = window_state(window, now) if window is not None else ""
         window_active = effective_window == "ACTIVE"
-        links = self.control_store.list_goal_tasks(goal.id)[:MAX_TASKS_PER_GOAL]
-        done_plan_ids = {str(link["plan_task_id"]) for link in links if link["status"] in _DONE}
+        all_links = self.control_store.list_goal_tasks(goal.id)
+        done_plan_ids = {str(link["plan_task_id"]) for link in all_links if link["status"] in _DONE}
+        links = all_links[:MAX_TASKS_PER_GOAL]
         tasks = []
         for link in links:
             try:
@@ -193,7 +194,7 @@ def _owner_actions(
     if goal.status == "APPROVED":
         return [action("launch_goal")]
     actions = []
-    if unfinished and effective_window != "ACTIVE":
+    if goal.status == "RUNNING" and unfinished and effective_window != "ACTIVE":
         actions.append(action("renew_window", reason=effective_window.lower() or "no_window"))
     for task in tasks:
         state = task["state"]
