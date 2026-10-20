@@ -176,6 +176,7 @@ class CombinedTrustedHost:
         self._local_client_session = local_client_session or LocalClientSession()
         self._trusted_client = None
         self._remote_job_broker = None
+        self._research_loop = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
@@ -1082,6 +1083,12 @@ class CombinedTrustedHost:
             self._remote_job_broker = configured_broker()
             if self._remote_job_broker is not None:
                 self._remote_job_broker.start()
+            from .research_loop import configured_loop
+            self._research_loop = configured_loop(
+                goal_service=self._goal_service, planner=self._agent_planner(),
+                broker=self._remote_job_broker)
+            if self._research_loop is not None:
+                self._research_loop.start()
             # Optional, independent public-announcement observer. This never
             # changes a quota guard decision or starts any model execution.
             if os.environ.get("REVERSE_AGENT_CLAUDE_RESET_WATCH") == "1":
@@ -1099,6 +1106,9 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        if self._research_loop is not None:
+            self._research_loop.stop()
+            self._research_loop = None
         if self._remote_job_broker is not None:
             self._remote_job_broker.stop()
             self._remote_job_broker = None
