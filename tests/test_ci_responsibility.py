@@ -770,8 +770,9 @@ def test_frontend_visual_baselines_workflow_only_stages_outside_pr_branch() -> N
     for forbidden in ("npm ", "npx ", "playwright"):
         assert forbidden not in stage, f"write-capable job must not run PR code: {forbidden}"
     pushes = re.findall(r"git push[^\n]*", content.split("\njobs:\n", 1)[1])
-    assert pushes == ['git push --force origin "HEAD:refs/heads/$staging"']
-    assert 'staging="ci-visual-baselines/$BRANCH"' in stage
+    assert pushes == ['git push origin "HEAD:refs/heads/$staging"'], "staging refs are never force-pushed"
+    assert 'staging="ci-visual-baselines/$HEAD_SHA"' in stage
+    assert 'git ls-remote origin "refs/heads/$staging"' in stage
     assert "! -name '*.png'" in stage
 
     # The check itself stays untouched: it never updates snapshots on its own.
