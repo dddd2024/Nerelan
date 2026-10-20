@@ -458,7 +458,7 @@ class GoalService:
                        if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
             for task_id in ids:
                 attempt = self.store.get_task(task_id)
-                executors.add(attempt.executor_kind)
+                executors.add(getattr(attempt, "executor_kind", "") or "")
                 recorded = {row.model_id for row in self.store.list_usage_observations(task_id) if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):

@@ -621,6 +621,11 @@ def test_chain_review_real_availability_and_blocked_evidence(monkeypatch, tmp_pa
     if independent:
         host._store.upsert_binding({**mid, 'binding_id': 'independent', 'name': 'Independent',
                                    'model_id': 'gemini-flash-lite'})
+        # Non-Codex review needs a tool-less transport (#1283); this fixture's keyless
+        # gateway stands in for an api_key relay connection without changing routing cost.
+        from reverse_agent.platform_v1 import model_review_transport
+        monkeypatch.setattr(model_review_transport, 'validate_connection',
+                            lambda resolution, lease_provider: None)
     refs = {row['binding_id'] for row in host._store.list_bindings_public()}
     monkeypatch.setattr(host, '_runnable_bindings', lambda: refs)
     connections = {row['connection_id']: row for row in host._store.list_connections_public()}
