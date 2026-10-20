@@ -205,13 +205,13 @@ def evaluate_review_with_carry_over(head_sha: str, entries: Iterable[ReviewEntry
             current = first
             candidate = decisions.get(current)
             if candidate and candidate.accepted:
-                # Any newer REJECT along this chain withdraws the earlier acceptance,
+                # Any REJECT at or after this chain's acceptance withdraws it,
                 # including one later superseded on an intermediate head.
                 accepted_entries = [e for e in entries
                                     if e.association in TRUSTED_ASSOCIATIONS and e.created_at
                                     and _entry_decisions(e.body or "", current)]
                 accepted_at = max(e.created_at for e in accepted_entries)
-                if any(e.association in TRUSTED_ASSOCIATIONS and e.created_at > accepted_at
+                if any(e.association in TRUSTED_ASSOCIATIONS and e.created_at >= accepted_at
                        and any("REJECT" in _entry_decisions(e.body or "", sha)
                                for sha in [current, *merges]) for e in entries):
                     continue
