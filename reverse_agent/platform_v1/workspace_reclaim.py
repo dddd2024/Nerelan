@@ -44,6 +44,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 import logging
+import math
 import os
 import threading
 from pathlib import Path
@@ -342,12 +343,13 @@ def remove(record: dict) -> dict:
     return {**record, "removed": True}
 
 
-def _reclaim_one(child: Path, opts: dict, apply: bool) -> dict:
+def _reclaim_one(child: Path, opts: dict, apply: bool, stop=None) -> dict:
     record = inspect(child, **opts)
     if apply and record["reclaim"]:
         # Re-check right before deletion: state may have changed.
         record = inspect(child, **opts)
-        if record["reclaim"]:
+        # A stop request that arrived during the (possibly slow) checks wins.
+        if record["reclaim"] and not (stop is not None and stop()):
             record = remove(record)
     return record
 
@@ -376,7 +378,7 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
                 continue
             opts = dict(now=now, retention_days=retention_days,
                         include_clones=include_clones, task_statuses=statuses)
-            entries.append(_reclaim_one(child, opts, apply))
+            entries.append(_reclaim_one(child, opts, apply, stop))
     return {
         "generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
         "applied": apply,
@@ -401,7 +403,7 @@ def _env_number(env, name, default, minimum):
         value = float(raw)
     except ValueError:
         value = None
-    if value is None or value != value or value < minimum:
+    if value is None or not math.isfinite(value) or value < minimum:
         # An unusable value falls back to the conservative default.
         LOG.warning("workspace reclaim: ignoring %s=%r; using %g", name, raw, default)
         return default
@@ -468,17 +470,29 @@ class AutoReclaimer:
         self._thread: threading.Thread | None = None
 
     def start(self):
-        if self._thread is None:
-            self._stop.clear()
-            self._thread = threading.Thread(target=self._run, name="workspace-reclaim",
-                                            daemon=True)
-            self._thread.start()
+        # A worker that outlived stop()'s join is still the only worker.
+        if self._thread is not None and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="workspace-reclaim",
+                                        daemon=True)
+        self._thread.start()
 
-    def stop(self):
+    def stop(self, timeout: float = 5.0) -> bool:
+        """Signal the worker and wait; ``False`` if it is still finishing a check.
+
+        Removal is skipped once stop is signalled, so a worker still inside a
+        slow git call never deletes anything after this returns.
+        """
         self._stop.set()
-        if self._thread is not None:
-            self._thread.join(timeout=5.0)
-            self._thread = None
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout=timeout)
+            if thread.is_alive():
+                LOG.warning("workspace reclaim: worker still finishing a check after stop")
+                return False
+        self._thread = None
+        return True
 
     def _run(self):
         # The first pass waits one poll, so host startup does no extra I/O.
@@ -518,7 +532,8 @@ class AutoReclaimer:
             if Path(task_id).name != task_id or not os.path.lexists(child):
                 continue
             self._handled.add((task_id, updated_at))
-            record = _reclaim_one(child, self._opts(now, statuses), self.apply)
+            record = _reclaim_one(child, self._opts(now, statuses), self.apply,
+                                  self._stop.is_set)
             self._log(record)
             records.append(record)
         return records

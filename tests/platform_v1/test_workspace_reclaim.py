@@ -528,3 +528,43 @@ def test_background_thread_starts_and_stops(root, tmp_path):
     assert reclaimer._thread.is_alive()
     reclaimer.stop()
     assert reclaimer._thread is None
+
+
+def test_auto_config_rejects_non_finite_durations():
+    config = workspace_reclaim.auto_config({
+        "REVERSE_AGENT_WORKSPACE_RECLAIM": "apply",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "inf",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS": "1e309",
+        "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES": "Infinity"})
+    assert (config["retention_days"], config["interval_hours"], config["poll_minutes"]) == (
+        3.0, 24.0, 15.0)
+
+
+def test_stop_during_a_slow_check_skips_removal_and_keeps_the_worker(
+        repo, root, tmp_path, monkeypatch):
+    import threading
+    wt = add_worktree(repo, root, "task-1")
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    reclaimer = _reclaimer(root, db, state_path=tmp_path / "state.json")
+    entered, release = threading.Event(), threading.Event()
+    real_inspect = workspace_reclaim.inspect
+
+    def slow_inspect(path, **kw):
+        record = real_inspect(path, **kw)
+        entered.set()
+        release.wait(10)
+        return record
+
+    monkeypatch.setattr(workspace_reclaim, "inspect", slow_inspect)
+    worker = threading.Thread(target=reclaimer.tick)
+    reclaimer._thread = worker
+    worker.start()
+    assert entered.wait(10)
+    assert reclaimer.stop(timeout=0.05) is False
+    assert reclaimer._thread is worker
+    reclaimer.start()
+    assert reclaimer._thread is worker
+    release.set()
+    worker.join(10)
+    assert wt.exists()
+    assert reclaimer.stop() is True and reclaimer._thread is None
