@@ -1,6 +1,7 @@
 """Issue 1264: benchmark-seeded priors. Recorded fixtures only; no network."""
 import json
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -306,3 +307,21 @@ def test_fetch_is_bounded_and_uses_injected_opener():
         cb.fetch_source(SPEC, opener=lambda r, timeout: FakeResponse(b'x' * (cb.MAX_FETCH_BYTES + 5)))
     with pytest.raises(ValueError, match='http_error'):
         cb.fetch_source(SPEC, opener=lambda r, timeout: FakeResponse(b'', 500))
+
+
+SNAPSHOT = Path(cb.__file__).with_name('capability_benchmarks_snapshot.json')
+
+
+def test_reviewed_initial_snapshot_is_valid_and_cited():
+    data = cb.read_snapshot(SNAPSHOT)
+    assert data['snapshot_id'] == 'public-leaderboards@2026-10-20'
+    seed = cb.seed_snapshot()
+    assert {f: e['aliases'] for f, e in data['families'].items()} == {f: e['aliases'] for f, e in seed['families'].items()}
+    rows = [r for e in data['families'].values() for r in e['scores']]
+    assert rows and all(r['url'].startswith('https://') and r['variant'] and r['retrieved_at'] == '2026-10-20' for r in rows)
+    # Families without verified numbers stay needs_benchmark.
+    assert {x['family'] for x in cb.needs_benchmark(list(cb.SEED_FAMILIES), data)} == {
+        'claude-opus', 'claude-sonnet', 'codestral', 'agnes-3.0'}
+    priors = cb.compute_priors(data)
+    assert priors['kimi-k3']['code']['confidence'] == 'high'
+    assert priors['doubao-seed-code']['code']['confidence'] == 'low'  # one source only
