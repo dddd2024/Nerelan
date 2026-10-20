@@ -41,7 +41,7 @@ from .repository_workspace import (
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
-from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input
+from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
 
 
 # ---------------------------------------------------------------------------
@@ -903,6 +903,9 @@ class DurableExecutionService:
         )
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
 
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
         if artifact_failure is not None:
@@ -1774,6 +1777,9 @@ class DurableExecutionService:
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
 
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
+
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
         if artifact_failure is not None:
             return artifact_failure
@@ -2148,6 +2154,10 @@ class DurableExecutionService:
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
+    def _execute_model_review(self, task_id: str, workspace_root: str, lease: LeaseHandle) -> Any:
+        from .model_review import execute_review
+        return execute_review(self, task_id, workspace_root, lease)
+
     def _validate_input_without_roles(self, task_id: str, lease: LeaseHandle) -> Any:
         """Advance existing milestones as explicitly skipped roles, then use host validation.
 
@@ -2184,10 +2194,17 @@ class DurableExecutionService:
                                     lease: LeaseHandle) -> tuple[str, int, str, str]:
         run = self.store._get_durable_run(lease.run_id)
         try:
-            return run_task_validation(self.store, task_id, worktree=worktree,
-                                       base_commit=run.repository_base_sha,
-                                       execution_id=run.execution_id, lease=lease)
-        except ExecutorRuntimeError as exc:
+            reviewing = model_review_input(self.store.get_task(task_id))
+            if reviewing:
+                from .model_review import verified_evidence
+                verified_evidence(self.store, self.store.get_task(task_id), run)
+            result = run_task_validation(self.store, task_id, worktree=worktree,
+                                        base_commit=run.repository_base_sha,
+                                        execution_id=run.execution_id, lease=lease)
+            if reviewing:
+                verified_evidence(self.store, self.store.get_task(task_id), run)
+            return result
+        except (ExecutorRuntimeError, TaskStoreError) as exc:
             return "git_diff_check", -1, str(exc), ""
 
     def _has_functional_contract(self, task_id: str) -> bool:
@@ -2230,6 +2247,9 @@ class DurableExecutionService:
         task = self.store.get_task(task_id)
         try:
             bind_consumer_input(self.store, task_id, lease=lease, allow_create=False)
+            if model_review_input(task):
+                from .model_review import verified_evidence
+                verified_evidence(self.store, task, run)
             proof = accepted_checkpoint_proof(task, run)
         except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
             proof = {"passed": False, "verified": False, "status": "UNVERIFIED", "reason":
@@ -2307,6 +2327,10 @@ class DurableExecutionService:
                 ["git", "rev-parse", "HEAD"],
                 cwd=wt_path, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
             )
+            root = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=wt_path,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+            if Path(root.stdout.strip()).resolve() != Path(wt_path).resolve():
+                return ""
             return result.stdout.strip()
         except Exception:
             return ""
@@ -2626,6 +2650,19 @@ class DurableExecutionService:
         else:
             repo_sha = ""
 
+        completed = self.store.get_task(task_id)
+        if model_review_input(completed) and completed.status == "READY_FOR_REVIEW":
+            row = self.store._conn.execute(
+                "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                raise DurableResumeError(f"no_durable_run:{task_id}")
+            completed_run = self.store._get_durable_run(row["run_id"])
+            if (completed_run.execution_authority_sha != auth_sha or completed_run.planning_sha != plan_sha):
+                raise DurableResumeError("model_review_authority_mismatch")
+            return self._functional_checkpoint_outcome(task_id, completed_run)
+
         run = self.store._find_active_durable_run(task_id)
         if run is None:
             raise DurableResumeError(f"no_active_durable_run:{task_id}")
@@ -2662,7 +2699,7 @@ class DurableExecutionService:
             raise DurableResumeError(
                 f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
             )
-        if stored_task.executor_kind != "opencode":
+        if stored_task.executor_kind != "opencode" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"invalid_executor_kind:{stored_task.executor_kind}"
             )
@@ -2732,7 +2769,7 @@ class DurableExecutionService:
             )
 
         accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
-        if accepted_cp == "":
+        if accepted_cp == "" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"pre_pre_planner_no_reconstruction_path:{task_id}:"
                 f"accepted_checkpoint_empty_fail_closed"
@@ -2800,7 +2837,11 @@ class DurableExecutionService:
             row = self.store._conn.execute("SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1", (task_id,)).fetchone()
             if row is None:
                 raise DurableResumeError(f"no_durable_run:{task_id}")
-            return self._functional_checkpoint_outcome(task_id, self.store._get_durable_run(row["run_id"]))
+            completed_run = self.store._get_durable_run(row["run_id"])
+            if model_review_input(stored_task) and (completed_run.execution_authority_sha != auth_sha
+                                                    or completed_run.planning_sha != plan_sha):
+                raise DurableResumeError("model_review_authority_mismatch")
+            return self._functional_checkpoint_outcome(task_id, completed_run)
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
             run_raw = self.store._find_active_durable_run(task_id)
             if run_raw is None:
@@ -2935,7 +2976,7 @@ class DurableExecutionService:
                 validation_exit_code=run_obj.validation_exit_code or 0,
             )
 
-        if accepted_cp == "":
+        if accepted_cp == "" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"pre_pre_planner_no_reconstruction_path:{task_id}:"
                 f"accepted_checkpoint_empty_fail_closed"
@@ -2996,6 +3037,9 @@ class DurableExecutionService:
         )
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
 
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
         if artifact_failure is not None:
@@ -3572,6 +3616,9 @@ class DurableExecutionService:
     ) -> TaskExecutionOutcome:
         from .task_execution import TaskExecutionOutcome
         from .opencode_executor import _collect_product_diff
+
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
 
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
         if artifact_failure is not None:

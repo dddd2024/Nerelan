@@ -188,6 +188,23 @@ def test_total_stream_and_event_counts_are_independently_bounded():
         parser.feed(wire(*START))
 
 
+def test_transport_model_provenance_is_never_inferred_from_message_text():
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {"type": "item.completed", "item": {
+        "type": "agent_message", "text": "model=gpt-fixture"}}, DONE))
+    assert parser.finish().models == []
+    observed = CodexJsonl()
+    observed.feed(wire(START[0], {"type": "turn.started", "model": "provider/gpt-fixture"}, MESSAGE, DONE))
+    assert observed.finish().models == ["provider/gpt-fixture"]
+
+
+@pytest.mark.parametrize("model", [None, [], "", "bad model", "x\nsecret"])
+def test_invalid_transport_model_identity_fails_closed(model):
+    parser = CodexJsonl()
+    with pytest.raises(CodexProtocolError, match="codex_model_identity_invalid"):
+        parser.feed(wire(START[0], {"type": "turn.started", "model": model}))
+
+
 # --- #1260: usage-limit classification from error/turn.failed messages ---
 
 

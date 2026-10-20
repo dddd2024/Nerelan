@@ -225,7 +225,12 @@ class PlatformControlStore:
         self.task_store = task_store
         self._conn = task_store._conn
         self._lock = task_store._lock
-        self._init_schema()
+        # Reconstructing a read view must not executescript/commit a caller's
+        # admission transaction. Each TaskStore connection initializes once.
+        with self._lock:
+            if not getattr(task_store, "_platform_control_initialized", False):
+                self._init_schema()
+                task_store._platform_control_initialized = True
 
     def _init_schema(self) -> None:
         with self._lock:
@@ -726,7 +731,10 @@ class PlatformControlStore:
                            to_task_id: str, from_role: str, to_role: str, reason: str) -> int:
         """Repoint one plan task's link to a stronger agent's task; returns the escalation step."""
         with self._lock:
-            with self._conn:
+            owns_transaction = not self._conn.in_transaction
+            try:
+                if owns_transaction:
+                    self._conn.execute("BEGIN IMMEDIATE")
                 row = self._conn.execute(
                     "SELECT task_id FROM platform_goal_task_links WHERE goal_id = ? AND goal_revision = ? "
                     "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()
@@ -744,6 +752,12 @@ class PlatformControlStore:
                     "to_task_id, from_role, to_role, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, from_role, to_role,
                      reason[:200], _utc_now()))
+                if owns_transaction:
+                    self._conn.execute("COMMIT")
+            except BaseException:
+                if owns_transaction:
+                    self._conn.execute("ROLLBACK")
+                raise
         return step
 
     def list_task_escalations(self, goal_id: str) -> tuple[Mapping[str, Any], ...]:

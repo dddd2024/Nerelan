@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .binding_resolver import BindingResolver
-from .artifact_handoff import validation_only_input
+from .artifact_handoff import validation_only_input, model_review_input
 from .opencode_executor import (
     RoleContext,
     _collect_product_diff,
@@ -121,11 +121,15 @@ class TaskExecutionService:
         router: ExecutorRouter,
         binding_resolver: Any | None = None,
         lease_provider: Any | None = None,
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
     ) -> None:
         self.store = store
         self.router = router
         self.binding_resolver = binding_resolver
         self.lease_provider = lease_provider
+        self.execution_authority_sha = execution_authority_sha
+        self.planning_sha = planning_sha
 
     def execute(
         self,
@@ -143,6 +147,9 @@ class TaskExecutionService:
             raise TaskExecutionError(
                 f"task_not_queued:{task_id}:{task.status}"
             )
+
+        if model_review_input(task):
+            return self.execute_model_review(task_id, workspace_root=workspace_root)
 
         if load_host_validation_contract(task) is not None:
             return self.execute_host_validation(task_id)
@@ -306,6 +313,17 @@ class TaskExecutionService:
             failure_detail=final.failure_detail,
         )
 
+    def execute_model_review(self, task_id: str, *, workspace_root: str) -> TaskExecutionOutcome:
+        """All model review entry points use the same leased durable execution."""
+        from .durable_execution import DurableExecutionService
+        service = DurableExecutionService(store=self.store, router=self.router,
+            binding_resolver=self.binding_resolver, lease_provider=self.lease_provider,
+            execution_authority_sha=self.execution_authority_sha, planning_sha=self.planning_sha)
+        task = self.store.get_task(task_id)
+        method = (service.execute_durable_single if task.orchestration_mode == "single"
+                  else service.execute_durable_sequential_team)
+        return method(task_id, workspace_root=workspace_root)
+
     def execute_host_validation(self, task_id: str, *, lease: Any | None = None) -> TaskExecutionOutcome:
         """Run the frozen hygiene check without preparing an executor or reading a binding.
 
@@ -462,6 +480,9 @@ class TaskExecutionService:
             raise TaskExecutionError(
                 f"task_not_queued:{task_id}:{task.status}"
             )
+
+        if model_review_input(task):
+            return self.execute_model_review(task_id, workspace_root=workspace_root)
 
         executor_kind = task.executor_kind
         if executor_kind != "opencode":
