@@ -14,7 +14,8 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 def candidate(ref, model, cost="free", executor="opencode", **extra):
     return dict(binding_id=ref, model_id=model, cost_class=cost, executor_id=executor,
-                enabled=True, availability={"state": "AVAILABLE", "reason": "fixture"}, **extra)
+                review_connection={"auth_method": "api_key", "relay_required": True, "native_endpoint": "/chat/completions"},
+                review_lease_provider=lambda r: None, enabled=True, availability={"state": "AVAILABLE", "reason": "fixture"}, **extra)
 
 
 # Explicit fixture capability judgments; production has no name-based tier prior.
@@ -159,6 +160,7 @@ def fixture_host(monkeypatch, tmp_path):
     monkeypatch.setattr(random, "random", lambda: 1.)
     host = object.__new__(CombinedTrustedHost)
     host._store = _models(tmp_path)
+    monkeypatch.setattr(host, "_lease_provider_factory", lambda: lambda r: None)
     (tmp_path / "model_capabilities.json").write_text(json.dumps({"version": 1, "models": FIXTURE_TABLE}))
     monkeypatch.setattr(host, "_routing_availability", lambda *args, **kwargs: {"state": "AVAILABLE", "reason": "fixture"})
     monkeypatch.setattr(host, "_runnable_bindings", lambda: {"cheap", "mid", "strong"})
@@ -230,6 +232,10 @@ def test_review_resolves_author_before_selection_even_in_reordered_plan(monkeypa
     host = fixture_host(monkeypatch, tmp_path)
     store, control, autonomy, goals = _team(monkeypatch, {})
     goals.task_resolver = host._resolve_task_model
+    original_connections = host._store.list_connections_public
+    monkeypatch.setattr(host._store, "list_connections_public", lambda: [
+        {**c, "auth_method": "api_key"} for c in original_connections()])
+    monkeypatch.setattr(host, "_routing_paid_allowed", lambda *a: True)
     goal = goals.create({"objective": "Review an artifact", "repository": "dddd2024/Nerelan",
                          "idempotency_key": "review-router", "executor_kind": "opencode",
                          "orchestration_mode": "agent_team"})

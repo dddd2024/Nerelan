@@ -448,7 +448,7 @@ class GoalService:
             return {}
         links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
                  if int(row["goal_revision"]) == goal.revision}
-        models, bindings = set(), set()
+        models, bindings, executors = set(), set(), set()
         history = self.control_store.list_task_escalations(goal.id)
         for source in ancestry:
             if source not in links:
@@ -458,6 +458,7 @@ class GoalService:
                        if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
             for task_id in ids:
                 attempt = self.store.get_task(task_id)
+                executors.add(getattr(attempt, "executor_kind", "") or "")
                 recorded = {row.model_id for row in self.store.list_usage_observations(task_id) if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):
@@ -473,7 +474,8 @@ class GoalService:
                     bindings.add(attempt.binding_ref)
                 else:
                     raise TaskStoreError("review_not_independent")
-        return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings))}
+        return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings)),
+                "author_executors": tuple(sorted(executors))}
 
     def _repair_rejected_reviews(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Atomically admit at most one repair per producer/revision.

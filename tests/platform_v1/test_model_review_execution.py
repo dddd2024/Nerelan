@@ -51,7 +51,7 @@ class Reviewer(LocalImplementation):
 
 
 @pytest.fixture
-def review_setup(goal_checks, tmp_path, request):
+def review_setup(goal_checks, tmp_path, request, monkeypatch):
     root, base, store, control, goals, goal, window = goal_checks
     mode = getattr(request, "param", "single")
     if mode != goal.orchestration_mode:
@@ -69,13 +69,33 @@ def review_setup(goal_checks, tmp_path, request):
     store.append_usage_observation(producer, observation_id="author-observation",
         execution_id=store.get_task(producer).execution_id, role="executor", model_id="local/author",
         provider_id="local", source_kind="assistant_message", source_id="author-turn", status="UNKNOWN")
+    from test_functional_execution import LocalBinding
+    from dataclasses import replace
+    original_resolve = LocalBinding.resolve
+    def resolve(self, binding_ref, *, task_executor):
+        result = original_resolve(self, binding_ref, task_executor="opencode")
+        return replace(result, executor_id=task_executor)
+    monkeypatch.setattr(LocalBinding, "resolve", resolve)
+    store._conn.execute("UPDATE tasks SET executor_kind = 'codex' WHERE id = ?", (consumer,))
     created = []
     options = {}
     def factory(**kwargs):
         reviewer = Reviewer(root, kwargs["base_ref"], **options)
         created.append(reviewer)
         return reviewer
-    router.replace("opencode", factory)
+    router.replace("codex", factory)
+    # Feedback tests recreate the reviewer with an opencode fixture binding.
+    # Keep those legacy sandbox fakes on the native path as well; real relay
+    # tests use the original consumer and exercise the tool-less transport.
+    original_review = durable_execution.DurableExecutionService._execute_model_review
+    def native_fixture_review(service, task_id, workspace_root, lease):
+        task = service.store.get_task(task_id)
+        if service.store is store and task_id != consumer:
+            store._conn.execute("UPDATE tasks SET executor_kind = 'codex' WHERE id = ?", (task_id,))
+            service.router.replace("codex", lambda **kwargs:
+                service.router.create_executor(executor_kind="opencode", **kwargs))
+        return original_review(service, task_id, workspace_root, lease)
+    monkeypatch.setattr(durable_execution.DurableExecutionService, "_execute_model_review", native_fixture_review)
     return store, router, producer, consumer, created, options, tmp_path / "reviews"
 
 
