@@ -361,13 +361,20 @@ class CodexExecutor:
         parser = self._parser(progress)
         code = None
         def persist_unknown_usage():
+            from .usage_ledger import _native
+            counters = _native(parser.turn.usage, self.KIND) if parser.turn.usage else None
+            metrics = {} if counters is None else {
+                "input_units": counters["input"], "output_units": counters["output"],
+                "cache_read_units": counters["cache_read"], "cache_write_units": counters["cache_write"],
+                "reasoning_units": counters["reasoning"],
+            }
             identity = hashlib.sha256((prepared.execution_id + ":" + (parser.turn.thread_id or "no-thread")).encode()).hexdigest()
             _persist_usage_observations(store, task_id, [{
                 "observation_id": f"usage-{self.KIND}-" + identity, "execution_id": prepared.execution_id,
                 "role": "executor", "model_id": self._model_id, "provider_id": self.PROVIDER_ID,
-                "source_kind": "assistant_message", "source_id": f"{self.KIND}-turn-" + identity,
+                "source_kind": "native_summary", "source_id": f"{self.KIND}-turn-" + identity,
                 # CLI tokens do not provide reasoning/cache-write or dollar cost.
-                "status": "UNKNOWN",
+                "status": "PARTIAL" if counters is not None else "UNKNOWN", **metrics,
             }])
         try:
             code = self._stream(prepared, prompt, parser)

@@ -398,6 +398,14 @@ class PlatformControlStore:
                 );
                 """
             )
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_admissions (task_id TEXT PRIMARY KEY REFERENCES tasks(id), binding_ref TEXT NOT NULL, account_ref TEXT NOT NULL, evidence_json TEXT NOT NULL, need_json TEXT NOT NULL, small_task INTEGER NOT NULL, safety_buffer REAL NOT NULL, verdict_json TEXT NOT NULL DEFAULT '{}')")
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_observations (account_ref TEXT PRIMARY KEY, observed_at TEXT NOT NULL, evidence_json TEXT NOT NULL)")
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_calibrations (account_ref TEXT PRIMARY KEY, rates_json TEXT NOT NULL, evidence_json TEXT NOT NULL)")
+            quota_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(platform_budget_reservations)")}
+            for column, definition in (("account_ref", "TEXT NOT NULL DEFAULT ''"), ("binding_ref", "TEXT NOT NULL DEFAULT ''"), ("quota_windows_json", "TEXT NOT NULL DEFAULT '{}'"), ("quota_state", "TEXT NOT NULL DEFAULT 'UNKNOWN'"), ("settlement_json", "TEXT NOT NULL DEFAULT '{}'"), ("estimate_json", "TEXT NOT NULL DEFAULT '{}'")):
+                if column not in quota_columns:
+                    self._conn.execute(f"ALTER TABLE platform_budget_reservations ADD COLUMN {column} {definition}")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_quota_account ON platform_budget_reservations(account_ref, state)")
             window_columns = {
                 row["name"]
                 for row in self._conn.execute(
@@ -1407,6 +1415,45 @@ class PlatformControlStore:
                 raise TaskStoreError("window_not_active")
         return self.get_window(window_id)
 
+    def quota_hold(self, task_id: str) -> dict[str, Any] | None:
+        """A hold is dispatch state, not observed usage or an executor failure."""
+        with self._lock:
+            row = self._conn.execute("SELECT verdict_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+            verdict = json.loads(row["verdict_json"]) if row else {}
+            return verdict if verdict.get("decision") == "quota_wait" else None
+
+    def prepare_quota_admission(self, *, task_id: str, binding_ref: str,
+                                account_ref: str, evidence: Mapping[str, Any],
+                                need: Mapping[str, Any], small_task: bool = False,
+                                safety_buffer: float = 10, refresh=None) -> None:
+        """Refresh outside SQL locks, then persist an account-bound admission input.
+
+        The transaction rechecks freshness; this preparation grants no claim.
+        """
+        from . import quota_reservation
+        selected = quota_reservation.observation(account_ref, [evidence], refresh=refresh,
+                                                 small_task=small_task)
+        quota_reservation.admission(selected, need, buffer=safety_buffer, small_task=small_task)
+        with self._lock, self._conn:
+            active = self._conn.execute("SELECT account_ref, binding_ref FROM platform_budget_reservations WHERE task_id=? AND state='ACTIVE'", (task_id,)).fetchone()
+            if active and (active["account_ref"] != account_ref or active["binding_ref"] != binding_ref):
+                raise TaskStoreError("quota_reservation_identity_changed")
+            previous = self._conn.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (account_ref,)).fetchone()
+            if previous:
+                rows = [dict(r) for r in self._conn.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=?", (account_ref,))]
+                for row in rows:
+                    row["settlement"] = json.loads(row["settlement_json"])
+                rates = quota_reservation.attributable_calibration(json.loads(previous[0]), selected, rows)
+                if rates:
+                    existing = self.quota_calibration(account_ref)
+                    existing.update(rates)
+                    self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
+                        (account_ref, json.dumps(existing), json.dumps({"before": json.loads(previous[0]), "after": selected, "claims": rows})))
+            self._conn.execute("INSERT INTO platform_quota_observations VALUES (?,?,?) ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, evidence_json=excluded.evidence_json WHERE excluded.observed_at > platform_quota_observations.observed_at",
+                               (account_ref, selected.get("observed_at") or "", json.dumps(selected)))
+            self._conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
+                               (task_id, binding_ref, account_ref, json.dumps(selected), json.dumps(need), int(small_task), safety_buffer))
+
     def claim_task(
         self,
         *,
@@ -1476,6 +1523,37 @@ class PlatformControlStore:
                 "ORDER BY claim_epoch DESC LIMIT 1",
                 (task_id, window_id),
             ).fetchone()
+            quota_input = cur.execute("SELECT * FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+            quota_verdict = None
+            if quota_input is not None:
+                identity = cur.execute("SELECT binding_ref FROM tasks WHERE id=?", (task_id,)).fetchone()
+                if identity["binding_ref"] != quota_input["binding_ref"]:
+                    raise TaskStoreError("quota_reservation_identity_changed")
+                if active_reservation is not None and (active_reservation["account_ref"] != quota_input["account_ref"] or active_reservation["binding_ref"] != quota_input["binding_ref"]):
+                    raise TaskStoreError("quota_reservation_identity_changed")
+            if quota_input is not None and not completion_recovery:
+                from . import quota_reservation
+                outstanding = [dict(r) for r in cur.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=? AND NOT (task_id=? AND state='ACTIVE')", (quota_input["account_ref"], task_id))]
+                for row in outstanding:
+                    row["quota_windows"] = json.loads(row["quota_windows_json"])
+                    fact = json.loads(row["settlement_json"])
+                    row["actual_windows"] = fact.get("actual_windows", {})
+                    row["actual_observations"] = fact.get("actual_observations", [])
+                latest = cur.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (quota_input["account_ref"],)).fetchone()
+                quota_need = json.loads(quota_input["need_json"])
+                if active_reservation is not None:
+                    previous_need = json.loads(active_reservation["quota_windows_json"])
+                    for name, amount in previous_need.items():
+                        proposed = quota_need["windows"].get(name, {}).get("p80")
+                        if quota_reservation._number(amount) and quota_reservation._number(proposed):
+                            quota_need["windows"][name]["p80"] = max(amount, proposed)
+                quota_verdict = quota_reservation.admission(json.loads(latest["evidence_json"]), quota_need, outstanding,
+                    small_task=bool(quota_input["small_task"]), buffer=quota_input["safety_buffer"])
+                cur.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?", (json.dumps(quota_verdict), task_id))
+                if quota_verdict["decision"] == "quota_wait":
+                    # Persist the hold without acquiring a claim or spending budgets.
+                    cur.execute("COMMIT")
+                    raise TaskStoreError("QUOTA_WAIT:" + (quota_verdict["until"] or "unknown_reset"))
             token_reservation = int(window["per_task_token_reservation"])
             cost_reservation = int(window["per_task_cost_reservation"])
             if active_reservation is None:
@@ -1533,6 +1611,9 @@ class PlatformControlStore:
                         int(active_reservation["claim_epoch"]),
                     ),
                 )
+            if quota_input is not None and not completion_recovery:
+                cur.execute("UPDATE platform_budget_reservations SET account_ref=?, binding_ref=?, quota_windows_json=?, quota_state=?, estimate_json=? WHERE task_id=? AND claim_epoch=?",
+                    (quota_input["account_ref"], quota_input["binding_ref"], json.dumps({name: value["p80"] for name, value in quota_need["windows"].items()}), quota_verdict["state"], json.dumps(quota_need), task_id, epoch))
             if completion_recovery:
                 pass  # Finish the original persisted result; no new task/retry spending.
             elif task["status"] == "INTERRUPTED":
@@ -1761,7 +1842,7 @@ class PlatformControlStore:
                     (window_id,),
                 ).fetchone()
                 task = cur.execute(
-                    "SELECT executor_kind FROM tasks WHERE id = ?", (task_id,)
+                    "SELECT executor_kind, failure_classification FROM tasks WHERE id = ?", (task_id,)
                 ).fetchone()
                 if window is None or task is None:
                     raise TaskStoreError("budget_reconciliation_subject_missing")
@@ -1775,7 +1856,8 @@ class PlatformControlStore:
                 ).fetchall()
                 unknown_count = sum(
                     1 for observation in observations
-                    if observation["status"] == "UNKNOWN"
+                    if observation["status"] != "OBSERVED" or any(observation[key] is None for key in
+                        ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units", "cost_micro_units"))
                 )
                 usage_unknown = bool(unknown_count)
                 host_zero = not observations and self._completed_host_checker(task_id)
@@ -1828,6 +1910,15 @@ class PlatformControlStore:
                         _utc_now(), _utc_now(), task_id, epoch,
                     ),
                 )
+                from . import quota_reservation
+                settlement = quota_reservation.settlement(
+                    [dict(o) for o in observations], json.loads(reservation["estimate_json"]),
+                    usage_unknown=usage_unknown)
+                settlement["limit_cutoff"] = any(word in (task["failure_classification"] + ":" + receipt_result)
+                    for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget"))
+                cur.execute("UPDATE platform_budget_reservations SET settlement_json=?, quota_state=? "
+                            "WHERE task_id=? AND claim_epoch=?",
+                            (json.dumps(settlement), settlement["state"], task_id, epoch))
                 cur.execute(
                     "UPDATE platform_coordinator_claims SET status = ?, updated_at = ? "
                     "WHERE task_id = ? AND window_id = ? AND owner = ? "
@@ -1927,8 +2018,8 @@ class PlatformControlStore:
             active = self._conn.execute(
                 "SELECT COALESCE(SUM(reserved_token_units), 0) AS token_units, "
                 "COALESCE(SUM(reserved_cost_micro_units), 0) AS cost_units, "
-                "COUNT(*) AS reservation_count FROM platform_budget_reservations "
-                "WHERE window_id = ? AND state = 'ACTIVE'",
+                "SUM(CASE WHEN state='ACTIVE' THEN 1 ELSE 0 END) AS reservation_count FROM platform_budget_reservations "
+                "WHERE window_id = ? AND state IN ('ACTIVE', 'UNKNOWN')",
                 (window_id,),
             ).fetchone()
         reserved_tokens = int(active["token_units"])
@@ -1953,9 +2044,45 @@ class PlatformControlStore:
                 if window.max_cost_micro_units else None
             ),
             "unknown_observation_count": window.unknown_observation_count,
-            "active_reservation_count": int(active["reservation_count"]),
+            "active_reservation_count": int(active["reservation_count"] or 0),
             "stop_reason": window.stop_reason,
+            "accounts": self.account_budget_summary(window_id),
         }
+
+    def quota_calibration(self, account_ref: str) -> dict[str, float]:
+        with self._lock:
+            row = self._conn.execute("SELECT rates_json FROM platform_quota_calibrations WHERE account_ref=?", (account_ref,)).fetchone()
+            return json.loads(row[0]) if row else {}
+
+    def account_budget_summary(self, window_id: str) -> dict[str, Any]:
+        """Account totals retain NULL actual/error whenever any usage is unresolved."""
+        result = {}
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM platform_budget_reservations WHERE window_id=? AND account_ref<>''", (window_id,)).fetchall()
+            for row in rows:
+                entry = result.setdefault(row["account_ref"], {"reserved": {}, "actual": {}, "estimate_error": {},
+                    "unknown_count": 0, "quota_held_tasks": 0, "limit_cutoff_count": 0,
+                    "actual_token_units": 0, "actual_cost_micro_units": 0, "actual_basis": "measured_cost_with_frozen_calibration"})
+                fact = json.loads(row["settlement_json"])
+                actual = fact.get("actual_windows", {})
+                for name, reserved in json.loads(row["quota_windows_json"]).items():
+                    entry["reserved"][name] = entry["reserved"].get(name, 0) + reserved
+                    value = actual.get(name)
+                    previous = entry["actual"].get(name, 0)
+                    entry["actual"][name] = previous + value if previous is not None and value is not None else None
+                    entry["estimate_error"][name] = (entry["actual"][name] - entry["reserved"][name]
+                        if entry["actual"][name] is not None else None)
+                entry["unknown_count"] += int(row["state"] == "UNKNOWN" or row["quota_state"] == "UNKNOWN")
+                entry["limit_cutoff_count"] += int(fact.get("limit_cutoff", False))
+                for name, column in (("actual_token_units", "observed_token_units"), ("actual_cost_micro_units", "observed_cost_micro_units")):
+                    entry[name] = entry[name] + row[column] if entry[name] is not None and row[column] is not None else None
+            for row in self._conn.execute("SELECT account_ref, verdict_json FROM platform_quota_admissions"):
+                if json.loads(row["verdict_json"]).get("decision") == "quota_wait":
+                    entry = result.setdefault(row["account_ref"], {"reserved": {}, "actual": {}, "estimate_error": {},
+                        "unknown_count": 0, "quota_held_tasks": 0, "limit_cutoff_count": 0,
+                        "actual_token_units": None, "actual_cost_micro_units": None})
+                    entry["quota_held_tasks"] += 1
+        return result
 
     def append_receipt(
         self,

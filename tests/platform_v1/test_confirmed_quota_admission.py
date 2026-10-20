@@ -79,7 +79,7 @@ def test_explicit_binding_route_refuses_provider_confirmed_exhaustion(monkeypatc
     assert host._quota_guard_entries()[0]["decision"] == "refuse"
 
 
-def test_uncertain_insufficient_forecast_does_not_automatically_block_agent_team(monkeypatch):
+def test_insufficient_forecast_holds_agent_team(monkeypatch):
     store = ModelProfileStore()
     store.upsert_connection({
         "connection_id": "claude-account", "name": "Claude", "provider": "claude-code",
@@ -92,9 +92,10 @@ def test_uncertain_insufficient_forecast_does_not_automatically_block_agent_team
     host._store = store
     monkeypatch.setattr(host, "_quota_check",
                         lambda _: {"decision": "switch", "reason": "predicted_insufficient"})
-    assert host._quota_guarded("coder", "claude_code", "account-model", {}) == (
-        "claude_code", "account-model")
-    assert host._quota_guard_entries()[0]["decision"] == "warn"
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    with pytest.raises(TaskStoreError, match="QUOTA_WAIT:predicted_insufficient"):
+        host._quota_guarded("coder", "claude_code", "account-model", {})
+    assert host._quota_guard_entries()[0]["decision"] == "refuse"
 
 
 # --- #1260: Magpie subscription windows feed the guard ---
@@ -316,3 +317,21 @@ def test_exact_seven_day_stated_reset_is_accepted(reset_host):
     host, connection, now, fail = reset_host
     fail(_iso(now + 5 * 86400), age=2 * 86400)
     assert host._limit_hit_until(connection) == now + 5 * 86400
+
+
+def test_october_19_router_avoids_codex_and_preserves_capability():
+    from tests.platform_v1.test_model_router import candidate, choose
+    pool = [candidate("codex", "gpt-6-sol", "subscription", "codex",
+                      short_headroom=.10, task_short_fraction=.05,
+                      weekly_headroom=.60, task_weekly_fraction=.02),
+            candidate("weak", "flash-lite"), candidate("fit", "opus", "subscription")]
+    assert choose(pool, difficulty=5)["binding_ref"] == "fit"
+
+
+def test_weekly_only_router_capacity_blocks_without_reset_signal():
+    from tests.platform_v1.test_model_router import candidate, choose
+    pool = [candidate("weekly-full", "gpt-6-sol", "subscription", "codex",
+                      short_headroom=.80, task_short_fraction=.01,
+                      weekly_headroom=.12, task_weekly_fraction=.03),
+            candidate("fit", "opus", "subscription")]
+    assert choose(pool, difficulty=5)["binding_ref"] == "fit"

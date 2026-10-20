@@ -437,3 +437,22 @@ def parse_iso_time(value: Any) -> float | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return None
+
+
+def magpie_account_quotas(snapshot: Mapping[str, Any], *, now: float | None = None) -> dict[str, dict[str, Any]]:
+    """Account-preserving projection for reservation callers, without provider selection.
+
+    The legacy provider summary remains available for presentation. Unidentified
+    accounts cannot supply reservation evidence.
+    """
+    result = {}
+    for account in snapshot.get("accounts", ()) if snapshot.get("status") == "available" else ():
+        if not isinstance(account, Mapping) or not account.get("account_ref"):
+            continue
+        projected = magpie_quota_windows({"status": "available", "accounts": [account]}, now=now)
+        for quota in projected.values():
+            ref = quota["account_ref"]
+            previous = result.get(ref)
+            if previous is None or (quota.get("observed_at") or "") > (previous.get("observed_at") or ""):
+                result[ref] = quota
+    return result
