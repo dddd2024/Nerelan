@@ -403,7 +403,7 @@ class CombinedTrustedHost:
 
     def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
                             author_binding: str = "", author_bindings: Sequence[str] = (),
-                            author_models: Sequence[str] = (), failed_tier: int | None = None,
+                            author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
@@ -430,6 +430,8 @@ class CombinedTrustedHost:
             "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
             "coder" if task.difficulty == 3 else "complex")
         chain_models = list(author_models)
+        chain_executors = list(author_executors)
+        review_lease_provider = self._lease_provider_factory() if (role == "reviewer" or task.kind == "review") else None
         required = (*author_bindings, *((author_binding,) if author_binding else ()))
         if (role == "reviewer" or task.kind == "review") and task.artifact_input:
             if not chain_models and not required:
@@ -439,6 +441,7 @@ class CombinedTrustedHost:
                 if not model:
                     raise TaskStoreError("review_not_independent")
                 chain_models.append(model)
+                chain_executors.append(by_id[binding_id]["executor_id"])
         candidates = []
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
@@ -475,6 +478,11 @@ class CombinedTrustedHost:
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
+                               "review_connection": {"auth_method": connection.get("auth_method"),
+                                   "protocol_family": connection.get("protocol_family"),
+                                   "relay_required": connection.get("auth_method") == "api_key",
+                                   "native_endpoint": binding.get("native_endpoint", "")},
+                               "review_lease_provider": review_lease_provider,
                                "metadata": metadata.get(binding["model_id"], {}),
                                "weekly_headroom": next((1 - w["used_percent"] / 100 for w in windows
                                    if w.get("window") in {"weekly", "7d", "week"} and type(w.get("used_percent")) in (int, float)), None),
@@ -491,7 +499,7 @@ class CombinedTrustedHost:
                     capability_table=capability_table, allow_paid=allow_paid,
                     context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
-                    refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models,
+                    refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                     reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03))
                 can_probe = True
             except ValueError:
@@ -516,7 +524,7 @@ class CombinedTrustedHost:
                                 needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                                 reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
                                 refused_models=refused_models, refusal_tier=tier if refused_models else 0,
-                                author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models,
+                                author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=1.0 if forecast else random.random())
             decision["context_packet_reservation"] = 16384 + 256

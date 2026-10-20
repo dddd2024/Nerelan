@@ -58,9 +58,10 @@ def repair_and_review(setup, service, goal_id, response, actual=None):
 def test_reject_fix_fresh_accept(review_setup):
     store, control, service, goal_id = rejected(review_setup)
     routed_authors = []
-    def resolve(plan, *, goal, author_models, author_bindings):
+    def resolve(plan, *, goal, author_models, author_bindings, author_executors):
         routed_authors.append(set(author_models))
         assert not author_bindings
+        assert set(author_executors) == {"opencode"}
         return {'executor_kind': 'opencode', 'binding_ref': 'local-test-binding',
                 'reason': 'fixture independent reviewer', 'model_id': 'local/test'}
     service.task_resolver = resolve

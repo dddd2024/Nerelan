@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Sequence
 import math
+from types import SimpleNamespace
+
+from . import model_review_transport
+from .run_store import TaskStoreError
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
 from .routing_inputs import requirements, reset_decision
@@ -60,7 +64,7 @@ class ModelSelectionError(ValueError):
 
 def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, kind: str,
                  profiles: Mapping[str, Any] | None = None, role: str = "",
-                 author_model: str = "", author_models: Sequence[str] = (), pin: str = "", failed_model: str = "",
+                 author_model: str = "", author_models: Sequence[str] = (), author_executors: Sequence[str] = (), pin: str = "", failed_model: str = "",
                  failed_tier: int = 0, exploration_draw: float = 1.0,
                  exploration_budget: float = .1, context_need: int = 0,
                  needs: Sequence[str] = (), overrides: Mapping[str, Any] | None = None,
@@ -82,9 +86,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     content = "security_simulation" if "security_simulation" in needs else kind
     now = time.time() if now is None else now
     ranked, excluded, reset_observations = [], [], []
-    authors = {model_identity(m) for m in (*author_models, author_model) if m}
     artifact_review = (kind == "review" or role == "reviewer") and bool(author_models)
+    if artifact_review and any(not isinstance(m, str) or not model_identity(m) for m in author_models):
+        raise ModelSelectionError("review_not_independent", excluded=[])
+    authors = {model_identity(m) for m in (*author_models, author_model) if m}
+    codex_authored = artifact_review and ("codex" in author_executors or any(
+        c.get("executor_id") == "codex" and isinstance(c.get("model_id"), str)
+        and model_identity(c["model_id"]) in authors for c in candidates))
     for candidate in candidates:
+        if artifact_review and (not isinstance(candidate.get("model_id"), str)
+                                or not model_identity(candidate["model_id"])):
+            excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
+                             "filter": "review_identity_unknown"})
+            continue
         profile = (profiles or {}).get(candidate["binding_id"], {})
         override = (overrides or {}).get(candidate["binding_id"], {})
         # Public metadata < measured evidence < explicit Owner values.
@@ -107,9 +121,25 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
             reset_observations.append({"binding_id": candidate["binding_id"], **reset})
         reason = ""
+        review_transport = ""
+        if artifact_review:
+            if candidate["executor_id"] == "codex":
+                review_transport = "codex"
+            else:
+                try:
+                    connection = candidate.get("review_connection") or {}
+                    model_review_transport.validate_connection(SimpleNamespace(executor_id=candidate["executor_id"],
+                        auth_method=connection.get("auth_method"),
+                        relay_required=connection.get("relay_required"),
+                        native_endpoint=connection.get("native_endpoint")), candidate.get("review_lease_provider"))
+                    review_transport = "toolless"
+                except TaskStoreError:
+                    reason = "review_transport_unsupported"
         endpoints = metadata.get("native_endpoints", ())
         responses_only = endpoints and all(endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in endpoints)
-        if (not candidate.get("enabled", True) or not candidate.get("runnable", True)
+        if reason:
+            pass
+        elif (not candidate.get("enabled", True) or not candidate.get("runnable", True)
                 or role == "planner" and candidate["executor_id"] not in {"codex", "claude_code"}
                 or responses_only and candidate["executor_id"] == "claude_code"):
             reason = "executor_fitness"
@@ -192,7 +222,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         characteristics = {key: metadata.get(key) for key in
                            ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
         characteristics["context_window"] = window
-        ranked.append(dict(candidate, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, tier_basis=tier_basis, unproven=unproven, cost_class=cost_class,
+        ranked.append(dict(candidate, review_transport=review_transport, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, tier_basis=tier_basis, unproven=unproven, cost_class=cost_class,
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
                            reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
                            score_breakdown=breakdown, refusal_risk=refusal_risk,
@@ -225,6 +255,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         else:
             same = [c for c in pool if c["tier"] == failed_tier]
             pool = same or [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
+    if artifact_review and codex_authored and not pinned:
+        best_availability = min(c["availability_rank"] for c in pool)
+        independent_toolless = [c for c in pool if c["review_transport"] == "toolless"
+                                and c["availability_rank"] == best_availability]
+        pool = independent_toolless or pool
     exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
     # Evidence always outranks an unmeasured fallback outside bounded exploration.
     proven_pool = [c for c in pool if not c["unproven"] and c["tier"] >= difficulty]
