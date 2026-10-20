@@ -688,11 +688,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
             if len(segments) == 4 and segments[:2] == ["api", "goals"]:
                 payload = self._read_json(optional=True)
                 action = segments[3]
-                if action == "rebind":
-                    # Reached only after the native local-client check above, never from the renderer alone.
-                    self._send_json(HTTPStatus.OK, self.goal_service.rebind(
-                        segments[2], window_id=str(payload.get("window_id", ""))))
-                    return
                 revision = self._expected_revision(payload)
                 if action == "plan":
                     result = self.goal_service.plan(
