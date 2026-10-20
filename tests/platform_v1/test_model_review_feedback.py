@@ -155,6 +155,41 @@ def test_window_retry_budget_not_expanded(review_setup):
     assert store.count_tasks() == count
 
 
+@pytest.mark.parametrize('failure', ['timeout', 'executor_failure', 'transport_error', 'model_review_invalid_output'])
+def test_review_without_verdict_retries_without_repair(review_setup, failure):
+    store, _, producer, review, _, options, _ = review_setup
+    options['response'] = 'unparseable review'
+    assert run_review(review_setup).failure_classification == 'model_review_invalid_output'
+    assert not any(row['category'] == 'ModelReview' for row in store.get_task(review).evidence_refs)
+    control = PlatformControlStore(store)
+    goal_id = control.goal_id_for_task(producer)
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 1')
+    store._conn.execute('UPDATE tasks SET failure_classification = ? WHERE id = ?', (failure, review))
+    selections = []
+    def resolve(plan, *, goal, author_models, author_bindings, **kwargs):
+        selections.append(set(author_models))
+        assert not author_bindings
+        return {'executor_kind': 'opencode', 'binding_ref': 'local-test-binding',
+                'reason': 'sole independent reviewer', 'model_id': 'local/test'}
+    service = GoalService(store=store, control_store=control, task_resolver=resolve)
+    count = store.count_tasks()
+    retry, = service.escalate_failed_tasks(goal_id)
+    assert retry['from_task_id'] == review
+    retried = store.get_task(retry['to_task_id'])
+    assert retried.binding_ref == store.get_task(review).binding_ref
+    assert selections == [{'local/author'}]
+    assert store.count_tasks() == count + 1
+    assert not any(row['reason'].startswith('model_review_repair:')
+                   for row in control.list_task_escalations(goal_id))
+    assert next(row for row in control.list_goal_tasks(goal_id) if row['plan_task_id'] == 'A')['task_id'] == producer
+    store._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = ? WHERE id = ?",
+                        (failure, retried.id))
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert store.count_tasks() == count + 1
+    assert len(control.list_task_escalations(goal_id)) == 1
+
+
 def test_mutation_after_reject_is_not_feedback(review_setup):
     store, _, service, goal_id = rejected(review_setup)
     reviewer = review_setup[4][0]

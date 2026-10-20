@@ -595,7 +595,8 @@ class GoalService:
             return repairs
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
-                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(expires_at) > julianday('now')",
+                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
+                "AND julianday(expires_at) > julianday('now')",
                 (window.id,)).fetchone():
             return repairs
         history = self.control_store.list_task_escalations(goal_id)
@@ -608,12 +609,16 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
-            if (load_handoff_contract(failed) or {}).get("validation_mode") == "model_review" and failed.failure_classification not in {"MODEL_REFUSED", "MODEL_UNAVAILABLE"}:
+            model_review = (load_handoff_contract(failed) or {}).get("validation_mode") == "model_review"
+            # Rejections belong to the verified repair loop above, including when
+            # their evidence is invalid. An attempt without a verdict retries the
+            # review itself and must never authorize a producer repair.
+            if model_review and failed.failure_classification == "model_review_rejected":
                 continue
             refusal = failed.failure_classification == "MODEL_REFUSED"
             unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            if not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
