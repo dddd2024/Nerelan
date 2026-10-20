@@ -383,9 +383,12 @@ class CodexExecutor:
         except (ExecutorRuntimeError, OSError) as exc:
             persist_unknown_usage()
             classification = str(exc) if isinstance(exc, ExecutorRuntimeError) else self._e("process_start_failed")
-            return ExecutorResult(False, -1, "", "", "", error=classification,
+            detail = parser.turn.failure_detail
+            error = classification if not detail else f"{classification}: {detail}"
+            return ExecutorResult(False, -1, "", "", "", error=error,
                 workspace=str(prepared.worktree), execution_id=prepared.execution_id,
-                process_exit_code=code, failure_classification=classification)
+                process_exit_code=code, failure_classification=classification,
+                failure_reset_at=parser.turn.failure_reset_at)
         persist_unknown_usage()
         _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": f"{self.LABEL} response",
             "description": public_text(turn.final_text), "metadata": {"executor_kind": self.KIND,

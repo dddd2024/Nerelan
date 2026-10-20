@@ -13,7 +13,9 @@ from __future__ import annotations
 import json
 from typing import Any, Callable
 
-from .codex_protocol import CodexProtocolError, CodexTurn, public_text
+from .codex_protocol import (
+    CodexProtocolError, CodexTurn, public_text, usage_limit_hit, parse_reset_time, local_now,
+)
 from .opencode_executor import redact_event
 
 
@@ -178,13 +180,28 @@ class ClaudeStreamJson:
                     # A "successful" turn flagged is_error is an API-side error (auth, quota, overload).
                     status = event.get("api_error_status")
                     reason = f"api_error_{status}" if type(status) is int and 100 <= status <= 599 else "api_error"
-                self.turn.failure_classification = f"claude_code_turn_failed:{reason[:60]}"
+                detail = public_text(event.get("error"), 500) if isinstance(event.get("error"), str) else ""
+                result_text = public_text(event.get("result"), 500)
+                failure_texts = (detail, result_text)
+                detail = public_text("\n".join(text for text in failure_texts if text), 500)
                 from .model_availability import availability_error
                 unavailable = availability_error(json.dumps(event))
-                if unavailable:
+                if any(usage_limit_hit(text) for text in failure_texts):
+                    self.turn.failure_classification = "claude_code_usage_limit"
+                elif unavailable:
                     self.turn.failure_classification = "MODEL_UNAVAILABLE:" + unavailable
                 elif subtype in {"policy_refusal", "content_policy_violation"}:
                     self.turn.failure_classification = "policy_refusal"
+                else:
+                    self.turn.failure_classification = f"claude_code_turn_failed:{reason[:60]}"
+                self.turn.failure_detail = detail
+                now = local_now()
+                self.turn.failure_reset_at = next(
+                    (reset for text in failure_texts if (reset := parse_reset_time(text, now))), "")
+                if detail:
+                    self._publish({"type": "turn.error",
+                                   "failure_classification": self.turn.failure_classification,
+                                   "detail": detail})
             usage = event.get("usage")
             if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in _USAGE_KEYS):
                 self.turn.usage = {
