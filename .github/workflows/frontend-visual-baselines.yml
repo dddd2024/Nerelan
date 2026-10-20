@@ -1,0 +1,168 @@
+name: Frontend Visual Baselines
+
+# Self-serve regeneration of the Playwright @visual baselines for a PR whose UI
+# change is intentional. It never writes to the PR branch and never changes the
+# Frontend Playwright check: it regenerates the PNGs in the same runner image,
+# re-runs @visual against them, and publishes the result as a commit on the
+# staging branch `ci-visual-baselines/<pr-branch>`. The PR author adopts it with
+# their own commit, so the normal checks and the independent review see it:
+#
+#   git fetch origin ci-visual-baselines/<pr-branch>
+#   git checkout FETCH_HEAD -- frontend/e2e/snapshots
+#   git commit -m "Update visual baselines" && git push
+#
+# Trigger it with only a push: put [update-visual-baselines] in the PR head
+# commit message. workflow_dispatch on the PR branch works too.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-visual-baselines.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-visual-baselines-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  request:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Fork PRs get a read-only token and are not ours to stage for.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      requested: ${{ steps.detect.outputs.requested }}
+      head: ${{ steps.detect.outputs.head }}
+      branch: ${{ steps.detect.outputs.branch }}
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Detect request
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$BRANCH" = "main" ] || [[ "$BRANCH" == ci-visual-baselines/* ]]; then
+            echo "Refusing to stage baselines for branch $BRANCH" >&2
+            echo "requested=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          requested=false
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            requested=true
+          elif git log -1 --format=%B "$HEAD_SHA" | grep -qF '[update-visual-baselines]'; then
+            requested=true
+          fi
+          echo "requested=$requested" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+  regenerate:
+    needs: request
+    if: needs.request.outputs.requested == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.request.outputs.head }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.1"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install bundled Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps --no-shell chromium
+
+      - name: Regenerate visual baselines
+        working-directory: frontend
+        run: npm run e2e:visual -- --update-snapshots=changed
+        env:
+          CI: "true"
+
+      - name: Re-run visual check against regenerated baselines
+        working-directory: frontend
+        run: npm run e2e:visual
+        env:
+          CI: "true"
+
+      - name: Upload regenerated baselines
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-visual-baselines
+          if-no-files-found: error
+          path: frontend/e2e/snapshots
+
+  stage:
+    needs: [request, regenerate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # The only write-capable job. It runs no PR code (no npm, no Playwright) and
+    # pushes only to the ci-visual-baselines/ staging namespace.
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.request.outputs.head }}
+
+      - name: Download regenerated baselines
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-visual-baselines
+          path: ${{ runner.temp }}/visual-baselines
+
+      - name: Stage baselines commit
+        env:
+          SOURCE: ${{ runner.temp }}/visual-baselines
+          HEAD_SHA: ${{ needs.request.outputs.head }}
+          BRANCH: ${{ needs.request.outputs.branch }}
+        run: |
+          set -euo pipefail
+          unexpected="$(find "$SOURCE" -type f ! -name '*.png' -print)"
+          if [ -n "$unexpected" ] || [ -n "$(find "$SOURCE" -type l -print)" ]; then
+            echo "Artifact contains non-PNG files or links:" >&2
+            printf '%s\n' "$unexpected" >&2
+            exit 1
+          fi
+          cp -R "$SOURCE"/. frontend/e2e/snapshots/
+          git add -- frontend/e2e/snapshots
+          staging="ci-visual-baselines/$BRANCH"
+          if git diff --cached --quiet; then
+            echo "Baselines already match the PR head; nothing to stage." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898828+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "Update visual baselines for $BRANCH" -m "Regenerated by frontend-visual-baselines from $HEAD_SHA."
+          git push --force origin "HEAD:refs/heads/$staging"
+          {
+            echo "Staged regenerated baselines on \`$staging\` ($(git rev-parse HEAD)), based on $HEAD_SHA."
+            echo
+            git diff --stat HEAD~1 HEAD
+            echo
+            echo "Adopt with: git fetch origin $staging && git checkout FETCH_HEAD -- frontend/e2e/snapshots"
+          } >> "$GITHUB_STEP_SUMMARY"
