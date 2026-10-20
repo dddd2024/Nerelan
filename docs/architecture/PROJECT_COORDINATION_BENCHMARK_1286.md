@@ -10,13 +10,13 @@
 | Acceptance item | Status here |
 |---|---|
 | Mapping table: implemented vs planned vs missing, with code paths and non-claims | **Delivered** in §3 |
-| Coordinator / Thread / Project Knowledge contract that reuses existing owners | **Delivered as a proposal** in §4; not implemented |
-| One provider-free end-to-end fixture (concurrency, provenance isolation, memory precedence, evidence, restart) | **Specified** in §5.2; **not implemented** |
+| Coordinator / Thread / Project Knowledge contract that reuses existing owners | **Delivered** in §4. The project facade (§4.1) is implemented read-only in `reverse_agent/platform_v1/project_overview.py`; the thread-envelope additions, write-scope checks and tier C store are not |
+| One provider-free end-to-end fixture (concurrency, provenance isolation, memory precedence, evidence, restart) | **Partially implemented** in `tests/platform_v1/test_project_overview.py`: concurrency, dependency ordering, restart without duplicate dispatch, window expiry and zero model calls. Worktree/provenance isolation and memory precedence are **not** covered (§5.2) |
 | Multi-run benchmark A / B / (C) with quality and real spend | **Protocol specified** in §5; **not run**. No numbers in this document are measurements of Nerelan |
 | Decision memo: adopt / defer / reject per lesson | **Provisional** memo in §6. Every "adopt" is conditional on the §5 benchmark; nothing is promoted on this document alone |
 | Link deltas to #260 / #296 / #379 / #1191 and scoped issues | **Delivered** in §7 as proposed deltas; no new issues were opened |
 
-The issue therefore stays open after this document lands: the fixture and the benchmark remain.
+The issue therefore stays open after this change lands: the remaining fixture steps and the benchmark remain.
 
 ## 2. External sources and what was actually verified
 
@@ -77,7 +77,7 @@ This is a contract over existing records. It introduces **no** new orchestrator,
 - **State authority:** TaskStore (`run_store.py`) for tasks and runs, `control_store.py` for goals, windows, claims, reservations, receipts and publications. The coordinator has no private state; a restarted coordinator reconstructs everything from these tables (`UnattendedCoordinator.reconcile`).
 - **May:** create tasks only inside an approved Goal plan and an active autonomous window; reserve budget; dispatch; record receipts; request review; request Draft-PR publication.
 - **May not:** widen scope, extend an expired window, mark ready or merge, or treat a worker's text as completion. Acceptance comes from `acceptance.py` and evidence, not claims.
-- **Project facade (proposed, #260):** a read model aggregating per Goal: plan, tasks with state in {`queued`, `running` (fresh heartbeat), `waiting:<reason>`, `blocked_on_owner:<action>`, `review`, `done`, `failed`, `stale`}, budget reserved/charged, open Owner decisions, latest verdict, exact PR/commit links. Derived only from existing rows, like `run_read_model.py`. `blocked_on_owner` items are listed in one place (§2.1 lesson).
+- **Project facade (implemented read-only, `project_overview.py`; UI/API wiring is #260):** a read model aggregating per Goal: plan, tasks with state in {`queued`, `waiting_dependencies`, `waiting_window`, `running`, `validating`, `ready_for_review`, `blocked`, `failed`, `stale`, `unknown`}, window effective status and budget, escalation count, usage and publication links per task, and Owner actions in one list (`plan_goal`, `approve_plan`, `launch_goal`, `renew_window`, `review_result`, `resolve_blocked_task`, `resume_task`, `inspect_stale_task`) (§2.1 lesson). Derived only from existing rows through `RunReadModel`; authority is always `NONE`. Review verdicts are not yet included because the product has no verdict row to read.
 
 ### 4.2 Thread = one task execution with an explicit envelope
 
@@ -122,7 +122,11 @@ Precedence: A > B > C > D. A C entry that contradicts A or B is flagged stale an
 
 Each arm uses one `BenchmarkContract` (`cost_quality_benchmark.py`): same `base_commit`, requirements, acceptance, tools and resource-budget digests. Results are compared with `compare_arms`.
 
-### 5.2 Provider-free fixture (to implement next)
+### 5.2 Provider-free fixture
+
+Implemented in `tests/platform_v1/test_project_overview.py` with the real `UnattendedCoordinator`, a file-backed TaskStore and an injected deterministic task executor (the model router fails the test if reached): steps 1, 2 (concurrency and dependency ordering only), 4 (restart rebuilds the same overview and nothing is dispatched twice), 5 (expired window parks the Goal on `renew_window` without the overview writing) and 6. Not yet covered: separate worktrees and handoff provenance digests in step 2, because the injected executor bypasses worktree preparation, and step 3, which needs the #379 store.
+
+Original specification:
 
 Extend the pattern of `provider_free_task_plane_acceptance.py` with the deterministic fixture executor, in a new test under `tests/platform_v1`:
 
@@ -181,4 +185,4 @@ No new issues were opened. Each delta belongs to the existing owner:
 - **#1191 / #1206:** recovery rule in §4.2, including `blocked_on_owner:renew_window` on window expiry; fixture steps 4–5.
 - **#1279 / #1251:** disjoint write-scope declaration per task, checked at plan validation.
 - **#1248 / #1281:** persist routing reason with the run; per-role usage rollup; coordinator overhead metric.
-- **#1286 (this issue):** remaining work is the §5.2 fixture and the §5 benchmark runs.
+- **#1286 (this issue):** remaining work is the uncovered §5.2 fixture steps and the §5 benchmark runs.
