@@ -6,6 +6,7 @@ import os
 import hashlib
 import queue
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -21,25 +22,65 @@ from .repository_preparation import prepare_linked_worktree
 from .task_runtime import ExecutorResult, ExecutorRuntimeError, LocalValidationRunner
 
 
-_TASK_TEMP = ".nt"
+_TASK_TEMP = ".nt"  # Legacy fixed name: older residue is never adopted or deleted.
+_TASK_TEMP_PREFIX = ".nt-"
+_ANCHORED_WRITE = (hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NOFOLLOW")
+                   and os.open in os.supports_dir_fd)
+
+
+def _is_task_temp(path: str) -> bool:
+    top = path.replace("\\", "/").split("/", 1)[0]
+    return top == _TASK_TEMP or top.startswith(_TASK_TEMP_PREFIX)
+
+
+def _plain_directory(info: os.stat_result) -> bool:
+    return (stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode)
+            and not getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _write_scratch_ignore(scratch: Path, identity: tuple[int, int]) -> None:
+    """Create the local ignore file inside the exact directory just made.
+
+    Where the platform supports it, the write is anchored to a no-follow
+    directory handle so a swapped path cannot redirect it. Otherwise the
+    exclusive create can only add a new file, and the directory identity is
+    re-checked afterwards so a substitution still fails closed.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if _ANCHORED_WRITE:
+        directory = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(directory)
+            if (info.st_dev, info.st_ino) != identity:
+                raise OSError("scratch replaced")
+            handle = os.open(".gitignore", flags | os.O_NOFOLLOW, 0o666, dir_fd=directory)
+        finally:
+            os.close(directory)
+    else:
+        handle = os.open(scratch / ".gitignore", flags, 0o666)
+    with os.fdopen(handle, "w", encoding="utf-8") as stream:
+        stream.write("*\n")
+    info = scratch.lstat()
+    if not _plain_directory(info) or (info.st_dev, info.st_ino) != identity:
+        raise OSError("scratch replaced")
 
 
 def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, str]:
     """Create fresh, short execution scratch, never reuse repository content.
 
-    No readiness probe calls this. Exclusive creation refuses existing entries,
-    including dangling links, junctions and directories from earlier executions.
+    No readiness probe calls this. Every native attempt gets its own
+    unpredictable ``.nt-*`` directory, created exclusively, so a retry in the
+    same worktree never collides with an earlier attempt. Earlier scratch,
+    including the legacy ``.nt``, is never adopted, followed or deleted.
     """
     try:
         root = worktree.absolute()
         for component in (*reversed(root.parents), root):
-            info = component.lstat()
-            if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                    or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            if not _plain_directory(component.lstat()):
                 raise OSError("unverifiable workspace")
         if root.resolve(strict=True) != root:
             raise OSError("unverifiable workspace")
-        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP], cwd=root,
+        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP, _TASK_TEMP_PREFIX + "*"], cwd=root,
             capture_output=True, timeout=10, check=False)
         if tracked.returncode:
             # A read-only planner may operate in an ordinary (non-Git)
@@ -55,18 +96,17 @@ def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, 
             if b"not a git repository" not in tracked.stderr.lower():
                 raise OSError("Git index unavailable")
         if tracked.stdout:
+            # Scratch is excluded from product evidence, so tracked
+            # repository content under its names must never be hidden.
             raise OSError("reserved scratch is tracked")
-        scratch = root / _TASK_TEMP
+        scratch = root / (_TASK_TEMP_PREFIX + secrets.token_hex(6))
         scratch.mkdir()  # Inherit workspace permissions; no exist_ok or parents.
         info = scratch.lstat()
-        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
-                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
-                or scratch.resolve(strict=True) != scratch):
+        if not _plain_directory(info) or scratch.resolve(strict=True) != scratch:
             raise OSError("unverifiable scratch")
         # Local ignore only: no shared Git configuration or exclude-file edits.
         # This also keeps ordinary Git-based role snapshots free of scratch.
-        with (scratch / ".gitignore").open("x", encoding="utf-8") as handle:
-            handle.write("*\n")
+        _write_scratch_ignore(scratch, (info.st_dev, info.st_ino))
         if scratch.resolve(strict=True) != scratch:
             raise OSError("scratch escaped workspace")
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
@@ -360,7 +400,7 @@ class CodexExecutor:
                    if turn.reported_cost_usd is not None else {})}})
         exit_code, summary, digest = LocalValidationRunner().run(task_id=task_id, command_id="git_diff_check", cwd=str(prepared.worktree))
         changed_files = [f for f in _collect_final_product_files(prepared.worktree)
-                         if f["path"].replace("\\", "/").split("/", 1)[0] != _TASK_TEMP]
+                         if not _is_task_temp(f["path"])]
         # git diff --check returns zero for an unchanged worktree. That proves
         # only patch hygiene, not that an implementation task produced work.
         # An empty result must never be promoted to READY_FOR_REVIEW.
