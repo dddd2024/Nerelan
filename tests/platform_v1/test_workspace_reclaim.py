@@ -189,17 +189,106 @@ def test_read_only_files_are_removed(repo, root):
     assert not wt.exists()
 
 
-def test_failed_delete_is_reported(repo, root, monkeypatch):
-    wt = add_worktree(repo, root, "task-1")
-    monkeypatch.setattr(workspace_reclaim, "_git", lambda *a, **k: None)
+def test_failed_delete_is_reported(repo, root, tmp_path, monkeypatch):
+    clone = root / "review-clone"
+    git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
 
     def locked(path):
         raise PermissionError("in use")
 
     monkeypatch.setattr(workspace_reclaim, "_remove_tree", locked)
-    record = {"path": str(wt), "name": wt.name, "kind": "worktree", "reclaim": True, "reason": ""}
+    record = {"path": str(clone), "name": clone.name, "kind": "clone", "reclaim": True, "reason": ""}
     result = workspace_reclaim.remove(record)
     assert result["removed"] is False and "in use" in result["error"]
+
+
+def test_git_refusal_is_final_and_never_falls_back_to_rmtree(repo, root, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "late.txt").write_text("new work\n")
+    monkeypatch.setattr(workspace_reclaim, "_remove_tree",
+                        lambda path: pytest.fail("rmtree after git refused"))
+    record = {"path": str(wt), "name": wt.name, "kind": "worktree", "reclaim": True, "reason": ""}
+    result = workspace_reclaim.remove(record)
+    assert result["removed"] is False and result["error"].startswith("git worktree remove")
+    assert (wt / "late.txt").exists()
+
+
+def _ignore(wt, *patterns):
+    (wt / ".git").read_text()  # linked worktree: use the per-worktree exclude
+    exclude = Path(git(wt, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
+    exclude.parent.mkdir(exist_ok=True)
+    exclude.write_text("\n".join(patterns) + "\n")
+
+
+@pytest.mark.parametrize("rel", [".env", "out/result.bin", ".platform_v1_runtime/run/evidence.json"])
+def test_ignored_work_files_are_kept(repo, root, rel):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, ".env", "out/", ".platform_v1_runtime/")
+    (wt / rel).parent.mkdir(parents=True, exist_ok=True)
+    (wt / rel).write_text("secret or evidence\n")
+    os.utime(wt / rel, (0, 0))
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"].startswith("ignored files present") and (wt / rel).exists()
+
+
+def test_ignored_caches_do_not_block(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "__pycache__/", "node_modules/", "*.pyc")
+    (wt / "__pycache__").mkdir()
+    (wt / "__pycache__" / "a.cpython-313.pyc").write_bytes(b"x")
+    (wt / "frontend" / "node_modules" / "pkg").mkdir(parents=True)
+    (wt / "frontend" / "node_modules" / "pkg" / "i.js").write_text("x")
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry.get("removed") is True, entry["reason"]
+    assert not wt.exists()
+
+
+def test_locked_worktree_is_kept(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    git(repo, "worktree", "lock", str(wt))
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"] == "worktree is locked" and wt.exists()
+
+
+def test_recent_change_deep_in_tree_is_kept(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "__pycache__/")
+    (wt / "d" / "e" / "__pycache__").mkdir(parents=True)
+    (wt / "d" / "e" / "__pycache__" / "x.pyc").write_bytes(b"x")
+    for p in (wt, wt / "d", wt / "d" / "e", wt / "a.txt"):
+        os.utime(p, (0, 0))
+    now = os.stat(wt / "d" / "e" / "__pycache__" / "x.pyc").st_mtime + 86400
+    entry = by_name(sweep([root], now=now, apply=True))["task-1"]
+    assert "retention" in entry["reason"] and wt.exists()
+
+
+def test_nested_repository_is_kept(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "node_modules/")
+    git(wt, "init", "-q", str(wt / "node_modules" / "vendored"))
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"] == "contains a nested repository or submodule" and wt.exists()
+
+
+def test_unpushed_tag_in_clone_is_kept(repo, root, tmp_path):
+    clone = root / "review-clone"
+    git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
+    git(clone, "commit", "-q", "--allow-empty", "-m", "tagged only")
+    git(clone, "tag", "v-local")
+    git(clone, "reset", "-q", "--hard", "origin/main")
+    entry = by_name(sweep([root], now=LATER, apply=True, include_clones=True))["review-clone"]
+    assert entry["reason"] == "commits not on any remote branch" and clone.exists()
+
+
+def test_gitfile_pointing_at_full_repository_is_kept(repo, root, tmp_path):
+    other = tmp_path / "other"
+    git(tmp_path, "clone", "-q", str(tmp_path / "remote.git"), str(other))
+    fake = root / "fake"
+    fake.mkdir()
+    (fake / ".git").write_text(f"gitdir: {other / '.git'}\n")
+    (fake / "a.txt").write_text("a\n")
+    entry = by_name(sweep([root], now=LATER, apply=True))["fake"]
+    assert entry["reason"] == "gitdir is not a linked worktree entry" and fake.exists()
 
 
 def test_windows_long_path_prefix(monkeypatch):
