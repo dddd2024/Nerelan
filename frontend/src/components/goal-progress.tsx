@@ -1,7 +1,7 @@
 import { Check, Circle, LoaderCircle, PauseCircle, ShieldAlert } from "lucide-react";
 import { Link } from "react-router";
 import type { PlatformGoal, PlatformGoalTaskLink } from "@/lib/platform-client";
-import { FUNCTIONAL_STATUS_LABELS, normalizeFunctionalValidation } from "@/lib/functional-validation";
+import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/functional-validation";
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
@@ -109,7 +109,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{materialized ? taskStateText(state) : "尚未启动"}</span>
               {materialized && <>
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
-                  {FUNCTIONAL_STATUS_LABELS[proof.status]}
+                  {functionalStatusLabel(proof.status)}
                 </span>
                 <span data-testid={`goal-publication-${task.task_id}`} className={cn("rounded-md px-1.5 py-0.5", task.publication ? "bg-ra-light text-ra-text-secondary" : "text-ra-text-tertiary")}>
                   {publicationText(task.publication)}

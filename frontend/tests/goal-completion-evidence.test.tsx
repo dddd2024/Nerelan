@@ -40,7 +40,7 @@ it("shows current functional acceptance, pending review and inspectable exact ev
   await userEvent.click(screen.getByText("查看功能检查", { selector: "summary" }));
   expect(screen.getByText("共 3 项 · 通过 2 · 失败 0 · 跳过 1")).toBeVisible();
   // The component's nested evidence disclosure is explicit as well.
-  await userEvent.click(screen.getByText("查看验证证据", { selector: "summary" }));
+  await userEvent.click(screen.getByText("验证详情", { selector: "summary" }));
   expect(screen.getByText(verified.tree!)).toBeVisible();
   expect(screen.getByText(verified.result_digest!)).toBeVisible();
 });
@@ -55,7 +55,7 @@ it.each([
   ["zero executed tests", { ...verified, checks: [{ ...verified.checks![0], test_report: { format: "junit", tests: 0, passed: 0, failed: 0, skipped: 0, accepted: true } }] }],
 ])("does not infer verification from completed execution with %s proof", (_, evidence) => {
   renderWithProviders(<GoalProgress goal={goal({ functional_validation: evidence as FunctionalValidation | undefined })} />);
-  expect(status()).toHaveTextContent("功能尚未验证");
+  expect(status()).toHaveTextContent("尚未完成测试");
   expect(screen.getByText("执行完成，待审查")).toBeVisible();
   expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
 });
@@ -65,7 +65,7 @@ it("keeps a real failed check visible without converting failed execution to suc
     ...verified, status: "FAILED", verified: false, checks: [{ ...verified.checks![0], exit_code: 1,
       test_report: { format: "junit", tests: 3, passed: 1, failed: 1, skipped: 1, accepted: false } }],
   } }), status: "BLOCKED" }} />);
-  expect(status()).toHaveTextContent("功能检查未通过");
+  expect(status()).toHaveTextContent("测试未通过");
   expect(screen.getByText("需要处理阻塞")).toBeVisible();
   expect(screen.getByTestId("goal-progress-summary")).toHaveTextContent("0/1");
   expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
@@ -76,7 +76,7 @@ it.each(["missing executor", "fixture executor", "fixture lifecycle"])("does not
     : kind === "fixture executor" ? { executor_kind: "deterministic_fixture" as const }
       : { status: "READY_FOR_REVIEW_FIXTURE" };
   renderWithProviders(<GoalProgress goal={goal(task)} />);
-  expect(status()).toHaveTextContent("功能尚未验证");
+  expect(status()).toHaveTextContent("尚未完成测试");
   expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
 });
 
@@ -105,7 +105,7 @@ it("downgrades a newer unverified response even when a Draft publication record 
   expect(status()).toHaveTextContent("功能已验证");
   view.rerender(<GoalProgress goal={goal({ functional_validation: { status: "UNVERIFIED", verified: false },
     publication: { status: "COMPLETE", branch: "codex/result", pr_number: 42, pr_url: "https://github.com/owner/repo/pull/42", commit_sha: "1".repeat(40) } })} />);
-  expect(status()).toHaveTextContent("功能尚未验证");
+  expect(status()).toHaveTextContent("尚未完成测试");
   expect(screen.getByTestId("goal-publication-task-bound")).toHaveTextContent("已记录 Draft PR #42");
   expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
 });
