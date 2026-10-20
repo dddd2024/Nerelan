@@ -187,3 +187,23 @@ def test_git_failure_has_finite_code(repo, tmp_path):
                                          "missing-sensitive-reference"):
             pass
     assert str(error.value) == "planner_git_failed"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX shell hooks")
+@pytest.mark.parametrize("tracked", [False, True])
+def test_repository_hooks_never_run(repo, tmp_path, tracked):
+    marker = tmp_path / "hook-ran"
+    hooks = repo / "hooks" if tracked else repo / ".git" / "hooks"
+    hooks.mkdir(exist_ok=True)
+    for name in ("post-checkout", "reference-transaction"):
+        hook = hooks / name
+        hook.write_text(f"#!/bin/sh\necho {name} >> '{marker}'\n")
+        hook.chmod(0o755)
+    if tracked:
+        git(repo, "config", "core.hooksPath", "hooks")
+        git(repo, "add", "hooks")
+        git(repo, "commit", "-m", "hooks")
+    marker.unlink(missing_ok=True)
+    with preparation.planner_worktree(repo, tmp_path / "tasks", "goal", 1) as (path, _):
+        assert (path / "file.txt").exists()
+    assert not marker.exists()

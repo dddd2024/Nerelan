@@ -203,8 +203,13 @@ def _planner_lock(path):
                     fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+# Planner git runs on the host, so repository-controlled hooks (post-checkout on
+# worktree add, including a tracked core.hooksPath) must never execute.
+_PLANNER_GIT = ("git", "-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false")
+
+
 def _planner_git(repo, *args):
-    result = _run_git(["git", *args], cwd=repo, timeout=60)
+    result = _run_git([*_PLANNER_GIT, *args], cwd=repo, timeout=60)
     if result.returncode:
         raise ExecutorRuntimeError("planner_git_failed")
     return result.stdout.strip()
@@ -217,7 +222,7 @@ def _remove_planner_worktree(repo, root, dest):
         raise ExecutorRuntimeError("planner_path_invalid")
     try:
         # add can fail after creating a directory but before registering it.
-        result = _run_git(["git", "worktree", "remove", "--force", str(dest)],
+        result = _run_git([*_PLANNER_GIT, "worktree", "remove", "--force", str(dest)],
                           cwd=repo, timeout=60)
         if result.returncode and dest.exists():
             _planner_path(dest)
