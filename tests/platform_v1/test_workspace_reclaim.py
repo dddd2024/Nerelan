@@ -329,6 +329,20 @@ def test_recent_change_deep_in_tree_is_kept(repo, root):
     assert "retention" in entry["reason"] and wt.exists()
 
 
+def test_recent_fetch_in_clone_counts_as_activity(repo, root, tmp_path):
+    clone = root / "review-clone"
+    git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
+    git(clone, "fetch", "-q")  # FETCH_HEAD exists, so the next fetch rewrites it in place
+    for dirpath, dirs, files in os.walk(clone):
+        for name in dirs + files:
+            os.utime(os.path.join(dirpath, name), (0, 0), follow_symlinks=False)
+    os.utime(clone, (0, 0))
+    git(clone, "fetch", "-q")
+    now = os.stat(clone / ".git" / "FETCH_HEAD").st_mtime + 86400
+    entry = by_name(sweep([root], now=now, apply=True, include_clones=True))["review-clone"]
+    assert "retention" in entry["reason"] and clone.exists()
+
+
 def test_nested_repository_is_kept(repo, root):
     wt = add_worktree(repo, root, "task-1")
     _ignore(wt, "node_modules/")

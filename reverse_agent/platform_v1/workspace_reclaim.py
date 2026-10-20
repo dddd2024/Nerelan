@@ -127,7 +127,7 @@ def _walk(path: Path) -> tuple[float, bool]:
                     stack.append(entry.path)
     # Commits and checkouts touch the (per-worktree) gitdir, not the tree root.
     gitdir = _gitdir(path)
-    for name in ("index", "HEAD", "logs/HEAD"):
+    for name in ("index", "HEAD", "logs/HEAD", "FETCH_HEAD", "ORIG_HEAD", "packed-refs"):
         try:
             if gitdir is not None:
                 newest = max(newest, os.stat(gitdir / name).st_mtime)
