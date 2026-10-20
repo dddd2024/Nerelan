@@ -30,6 +30,7 @@ from .os_vault import (
     connection_vault_ref,
 )
 from .provider_identity import identity_authority_changed
+from .magpie import DEFAULT_MAGPIE, validate_settings
 
 
 # Schema version for persisted sanitized product setup state.
@@ -396,6 +397,8 @@ class ModelProfileStore:
             self._state_path = Path(state_path).resolve()
         self._vault: VaultAdapter | None = vault
 
+        self._magpie = dict(DEFAULT_MAGPIE)
+        self.magpie_status = lambda: {"status": "MAGPIE_DISABLED", "reason": "", "last_probe_at": None, "model_count": 0}
         self._profiles: dict[str, _StoredProfile] = {}
         self._connections: dict[str, _StoredConnection] = {}
         self._executors = {
@@ -961,6 +964,45 @@ class ModelProfileStore:
                 raise KeyError(f"executor not found: {executor_id}")
             return executor.to_public_dict()
 
+    def get_magpie(self) -> dict[str, Any]:
+        with self._lock:
+            return dict(self._magpie)
+
+    def put_magpie(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        candidate = validate_settings(payload)
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            previous = self._magpie
+            self._magpie = candidate
+            try:
+                if self._state_path is not None:
+                    _write_atomic(self._build_state_doc(), self._state_path)
+            except Exception as exc:
+                self._magpie = previous
+                if isinstance(exc, _PostReplaceDurabilityUncertainError):
+                    self._handle_post_replace_uncertainty(exc)
+                raise StoreError("Magpie settings persistence failed") from exc
+            return dict(candidate)
+
+    def magpie_connection_runnable(self, connection_id: str) -> bool:
+        from urllib.parse import urlsplit
+        with self._lock:
+            connection = self._connections[connection_id].connection
+            config = self._magpie
+            if not config["enabled"]:
+                # Manual gateway connections retain their existing execution behavior.
+                return True
+
+            def endpoint(url: str) -> tuple[str, str | None, int]:
+                parsed = urlsplit(url)
+                host = parsed.hostname
+                if host in ("localhost", "127.0.0.1", "::1"):
+                    host = "loopback"
+                return parsed.scheme, host, parsed.port or (443 if parsed.scheme == "https" else 80)
+            if endpoint(connection.base_url) != endpoint(config["base_url"]):
+                return True
+            return config["enabled"] and self.magpie_status()["status"] in {"STARTED", "ALREADY_RUNNING"}
+
     def list_bindings_public(self) -> list[dict[str, Any]]:
         with self._lock:
             self._ensure_connection_binding_ready()
@@ -1313,6 +1355,10 @@ class ModelProfileStore:
 
         data = self._parse_state_doc(raw)
         schema_version = int(data["schema_version"])
+        try:
+            magpie = validate_settings(data.get("magpie", {}), check_file=False)
+        except ValueError as exc:
+            raise StoreError("invalid persisted Magpie settings") from exc
 
         # Parse into temporary maps first. A malformed v1/v2 document therefore
         # never leaves a partially replaced in-memory relation behind.
@@ -1361,6 +1407,7 @@ class ModelProfileStore:
                 )
             binding_by_id[binding.binding_id] = binding
 
+        self._magpie = magpie
         self._connections.clear()
         self._connections.update(conn_by_id)
         self._bindings.clear()
@@ -1456,6 +1503,7 @@ class ModelProfileStore:
         bindings = [b.to_public_dict() for b in self._bindings.values()]
         doc = {
             "schema_version": _STATE_SCHEMA_VERSION,
+            "magpie": self._magpie,
             "connections": connections,
             "bindings": bindings,
         }
