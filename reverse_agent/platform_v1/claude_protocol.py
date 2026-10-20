@@ -179,6 +179,12 @@ class ClaudeStreamJson:
                     status = event.get("api_error_status")
                     reason = f"api_error_{status}" if type(status) is int and 100 <= status <= 599 else "api_error"
                 self.turn.failure_classification = f"claude_code_turn_failed:{reason[:60]}"
+                from .model_availability import availability_error
+                unavailable = availability_error(json.dumps(event))
+                if unavailable:
+                    self.turn.failure_classification = "MODEL_UNAVAILABLE:" + unavailable
+                elif subtype in {"policy_refusal", "content_policy_violation"}:
+                    self.turn.failure_classification = "policy_refusal"
             usage = event.get("usage")
             if isinstance(usage, dict) and all(type(usage.get(k)) is int and usage[k] >= 0 for k in _USAGE_KEYS):
                 self.turn.usage = {
