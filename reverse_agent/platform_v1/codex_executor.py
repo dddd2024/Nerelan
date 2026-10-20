@@ -209,7 +209,7 @@ class CodexExecutor:
         if binding_resolution is not None:
             self._accept_binding(binding_resolution)
             model_id = binding_resolution.model_id
-        self._model_id = validate_codex_model(model_id)
+        self._model_id = self._validate_model(model_id)
         self._repo_dir = repo_dir
         self._base_ref = base_ref
         self._codex_exe = codex_exe
@@ -219,6 +219,9 @@ class CodexExecutor:
         self._process_factory = process_factory or subprocess.Popen
         self._readiness_probe = readiness_probe or type(self).default_readiness_probe
         self._validate_options()
+
+    def _validate_model(self, model: str) -> str:
+        return validate_codex_model(model)
 
     def _accept_binding(self, resolution) -> None:
         """Native CLIs run on the Owner's own managed login, never on a relayed API key."""
@@ -310,7 +313,7 @@ class CodexExecutor:
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
                 "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
-                            "context_packet_bytes":len(context_blob), "base_sha":prepared.base_sha}})
+                            "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":prepared.base_sha}})
         def progress(item):
             _emit(event_callback, task_id, {"type": "EXECUTOR_PROGRESS", "title": self.LABEL,
                 "description": public_text(item.get("text") or item.get("command") or f"{self.LABEL} activity"),

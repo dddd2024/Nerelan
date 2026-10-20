@@ -18,6 +18,7 @@ remain backward-compatible for single/normal execution paths.
 from __future__ import annotations
 
 import sqlite3
+import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -52,6 +53,7 @@ TERMINAL_STATUSES = frozenset({
 
 VALID_EVENT_TYPES = frozenset({
     "MODEL_SELECTED",
+    "MODEL_REFUSED",
     "MODEL_SELECTION_FAILED",
     "DISCOVERED",
     "VALIDATED",
@@ -979,6 +981,28 @@ class TaskStore:
             ).fetchone() is not None:
                 return True
         return False
+
+    def block_model_selection(self, task_id: str, *, decision: Mapping[str, Any]) -> Task:
+        """A settled or undispatched task with no admissible model is BLOCKED."""
+        with self._lock:
+            task = self.get_task(task_id)
+            if task.status not in {"DISCOVERED", "QUEUED", "FAILED"}:
+                raise TaskStoreError("model_selection_task_not_settled")
+            reason = str(decision.get("reason", "no_runnable_model"))
+            self._update_task_fields(task_id, {"status": "BLOCKED", "failure_classification": reason,
+                                               "failure_detail": json.dumps(dict(decision))})
+            self._append_event(task_id=task_id, event_type="MODEL_SELECTION_FAILED", title="Model selection blocked",
+                               description=reason, metadata=dict(decision))
+        return self.get_task(task_id)
+
+    def block_refused_task(self, task_id: str, *, refusals: list[str], decision: Mapping[str, Any] | None = None) -> Task:
+        """Finish routing a settled refusal without turning it into a skill failure."""
+        with self._lock:
+            task = self.get_task(task_id)
+            if task.status != "FAILED" or task.failure_classification != "MODEL_REFUSED":
+                raise TaskStoreError("refusal_task_not_settled")
+            return self.block_model_selection(task_id, decision={**dict(decision or {}),
+                "reason": "no_willing_model", "refusals": list(refusals)})
 
     def classify_failure(
         self,

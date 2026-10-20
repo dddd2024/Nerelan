@@ -420,6 +420,7 @@ class ModelProfileStore:
             ),
         }
         self._bindings: dict[str, Binding] = {}
+        self._routing_catalogs: dict[str, Any] = {}
         self._agent_roster: dict[str, str] = {}
         self._agent_pins: set[str] = set()
         self._agent_policy: dict[str, Any] = {}
@@ -435,6 +436,36 @@ class ModelProfileStore:
             except StoreError:
                 # A damaged roster never blocks connections/bindings; roles start unfilled.
                 self._agent_roster = {}
+            try:
+                catalogs = json.loads(self._state_path.with_name("model_catalog_observations.json").read_text(encoding="utf-8"))
+                if isinstance(catalogs, dict):
+                    for connection_id, catalog in catalogs.items():
+                        if isinstance(catalog, dict) and connection_id in self._connections:
+                            self.record_model_catalog(connection_id, catalog.get("models", []), catalog.get("metadata", {}), persist=False)
+            except (OSError, ValueError, TypeError):
+                self._routing_catalogs = {}
+
+    def record_model_catalog(self, connection_id: str, models: list[str], metadata: Mapping[str, Any], *, persist: bool = True) -> None:
+        """Save sanitized listing observations, never entitlement or credentials."""
+        from .magpie import parse_models
+        if not isinstance(models, list) or len(models) > 300 or any(not isinstance(m, str) or not m or len(m) > 200 for m in models):
+            raise ValueError("invalid_routing_catalog")
+        if not isinstance(metadata, Mapping):
+            raise ValueError("invalid_routing_catalog")
+        normalized = {}
+        for model in models:
+            raw = metadata.get(model, {})
+            if isinstance(raw, Mapping):
+                parsed = parse_models({"object": "list", "data": [{**raw, "id": model}]})
+                if parsed:
+                    normalized[model] = parsed[0]
+        with self._lock:
+            if connection_id not in self._connections:
+                raise ValueError("routing_catalog_unknown_connection")
+            self._routing_catalogs[connection_id] = {"status": "discovered", "models": list(dict.fromkeys(models)), "metadata": normalized}
+            if persist and self._state_path:
+                _write_atomic(json.dumps(self._routing_catalogs, allow_nan=False).encode("utf-8"),
+                              self._state_path.with_name("model_catalog_observations.json"))
 
     def _connection_secret_status(self, stored: _StoredConnection) -> str:
         """Compute the live public secret status for one Connection.
@@ -897,6 +928,7 @@ class ModelProfileStore:
                 upstream_provider_id=conn.upstream_provider_id,
                 protocol_family="anthropic" if relay_anthropic else conn.protocol_family,
                 executor_provider_id=conn.executor_provider_id,
+                native_endpoint=self.get_binding_public(binding_id).get("native_endpoint", "/chat/completions"),
             )
 
     def list_executors_public(self) -> list[dict[str, Any]]:
@@ -974,7 +1006,7 @@ class ModelProfileStore:
     def list_bindings_public(self) -> list[dict[str, Any]]:
         with self._lock:
             self._ensure_connection_binding_ready()
-            return [binding.to_public_dict() for binding in self._bindings.values()]
+            return [self.get_binding_public(binding.binding_id) for binding in self._bindings.values()]
 
     def get_binding_public(self, binding_id: str) -> dict[str, Any]:
         with self._lock:
@@ -982,7 +1014,11 @@ class ModelProfileStore:
             binding = self._bindings.get(binding_id)
             if binding is None:
                 raise KeyError(f"binding not found: {binding_id}")
-            return binding.to_public_dict()
+            result = binding.to_public_dict()
+            metadata = getattr(self, "_routing_catalogs", {}).get(binding.connection_id, {}).get("metadata", {}).get(binding.model_id, {})
+            result["native_endpoint"] = "/responses" if metadata.get("native_endpoints") and all(
+                endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in metadata["native_endpoints"]) else "/chat/completions"
+            return result
 
     def upsert_binding(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         binding = Binding.from_mapping(payload)
@@ -999,7 +1035,12 @@ class ModelProfileStore:
                 from ..platform_v1.task_runtime import ExecutorRuntimeError
                 prefix = binding.executor_id
                 try:
-                    validate_codex_model(binding.model_id)
+                    connection = self._connections[binding.connection_id].connection
+                    if binding.executor_id == "claude_code":
+                        from ..platform_v1.claude_executor import validate_claude_model
+                        validate_claude_model(binding.model_id, relay_mode=is_anthropic_relay_connection(connection))
+                    else:
+                        validate_codex_model(binding.model_id)
                 except ExecutorRuntimeError as exc:
                     raise ValueError(f"{prefix}_model_id_invalid") from exc
                 connection = self._connections[binding.connection_id].connection
