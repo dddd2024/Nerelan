@@ -296,3 +296,17 @@ def test_successful_result_limit_words_remain_success():
     turn = parser.finish()
     assert turn.completed and turn.final_text == 'Explained usage limit'
     assert not turn.failure_classification and not turn.failure_reset_at
+
+
+def test_failed_result_clock_reset_uses_host_local_time(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import claude_protocol
+    monkeypatch.setattr(claude_protocol, 'local_now',
+                        lambda: datetime.fromisoformat('2026-10-19T12:00:00-04:00'))
+    parser = ClaudeStreamJson()
+    event = {'type': 'result', 'subtype': 'success', 'is_error': True,
+             'result': 'Claude usage limit reached; try again at 14:30'}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.failure_classification == 'claude_code_usage_limit'
+    assert turn.failure_reset_at == '2026-10-19T18:30:00Z'

@@ -389,8 +389,8 @@ def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = Non
             continue
         windows = []
         for window in account.get("windows") or []:
-            if not isinstance(window, Mapping):
-                continue
+            if not isinstance(window, Mapping) or window.get("unlimited") is True:
+                continue  # an unlimited window never constrains admission
             used = window.get("used_percent")
             if type(used) not in (int, float) or not 0 <= used <= 100:
                 continue

@@ -344,3 +344,25 @@ def test_reset_timezone_and_ambiguity_contract():
         assert parse_reset_time('2026-10-19T14:30', now) is None
     for text in ('try again at 25:99', '2026-02-30T12:00Z', 'garbage'):
         assert parse_reset_time(text, aware) is None
+
+
+def test_clock_reset_am_pm_forms():
+    from datetime import datetime
+    aware = datetime.fromisoformat('2026-10-19T12:00:00+00:00')
+    assert parse_reset_time('try again at 3:05 PM', aware) == '2026-10-19T15:05:00Z'
+    assert parse_reset_time('try again at 12:30 a.m.', aware) == '2026-10-20T00:30:00Z'
+    assert parse_reset_time('try again at 12:15pm', aware) == '2026-10-19T12:15:00Z'
+    assert parse_reset_time('try again at 13:05 PM', aware) is None
+
+
+def test_clock_reset_in_failure_uses_host_local_time(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import codex_protocol
+    now = datetime.fromisoformat('2026-10-19T12:00:00+08:00')
+    monkeypatch.setattr(codex_protocol, 'local_now', lambda: now)
+    parser = CodexJsonl()
+    parser.feed(wire(*START, {'type': 'turn.failed',
+                              'error': {'message': "You've hit your usage limit. Try again at 3:05 PM."}}))
+    turn = parser.finish()
+    assert turn.failure_classification == 'codex_usage_limit'
+    assert turn.failure_reset_at == '2026-10-19T07:05:00Z'

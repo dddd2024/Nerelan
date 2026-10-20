@@ -104,3 +104,12 @@ def test_selected_evidence_records_only_the_existing_sanitized_account_ref():
     assert evidence["account_ref"] == "abc123def456"
     assert evidence["provenance"] == "EXTERNAL_MAGPIE"
     assert "person@example.test" not in json.dumps(evidence)
+
+
+def test_unlimited_windows_never_constrain_selection_or_admission():
+    unlimited = {**_window(100, name="weekly"), "unlimited": True}
+    limited = _account("aaa111", "codex", [_window(30), unlimited])
+    quotas = magpie_quota_windows(_snapshot(limited), now=NOW)
+    assert [window["window"] for window in quotas["codex"]["windows"]] == ["five_hour"]
+    only_unlimited = _account("bbb222", "claude-code", [unlimited])
+    assert "claude-code" not in magpie_quota_windows(_snapshot(only_unlimited), now=NOW)

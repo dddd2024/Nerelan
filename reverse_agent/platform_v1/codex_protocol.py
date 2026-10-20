@@ -36,7 +36,7 @@ _USAGE_LIMIT_RE = re.compile(
 # A stated reset time inside a usage-limit message: an ISO-8601 timestamp, or a
 # "try again at HH:MM" style hint (the latter resolved against the current day).
 _RESET_ISO_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)\b")
-_RESET_CLOCK_RE = re.compile(r"(?i)try\s+again\s+at\s+(\d{1,2}):(\d{2})")
+_RESET_CLOCK_RE = re.compile(r"(?i)try\s+again\s+at\s+(\d{1,2}):(\d{2})(?:\s*([ap])\.?m\b\.?)?")
 
 _FAILURE_DETAIL_LIMIT = 500
 
@@ -70,6 +70,11 @@ def usage_limit_hit(message: str) -> bool:
     return bool(_USAGE_LIMIT_RE.search(message))
 
 
+def local_now() -> datetime:
+    """Aware host-local time: the CLIs run on this host and state clock resets in its zone."""
+    return datetime.now().astimezone()
+
+
 def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
     """Return a stated reset in UTC. Explicit offsets need no reference time.
 
@@ -94,6 +99,10 @@ def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
             return None
         try:
             hour, minute = int(clock.group(1)), int(clock.group(2))
+            if clock.group(3):
+                if not 1 <= hour <= 12:
+                    return None
+                hour = hour % 12 + (12 if clock.group(3).lower() == "p" else 0)
             reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if reset <= now:
                 reset += timedelta(days=1)
@@ -165,7 +174,7 @@ class CodexJsonl:
             evidence = (f"Terminal: {public_text(terminal_evidence, 220)}\n"
                         f"Earlier diagnostic: {public_text(self._error_detail, 240)}")
         self.turn.failure_detail = public_text(evidence, _FAILURE_DETAIL_LIMIT)
-        reset_at = parse_reset_time(detail) if detail else None
+        reset_at = parse_reset_time(detail, local_now()) if detail else None
         self.turn.failure_reset_at = reset_at or ""
         if self.turn.failure_detail:
             public = redact_event({"type": "turn.error", "failure_classification": classification,
