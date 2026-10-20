@@ -314,3 +314,50 @@ def test_project_provider_or_hook_configuration_is_denied_without_dispatch(repos
 def test_opencode_prefixes_and_argv_injection_are_not_native_model_ids(model):
     with pytest.raises(ExecutorRuntimeError, match="codex_model_id_invalid"):
         validate_codex_model(model)
+
+
+@pytest.mark.parametrize("kind", ["codex", "claude_code"])
+def test_shared_executor_preserves_structured_failure_reset(tmp_path, monkeypatch, kind):
+    from reverse_agent.platform_v1.claude_executor import ClaudeCodeExecutor
+    from reverse_agent.platform_v1.codex_protocol import CodexTurn
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1 import run_store
+
+    monkeypatch.setattr(run_store, "_utc_now", lambda: "2026-10-19T11:00:00Z")
+    executor_class = CodexExecutor if kind == "codex" else ClaudeCodeExecutor
+    executor = object.__new__(executor_class)
+    executor._model_id = "offline"
+    executor._binding_resolution = None
+    store = TaskStore(str(tmp_path / "tasks.db"))
+    task = store.create_task(title="offline test")
+    task_id = task.id
+    workspace = tmp_path / task_id
+    workspace.mkdir()
+    prepared = SimpleNamespace(executor_kind=kind, worktree=workspace,
+                               base_sha="a" * 40, execution_id=f"exec-{task_id}")
+    turn = CodexTurn(failed=True, failure_classification=f"{kind}_usage_limit",
+                     failure_detail="Historical diagnostics mention a different reset",
+                     failure_reset_at="2026-10-19T16:00:00Z")
+    monkeypatch.setattr(executor, "_verify_workspace", lambda *a: None)
+    monkeypatch.setattr(executor, "_parser", lambda *a: SimpleNamespace(turn=turn, finish=lambda: turn))
+    monkeypatch.setattr(executor, "_stream", lambda *a: 1)
+    result = executor.execute_role_prepared(prepared, store,
+        role_context=RoleContext("executor", task_id, workspace))
+    assert result.failure_reset_at == "2026-10-19T16:00:00Z"
+    assert not result.success
+
+    class OfflineRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            return result
+
+    TaskExecutionService(store=store, router=OfflineRouter()).execute(task.id, workspace_root=str(tmp_path / "ws"))
+    # Reopen to verify durable task storage, not only the in-memory result.
+    reopened = TaskStore(str(tmp_path / "tasks.db"))
+    persisted = reopened.get_task(task.id)
+    assert persisted.failure_reset_at == result.failure_reset_at
+    assert persisted.failure_at == "2026-10-19T11:00:00Z"
+    assert persisted.failure_classification == turn.failure_classification
+    reopened._conn.close()
+    store._conn.close()

@@ -44,10 +44,12 @@ createRoot(rootEl).render(
             <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/settings" element={<SettingsHubPage />} />
-            <Route path="/settings/resources" element={<SettingsPage section="resources" />} />
+            <Route path="/settings/resources" element={<SettingsPage key="resources" section="resources" />} />
+            <Route path="/settings/models" element={<SettingsPage key="models" section="models" />} />
             <Route path="/settings/usage" element={<SettingsUsagePage />} />
             <Route path="/settings/agents" element={<SettingsAgentsPage />} />
             <Route path="/settings/appearance" element={<SettingsAppearancePage />} />
+            <Route path="/settings/advanced" element={<SettingsPage key="advanced" section="advanced" />} />
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/runs" element={<RunsPage />} />
