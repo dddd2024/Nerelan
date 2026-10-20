@@ -329,6 +329,30 @@ def test_recent_change_deep_in_tree_is_kept(repo, root):
     assert "retention" in entry["reason"] and wt.exists()
 
 
+@pytest.mark.parametrize("setup", [
+    lambda c: git(c, "branch", "--no-track", "no-upstream", "origin/main"),
+    lambda c: git(c, "branch", "--track", "behind", "origin/main") and None,
+])
+def test_clone_branch_names_need_matching_upstream(repo, root, tmp_path, setup):
+    clone = root / "review-clone"
+    git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
+    setup(clone)
+    if "behind" in git(clone, "branch"):
+        # Same commit as upstream: allowed. Move upstream ahead so it differs.
+        git(repo, "commit", "-q", "--allow-empty", "-m", "ahead")
+        git(repo, "push", "-q", "origin", "HEAD:main")
+        git(clone, "fetch", "-q")
+    entry = by_name(sweep([root], now=LATER + 86400 * 365, apply=True, include_clones=True))["review-clone"]
+    assert entry["reason"] == "local branch without matching upstream" and clone.exists()
+
+
+def test_clone_branch_matching_upstream_is_reclaimed(repo, root, tmp_path):
+    clone = root / "review-clone"
+    git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
+    entry = by_name(sweep([root], now=LATER, apply=True, include_clones=True))["review-clone"]
+    assert entry.get("removed") is True, entry["reason"]
+
+
 def test_recent_fetch_in_clone_counts_as_activity(repo, root, tmp_path):
     clone = root / "review-clone"
     git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))

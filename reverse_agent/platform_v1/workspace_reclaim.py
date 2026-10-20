@@ -21,7 +21,9 @@ only when every check below proves no work can be lost:
 --prune`` first if those may be stale. Deleting a clone that other repositories
 borrow objects from (``clone --shared``/``--reference``) breaks them; such
 clones are rare and not detected. Per-worktree refs (``refs/worktree/*``,
-``refs/bisect/*``) are not checked.
+``refs/bisect/*``) are not checked, and a clone's tags are assumed to have
+been fetched: a tag created locally on an already-pushed commit is not
+distinguished from a fetched one.
 
 Anything else is kept and reported with the reason. The default is a dry run;
 ``apply=True`` re-checks each candidate immediately before deleting it. Deletion
@@ -268,6 +270,17 @@ def inspect(path: Path, *, now: float, retention_days: float,
         return keep("remote reachability unknown")
     if unpushed:
         return keep("commits not on any remote branch")
+    if record["kind"] == "clone":
+        # Reachability alone would drop a local branch name; every branch
+        # must track an upstream that points at the same commit.
+        branches = _git(["for-each-ref", "--format=%(objectname) %(upstream)",
+                         "refs/heads"], path)
+        if branches is None:
+            return keep("branches unreadable")
+        for line in branches.splitlines():
+            sha, _, upstream = line.partition(" ")
+            if not upstream or _git(["rev-parse", "--verify", "-q", upstream], path) != sha:
+                return keep("local branch without matching upstream")
     record["head"] = head
     record["reclaim"] = True
     record["reason"] = "clean, pushed, older than retention"
