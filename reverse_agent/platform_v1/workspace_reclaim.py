@@ -8,7 +8,8 @@ only when every check below proves no work can be lost:
   clone that hosts no other worktree), not a symlink/junction, and nests no
   other repository or submodule;
 * ``git status`` shows no tracked change and no untracked file, and every
-  ignored path is a regenerable cache (``__pycache__``, ``node_modules``...);
+  ignored path is a regenerable cache (``__pycache__``, ``node_modules``,
+  native execution scratch ``.nt``/``.nt-<12 hex>``...);
 * HEAD, and for a clone every ref (branches, tags, stash), is reachable from a
   remote-tracking ref;
 * nothing anywhere in the tree was modified within the retention window;
@@ -51,6 +52,7 @@ _CACHE_NAMES = frozenset({
     "node_modules", ".vite", ".tox", ".nox",
 })
 _CACHE_SUFFIXES = (".pyc", ".pyo")
+_SCRATCH_RE = re.compile(r"\.nt(?:-[0-9a-f]{12})?")
 
 
 def _run(args, cwd, timeout=60):
@@ -72,6 +74,10 @@ def _git(args, cwd, timeout=60):
 
 def _is_cache(rel: str) -> bool:
     parts = [p for p in rel.replace("\\", "/").split("/") if p]
+    # Top-level .nt / .nt-<hex> is per-execution native TMP scratch, which
+    # codex_executor already excludes from product evidence.
+    if parts and _SCRATCH_RE.fullmatch(parts[0]):
+        return True
     return any(p in _CACHE_NAMES for p in parts) or rel.endswith(_CACHE_SUFFIXES)
 
 

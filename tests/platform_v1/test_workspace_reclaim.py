@@ -243,6 +243,35 @@ def test_ignored_caches_do_not_block(repo, root):
     assert not wt.exists()
 
 
+def test_native_execution_scratch_does_not_block(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    for name in (".nt", ".nt-0a1b2c3d4e5f", ".nt-9f8e7d6c5b4a"):
+        (wt / name).mkdir()
+        (wt / name / ".gitignore").write_text("*\n")
+        (wt / name / "tmpfile").write_text("scratch\n")
+    assert by_name(sweep([root], now=LATER, apply=True))["task-1"].get("removed") is True
+    assert not wt.exists()
+
+
+@pytest.mark.parametrize("name", [".nt-business-data", ".nt-0A1B2C3D4E5F", ".ntx"])
+def test_other_scratch_like_names_are_kept(repo, root, name):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / name).mkdir()
+    (wt / name / ".gitignore").write_text("*\n")
+    (wt / name / "data").write_text("x")
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"].startswith("ignored files present") and wt.exists()
+
+
+def test_scratch_name_below_top_level_is_not_special(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "out/")
+    (wt / "out" / ".nt-0a1b2c3d4e5f").mkdir(parents=True)
+    (wt / "out" / ".nt-0a1b2c3d4e5f" / "result.bin").write_text("x")
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"].startswith("ignored files present") and wt.exists()
+
+
 def test_locked_worktree_is_kept(repo, root):
     wt = add_worktree(repo, root, "task-1")
     git(repo, "worktree", "lock", str(wt))
