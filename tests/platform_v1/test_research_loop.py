@@ -1,5 +1,7 @@
 """Provider-free campaign tests: real local git and deterministic service fakes."""
 
+import builtins
+import os
 import hashlib
 from datetime import datetime, timedelta, timezone
 import json
@@ -10,6 +12,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+from reverse_agent.platform_v1 import research_loop
+from reverse_agent.model_access import credential_relay
 from reverse_agent.platform_v1.research_loop import ResearchLoop, main, configured_loop
 
 
@@ -116,6 +120,8 @@ class ResearchLoopTests(unittest.TestCase):
         for name, content in files.items():
             path = self.repo / name
             path.parent.mkdir(parents=True, exist_ok=True)
+            if name.endswith("/job.json"):
+                content = json.dumps(self.request(Path(name).parent.name))
             path.write_text(content)
         self.git("add", "--", *files)
         self.git("commit", "-m", task_id)
@@ -126,6 +132,14 @@ class ResearchLoopTests(unittest.TestCase):
     def complete(self, tasks, n=1, status="COMPLETED"):
         self.goals.records[f"campaign-round-{n}"].update(status=status, task_links=tasks)
 
+    def request(self, job):
+        return dict(job_id=job, command="true", files=[], outputs=[],
+                    max_wall_seconds=10, gpu=False, purpose="test")
+
+    def digest(self, job):
+        raw = json.dumps(self.request(job)).encode()
+        return hashlib.sha256(raw + b"{}").hexdigest()
+
     def receipt(self, job, mismatch=False):
         source = self.broker / job
         source.mkdir(parents=True, exist_ok=True)
@@ -133,16 +147,53 @@ class ResearchLoopTests(unittest.TestCase):
         (source / "outputs").mkdir(exist_ok=True)
         (source / "outputs/value.txt").write_bytes(data)
         (source / "stdout.log").write_bytes(b"ok")
-        write_json(source / "receipt.json", {"job_id": job, "state": "RESULT_COLLECTED"})
+        write_json(source / "receipt.json", {"job_id": job, "state": "RESULT_COLLECTED", "request_digest": self.digest(job)})
         write_json(source / "manifest.json", {"files": [
             {"path": "outputs/value.txt", "size": len(data),
              "sha256": "0" * 64 if mismatch else hashlib.sha256(data).hexdigest()},
             {"path": "stdout.log", "size": 2, "sha256": hashlib.sha256(b"ok").hexdigest()}]})
 
+    def ignore_results(self):
+        (self.repo / ".gitignore").write_text("results/\n*.log\n*.bin\n")
+        self.git("add", ".gitignore")
+        self.git("commit", "-m", "ignore result artifacts")
+        self.base = self.git("rev-parse", "HEAD")
+
+    def ignored_receipt(self, job):
+        source = self.broker / job
+        files = {"outputs/value.bin": b"measurement\n", "stdout.log": b"ok\n", "stderr.log": b"err\n"}
+        for name, data in files.items():
+            path = source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        write_json(source / "receipt.json", {"job_id": job, "state": "RESULT_COLLECTED",
+                                             "request_digest": self.digest(job)})
+        write_json(source / "manifest.json", {"files": [
+            {"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+            for name, data in files.items()]})
+
+    def crash_import_leftovers(self):
+        job = "campaign-r1-job"
+        self.launch()
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.receipt(job)
+        for _ in range(3):
+            self.tick()
+        from reverse_agent.platform_v1 import research_loop
+        replace = research_loop.os.replace
+        def crash(source, dest):
+            if str(dest).endswith("value.txt"):
+                raise OSError("crash leaving temporary")
+            replace(source, dest)
+        with patch.object(research_loop.os, "replace", side_effect=crash):
+            self.tick()
+        self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
+        return job
+
     def test_three_rounds_and_restarts(self):
         for n in range(1, 4):
             self.launch()
-            job = f"r{n}-experiment"
+            job = f"campaign-r{n}-experiment"
             files = {"RESEARCH_LOG.md": f"Round {n}: hypothesis, run, result uncertain, next\n",
                      f".nerelan-remote/outbox/{job}/job.json": json.dumps({"job_id": job})}
             if n == 3:
@@ -239,8 +290,8 @@ class ResearchLoopTests(unittest.TestCase):
         worktree = self.root / "native-task"
         self.git("worktree", "add", "--detach", str(worktree), self.base)
         (worktree / "RESEARCH_LOG.md").write_bytes(b"Hypothesis, run, uncertain result, next.\n")
-        (worktree / ".nerelan-remote/outbox/r1-native").mkdir(parents=True)
-        (worktree / ".nerelan-remote/outbox/r1-native/job.json").write_bytes(b"{}\n")
+        (worktree / ".nerelan-remote/outbox/campaign-r1-native").mkdir(parents=True)
+        (worktree / ".nerelan-remote/outbox/campaign-r1-native/job.json").write_bytes(json.dumps(self.request("campaign-r1-native")).encode())
         task = SimpleNamespace(id="native-task", execution_id="native-exec", evidence_refs=[],
                                repository="owner/research")
         run = SimpleNamespace(worktree_path=str(worktree), execution_id=task.execution_id,
@@ -262,16 +313,16 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertEqual(self.loop()._task_commit(dict(task_id=task.id)), sha)
         self.tick()
         self.assertTrue((self.repo / "RESEARCH_LOG.md").exists())
-        self.assertEqual(self.round()["jobs"], ["r1-native"])
+        self.assertEqual(self.round()["jobs"], ["campaign-r1-native"])
 
     def test_manifest_mismatch_recorded(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-bad/job.json": "{}"})])
-        self.receipt("r1-bad", mismatch=True)
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-bad/job.json": "{}"})])
+        self.receipt("campaign-r1-bad", mismatch=True)
         for _ in range(4):
             self.tick()
-        self.assertIn("manifest mismatch", self.round()["imports"]["r1-bad"]["error"])
-        self.assertFalse((self.repo / "results/r1-bad").exists())
+        self.assertIn("manifest mismatch", self.round()["imports"]["campaign-r1-bad"]["error"])
+        self.assertFalse((self.repo / "results/campaign-r1-bad").exists())
 
     def test_stop_and_expiry(self):
         self.tick()
@@ -333,7 +384,7 @@ class ResearchLoopTests(unittest.TestCase):
 
     def test_crash_after_merge_and_results_commit(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
         self.tick()
         loop = self.loop()
         original = loop._save
@@ -345,10 +396,10 @@ class ResearchLoopTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "crash after merge"):
                 loop.tick()
         self.tick()
-        self.assertEqual(self.round()["jobs"], ["r1-job"])
+        self.assertEqual(self.round()["jobs"], ["campaign-r1-job"])
         self.assertEqual(len(self.git("log", "--merges", "--format=%s").splitlines()), 1)
         self.tick()
-        self.receipt("r1-job")
+        self.receipt("campaign-r1-job")
         loop = self.loop()
         original_event = loop._event
         def crash_import(record, state, detail, path):
@@ -361,6 +412,219 @@ class ResearchLoopTests(unittest.TestCase):
         self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
         self.assertEqual(self.git("log", "--format=%s").splitlines().count("round 1: results"), 1)
+
+    def test_force_adds_only_verified_results_from_ignored_paths(self):
+        self.ignore_results()
+        (self.repo / "notes.log").write_text("unrelated log\n")
+        unrelated = self.repo / "results/unrelated/value.bin"
+        unrelated.parent.mkdir(parents=True)
+        unrelated.write_text("unrelated output\n")
+        self.launch()
+        job = "campaign-r1-job"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.ignored_receipt(job)
+        for _ in range(4):
+            self.tick()
+        self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
+        committed = self.git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines()
+        expected = [f"results/{job}/{name}" for name in (
+            "receipt.json", "manifest.json", "stdout.log", "stderr.log", "outputs/value.bin")]
+        self.assertEqual(sorted(committed), sorted(expected))
+        self.assertEqual(self.git("ls-files", "--", "notes.log", "results/unrelated/value.bin"), "")
+        ignored = self.git("status", "--porcelain", "--ignored").splitlines()
+        self.assertIn("!! notes.log", ignored)
+        self.assertIn("!! results/unrelated/", ignored)
+        for _ in range(2):
+            self.tick()
+        self.assertEqual(self.git("log", "--format=%s").splitlines().count("round 1: results"), 1)
+
+    def test_unrelated_staged_file_blocks_results_commit(self):
+        self.ignore_results()
+        self.launch()
+        job = "campaign-r1-job"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.ignored_receipt(job)
+        for _ in range(3):
+            self.tick()
+        self.assertEqual(self.round()["state"], "WAITING_JOBS")
+        loop = self.loop()
+        original = loop._git
+        def crash_on_add(*args, **kwargs):
+            if args[:2] == ("add", "-f"):
+                raise RuntimeError("simulated import interruption")
+            return original(*args, **kwargs)
+        with patch.object(loop, "_git", side_effect=crash_on_add):
+            with self.assertRaisesRegex(RuntimeError, "simulated import"):
+                loop.tick()
+        self.assertTrue(self.round()["import_pending"])
+        staged = self.repo / "staged.txt"
+        staged.write_text("unrelated\n")
+        self.git("add", "--", "staged.txt")
+        with self.assertRaisesRegex(RuntimeError, "unrelated staged files"):
+            self.tick()
+        self.assertNotIn("round 1: results", self.git("log", "--format=%s").splitlines())
+        self.assertTrue((self.repo / f"results/{job}/receipt.json").exists())
+        self.git("reset", "-q", "--", "staged.txt")
+        staged.unlink()
+        self.tick()
+        self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
+        self.assertEqual(self.git("log", "--format=%s").splitlines().count("round 1: results"), 1)
+
+    def test_results_staging_is_not_retried_after_restart(self):
+        self.ignore_results()
+        self.launch()
+        job = "campaign-r1-job"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.ignored_receipt(job)
+        for _ in range(3):
+            self.tick()
+        self.assertEqual(self.round()["state"], "WAITING_JOBS")
+        adds = []
+        for _ in range(3):
+            loop = self.loop()
+            original = loop._git
+            def counting(*args, original=original, **kwargs):
+                if args[:2] == ("add", "-f"):
+                    adds.append(args)
+                return original(*args, **kwargs)
+            with patch.object(loop, "_git", side_effect=counting):
+                loop.tick()
+        self.assertEqual(len(adds), 1)
+        self.assertEqual(self.git("log", "--format=%s").splitlines().count("round 1: results"), 1)
+
+    def test_slug_and_discovery_prefix(self):
+        loop = self.loop()
+        for identity in ("UPPER.Name", "a" * 101, "x", "A___B"):
+            loop.config["campaign_id"] = identity
+            slug = loop._job_prefix(1).removesuffix("-r1-")
+            self.assertRegex(slug, r"^[a-z0-9-]{1,20}$")
+            self.assertEqual(loop._job_prefix(1), loop._job_prefix(1))
+        self.launch()
+        task = self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"
+                         for job in ("campaign-r1-ok", "other-r1-job", "campaign-r2-job")})
+        self.complete([task])
+        self.tick()
+        self.tick()
+        self.assertEqual(self.round()["jobs"], ["campaign-r1-ok"])
+        self.assertIn("campaign-r1-", self.round()["objective"])
+
+    def test_stale_receipts_resolve_and_next_objective(self):
+        for state in ("RUNNING", "REJECTED", "RESULT_COLLECTED"):
+            with self.subTest(state=state):
+                record = {"imports": {}, "request_commit": self.base}
+                self.assertFalse(self.loop()._bound_receipt(record, "campaign-r1-none", {"state": state}))
+                self.assertEqual(record["imports"]["campaign-r1-none"]["error"], "STALE_RECEIPT")
+        self.launch()
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
+        write_json(self.broker / "campaign-r1-job/receipt.json", {"state": "RUNNING"})
+        for _ in range(4):
+            self.tick()
+        self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
+        self.assertEqual(self.round()["imports"]["campaign-r1-job"]["error"], "STALE_RECEIPT")
+        self.assertFalse((self.repo / "results").exists())
+        objective = self.loop()._objective(2, False)
+        self.assertIn("campaign-r1-job", objective)
+        self.assertIn("new job ids", objective)
+
+    def test_committed_digest_matches_broker_and_ignores_worktree(self):
+        from reverse_agent.platform_v1.remote_jobs import RemoteJobBroker
+        job = "campaign-r1-job"
+        directory = self.repo / ".nerelan-remote/outbox" / job
+        directory.mkdir(parents=True)
+        request = self.request(job)
+        request["files"] = ["input.bin"]
+        write_json(directory / "job.json", request)
+        (directory / "input.bin").write_bytes(b"original\x00\xff")
+        self.git("add", ".nerelan-remote")
+        self.git("commit", "-m", "request")
+        record = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
+        broker = RemoteJobBroker.__new__(RemoteJobBroker)
+        broker.profile = SimpleNamespace(max_wall_seconds=100, max_upload_bytes=10000)
+        _, digest = broker._request(directory / "job.json")
+        self.assertEqual(self.loop()._committed_digest(record, job), digest)
+        for name in ("input.bin", "job.json"):
+            original = (directory / name).read_bytes()
+            (directory / name).write_bytes(original + b" ")
+            self.assertEqual(self.loop()._committed_digest(record, job), digest)
+            self.git("add", ".nerelan-remote")
+            self.git("commit", "-m", "changed " + name)
+            changed = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
+            self.assertFalse(self.loop()._bound_receipt(changed, job, {"request_digest": digest}))
+
+    def test_mixed_stale_and_pending_survives_restart(self):
+        self.launch()
+        stale, pending = "campaign-r1-stale", "campaign-r1-pending"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"
+                                         for job in (stale, pending)})])
+        write_json(self.broker / stale / "receipt.json", {"state": "RUNNING", "request_digest": "old"})
+        write_json(self.broker / pending / "receipt.json", {"state": "RUNNING", "request_digest": self.digest(pending)})
+        for _ in range(4):
+            self.tick()
+        record = self.round()
+        boundary = record["request_commit"]
+        self.assertEqual(record["state"], "WAITING_JOBS")
+        self.assertEqual(record["imports"][stale]["error"], "STALE_RECEIPT")
+        self.tick()
+        self.assertEqual(self.round()["request_commit"], boundary)
+        self.assertEqual(self.round()["state"], "WAITING_JOBS")
+        self.receipt(pending)
+        self.tick()
+        self.assertTrue(self.round()["imports"][pending]["imported"])
+        self.assertFalse((self.repo / "results" / stale).exists())
+
+    def test_resumed_snapshot_requires_bound_receipt(self):
+        self.launch()
+        job = "campaign-r1-job"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.receipt(job)
+        for _ in range(3):
+            self.tick()
+        loop = self.loop()
+        save = loop._save
+        def crash(record, path):
+            save(record, path)
+            if record.get("imports", {}).get(job, {}).get("files"):
+                raise RuntimeError("frozen")
+        with patch.object(loop, "_save", side_effect=crash):
+            with self.assertRaisesRegex(RuntimeError, "frozen"):
+                loop.tick()
+        snapshot = loop.root / "rounds/1-imports" / job / "receipt.json"
+        write_json(snapshot, {"state": "REJECTED", "request_digest": "old"})
+        record = self.round()
+        record["imports"][job]["files"]["receipt.json"] = hashlib.sha256(snapshot.read_bytes()).hexdigest()
+        write_json(loop.root / "rounds/1.json", record)
+        self.tick()
+        self.assertEqual(self.round()["imports"][job]["error"], "STALE_RECEIPT")
+        self.assertFalse((self.repo / "results" / job).exists())
+
+    def test_malformed_committed_requests_fail_closed(self):
+        job = "campaign-r1-job"
+        directory = self.repo / ".nerelan-remote/outbox" / job
+        directory.mkdir(parents=True)
+        for raw in (b"{", b"[]", b'{}', b'{"files":["missing"]}'):
+            (directory / "job.json").write_bytes(raw)
+            self.git("add", ".nerelan-remote")
+            self.git("commit", "-m", "malformed")
+            record = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
+            self.assertFalse(self.loop()._bound_receipt(record, job, {"request_digest": "old"}))
+            self.assertEqual(record["imports"][job]["error"], "STALE_RECEIPT")
+
+    def test_receipt_changes_before_import(self):
+        self.launch()
+        job = "campaign-r1-job"
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        self.receipt(job)
+        for _ in range(3):
+            self.tick()
+        loop = self.loop()
+        original = loop._import
+        def changed(*args):
+            write_json(self.broker / job / "receipt.json", {"state": "REJECTED", "request_digest": "old"})
+            return original(*args)
+        with patch.object(loop, "_import", side_effect=changed):
+            loop.tick()
+        self.assertEqual(self.round()["imports"][job]["error"], "STALE_RECEIPT")
+        self.assertFalse((self.repo / "results").exists())
 
     def test_repository_mismatch(self):
         self.config["repository"] = "other/repository"
@@ -391,63 +655,63 @@ class ResearchLoopTests(unittest.TestCase):
 
     def test_rejected_receipt_is_imported(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-reject/job.json": "{}"})])
-        write_json(self.broker / "r1-reject/receipt.json", {"state": "REJECTED", "job_id": "r1-reject"})
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-reject/job.json": "{}"})])
+        write_json(self.broker / "campaign-r1-reject/receipt.json", {"state": "REJECTED", "request_digest": self.digest("campaign-r1-reject")})
         for _ in range(4):
             self.tick()
-        self.assertTrue(self.round()["imports"]["r1-reject"]["imported"])
-        self.assertTrue((self.repo / "results/r1-reject/receipt.json").exists())
+        self.assertTrue(self.round()["imports"]["campaign-r1-reject"]["imported"])
+        self.assertTrue((self.repo / "results/campaign-r1-reject/receipt.json").exists())
 
     def test_failed_execution_waits_for_collection(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-failed/job.json": "{}"})])
-        write_json(self.broker / "r1-failed/receipt.json", {"state": "FAILED"})
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-failed/job.json": "{}"})])
+        write_json(self.broker / "campaign-r1-failed/receipt.json", {"state": "FAILED", "request_digest": self.digest("campaign-r1-failed")})
         for _ in range(4):
             self.tick()
         self.assertEqual(self.round()["state"], "WAITING_JOBS")
 
     def test_transient_collection_error_then_success(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
         # The broker marks the receipt LOST/TIMED_OUT/FAILED before collecting;
         # the loop must not import early, and must retry once collected.
-        write_json(self.broker / "r1-job/receipt.json", {"state": "TIMED_OUT"})
+        write_json(self.broker / "campaign-r1-job/receipt.json", {"state": "TIMED_OUT", "request_digest": self.digest("campaign-r1-job")})
         for _ in range(4):
             self.tick()
         self.assertEqual(self.round()["state"], "WAITING_JOBS")
-        self.assertNotIn("r1-job", self.round()["imports"])
-        self.receipt("r1-job")
+        self.assertNotIn("campaign-r1-job", self.round()["imports"])
+        self.receipt("campaign-r1-job")
         self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
-        self.assertTrue(self.round()["imports"]["r1-job"]["imported"])
+        self.assertTrue(self.round()["imports"]["campaign-r1-job"]["imported"])
 
     def test_import_rechecks_manifest_exists(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
-        self.receipt("r1-job")
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
+        self.receipt("campaign-r1-job")
         # Simulate the broker receipt claiming collection while no manifest exists.
-        write_json(self.broker / "r1-job/receipt.json", {"state": "RESULT_COLLECTED"})
-        (self.broker / "r1-job/manifest.json").unlink()
+        write_json(self.broker / "campaign-r1-job/receipt.json", {"state": "RESULT_COLLECTED", "request_digest": self.digest("campaign-r1-job")})
+        (self.broker / "campaign-r1-job/manifest.json").unlink()
         for _ in range(4):
             self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
-        self.assertEqual(self.round()["imports"]["r1-job"]["error"], "collection manifest missing")
+        self.assertEqual(self.round()["imports"]["campaign-r1-job"]["error"], "collection manifest missing")
 
     def test_no_broker_records_and_continues(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
         self.broker = None
         for _ in range(4):
             self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
-        self.assertEqual(self.round()["imports"]["r1-job"]["error"], "NO_BROKER")
+        self.assertEqual(self.round()["imports"]["campaign-r1-job"]["error"], "NO_BROKER")
         self.tick()
         self.assertEqual(self.round()["state"], "DONE")
 
     def test_self_heal_crash_left_import_temporary(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
-        self.receipt("r1-job")
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
+        self.receipt("campaign-r1-job")
         for _ in range(3):
             self.tick()
         from reverse_agent.platform_v1 import research_loop
@@ -459,8 +723,8 @@ class ResearchLoopTests(unittest.TestCase):
         with patch.object(research_loop.os, "replace", side_effect=crash):
             self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
-        self.assertIn("error", self.round()["imports"]["r1-job"])
-        leftover = self.repo / "results/r1-job/outputs/.value.txt.nerelan-import"
+        self.assertIn("error", self.round()["imports"]["campaign-r1-job"])
+        leftover = self.repo / "results/campaign-r1-job/outputs/.value.txt.nerelan-import"
         self.assertTrue(leftover.exists())
         self.assertIn("results", self.git("status", "--porcelain"))
         # A fresh tick that re-enters a checkout must self-heal the loop's own leftover.
@@ -471,8 +735,8 @@ class ResearchLoopTests(unittest.TestCase):
 
     def test_self_heal_leaves_unrelated_work_paused(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
-        self.receipt("r1-job")
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
+        self.receipt("campaign-r1-job")
         for _ in range(6):
             self.tick()
         self.assertEqual(self.round()["state"], "DONE")
@@ -481,6 +745,78 @@ class ResearchLoopTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "existing work"):
             loop._checkout({"branch": "main"})
         self.assertEqual((self.repo / "unrelated").read_text(), "not the loop's")
+
+    def test_self_heal_preserves_modified_destination_and_pauses(self):
+        job = self.crash_import_leftovers()
+        dest = self.repo / f"results/{job}/receipt.json"
+        dest.write_bytes(b"edited evidence")
+        campaign = self.state()
+        with self.assertRaisesRegex(RuntimeError, "import recovery paused"):
+            self.loop()._checkout(campaign)
+        self.assertEqual(dest.read_bytes(), b"edited evidence")
+        state = self.state()
+        self.assertEqual(state["state"], "PAUSED_FAILING")
+        rel = dest.relative_to(self.repo).as_posix()
+        self.assertIn(rel, state["history"][-1]["detail"])
+
+    def test_self_heal_preserves_modified_temporary_and_pauses(self):
+        job = self.crash_import_leftovers()
+        temporary = self.repo / f"results/{job}/outputs/.value.txt.nerelan-import"
+        untouched = self.repo / f"results/{job}/manifest.json"
+        temporary.write_bytes(b"edited temporary")
+        campaign = self.state()
+        with self.assertRaisesRegex(RuntimeError, "import recovery paused"):
+            self.loop()._checkout(campaign)
+        rel = temporary.relative_to(self.repo).as_posix()
+        self.assertEqual(temporary.read_bytes(), b"edited temporary")
+        self.assertTrue(untouched.exists())
+        self.assertIn(rel, self.state()["history"][-1]["detail"])
+
+    def test_self_heal_preserves_modified_staged_destination(self):
+        job = self.crash_import_leftovers()
+        dest = self.repo / f"results/{job}/receipt.json"
+        dest.write_bytes(b"staged evidence")
+        rel = dest.relative_to(self.repo).as_posix()
+        self.git("add", "--", rel)
+        with self.assertRaisesRegex(RuntimeError, "import recovery paused"):
+            self.loop()._checkout(self.state())
+        self.assertEqual(dest.read_bytes(), b"staged evidence")
+        self.assertIn(rel, self.git("diff", "--cached", "--name-only").splitlines())
+        staged = subprocess.run(["git", "-C", str(self.repo), "show", ":" + rel],
+                                capture_output=True, check=True)
+        self.assertEqual(staged.stdout, b"staged evidence")
+
+    def test_self_heal_lists_every_modified_path_and_pauses(self):
+        job = self.crash_import_leftovers()
+        destination = self.repo / f"results/{job}/receipt.json"
+        temporary = self.repo / f"results/{job}/outputs/.value.txt.nerelan-import"
+        destination.write_bytes(b"edited destination")
+        temporary.write_bytes(b"edited temporary")
+        with self.assertRaises(RuntimeError) as caught:
+            self.loop()._checkout(self.state())
+        for path in (destination, temporary):
+            rel = path.relative_to(self.repo).as_posix()
+            self.assertIn(rel, str(caught.exception))
+            self.assertIn(rel, self.state()["history"][-1]["detail"])
+        self.assertEqual(destination.read_bytes(), b"edited destination")
+        self.assertEqual(temporary.read_bytes(), b"edited temporary")
+        self.assertEqual(self.state()["state"], "PAUSED_FAILING")
+
+    def test_self_heal_recovers_unchanged_destination_and_temporary(self):
+        job = self.crash_import_leftovers()
+        leftovers = [
+            self.repo / f"results/{job}/receipt.json",
+            self.repo / f"results/{job}/manifest.json",
+            self.repo / f"results/{job}/outputs/.value.txt.nerelan-import",
+        ]
+        for path in leftovers:
+            self.assertTrue(path.exists(), path)
+        campaign = self.state()
+        self.loop()._checkout(campaign)
+        for path in leftovers:
+            self.assertFalse(path.exists(), path)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(self.state()["state"], "RUNNING")
 
     def test_loop_commits_use_explicit_identity(self):
         self.task("task", {"RESEARCH_LOG.md": "round 1 evidence\n"})
@@ -507,41 +843,41 @@ class ResearchLoopTests(unittest.TestCase):
 
     def test_lost_job_waits_until_deadline(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-lost/job.json": "{}"})])
-        write_json(self.broker / "r1-lost/receipt.json", {"state": "LOST"})
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-lost/job.json": "{}"})])
+        write_json(self.broker / "campaign-r1-lost/receipt.json", {"state": "LOST", "request_digest": self.digest("campaign-r1-lost")})
         for _ in range(4):
             self.tick()
         self.assertEqual(self.round()["state"], "WAITING_JOBS")
-        self.assertEqual(self.round()["job_states"], {"r1-lost": "LOST"})
+        self.assertEqual(self.round()["job_states"], {"campaign-r1-lost": "LOST"})
         self.now += self.config["max_job_wait_hours"] * 3600
         self.tick()
         self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
-        self.assertEqual(self.round()["imports"]["r1-lost"]["error"], "JOB_WAIT_EXPIRED")
+        self.assertEqual(self.round()["imports"]["campaign-r1-lost"]["error"], "JOB_WAIT_EXPIRED")
 
     def test_deadline_preserves_collected_results(self):
         self.launch()
         self.complete([self.task("task", {
-            ".nerelan-remote/outbox/r1-a/job.json": "{}",
-            ".nerelan-remote/outbox/r1-b/job.json": "{}"})])
-        write_json(self.broker / "r1-b/receipt.json", {"state": "RUNNING"})
+            ".nerelan-remote/outbox/campaign-r1-a/job.json": "{}",
+            ".nerelan-remote/outbox/campaign-r1-b/job.json": "{}"})])
+        write_json(self.broker / "campaign-r1-b/receipt.json", {"state": "RUNNING", "request_digest": self.digest("campaign-r1-b")})
         for _ in range(4):
             self.tick()
         record = self.round()
         self.assertEqual(record["state"], "WAITING_JOBS")
-        self.assertEqual(record["job_states"], {"r1-a": "NO_RECEIPT", "r1-b": "RUNNING"})
-        self.receipt("r1-a")
+        self.assertEqual(record["job_states"], {"campaign-r1-a": "NO_RECEIPT", "campaign-r1-b": "RUNNING"})
+        self.receipt("campaign-r1-a")
         self.now = record["waiting_since"] + self.config["max_job_wait_hours"] * 3600
         self.assertLess(self.now - self.state()["started_at"], self.config["max_hours"] * 3600)
         self.tick()
         record = self.round()
         self.assertEqual(record["state"], "RESULTS_IMPORTED")
-        self.assertTrue(record["imports"]["r1-a"]["imported"])
-        self.assertNotIn("error", record["imports"]["r1-a"])
-        self.assertEqual((self.repo / "results/r1-a/outputs/value.txt").read_bytes(), b"measurement\n")
-        self.assertEqual(record["imports"]["r1-b"]["error"], "JOB_WAIT_EXPIRED")
-        self.assertFalse((self.repo / "results/r1-b").exists())
+        self.assertTrue(record["imports"]["campaign-r1-a"]["imported"])
+        self.assertNotIn("error", record["imports"]["campaign-r1-a"])
+        self.assertEqual((self.repo / "results/campaign-r1-a/outputs/value.txt").read_bytes(), b"measurement\n")
+        self.assertEqual(record["imports"]["campaign-r1-b"]["error"], "JOB_WAIT_EXPIRED")
+        self.assertFalse((self.repo / "results/campaign-r1-b").exists())
         committed = self.git("show", "--pretty=format:", "--name-only", "HEAD").split()
-        self.assertIn("results/r1-a/outputs/value.txt", committed)
+        self.assertIn("results/campaign-r1-a/outputs/value.txt", committed)
         self.assertEqual(self.git("status", "--porcelain"), "")
         for _ in range(2):
             self.tick()
@@ -579,31 +915,31 @@ class ResearchLoopTests(unittest.TestCase):
 
     def test_manifest_traversal_rejected(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
-        self.receipt("r1-job")
-        manifest = self.broker / "r1-job/manifest.json"
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
+        self.receipt("campaign-r1-job")
+        manifest = self.broker / "campaign-r1-job/manifest.json"
         write_json(manifest, {"files": [{"path": "../../escape", "size": 0, "sha256": "0" * 64}]})
         for _ in range(4):
             self.tick()
-        self.assertIn("error", self.round()["imports"]["r1-job"])
+        self.assertIn("error", self.round()["imports"]["campaign-r1-job"])
         self.assertFalse((self.repo / "results").exists())
 
     def test_existing_results_preserved(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}",
-                                           "results/r1-job/precious": "preserve me"})])
-        self.receipt("r1-job")
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}",
+                                           "results/campaign-r1-job/precious": "preserve me"})])
+        self.receipt("campaign-r1-job")
         for _ in range(4):
             self.tick()
-        self.assertIn("already exists", self.round()["imports"]["r1-job"]["error"])
-        self.assertEqual((self.repo / "results/r1-job/precious").read_text(), "preserve me")
+        self.assertIn("already exists", self.round()["imports"]["campaign-r1-job"]["error"])
+        self.assertEqual((self.repo / "results/campaign-r1-job/precious").read_text(), "preserve me")
 
     def test_crash_during_results_copy(self):
         self.launch()
-        self.complete([self.task("task", {".nerelan-remote/outbox/r1-job/job.json": "{}"})])
+        self.complete([self.task("task", {".nerelan-remote/outbox/campaign-r1-job/job.json": "{}"})])
         for _ in range(3):
             self.tick()
-        self.receipt("r1-job")
+        self.receipt("campaign-r1-job")
         from reverse_agent.platform_v1 import research_loop
         replace = research_loop.os.replace
         def crash(source, dest):
@@ -648,11 +984,11 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertEqual(self.round()["push"]["returncode"], 1)
 
     def test_status_is_read_only_and_disabled_default(self):
-        with patch("builtins.print") as output:
+        with patch.object(builtins, "print") as output:
             self.assertEqual(main(["status", "--campaign", str(self.file), "--json"]), 0)
         self.assertIn("NOT_STARTED", output.call_args.args[0])
         self.assertFalse((self.root / "state").exists())
-        with patch.dict("os.environ", {}, clear=True):
+        with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(configured_loop(goal_service=self.goals, planner=self.planner))
 
     def test_real_goal_service_and_agent_planner_with_fake_runner(self):
@@ -684,7 +1020,7 @@ class ResearchLoopTests(unittest.TestCase):
             repo_dir_for=lambda repository: str(self.repo), runner=runner)
         # Complete synchronously to remove scheduling timing from this API test.
         start = self.planner.start
-        with patch.dict("os.environ", {"REVERSE_AGENT_REPO_DIR": str(self.repo)}), patch.object(
+        with patch.dict(os.environ, {"REVERSE_AGENT_REPO_DIR": str(self.repo)}), patch.object(
                 self.planner, "start", side_effect=lambda *a, **kw: start(*a, **kw, background=False)):
             self.launch()
         self.assertEqual(len(calls), 1)
@@ -713,12 +1049,10 @@ class ResearchLoopTests(unittest.TestCase):
                 pass
         store = TaskStore(str(self.root / "host.sqlite3"))
         self.addCleanup(store._conn.close)
-        with patch.dict("os.environ", {}, clear=True), patch.multiple(trusted_host,
+        with patch.dict(os.environ, {}, clear=True), patch.multiple(trusted_host,
                 ThreadingHTTPServer=Server, configured_broker=lambda: broker,
                 _model_control_handler_factory=lambda *a, **kw: None,
-                _task_handler_factory=lambda *a, **kw: None), patch(
-                "reverse_agent.model_access.credential_relay.run_credential_relay_server", Server), patch(
-                "reverse_agent.platform_v1.research_loop.configured_loop", return_value=loop) as factory:
+                _task_handler_factory=lambda *a, **kw: None), patch.object(credential_relay, "run_credential_relay_server", Server), patch.object(research_loop, "configured_loop", return_value=loop) as factory:
             host = trusted_host.CombinedTrustedHost(task_store=store, vault=None)
             with patch.object(host, "_refresh_external_session_auth"), patch.object(
                     host, "_agent_planner", return_value=self.planner):

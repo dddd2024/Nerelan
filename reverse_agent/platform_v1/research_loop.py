@@ -14,7 +14,7 @@ import threading
 import time
 
 from .repository_workspace import resolve_repository_workspace
-from .remote_jobs import _atomic_json, _relative
+from .remote_jobs import JOB_ID, _atomic_json, _relative
 from .run_store import TaskStoreError
 
 ENV_CAMPAIGN = "REVERSE_AGENT_RESEARCH_CAMPAIGN"
@@ -281,12 +281,28 @@ class ResearchLoop:
             observed = {}
             ready = {}
             for job in record["jobs"]:
+                if record["imports"].get(job, {}).get("error") == "STALE_RECEIPT":
+                    observed[job], ready[job] = "STALE_RECEIPT", True
+                    continue
+                try:
+                    self._committed_digest(record, job)
+                except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+                    record["imports"][job] = {"error": "STALE_RECEIPT"}
+                    observed[job], ready[job] = "STALE_RECEIPT", True
+                    continue
                 source = self.broker_root / job
                 if not (source / "receipt.json").exists():
                     observed[job] = "NO_RECEIPT"
                     ready[job] = False
                     continue
-                receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
+                try:
+                    receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    receipt = None
+                if not self._bound_receipt(record, job, receipt):
+                    observed[job] = "STALE_RECEIPT"
+                    ready[job] = True
+                    continue
                 observed[job] = receipt["state"]
                 # Ready means the result was actually collected, or the job was
                 # rejected with nothing to collect. LOST/TIMED_OUT/FAILED leave
@@ -318,29 +334,92 @@ class ResearchLoop:
                        "FAILED" if record.get("goal_failed") else "DONE")
             self._event(record, outcome, "round finished", path)
 
+    def _job_prefix(self, n):
+        identity = self.config["campaign_id"]
+        normalized = re.sub(r"[^a-z0-9-]+", "-", identity.lower()).strip("-") or "campaign"
+        slug = normalized if normalized == identity and len(normalized) <= 20 else (
+            normalized[:11].rstrip("-") + "-" + hashlib.sha256(identity.encode()).hexdigest()[:8])
+        return f"{slug}-r{n}-"
+
+    def _committed_digest(self, record, job):
+        commit = record.get("request_commit", "")
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError("missing committed request boundary")
+        directory = f".nerelan-remote/outbox/{job}/"
+        def blob(name):
+            spec = commit + ":" + directory + name
+            mode = self._git("ls-tree", commit, "--", directory + name).stdout.split()
+            if not mode or mode[0] not in {"100644", "100755"}:
+                raise ValueError("request is not a regular committed file")
+            result = subprocess.run(["git", "-C", str(self.repo), "cat-file", "blob", spec],
+                                    capture_output=True, check=True, timeout=120)
+            return result.stdout
+        raw = blob("job.json")
+        request = json.loads(raw)
+        if len(raw) > 65536 or not isinstance(request, dict) or not isinstance(request.get("files"), list):
+            raise ValueError("malformed committed request")
+        if (set(request) != {"job_id", "command", "files", "outputs", "max_wall_seconds", "gpu", "purpose"}
+                or request["job_id"] != job or not JOB_ID.fullmatch(job)
+                or not isinstance(request["command"], str) or not 1 <= len(request["command"]) <= 4000
+                or "\x00" in request["command"] or type(request["gpu"]) is not bool
+                or not isinstance(request["purpose"], str)
+                or type(request["max_wall_seconds"]) not in {int, float}
+                or not 0 < request["max_wall_seconds"] < float("inf")
+                or not isinstance(request["outputs"], list)):
+            raise ValueError("malformed committed request")
+        for names in (request["files"], request["outputs"]):
+            validated = [_relative(name) for name in names]
+            if len(set(validated)) != len(validated):
+                raise ValueError("duplicate request path")
+        hashes = {}
+        for name in request["files"]:
+            name = _relative(name)
+            if name in hashes:
+                raise ValueError("duplicate request path")
+            hashes[name] = hashlib.sha256(blob(name)).hexdigest()
+        return hashlib.sha256(raw + json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+
+    def _bound_receipt(self, record, job, receipt):
+        try:
+            expected = self._committed_digest(record, job)
+            if not isinstance(receipt, dict) or receipt.get("request_digest") != expected:
+                raise ValueError("receipt does not match committed request")
+            return True
+        except (OSError, ValueError, TypeError, subprocess.SubprocessError):
+            record["imports"][job] = {**record["imports"].get(job, {}), "error": "STALE_RECEIPT"}
+            return False
+
     def _objective(self, n, interrupted):
+        previous = self.root / "rounds" / f"{n - 1}.json"
+        stale = []
+        if previous.exists():
+            stale = [job for job, entry in json.loads(previous.read_text(encoding="utf-8")).get("imports", {}).items()
+                     if entry.get("error") == "STALE_RECEIPT"]
+
         return (f"{self.config['objective']}\n\nResearch round {n}.\n"
                 + ("The previous round was INTERRUPTED; nothing was automatically replayed.\n" if interrupted else "")
+                + ("STALE_RECEIPT jobs: " + ", ".join(stale) + "; use new job ids for these experiments.\n" if stale else "")
                 + "Read RESEARCH_LOG.md, results/ and earlier rounds in the repository. "
                 "Append a section for this round to RESEARCH_LOG.md: hypothesis, what was run, "
                 "what the results show, what's next; state uncertainty. Request remote experiments "
-                f"only through .nerelan-remote/outbox/<job_id>/job.json; prefix job ids r{n}-. "
+                f"only through .nerelan-remote/outbox/<job_id>/job.json; prefix job ids {self._job_prefix(n)}. "
                 "All server research directories, experiment files and raw data MUST live under ~/wjc; "
                 "write outputs, temporary files and caches inside the broker job directory. "
                 "Write CAMPAIGN_DONE.md with justification when the objective is met or cannot be met. "
                 "Successful CLI execution is not functional or scientific acceptance.")
 
     def _checkout(self, campaign, record=None):
-        self._self_heal()
+        self._self_heal(campaign)
         if self._git("status", "--porcelain").stdout.strip():
             raise RuntimeError("research repository has existing work; integration paused")
         self._git("switch", campaign["branch"])
 
-    def _self_heal(self):
+    def _self_heal(self, campaign=None):
         # A crash can leave the loop's own uncommitted import temporaries or a
         # partially written results/<job_id>/ behind, which would otherwise block
         # every future checkout. Remove only files the round records prove the
-        # loop itself created, and only when they are not committed.
+        # loop itself created, only when they are not committed, and only when
+        # their bytes still match the hash recorded before the first copy.
         owned = {}
         for round_path in sorted(self.root.glob("rounds/*.json")):
             try:
@@ -348,20 +427,56 @@ class ResearchLoop:
             except (OSError, ValueError):
                 continue
             for job, entry in record.get("imports", {}).items():
-                for name in entry.get("files", {}):
-                    owned.setdefault(job, set()).add(name)
+                files = entry.get("files") if isinstance(entry, dict) else None
+                if not isinstance(files, dict) or not isinstance(job, str) or not JOB_ID.fullmatch(job):
+                    continue
+                for name, digest in files.items():
+                    if isinstance(name, str) and isinstance(digest, str):
+                        owned.setdefault(job, {})[name] = digest
+        cleanup = []
+        changed = []
         for job, names in owned.items():
-            for name in names:
+            for name, digest in names.items():
+                try:
+                    name = _relative(name)
+                except ValueError:
+                    continue
                 dest = self.repo / "results" / job / name
                 for candidate in (dest, dest.with_name("." + dest.name + ".nerelan-import")):
-                    if not candidate.exists() and not candidate.is_symlink():
-                        continue
                     rel = candidate.relative_to(self.repo).as_posix()
                     if self._git("cat-file", "-e", "HEAD:" + rel, check=False).returncode == 0:
                         continue
-                    if self._git("ls-files", "--error-unmatch", "--", rel, check=False).returncode == 0:
-                        self._git("reset", "-q", "--", rel)
-                    candidate.unlink()
+                    if not candidate.exists() and not candidate.is_symlink():
+                        continue
+                    relative = candidate.relative_to(self.repo)
+                    if (any((self.repo / parent).is_symlink() for parent in relative.parents)
+                            or candidate.is_symlink() or not candidate.is_file()):
+                        changed.append(rel)
+                        continue
+                    try:
+                        current = hashlib.sha256(candidate.read_bytes()).hexdigest()
+                    except OSError:
+                        changed.append(rel)
+                        continue
+                    if current != digest:
+                        changed.append(rel)
+                        continue
+                    cleanup.append((rel, candidate))
+        if changed:
+            reason = ("owned result evidence changed; import recovery paused: modified paths: "
+                      + ", ".join(sorted(set(changed))))
+            if campaign is None and self.state_path.exists():
+                try:
+                    campaign = json.loads(self.state_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    campaign = None
+            if campaign is not None:
+                self._event(campaign, "PAUSED_FAILING", reason, self.state_path)
+            raise RuntimeError(reason)
+        for rel, candidate in cleanup:
+            if self._git("ls-files", "--error-unmatch", "--", rel, check=False).returncode == 0:
+                self._git("reset", "-q", "--", rel)
+            candidate.unlink()
 
     def _task_commit(self, link):
         if "commit_sha" in link:
@@ -465,13 +580,14 @@ class ResearchLoop:
                 for name in changed:
                     parts = PurePosixPath(name).parts
                     if len(parts) == 4 and parts[:2] == (".nerelan-remote", "outbox") and parts[3] == "job.json":
-                        if parts[2].startswith(f"r{record['number']}-") and re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,63}", parts[2]):
+                        if parts[2].startswith(self._job_prefix(record["number"])) and JOB_ID.fullmatch(parts[2]):
                             record["jobs"] = sorted(set(record["jobs"]) | {parts[2]})
                 record["integrations"][task_id] = {"integrated": record[key] != self._git("rev-parse", "HEAD").stdout.strip(), "sha": sha}
             record.pop("merging", None)
             record.pop("merge_sha", None)
             self._save(record, path)
         record.pop("merging", None)
+        record["request_commit"] = self._git("rev-parse", "HEAD").stdout.strip()
         record["research_log_present"] = self._git("cat-file", "-e", "HEAD:RESEARCH_LOG.md", check=False).returncode == 0
         log_detail = "" if record.get("research_log_updated") else "; RESEARCH_LOG.md was not updated"
         self._event(record, "INTEGRATED", "local task merges finished" + log_detail, path)
@@ -500,6 +616,12 @@ class ResearchLoop:
             if record["imports"].get(job, {}).get("error"):
                 continue
             source = self.broker_root / job
+            try:
+                receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                receipt = None
+            if not self._bound_receipt(record, job, receipt):
+                continue
             target = self.repo / "results" / job
             job_paths = []
             try:
@@ -509,6 +631,8 @@ class ResearchLoop:
                     if target.exists() or target.is_symlink():
                         raise ValueError("result destination already exists")
                     receipt = json.loads((source / "receipt.json").read_text(encoding="utf-8"))
+                    if not self._bound_receipt(record, job, receipt):
+                        continue
                     files = {"receipt.json": None}
                     if receipt["state"] != "REJECTED":
                         if not (source / "manifest.json").exists():
@@ -540,6 +664,9 @@ class ResearchLoop:
                         hashes[name] = digest
                     entry = record["imports"][job] = {"files": hashes}
                     self._save(record, path)  # Ownership recorded before first destination write.
+                frozen_receipt = json.loads((snapshot / "receipt.json").read_bytes())
+                if not self._bound_receipt(record, job, frozen_receipt):
+                    continue
                 for name, digest in entry["files"].items():
                     dest = target / name
                     if dest.is_symlink() or any(p.is_symlink() for p in dest.parents):
@@ -569,7 +696,7 @@ class ResearchLoop:
             except (OSError, ValueError, KeyError) as exc:
                 record["imports"][job] = {**record["imports"].get(job, {}), "error": str(exc)}
         if paths:
-            self._git("add", "--", *paths)
+            self._git("add", "-f", "--", *paths)
             staged = self._git("diff", "--cached", "--name-only").stdout.splitlines()
             if set(staged) != set(paths):
                 raise RuntimeError("unrelated staged files; results commit paused")
