@@ -38,9 +38,10 @@ it("shows current functional acceptance, pending review and inspectable exact ev
   expect(screen.getByText(/远端审查、合并与交付尚未确认/)).toBeVisible();
   expect(screen.getByText(verified.tree!)).not.toBeVisible();
   await userEvent.click(screen.getByText("查看功能检查", { selector: "summary" }));
-  expect(screen.getByText("共 3 项 · 通过 2 · 失败 0 · 跳过 1")).toBeVisible();
-  // The component's nested evidence disclosure is explicit as well.
+  // Per-check counts and exit codes live in the nested evidence disclosure.
+  expect(screen.getByText("共 3 项 · 通过 2 · 失败 0 · 跳过 1")).not.toBeVisible();
   await userEvent.click(screen.getByText("验证详情", { selector: "summary" }));
+  expect(screen.getByText("共 3 项 · 通过 2 · 失败 0 · 跳过 1")).toBeVisible();
   expect(screen.getByText(verified.tree!)).toBeVisible();
   expect(screen.getByText(verified.result_digest!)).toBeVisible();
 });

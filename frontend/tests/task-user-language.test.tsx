@@ -87,6 +87,15 @@ describe("missing functional evidence is an honest, short non-success", () => {
   });
 });
 
+it("keeps per-check exit codes and counts inside the collapsed details", () => {
+  render(<FunctionalValidationView evidence={{ status: "FAILED", checks: [{ profile_id: "npm_test", working_directory: "frontend", exit_code: 1, timed_out: false,
+    test_report: { format: "tap", tests: 2, passed: 1, failed: 1, skipped: 0 } }] }} executor="codex" locale="zh-CN" />);
+  const details = screen.getByTestId("functional-validation-details");
+  expect(within(details).getByText("退出码：1")).toBeInTheDocument();
+  expect(within(details).getByText("共 2 项 · 通过 1 · 失败 1 · 跳过 0")).toBeInTheDocument();
+  expect(screen.getByText("测试未通过")).toBeInTheDocument();
+});
+
 describe("task list rows", () => {
   const task: Task = {
     id: "t-1", title: "Fix login", state: "FAILED_TERMINAL", riskTier: "UNKNOWN", permissionProfile: "ASK_FOR_APPROVAL",
