@@ -508,6 +508,7 @@ class AutonomyService:
                 **usage_budget,
             },
             "operations": self.control_store.receipt_totals(window_id=window_id),
+            "adopted_goals": list(self.control_store.window_adopted_goals(window_id)),
             "goals": [
                 {
                     "id": goal.id,
@@ -581,7 +582,10 @@ class AutonomyService:
             if max_token_units or max_cost_micro_units
             else "POST_RUN_OBSERVED"
         )
-        return {
+        adopted = payload.get("adopt_unfinished_goals", ())
+        if not isinstance(adopted, (list, tuple)):
+            raise TaskStoreError("window_adoption_invalid")
+        normalized = {
             "window_id": str(payload.get("window_id", "")).strip(),
             "policy_id": policy_id,
             "policy_revision": revision,
@@ -600,6 +604,10 @@ class AutonomyService:
             "provider_quota_state": provider_quota_state,
             "enforcement_class": enforcement_class,
         }
+        if adopted:
+            # Only an explicit Owner list adopts stranded Goals (#1277); absent keeps the digest unchanged.
+            normalized["adopt_unfinished_goals"] = tuple(adopted)
+        return normalized
 
     @staticmethod
     def _parse_time(value: str) -> datetime:

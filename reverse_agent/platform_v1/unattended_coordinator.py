@@ -614,6 +614,8 @@ class UnattendedCoordinator:
             "last_error": self._last_error,
             "last_batch": dict(self._last_batch),
             "active_window_id": active.id if active else "",
+            # Unfinished work whose window can no longer dispatch; only an explicit rebind moves it.
+            "stranded_goals": list(self.control_store.stranded_goals()),
             "workspace_root": self.workspace_root,
         }
 
