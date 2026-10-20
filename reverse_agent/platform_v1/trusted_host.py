@@ -506,11 +506,15 @@ class CombinedTrustedHost:
             if stated is not None and stated <= now:
                 continue  # An expired stated failure cannot renew on a later quota window.
             if stated is not None:
-                # With stated evidence, retain the latest relevant quota reset,
-                # rather than the legacy earliest-window fallback.
+                # Only exhausted windows may extend a stated account hold.
                 from .quota_guard import parse_time
                 resets = [stated]
                 for window in quota.get("windows", ()):
+                    used = window.get("used_percent")
+                    remaining = window.get("remaining_percent")
+                    if not ((type(used) in (int, float) and used >= 100)
+                            or (type(remaining) in (int, float) and remaining == 0)):
+                        continue
                     value = window.get("resets_at")
                     reset = float(value) if type(value) in (int, float) else parse_time(value)
                     if reset is not None and reset > hit_at:

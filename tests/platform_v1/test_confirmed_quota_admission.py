@@ -149,7 +149,7 @@ def test_host_falls_back_to_local_when_magpie_disabled(monkeypatch):
 
 
 def test_host_uses_fresh_magpie_windows_over_local(monkeypatch):
-    from reverse_agent.model_access import magpie
+    from reverse_agent.model_access import magpie, subscription_quota
     from reverse_agent.platform_v1.run_store import TaskStore
     store = ModelProfileStore()
     host = object.__new__(CombinedTrustedHost)
@@ -157,6 +157,7 @@ def test_host_uses_fresh_magpie_windows_over_local(monkeypatch):
     host._task_store = TaskStore(":memory:")
     local = {"codex": {"state": "UNKNOWN", "windows": []}}
     snapshot = _magpie_snapshot(_magpie_account("codex", 100.0, "2026-10-19T16:00:00Z"))
+    monkeypatch.setattr(subscription_quota.time, "time", lambda: 1792407600.0)
     monkeypatch.setenv("REVERSE_AGENT_MAGPIE", "1")
     monkeypatch.setattr(magpie, "fetch_magpie_snapshot", lambda *a, **k: snapshot)
     merged = host._merge_magpie_quotas(local)
@@ -237,12 +238,38 @@ def test_stated_five_hour_reset_without_magpie(reset_host, monkeypatch):
 
 
 @pytest.mark.parametrize("hours", [2, 8])
-def test_stated_reset_uses_latest_quota_window(reset_host, monkeypatch, hours):
+def test_stated_reset_ignores_quota_windows_without_exhaustion(reset_host, monkeypatch, hours):
     host, connection, now, fail = reset_host
     fail(_iso(now + 5 * 3600))
     monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
         {"resets_at": _iso(now + 3600)}, {"resets_at": _iso(now + hours * 3600)}]}})
-    assert host._limit_hit_until(connection) == now + max(5, hours) * 3600
+    assert host._limit_hit_until(connection) == now + 5 * 3600
+
+
+def test_stated_reset_alone_without_windows(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 3600))
+    assert host._limit_hit_until(connection) == now + 2 * 3600
+
+
+def test_stated_reset_ignores_non_exhausted_weekly_window(reset_host, monkeypatch):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 3600))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+        {"window": "five_hour", "used_percent": 100,
+         "resets_at": _iso(now + 5 * 3600)},
+        {"window": "weekly", "used_percent": 65,
+         "resets_at": _iso(now + 5 * 86400)}]}})
+    assert host._limit_hit_until(connection) == now + 5 * 3600
+
+
+@pytest.mark.parametrize("exhaustion", [{"used_percent": 100}, {"remaining_percent": 0}])
+def test_stated_reset_extended_by_exhausted_weekly_window(reset_host, monkeypatch, exhaustion):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 3600))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+        {"window": "weekly", **exhaustion, "resets_at": _iso(now + 5 * 86400)}]}})
+    assert host._limit_hit_until(connection) == now + 5 * 86400
 
 
 def test_multiple_failures_and_hold_older_than_one_day(reset_host):
