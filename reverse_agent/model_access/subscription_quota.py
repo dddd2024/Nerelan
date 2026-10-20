@@ -345,3 +345,95 @@ def claude_quota(notices: tuple[list, str | None] | None, config_dir: str | os.P
 def iso_or_none(epoch: float | None) -> str | None:
     from .quota_forecast import iso
     return iso(epoch)
+
+
+# ---- Magpie observation: official numbers first, local CLI logs as fallback ----
+
+# Magpie account `provider` strings are not the executor provider ids the guard keys by.
+_MAGPIE_PROVIDER_KEYS = {
+    "codex": "codex",
+    "openai": "codex",
+    "chatgpt": "codex",
+    "claude-code": "claude-code",
+    "claude_code": "claude-code",
+    "anthropic": "claude-code",
+    "claude": "claude-code",
+}
+
+
+def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = None) -> dict[str, dict[str, Any]]:
+    """Map a Magpie snapshot's fresh subscription accounts onto the guard's quota shape.
+
+    Only ``FRESH`` accounts (already age-checked by :func:`parse_quotas` at <= 15 min)
+    contribute; anything else is dropped so the caller can fall back to the local CLI
+    source. The official ``used_percent``/``resets_at`` are kept verbatim, so a 100% 5h
+    window drives ``switch`` and the account is held until its stated reset.
+
+    One account is chosen per provider: the one with the least remaining headroom in its
+    most constrained active window, matching the guard's per-window admission rule. Stale
+    or unknown accounts, invalid windows, and windows whose stated reset has passed do not
+    influence that choice. Ties are broken by sanitized ``account_ref``, then observation
+    time and window content, so input order never decides the result. When no usable
+    account exists the provider is omitted and the caller keeps its local fallback.
+    """
+    now = time.time() if now is None else now
+    result: dict[str, dict[str, Any]] = {}
+    if not isinstance(snapshot, Mapping) or snapshot.get("status") != "available":
+        return result
+    candidates: dict[str, list[tuple[tuple[Any, ...], Mapping[str, Any], list[dict[str, Any]]]]] = {}
+    for account in snapshot.get("accounts") or []:
+        if not isinstance(account, Mapping) or account.get("state") != "FRESH":
+            continue
+        key = _MAGPIE_PROVIDER_KEYS.get(account.get("provider"))
+        if key is None:
+            continue
+        windows = []
+        for window in account.get("windows") or []:
+            if not isinstance(window, Mapping) or window.get("unlimited") is True:
+                continue  # an unlimited window never constrains admission
+            used = window.get("used_percent")
+            if type(used) not in (int, float) or not 0 <= used <= 100:
+                continue
+            resets_at = window.get("resets_at")
+            reset = parse_iso_time(resets_at)
+            if resets_at is not None and reset is None:
+                continue  # a stated reset that cannot be read makes the window invalid
+            windows.append({
+                "window": window.get("name") if isinstance(window.get("name"), str) else "window",
+                "basis": "official_percent",
+                "used_percent": used,
+                "resets_at": resets_at if isinstance(resets_at, str) else None,
+                "reset_passed": bool(reset is not None and reset <= now),
+                "status": None,
+                "source": "magpie",
+            })
+        active = [window for window in windows if not window["reset_passed"]]
+        if not active:
+            continue
+        headroom = min(100 - window["used_percent"] for window in active)
+        ref = account.get("account_ref")
+        observed = account.get("observed_at")
+        signature = tuple(
+            (window["window"], window["used_percent"], window["resets_at"] or "")
+            for window in windows)
+        order = (headroom, ref if isinstance(ref, str) and ref else "\uffff",
+                 observed if isinstance(observed, str) else "", signature)
+        candidates.setdefault(key, []).append((order, account, windows))
+    for key, choices in candidates.items():
+        _, account, windows = min(choices, key=lambda choice: choice[0])
+        evidence: dict[str, Any] = {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie",
+                                    "observed_at": account.get("observed_at"), "windows": windows}
+        ref = account.get("account_ref")
+        if isinstance(ref, str) and ref:
+            evidence["account_ref"] = ref
+        result[key] = evidence
+    return result
+
+
+def parse_iso_time(value: Any) -> float | None:
+    if not isinstance(value, str) or len(value) > 40:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None

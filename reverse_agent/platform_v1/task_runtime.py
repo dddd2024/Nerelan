@@ -84,6 +84,7 @@ class ExecutorResult:
     execution_id: str = ""
     process_exit_code: int | None = None
     failure_classification: str = ""
+    failure_reset_at: str = ""
 
 
 FixtureExecutorResult = ExecutorResult
