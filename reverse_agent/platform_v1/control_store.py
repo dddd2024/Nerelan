@@ -801,6 +801,13 @@ class PlatformControlStore:
         """
         from .unknown_claim_isolation import refuse_held
         refuse_held(self.task_store, task_id)
+        stale = self._conn.execute(
+            "SELECT window_id FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE' "
+            "AND window_id <> ?", (task_id, window_id)).fetchone()
+        if (stale is not None and not self._window_current_locked(stale["window_id"])
+                and self._stale_claim_unknown_locked(task_id, stale["window_id"], _utc_now_ms())):
+            # A stopped window's leftover claim is as unknown as an expired one's (#1277).
+            raise TaskStoreError("unknown_claim_task_held")
         window = self.get_window(window_id)
         if not self.is_strict_owner_window(window):
             return
@@ -957,11 +964,14 @@ class PlatformControlStore:
                 raise TaskStoreError("goal_task_in_flight")
             if task.repository not in window.repositories:
                 raise TaskStoreError("rebind_window_repository_mismatch")
-            if held_task(self._conn, task.id):
+            if held_task(self._conn, task.id) or self._stale_claim_unknown_locked(task.id, old.id, now_ms):
                 # Unknown external side effects stay on HOLD (#1206): the claim and its
                 # reservation are retained and the scheduler keeps refusing the task.
                 held.append(task.id)
                 continue
+            if self._conn.execute("SELECT 1 FROM durable_runs WHERE task_id = ? AND lease_expiry_ms > ?",
+                                  (task.id, now_ms)).fetchone() is not None:
+                raise TaskStoreError("goal_task_claim_live")
             operation = task_operation(task)
             if task.status == "INTERRUPTED" and operation != "validate_task":
                 operation = "resume_task"
@@ -1032,6 +1042,19 @@ class PlatformControlStore:
                 "AND operation_type = 'goal_window_rebind' AND reason = 'adopted_on_activation' "
                 "ORDER BY created_at, id", (window_id,)).fetchall()
         return tuple(str(row["subject_id"]) for row in rows)
+
+    def _stale_claim_unknown_locked(self, task_id: str, window_id: str, now_ms: int) -> bool:
+        """held_task's evidence test for any non-current window, not only a time-expired one.
+
+        A STOPPED or BLOCKED window can end before its expires_at; its leftover claim
+        is just as unknown and must not be retired into a fresh run.
+        """
+        return self._conn.execute(
+            "SELECT 1 FROM platform_coordinator_claims c JOIN tasks t ON t.id = c.task_id "
+            "WHERE c.task_id = ? AND c.window_id = ? AND c.status = 'ACTIVE' AND c.expires_at_ms <= ? "
+            "AND t.status IN ('FAILED', 'INTERRUPTED') AND NOT EXISTS (SELECT 1 FROM durable_runs r "
+            "JOIN durable_external_operations o ON o.run_id = r.run_id WHERE r.task_id = c.task_id)",
+            (task_id, window_id, now_ms)).fetchone() is not None
 
     def stranded_goals(self, *, limit: int = 100) -> tuple[dict[str, Any], ...]:
         """RUNNING Goals whose unfinished tasks are bound to a window that can no longer dispatch."""

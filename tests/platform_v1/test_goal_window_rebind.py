@@ -207,6 +207,43 @@ def test_unknown_side_effects_stay_on_hold():
         s.control.claim_task(window_id=new.id, task_id=tasks["T005"], owner="new", lease_ms=1000)
 
 
+def test_unknown_side_effects_stay_on_hold_after_stopped_window():
+    """A window stopped before its expires_at must hold the same evidence as an expired one."""
+    s = _services()
+    goal = s.goals.create({"objective": "Stopped mid-run", "idempotency_key": "stopped",
+                           "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    s.goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "T005", "title": "running", "instruction": "was running"},
+        {"id": "T006", "title": "queued", "instruction": "never started"}])
+    s.goals.approve(goal.id, expected_revision=1)
+    old = s.autonomy.activate(_payload("old-window"))
+    s.goals.launch(goal.id, expected_revision=1, window_id=old.id)
+    tasks = {link["plan_task_id"]: link["task_id"] for link in s.control.list_goal_tasks(goal.id)}
+    s.control.claim_task(window_id=old.id, task_id=tasks["T005"], owner="old-host", lease_ms=60_000)
+    s.store.set_state(tasks["T005"], "INTERRUPTED")
+    s.store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms = 1 WHERE task_id = ?",
+                          (tasks["T005"],))
+    s.control.stop_window(old.id)
+    new = s.autonomy.activate(_payload("new-window"))
+    outcome = s.control.rebind_goal_to_window(goal.id, window_id=new.id)
+    assert outcome["held_tasks"] == [tasks["T005"]] and outcome["retired_claims"] == []
+    claim = _claim(s, tasks["T005"])
+    assert (claim["status"], claim["window_id"]) == ("ACTIVE", old.id)
+    assert s.store._conn.execute("SELECT state FROM platform_budget_reservations WHERE task_id = ?",
+                                 (tasks["T005"],)).fetchone()["state"] == "ACTIVE"
+    assert s.control.runnable_tasks(new.id) == (tasks["T006"],)
+
+
+def test_live_durable_lease_refuses_rebind():
+    s, goal, old, tasks = _stranded()
+    s.store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = 99999999999999 WHERE task_id = ?",
+                          (tasks["T005"],))
+    new = s.autonomy.activate(_payload("new-window"))
+    with pytest.raises(TaskStoreError, match="goal_task_claim_live"):
+        s.control.rebind_goal_to_window(goal.id, window_id=new.id)
+    assert _claim(s, tasks["T005"])["status"] == "ACTIVE"
+
+
 def test_concurrent_rebind_is_idempotent_and_retires_once(tmp_path):
     db = str(tmp_path / "platform.sqlite3")
     s, goal, old, tasks = _stranded(db)
