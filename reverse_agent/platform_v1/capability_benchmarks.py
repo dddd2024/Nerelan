@@ -17,6 +17,7 @@ import io
 import json
 import math
 import re
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from statistics import median
@@ -99,8 +100,10 @@ def validate_snapshot(data: Any) -> dict[str, Any]:
                 or not isinstance(entry, dict) or not isinstance(entry.get('aliases'), list)
                 or not isinstance(entry.get('scores'), list)):
             raise bad()
+        if not all(isinstance(alias, str) for alias in entry['aliases']):
+            raise bad()
         for alias in {family, *entry['aliases']}:
-            if not isinstance(alias, str) or alias != _identity(alias) or not alias:
+            if alias != _identity(alias) or not alias:
                 raise bad()
             # One provider id must never resolve to two families.
             if owners.setdefault(alias, family) != family:
@@ -259,6 +262,7 @@ def _validate_spec(spec: Mapping[str, Any]) -> None:
             or not isinstance(spec.get('score_fields'), dict) or not spec['score_fields']
             or any(not isinstance(k, str) or v not in BENCHMARK_KINDS for k, v in spec['score_fields'].items())
             or not isinstance(spec.get('variant_field', ''), str)
+            or not isinstance(spec.get('rows_field', 'rows'), str)
             or 'headers' in spec):
         raise ValueError('invalid_benchmark_source')
 
@@ -323,25 +327,33 @@ def build_candidate(current: Mapping[str, Any], spec: Mapping[str, Any], rows: S
         matched.setdefault(family, []).append({'benchmark': row['benchmark'], 'score': row['score'],
             'source': spec['source'], 'url': spec['url'], 'retrieved_at': retrieved_at,
             'variant': row.get('variant') or row['model']})
+    # A refresh replaces the whole source: models it no longer lists lose its rows.
     for family, entry in candidate['families'].items():
-        if family in matched:
-            entry['scores'] = [r for r in entry['scores'] if r['source'] != spec['source']] + matched[family]
+        entry['scores'] = [r for r in entry['scores'] if r['source'] != spec['source']] + matched.get(family, [])
     candidate['snapshot_id'] = snapshot_id
     return validate_snapshot(candidate), sorted(unmatched)
 
 
 def diff_snapshots(old: Mapping[str, Any] | None, new: Mapping[str, Any]) -> list[dict[str, Any]]:
-    def cells(snapshot: Mapping[str, Any] | None) -> dict[tuple[str, str, str, str], float]:
-        return {(family, r['benchmark'], r['source'], r.get('variant', '')): r['score']
-                for family, entry in (snapshot or {'families': {}})['families'].items() for r in entry['scores']}
-    before, after = cells(old), cells(new)
-    changes = [{'family': k[0], 'benchmark': k[1], 'source': k[2], 'variant': k[3],
-                'old': before.get(k), 'new': after.get(k)}
-               for k in sorted(before.keys() | after.keys()) if before.get(k) != after.get(k)]
-    old_aliases = {f: sorted(e['aliases']) for f, e in (old or {'families': {}})['families'].items()}
-    for family, entry in sorted(new['families'].items()):
-        if old_aliases.get(family) != sorted(entry['aliases']):
-            changes.append({'family': family, 'aliases_old': old_aliases.get(family), 'aliases_new': sorted(entry['aliases'])})
+    """Every difference that changes the digest: snapshot id, families, aliases and full score rows."""
+    old = old or {'snapshot_id': None, 'families': {}}
+    changes: list[dict[str, Any]] = []
+    if old['snapshot_id'] != new['snapshot_id']:
+        changes.append({'snapshot_id_old': old['snapshot_id'], 'snapshot_id_new': new['snapshot_id']})
+
+    def rows(entry: Mapping[str, Any] | None) -> Counter[str]:
+        # A multiset: a duplicated row also changes the digest.
+        return Counter(json.dumps(r, sort_keys=True) for r in (entry or {}).get('scores', []))
+    for family in sorted(old['families'].keys() | new['families'].keys()):
+        before, after = old['families'].get(family), new['families'].get(family)
+        if before is None or after is None:
+            changes.append({'family': family, 'family_change': 'added' if before is None else 'removed',
+                            'aliases': sorted((after or before)['aliases'])})
+        elif before['aliases'] != after['aliases']:
+            changes.append({'family': family, 'aliases_old': before['aliases'], 'aliases_new': after['aliases']})
+        old_rows, new_rows = rows(before), rows(after)
+        changes += [{'family': family, 'removed': json.loads(key)} for key in sorted((old_rows - new_rows).elements())]
+        changes += [{'family': family, 'added': json.loads(key)} for key in sorted((new_rows - old_rows).elements())]
     return changes
 
 

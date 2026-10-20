@@ -160,6 +160,9 @@ def test_prior_weighs_on_few_runs_and_large_gap_is_flagged():
     assert plain['tier'] == 3 and plain['source'] == 'measured'
     converged = routing_capabilities.tier_detail('m1', profile(3, 12, 12), 'code', 3, None, benchmarks=strong)
     assert converged['tier'] == 3 and converged['source'] == 'measured'
+    # Boundary: a tier-1 prior at difficulty 5 needs 11 straight successes, not 10.
+    assert routing_capabilities.tier_detail('m1', profile(5, 10, 10), 'code', 5, None, benchmarks=strong)['tier'] == 4
+    assert routing_capabilities.tier_detail('m1', profile(5, 11, 11), 'code', 5, None, benchmarks=strong)['tier'] == 5
     gap = routing_capabilities.tier_detail('m5', profile(3, 0, 6), 'code', 3, None, benchmarks=strong)
     assert gap['prior_gap'] == ['code:3'] and gap['tier'] == 2
 
@@ -214,7 +217,7 @@ def test_importer_parses_recorded_fixture_and_stages_diff(tmp_path):
     assert unmatched == ['never-seen-model']
     assert new['families']['glm-5.3']['scores'][0]['url'] == SPEC['url']
     staged = cb.stage_candidate(tmp_path, new)
-    assert len([c for c in staged['changes'] if 'benchmark' in c]) == 3
+    assert len([c for c in staged['changes'] if 'added' in c]) == 3
     assert not (tmp_path / cb.SNAPSHOT_FILE).exists()  # nothing used before confirmation
     with pytest.raises(ValueError, match='candidate_digest_mismatch'):
         cb.adopt_candidate(tmp_path, '0' * 64)
@@ -223,6 +226,31 @@ def test_importer_parses_recorded_fixture_and_stages_diff(tmp_path):
     # Re-import replaces this source's rows instead of duplicating them.
     again, _ = cb.build_candidate(new, SPEC, rows, retrieved_at='2026-10-27', snapshot_id='x')
     assert len(again['families']['glm-5.3']['scores']) == 2
+    # A model the source no longer lists loses that source's rows.
+    dropped, _ = cb.build_candidate(new, SPEC, [r for r in rows if r['model'] != 'deepseek-v4-pro'],
+                                    retrieved_at='2026-10-27', snapshot_id='y')
+    assert dropped['families']['deepseek-v4-pro']['scores'] == []
+    assert any(c.get('family') == 'deepseek-v4-pro' and 'removed' in c for c in cb.diff_snapshots(new, dropped))
+
+
+def test_diff_shows_every_digest_change():
+    base = five_models()
+    moved = json.loads(json.dumps(base))
+    moved['families']['m1']['scores'][0]['url'] = 'https://alpha.example/moved'
+    moved['snapshot_id'] = 'fixture@2026-10-20'
+    del moved['families']['m2']
+    changes = cb.diff_snapshots(base, moved)
+    assert cb.digest(base) != cb.digest(moved)
+    assert {'snapshot_id_old': 'fixture@2026-10-19', 'snapshot_id_new': 'fixture@2026-10-20'} in changes
+    assert any(c.get('family') == 'm1' and c.get('added', {}).get('url') == 'https://alpha.example/moved' for c in changes)
+    assert any(c.get('family') == 'm2' and c.get('family_change') == 'removed' for c in changes)
+    assert cb.diff_snapshots(base, base) == []
+
+
+@pytest.mark.parametrize('alias', [['nested'], {'k': 'v'}, 3, None])
+def test_non_string_alias_is_invalid_not_a_crash(alias):
+    with pytest.raises(ValueError, match='invalid_capability_benchmarks'):
+        cb.validate_snapshot(snapshot(a=(['a', alias], [])))
 
 
 def test_importer_csv_and_cli_with_fixture(tmp_path, capsys):
@@ -233,15 +261,16 @@ def test_importer_csv_and_cli_with_fixture(tmp_path, capsys):
                     '--fixture', str(tmp_path / 'board.csv'), '--retrieved-at', '2026-10-20']) == 0
     out = json.loads(capsys.readouterr().out)
     assert out['unmatched_models'] == []
-    assert len([c for c in out['changes'] if 'benchmark' in c]) == 2
+    assert len([c for c in out['changes'] if 'added' in c]) == 2
     # A first import also shows every family the seed adds.
-    assert {c['family'] for c in out['changes'] if 'aliases_new' in c} == set(cb.SEED_FAMILIES)
+    assert {c['family'] for c in out['changes'] if c.get('family_change') == 'added'} == set(cb.SEED_FAMILIES)
     assert cb.main(['adopt', '--state-dir', str(tmp_path), '--confirm', out['digest']]) == 0
 
 
 @pytest.mark.parametrize('mutation', [
     {'url': 'http://board.example/x'}, {'url': 'https://user:pw@board.example/x'},
     {'headers': {'Authorization': 'Bearer x'}}, {'format': 'html'}, {'score_fields': {'x': 'vibes'}},
+    {'rows_field': ['rows']},
 ])
 def test_source_spec_must_be_https_and_credential_free(mutation):
     with pytest.raises(ValueError, match='invalid_benchmark_source'):
