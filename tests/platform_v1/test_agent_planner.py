@@ -65,7 +65,7 @@ def test_extract_plan_strips_fields_a_planner_may_not_request():
                       "validation_command_id": "git_diff_check", "artifact_input": {"plan_task_id": "T0"}}]}
     assert extract_plan(json.dumps(raw))["tasks"] == [
         {"id": "T001", "title": "x", "instruction": "y", "artifact_input": {"plan_task_id": "T0"},
-         "difficulty": 3, "kind": "code"}]
+         "difficulty": 3, "kind": "code", "context_need": 0, "needs": ()}]
 
 
 def test_reviewer_tasks_validate_without_changing_their_input():

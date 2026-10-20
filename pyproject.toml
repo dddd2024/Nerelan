@@ -16,5 +16,8 @@ test = ["pytest>=8,<9"]
 include = ["reverse_agent*"]
 exclude = ["tests*", "project_state*", "docs*"]
 
+[tool.setuptools.package-data]
+"reverse_agent.platform_v1" = ["calibration_suite_v1.json"]
+
 [tool.pytest.ini_options]
 markers = ["installed_opencode: requires an installed OpenCode CLI and separately authorized integration execution"]

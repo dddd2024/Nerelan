@@ -3240,10 +3240,14 @@ class DurableExecutionService:
                     "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
                 }
         except Exception as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
+            dispatch_class = "MODEL_UNAVAILABLE" if unavailable else "executor_dispatch_failed"
+            dispatch_detail = unavailable or f"executor_dispatch_exception:{exc}"
             self.store._fenced_classify_failure(
                 lease.run_id, task_id,
-                classification="executor_dispatch_failed",
-                detail=f"executor_dispatch_exception:{exc}",
+                classification=dispatch_class,
+                detail=dispatch_detail,
                 owner=lease.owner, epoch=lease.epoch,
             )
             self.store._fenced_terminalize(
@@ -3252,8 +3256,8 @@ class DurableExecutionService:
                 validation_command_id="",
                 validation_exit_code=-1,
                 validation_output_digest="",
-                failure_classification="executor_dispatch_failed",
-                failure_detail=f"executor_dispatch_exception:{exc}",
+                failure_classification=dispatch_class,
+                failure_detail=dispatch_detail,
                 owner=lease.owner, epoch=lease.epoch,
             )
             self.store._reconcile_external_operation(
@@ -3274,6 +3278,22 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
+        from .model_availability import availability_error
+        unavailable = availability_error(str(exec_result.get("failure_classification", "")) + " " + str(exec_result.get("error", "")))
+        if unavailable:
+            exec_result.update(success=False, failure_classification="MODEL_UNAVAILABLE", error=unavailable)
+            fenced_cb(task_id, {"type": "MODEL_UNAVAILABLE", "title": "Model unavailable",
+                                "metadata": {"reason": unavailable}})
+        from .routing_inputs import model_refused
+        finals = [event.metadata.get("final_text", "") for event in self.store.get_events(task_id)
+                  if event.type == "EXECUTOR_COMPLETED"]
+        explicit_refusal = exec_result.get("failure_classification") in {"policy_refusal", "MODEL_REFUSED"}
+        if model_refused(finals[-1] if finals else "", changed_files=exec_result.get("changed_files"),
+                         policy_refusal=explicit_refusal):
+            exec_result.update(success=False, failure_classification="MODEL_REFUSED", error="MODEL_REFUSED")
+            fenced_cb(task_id, {"type": "MODEL_REFUSED", "title": "Model declined task",
+                                "metadata": {"content_class": next((e.metadata.get("content_class", "code")
+                                    for e in self.store.get_events(task_id) if e.type == "MODEL_SELECTED"), "code")}})
         success_flag = exec_result["success"]
         self.store._reconcile_external_operation(
             operation_id=ext_op.operation_id,

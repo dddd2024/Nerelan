@@ -59,6 +59,7 @@ class OpenCodeBindingResolution:
     auth_method: str
     external_session_status: str
     relay_required: bool = False
+    native_endpoint: str = "/chat/completions"
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,12 +141,16 @@ class BindingResolver:
         )
         if task_executor in NATIVE_CLI_PROVIDER_FOR_EXECUTOR:
             from .codex_executor import validate_codex_model
-            model_id = validate_codex_model(raw_model_id)
             native_provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR[task_executor]
             upstream, protocol, _ = NATIVE_CLI_PROVIDERS[native_provider]
             from ..model_access.contracts import is_anthropic_relay_connection
             relay_mode = task_executor == "claude_code" and is_anthropic_relay_connection(
                 {**connection, "executor_provider_id": provider_id})
+            if task_executor == "claude_code":
+                from .claude_executor import validate_claude_model
+                model_id = validate_claude_model(raw_model_id, relay_mode=relay_mode)
+            else:
+                model_id = validate_codex_model(raw_model_id)
             if not relay_mode:
                 if (provider_id != native_provider or connection.get("upstream_provider_id") != upstream
                         or connection.get("protocol_family") != protocol):
@@ -191,6 +196,7 @@ class BindingResolver:
             auth_method=auth_method,
             external_session_status=external_session_status,
             relay_required=relay_required,
+            native_endpoint="/responses" if binding.get("native_endpoint") == "/responses" else "/chat/completions",
         )
 
     def _get_object(self, kind: str, route: str, identifier: str) -> Mapping[str, Any]:

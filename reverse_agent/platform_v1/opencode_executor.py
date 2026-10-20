@@ -370,7 +370,7 @@ def build_binding_config_content(
     payload = {
         "provider": {
             provider_key: {
-                "npm": _TRANSIENT_PROVIDER_NPM,
+                "npm": "@ai-sdk/openai" if resolution.native_endpoint == "/responses" else _TRANSIENT_PROVIDER_NPM,
                 "name": _TRANSIENT_PROVIDER_NAME,
                 "options": options,
                 "models": {provider_facing_model: {}},
@@ -1383,7 +1383,7 @@ class OpenCodeExecutor:
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
                 "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
-                            "context_packet_bytes":len(context_blob), "base_sha":base_sha}})
+                            "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":base_sha}})
         if self._transport_kind == "server":
             return self._run_server_executor_core(
                 task_id=task_id,
@@ -1535,6 +1535,13 @@ class OpenCodeExecutor:
         )
         _emit_executor_evidence_events(event_callback, task_id, execution_id, executor_evidence)
         _persist_executor_evidence(store, task_id, executor_evidence)
+        final_parts = [event["part"]["text"] for event in events_raw
+                       if event.get("type") == "text" and isinstance(event.get("part"), Mapping)
+                       and event["part"].get("type") == "text" and isinstance(event["part"].get("text"), str)]
+        if final_parts:
+            _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": "OpenCode response",
+                  "metadata": {"final_text": redact_secrets(final_parts[-1]), "executor_kind": "opencode"}})
+
         stderr_redacted = redact_secrets(_sanitize_output(stderr, 2048))
 
         if exit_code != 0:
@@ -2909,6 +2916,11 @@ def _classify_exit(
         return "timeout"
     for ev in events_raw:
         msg = json.dumps(ev, ensure_ascii=False, sort_keys=True).lower()
+        from .model_availability import availability_error
+        if availability_error(msg):
+            return "MODEL_UNAVAILABLE:" + availability_error(msg)
+        if 'policy_refusal' in msg or 'content_policy_violation' in msg:
+            return "policy_refusal"
         if "auth" in msg or "unauthorized" in msg or "forbidden" in msg:
             return "auth_provider_route_failure"
         if "network" in msg or "connection" in msg or "dns" in msg:
