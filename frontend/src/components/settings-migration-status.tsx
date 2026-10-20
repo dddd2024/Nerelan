@@ -22,7 +22,8 @@ export function SettingsMigrationStatus({ connections, connectionsFailed }: {
   const magpie = useQuery({
     queryKey: ["settings", "magpie-runtime"],
     queryFn: async () => (await getDefaultModelControlClient().getMagpie()).runtime,
-    staleTime: 60_000,
+    // Matches MagpieSettingsEditor's poll so the badge follows saved settings.
+    refetchInterval: 60_000,
   });
   const magpieBadge = magpie.isPending
     ? { label: "正在检查", tone: "muted" as const, detail: "正在读取 Magpie 状态。" }
@@ -33,7 +34,7 @@ export function SettingsMigrationStatus({ connections, connectionsFailed }: {
   const localBadge = connectionsFailed
     ? { label: "数据不可用", tone: "error" as const, detail: "无法读取本地连接。" }
     : enabled > 0
-      ? { label: "本地连接仍在使用", tone: "pending" as const, detail: `${enabled} 个启用的本地连接仍负责任务派发。` }
+      ? { label: "本地连接已启用", tone: "pending" as const, detail: `${enabled} 个本地连接已启用；任务是否实际经由它们派发以运行记录为准。` }
       : { label: "没有启用的本地连接", tone: "muted" as const, detail: "当前没有启用的本地连接。" };
 
   return (

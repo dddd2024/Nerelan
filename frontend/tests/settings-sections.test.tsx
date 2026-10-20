@@ -93,7 +93,7 @@ describe("modular settings navigation", () => {
     renderWithProviders(<SettingsPage section="resources" />);
     expect(await screen.findByText("只读已接入")).toBeInTheDocument();
     expect(screen.getByTestId("migration-routing")).toHaveTextContent("实际路由待验证");
-    expect(await screen.findByText("本地连接仍在使用")).toBeInTheDocument();
+    expect(await screen.findByText("本地连接已启用")).toBeInTheDocument();
   });
 
   it("migration status shows disabled Magpie as not connected", async () => {
