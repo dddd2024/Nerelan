@@ -228,6 +228,30 @@ def test_router_registers_claude_code_executor():
     assert isinstance(executor, ClaudeCodeExecutor) and executor.KIND == "claude_code"
 
 
+def test_result_usage_limit_message_classifies_and_redacts():
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n'
+                b'{"type":"result","subtype":"success","is_error":true,'
+                b'"error":"You\'ve hit your usage limit sk-verysecret"}\n')
+    turn = parser.finish()
+    assert turn.failed
+    assert turn.failure_classification == "claude_code_usage_limit"
+    assert "usage limit" in turn.failure_detail
+    assert "sk-verysecret" not in turn.failure_detail
+    assert seen and seen[-1]["type"] == "turn.error"
+
+
+def test_result_generic_error_stays_turn_failed_with_detail():
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n'
+                b'{"type":"result","subtype":"error_max_turns","is_error":true,"error":"boom"}\n')
+    turn = parser.finish()
+    assert turn.failure_classification == "claude_code_turn_failed:error_max_turns"
+    assert turn.failure_detail == "boom"
+
+
 def test_claude_account_connection_and_binding_never_accept_api_keys(tmp_path):
     store = ModelProfileStore(state_path=tmp_path / "state.json")
     connection = {"connection_id": "claude-account", "name": "Claude 账号", "provider": "claude-code",
@@ -248,3 +272,41 @@ def test_claude_account_connection_and_binding_never_accept_api_keys(tmp_path):
                               "executor_id": "opencode", "model_id": "claude-sonnet-5-5", "enabled": True})
     with pytest.raises(ValueError, match="claude_code_requires_managed_session_connection"):
         store.upsert_connection({**connection, "connection_id": "claude-key", "auth_method": "api_key"})
+
+
+@pytest.mark.parametrize('field', ['error', 'result'])
+def test_failed_result_text_limit_reset_and_email_redaction(field):
+    seen = []
+    parser = ClaudeStreamJson(seen.append)
+    event = {'type': 'result', 'subtype': 'success', 'is_error': True,
+             field: 'Account quota exceeded; try again at 2026-10-20T02:00:00+02:00 owner@example.invalid token: sk-verysecret'}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.failure_classification == 'claude_code_usage_limit'
+    assert turn.failure_reset_at == '2026-10-20T00:00:00Z'
+    assert 'owner@example.invalid' not in repr(turn) + repr(seen)
+    assert 'sk-verysecret' not in repr(turn) + repr(seen)
+    assert len(turn.failure_detail) <= 500
+
+
+def test_successful_result_limit_words_remain_success():
+    parser = ClaudeStreamJson()
+    event = {'type': 'result', 'subtype': 'success', 'result': 'Explained usage limit', 'is_error': False}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == 'Explained usage limit'
+    assert not turn.failure_classification and not turn.failure_reset_at
+
+
+def test_failed_result_clock_reset_uses_host_local_time(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import claude_protocol
+    monkeypatch.setattr(claude_protocol, 'local_now',
+                        lambda: datetime.fromisoformat('2026-10-19T12:00:00-04:00'))
+    parser = ClaudeStreamJson()
+    event = {'type': 'result', 'subtype': 'success', 'is_error': True,
+             'result': 'Claude usage limit reached; try again at 14:30'}
+    parser.feed(('\n'.join(json.dumps(e) for e in (EVENTS[0], event)) + '\n').encode())
+    turn = parser.finish()
+    assert turn.failure_classification == 'claude_code_usage_limit'
+    assert turn.failure_reset_at == '2026-10-19T18:30:00Z'
