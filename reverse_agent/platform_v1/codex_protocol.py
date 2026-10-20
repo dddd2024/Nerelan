@@ -121,6 +121,14 @@ class CodexJsonl:
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
             raise CodexProtocolError("codex_invalid_event")
         kind = event["type"]
+        # Concrete model metadata is transport evidence, never inferred from
+        # model prose or tool output. Missing metadata remains unknown.
+        if kind in {"thread.started", "turn.started", "turn.completed"} and "model" in event:
+            model = event["model"]
+            if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z0-9._:/@-]{1,200}", model):
+                raise CodexProtocolError("codex_model_identity_invalid")
+            if model not in self.turn.models:
+                self.turn.models.append(model)
         if self.turn.completed or self.turn.failed:
             raise CodexProtocolError("codex_event_after_terminal")
         if kind == "thread.started":

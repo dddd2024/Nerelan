@@ -303,10 +303,10 @@ def test_difficulty_only_plans_honor_corresponding_legacy_role_pins(monkeypatch,
 
 
 @pytest.mark.parametrize("traits", [{"agent_role": "reviewer"}, {"kind": "review"}])
-def test_reviewer_without_artifact_input_routes_normally(monkeypatch, tmp_path, traits):
+def test_reviewer_without_artifact_input_fails_closed(monkeypatch, tmp_path, traits):
     host = fixture_host(monkeypatch, tmp_path)
-    result = host._resolve_task_model(PlannedTask("review", "Review", "Review", **traits))
-    assert result["binding_ref"] == "strong"
+    with pytest.raises(TaskStoreError, match="model_review_artifact_input_required"):
+        host._resolve_task_model(PlannedTask("review", "Review", "Review", **traits))
 
 
 @pytest.mark.parametrize("role", ["coder", "complex", "planner", "reviewer"])

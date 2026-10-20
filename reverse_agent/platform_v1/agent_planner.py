@@ -58,6 +58,8 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "Rules: at most " + str(MAX_PLAN_TASKS) + " tasks; ids T001, T002, ...; dependencies reference "
         "earlier ids only; each instruction is self-contained (the agent sees only its own task); do not "
         "plan commits, pushes, releases or dependency installs.\n"
+        "Every task with kind=review or agent_role=reviewer must declare artifact_input; "
+        "it performs a model review of that artifact, with host checks as separate evidence. "
         "Dependencies only order tasks; each task starts from the approved base and cannot see another "
         "task's changes. When a task must build on a predecessor's changes, set "
         '"artifact_input": {"plan_task_id": "<that dependency id>"} (exactly one, and it must be listed in '
@@ -144,6 +146,8 @@ def extract_plan(text: str) -> dict[str, Any]:
         except ValueError as exc:
             raise TaskStoreError(str(exc)) from exc
         if task.get("agent_role") == "reviewer" or task["kind"] == "review":
+            if task.get("artifact_input") is None:
+                raise TaskStoreError("model_review_artifact_input_required")
             task["capability"] = "validate_task"
         tasks.append(task)
     criteria = plan.get("acceptance_criteria", [])

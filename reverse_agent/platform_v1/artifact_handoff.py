@@ -41,6 +41,8 @@ def validate_plan_inputs(tasks: Sequence[Any]) -> None:
     for task in tasks:
         selected = task.artifact_input
         if selected is None:
+            if task.kind == "review" or task.agent_role == "reviewer":
+                raise TaskStoreError("model_review_artifact_input_required")
             continue
         source_id = selected["plan_task_id"]
         if source_id == task.id or source_id not in task.dependencies or source_id not in by_id:
@@ -51,17 +53,21 @@ def validate_plan_inputs(tasks: Sequence[Any]) -> None:
 
 def freeze_handoff_contract(store: Any, task: Any, *, goal: Any, plan_task: Any,
                             base_commit: str) -> dict[str, Any] | None:
+    if (plan_task.kind == "review" or plan_task.agent_role == "reviewer") and plan_task.artifact_input is None:
+        raise TaskStoreError("model_review_artifact_input_required")
     export_required = any(normalize_input(raw.get("artifact_input")) == {"plan_task_id": plan_task.id}
                           for raw in goal.tasks)
     if plan_task.artifact_input is None and not export_required:
         return None
     if not re.fullmatch(r"[0-9a-f]{40}", base_commit):
         raise TaskStoreError("artifact_approved_base_invalid")
-    contract = {"version": 1, "task_id": task.id, "repository": task.repository,
+    contract = {"version": 2, "task_id": task.id, "repository": task.repository,
                 "goal_id": goal.id, "goal_revision": goal.revision,
                 "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan_task.id,
                 "base_commit": base_commit, "artifact_input": plan_task.artifact_input,
-                "export_required": export_required, "capability": plan_task.capability}
+                "export_required": export_required, "capability": plan_task.capability,
+                "kind": plan_task.kind, "agent_role": plan_task.agent_role,
+                "validation_mode": _validation_mode(plan_task.kind, plan_task.agent_role, plan_task.capability)}
     store._bind_artifact_evidence(task.id, category=CONTRACT_CATEGORY,
                                  label="approved_goal_artifact", document=contract)
     return contract
@@ -93,7 +99,15 @@ def load_handoff_contract(task: Any) -> dict[str, Any] | None:
     try:
         fields = {"version", "task_id", "repository", "goal_id", "goal_revision", "goal_artifact_digest",
                   "plan_task_id", "base_commit", "artifact_input", "export_required", "capability"}
-        if (set(contract) != fields or contract["version"] != 1
+        if contract.get("version") == 2:
+            fields |= {"kind", "agent_role", "validation_mode"}
+            if (not isinstance(contract.get("kind"), str) or not isinstance(contract.get("agent_role"), str)
+                    or contract.get("validation_mode") != _validation_mode(contract["kind"], contract["agent_role"], contract.get("capability"))
+                    or (contract["validation_mode"] == "model_review" and (contract.get("artifact_input") is None or contract.get("capability") != "validate_task"))):
+                raise ValueError
+        elif contract.get("capability") == "validate_task":
+            raise ValueError  # Legacy contract cannot establish review identity.
+        if (set(contract) != fields or type(contract["version"]) is not int or contract["version"] not in {1, 2}
                 or contract["task_id"] != task.id or contract["repository"] != task.repository
                 or type(contract["goal_revision"]) is not int or contract["goal_revision"] < 1
                 or not re.fullmatch(r"[0-9a-f]{40}", contract["base_commit"])
@@ -113,7 +127,13 @@ def validation_only_input(task: Any) -> bool:
     """Only the frozen approved input contract selects host-only validation."""
     contract = load_handoff_contract(task)
     return bool(contract is not None and contract["artifact_input"] is not None
-                and contract["capability"] == "validate_task")
+                and contract.get("validation_mode") == "host_validation")
+
+
+def model_review_input(task: Any) -> bool:
+    """Review identity comes only from the approved frozen contract."""
+    contract = load_handoff_contract(task)
+    return bool(contract and contract.get("validation_mode") == "model_review")
 
 
 def _current_goal(store: Any, task: Any, contract: Mapping[str, Any]) -> Any:
@@ -132,6 +152,8 @@ def _current_goal(store: Any, task: Any, contract: Mapping[str, Any]) -> Any:
             or planned[0].get("capability", "execute_task") != contract["capability"]
             or (contract["artifact_input"] is not None
                 and contract["artifact_input"]["plan_task_id"] not in planned[0].get("dependencies", []))):
+        raise TaskStoreError("artifact_approved_plan_changed")
+    if contract["version"] == 2 and any(planned[0].get(key, "") != contract[key] for key in ("kind", "agent_role")):
         raise TaskStoreError("artifact_approved_plan_changed")
     return goal
 
@@ -273,7 +295,8 @@ def recover_export_validation(store: Any, task_id: str, *, worktree: str | Path,
 
 def load_input_binding(task: Any) -> dict[str, Any] | None:
     contract = load_handoff_contract(task)
-    if contract is None or contract["artifact_input"] is None:
+    repair = _load_evidence(task, "ReviewRepair", task.execution_id)
+    if contract is None or (contract["artifact_input"] is None and repair is None):
         return None
     binding = _load_evidence(task, INPUT_CATEGORY, task.execution_id)
     if binding is None:
@@ -288,7 +311,8 @@ def load_input_binding(task: Any) -> dict[str, Any] | None:
                 or any(binding[key] != contract[key] for key in ("repository", "goal_id", "goal_revision",
                     "goal_artifact_digest", "plan_task_id", "base_commit", "capability"))
                 or not isinstance(producer, dict) or binding["producer_digest"] != _digest(producer)
-                or producer["plan_task_id"] != contract["artifact_input"]["plan_task_id"]
+                or producer["plan_task_id"] != (contract["plan_task_id"] if repair else contract["artifact_input"]["plan_task_id"])
+                or (repair is not None and producer != repair["producer"])
                 or any(producer[key] != contract[key] for key in (
                     "repository", "goal_id", "goal_revision", "goal_artifact_digest", "base_commit"))
                 or any(not re.fullmatch(r"[0-9a-f]{40}", producer[key]) for key in ("commit", "tree"))
@@ -329,6 +353,47 @@ def bind_consumer_input(store: Any, task_id: str, *, lease: Any = None,
     from .functional_validation import functional_evidence, git_output
     task = store.get_task(task_id)
     contract = load_handoff_contract(task)
+    repair = _load_evidence(task, "ReviewRepair", task.execution_id)
+    if repair is not None:
+        if lease is not None:
+            store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+        _current_goal(store, task, contract)
+        _matching_functional_contract(task, contract)
+        source = store.get_task(repair["producer"]["task_id"])
+        if _load_evidence(source, ACCEPTED_CATEGORY, source.execution_id) != repair["producer"]:
+            raise TaskStoreError("artifact_repair_source_changed")
+        from .functional_validation import functional_evidence
+        proof = functional_evidence(source)
+        if proof.get("verified") is not True:
+            raise TaskStoreError("artifact_repair_source_unverified")
+        root = _producer_worktree(store, source, proof)
+        _verify_proof_workspace(source, proof, root)
+        from .functional_validation import git_output
+        retained = repair["producer"]
+        if (git_output(root, "rev-parse", "--verify", retained["ref"]) != retained["commit"]
+                or git_output(root, "rev-parse", f"{retained['commit']}^{{tree}}") != retained["tree"]):
+            raise TaskStoreError("artifact_retained_object_changed")
+        previous = _load_evidence(task, INPUT_CATEGORY, task.execution_id)
+        if previous is None and not allow_create:
+            raise TaskStoreError("artifact_input_not_bound")
+        binding = {key: contract[key] for key in ("task_id", "repository", "goal_id", "goal_revision",
+            "goal_artifact_digest", "plan_task_id", "base_commit", "capability")}
+        binding.update(version=1, execution_id=task.execution_id,
+            run_id=previous["run_id"] if previous else (lease.run_id if lease else ""),
+            lease_epoch=previous["lease_epoch"] if previous else (lease.epoch if lease else None),
+            producer=repair["producer"], producer_digest=_digest(repair["producer"]))
+        if previous is not None and binding != previous:
+            raise TaskStoreError("artifact_input_binding_conflict")
+        if lease is not None and (binding["run_id"] != lease.run_id
+                or type(binding["lease_epoch"]) is not int
+                or not 1 <= binding["lease_epoch"] <= lease.epoch):
+            raise TaskStoreError("artifact_input_lease_changed")
+        if lease is None and allow_create and binding["run_id"]:
+            raise TaskStoreError("artifact_input_requires_run_lease")
+        if allow_create:
+            store._bind_artifact_evidence(task.id, category=INPUT_CATEGORY, label=task.execution_id,
+                                         document=binding, lease=lease)
+        return binding
     if contract is None or contract["artifact_input"] is None:
         return None
     if task.executor_kind not in {"opencode", "codex", "claude_code"}:
@@ -338,6 +403,20 @@ def bind_consumer_input(store: Any, task_id: str, *, lease: Any = None,
     goal = _current_goal(store, task, contract)
     _matching_functional_contract(task, contract)
     source_id = contract["artifact_input"]["plan_task_id"]
+    if not model_review_input(task):
+        from . import model_review
+        control = PlatformControlStore(store)
+        current_links = {row["plan_task_id"]: row for row in control.list_goal_tasks(goal.id)}
+        for raw in goal.tasks:
+            if (raw.get("kind") == "review" or raw.get("agent_role") == "reviewer") and raw.get("artifact_input") == {"plan_task_id": source_id}:
+                review = store.get_task(current_links[raw["id"]]["task_id"])
+                if review.status != "READY_FOR_REVIEW":
+                    raise TaskStoreError("artifact_review_not_accepted")
+                rows = [row for row in review.evidence_refs if row.get("category") == "ModelReview"]
+                if len(rows) != 1:
+                    raise TaskStoreError("artifact_review_not_accepted")
+                run = store._get_durable_run(json.loads(rows[0]["detail"])["run_id"])
+                model_review.verified_evidence(store, review, run)
     links = [link for link in PlatformControlStore(store).list_goal_tasks(goal.id)
              if link["plan_task_id"] == source_id]
     if len(links) != 1:
@@ -383,7 +462,7 @@ def bind_consumer_input(store: Any, task_id: str, *, lease: Any = None,
         raise TaskStoreError("artifact_input_requires_run_lease")
     binding = {key: contract[key] for key in ("version", "task_id", "repository", "goal_id", "goal_revision",
         "goal_artifact_digest", "plan_task_id", "base_commit", "capability")}
-    binding.update(execution_id=task.execution_id, run_id=run_id, lease_epoch=epoch,
+    binding.update(version=1, execution_id=task.execution_id, run_id=run_id, lease_epoch=epoch,
                    producer=accepted, producer_digest=_digest(accepted))
     if previous is not None and binding != previous:
         raise TaskStoreError("artifact_input_binding_conflict")
@@ -416,3 +495,15 @@ def check_input_snapshot(task: Any, root: Path, *, head: str, tree: str,
     if require_change and binding["capability"] == "execute_task" and tree == source["tree"]:
         raise TaskStoreError("artifact_consumer_implementation_missing")
     return binding
+
+
+def _validation_mode(kind: str, role: str, capability: str) -> str:
+    if kind == "review" or role == "reviewer":
+        return "model_review"
+    return "host_validation" if capability == "validate_task" else "execution"
+
+
+def model_review_input(task: Any) -> bool:
+    """Select model review only from trusted frozen traits."""
+    contract = load_handoff_contract(task)
+    return bool(contract and contract.get("validation_mode") == "model_review")

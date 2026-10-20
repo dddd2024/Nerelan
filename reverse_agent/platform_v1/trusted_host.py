@@ -398,6 +398,8 @@ class CombinedTrustedHost:
                             author_models: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = ()) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
+        if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
+            raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model
         from .routing_inputs import read_overrides, binding_cost_class
