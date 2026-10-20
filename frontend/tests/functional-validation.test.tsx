@@ -57,7 +57,7 @@ it.each([
   ["contradictory counts", { ...verified, checks: [{ ...verified.checks![0], test_report: { ...verified.checks![0].test_report, tests: 99 } }] }],
 ])("does not promote %s evidence to functional success", (_, evidence) => {
   render(<FunctionalValidationView evidence={evidence} executor="opencode" />);
-  expect(screen.getByText("功能尚未验证")).toBeInTheDocument();
+  expect(screen.getByText("尚未完成测试")).toBeInTheDocument();
   expect(screen.queryByText("功能已验证")).not.toBeInTheDocument();
 });
 
@@ -67,7 +67,7 @@ it("keeps fixture, failed checks and escaped failure reason visibly distinct", (
   expect(normalizeFunctionalValidation(verified, "deterministic_fixture").verified).toBe(false);
   view.rerender(<FunctionalValidationView evidence={{ ...verified, status: "FAILED", verified: false, reason: "<script>unsafe()</script>",
     checks: [{ ...verified.checks![0], exit_code: 1, test_report: { format: "junit", tests: 3, passed: 1, failed: 1, skipped: 1, accepted: false } }] }} executor="opencode" />);
-  expect(screen.getByText("功能检查未通过")).toBeInTheDocument();
+  expect(screen.getByText("测试未通过")).toBeInTheDocument();
   expect(screen.getByText("共 3 项 · 通过 1 · 失败 1 · 跳过 1")).toBeInTheDocument();
   expect(screen.getByText("<script>unsafe()</script>")).toBeInTheDocument();
   expect(document.querySelector("script")).toBeNull();
