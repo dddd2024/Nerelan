@@ -242,9 +242,27 @@ the WorkBuddy subscription (provider ids `workbuddy` and `workbuddy-ai`). This i
 
 ### Enabling
 
-Set `REVERSE_AGENT_MAGPIE=1`. The gateway URL defaults to `http://127.0.0.1:3425`; override it
-with `REVERSE_AGENT_MAGPIE_URL` if Magpie listens elsewhere on loopback. When disabled, no
-gateway is contacted and `GET /api/resources` has no `external_sources` key.
+In Settings, enable **Start Magpie with Nerelan**, choose an existing absolute `.exe`
+path, and set its loopback URL (default `http://127.0.0.1:3425`). These Owner settings
+are persisted as `magpie: {enabled, executable, base_url}` in the model setup state;
+they default to disabled. Changes apply on the next host check, within 60 seconds.
+
+The trusted host probes `/v1/models` with a two-second timeout. If it is down and the
+configured executable is not already running, the host starts it detached with no
+arguments and waits up to 30 seconds for health. Failure leaves Nerelan available
+and Magpie bindings unusable. A watcher checks every 60 seconds and allows at most
+three restart attempts per rolling hour, in addition to the initial launch.
+Nerelan never stops Magpie or reads or changes its config or login files.
+
+Settings and `/api/platform/status` show `MAGPIE_DISABLED`, `ALREADY_RUNNING`,
+`STARTED`, `START_FAILED` with a reason, or `UNREACHABLE`, plus the last probe time
+and served model count. A running executable with an unresponsive port is reported
+as `UNREACHABLE` and is never duplicated.
+
+Enabling the setting also enables read-only resource observation. The existing
+`REVERSE_AGENT_MAGPIE=1` / `REVERSE_AGENT_MAGPIE_URL` options remain available for
+observation only; they do not authorize launching an executable. When neither is
+enabled, no gateway is contacted and `GET /api/resources` has no `external_sources` key.
 
 ### What is read
 

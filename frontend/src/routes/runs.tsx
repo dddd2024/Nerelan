@@ -1,6 +1,6 @@
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { HistoryPagination, useHistoryCursor } from "@/components/history-pagination";
@@ -697,6 +697,25 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
       ) : <p className="mt-3 text-xs text-ra-text-tertiary">暂无当前结构化活动。</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">{run.goal_id ? <span data-testid={`run-goal-${run.task_id}`} className="text-ra-text-secondary">目标：{run.goal_title}</span> : <span className="text-ra-text-tertiary">未关联目标</span>}{changeSummary ? <span data-testid={`run-change-summary-${run.task_id}`} className="text-ra-text-secondary">{changeSummary.file_count} 个文件 · +{changeSummary.additions} -{changeSummary.deletions}</span> : null}{run.publication && run.publication.pr_number > 0 ? <a href={run.publication.pr_url} target="_blank" rel="noreferrer" data-testid={`run-pr-${run.task_id}`} className="inline-flex min-h-6 items-center gap-1 text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent" title={`打开 PR #${run.publication.pr_number}`}><GitPullRequest className="h-3.5 w-3.5" aria-hidden="true" />PR #{run.publication.pr_number}</a> : null}</div>
 
+      {run.goal_id ? (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ra-text-secondary">
+          <Link to={`/approvals?goal=${encodeURIComponent(run.goal_id)}`}
+                data-testid={`run-goal-detail-link-${run.task_id}`}
+                className="hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            打开关联目标
+          </Link>
+          <Link to={`/runs?goal=${encodeURIComponent(run.goal_id)}`}
+                data-testid={`run-goal-history-link-${run.task_id}`}
+                className="hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            查看同目标运行
+          </Link>
+          <Link to={`/tasks/${encodeURIComponent(run.task_id)}`}
+                data-testid={`run-task-detail-link-${run.task_id}`}
+                className="hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            打开关联任务
+          </Link>
+        </div>
+      ) : null}
       <section
         data-testid={`run-usage-${run.task_id}`}
         aria-describedby="runs-cost-context"
@@ -823,9 +842,15 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
 export function RunsPage() {
   const [searchParams] = useSearchParams();
   const requestedTaskId = searchParams.get("task") ?? "";
+  const requestedGoalId = searchParams.get("goal")?.trim() ?? "";
   const navigation = useHistoryCursor();
   const runsQuery = useQuery({ queryKey: ["runs", "history", navigation.cursor], queryFn: () => fetchRunsPage({ cursor: navigation.cursor }), staleTime: 2_000, refetchInterval: 4_000 });
   const runs = runsQuery.data?.items ?? [];
+  // History is server-paginated. Do not pretend the current page contains
+  // every attempt of a Goal or collapse distinct historical Task IDs.
+  const visibleRuns = requestedGoalId
+    ? runs.filter((run) => run.goal_id === requestedGoalId)
+    : runs;
   const selectedQuery = useQuery({
     queryKey: ["run", requestedTaskId],
     queryFn: () => fetchExactRun(requestedTaskId),
@@ -833,7 +858,11 @@ export function RunsPage() {
     staleTime: 2_000,
     refetchInterval: requestedTaskId ? 4_000 : false,
   });
-  const selectedRun = selectedQuery.data?.task_id === requestedTaskId ? selectedQuery.data : undefined;
+  const selectedRun = selectedQuery.data?.task_id === requestedTaskId
+    && (!requestedGoalId || selectedQuery.data.goal_id === requestedGoalId)
+    ? selectedQuery.data : undefined;
+  const selectedGoalMismatch = Boolean(requestedGoalId && selectedQuery.data
+    && selectedQuery.data.task_id === requestedTaskId && selectedQuery.data.goal_id !== requestedGoalId);
 
   return (
     <PageSurface data-testid="runs-page">
@@ -856,6 +885,14 @@ export function RunsPage() {
           </>
         }
       />
+      {requestedGoalId && (
+        <section className="mb-4 flex flex-wrap items-center gap-3 text-xs text-ra-text-secondary"
+                 aria-label="目标运行筛选" data-testid="runs-goal-filter">
+          <span>目标 {requestedGoalId} · 当前页 {visibleRuns.length} 条关联运行</span>
+          <span className="text-ra-text-tertiary">仅筛选当前已加载页面，未跨页汇总</span>
+          <Link to="/runs" className="underline hover:text-ra-text">查看全部运行</Link>
+        </section>
+      )}
       {requestedTaskId && (
         <section aria-label="选中运行" className="mb-6">
           {selectedQuery.isPending && <LoadingState label="正在加载选中运行…" />}
@@ -864,6 +901,11 @@ export function RunsPage() {
             error={selectedQuery.error}
             onRetry={() => void selectedQuery.refetch()}
           />}
+          {selectedGoalMismatch && (
+            <p data-testid="run-selected-goal-mismatch" className="text-xs text-ra-text-secondary">
+              指定运行不属于当前筛选的目标；可清除目标筛选后查看该运行。
+            </p>
+          )}
           {selectedRun && <ul><RunCard key={selectedRun.task_id} run={selectedRun} defaultOpen /></ul>}
         </section>
       )}
@@ -874,8 +916,13 @@ export function RunsPage() {
       />}
       {runsQuery.isPending && <div data-testid="runs-loading"><LoadingState label="正在加载 Agent 运行…" /></div>}
       {runsQuery.data !== undefined && <ul className="space-y-2" data-testid="runs-list">
-        {runs.filter((run) => run.task_id !== requestedTaskId).map((run) => <RunCard key={run.task_id} run={run} />)}
-        {runs.length === 0 && !requestedTaskId ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">{runsQuery.data.total === 0 ? "还没有 Agent 运行记录。" : "这一页没有 Agent 运行记录。"}</li> : null}
+        {visibleRuns.filter((run) => run.task_id !== requestedTaskId).map((run) => <RunCard key={run.task_id} run={run} />)}
+        {requestedGoalId && visibleRuns.length === 0 && !requestedTaskId ? (
+          <li data-testid="runs-goal-page-empty" className="py-6 text-center text-sm text-ra-text-secondary">
+            当前页没有该目标的运行；可以继续翻页查找，不能据此判定历史记录不存在。
+          </li>
+        ) : null}
+        {runs.length === 0 && !requestedGoalId && !requestedTaskId ? <li className="rounded-2xl border border-dashed border-ra-border py-12 text-center text-sm text-ra-text-tertiary">{runsQuery.data.total === 0 ? "还没有 Agent 运行记录。" : "这一页没有 Agent 运行记录。"}</li> : null}
       </ul>}
     </PageSurface>
   );

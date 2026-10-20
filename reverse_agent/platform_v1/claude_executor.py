@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -36,7 +38,9 @@ RELAY_MODEL_VARIABLES = ("ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL", "ANTHR
 WRITE_TOOLS = ("Edit", "Write")
 
 
-def validate_claude_model(value: Any) -> str:
+def validate_claude_model(value: Any, *, relay_mode: bool = False) -> str:
+    if relay_mode and isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}", value) and ".." not in value:
+        return value
     try:
         return validate_codex_model(value)
     except ExecutorRuntimeError:
@@ -65,9 +69,34 @@ def resolve_claude_cli(exe: str | None = None) -> str:
     return str(path)
 
 
+def _managed_mcp_path(platform: str) -> Path:
+    """Documented machine policy location; never consult project or user config."""
+    if platform == "win32":
+        return Path(r"C:\Program Files\ClaudeCode\managed-mcp.json")
+    if platform == "darwin":
+        return Path("/Library/Application Support/ClaudeCode/managed-mcp.json")
+    # WSL uses the Linux location too.
+    return Path("/etc/claude-code/managed-mcp.json")
+
+
+def _managed_mcp_blocks_strict_config() -> bool:
+    # Enterprise policy conflicts with --strict-mcp-config at CLI startup.
+    # Refuse conservatively for any entry (including a dangling symlink), or
+    # inaccessible metadata. Never open/parse policy or expose exception text.
+    try:
+        _managed_mcp_path(sys.platform).lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
 def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run) -> str:
     """Opt-in metadata probe; no inference and no raw credential-file access."""
     try:
+        if _managed_mcp_blocks_strict_config():
+            return "cli_incompatible"
         cli = resolve_claude_cli(exe)
         environment = claude_child_env(os.environ)
         outputs = []
@@ -100,7 +129,7 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
         return "cli_unavailable"
 
 
-def build_claude_argv(cli: str, model: str, sandbox: str) -> list[str]:
+def build_claude_argv(cli: str, model: str, sandbox: str, *, relay_mode: bool = False) -> list[str]:
     if sandbox == "read-only":
         tools, mode = READ_TOOLS, "dontAsk"
     elif sandbox == "workspace-write":
@@ -109,7 +138,7 @@ def build_claude_argv(cli: str, model: str, sandbox: str) -> list[str]:
     else:
         raise ExecutorRuntimeError("claude_code_sandbox_invalid")
     return [cli, "-p", "--output-format", "stream-json", "--verbose", "--no-session-persistence",
-            "--model", validate_claude_model(model), "--restricted", "--strict-mcp-config",
+            "--model", validate_claude_model(model, relay_mode=relay_mode), "--restricted", "--strict-mcp-config",
             "--tools", ",".join(tools), "--permission-mode", mode,
             # Nobody answers prompts in an unattended run: deny instead of waiting.
             "--permission-prompts", "none"]
@@ -145,6 +174,9 @@ class ClaudeCodeExecutor(CodexExecutor):
         """An Anthropic-compatible API-key model run through the host's credential relay."""
         return bool(self._binding_resolution is not None and self._binding_resolution.relay_required)
 
+    def _validate_model(self, model: str) -> str:
+        return validate_claude_model(model, relay_mode=self.relay_mode)
+
     def _accept_binding(self, resolution) -> None:
         if resolution.executor_id == self.KIND and resolution.relay_required and resolution.auth_method == "api_key":
             if self._lease_provider is None:
@@ -179,14 +211,14 @@ class ClaudeCodeExecutor(CodexExecutor):
             lease.release()
 
     def _validate_options(self) -> None:
-        build_claude_argv("claude", self._model_id, self._sandbox)
+        build_claude_argv("claude", self._model_id, self._sandbox, relay_mode=self.relay_mode)
 
     def _resolve_cli(self) -> str:
         return resolve_claude_cli(self._codex_exe)
 
     def _argv(self, prepared) -> list[str]:
         # The workspace is the process cwd; the prompt arrives on stdin.
-        return build_claude_argv(prepared.cli_path, self._model_id, self._sandbox)
+        return build_claude_argv(prepared.cli_path, self._model_id, self._sandbox, relay_mode=self.relay_mode)
 
     def _child_env(self) -> dict[str, str]:
         return {**claude_child_env(self._parent_env), **getattr(self, "_relay_env", {})}

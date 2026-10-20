@@ -748,12 +748,17 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.OK, self.agent_policy.apply(segments[3]))
                     return
             if segments == ["api", "windows", "activate"]:
-                # A pinned delegated authority admits only its exact policy. Without
-                # pins, the launcher-authenticated local owner confirms the window.
+                # Native session possession authenticates the client, not a human
+                # selection. No host-native Goal confirmation channel exists yet.
+                # Do not accept renderer assertions (including ACTIVATE) as proof.
+                if not self.autonomy_service.delegated_mode:
+                    # Renderer assertions cannot authenticate an Owner choice.
+                    # Reject before JSON parsing; incomplete framed bodies
+                    # must not turn this policy denial into a timeout/500.
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_selection_confirmation_unavailable")
                 payload = self._read_json()
-                window = (self.autonomy_service.activate_policy(payload)
-                          if self.autonomy_service.delegated_mode
-                          else self.autonomy_service.activate(payload))
+                window = self.autonomy_service.activate_policy(payload)
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
             if (
@@ -1056,6 +1061,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
     def _platform_status_response(self) -> dict[str, Any]:
         coordinator = getattr(self, "coordinator", None)
         return {
+            "magpie": self.magpie_status() if getattr(self, "magpie_status", None) else {
+                "status": "MAGPIE_DISABLED", "reason": "", "last_probe_at": None, "model_count": 0},
             "service": "reverse-agent-platform-v2",
             "instance": _instance_metadata(self.store, self.autonomy_service),
             "autonomy": self.autonomy_service.status(),
@@ -1280,10 +1287,12 @@ def _handler_factory(
     publication_controller: PublicationController | None = None,
     coordinator: Any | None = None,
     local_client_session: Any | None = None,
+    magpie_status: Callable | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
+    ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
@@ -1368,7 +1377,7 @@ def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
     service = AutonomyService(control_store=control, capabilities=capabilities,
         authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
     # Trusted-policy enforcement applies when the host pins a delegated authority;
-    # the default owner launch keeps owner-confirmed windows (local client auth).
+    # Owner HTTP activation separately requires a host-native confirmation channel.
     service.require_trusted_policy = bool(raw)
     return service
 

@@ -7,6 +7,7 @@ import hashlib
 import queue
 import re
 import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -18,6 +19,63 @@ from .codex_protocol import CodexJsonl, CodexProtocolError, public_text
 from .opencode_executor import _collect_final_product_files, _emit, _persist_usage_observations
 from .repository_preparation import prepare_linked_worktree
 from .task_runtime import ExecutorResult, ExecutorRuntimeError, LocalValidationRunner
+
+
+_TASK_TEMP = ".nt"
+
+
+def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, str]:
+    """Create fresh, short execution scratch, never reuse repository content.
+
+    No readiness probe calls this. Exclusive creation refuses existing entries,
+    including dangling links, junctions and directories from earlier executions.
+    """
+    try:
+        root = worktree.absolute()
+        for component in (*reversed(root.parents), root):
+            info = component.lstat()
+            if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                    or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                raise OSError("unverifiable workspace")
+        if root.resolve(strict=True) != root:
+            raise OSError("unverifiable workspace")
+        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP], cwd=root,
+            capture_output=True, timeout=10, check=False)
+        if tracked.returncode:
+            # A read-only planner may operate in an ordinary (non-Git)
+            # directory. Do not require a Git index where none exists.
+            # Any visible Git marker, including a worktree .git file,
+            # means a failed index check must remain fatal.
+            for ancestor in (root, *root.parents):
+                try:
+                    (ancestor / ".git").lstat()
+                except FileNotFoundError:
+                    continue
+                raise OSError("Git index unavailable")
+            if b"not a git repository" not in tracked.stderr.lower():
+                raise OSError("Git index unavailable")
+        if tracked.stdout:
+            raise OSError("reserved scratch is tracked")
+        scratch = root / _TASK_TEMP
+        scratch.mkdir()  # Inherit workspace permissions; no exist_ok or parents.
+        info = scratch.lstat()
+        if (not stat.S_ISDIR(info.st_mode) or stat.S_ISLNK(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT
+                or scratch.resolve(strict=True) != scratch):
+            raise OSError("unverifiable scratch")
+        # Local ignore only: no shared Git configuration or exclude-file edits.
+        # This also keeps ordinary Git-based role snapshots free of scratch.
+        with (scratch / ".gitignore").open("x", encoding="utf-8") as handle:
+            handle.write("*\n")
+        if scratch.resolve(strict=True) != scratch:
+            raise OSError("scratch escaped workspace")
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise ExecutorRuntimeError("native_task_temp_unavailable") from exc
+    result = {k: v for k, v in environment.items() if k.casefold() not in {"temp", "tmp", "tmpdir"}}
+    result.update(TEMP=str(scratch), TMP=str(scratch))
+    if os.name != "nt":
+        result["TMPDIR"] = str(scratch)
+    return result
 
 
 def validate_codex_model(value: Any) -> str:
@@ -144,14 +202,14 @@ class CodexExecutor:
                  base_ref: str = "", codex_exe: str | None = None, timeout: float = 300,
                  sandbox: str = "workspace-write", parent_env=None, process_factory=None,
                  readiness_probe=None, lease_provider=None):
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 600:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
             raise ExecutorRuntimeError(self._e("timeout_invalid"))
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
         if binding_resolution is not None:
             self._accept_binding(binding_resolution)
             model_id = binding_resolution.model_id
-        self._model_id = validate_codex_model(model_id)
+        self._model_id = self._validate_model(model_id)
         self._repo_dir = repo_dir
         self._base_ref = base_ref
         self._codex_exe = codex_exe
@@ -161,6 +219,9 @@ class CodexExecutor:
         self._process_factory = process_factory or subprocess.Popen
         self._readiness_probe = readiness_probe or type(self).default_readiness_probe
         self._validate_options()
+
+    def _validate_model(self, model: str) -> str:
+        return validate_codex_model(model)
 
     def _accept_binding(self, resolution) -> None:
         """Native CLIs run on the Owner's own managed login, never on a relayed API key."""
@@ -252,7 +313,7 @@ class CodexExecutor:
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
                 "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
-                            "context_packet_bytes":len(context_blob), "base_sha":prepared.base_sha}})
+                            "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":prepared.base_sha}})
         def progress(item):
             _emit(event_callback, task_id, {"type": "EXECUTOR_PROGRESS", "title": self.LABEL,
                 "description": public_text(item.get("text") or item.get("command") or f"{self.LABEL} activity"),
@@ -295,17 +356,28 @@ class CodexExecutor:
                 **({"cli_reported_cost_usd": turn.reported_cost_usd}
                    if turn.reported_cost_usd is not None else {})}})
         exit_code, summary, digest = LocalValidationRunner().run(task_id=task_id, command_id="git_diff_check", cwd=str(prepared.worktree))
-        return ExecutorResult(exit_code == 0, exit_code, "git_diff_check", digest, summary,
-            changed_files=_collect_final_product_files(prepared.worktree), workspace=str(prepared.worktree),
+        changed_files = [f for f in _collect_final_product_files(prepared.worktree)
+                         if f["path"].replace("\\", "/").split("/", 1)[0] != _TASK_TEMP]
+        # git diff --check returns zero for an unchanged worktree. That proves
+        # only patch hygiene, not that an implementation task produced work.
+        # An empty result must never be promoted to READY_FOR_REVIEW.
+        no_product_changes = exit_code == 0 and not changed_files
+        return ExecutorResult(exit_code == 0 and not no_product_changes, exit_code,
+            "git_diff_check", digest,
+            "No product changes were produced; patch hygiene is not functional acceptance."
+            if no_product_changes else summary,
+            changed_files=changed_files, workspace=str(prepared.worktree),
             execution_id=prepared.execution_id, process_exit_code=code,
-            failure_classification="" if exit_code == 0 else "patch_hygiene_failed")
+            failure_classification=(self._e("no_product_changes") if no_product_changes
+                                    else ("" if exit_code == 0 else "patch_hygiene_failed")))
 
     def _stream(self, prepared, prompt, parser):
         from .functional_validation import _WindowsJob, _terminate
+        environment = _task_temp_env(prepared.worktree, self._child_env())
         job = _WindowsJob() if os.name == "nt" else None
         try:
             proc = self._process_factory(self._argv(prepared),
-                cwd=str(prepared.worktree), env=self._child_env(), stdin=subprocess.PIPE,
+                cwd=str(prepared.worktree), env=environment, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
                 start_new_session=os.name != "nt",
                 creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW | 4) if job else 0)

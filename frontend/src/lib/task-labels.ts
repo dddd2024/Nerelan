@@ -43,6 +43,8 @@ const EVENT_LABELS: Record<ActivityEventType, string> = {
   VALIDATED: "校验通过",
   WORKSPACE_READY: "工作区已就绪",
   EXECUTOR_RUNNING: "Agent 正在执行",
+  EXECUTOR_PROGRESS: "Agent 活动",
+  EXECUTOR_COMPLETED: "Agent 已完成响应",
   EXECUTOR_FINISHED: "Agent 执行结束",
   LOCAL_VALIDATED: "本地校验通过",
   COMMITTED: "已提交改动",

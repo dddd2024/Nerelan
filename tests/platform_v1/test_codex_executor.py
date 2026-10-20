@@ -59,7 +59,8 @@ SUCCESS_SCRIPT = "import sys,json;sys.stdin.read();print(" + repr("\n".join(json
 
 def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_path):
     repo, base = repository
-    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    edit_script = "from pathlib import Path;Path('fixture.txt').write_text('updated\\n');" + SUCCESS_SCRIPT
+    executor, launched = fixture_executor(repo, base, edit_script)
     seen = []
     store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Bounded fixture instruction"))
     result = executor.execute("native-1", store, workspace_root=str(tmp_path / "workspaces"),
@@ -76,7 +77,112 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     assert any(e["type"] == "EXECUTOR_PROGRESS" for e in seen)
 
 
-def test_native_cli_helper_failure_prevents_false_ready_for_review(repository, tmp_path):
+def test_native_noop_turn_is_not_accepted_as_implementation(repository, tmp_path):
+    repo, base = repository
+    executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(
+        title="Change fixture.txt so the requested regression passes"))
+    result = executor.execute("native-noop", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert not result.success
+    assert result.failure_classification == "codex_no_product_changes"
+    assert result.validation_command_id == "git_diff_check"
+    assert result.validation_exit_code == 0  # Patch hygiene alone is green.
+    assert result.process_exit_code == 0
+    assert not result.changed_files
+    assert git(Path(result.workspace), "status", "--short") == ""
+    assert len(launched) == 1 and launched[0].poll() == 0
+
+
+@pytest.mark.parametrize("write_product", [False, True])
+def test_native_bytecode_only_cannot_mask_no_product_changes(repository, tmp_path, write_product):
+    repo, base = repository
+    generate = (
+        "from pathlib import Path;"
+        "Path('__pycache__').mkdir();"
+        "Path('__pycache__/fixture.cpython-313.pyc').write_bytes(b'compiled');"
+    )
+    if write_product:
+        generate += "Path('fixture.txt').write_text('changed\\n');"
+    executor, _ = fixture_executor(repo, base, generate + SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Change fixture.txt"))
+    result = executor.execute("bytecode-work", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert result.process_exit_code == result.validation_exit_code == 0
+    if write_product:
+        assert result.success
+        assert [item["path"] for item in result.changed_files] == ["fixture.txt"]
+    else:
+        assert not result.success
+        assert result.failure_classification == "codex_no_product_changes"
+        assert not result.changed_files
+    assert (Path(result.workspace) / "__pycache__" / "fixture.cpython-313.pyc").exists()
+
+
+def test_literal_posix_backslash_cannot_hide_tracked_bytecode(monkeypatch, tmp_path):
+    """Git byte paths must not be folded across POSIX backslash/slash identities."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    def fake_ls_files(argv, **_kwargs):
+        if argv[:3] != ["git", "ls-files", "--others"]:
+            assert argv[:3] == ["git", "diff", "--no-renames"]
+            return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+        return SimpleNamespace(
+            returncode=0,
+            stdout=b"__pycache__" + bytes([92]) + b"fixture.pyc" + bytes([0]),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_ls_files)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": "__pycache__/fixture.pyc", "status": "modified"}
+    ])
+    files = collector._collect_final_product_files(tmp_path)
+    assert [f["path"] for f in files] == ["__pycache__/fixture.pyc"]
+
+
+def test_head_tracked_change_wins_over_untracked_cache_view(monkeypatch, tmp_path):
+    """The same path in the HEAD delta must remain product evidence."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    path = "__pycache__/original.pyc"
+
+    def fake_git(argv, **_kwargs):
+        assert argv[0] == "git"
+        if argv[1] == "ls-files":
+            return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+        assert argv[1] == "diff"
+        return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_git)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": path, "status": "modified"}
+    ])
+    assert collector._collect_final_product_files(tmp_path) == [
+        {"path": path, "status": "modified"}
+    ]
+
+
+def test_tracked_python_bytecode_still_counts_as_product_change(repository):
+    from reverse_agent.platform_v1.opencode_executor import _collect_final_product_files
+    repo, _ = repository
+    cache = repo / "__pycache__"
+    cache.mkdir()
+    tracked = cache / "intentionally-tracked.pyc"
+    tracked.write_bytes(b"original")
+    git(repo, "add", "--", "__pycache__/intentionally-tracked.pyc")
+    git(repo, "commit", "-m", "track binary fixture")
+    tracked.write_bytes(b"changed")
+    (cache / "runtime.pyc").write_bytes(b"generated")
+    files = _collect_final_product_files(repo)
+    assert [item["path"] for item in files] == ["__pycache__/intentionally-tracked.pyc"]
+
+
+@pytest.mark.parametrize("helper_fields", [
+    {"status": "failed", "exit_code": -1},
+    {"aggregated_output": "helper_unknown_error: setup refresh had errors"},
+])
+def test_native_cli_helper_failure_prevents_false_ready_for_review(repository, tmp_path, helper_fields):
     repo, base = repository
     # Codex may report turn.completed and exit 0 even when its sandbox helper
     # failed before creating the requested child process.
@@ -85,7 +191,7 @@ def test_native_cli_helper_failure_prevents_false_ready_for_review(repository, t
         {"type": "turn.started"},
         {"type": "item.completed", "item": {
             "type": "command_execution", "command": "git rev-parse HEAD",
-            "status": "failed", "exit_code": -1,
+            **helper_fields,
         }},
         {"type": "item.completed", "item": {
             "type": "agent_message", "text": "BLOCKED - helper_unknown_error",
@@ -185,6 +291,9 @@ def test_child_environment_and_argv_preserve_policy_and_exclude_provider_authori
     assert "owned space" in argv and "--ignore-rules" not in argv
     assert "--dangerously-bypass-approvals-and-sandbox" not in argv
     assert "--sandbox" in argv and argv[-1] == "-"
+    assert "--ignore-user-config" in argv
+    if sys.platform == "win32":
+        assert 'windows.sandbox="elevated"' in argv
     with pytest.raises(ExecutorRuntimeError, match="codex_sandbox_invalid"):
         build_codex_argv("native.exe", Path("."), "gpt-5.4", "danger-full-access")
 

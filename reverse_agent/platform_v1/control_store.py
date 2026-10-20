@@ -10,13 +10,14 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import sqlite3
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import base64
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
@@ -780,6 +781,43 @@ class PlatformControlStore:
                 raise TaskStoreError(f"goal_link_not_found:{task_id}")
             return str(row["goal_id"])
 
+    @staticmethod
+    def is_strict_owner_window(window: AutonomousWindowRecord) -> bool:
+        return (window.confirmation_mode != "DELEGATED_CONTROLLER"
+                and window.max_tasks == 1 and window.max_concurrent_tasks == 1
+                and window.max_retries == 0 and len(window.repositories) == 1
+                and window.capabilities == ("execute_task",))
+
+    def check_strict_task_admission(self, window_id: str, task_id: str) -> None:
+        """Caller holds the store lock; claims call this inside BEGIN IMMEDIATE.
+
+        This binds to the first launched Goal, not an Owner-selected Goal: legacy
+        activation does not carry that identity or a selected executor.
+        """
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.task_store, task_id)
+        window = self.get_window(window_id)
+        if not self.is_strict_owner_window(window):
+            return
+        goals = self.list_window_goals(window_id)
+        if len(goals) != 1:
+            raise TaskStoreError("strict_window_goal_binding_required")
+        goal = goals[0]
+        links = self.list_goal_tasks(goal.id)
+        task = self.task_store.get_task(task_id)
+        completion_recovery = (goal.status in {"COMPLETED", "BLOCKED"}
+                               and self.can_complete_host_claim(window_id=window_id, task_id=task_id))
+        if ((goal.status != "RUNNING" and not completion_recovery)
+                or goal.repository != window.repositories[0]
+                or goal.orchestration_mode != "single" or len(goal.tasks) != 1
+                or len(links) != 1 or links[0]["task_id"] != task_id
+                or links[0]["goal_revision"] != goal.revision
+                or task.repository != goal.repository
+                or task.executor_kind != goal.executor_kind
+                or task.binding_ref != goal.binding_ref
+                or task.orchestration_mode != goal.orchestration_mode):
+            raise TaskStoreError("strict_window_task_binding_mismatch")
+
     def runnable_tasks(self, window_id: str, *, limit: int = 100) -> tuple[str, ...]:
         with self._lock:
             # Limit ready tasks, not queue positions: waiting dependencies must
@@ -814,6 +852,10 @@ class PlatformControlStore:
             ).fetchall()
             ready = []
             for row in rows:
+                try:
+                    self.check_strict_task_admission(window_id, row["task_id"])
+                except TaskStoreError:
+                    continue
                 if row["status"] in {"READY_FOR_REVIEW", "FAILED"} and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
                     continue
@@ -903,8 +945,50 @@ class PlatformControlStore:
                     "authority": json.loads(row["policy_authority_json"])}
 
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
-                        _trusted_binding: Mapping[str, Any] | None = None) -> AutonomousWindowRecord:
+                        _trusted_binding: Mapping[str, Any] | None = None,
+                        _host_sql_admit: Callable[[str], None] | None = None,
+                        _host_preserve_claim_windows: bool = False,
+                        _host_expected_goal_id: str | None = None) -> AutonomousWindowRecord:
+        """Create the window and optional trusted-host SQL admission in one commit.
+
+        `_host_sql_admit` is INTERNAL and never accepted from HTTP. The callback
+        may update SQLite state on this connection and perform bounded read-only
+        local scope validation; no commits, external effects, Task execution or
+        nondurable side effects are permitted. This
+        hook itself is NOT an Owner consent or production authorization issuer.
+        """
         reject_sensitive_keys(payload)
+        if _host_preserve_claim_windows and _host_sql_admit is None:
+            raise TaskStoreError("host_atomic_admission_required")
+        if _host_sql_admit is not None:
+            if (_trusted_binding is not None or not callable(_host_sql_admit)
+                    or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
+                raise TaskStoreError("host_atomic_admission_invalid")
+            if (type(payload.get("max_tasks")) is not int or payload["max_tasks"] != 1
+                    or type(payload.get("max_concurrent_tasks")) is not int or payload["max_concurrent_tasks"] != 1
+                    or type(payload.get("max_retries")) is not int or payload["max_retries"] != 0
+                    or list(payload.get("capabilities", ())) != ["execute_task"]
+                    or len(payload.get("repositories", ())) != 1):
+                raise TaskStoreError("host_atomic_window_scope_invalid")
+            try:
+                # SQLite julianday must parse the exact same RFC3339 values;
+                # Python also accepts week dates that SQLite treats as NULL.
+                canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)"
+                if not (re.fullmatch(canonical_time, str(payload["starts_at"]))
+                        and re.fullmatch(canonical_time, str(payload["expires_at"]))):
+                    raise ValueError
+                starts = datetime.fromisoformat(str(payload["starts_at"]).replace("Z", "+00:00"))
+                expires = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
+                clock = datetime.now(timezone.utc)
+                if (starts.tzinfo is None or expires.tzinfo is None
+                        or not starts <= clock + timedelta(seconds=5)
+                        or not clock < expires <= clock + timedelta(minutes=30)
+                        or not starts < expires):
+                    raise ValueError
+            except (KeyError, ValueError, TypeError) as exc:
+                raise TaskStoreError("host_atomic_window_time_invalid") from exc
+        elif _host_expected_goal_id is not None:
+            raise TaskStoreError("host_atomic_admission_invalid")
         if confirmation.strip() != ("DELEGATED_CONTROLLER" if _trusted_binding else "ACTIVATE"):
             raise TaskStoreError("owner_activation_confirmation_required")
         digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
@@ -918,11 +1002,24 @@ class PlatformControlStore:
                 # The service's earlier observation is not an activation lock.
                 # BEGIN IMMEDIATE also serializes independent TaskStore hosts.
                 cur.execute("BEGIN IMMEDIATE")
+                if _host_sql_admit is not None:
+                    # Preflight before acquiring the DB lock is not authority.
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
+                    sql_dates = cur.execute("SELECT julianday(?), julianday(?)",
+                                            (str(payload["starts_at"]), str(payload["expires_at"]))).fetchone()
+                    if sql_dates is None or sql_dates[0] is None or sql_dates[1] is None:
+                        raise TaskStoreError("host_atomic_window_time_invalid")
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
                     "stop_reason = 'window_expired', updated_at = ? "
-                    "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
-                    (now, _utc_now_precise()),
+                    "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
+                    "AND (? = 0 OR id NOT IN (SELECT window_id FROM platform_coordinator_claims WHERE status = 'ACTIVE')) "
+                    "AND id NOT IN (SELECT json_extract(item.value, '$.claim.window_id') "
+                    "FROM platform_operation_receipts r, "
+                    "json_each(r.evidence_json, '$.unknown_claim_isolation.snapshot.claims') item "
+                    "WHERE r.operation_type='native_goal_admission' AND r.confirmation_mode='NATIVE_OWNER')",
+                    (now, _utc_now_precise(), int(_host_preserve_claim_windows)),
                 )
                 existing = cur.execute(
                     "SELECT * FROM platform_autonomous_windows WHERE policy_id = ? AND policy_revision = ?",
@@ -938,13 +1035,19 @@ class PlatformControlStore:
                         or existing["canonical_policy_json"] != canonical_json(_trusted_binding["canonical_policy"])
                     ):
                         raise TaskStoreError("policy_revision_authority_conflict")
+                    # A host admission must never silently re-use a previous
+                    # window without executing its Goal transaction.
+                    if _host_sql_admit is not None:
+                        raise TaskStoreError("host_atomic_admission_replay")
                     # Replaying a terminal revision returns history, never a
                     # fresh ACTIVE window or a fresh set of budget counters.
                     record = self._row_to_window(existing)
                     self._conn.commit()
                     return record
                 active = cur.execute(
-                    "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' LIMIT 1"
+                    "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
+                    "AND (? = 0 OR julianday(expires_at) > julianday('now')) LIMIT 1",
+                    (int(_host_preserve_claim_windows),)
                 ).fetchone()
                 if active is not None:
                     # A scheduled window also reserves activation, although
@@ -992,10 +1095,66 @@ class PlatformControlStore:
                          _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
+                if _host_sql_admit is not None:
+                    # A trusted callback still must not COMMIT, ROLLBACK or run
+                    # executescript (which implicitly COMMITs). Enforce this
+                    # at SQLite's transaction authorizer, not after-the-fact.
+                    def deny_callback_tx(action, operation, _name, _database, _source):
+                        if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
+                            return sqlite3.SQLITE_DENY
+                        return sqlite3.SQLITE_OK
+                    self._conn.set_authorizer(deny_callback_tx)
+                    # INSERT OR ROLLBACK/trigger RAISE(ROLLBACK) can end SQLite's
+                    # transaction without an explicit COMMIT/ROLLBACK opcode.
+                    # Abort subsequent SQL VM instructions before they can
+                    # autocommit on the now-unprotected connection.
+                    self._conn.set_progress_handler(
+                        lambda: 0 if self._conn.in_transaction else 1, 1)
+                    try:
+                        _host_sql_admit(window_id)
+                    finally:
+                        self._conn.set_progress_handler(None, 0)
+                        self._conn.set_authorizer(None)
+                    if not self._conn.in_transaction:
+                        raise TaskStoreError("host_atomic_admission_committed_early")
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
+                    # The trusted callback must leave exactly one approved
+                    # Goal and one queued task, not a window with no work.
+                    bound = self.list_window_goals(window_id)
+                    if (len(bound) != 1 or bound[0].id != _host_expected_goal_id
+                            or bound[0].status != "RUNNING" or bound[0].executor_kind != "codex"):
+                        raise TaskStoreError("host_atomic_goal_binding_missing")
+                    window = self.get_window(window_id)
+                    if not self.is_strict_owner_window(window):
+                        raise TaskStoreError("host_atomic_window_scope_invalid")
+                    links = self.list_goal_tasks(bound[0].id)
+                    if len(links) != 1 or links[0]["status"] != "QUEUED":
+                        raise TaskStoreError("host_atomic_task_binding_missing")
+                    self.check_strict_task_admission(window_id, links[0]["task_id"])
+                    # A slow final binding check cannot extend the Owner window.
+                    if not starts <= datetime.now(timezone.utc) < expires:
+                        raise TaskStoreError("host_atomic_window_expired")
+                    # This is the final authoritative PRE-COMMIT admission point:
+                    # SQLite tests its current clock on the same write connection,
+                    # immediately before COMMIT. Wall-clock expiry during a delayed
+                    # COMMIT cannot grant later dispatch: claim_task() independently
+                    # rechecks expiry inside its own BEGIN IMMEDIATE transaction.
+                    updated = cur.execute(
+                        "UPDATE platform_autonomous_windows SET updated_at = updated_at "
+                        "WHERE id = ? AND status = 'ACTIVE' "
+                        "AND julianday(starts_at) <= julianday('now') "
+                        "AND julianday(expires_at) > julianday('now')",
+                        (window_id,),
+                    )
+                    if updated.rowcount != 1:
+                        raise TaskStoreError("host_atomic_window_expired")
                 self._conn.commit()
-            except Exception as exc:
+            except BaseException as exc:
+                # Even KeyboardInterrupt/SystemExit from a host callback must
+                # release the write transaction before the host can recover.
                 self._conn.rollback()
-                if isinstance(exc, TaskStoreError):
+                if not isinstance(exc, Exception) or isinstance(exc, TaskStoreError):
                     raise
                 raise TaskStoreError(f"window_activation_failed:{exc}") from exc
         return self.get_window(window_id)
@@ -1022,7 +1181,11 @@ class PlatformControlStore:
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? "
-                "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?)",
+                "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
+                "AND id NOT IN (SELECT json_extract(item.value, '$.claim.window_id') "
+                "FROM platform_operation_receipts r, "
+                "json_each(r.evidence_json, '$.unknown_claim_isolation.snapshot.claims') item "
+                "WHERE r.operation_type='native_goal_admission' AND r.confirmation_mode='NATIVE_OWNER')",
                 (_utc_now(), current),
             )
             row = self._conn.execute(
@@ -1076,6 +1239,7 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
+            self.check_strict_task_admission(window_id, task_id)
             if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
@@ -1196,6 +1360,29 @@ class PlatformControlStore:
                 pass
             raise TaskStoreError(f"coordinator_claim_failed:{exc}") from exc
 
+    def renew_claim(
+        self,
+        *,
+        window_id: str,
+        task_id: str,
+        owner: str,
+        epoch: int,
+        lease_ms: int,
+    ) -> bool:
+        """Extend only the caller's still-live admission claim, fenced by epoch."""
+        if lease_ms <= 0:
+            raise TaskStoreError("claim_lease_invalid")
+        with self._lock:
+            now_ms = _utc_now_ms()
+            cur = self._conn.execute(
+                "UPDATE platform_coordinator_claims "
+                "SET expires_at_ms = MAX(expires_at_ms, ?), updated_at = ? "
+                "WHERE window_id = ? AND task_id = ? AND owner = ? AND epoch = ? "
+                "AND status = 'ACTIVE' AND expires_at_ms > ?",
+                (now_ms + lease_ms, _utc_now(), window_id, task_id, owner, epoch, now_ms),
+            )
+            return cur.rowcount == 1
+
     def abandon_task_claim(
         self,
         *,
@@ -1240,9 +1427,26 @@ class PlatformControlStore:
         from .task_runtime import task_operation
         return task_operation(self.task_store.get_task(task_id))
 
+    def complete_persisted_host_claim(self, *, window_id: str, task_id: str) -> None:
+        """Finish one strict Owner admission's original result, never dispatch work."""
+        with self._lock:
+            claim = self._conn.execute(
+                "SELECT owner, epoch FROM platform_coordinator_claims WHERE task_id=? AND window_id=?",
+                (task_id, window_id)).fetchone()
+            if claim is None:
+                raise TaskStoreError("host_result_recovery_unavailable")
+            self._finalize_task_claim(
+                window_id=window_id, task_id=task_id, owner=claim["owner"], epoch=claim["epoch"],
+                claim_status="COMPLETE", count_completion=True,
+                receipt_reason="coordinator_persisted_result_reconciled", receipt_result="persisted_host_result",
+                persisted_host_recovery=True)
+
     def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
         """Narrow recovery of an existing result, never permission to rerun a checker."""
         with self._lock:
+            from .unknown_claim_isolation import held_task
+            if held_task(self._conn, task_id):
+                return False
             task = self.task_store.get_task(task_id)
             claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND window_id = ?",
                                        (task_id, window_id)).fetchone()
@@ -1302,6 +1506,7 @@ class PlatformControlStore:
         count_completion: bool,
         receipt_reason: str,
         receipt_result: str,
+        persisted_host_recovery: bool = False,
     ) -> str:
         """Fence a claim and reconcile its reservation exactly once."""
 
@@ -1311,6 +1516,8 @@ class PlatformControlStore:
             cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN IMMEDIATE")
+                from .unknown_claim_isolation import refuse_held
+                refuse_held(self.task_store, task_id)
                 claim = cur.execute(
                     "SELECT * FROM platform_coordinator_claims WHERE task_id = ? "
                     "AND window_id = ? AND owner = ? AND epoch = ? AND status = 'ACTIVE'",
@@ -1318,6 +1525,29 @@ class PlatformControlStore:
                 ).fetchone()
                 if claim is None:
                     raise TaskStoreError("coordinator_claim_fenced")
+                if persisted_host_recovery:
+                    window_record = self.get_window(window_id)
+                    active = self.active_window()
+                    task_record = self.task_store.get_task(task_id)
+                    if (not self.is_strict_owner_window(window_record)
+                            or active is None or active.id != window_id
+                            or window_record.tasks_started != 1 or window_record.tasks_completed != 0
+                            or int(claim["expires_at_ms"]) > _utc_now_ms()
+                            or task_record.status not in {"READY_FOR_REVIEW", "FAILED"}
+                            or not self.can_complete_host_claim(window_id=window_id, task_id=task_id)):
+                        raise TaskStoreError("host_result_recovery_unavailable")
+                    self.check_strict_task_admission(window_id, task_id)
+                    from .task_runtime import load_host_validation_contract
+                    contract = load_host_validation_contract(task_record)
+                    goal = self.list_window_goals(window_id)[0]
+                    link = self.list_goal_tasks(goal.id)[0]
+                    if (contract["goal_id"] != goal.id
+                            or contract["goal_revision"] != goal.revision
+                            or contract["goal_artifact_digest"] != goal.artifact_digest
+                            or contract["goal_idempotency_key"] != goal.idempotency_key
+                            or contract["policy_digest"] != window_record.policy_digest
+                            or contract["plan_task_id"] != link["plan_task_id"]):
+                        raise TaskStoreError("host_result_recovery_binding_mismatch")
                 reservation = cur.execute(
                     "SELECT * FROM platform_budget_reservations WHERE task_id = ? "
                     "AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
@@ -1436,11 +1666,19 @@ class PlatformControlStore:
                     values,
                 )
                 self.append_receipt(
-                    window_id=window_id, operation_type="task_execution",
-                    capability=self._claim_operation(task_id),
+                    window_id=window_id,
+                    # Claim existence does not prove an earlier authorization.
+                    # A persisted result is reconciled, without evaluating or
+                    # granting any new capability or executing its checker.
+                    operation_type="task_claim_reconciliation" if persisted_host_recovery else "task_execution",
+                    capability="not_applicable" if persisted_host_recovery else self._claim_operation(task_id),
                     repository=self.task_store.get_task(task_id).repository,
-                    subject_id=task_id, decision="allowed", reason=receipt_reason,
-                    input_payload={"task_id": task_id, "claim_epoch": epoch},
+                    subject_id=task_id,
+                    decision="not_evaluated" if persisted_host_recovery else "allowed",
+                    reason=receipt_reason,
+                    input_payload=({"task_id": task_id, "claim_epoch": epoch,
+                                    "claim_owner": owner, "persisted_result_only": True}
+                                   if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
                     result=f"{receipt_result}:{reservation_state}",
                 )
                 cur.execute("COMMIT")

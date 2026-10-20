@@ -64,20 +64,22 @@ def source(tmp_path, monkeypatch):
     return root, git("rev-parse", "HEAD")
 
 
-def native_factory(calls, *, value=2, command_helper_failure=False):
+def native_factory(calls, *, value=2, command_helper_failure=False, helper_setup_diagnostic=False,
+                   no_product_changes=False):
     events = [
         {"type": "thread.started", "thread_id": "native-fixture-thread"},
         {"type": "turn.started"},
         *([{"type": "item.completed", "item": {
             "type": "command_execution", "command": "git rev-parse HEAD",
-            "status": "failed", "exit_code": -1,
+            **({"aggregated_output": "helper_unknown_error: setup refresh had errors"}
+               if helper_setup_diagnostic else {"status": "failed", "exit_code": -1}),
         }}] if command_helper_failure else []),
         {"type": "item.completed", "item": {"type": "agent_message", "text":
             "BLOCKED: command helper did not launch" if command_helper_failure
             else "Fixture changed app.py; independent review pending."}},
         {"type": "turn.completed"},
     ]
-    edit = "" if command_helper_failure else "Path('app.py').write_text(" + repr(f"value = {value}\n") + ");"
+    edit = "" if command_helper_failure or no_product_changes else "Path('app.py').write_text(" + repr(f"value = {value}\n") + ");"
     script = "import sys;from pathlib import Path;sys.stdin.read();" + edit + "print(" + repr("\n".join(json.dumps(e) for e in events)) + ")"
     def factory(**kwargs):
         def launch(argv, **options):
@@ -176,7 +178,8 @@ def test_real_http_native_task_freezes_base_and_preserves_executor_and_result(so
         host.stop()
 
 
-def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(source, tmp_path):
+@pytest.mark.parametrize("helper_setup_diagnostic", [False, True])
+def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(source, tmp_path, helper_setup_diagnostic):
     _, base = source
     store = TaskStore(str(tmp_path / "helper-failure.sqlite3"))
     control = PlatformControlStore(store)
@@ -202,7 +205,8 @@ def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(
     assert store.get_task(task_id).branch == base
     calls = []
     router = ExecutorRouter()
-    router.replace("codex", native_factory(calls, command_helper_failure=True))
+    router.replace("codex", native_factory(calls, command_helper_failure=True,
+                                         helper_setup_diagnostic=helper_setup_diagnostic))
     service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(models()),
         execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
     try:
@@ -216,6 +220,48 @@ def test_native_helper_failure_is_failed_task_and_blocked_goal_not_review_ready(
         assert len(calls) == 1
         assert any(event["type"] == "EXECUTOR_PROGRESS" for event in task.events)
         assert not any(event["type"] == "EXECUTOR_COMPLETED" for event in task.events)
+    finally:
+        store._conn.close()
+
+
+def test_real_native_noop_result_blocks_goal_instead_of_claiming_review_ready(source, tmp_path):
+    _, base = source
+    store = TaskStore(str(tmp_path / "noop.sqlite3"))
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Change app.py to value two",
+        "repository": "owner/native-fixture", "idempotency_key": "native-noop",
+        "executor_kind": "codex", "orchestration_mode": "single", "binding_ref": "native-binding"})
+    goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+        {"id": "T001", "title": "Change app.py value to two",
+         "instruction": "Modify app.py to pass the requested test"}]).goal
+    goals.approve(goal.id, expected_revision=goal.revision)
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "native-noop-window", "policy_revision": 1,
+        "owner_identity": "fixture-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+        "repositories": [goal.repository], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "confirmation": "ACTIVATE"})
+    goals.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    assert store.get_task(task_id).branch == base
+    calls = []
+    router = ExecutorRouter()
+    router.replace("codex", native_factory(calls, no_product_changes=True))
+    service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(models()),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
+    try:
+        result = service.execute_durable_single(task_id, workspace_root=str(tmp_path / "workspaces"))
+        task = store.get_task(task_id)
+        assert not result.success
+        assert task.status == "FAILED"
+        assert task.failure_classification == "codex_no_product_changes"
+        assert not task.changed_files
+        assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+        assert len(calls) == 1
     finally:
         store._conn.close()
 
@@ -333,4 +379,62 @@ def test_native_checkpoint_recovery_does_not_dispatch_a_second_cli(source, tmp_p
         assert store.get_task(task.id).executor_kind == "codex"
     finally:
         reset_crash_seam()
+        store._conn.close()
+
+
+def test_native_owner_binding_drift_fails_task_before_codex_launch(source, tmp_path):
+    """Integration: late mutable model change returns a durable failed Task, not a model call."""
+    _, base = source
+    store = TaskStore(str(tmp_path / "binding-drift.sqlite3"))
+    control = PlatformControlStore(store)
+    goals = GoalService(store=store, control_store=control)
+    goal = goals.create({"objective": "Check pinned native binding",
+        "repository": "owner/native-fixture", "idempotency_key": "native-binding-drift",
+        "executor_kind": "codex", "orchestration_mode": "single", "binding_ref": "native-binding"})
+    goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+        {"id": "ONE", "title": "One Codex action", "instruction": "Read the Git HEAD"}]).goal
+    goals.approve(goal.id, expected_revision=goal.revision)
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "native-binding-drift-fixture", "policy_revision": 1,
+        "owner_identity": "fixture-owner",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(minutes=30)).isoformat(),
+        "repositories": [goal.repository], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "confirmation": "ACTIVATE"})
+    goals.launch(goal.id, expected_revision=goal.revision, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    assert store.get_task(task_id).branch == base
+    model_store = models()
+    original = resolver(model_store).resolve("native-binding", task_executor="codex")
+    from dataclasses import asdict
+    pinned = {key: val for key, val in asdict(original).items() if key in {
+        "binding_ref", "model_id", "connection_id", "executor_id",
+        "provider_id", "auth_method", "base_url"}}
+    receipt = control.append_receipt(
+        window_id=window.id, operation_type="native_goal_admission",
+        capability="execute_task", repository=goal.repository,
+        subject_id=goal.id, decision="allowed", reason="provider_free_fixture",
+        input_payload={"scope": "fixture"}, result="fixture")
+    store._conn.execute("UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+                        (json.dumps({"approved_binding": pinned}), receipt.id))
+    store._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
+                        ("NATIVE_OWNER", window.id))
+    model_store.upsert_binding({"binding_id": "native-binding", "name": "Changed model",
+        "executor_id": "codex", "connection_id": "native-login", "model_id": "gpt-5.5"})
+    calls = []
+    router = ExecutorRouter()
+    router.replace("codex", native_factory(calls))
+    service = DurableExecutionService(store=store, router=router, binding_resolver=resolver(model_store),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-plan")
+    try:
+        outcome = service.execute_durable_single(task_id, workspace_root=str(tmp_path / "workspaces"))
+        assert not outcome.success
+        task = store.get_task(task_id)
+        assert task.status == "FAILED"
+        assert task.failure_classification == "native_owner_execution_binding_changed_or_missing"
+        assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+        assert calls == []  # never construct or launch a Codex process
+    finally:
         store._conn.close()

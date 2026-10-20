@@ -2440,3 +2440,23 @@ def test_runtime_cache_policy_rejects_actual_wrong_optimization_payload(tmp_path
             loader(**kwargs)
         assert correct.read_bytes() == wrong
     _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("configured", ["", "   ", " custom-workspaces "])
+def test_agent_planner_workspace_root_matches_task_execution(tmp_path, monkeypatch, configured):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import agent_planner
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store = SimpleNamespace(db_path=str(tmp_path / "tasks.sqlite3"))
+    host._goal_service = object()
+    captured = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return kwargs
+
+    monkeypatch.setenv("REVERSE_AGENT_TASK_WORKSPACE_ROOT", configured)
+    monkeypatch.setattr(agent_planner, "AgentPlanner", factory)
+    host._agent_planner()
+    expected = configured.strip() or str(tmp_path / "task_workspaces")
+    assert captured["workspace_root"] == expected == host._task_workspace_root()

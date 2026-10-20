@@ -221,3 +221,202 @@ def test_cli_returns_nonzero_without_token(tmp_path: Path, monkeypatch: pytest.M
     event = tmp_path / "event.json"
     event.write_text(json.dumps({"pull_request": {"number": 1}}), encoding="utf-8")
     assert landing_review.main(["review", "--event-path", str(event), "--repository", "o/r"]) == 1
+
+
+def commit_file(repo: Path, path: str, data: bytes = b"change\n") -> str:
+    target = repo / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    _git(repo, "add", "--", path)
+    _git(repo, "commit", "-q", "-m", "change")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def carry_chain(repo: Path, count: int = 1, path: str = "feature.bin") -> tuple[str, list[str]]:
+    _git(repo, "checkout", "-q", "-b", "feature")
+    accepted = commit_file(repo, path, b"feature\x00\xff\n")
+    merges = []
+    for index in range(count):
+        _git(repo, "checkout", "-q", "main")
+        commit_file(repo, f"main-{index}.txt")
+        _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        _git(repo, "checkout", "-q", "feature")
+        _git(repo, "merge", "--no-ff", "-q", "main", "-m", "update")
+        merges.append(_git(repo, "rev-parse", "HEAD"))
+    return accepted, merges
+
+
+def carry(head: str, accepted: str, *extra: ReviewEntry):
+    return landing_review.evaluate_review_with_carry_over(
+        head, [entry(f"Nerelan-Review: ACCEPT {accepted}"), *extra])
+
+
+@pytest.mark.parametrize("count", [1, 2, 20, 21])
+def test_bounded_update_merges(repo: Path, count: int) -> None:
+    accepted, merges = carry_chain(repo, count)
+    result = carry(merges[-1], accepted)
+    assert result.accepted == (count <= 20)
+    if result.accepted:
+        assert result.reason == "accepted_carried_over"
+        assert result.to_dict()["accepted_head"] == accepted
+        assert result.to_dict()["merge_commits"] == merges
+
+
+@pytest.mark.parametrize("path", [
+    "AGENTS.md", "docs/agents/nested/a.md", ".github/workflows/check.yml",
+    "reverse_agent/landing_review.py", "requirements.txt", "requirements-dev.txt",
+    "pyproject.toml", "frontend/package.json", "frontend/package-lock.json",
+])
+def test_carry_excludes_sensitive_paths(repo: Path, path: str) -> None:
+    accepted, merges = carry_chain(repo, path=path)
+    assert not carry(merges[-1], accepted).accepted
+
+
+def test_normal_commit_cannot_carry(repo: Path) -> None:
+    accepted, _ = carry_chain(repo)
+    head = commit_file(repo, "extra")
+    assert not carry(head, accepted).accepted
+
+
+def test_second_parent_must_be_on_main(repo: Path) -> None:
+    accepted, merges = carry_chain(repo)
+    _git(repo, "update-ref", "refs/remotes/origin/main", accepted + "^")
+    assert not carry(merges[-1], accepted).accepted
+
+
+@pytest.mark.parametrize("which", [0, 1])
+def test_newer_reject_blocks_chain(repo: Path, which: int) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    reject = entry(f"Nerelan-Review: REJECT {merges[which]}", at="2026-10-12T00:00:00Z")
+    assert not carry(merges[-1], accepted, reject).accepted
+
+
+def test_accept_and_reject_in_same_entry_blocks_chain(repo: Path) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    both = entry(f"Nerelan-Review: ACCEPT {accepted}\nNerelan-Review: REJECT {merges[0]}")
+    assert not landing_review.evaluate_review_with_carry_over(merges[-1], [both]).accepted
+
+
+@pytest.mark.parametrize("reject_first", [True, False])
+def test_equal_timestamp_reject_blocks_chain(repo: Path, reject_first: bool) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    accept = entry(f"Nerelan-Review: ACCEPT {accepted}")
+    reject = entry(f"Nerelan-Review: REJECT {merges[0]}")
+    entries = [reject, accept] if reject_first else [accept, reject]
+    assert not landing_review.evaluate_review_with_carry_over(merges[-1], entries).accepted
+
+
+def test_latest_verdict_at_accepted_head(repo: Path) -> None:
+    accepted, merges = carry_chain(repo)
+    reject = entry(f"Nerelan-Review: REJECT {accepted}", at="2026-10-12T00:00:00Z")
+    accept = entry(f"Nerelan-Review: ACCEPT {accepted}", at="2026-10-13T00:00:00Z")
+    assert not carry(merges[-1], accepted, reject).accepted
+    assert carry(merges[-1], accepted, reject, accept).accepted
+
+
+@pytest.mark.parametrize("decision", ["ACCEPT", "REJECT"])
+def test_exact_head_never_calls_git(monkeypatch: pytest.MonkeyPatch, decision: str) -> None:
+    def forbidden(*args):
+        raise AssertionError("git called for exact verdict")
+    monkeypatch.setattr(landing_review, "_carry_git", forbidden)
+    entries = [entry(f"Nerelan-Review: {decision} {HEAD}")]
+    assert landing_review.evaluate_review_with_carry_over(HEAD, entries).to_dict() == evaluate_review(HEAD, entries).to_dict()
+    monkeypatch.setattr(landing_review, "fetch_review_entries", lambda *a: entries)
+    pr = {"number": 1, "head": {"sha": HEAD}, "base": {"ref": "main"}, "draft": False}
+    monkeypatch.setattr(landing_review, "_api_get", lambda *a: pr)
+    assert landing_review.run_review({"pull_request": pr}, "o/r", "t")["passed"] == (decision == "ACCEPT")
+    assert landing_review.run_verdict("o/r", 1, HEAD, "t")["passed"] == (decision == "ACCEPT")
+
+
+def test_both_entrypoints_carry_and_keep_guards(repo: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    accepted, merges = carry_chain(repo, 2)
+    head = merges[-1]
+    entries = [entry(f"Nerelan-Review: ACCEPT {accepted}")]
+    monkeypatch.setattr(landing_review, "fetch_review_entries", lambda *a: entries)
+    pr = {"number": 1, "head": {"sha": head}, "base": {"ref": "main"}, "draft": False}
+    monkeypatch.setattr(landing_review, "_api_get", lambda *a: pr)
+    for result in (landing_review.run_review({"pull_request": pr}, "o/r", "t"),
+                   landing_review.run_verdict("o/r", 1, head, "t")):
+        assert result["passed"] and result["accepted_head"] == accepted
+        assert result["merge_commits"] == merges
+    assert landing_review.run_verdict("o/r", 1, accepted, "t")["reason"] == "live_head_differs_from_expected"
+    for key, value, reason in [("draft", True, "draft_pull_request"),
+                               ("base", {"ref": "dev"}, "base_is_not_main")]:
+        old = pr[key]
+        pr[key] = value
+        assert landing_review.run_review({"pull_request": pr}, "o/r", "t")["reason"] == reason
+        assert landing_review.run_verdict("o/r", 1, head, "t")["reason"] == reason
+        pr[key] = old
+
+
+@pytest.mark.parametrize("operation", ["rev-parse", "merge-base", "diff", "show", "merge-tree"])
+def test_git_errors_fail_closed(repo: Path, monkeypatch: pytest.MonkeyPatch, operation: str) -> None:
+    accepted, merges = carry_chain(repo)
+    original = landing_review._carry_git
+    def fail(*args):
+        if args[0] == operation:
+            raise RuntimeError("unsupported or missing object")
+        return original(*args)
+    monkeypatch.setattr(landing_review, "_carry_git", fail)
+    assert not carry(merges[-1], accepted).accepted
+
+
+def test_missing_main_and_missing_object(repo: Path) -> None:
+    accepted, merges = carry_chain(repo)
+    assert not carry(HEAD, accepted).accepted
+    _git(repo, "update-ref", "-d", "refs/remotes/origin/main")
+    assert not carry(merges[-1], accepted).accepted
+
+
+def test_merge_with_extra_resolution_edit(repo: Path) -> None:
+    accepted, merges = carry_chain(repo)
+    # Manufacture a two-parent commit with the same parents but an edited tree.
+    commit_file(repo, "extra")
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    parents = _git(repo, "show", "-s", "--format=%P", merges[-1]).split()
+    bad = _git(repo, "commit-tree", tree, "-p", parents[0], "-p", parents[1], "-m", "edited merge")
+    assert not carry(bad, accepted).accepted
+
+
+def test_conflicted_merge_is_not_carried(repo: Path) -> None:
+    _git(repo, "checkout", "-q", "-b", "feature")
+    accepted = commit_file(repo, "a.txt", b"feature\n")
+    _git(repo, "checkout", "-q", "main")
+    commit_file(repo, "a.txt", b"main\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-q", "feature")
+    result = subprocess.run(["git", "merge", "main", "-m", "conflict"], cwd=repo, capture_output=True)
+    assert result.returncode != 0
+    head = commit_file(repo, "a.txt", b"resolved\n")
+    assert not carry(head, accepted).accepted
+
+
+def test_changed_pr_diff_blocks_even_clean_merge(repo: Path) -> None:
+    # Main independently takes part of the reviewed change: merge is clean,
+    # but the PR diff relative to current main no longer equals the reviewed diff.
+    _git(repo, "checkout", "-q", "-b", "feature")
+    commit_file(repo, "shared.txt", b"shared\n")
+    accepted = commit_file(repo, "feature.txt")
+    _git(repo, "checkout", "-q", "main")
+    commit_file(repo, "main-only.txt")
+    commit_file(repo, "shared.txt", b"shared\n")
+    _git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    _git(repo, "checkout", "-q", "feature")
+    _git(repo, "merge", "-q", "--no-ff", "main", "-m", "update")
+    assert not carry(_git(repo, "rev-parse", "HEAD"), accepted).accepted
+
+
+@pytest.mark.parametrize("kind", ["untrusted", "undated", "fenced", "both"])
+def test_carry_preserves_entry_rules(repo: Path, kind: str) -> None:
+    accepted, merges = carry_chain(repo)
+    body = f"Nerelan-Review: ACCEPT {accepted}"
+    candidate = entry(body)
+    if kind == "untrusted":
+        candidate = entry(body, association="NONE")
+    elif kind == "undated":
+        candidate = entry(body, at="")
+    elif kind == "fenced":
+        candidate = entry(f"```\n{body}\n```")
+    else:
+        candidate = entry(body + f"\nNerelan-Review: REJECT {accepted}")
+    assert not landing_review.evaluate_review_with_carry_over(merges[-1], [candidate]).accepted

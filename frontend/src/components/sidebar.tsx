@@ -19,6 +19,7 @@ import { usePlatformStatus } from "@/hooks/use-platform";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { taskProjectName } from "@/lib/task-project";
 import { runStateStyle } from "@/lib/format";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
@@ -138,7 +139,7 @@ export function Sidebar({
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { data: tasks = [], isLoading, isError } = useTasks();
+  const { data: tasks = [], isLoading, isError } = useTasks({ watch: true });
   const platformQuery = usePlatformStatus();
 
   useEffect(() => {
@@ -253,13 +254,13 @@ export function Sidebar({
             recentTasks.map((task) => {
               const selected = location.pathname === `/tasks/${task.id}`;
               return (
+                <div key={task.id} className="relative min-w-0">
                 <Link
-                  key={task.id}
                   to={`/tasks/${task.id}`}
                   data-testid={`sidebar-recent-task-${task.id}`}
                   data-selected={String(selected)}
                   className={cn(
-                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md px-2.5 text-[13px] leading-4",
+                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md pl-2.5 pr-24 text-[13px] leading-4",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     selected
                       ? "bg-ra-tertiary text-ra-text"
@@ -273,6 +274,12 @@ export function Sidebar({
                   />
                   <span className="min-w-0 flex-1 truncate">{displayTitle(task.title)}</span>
                 </Link>
+                <span className="pointer-events-none absolute right-2.5 top-1.5 max-w-20 truncate text-[10px] text-ra-text-tertiary"
+                      data-testid={`sidebar-recent-project-${task.id}`}
+                      title={task.repository?.trim() || "未归属"}>
+                  {taskProjectName(task.repository)}
+                </span>
+                </div>
               );
             })
           ) : !isError ? (

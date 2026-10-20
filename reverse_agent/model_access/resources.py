@@ -301,7 +301,7 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
             compatible = store.compatible_executors(connection_id)
         except ValueError:
             compatible = []
-        connection_ok = connection.get("enabled") is True and _session_usable(connection)
+        connection_ok = connection.get("enabled") is True and _session_usable(connection) and store.magpie_connection_runnable(connection_id)
         ready = {executor_id: connection_ok and _executor_ready(executors.get(executor_id), connection)
                  for executor_id in compatible}
         rows, totals = [], dict.fromkeys(_TOTAL_FIELDS, 0)

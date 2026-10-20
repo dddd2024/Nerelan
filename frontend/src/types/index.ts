@@ -29,6 +29,8 @@ export type ActivityEventType =
   | "VALIDATED"
   | "WORKSPACE_READY"
   | "EXECUTOR_RUNNING"
+  | "EXECUTOR_PROGRESS"
+  | "EXECUTOR_COMPLETED"
   | "EXECUTOR_FINISHED"
   | "LOCAL_VALIDATED"
   | "COMMITTED"
@@ -130,6 +132,7 @@ export interface Task {
   workflowStatus: WorkflowStatus;
   executor?: string;
   repository?: string;
+  goalId?: string;
   executionId?: string;
   failureClassification?: string;
   validationCommandId?: string;
