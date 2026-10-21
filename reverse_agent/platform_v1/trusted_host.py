@@ -1422,34 +1422,57 @@ def _resolve_store_state_path(task_store: TaskStore) -> str:
     return os.path.join(parent, "model_setup_state.json")
 
 
+def _git_lines(directory: str | Path, *args: str) -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", *args],
+            cwd=str(directory), capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
+            timeout=10,
+        )
+    except Exception:
+        return []
+    return [line.strip() for line in result.stdout.strip().splitlines()]
+
+
+def _host_source_head() -> str:
+    """HEAD of the checkout this host's own code runs from, or '' if it is not one.
+
+    Only a work tree whose top level is exactly the package's source root counts;
+    an unrelated repository that merely encloses an installed package does not.
+    """
+    root = Path(__file__).resolve().parents[2]
+    lines = _git_lines(root, "--show-toplevel", "HEAD")
+    if len(lines) != 2 or Path(lines[0]).resolve() != root:
+        return ""
+    return lines[1]
+
+
+def _resolve_source_identity(env_name: str) -> str:
+    explicit = os.environ.get(env_name, "").strip()
+    if explicit:
+        return explicit
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if not repo_dir:
+        return ""
+    # Pin to the host's own code, never the target checkout: a research campaign
+    # integrates into REPO_DIR every round, so its HEAD would change the identity
+    # on each restart and make every interrupted run unresumable (#1322).
+    return _host_source_head() or next(iter(_git_lines(repo_dir, "HEAD")), "")
+
+
 def _resolve_trusted_authority_sha() -> str:
     """Resolve trusted execution authority SHA from trusted runtime config.
 
     HTTP request bodies MUST NOT supply this value. Resolution order:
     1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    2. With REVERSE_AGENT_REPO_DIR configured: git HEAD of the host's own source
+       checkout, else (installed, non-checkout code) git HEAD of REVERSE_AGENT_REPO_DIR
     3. Empty string if none available (causes fail-closed on durable /execute)
 
     REVERSE_AGENT_PLANNING_SHA is NOT a valid execution authority source.
     Authority and planning SHA are independent dimensions.
     """
-    explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
-    if explicit:
-        return explicit
-    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
-    if repo_dir:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
-                timeout=10,
-            )
-            sha = result.stdout.strip()
-            if sha:
-                return sha
-        except Exception:
-            pass
-    return ""
+    return _resolve_source_identity("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA")
 
 
 def _resolve_trusted_planning_sha() -> str:
@@ -1457,26 +1480,11 @@ def _resolve_trusted_planning_sha() -> str:
 
     HTTP request bodies MUST NOT supply this value. Resolution order:
     1. REVERSE_AGENT_PLANNING_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    2. With REVERSE_AGENT_REPO_DIR configured: git HEAD of the host's own source
+       checkout, else (installed, non-checkout code) git HEAD of REVERSE_AGENT_REPO_DIR
     3. Empty string if none available (causes fail-closed on durable /execute)
     """
-    explicit = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
-    if explicit:
-        return explicit
-    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
-    if repo_dir:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
-                timeout=10,
-            )
-            sha = result.stdout.strip()
-            if sha:
-                return sha
-        except Exception:
-            pass
-    return ""
+    return _resolve_source_identity("REVERSE_AGENT_PLANNING_SHA")
 
 
 def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) -> None:

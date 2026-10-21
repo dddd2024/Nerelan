@@ -325,3 +325,12 @@ def test_failing_periodic_reconcile_never_ends_the_coordinator_loop(tmp_path):
     finally:
         coordinator.stop()
         store._conn.close()
+
+
+def test_resume_refusal_reason_is_kept_and_other_errors_stay_opaque():
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError
+    from reverse_agent.platform_v1.unattended_coordinator import _failure_detail
+    assert _failure_detail(DurableResumeError("authority_sha_mismatch:a!=b")) == \
+        "DurableResumeError:authority_sha_mismatch:a!=b"
+    assert len(_failure_detail(DurableResumeError("x" * 1000))) == len("DurableResumeError:") + 300
+    assert _failure_detail(RuntimeError("provider said something")) == "RuntimeError"
