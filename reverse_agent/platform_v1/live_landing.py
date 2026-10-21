@@ -30,7 +30,7 @@ class LiveLandingGitHubAdapter:
             cwd = str(Path(__file__).resolve().parents[2])
         try:
             result = subprocess.run(args, cwd=cwd, capture_output=True,
-                                    text=True, encoding="utf-8", timeout=45, **options)
+                                    text=True, encoding="utf-8", errors="replace", timeout=45, **options)
         except subprocess.TimeoutExpired as exc:
             raise GitHubAdapterError("landing_command_timeout") from exc
         if result.returncode and not verdict:
