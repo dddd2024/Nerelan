@@ -26,6 +26,7 @@ from typing import Callable, Protocol
 ENV_PROFILE = "REVERSE_AGENT_REMOTE_JOB_PROFILE"
 LOG = logging.getLogger(__name__)
 JOB_ID = re.compile(r"[a-z0-9][a-z0-9._-]{2,63}\Z")
+REQUEST_FIELDS = ("job_id", "command", "files", "outputs", "max_wall_seconds", "gpu", "purpose")
 TERMINAL = {"SUCCEEDED", "FAILED", "TIMED_OUT", "LOST"}
 LOG_LIMIT = 1024 * 1024
 
@@ -378,8 +379,7 @@ class RemoteJobBroker:
         if len(raw) > 65536:
             raise ValueError("job.json exceeds 64 KiB")
         request = json.loads(raw)
-        allowed = {"job_id", "command", "files", "outputs", "max_wall_seconds", "gpu", "purpose"}
-        if not isinstance(request, dict) or set(request) != allowed:
+        if not isinstance(request, dict) or set(request) != set(REQUEST_FIELDS):
             raise ValueError("unknown or missing request fields")
         if not isinstance(request["job_id"], str) or not JOB_ID.fullmatch(request["job_id"]):
             raise ValueError("invalid job_id")

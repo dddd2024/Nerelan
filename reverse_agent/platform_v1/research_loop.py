@@ -14,7 +14,7 @@ import threading
 import time
 
 from .repository_workspace import resolve_repository_workspace
-from .remote_jobs import JOB_ID, _atomic_json, _relative
+from .remote_jobs import JOB_ID, REQUEST_FIELDS, _atomic_json, _relative
 from .run_store import TaskStoreError
 
 ENV_CAMPAIGN = "REVERSE_AGENT_RESEARCH_CAMPAIGN"
@@ -389,6 +389,19 @@ class ResearchLoop:
             record["imports"][job] = {**record["imports"].get(job, {}), "error": "STALE_RECEIPT"}
             return False
 
+    def _job_request_guide(self, n):
+        """The broker's request contract, so agents never have to guess or invent a schema."""
+        example = {"job_id": self._job_prefix(n) + "baseline", "command": "python3 run.py --seed 0",
+                   "files": ["run.py"], "outputs": ["results/*.json"], "max_wall_seconds": 900,
+                   "gpu": False, "purpose": "One sentence on what this run measures"}
+        return ("Job request format: put the input files in that outbox directory, then write job.json LAST "
+                f"with exactly these fields ({', '.join(REQUEST_FIELDS)}), for example "
+                f"{json.dumps(example)}. files are paths relative to the outbox directory; the command runs "
+                "in the job's own server directory with those files; outputs are relative glob patterns "
+                "collected after the run; gpu false hides all GPUs. A job id is never run twice: use a new id "
+                "for every attempt and never edit a submitted request. Collected results appear in "
+                "results/<job_id>/ for a later round, not in this one. ")
+
     def _objective(self, n, interrupted):
         previous = self.root / "rounds" / f"{n - 1}.json"
         stale = []
@@ -403,7 +416,8 @@ class ResearchLoop:
                 "Append a section for this round to RESEARCH_LOG.md: hypothesis, what was run, "
                 "what the results show, what's next; state uncertainty. Request remote experiments "
                 f"only through .nerelan-remote/outbox/<job_id>/job.json; prefix job ids {self._job_prefix(n)}. "
-                "All server research directories, experiment files and raw data MUST live under ~/wjc; "
+                + self._job_request_guide(n)
+                + "All server research directories, experiment files and raw data MUST live under ~/wjc; "
                 "write outputs, temporary files and caches inside the broker job directory. "
                 "Write CAMPAIGN_DONE.md with justification when the objective is met or cannot be met. "
                 "Successful CLI execution is not functional or scientific acceptance.")
