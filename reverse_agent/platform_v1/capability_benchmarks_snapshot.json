@@ -4,7 +4,11 @@
   "families": {
     "deepseek-v4.1-flash": {
       "aliases": [
-        "deepseek-v4.1-flash"
+        "deepseek-v4.1-flash",
+        "deepseek-v4.1-flash-free",
+        "deepseek-v4.1-flash-sg",
+        "auto-deepseek-v4-1-flash",
+        "sn-deepseek-v4-1-flash"
       ],
       "scores": [
         {
@@ -77,7 +81,10 @@
     "glm-5.3": {
       "aliases": [
         "glm-5.3",
-        "workbuddy/glm-5.3"
+        "workbuddy/glm-5.3",
+        "auto-glm-5-3",
+        "sn-glm-5-3",
+        "glm-5.3-max"
       ],
       "scores": [
         {
@@ -151,7 +158,9 @@
         "glm-5.2",
         "workbuddy/glm-5.2",
         "workbuddy-ai/glm-5.2",
-        "z-ai/glm-5.2"
+        "z-ai/glm-5.2",
+        "auto-glm-5-2",
+        "glm-5.2-max"
       ],
       "scores": [
         {
@@ -206,7 +215,9 @@
     },
     "kimi-k3": {
       "aliases": [
-        "kimi-k3"
+        "kimi-k3",
+        "auto-kimi-k3",
+        "sn-kimi-k3"
       ],
       "scores": [
         {
@@ -316,7 +327,8 @@
     },
     "minimax-m3": {
       "aliases": [
-        "minimax-m3"
+        "minimax-m3",
+        "auto-minimax-m3"
       ],
       "scores": [
         {
@@ -418,7 +430,8 @@
     },
     "gpt-6.1-sol": {
       "aliases": [
-        "gpt-6.1-sol"
+        "gpt-6.1-sol",
+        "auto-gpt-6-1-sol"
       ],
       "scores": [
         {

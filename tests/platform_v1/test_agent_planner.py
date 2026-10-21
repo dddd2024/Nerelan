@@ -485,3 +485,12 @@ def test_planner_path_retry_keeps_canonical_path_guard(tmp_path, monkeypatch, pe
     else:
         assert repository_preparation._planner_path(tmp_path) == tmp_path
     assert len(calls) == 2
+
+
+def test_planner_prompt_sizes_work_for_a_wide_model_pool():
+    # #1313: difficulty 4-5 tasks have almost no qualifying models and stall on quota holds.
+    from reverse_agent.platform_v1.agent_planner import build_planner_prompt
+    prompt = build_planner_prompt(objective="Build a feature", repository="owner/repo")
+    assert "most tasks are difficulty 3 or lower" in prompt
+    assert "use 5 only for one irreducible core step" in prompt
+    assert "split the work rather than lowering a rating" in prompt
