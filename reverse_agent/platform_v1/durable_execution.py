@@ -993,6 +993,8 @@ class DurableExecutionService:
                     task_id, Path(workspace_root),
                     prepared_cb
                 )
+                from .contract_recovery import restore_failed_tree
+                restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)
             except Exception as exc:
                 self.store._fenced_classify_failure(
                     lease.run_id, task_id,
@@ -1233,6 +1235,16 @@ class DurableExecutionService:
             epoch=lease.epoch,
         )
 
+        if (not exec_result.success and exec_result.validation_command_id == "git_diff_check"
+                and exec_result.validation_exit_code != 0
+                and exec_result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"}
+                and self._has_functional_contract(task_id)):
+            command, code, detail, identity = self._validate_prepared_artifact(
+                task_id, prepared.worktree, run, lease)
+            exec_result.validation_command_id = command
+            exec_result.validation_exit_code = code
+            exec_result.validation_output_digest = identity
+            exec_result.error = detail
         if not exec_result.success:
             classification = (
                 "blocked"
@@ -1833,6 +1845,8 @@ class DurableExecutionService:
                 task_id, Path(workspace_root),
                 prepared_cb
             )
+            from .contract_recovery import restore_failed_tree
+            restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)
         except Exception as exc:
             self.store._fenced_classify_failure(
                 lease.run_id, task_id,

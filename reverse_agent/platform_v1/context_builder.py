@@ -340,7 +340,10 @@ def _same_repository(left: str, right: str) -> bool:
 
 
 def _task_summary(task: Any) -> dict:
+    from .functional_validation import load_contract, validation_guidance
+    contract = load_contract(task) if getattr(task, "evidence_refs", None) else None
     return {
+        **({"validation": validation_guidance(contract["checks"])} if contract else {}),
         "id": _text(task.id),
         "status": _text(task.status),
         "execution_id": _text(task.execution_id),
