@@ -33,11 +33,11 @@ def repair_and_review(setup, service, goal_id, response, actual=None):
     source = artifact_handoff._producer_worktree(store, store.get_task(old['producer']['task_id']),
         goal_service.functional_evidence(store.get_task(old['producer']['task_id'])))
     # Use the fixture repository's shared object database, just as production does.
-    implementation = LocalImplementation(source, old['producer']['commit'], 'value = 2\n# repaired\n')
+    implementation = LocalImplementation(source, old['producer']['commit'], f'value = 2\n# repaired {repair}\n')
     router.replace('opencode', lambda **kwargs: implementation)
     result = ordinary(store, router).execute(repair, workspace_root=str(root / 'repair'))
     assert result.success, result
-    store.append_usage_observation(repair, observation_id='repair-author', execution_id=store.get_task(repair).execution_id,
+    store.append_usage_observation(repair, observation_id=f'repair-author-{repair}', execution_id=store.get_task(repair).execution_id,
         role='executor', model_id='local/repair-author', provider_id='local', source_kind='assistant_message',
         source_id='repair-turn', status='UNKNOWN')
     reopened = TaskStore(store.db_path)
@@ -58,7 +58,10 @@ def repair_and_review(setup, service, goal_id, response, actual=None):
 def test_reject_fix_fresh_accept(review_setup):
     store, control, service, goal_id = rejected(review_setup)
     routed_authors = []
-    def resolve(plan, *, goal, author_models, author_bindings, author_executors):
+    def resolve(plan, *, goal, author_models=(), author_bindings=(), author_executors=()):
+        if plan.kind != "review":
+            return {"executor_kind": "opencode", "binding_ref": "local-test-binding",
+                    "model_id": "local/repair-author", "reason": "repair route"}
         routed_authors.append(set(author_models))
         assert not author_bindings
         assert set(author_executors) == {"opencode"}
@@ -79,8 +82,9 @@ def test_reject_fix_fresh_accept(review_setup):
         artifact_handoff.bind_consumer_input(store, review_setup[3], allow_create=False)
 
 
-def test_second_reject_blocks_without_third_round(review_setup):
+def test_configured_second_reject_blocks_without_third_round(review_setup):
     store, control, service, goal_id = rejected(review_setup)
+    service.max_review_rounds = 2
     _, review, result = repair_and_review(review_setup, service, goal_id, REJECT)
     assert result.failure_classification == 'model_review_rejected', result
     count = store.count_tasks()
@@ -198,3 +202,27 @@ def test_mutation_after_reject_is_not_feedback(review_setup):
     count = store.count_tasks()
     assert service.escalate_failed_tasks(goal_id) == ()
     assert store.count_tasks() == count
+
+
+def test_default_three_review_rounds_exhaustion(review_setup):
+    store, control, service, goal_id = rejected(review_setup)
+    assert service.max_review_rounds == 3
+    _, second, result = repair_and_review(review_setup, service, goal_id, REJECT)
+    assert result.failure_classification == "model_review_rejected"
+    _, third, result = repair_and_review(review_setup, service, goal_id, REJECT)
+    assert second != third and result.failure_classification == "model_review_rejected"
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert store.get_task(third).status == "BLOCKED"
+    assert store.count_tasks() == count
+    repairs = [row for row in control.list_task_escalations(goal_id)
+               if row["reason"].startswith("model_review_repair:")]
+    assert len(repairs) == 2
+
+
+def test_actual_same_author_model_refused(review_setup):
+    review_setup[5]["actual"] = ["alias/author:free"]
+    result = run_review(review_setup)
+    assert result.failure_classification == "review_not_independent"
+    assert not [row for row in review_setup[0].get_task(review_setup[3]).evidence_refs
+                if row.get("category") == "ModelReview"]

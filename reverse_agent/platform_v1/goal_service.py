@@ -111,7 +111,10 @@ class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
-                 roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None) -> None:
+                 roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3) -> None:
+        if type(max_review_rounds) is not int or max_review_rounds < 1:
+            raise TaskStoreError("invalid_review_round_limit")
+        self.max_review_rounds = max_review_rounds
         self.store = store
         self.control_store = control_store
         # role -> (executor_kind, binding_ref); supplied by the trusted host.
@@ -495,7 +498,7 @@ class GoalService:
                 "author_executors": tuple(sorted(executors))}
 
     def _repair_rejected_reviews(self, goal_id: str) -> tuple[dict[str, Any], ...]:
-        """Atomically admit at most one repair per producer/revision.
+        """Atomically admit bounded repairs per producer/revision.
 
         Escalation history counts review rounds separately from routing attempts;
         both replacement executions still spend the existing window retry budget.
@@ -526,6 +529,8 @@ class GoalService:
                     if review_plan.artifact_input and artifacts.model_review_input(failed):
                         source_id = review_plan.artifact_input["plan_task_id"]
                         producer = self.store.get_task(links[source_id]["task_id"])
+                        rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
+                                  and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
                         feedback = artifacts._load_evidence(producer, "ReviewRepair", producer.execution_id)
                         if (producer.status == "READY_FOR_REVIEW" and feedback is not None
                                 and feedback["review_task_id"] == failed.id):
@@ -548,7 +553,7 @@ class GoalService:
                                 model_profile_ref="" if decision is not None else failed.model_profile_ref,
                                 branch=base if executor in {"codex", "claude_code"} else "",
                                 permission_profile=failed.permission_profile, policy_ref=failed.policy_ref,
-                                idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round2:review")
+                                idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round{len(rounds) + 1}:review")
                             if decision is not None:
                                 self._record_model_selection(fresh, decision)
                             freeze_contract(self.store, fresh, goal=goal, plan_task=review_plan, base_commit=base)
@@ -578,18 +583,27 @@ class GoalService:
                     producer = self.store.get_task(links[source_id]["task_id"])
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
-                    if rounds or len(history) + 2 > window.max_retries:
+                    if len(rounds) + 1 >= self.max_review_rounds or len(history) + 2 > window.max_retries:
                         self.store.block_model_selection(failed.id, decision={"reason":
-                            "model_review_round_limit" if rounds else "routing_retry_budget_exhausted"})
+                            "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
                         continue
                     source_plan = planned[source_id]
                     base = self._approved_base(producer)
+                    try:
+                        repair_decision = self.task_resolver(source_plan, goal=goal) if self.task_resolver is not None else None
+                    except TaskStoreError as exc:
+                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                        continue
+                    repair_executor = repair_decision["executor_kind"] if repair_decision else producer.executor_kind
                     repair = self.store.create_task(title=self._execution_title(goal, source_plan), repository=goal.repository,
-                        executor_kind=producer.executor_kind, binding_ref=producer.binding_ref,
-                        model_profile_ref=producer.model_profile_ref,
-                        branch=base if producer.executor_kind in {"codex", "claude_code"} else "",
+                        executor_kind=repair_executor,
+                        binding_ref=repair_decision["binding_ref"] if repair_decision else producer.binding_ref,
+                        model_profile_ref="" if repair_decision else producer.model_profile_ref,
+                        branch=base if repair_executor in {"codex", "claude_code"} else "",
                         permission_profile=producer.permission_profile, policy_ref=producer.policy_ref,
-                        idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round2:repair")
+                        idempotency_key=f"goal:{goal.id}:r{goal.revision}:{source_id}:review-round{len(rounds) + 2}:repair")
+                    if repair_decision is not None:
+                        self._record_model_selection(repair, repair_decision)
                     freeze_contract(self.store, repair, goal=goal, plan_task=source_plan, base_commit=base)
                     freeze_handoff_contract(self.store, repair, goal=goal, plan_task=source_plan, base_commit=base)
                     self.store._bind_artifact_evidence(repair.id, category="ReviewRepair", label=repair.execution_id,

@@ -20,6 +20,11 @@ from .task_runtime import ExecutorRuntimeError
 
 CATEGORY = "ModelReview"
 MAX_DIFF_BYTES = 1024 * 1024
+REVIEW_CHECKLIST = {"version": "nerelan-review-v1", "items": [
+    "Correctness against the approved objective and acceptance criteria",
+    "Tests: retained functional evidence, coverage and regressions",
+    "Scope: exact frozen diff and approved paths only",
+    "Governance: preserve authority and gates; R2 matches the Owner decision"]}
 
 
 def response_schema():
@@ -295,7 +300,7 @@ def execute_review(service, task_id, workspace_root, lease):
             if task.status != "RUNNING":
                 store._fenced_transition_to(lease.run_id, task_id, "RUNNING", lease.owner, lease.epoch)
             producer = store.get_task(binding["producer"]["task_id"])
-            request = {"input": binding, "acceptance_criteria": {"objective": goal.objective,
+            request = {"checklist": REVIEW_CHECKLIST, "input": binding, "acceptance_criteria": {"objective": goal.objective,
                 "spec": goal.spec_markdown, "instruction": planned.instruction,
                 "checks": list(planned.validation_checks)},
                 "producer_functional_results": functional.functional_evidence(producer),
