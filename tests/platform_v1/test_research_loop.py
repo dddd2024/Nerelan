@@ -369,6 +369,62 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertIn("previous round was INTERRUPTED", self.goals.requests[-1]["objective"])
         self.assertEqual(len(self.goals.launches), 1)
 
+    def resumable_window(self, **changes):
+        window = self.goals.windows[0]
+        values = dict(capabilities=("execute_task", "resume_task"), retries_used=0, max_retries=3)
+        values.update(changes)
+        for name, value in values.items():
+            setattr(window, name, value)
+
+    def test_resumable_interrupted_task_keeps_round_open_until_integrated(self):
+        # Short test 2026-10-21 (#1320): ending the round froze the task's job request outside integration.
+        self.resumable_window()
+        self.launch()
+        job = "campaign-r1-resumed"
+        interrupted = dict(task_id="task", status="INTERRUPTED")
+        self.complete([interrupted], status="RUNNING")
+        for _ in range(3):
+            self.tick()
+        self.assertEqual(self.round()["state"], "LAUNCHED")
+        self.assertEqual(self.round()["resume_waiting"], ["task"])
+        # The coordinator resumes it; its work, including the request, is integrated in this round.
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        for _ in range(3):
+            self.tick()
+        self.assertEqual(self.round()["jobs"], [job])
+        self.assertTrue(self.round()["integrations"]["task"]["integrated"])
+
+    def test_interrupted_round_ends_when_resume_is_impossible_or_waited_out(self):
+        for case in ("no_capability", "no_retries", "timeout"):
+            with self.subTest(case=case):
+                self.setUp()
+                self.resumable_window(**{"no_capability": dict(capabilities=("execute_task",)),
+                                         "no_retries": dict(retries_used=3), "timeout": {}}[case])
+                self.launch()
+                self.complete([dict(task_id="task", status="INTERRUPTED")], status="RUNNING")
+                self.tick()
+                if case == "timeout":
+                    self.assertEqual(self.round()["state"], "LAUNCHED")
+                    self.now += 60 * 60
+                for _ in range(6):
+                    self.tick()
+                self.assertEqual(self.round()["state"], "INTERRUPTED")
+
+    def test_orphaned_round_jobs_are_recorded_and_named_in_the_next_objective(self):
+        self.launch()
+        orphan = "campaign-r1-orphan"
+        write_json(self.broker / orphan / "receipt.json", {"state": "RESULT_COLLECTED"})
+        write_json(self.broker / "campaign-r2-later" / "receipt.json", {"state": "RUNNING"})
+        self.complete([self.task("task", {"notes.md": "work\n"})])
+        for _ in range(6):
+            self.tick()
+        self.assertEqual(self.round()["orphaned_jobs"], [orphan])
+        self.assertNotIn(orphan, self.round()["imports"])
+        self.assertFalse((self.repo / "results" / orphan).exists())
+        self.tick()
+        self.assertIn("ORPHANED jobs", self.goals.requests[-1]["objective"])
+        self.assertIn(orphan, self.goals.requests[-1]["objective"])
+
     def test_idempotency_crash_after_create(self):
         loop = self.loop()
         original = loop._event

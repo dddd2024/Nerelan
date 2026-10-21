@@ -16,6 +16,7 @@ The host starts the remote job broker first, when configured.
   "max_rounds": 12,
   "max_hours": 72,
   "max_job_wait_hours": 24,
+  "max_resume_wait_minutes": 60,
   "max_consecutive_failed_rounds": 2,
   "poll_seconds": 30,
   "push": false
@@ -79,8 +80,15 @@ State is stored under `<state_dir>/<campaign_id>/state.json` and
 Keep this directory durable, outside task worktrees, and do not edit state while
 the host is running. An OS lock excludes simultaneous campaign ticks. Restart
 uses the same Goal idempotency key and reconciles completed merges/imports.
-Interrupted tasks finish their round as INTERRUPTED and are mentioned in the
-next objective; they are not replayed automatically.
+While the round's Goal is still RUNNING and the active window can resume an
+INTERRUPTED task (`resume_task` capability and retry budget left), the round
+waits for the coordinator's normal resume, at most `max_resume_wait_minutes`
+(default 60), so the task's work and any job it already requested are
+integrated in this round. Otherwise interrupted tasks finish their round as
+INTERRUPTED and are mentioned in the next objective; the loop itself never
+replays them. Broker runs with the round's job prefix whose request was never
+integrated are recorded as `orphaned_jobs` and named in the next objective;
+their results are not imported, because evidence must match a committed request.
 
 The loop pauses without an active window, stops at `max_hours`, `max_rounds`,
 `CAMPAIGN_DONE.md`, or a `<state_dir>/<campaign_id>/STOP` file, and enters
