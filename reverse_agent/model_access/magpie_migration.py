@@ -20,12 +20,13 @@ from .magpie import fetch_magpie_snapshot
 
 # Upstream base hosts of the legacy connections and the Magpie provider id their models
 # appear under. OpenRouter, Groq and Mistral are Magpie presets; SenseNova and Agnes are
-# custom vendors whose id follows the name the Owner gives them in Magpie.
+# custom vendors. The custom ids are the ones Magpie v0.1.1275 listed after the Owner
+# added them (#1170); a differently named vendor needs --provider.
 DEFAULT_PROVIDER_BY_HOST = {
     "openrouter.ai": "openrouter",
     "api.groq.com": "groq",
     "api.mistral.ai": "mistral",
-    "token.sensenova.cn": "sensenova",
+    "token.sensenova.cn": "token-sensenova",
     "apihub.agnes-ai.com": "agnes",
 }
 

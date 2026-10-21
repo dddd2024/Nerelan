@@ -67,6 +67,18 @@ def test_binding_proposals_report_listing_and_existing_magpie_binding():
     assert bindings["or-kimi"]["model_listed"] is False and bindings["or-kimi"]["magpie_binding_id"] is None
 
 
+def test_sensenova_host_maps_to_magpie_provider_id():
+    data = state()
+    data["connections"].append({"connection_id": "deepseek-flash", "auth_method": "api_key",
+                                "base_url": "https://token.sensenova.cn/v1", "enabled": True})
+    data["bindings"].append({"binding_id": "coding-glm", "connection_id": "deepseek-flash",
+                             "executor_id": "opencode", "model_id": "glm-5.2", "enabled": True})
+    row = rows(build_report(data, snapshot("token-sensenova/glm-5.2")))["deepseek-flash"]
+    assert row["magpie_provider"] == "token-sensenova" and row["status"] == "IMPORTED"
+    assert row["bindings"][0]["magpie_model_id"] == "token-sensenova/glm-5.2"
+    assert row["bindings"][0]["model_listed"] is True
+
+
 def test_override_maps_custom_vendor():
     report = build_report(state(), snapshot("my-relay/x"), provider_overrides={"relay": "my-relay"})
     assert rows(report)["relay"]["status"] == "IMPORTED"
