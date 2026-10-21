@@ -861,7 +861,7 @@ class PlatformControlStore:
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED')) "
+                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT')) "
                 "OR (g.status IN ('RUNNING', 'COMPLETED', 'BLOCKED') AND t.status IN ('READY_FOR_REVIEW', 'FAILED') AND EXISTS ("
                 "SELECT 1 FROM platform_coordinator_claims original_claim "
                 "JOIN platform_budget_reservations original_reservation "
@@ -1439,7 +1439,7 @@ class PlatformControlStore:
     def prepare_quota_admission(self, *, task_id: str, binding_ref: str,
                                 account_ref: str, evidence: Mapping[str, Any],
                                 need: Mapping[str, Any], small_task: bool = False,
-                                safety_buffer: float = 10, refresh=None) -> None:
+                                safety_buffer: float = 10, refresh=None, resume_route=None) -> None:
         """Refresh outside SQL locks, then persist an account-bound admission input.
 
         The transaction rechecks freshness; this preparation grants no claim.
@@ -1452,6 +1452,18 @@ class PlatformControlStore:
             active = self._conn.execute("SELECT account_ref, binding_ref FROM platform_budget_reservations WHERE task_id=? AND state='ACTIVE'", (task_id,)).fetchone()
             if active and (active["account_ref"] != account_ref or active["binding_ref"] != binding_ref):
                 raise TaskStoreError("quota_reservation_identity_changed")
+            resume_checkpoint = None
+            if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
+                payload = self.task_store._verify_quota_resume(task_id)
+                prior = self._conn.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+                from ..model_access.quota_forecast import parse_time
+                def observed_at(value):
+                    return float(value) if quota_reservation._number(value) else parse_time(value)
+                old_at = observed_at(json.loads(prior[0]).get("observed_at")) if prior else None
+                new_at = observed_at(selected.get("observed_at"))
+                if old_at is None or new_at is None or new_at <= old_at:
+                    raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
+                resume_checkpoint = payload["resume_state"]["checkpoint_id"]
             previous = self._conn.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (account_ref,)).fetchone()
             if previous:
                 rows = [dict(r) for r in self._conn.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=?", (account_ref,))]
@@ -1467,6 +1479,9 @@ class PlatformControlStore:
                                (account_ref, selected.get("observed_at") or "", json.dumps(selected)))
             self._conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
                                (task_id, binding_ref, account_ref, json.dumps(selected), json.dumps(need), int(small_task), safety_buffer))
+            if resume_checkpoint:
+                self._conn.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?",
+                                   (json.dumps({"resume_checkpoint": resume_checkpoint, "resume_route": resume_route}), task_id))
 
     def claim_task(
         self,
@@ -1518,9 +1533,9 @@ class PlatformControlStore:
             if task is None:
                 raise TaskStoreError("task_not_claimable")
             completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
-            if task["status"] not in {"QUEUED", "INTERRUPTED"} and not completion_recovery:
+            if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] == "INTERRUPTED" and not completion_recovery:
+            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
             elif not completion_recovery and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
@@ -1541,7 +1556,21 @@ class PlatformControlStore:
             quota_verdict = None
             if quota_input is not None:
                 identity = cur.execute("SELECT binding_ref FROM tasks WHERE id=?", (task_id,)).fetchone()
-                if identity["binding_ref"] != quota_input["binding_ref"]:
+                route = json.loads(quota_input["verdict_json"]).get("resume_route")
+                if route:
+                    link = cur.execute("SELECT goal_id,goal_revision FROM platform_goal_task_links WHERE task_id=?", (task_id,)).fetchone()
+                    goal = self.get_goal(link["goal_id"]) if link else None
+                    current = self.task_store.get_task(task_id)
+                    if (task["status"] != "QUOTA_WAIT" or goal is None or goal.revision != link["goal_revision"]
+                            or goal.revision != route["goal_revision"] or goal.id != route["goal_id"]
+                            or goal.status != "RUNNING" or goal.window_id != window_id
+                            or goal.orchestration_mode != "agent_team" or goal.binding_ref
+                            or route["source_binding"] != current.binding_ref
+                            or route["binding_ref"] != quota_input["binding_ref"]
+                            or route["executor_kind"] not in {"codex", "claude_code"}
+                            or self.is_strict_owner_window(self.get_window(window_id))):
+                        raise TaskStoreError("quota_resume_substitution_unauthorized")
+                if not route and identity["binding_ref"] != quota_input["binding_ref"]:
                     raise TaskStoreError("quota_reservation_identity_changed")
                 if active_reservation is not None and (active_reservation["account_ref"] != quota_input["account_ref"] or active_reservation["binding_ref"] != quota_input["binding_ref"]):
                     raise TaskStoreError("quota_reservation_identity_changed")
@@ -1568,6 +1597,20 @@ class PlatformControlStore:
                     # Persist the hold without acquiring a claim or spending budgets.
                     cur.execute("COMMIT")
                     raise TaskStoreError("QUOTA_WAIT:" + (quota_verdict["until"] or "unknown_reset"))
+            if task["status"] == "QUOTA_WAIT":
+                if quota_input is None or active_reservation is not None:
+                    raise TaskStoreError("quota_resume_requires_fresh_reservation")
+                payload = self.task_store._verify_quota_resume(task_id)
+                if json.loads(quota_input["verdict_json"]).get("resume_checkpoint") != payload["resume_state"]["checkpoint_id"]:
+                    raise TaskStoreError("quota_resume_requires_fresh_evidence")
+                previous = cur.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+                evidence = json.loads(previous[0])
+                # Freeze the same account observation that preparation selected.
+                old = cur.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (quota_input["account_ref"],)).fetchone()
+                if not old or json.loads(old[0]) != evidence:
+                    raise TaskStoreError("quota_resume_evidence_changed")
+                if "resume_task" not in json.loads(window["capabilities_json"]):
+                    raise TaskStoreError("window_missing_resume_task_capability")
             token_reservation = int(window["per_task_token_reservation"])
             cost_reservation = int(window["per_task_cost_reservation"])
             if active_reservation is None:
@@ -1628,9 +1671,14 @@ class PlatformControlStore:
             if quota_input is not None and not completion_recovery:
                 cur.execute("UPDATE platform_budget_reservations SET account_ref=?, binding_ref=?, quota_windows_json=?, quota_state=?, estimate_json=? WHERE task_id=? AND claim_epoch=?",
                     (quota_input["account_ref"], quota_input["binding_ref"], json.dumps({name: value["p80"] for name, value in quota_need["windows"].items()}), quota_verdict["state"], json.dumps(quota_need), task_id, epoch))
+            if task["status"] == "QUOTA_WAIT":
+                if route:
+                    cur.execute("UPDATE tasks SET executor_kind=?,binding_ref=? WHERE id=?", (route["executor_kind"], route["binding_ref"], task_id))
+                cur.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task_id,))
+                cur.execute("UPDATE durable_runs SET recovery_classification='interrupted' WHERE task_id=? AND recovery_classification='quota_wait'", (task_id,))
             if completion_recovery:
                 pass  # Finish the original persisted result; no new task/retry spending.
-            elif task["status"] == "INTERRUPTED":
+            elif task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
                     "updated_at = ? WHERE id = ?",
@@ -1708,6 +1756,14 @@ class PlatformControlStore:
         epoch: int,
         result: str,
     ) -> None:
+        with self._lock:
+            if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
+                claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?",
+                                           (task_id,)).fetchone()
+                if (claim is not None and claim["window_id"] == window_id and claim["owner"] == owner
+                        and claim["epoch"] == epoch and claim["status"] == "FAILED"):
+                    return
+                raise TaskStoreError("coordinator_claim_fenced")
         self._finalize_task_claim(
             window_id=window_id,
             task_id=task_id,
@@ -1803,6 +1859,8 @@ class PlatformControlStore:
         receipt_reason: str,
         receipt_result: str,
         persisted_host_recovery: bool = False,
+        in_transaction: bool = False,
+        quota_usage_before: Sequence[str] | None = None,
     ) -> str:
         """Fence a claim and reconcile its reservation exactly once."""
 
@@ -1811,7 +1869,16 @@ class PlatformControlStore:
         with self._lock:
             cur = self._conn.cursor()
             try:
-                cur.execute("BEGIN IMMEDIATE")
+                if in_transaction:
+                    if not self._conn.in_transaction:
+                        raise TaskStoreError("quota_settlement_transaction_missing")
+                else:
+                    cur.execute("BEGIN IMMEDIATE")
+                    if cur.execute(
+                            "SELECT 1 FROM quota_partial_checkpoints cp JOIN durable_runs dr ON dr.run_id=cp.run_id "
+                            "WHERE dr.task_id=? AND cp.request_epoch=dr.lease_epoch AND cp.state='PAUSED'",
+                            (task_id,)).fetchone():
+                        raise TaskStoreError("quota_pause_pending_recovery")
                 from .unknown_claim_isolation import refuse_held
                 refuse_held(self.task_store, task_id)
                 claim = cur.execute(
@@ -1856,7 +1923,7 @@ class PlatformControlStore:
                     (window_id,),
                 ).fetchone()
                 task = cur.execute(
-                    "SELECT executor_kind, failure_classification FROM tasks WHERE id = ?", (task_id,)
+                    "SELECT executor_kind, execution_id, failure_classification FROM tasks WHERE id = ?", (task_id,)
                 ).fetchone()
                 if window is None or task is None:
                     raise TaskStoreError("budget_reconciliation_subject_missing")
@@ -1873,6 +1940,12 @@ class PlatformControlStore:
                     if observation["status"] != "OBSERVED" or any(observation[key] is None for key in
                         ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units", "cost_micro_units"))
                 )
+                if quota_usage_before is not None and not any(
+                        o["id"] not in quota_usage_before and o["claim_epoch"] == epoch
+                        and o["execution_id"] == task["execution_id"] for o in observations):
+                    # A crash after saving but before usage persistence cannot attribute
+                    # an earlier role's observations to the paused attempt.
+                    unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
                 host_zero = not observations and self._completed_host_checker(task_id)
                 if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
@@ -1929,7 +2002,7 @@ class PlatformControlStore:
                     [dict(o) for o in observations], json.loads(reservation["estimate_json"]),
                     usage_unknown=usage_unknown)
                 settlement["limit_cutoff"] = any(word in (task["failure_classification"] + ":" + receipt_result)
-                    for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget"))
+                    for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget", "provider_exhaustion"))
                 cur.execute("UPDATE platform_budget_reservations SET settlement_json=?, quota_state=? "
                             "WHERE task_id=? AND claim_epoch=?",
                             (json.dumps(settlement), settlement["state"], task_id, epoch))
@@ -1987,7 +2060,8 @@ class PlatformControlStore:
                                    if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
                     result=f"{receipt_result}:{reservation_state}",
                 )
-                cur.execute("COMMIT")
+                if not in_transaction:
+                    cur.execute("COMMIT")
                 return reservation_state
             except TaskStoreError as exc:
                 try:

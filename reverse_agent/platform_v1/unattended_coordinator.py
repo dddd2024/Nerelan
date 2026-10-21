@@ -241,7 +241,7 @@ class UnattendedCoordinator:
                 self._executions += 1
                 continue
             operation = task_operation(task)
-            if task.status == "INTERRUPTED" and operation != "validate_task":
+            if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
             if not self.autonomy.authorize(
                 window_id=window.id,
@@ -254,6 +254,8 @@ class UnattendedCoordinator:
             if self._stop.is_set():
                 break
             try:
+                if task.status == "QUOTA_WAIT" and self.quota_preparer is None:
+                    raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
                 if self.quota_preparer is not None:
                     self.quota_preparer(task)
                 epoch, _ = self.control_store.claim_task(
@@ -700,6 +702,12 @@ class UnattendedCoordinator:
             )
         durable = self._durable_service()
         if task.status == "INTERRUPTED":
+            window = self.control_store.active_window()
+            if window is None or not self.autonomy.authorize(window_id=window.id,
+                    operation="resume_task", repository=task.repository, subject_id=task_id,
+                    input_payload={"task_id": task_id, "status": task.status}):
+                raise TaskStoreError("quota_resume_authority_revoked")
+            self.control_store.check_strict_task_admission(window.id, task_id)
             if task.orchestration_mode == "single":
                 return durable.resume_single(task_id=task_id, lease_owner=self.owner)
             return durable.resume_sequential_team(task_id=task_id, lease_owner=self.owner)
