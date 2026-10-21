@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 import re
 import json
+import subprocess
 import hashlib
 from pathlib import Path
 import shutil
@@ -620,6 +621,34 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
+            from .contract_recovery import failed_snapshot, KINDS, FIXUP, record_attempt_disposition
+            from .artifact_handoff import _load_evidence
+            structured = functional_evidence(failed)
+            all_results = [row for row in failed.evidence_refs if row.get("category") == "FunctionalValidation"]
+            rows = [row for row in all_results if row.get("value") == failed.validation_output_digest]
+            if all_results and (not rows or structured.get("result_digest") != failed.validation_output_digest):
+                continue
+            miss = False
+            if rows:
+                try:
+                    result = json.loads(rows[-1]["detail"])
+                    miss = (structured.get("result_digest") == failed.validation_output_digest
+                            and result.get("failure_kind") in KINDS)
+                    if result.get("failure_kind") in KINDS and not miss:
+                        continue
+                    if result.get("failure_kind") == "check_timeout":
+                        continue  # already re-run once on its explicit targets; never a capability signal
+                except (ValueError, TypeError):
+                    continue
+            if miss:
+                if any(row["plan_task_id"] == plan_task.id and row.get("reason") == "contract_fixup" for row in history):
+                    record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
+                    continue
+                try:
+                    root = resolve_repository_workspace(failed.repository).repo_dir
+                    snapshot = failed_snapshot(failed, root=root)
+                except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                    continue
             model_review = (load_handoff_contract(failed) or {}).get("validation_mode") == "model_review"
             # Rejections belong to the verified repair loop above, including when
             # their evidence is invalid. An attempt without a verdict retries the
@@ -629,11 +658,12 @@ class GoalService:
             refusal = failed.failure_classification == "MODEL_REFUSED"
             unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            if not miss and not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
             if len(history) >= window.max_retries:
+                record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
                     self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted",
                         "attempt_classification": failed.failure_classification})
@@ -642,7 +672,9 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
-            if self.task_resolver is not None:
+            if miss:
+                target = (role, failed.executor_kind, failed.binding_ref)
+            elif self.task_resolver is not None:
                 # Compare with the tier actually selected for this attempt, rather
                 # than a tier that fresh failure evidence may already have lowered.
                 selected = next((event.metadata for event in reversed(self.store.get_events(failed.id))
@@ -721,9 +753,11 @@ class GoalService:
                 # The approved plan pinned no base (no checks, no handoff, no native
                 # agent), so the failed attempt itself ran against the live HEAD.
                 base = repository_base(goal.repository)
+            if not miss:
+                record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
             task = self.store.create_task(
                 title=self._execution_title(goal, plan_task), repository=goal.repository,
-                executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native else "",
+                executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native or miss else "",
                 permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                 orchestration_mode="single",
@@ -737,7 +771,16 @@ class GoalService:
             if repair is not None:
                 self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
                                                  document=repair)
-            reason = f"failed:{failed.failure_classification or 'unknown'}"
+            if miss:
+                from .functional_validation import digest
+                self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
+                    document={"task_id": task.id, "execution_id": task.execution_id,
+                              "source_task_id": failed.id, "snapshot_digest": digest(snapshot),
+                              "feedback": snapshot["feedback"]})
+                self.store.add_event(task.id, event_type="VALIDATED", title="Contract fix-up required",
+                                     description=snapshot["feedback"], metadata={"source_task_id": failed.id})
+                record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
+            reason = "contract_fixup" if miss else f"failed:{failed.failure_classification or 'unknown'}"
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                 to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)
@@ -1004,7 +1047,11 @@ class GoalService:
                          "in the Owner research environment. No third-party system is targeted. "
                          "Perform only the authorized scope described below."
                          if "security_simulation" in task.needs else "")
-        return f"[{goal.title}] {task.id} {task.title}{authorization}\n\n{task.instruction}"
+        from .functional_validation import validation_guidance
+        guidance = validation_guidance(task.validation_checks)
+        validation = ("\n\nyour tests must be in exactly these files: " + ", ".join(guidance["targets"])
+                      if guidance["targets"] else "")
+        return f"[{goal.title}] {task.id} {task.title}{authorization}\n\n{task.instruction}{validation}"
 
     @staticmethod
     def _render_spec(goal: GoalRecord, criteria: Sequence[str]) -> str:

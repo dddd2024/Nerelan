@@ -99,6 +99,35 @@ def normalize_checks(raw: Any) -> tuple[dict[str, Any], ...]:
     return tuple(checks)
 
 
+def validation_guidance(checks: Any) -> dict[str, Any]:
+    """Project normalized checks into repository-relative targets and focused commands."""
+    targets = []
+    commands = []
+    for check in normalize_checks(checks):
+        directory = check["working_directory"]
+        for target in check.get("targets", ()):
+            path = str(PurePosixPath(directory) / target)
+            if path not in targets:
+                targets.append(path)
+        command = ("python -m pytest " + " ".join(check.get("targets", ()))
+                   if check["profile_id"] == "python_pytest" else "npm test")
+        commands.append({"working_directory": directory, "command": command.strip()})
+    return {"targets": targets, "focused_checks": commands}
+
+
+def _missing_targets(checks: Any, root: Path) -> list[str]:
+    missing = []
+    for check in checks:
+        cwd = root.joinpath(*PurePosixPath(check["working_directory"]).parts).resolve()
+        for target in check.get("targets", ()):
+            path = cwd.joinpath(*PurePosixPath(target).parts).resolve()
+            if not path.is_relative_to(root) or not path.exists():
+                name = str(PurePosixPath(check["working_directory"]) / target)
+                if name not in missing:
+                    missing.append(name)
+    return missing
+
+
 def git_output(root: Path, *args: str) -> str:
     result = subprocess.run(["git", "-C", str(root), *args], stdin=subprocess.DEVNULL,
                             capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -286,6 +315,9 @@ def _terminate(proc: subprocess.Popen[bytes], job: _WindowsJob | None) -> None:
 
 def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
     profile = check["profile_id"]
+    missing = _missing_targets([check], root)
+    if missing:
+        raise TaskStoreError("\n".join(f"functional_target_missing:{path}" for path in missing))
     cwd = _working_directory(root, check["working_directory"])
     # npm reads project configuration independently of user/global configuration.
     # Refuse it without inspecting potentially sensitive configuration contents.
@@ -298,11 +330,11 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         report = Path(temporary) / "tests.xml"
         report_kind = "junit"
         if profile == "python_pytest":
-            argv.append(f"--junitxml={report}")
+            argv.extend([f"--rootdir={cwd}", f"--junitxml={report}"])
             for target in check.get("targets", ()):
                 path = cwd.joinpath(*PurePosixPath(target).parts).resolve()
                 if not path.is_relative_to(root) or not path.exists():
-                    raise TaskStoreError("functional_target_missing")
+                    raise TaskStoreError(f"functional_target_missing:{PurePosixPath(check['working_directory']) / target}")
                 argv.append(target)
         if profile == "npm_test":
             package = cwd / "package.json"
@@ -328,6 +360,8 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         result = _run_process(check, argv, cwd, env)
         tail = result.pop("_output_tail")
         result["test_report"] = _test_report(report_kind, report, tail)
+        if result["timed_out"]:
+            result["test_report"]["accepted"] = False
         return result
 
 
@@ -475,6 +509,10 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             raise TaskStoreError("functional_implementation_missing")
         if hygiene["exit_code"] != 0:
             raise TaskStoreError("functional_patch_hygiene_failed")
+        missing = _missing_targets(contract["checks"], root)
+        if missing:
+            result["missing_targets"] = missing
+            raise TaskStoreError("\n".join(f"functional_target_missing:{path}" for path in missing))
         for check in contract["checks"]:
             observed = _run_check(check, root)
             result["checks"].append(observed)
@@ -485,7 +523,14 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         result["tree_after"] = after
         if before != after or result["head_before"] != result["head_after"]:
             raise TaskStoreError("functional_artifact_changed_during_checks")
-        if after_hygiene["exit_code"] != 0 or len(result["checks"]) != len(contract["checks"]) or any(
+        # A timeout is only a check_timeout when no test was observed failing;
+        # observed failures stay ordinary capability failures (#1280).
+        if any(check["timed_out"] for check in result["checks"]) and not any(
+                check["test_report"].get("failed", 0) for check in result["checks"]):
+            raise TaskStoreError("check_timeout")
+        if after_hygiene["exit_code"] != 0:
+            raise TaskStoreError("functional_patch_hygiene_failed")
+        if len(result["checks"]) != len(contract["checks"]) or any(
             check["timed_out"] or check["exit_code"] != 0 or not check["test_report"]["accepted"] for check in result["checks"]
         ):
             raise TaskStoreError("functional_check_failed")
@@ -493,6 +538,15 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
                       status="FIXTURE_VERIFIED" if task.executor_kind == "deterministic_fixture" else "VERIFIED")
     except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         result["reason"] = str(exc) if isinstance(exc, TaskStoreError) else f"functional_observation_failed:{type(exc).__name__}"
+    if not result["passed"]:
+        reason = result["reason"]
+        result["failure_kind"] = (
+            "target_mismatch" if reason.startswith("functional_target_missing:") else
+            "patch_hygiene" if reason == "functional_patch_hygiene_failed" else
+            "check_timeout" if reason == "check_timeout" else
+            "capability_failure" if reason == "functional_check_failed" and any(
+                (check.get("test_report") or {}).get("failed", 0) for check in result["checks"])
+            else "host_observation")
     return result
 
 
@@ -504,7 +558,8 @@ def functional_feedback(result: Mapping[str, Any]) -> str:
         targets = " ".join(check.get("targets", ())) or check.get("working_directory", ".")
         state = "timed out" if check.get("timed_out") else f"exit {check.get('exit_code')}"
         lines.append(f"{check.get('profile_id')} {targets}: {state}, "
-                     f"{report.get('passed', 0)} passed, {report.get('failed', 0)} failed")
+                     f"{report.get('passed', 0)} passed, {report.get('failed', 0)} failed"
+                     + (" (incomplete report; not accepted)" if check.get("timed_out") else ""))
         lines += [f"  FAILED {item['test']}: {item['message']}" for item in report.get("failures", ())]
         if report.get("output_tail"):
             lines.append("  Output tail:\n" + report["output_tail"])
@@ -543,6 +598,38 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
     except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         reason = str(exc) if isinstance(exc, TaskStoreError) else "artifact_retention_observation_failed"
         return FUNCTIONAL_COMMAND_ID, 1, reason, ""
+    # A replay of a consumed timeout allowance reuses the persisted result only
+    # while the exact failed tree and approved contract still match.
+    from .artifact_handoff import _load_evidence
+    from .contract_recovery import KINDS, failed_snapshot
+    prior_results = [row for row in task.evidence_refs if row.get("category") == RESULT_CATEGORY]
+    if prior_results:
+        prior_result = json.loads(prior_results[-1]["detail"])
+        if prior_result.get("failure_kind") in KINDS:
+            try:
+                snapshot = failed_snapshot(task, root=Path(worktree))
+                if (base_commit != snapshot["base_commit"]
+                        or git_output(Path(worktree), "rev-parse", "HEAD") != snapshot["head"]
+                        or _snapshot_workspace(Path(worktree), base_commit)[1] != snapshot["tree"]):
+                    raise TaskStoreError("failed_snapshot_workspace_changed")
+                return FUNCTIONAL_COMMAND_ID, 1, prior_result["reason"], snapshot["result_digest"]
+            except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+                return FUNCTIONAL_COMMAND_ID, 1, str(exc), ""
+    timeout_attempt = _load_evidence(task, "TimeoutCheckAttempt", task.execution_id)
+    if timeout_attempt is not None:
+        rows = [row for row in task.evidence_refs if row.get("category") == RESULT_CATEGORY]
+        if rows:
+            previous = json.loads(rows[-1]["detail"])
+            if (digest(previous) == rows[-1].get("value") == rows[-1].get("raw_json_digest")
+                    and previous.get("task_id") == task.id and previous.get("repository") == task.repository
+                    and previous.get("status") == rows[-1].get("status")
+                    and previous.get("contract_digest") == digest(contract)
+                    and previous.get("execution_id") == task.execution_id
+                    and previous.get("base_commit") == base_commit
+                    and previous.get("tree_before") == _snapshot_workspace(Path(worktree), base_commit)[1]
+                    and previous.get("head_before") == git_output(Path(worktree), "rev-parse", "HEAD")):
+                return FUNCTIONAL_COMMAND_ID, 0 if previous["passed"] else 1, previous["reason"], digest(previous)
+        return FUNCTIONAL_COMMAND_ID, 1, "check_timeout", ""
     result = validate_functional(task, worktree=worktree,
                                  base_commit=base_commit,
                                  execution_id=execution_id or task.execution_id)
@@ -556,6 +643,32 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
             result.update(passed=False, verified=False, status="FAILED", reason=(str(exc)
                           if isinstance(exc, TaskStoreError) else "artifact_input_observation_failed"))
+    from .contract_recovery import KINDS, retain_failed_tree
+    if not result["passed"] and result.get("failure_kind") in KINDS | {"check_timeout"}:
+        # Only recoverable misses keep their tree; capability failures retry as before.
+        try:
+            retain_failed_tree(store, task_id, result, worktree=worktree, lease=lease)
+        except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            # Without a retained tree there is nothing to fix up from: keep the
+            # observed reason and let the ordinary retry path handle it.
+            result.update(failure_kind="host_observation",
+                          snapshot_error=f"failed_snapshot_unavailable:{type(exc).__name__}")
+        if result.get("failure_kind") == "check_timeout":
+            from .artifact_handoff import _load_evidence
+            prior = _load_evidence(store.get_task(task_id), "TimeoutCheckAttempt", task.execution_id)
+            safe = (all(check.get("targets") and all(
+                        (Path(worktree) / check["working_directory"] / target.split("::", 1)[0]).is_file()
+                        for target in check["targets"]) for check in contract["checks"])
+                    and not any((check.get("test_report") or {}).get("failed", 0)
+                                for check in result["checks"]))
+            if prior is None:
+                store._bind_artifact_evidence(task_id, category="TimeoutCheckAttempt", label=task.execution_id,
+                                             document=result, lease=lease)
+            if prior is None and safe:
+                result = validate_functional(task, worktree=worktree, base_commit=base_commit,
+                                             execution_id=execution_id or task.execution_id)
+                result["run_id"] = lease.run_id if lease is not None else ""
+                result["lease_epoch"] = lease.epoch if lease is not None else None
     identity = digest(result)
     fields = dict(category=RESULT_CATEGORY, label=FUNCTIONAL_COMMAND_ID, value=identity,
                   status=result["status"], detail=canonical(result), raw_json_digest=identity)

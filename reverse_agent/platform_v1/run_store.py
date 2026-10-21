@@ -1190,7 +1190,9 @@ class TaskStore:
         import hashlib
         import json
 
-        if category not in {"ArtifactContract", "AcceptedArtifact", "ArtifactInput", "ModelReview", "ReviewRepair"}:
+        if category not in {"ArtifactContract", "AcceptedArtifact", "ArtifactInput", "ModelReview", "ReviewRepair",
+                            "FailedAttemptTree", "ContractFixup", "FailedTreeRestored", "AttemptDisposition",
+                            "TimeoutCheckAttempt"}:
             raise TaskStoreError("artifact_evidence_category_invalid")
         if category == "ModelReview" and lease is None:
             raise TaskStoreError("model_review_lease_required")

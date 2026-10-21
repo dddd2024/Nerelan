@@ -74,6 +74,8 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "creates a test file may target it, but its predecessor must target tests that already exist. "
         "Each check must finish within " + str(CHECK_TIMEOUT_SECONDS) + " seconds, so choose a few fast, "
         "focused test files (unit tests for the modules the task changes), not large integration suites. "
+        "Do not list slow existing suites or untargeted whole-suite checks. "
+        "Tell each task: your tests must be in exactly these files: followed by its validation targets. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "difficulty": 3, "kind": "code", '

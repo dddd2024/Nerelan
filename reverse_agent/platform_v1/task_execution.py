@@ -1137,7 +1137,16 @@ class TaskExecutionService:
         validation_command_id: str,
         executor_kwargs: dict[str, Any],
     ) -> dict[str, Any]:
-        if validation_only_input(task):
+        from .contract_recovery import recovery_input, restore_failed_tree
+        if recovery_input(task) is not None:
+            from .opencode_executor import RoleContext
+            executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
+            prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+            restore_failed_tree(self.store, task.id, worktree=prepared.worktree)
+            result = executor.execute_role_prepared(prepared, self.store,
+                role_context=RoleContext("executor", task.id, prepared.worktree),
+                event_callback=self._store_event_callback)
+        elif validation_only_input(task):
             from .task_runtime import ExecutorResult
             try:
                 executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
@@ -1174,7 +1183,10 @@ class TaskExecutionService:
             self._store_event_callback(task.id, {"type": "MODEL_REFUSED", "title": "Model declined task",
                                                 "metadata": {"content_class": content}})
         from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
-        if result.success and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
+        hygiene_failure = (result.validation_command_id == "git_diff_check"
+                           and result.validation_exit_code != 0
+                           and result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"})
+        if (result.success or hygiene_failure) and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
             command, code, output, identity = run_task_validation(
                 self.store, task.id, worktree=result.workspace,
                 base_commit=prepared_base(self.store.get_task(task.id), result.workspace),

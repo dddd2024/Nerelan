@@ -130,7 +130,8 @@ def test_escalation_prefers_higher_then_distinct_same_tier_model():
             candidate("b", "glm-5.3"), candidate("c", "opus", "paid_api")]
     result = choose(pool, failed_model="flash-lite", failed_tier=2)
     assert result["binding_ref"] == "b"
-    assert choose(pool, failed_model="opus", failed_tier=5)["binding_ref"] != "c"
+    # Only weaker distinct models: retry the top-tier model rather than downgrade (#1280).
+    assert choose(pool, failed_model="opus", failed_tier=5)["binding_ref"] == "c"
     same = [candidate("a", "opus"), candidate("b", "sonnet")]
     assert choose(same, failed_model="opus", failed_tier=5)["binding_ref"] == "b"
     assert choose(same[:1], failed_model="opus", failed_tier=5)["binding_ref"] == "a"

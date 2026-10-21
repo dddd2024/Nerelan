@@ -246,15 +246,21 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if refused_models:
         pool = sorted(pool, key=lambda c: (c["availability_rank"], c["refusal_risk"], *c["score"], c["binding_id"]))
         pinned = None  # a refusal never sends the task back to its pinned author
+    downgrade_fallback = False
     if failed_model and not pinned and not refused_models:
-        distinct = [c for c in pool if model_identity(c["model_id"]) != model_identity(failed_model)]
-        pool = distinct or pool
+        # Compare tiers before preferring a different model: a weaker distinct
+        # model must never displace an eligible equal-or-higher one (#1280).
+        def distinct(items):
+            return [c for c in items if model_identity(c["model_id"]) != model_identity(failed_model)]
         higher = [c for c in pool if c["tier"] > failed_tier]
+        same = [c for c in pool if c["tier"] == failed_tier]
         if higher:
-            pool = higher
+            pool = distinct(higher) or higher
+        elif same:
+            pool = distinct(same) or same
         else:
-            same = [c for c in pool if c["tier"] == failed_tier]
-            pool = same or [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
+            downgrade_fallback = True  # nothing eligible at or above the failed tier
+            pool = [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
     if artifact_review and codex_authored and not pinned:
         best_availability = min(c["availability_rank"] for c in pool)
         independent_toolless = [c for c in pool if c["review_transport"] == "toolless"
@@ -282,7 +288,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if refused_models:
         reason = "refusal_redispatch"
     if failed_model and not pinned and reason != "underpowered" and not refused_models:
-        reason = ("escalation_higher_tier" if chosen["tier"] > failed_tier else
+        reason = ("retry_lower_tier_fallback" if downgrade_fallback else
+                  "escalation_higher_tier" if chosen["tier"] > failed_tier else
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     if artifact_review and chosen["tier"] < difficulty:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
@@ -305,7 +312,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "excluded_candidates": excluded[:10], "reset": chosen["reset"],
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
             "tier_source": chosen["tier_source"], "tier_basis": chosen["tier_basis"], "reset_observations": reset_observations,
-            "characteristics": chosen["characteristics"]}
+            "characteristics": chosen["characteristics"],
+            **({"downgrade_fallback": True} if downgrade_fallback else {})}
 
 
 def prior_characteristics(model: str) -> dict[str, Any]:
