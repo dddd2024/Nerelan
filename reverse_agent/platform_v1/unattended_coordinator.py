@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
-from .durable_execution import DurableExecutionService
+from .durable_execution import DurableExecutionService, DurableResumeError
 from .run_store import TaskStore, TaskStoreError
 from .task_execution import TaskExecutionService, TaskExecutionOutcome
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
@@ -28,6 +28,13 @@ _logger = logging.getLogger(__name__)
 
 
 TaskExecutor = Callable[[str], Any]
+
+
+def _failure_detail(exc: BaseException) -> str:
+    """Resume refusals are host-generated codes worth keeping; other text stays out (#1322)."""
+    if isinstance(exc, DurableResumeError) and str(exc):
+        return f"{type(exc).__name__}:{str(exc)[:300]}"
+    return type(exc).__name__
 
 
 class UnattendedCoordinator:
@@ -541,13 +548,14 @@ class UnattendedCoordinator:
                     reasons=("claim_completed",),
                 )
             except Exception as exc:
+                detail = _failure_detail(exc)
                 try:
                     self.control_store.abandon_task_claim(
                         window_id=window_id,
                         task_id=task_id,
                         owner=self.owner,
                         epoch=epoch,
-                        reason=f"execution_failed:{task_id}:{type(exc).__name__}",
+                        reason=f"execution_failed:{task_id}:{detail}",
                     )
                 except TaskStoreError:
                     pass
@@ -558,7 +566,7 @@ class UnattendedCoordinator:
                     success=False,
                     validation_exit_code=-1,
                     failure_classification="coordinator_execution_error",
-                    failure_detail=type(exc).__name__,
+                    failure_detail=detail,
                     reasons=("claim_abandoned", f"worker_exception:{type(exc).__name__}"),
                 )
             finally:
