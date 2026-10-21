@@ -801,6 +801,12 @@ class GoalService:
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                 orchestration_mode="single",
             )
+            if decision is None and (miss or overloaded):
+                # The same binding retries: carry its selection evidence (context window,
+                # context need, reservation) so the model-specific context check still applies.
+                decision = next((event.metadata for event in reversed(self.store.get_events(failed.id))
+                                 if event.type == "MODEL_SELECTED"
+                                 and event.metadata.get("binding_ref") == failed.binding_ref), None)
             if decision is not None:
                 self._record_model_selection(task, decision)
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
@@ -817,6 +823,13 @@ class GoalService:
                               "source_task_id": failed.id, "snapshot_digest": digest(snapshot),
                               "feedback": snapshot["feedback"]})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
+            if overloaded:
+                # Events reach the context packet; evidence detail does not.
+                self.store.add_event(task.id, event_type="VALIDATED", title="Retry after provider overload",
+                                     description=(snapshot["feedback"] if snapshot is not None else
+                                                  "The provider was at capacity; your previous attempt was cut "
+                                                  "off and is not available. Start from the approved base."),
+                                     metadata={"source_task_id": failed.id})
             if miss:
                 from .functional_validation import digest
                 self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,

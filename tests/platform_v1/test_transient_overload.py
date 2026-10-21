@@ -50,6 +50,9 @@ def test_overload_is_excluded_from_capability_profiles(case):
 def test_overload_retries_same_binding_from_the_retained_tree(case, tmp_path):
     root, base, store, _, service, goal, _, task = case
     wrong_tree(root)
+    store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected", description="fixture",
+                    metadata={"binding_ref": task.binding_ref, "reason": "fixture", "context_window": 128000,
+                              "context_need": 24000})
     _fail_overloaded(store, task, root)
     def forbidden(*args, **kwargs):
         raise AssertionError("overload must not run capability selection")
@@ -60,6 +63,12 @@ def test_overload_retries_same_binding_from_the_retained_tree(case, tmp_path):
     assert (retry.binding_ref, retry.executor_kind) == (task.binding_ref, task.executor_kind)
     binding = recovery.recovery_input(retry)
     assert binding["source_task_id"] == task.id and "continue from them" in binding["feedback"]
+    # The model sees the continuation instruction through an event, and the
+    # retry keeps the original selection evidence for the context-size check.
+    events = store.get_events(retry.id)
+    assert any(e.type == "VALIDATED" and "continue from them" in e.description for e in events)
+    original = next(e.metadata for e in store.get_events(task.id) if e.type == "MODEL_SELECTED")
+    assert next(e.metadata for e in events if e.type == "MODEL_SELECTED") == original
     dest = destination(case, tmp_path)
     recovery.restore_failed_tree(store, retry.id, worktree=dest)
     assert (dest / "wrong_name.py").exists()
