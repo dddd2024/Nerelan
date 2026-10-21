@@ -603,6 +603,13 @@ class RunReadModel:
         runs = [self._run_summary(task) for task in tasks]
         return {"runs": runs, "total": total, "next_cursor": next_cursor}
 
+    def _landing_projection(self, goal_id):
+        state = self.control_store.landing_progress(goal_id) if goal_id else None
+        if state is None:
+            return None
+        return {key: state[key] for key in ("phase", "review_round", "pr_number", "head_sha",
+                                           "next_attempt_ms", "parking_reason")}
+
     def run_detail(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id, event_limit=MAX_DETAIL_EVENTS)
         detail = self._run_summary(task)
@@ -704,6 +711,7 @@ class RunReadModel:
             "usage_evidence": _usage_evidence(usage),
             "budget": budget,
             "publication": publication_projection(publication),
+            "landing": self._landing_projection(goal_id),
             "run_id": _safe_text(getattr(durable_run, "run_id", ""), limit=128),
             "stage": stage,
             "liveness": liveness["state"],

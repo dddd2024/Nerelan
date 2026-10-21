@@ -393,3 +393,21 @@ def test_legacy_window_schema_migrates_in_place_and_replay_is_noop(tmp_path):
         for row in store._conn.execute("PRAGMA table_info(platform_autonomous_windows)")
     }
     assert {"max_token_units", "enforcement_class", "unknown_observation_count"} <= columns
+
+
+def test_landing_requires_explicit_window_grant():
+    service = AutonomyService(control_store=PlatformControlStore(TaskStore(":memory:")),
+                              capabilities=CapabilityRegistry())
+    window = service.activate(_payload())
+    assert "land_reviewed_pr" not in window.capabilities
+    assert not service.authorize(window_id=window.id, operation="land_reviewed_pr",
+                                 repository=window.repositories[0], subject_id="goal",
+                                 input_payload={})
+
+
+def test_checker_policy_cannot_gain_landing_authority():
+    from reverse_agent.platform_v1.autonomy import validate_canonical_policy
+    policy = _canonical_checker_policy()
+    policy["githubCapabilities"] = ["land_reviewed_pr"]
+    with pytest.raises(TaskStoreError):
+        validate_canonical_policy(policy)
