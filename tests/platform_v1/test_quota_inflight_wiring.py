@@ -515,7 +515,8 @@ def coordinator_recovery(n, monkeypatch, *, alternative=False, pinned=False):
                 for ref, account, model, kind in [("fake-binding", "account", "gpt-6-sol", "codex"),
                     ("alternative", "other-account", "claude-sonnet-4-6", "claude_code")]]
     host._store = SimpleNamespace(list_bindings_public=lambda: bindings,
-        get_connection_public=lambda account: {"connection_id": account, "account_ref": account, "auth_method": "external_cli_session"})
+        get_connection_public=lambda account: {"connection_id": account, "account_ref": account, "auth_method": "external_cli_session",
+                                               "executor_provider_id": "codex" if account == "account" else "claude-code"})
     fresh = {account: {"account_ref": account, "source": "official", "observed_at": time.time(),
              "windows": [{"window": w, "used_percent": 0, "resets_at": time.time()+3600} for w in ("five_hour", "weekly")]}
              for account in ("account", "other-account")}
