@@ -622,6 +622,31 @@ class ResearchLoopTests(unittest.TestCase):
             changed = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
             self.assertFalse(self.loop()._bound_receipt(changed, job, {"request_digest": digest}))
 
+    def test_crlf_worktree_request_binds_to_its_normalized_commit(self):
+        # Short test rerun 2026-10-21: Git for Windows (core.autocrlf=true) stores LF blobs,
+        # while the broker hashed the agent's CRLF worktree files, so every receipt was STALE.
+        from reverse_agent.platform_v1.remote_jobs import RemoteJobBroker
+        self.git("config", "core.autocrlf", "true")
+        job = "campaign-r1-crlf"
+        directory = self.repo / ".nerelan-remote/outbox" / job
+        directory.mkdir(parents=True)
+        request = dict(self.request(job), files=["run.py"])
+        (directory / "run.py").write_bytes(b"print('a')\r\nprint('b')\r\n")
+        (directory / "job.json").write_bytes(json.dumps(request, indent=1).replace("\n", "\r\n").encode())
+        broker = RemoteJobBroker.__new__(RemoteJobBroker)
+        broker.profile = SimpleNamespace(max_wall_seconds=100, max_upload_bytes=10000)
+        _, digest = broker._request(directory / "job.json")  # hashed from the CRLF worktree
+        self.git("add", ".nerelan-remote")
+        self.git("commit", "-m", "request")
+        self.assertNotIn(b"\r", subprocess.run(["git", "-C", str(self.repo), "cat-file", "blob",
+                                                f"HEAD:.nerelan-remote/outbox/{job}/run.py"],
+                                               capture_output=True, check=True).stdout)
+        record = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
+        self.assertNotEqual(self.loop()._committed_digest(record, job), digest)
+        self.assertTrue(self.loop()._bound_receipt(record, job, {"request_digest": digest}))
+        self.assertFalse(self.loop()._bound_receipt(record, job, {"request_digest": "0" * 64}))
+        self.assertEqual(record["imports"][job]["error"], "STALE_RECEIPT")
+
     def test_mixed_stale_and_pending_survives_restart(self):
         self.launch()
         stale, pending = "campaign-r1-stale", "campaign-r1-pending"

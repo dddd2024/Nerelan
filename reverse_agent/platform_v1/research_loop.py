@@ -378,7 +378,13 @@ class ResearchLoop:
             normalized[:11].rstrip("-") + "-" + hashlib.sha256(identity.encode()).hexdigest()[:8])
         return f"{slug}-r{n}-"
 
-    def _committed_digest(self, record, job):
+    def _committed_digest(self, record, job, *, filtered=False):
+        """Broker-compatible digest of the committed request.
+
+        filtered=True reads each blob through the repository's own checkout
+        filters (eol/autocrlf): the bytes a checkout of this commit reproduces,
+        which is what the broker hashed in the task worktree on a CRLF host.
+        """
         commit = record.get("request_commit", "")
         if not re.fullmatch(r"[0-9a-f]{40}", commit):
             raise ValueError("missing committed request boundary")
@@ -388,7 +394,8 @@ class ResearchLoop:
             mode = self._git("ls-tree", commit, "--", directory + name).stdout.split()
             if not mode or mode[0] not in {"100644", "100755"}:
                 raise ValueError("request is not a regular committed file")
-            result = subprocess.run(["git", "-C", str(self.repo), "cat-file", "blob", spec],
+            result = subprocess.run(["git", "-C", str(self.repo), "cat-file",
+                                     *(["--filters"] if filtered else ["blob"]), spec],
                                     capture_output=True, check=True, timeout=120)
             return result.stdout
         raw = blob("job.json")
@@ -418,8 +425,11 @@ class ResearchLoop:
 
     def _bound_receipt(self, record, job, receipt):
         try:
-            expected = self._committed_digest(record, job)
-            if not isinstance(receipt, dict) or receipt.get("request_digest") != expected:
+            digest = receipt.get("request_digest") if isinstance(receipt, dict) else None
+            # Git for Windows normalizes CRLF on commit, so exact blob bytes can differ from
+            # the worktree bytes the broker hashed; either is a deterministic view of the commit.
+            if not digest or digest not in {self._committed_digest(record, job),
+                                            self._committed_digest(record, job, filtered=True)}:
                 raise ValueError("receipt does not match committed request")
             return True
         except (OSError, ValueError, TypeError, subprocess.SubprocessError):
