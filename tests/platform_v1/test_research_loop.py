@@ -526,6 +526,21 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertIn("campaign-r1-job", objective)
         self.assertIn("new job ids", objective)
 
+    def test_objective_states_a_request_the_broker_accepts(self):
+        # Short test 2026-10-21: without the schema, agents refused to invent one and requested nothing.
+        from reverse_agent.platform_v1.remote_jobs import RemoteJobBroker, REQUEST_FIELDS
+        objective = self.loop()._objective(1, False)
+        example = json.loads(objective.split("for example ", 1)[1].split("}", 1)[0] + "}")
+        self.assertEqual(sorted(example), sorted(REQUEST_FIELDS))
+        directory = self.repo / ".nerelan-remote/outbox" / example["job_id"]
+        directory.mkdir(parents=True)
+        (directory / "run.py").write_text("print('ok')\n", encoding="utf-8")
+        write_json(directory / "job.json", example)
+        broker = RemoteJobBroker.__new__(RemoteJobBroker)
+        broker.profile = SimpleNamespace(max_wall_seconds=900, max_upload_bytes=10000)
+        request, _ = broker._request(directory / "job.json")
+        self.assertTrue(request["job_id"].startswith(self.loop()._job_prefix(1)))
+
     def test_committed_digest_matches_broker_and_ignores_worktree(self):
         from reverse_agent.platform_v1.remote_jobs import RemoteJobBroker
         job = "campaign-r1-job"
