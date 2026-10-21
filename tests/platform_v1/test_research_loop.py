@@ -485,6 +485,7 @@ class ResearchLoopTests(unittest.TestCase):
         committed = self.git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines()
         expected = [f"results/{job}/{name}" for name in (
             "receipt.json", "manifest.json", "stdout.log", "stderr.log", "outputs/value.bin")]
+        expected.append("results/.gitattributes")  # first import pins evidence bytes
         self.assertEqual(sorted(committed), sorted(expected))
         self.assertEqual(self.git("ls-files", "--", "notes.log", "results/unrelated/value.bin"), "")
         ignored = self.git("status", "--porcelain", "--ignored").splitlines()
@@ -621,6 +622,49 @@ class ResearchLoopTests(unittest.TestCase):
             self.git("commit", "-m", "changed " + name)
             changed = {"request_commit": self.git("rev-parse", "HEAD"), "imports": {}}
             self.assertFalse(self.loop()._bound_receipt(changed, job, {"request_digest": digest}))
+
+    def test_imported_evidence_checks_out_byte_exact_under_autocrlf(self):
+        # Short test rerun 2026-10-21: task worktrees got CRLF copies of imported JSON
+        # (45,301 -> 47,301 bytes), so the agents correctly rejected every result.
+        self.git("config", "core.autocrlf", "true")
+        job = "campaign-r1-eol"
+        self.launch()
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        for _ in range(3):
+            self.tick()
+        source = self.broker / job
+        files = {"outputs/lf.json": b'{\n "a": 1\n}\n', "outputs/crlf.txt": b"x\r\ny\r\n", "stdout.log": b"ok\n"}
+        for name, data in files.items():
+            (source / name).parent.mkdir(parents=True, exist_ok=True)
+            (source / name).write_bytes(data)
+        write_json(source / "receipt.json", {"job_id": job, "state": "RESULT_COLLECTED",
+                                             "request_digest": self.digest(job)})
+        write_json(source / "manifest.json", {"files": [
+            {"path": name, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+            for name, data in files.items()]})
+        self.tick()
+        self.assertEqual(self.round()["state"], "RESULTS_IMPORTED")
+        self.assertEqual(self.git("show", "HEAD:results/.gitattributes"), "* -text")
+        checkout = self.root / "fresh-task-worktree"
+        self.git("worktree", "add", "--detach", str(checkout), "HEAD")
+        for name, data in files.items():
+            self.assertEqual((checkout / f"results/{job}" / name).read_bytes(), data, name)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+
+    def test_altered_results_attributes_pause_the_results_commit(self):
+        job = "campaign-r1-attr"
+        self.launch()
+        (self.repo / "results").mkdir()
+        (self.repo / "results/.gitattributes").write_text("* text=auto\n")
+        self.git("add", "results/.gitattributes")
+        self.git("commit", "-m", "agent changed attributes")
+        self.complete([self.task("task", {f".nerelan-remote/outbox/{job}/job.json": "{}"})])
+        for _ in range(3):
+            self.tick()
+        self.receipt(job)
+        with self.assertRaisesRegex(RuntimeError, "would alter evidence bytes"):
+            self.loop().tick()
+        self.assertNotEqual(self.git("log", "-1", "--format=%s"), "round 1: results")
 
     def test_crlf_worktree_request_binds_to_its_normalized_commit(self):
         # Short test rerun 2026-10-21: Git for Windows (core.autocrlf=true) stores LF blobs,
