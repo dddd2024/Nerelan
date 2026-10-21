@@ -48,7 +48,7 @@ def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
         raise TaskStoreError("failed_snapshot_conflict")
     # Compare-and-create: a different existing ref must never be overwritten.
     found = subprocess.run(["git", "-C", str(root), "show-ref", "--verify", "--hash", ref],
-                           capture_output=True, text=True, timeout=60)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
     if found.returncode == 0:
         if found.stdout.strip() != tree:
             raise TaskStoreError("failed_snapshot_ref_mismatch")

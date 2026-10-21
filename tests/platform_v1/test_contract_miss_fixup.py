@@ -151,6 +151,9 @@ def validate(case, task=None, root=None):
     return code, reason, identity
 
 
+CRLF, LF = bytes([13, 10]), bytes([10])
+
+
 def wrong_tree(root, hygiene=False):
     (root / "app.py").write_text("value = 2" + ("  " if hygiene else "") + "\n", encoding="utf-8")
     (root / "wrong_name.py").write_text("from app import value\ndef test_exact():\n    assert value == 2\n", encoding="utf-8")
@@ -184,8 +187,10 @@ def test_exact_failed_tree_same_binding_rename_and_validation(case, tmp_path, hy
     assert "test_exact.py" in recovery.recovery_input(fixup)["feedback"] or hygiene
     dest = destination(case, tmp_path)
     recovery.restore_failed_tree(store, fixup.id, worktree=dest)
-    assert (dest / "wrong_name.py").read_bytes() == (root / "wrong_name.py").read_bytes()
-    assert (dest / "app.py").read_bytes() == (root / "app.py").read_bytes()
+    # The git tree identity is checked by restore; checkout may apply the repo's eol conversion.
+    def same(name):
+        return (dest / name).read_bytes().replace(CRLF, LF) == (root / name).read_bytes().replace(CRLF, LF)
+    assert same("wrong_name.py") and same("app.py")
     assert git(dest, "rev-parse", "HEAD") == base
     (dest / "wrong_name.py").rename(dest / "test_exact.py")
     (dest / "app.py").write_text("value = 2\n", encoding="utf-8")
