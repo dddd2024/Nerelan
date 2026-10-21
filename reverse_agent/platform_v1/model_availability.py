@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import threading
 import time
 from typing import Any, Callable, Mapping
@@ -17,6 +18,18 @@ def native_owner_account(binding: Mapping[str, Any], connection: Mapping[str, An
     return (connection.get('auth_method') == 'external_cli_session'
             or binding.get('executor_id') in {'codex', 'claude_code'}
             or binding.get('model_id', '').lower().split('/', 1)[0] in {'codex', 'claude'})
+
+
+# Provider-side overload is transient: not an entitlement problem, a quota limit
+# or capability evidence. The same model or tier is retried after a backoff.
+OVERLOAD_RE = re.compile(r"at capacity|overloaded|server (?:is )?busy|temporarily unavailable"
+                         r"|try again later|api_error_(?:503|529)|(?:http|status|error)[ _:]*529|529 overloaded"
+                         r"|503 service unavailable", re.I)
+OVERLOADED = "provider_overloaded"
+
+
+def provider_overloaded(value: str) -> bool:
+    return bool(OVERLOAD_RE.search(value or ""))
 
 
 def availability_error(value: str) -> str | None:

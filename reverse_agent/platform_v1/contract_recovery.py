@@ -13,6 +13,68 @@ from reverse_agent.executor_neutral.core import _snapshot_workspace
 FAILED = "FailedAttemptTree"
 FIXUP = "ContractFixup"
 KINDS = {"target_mismatch", "patch_hygiene"}
+OVERLOAD_KIND = "provider_overloaded"
+OVERLOAD_FEEDBACK = ("The provider was at capacity and your previous turn was cut off. Your workspace "
+                     "already contains that attempt's changes: continue from them, do not start over.")
+
+
+def attempt_worktree(store, task):
+    """The failed execution's own worktree (event or durable run), or None."""
+    paths = set()
+    for event in store.get_events(task.id):
+        metadata = event.metadata if isinstance(event.metadata, dict) else {}
+        if (event.type == "WORKSPACE_READY" and metadata.get("execution_id") == task.execution_id
+                and isinstance(metadata.get("workspace"), str)):
+            paths.add(metadata["workspace"])
+    rows = store._conn.execute("SELECT worktree_path FROM durable_runs WHERE task_id=? AND execution_id=?",
+                               (task.id, task.execution_id)).fetchall()
+    paths.update(row["worktree_path"] for row in rows if row["worktree_path"])
+    if len(paths) != 1:
+        return None
+    path = Path(next(iter(paths)))
+    return path.resolve() if path.is_dir() else None
+
+
+def retain_interrupted_tree(store, task_id, *, worktree):
+    """Keep an overload-interrupted attempt's tree as unaccepted recovery evidence."""
+    task = store.get_task(task_id)
+    contract = load_contract(task)
+    if contract is None or task.status != "FAILED":
+        raise TaskStoreError("interrupted_snapshot_unavailable")
+    root = Path(worktree).resolve(strict=True)
+    from .repository_workspace import resolve_repository_workspace
+    source = resolve_repository_workspace(task.repository).repo_dir
+    if (git_output(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+            != git_output(source, "rev-parse", "--path-format=absolute", "--git-common-dir")):
+        raise TaskStoreError("failed_snapshot_repository_mismatch")
+    base = contract["base_commit"]
+    head = git_output(root, "rev-parse", "HEAD")
+    if git_output(root, "merge-base", base, head) != base:
+        raise TaskStoreError("failed_snapshot_base_mismatch")
+    _, tree, changed, hygiene = _snapshot_workspace(root, base)
+    if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", value) for value in (task.id, task.execution_id)):
+        raise TaskStoreError("failed_snapshot_identity_invalid")
+    ref = f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"
+    document = {"task_id": task.id, "execution_id": task.execution_id, "repository": task.repository,
+        "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
+        "base_commit": base, "head": head, "tree": tree, "ref": ref,
+        "contract_digest": digest(contract), "result_digest": "",
+        "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
+        "feedback": OVERLOAD_FEEDBACK, "changed_paths": list(changed), "hygiene": hygiene}
+    previous = _load_evidence(task, FAILED, task.execution_id)
+    if previous is not None:
+        if previous != document:
+            raise TaskStoreError("failed_snapshot_conflict")
+        return previous
+    found = subprocess.run(["git", "-C", str(root), "show-ref", "--verify", "--hash", ref],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    if found.returncode == 0:
+        if found.stdout.strip() != tree:
+            raise TaskStoreError("failed_snapshot_ref_mismatch")
+    else:
+        git_output(root, "update-ref", ref, tree, "0" * 40)
+    store._bind_artifact_evidence(task.id, category=FAILED, label=task.execution_id, document=document)
+    return document
 
 
 def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
@@ -71,6 +133,15 @@ def failed_snapshot(task, *, root):
             or value.get("contract_digest") != digest(contract)
             or value.get("ref") != f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"):
         raise TaskStoreError("failed_snapshot_identity_mismatch")
+    if value.get("failure_kind") == OVERLOAD_KIND:
+        # No validation ran: the interrupted attempt is bound to its own failure instead.
+        if (task.status != "FAILED" or value.get("result_digest") != ""
+                or value.get("failure_classification") != task.failure_classification):
+            raise TaskStoreError("failed_snapshot_stale")
+        if (git_output(root, "rev-parse", value["ref"]) != value["tree"]
+                or git_output(root, "cat-file", "-t", value["tree"]) != "tree"):
+            raise TaskStoreError("failed_snapshot_ref_mismatch")
+        return value
     from .functional_validation import RESULT_CATEGORY
     results = [row for row in task.evidence_refs if row.get("category") == RESULT_CATEGORY]
     if not results or results[-1].get("value") != value["result_digest"]:
