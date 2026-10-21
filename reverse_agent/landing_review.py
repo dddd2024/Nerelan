@@ -153,10 +153,10 @@ def _carry_git(*args: str) -> bytes:
 
 
 def _excluded_carry_path(path: bytes) -> bool:
-    return (path in {b"AGENTS.md", b"reverse_agent/landing_review.py", b"pyproject.toml",
-                     b"frontend/package.json", b"frontend/package-lock.json"}
-            or path.startswith((b"docs/agents/", b".github/workflows/"))
-            or (path.startswith(b"requirements") and path.endswith(b".txt")))
+    # Owner decision 2026-10-21 (#1310, Governance v2.1 C): other R2 paths may
+    # carry over pure merge-main steps; these three never do.
+    return (path in {b"AGENTS.md", b"reverse_agent/landing_review.py"}
+            or path.startswith(b".github/workflows/"))
 
 
 def _carry_diff(main: str, head: str) -> tuple[bytes, frozenset[bytes]]:

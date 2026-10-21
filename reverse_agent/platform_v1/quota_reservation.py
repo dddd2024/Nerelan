@@ -15,6 +15,22 @@ from ..model_access import pricing
 
 
 DEFAULT_PRIOR = {"input": 12000, "cache_read": 12000, "output": 4000, "turn_count": 4}
+# Conservative percentage-point need for an account with no measured
+# units-per-percent yet (#1281 "conservative prior with a wide band").
+UNCALIBRATED_WINDOW_NEED = {"five_hour": {"median": 15.0, "p80": 30.0},
+                            "weekly": {"median": 3.0, "p80": 6.0}}
+_WINDOW_NAMES = {"five_hour": "five_hour", "5 hours": "five_hour", "5h": "five_hour", "5-hour": "five_hour",
+                 "weekly": "weekly", "7 days": "weekly", "7d": "weekly", "week": "weekly"}
+
+
+def canonical_window(name: Any) -> Any:
+    """Observation sources name windows differently ("5 hours", "7 days"); admission needs one name."""
+    return _WINDOW_NAMES.get(str(name).strip().lower(), name) if name is not None else name
+
+
+def _canonical_windows(windows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    return [dict(w, window=canonical_window(w.get("window", w.get("name")))) for w in windows
+            if isinstance(w, Mapping)]
 
 
 def _number(value: Any) -> bool:
@@ -49,7 +65,8 @@ def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
             known = rank > 0 and bool(item.get("windows")) and item.get("state") != "UNKNOWN"
             fresh = known and at is not None and 0 <= now - at <= freshness
             result.append((fresh, rank if known else 0, at if at is not None else -math.inf,
-                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh))))
+                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh),
+                                windows=_canonical_windows(item.get("windows") or ()))))
         return result
 
     choices = normalize(candidates)
@@ -114,13 +131,20 @@ def window_need(need: Mapping[str, Any], account_ref: str,
                 calibrations: Mapping[str, Mapping[str, float]]) -> dict[str, Any]:
     """Convert measured price units per percentage point, independently per account/window."""
     account = calibrations.get(account_ref, {})
-    windows = {}
+    account = {canonical_window(name): rate for name, rate in account.items()}
+    windows, prior = {}, []
     for window in ("five_hour", "weekly"):
         rate = account.get(window)
-        windows[window] = {q: units / rate if _number(rate) and rate > 0 and _number(units) else None
-                           for q, units in need["units"].items()}
+        if _number(rate) and rate > 0:
+            windows[window] = {q: units / rate if _number(units) else None for q, units in need["units"].items()}
+        else:
+            # Uncalibrated account: a wide conservative prior instead of an unknown need,
+            # so a fresh observation can still admit work (never an indefinite hold).
+            windows[window] = dict(UNCALIBRATED_WINDOW_NEED[window])
+            prior.append(window)
     return {"account_ref": account_ref, "windows": windows, "estimate": dict(need), "calibration": dict(account),
-            "uncertain": need["uncertain"] or any(v is None for w in windows.values() for v in w.values())}
+            "prior_windows": prior,
+            "uncertain": need["uncertain"] or bool(prior) or any(v is None for w in windows.values() for v in w.values())}
 
 
 def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
@@ -137,8 +161,10 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
     selected = observation(account, [evidence], clock=lambda: now,
                            freshness=freshness, small_task=small_task)
     waits = []
-    windows = {w.get("window", w.get("name")): w for w in evidence.get("windows", ())}
+    windows = {w["window"]: w for w in _canonical_windows(evidence.get("windows", ()))}
     observed = quota_forecast.parse_time(selected.get("observed_at"))
+    provider_reported = (selected.get("source") in {"magpie", "official", "cli", "claude_rate_limit_event"}
+                         or selected.get("provenance") == "OFFICIAL_VIA_CLI")
     uncertain = not selected["fresh"]
     for name in ("five_hour", "weekly"):
         window = windows.get(name, {})
@@ -161,7 +187,11 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
             if row.get("state") == "UNKNOWN" or row.get("quota_state") == "UNKNOWN":
                 uncertain = True
             completed = quota_forecast.parse_time(row.get("reconciled_at"))
-            if row.get("state") not in {"ACTIVE", "UNKNOWN"} and row.get("quota_state") != "UNKNOWN" and completed is not None and observed is not None and completed < observed:
+            finished = row.get("state") != "ACTIVE" and completed is not None and observed is not None and completed < observed
+            if finished and (provider_reported or (row.get("state") != "UNKNOWN" and row.get("quota_state") != "UNKNOWN")):
+                # A provider-reported percentage taken after completion already
+                # counts that task's spend, measured or not; holding its estimate
+                # as well would double-book and eventually stall the account.
                 continue
             amount = row.get("actual_windows", {}).get(name) if row.get("state") not in {"ACTIVE", "UNKNOWN"} else None
             details = row.get("actual_observations", [])
@@ -212,9 +242,71 @@ def settlement(observations, estimate, *, usage_unknown):
                             if o.get("cost_micro_units") is not None and _number(rate) and rate > 0 else None
                             for name, rate in estimate.get("calibration", {}).items()}}
                for o in observations]
+    # List-price equivalent of the measured tokens: the same units as the need
+    # estimate, used only for delta calibration (never reported as spend).
+    model = (estimate.get("estimate") or {}).get("model")
+    priced = {name: counters[name] for name in ("input", "cache_read", "output")}
+    price_units = None
+    if model and not usage_unknown and all(v is not None for v in priced.values()):
+        price_units = pricing.equivalent_cost(model, priced).get("usd")
     return {"state": "UNKNOWN" if usage_unknown or not actual or any(v is None for v in actual.values()) else "ESTIMATED",
-            "tokens": counters, "turn_count": turns, "cost_units": cost, "actual_windows": actual,
+            "tokens": counters, "turn_count": turns, "cost_units": cost, "price_units": price_units,
+            "actual_windows": actual,
             "observation_ids": [o["id"] for o in observations], "actual_observations": details, "estimate": estimate}
+
+
+DELTA_SAMPLES = 5  # recent per-window samples whose median is the calibrated rate
+
+
+def delta_calibration(task_id, before, after, settlements):
+    """Conservative units-per-percent from one isolated task's provider-reported delta (#1313 B).
+
+    ``before`` is the task's own admission observation and ``after`` a later fresh
+    provider-reported one. The account delta may include usage outside Nerelan, so
+    the rate is a lower bound (need is overestimated, never underestimated); one
+    extra percentage point absorbs integer rounding. Any other reservation on the
+    account overlapping the interval, a reset, a missing count or no increase
+    yields nothing.
+    """
+    start = quota_forecast.parse_time(before.get("observed_at"))
+    end = quota_forecast.parse_time(after.get("observed_at"))
+    account = after.get("account_ref")
+    provider = {"official", "magpie", "cli", "claude_rate_limit_event"}
+    # Both ends must be provider readings: an estimated start could overstate usage
+    # and shrink the delta, which would make the rate optimistic.
+    if (before.get("account_ref") != account or start is None or end is None or start >= end
+            or any(o.get("source") not in provider or o.get("state") == "UNKNOWN" for o in (before, after))):
+        return {}
+    own = [r for r in settlements if r.get("task_id") == task_id and r.get("account_ref") == account]
+    if len(own) != 1:
+        return {}
+    row = own[0]
+    created = quota_forecast.parse_time(row.get("created_at"))
+    finished = quota_forecast.parse_time(row.get("reconciled_at"))
+    units = (row.get("settlement") or {}).get("price_units")
+    if (row.get("state") == "ACTIVE" or created is None or finished is None or not start <= created < finished < end
+            or not _number(units) or units <= 0):
+        return {}
+    for other in settlements:
+        if other is row or other.get("account_ref") != account:
+            continue
+        o_start = quota_forecast.parse_time(other.get("created_at"))
+        o_end = quota_forecast.parse_time(other.get("reconciled_at"))
+        if o_start is None or (o_start < end and (o_end is None or o_end > start)):
+            return {}  # another task spent on this account inside the interval
+    old = {w["window"]: w for w in _canonical_windows(before.get("windows", ()))}
+    result = {}
+    for window in _canonical_windows(after.get("windows", ())):
+        name = window["window"]
+        previous = old.get(name, {})
+        used, prior_used = window.get("used_percent"), previous.get("used_percent")
+        reset_raw = window.get("resets_at")
+        reset = float(reset_raw) if _number(reset_raw) else quota_forecast.parse_time(reset_raw)
+        if (name in {"five_hour", "weekly"} and reset is not None and reset > end
+                and window.get("resets_at") == previous.get("resets_at")
+                and _number(used) and _number(prior_used) and used > prior_used):
+            result[name] = units / (used - prior_used + 1)
+    return result
 
 
 def attributable_calibration(before, after, settlements):

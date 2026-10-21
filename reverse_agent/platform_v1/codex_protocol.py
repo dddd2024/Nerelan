@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping
 
+from .model_availability import OVERLOADED, provider_overloaded
 from .opencode_executor import redact_event, redact_secrets
 from .task_runtime import ExecutorRuntimeError
 
@@ -209,6 +210,8 @@ class CodexJsonl:
                 detail = self._error_detail if self._error_fresh else ""
                 if usage_limit_hit(detail):
                     self._publish_failure(self._limit_classification, detail)
+                elif provider_overloaded(detail):
+                    self._publish_failure(OVERLOADED, detail)
                 else:
                     self._publish_failure("codex_turn_failed", detail)
                 return self.turn
@@ -279,6 +282,8 @@ class CodexJsonl:
                 detail = terminal or (self._error_detail if self._error_fresh else "")
                 if detail and usage_limit_hit(detail):
                     self._publish_failure(self._limit_classification, detail, terminal=terminal)
+                elif detail and provider_overloaded(detail):
+                    self._publish_failure(OVERLOADED, detail, terminal=terminal)
                 else:
                     self._publish_failure("codex_turn_failed", detail, terminal=terminal)
             else:

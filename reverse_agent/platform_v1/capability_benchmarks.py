@@ -57,15 +57,15 @@ _DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
 # Families the snapshot must cover (issue 1264 item 6). Scores are compiled from
 # linked public pages and reviewed as a PR; an empty list means needs_benchmark.
 SEED_FAMILIES: dict[str, list[str]] = {
-    'deepseek-v4.1-flash': ['deepseek-v4.1-flash'],
+    'deepseek-v4.1-flash': ['deepseek-v4.1-flash', 'deepseek-v4.1-flash-free', 'deepseek-v4.1-flash-sg', 'auto-deepseek-v4-1-flash', 'sn-deepseek-v4-1-flash'],
     'deepseek-v4-pro': ['deepseek-v4-pro', 'workbuddy/deepseek-v4-pro', 'trae-cn/deepseek-v4-pro-official'],
-    'glm-5.3': ['glm-5.3', 'workbuddy/glm-5.3'],
-    'glm-5.2': ['glm-5.2', 'workbuddy/glm-5.2', 'workbuddy-ai/glm-5.2', 'z-ai/glm-5.2'],
-    'kimi-k3': ['kimi-k3'],
+    'glm-5.3': ['glm-5.3', 'workbuddy/glm-5.3', 'auto-glm-5-3', 'sn-glm-5-3', 'glm-5.3-max'],
+    'glm-5.2': ['glm-5.2', 'workbuddy/glm-5.2', 'workbuddy-ai/glm-5.2', 'z-ai/glm-5.2', 'auto-glm-5-2', 'glm-5.2-max'],
+    'kimi-k3': ['kimi-k3', 'auto-kimi-k3', 'sn-kimi-k3'],
     'kimi-k2.7-code': ['kimi-k2.7-code'],
-    'minimax-m3': ['minimax-m3'],
+    'minimax-m3': ['minimax-m3', 'auto-minimax-m3'],
     'doubao-seed-code': ['doubao-seed-code'],
-    'gpt-6.1-sol': ['gpt-6.1-sol'],
+    'gpt-6.1-sol': ['gpt-6.1-sol', 'auto-gpt-6-1-sol'],
     'gpt-5.6-luna': ['gpt-5.6-luna'],
     'gpt-4.1': ['gpt-4.1', 'copilot/gpt-4.1'],
     'claude-opus': ['claude-opus'],

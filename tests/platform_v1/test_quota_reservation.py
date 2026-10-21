@@ -122,7 +122,16 @@ def test_completed_usage_is_not_counted_twice_but_unknown_is_retained():
     row = {"account_ref": "a", "quota_windows": {"five_hour": 50, "weekly": 50},
            "state": "RECONCILED", "reconciled_at": "1970-01-01T00:16:39Z"}
     assert reservation.admission(quota_evidence(), quota_need(30), [row], now=1000)["decision"] == "ok"
-    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    # Unknown spend stays held against an estimate taken after completion ...
+    estimated = dict(quota_evidence(), source="estimated")
+    assert reservation.admission(estimated, quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    assert reservation.admission(estimated, quota_need(30), [dict(row, quota_state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    # ... but a provider-reported percentage taken after completion already includes it.
+    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "ok"
+    # Before completion (or still running) it is always held.
+    late = dict(row, state="UNKNOWN", reconciled_at="1970-01-01T00:16:41Z")
+    assert reservation.admission(quota_evidence(), quota_need(30), [late], now=1000)["decision"] == "quota_wait"
+    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="ACTIVE")], now=1000)["decision"] == "quota_wait"
 
 
 def test_atomic_account_reservation_separate_connections(tmp_path):
@@ -294,7 +303,9 @@ def test_settled_actual_is_held_until_later_observation():
         "actual_windows": {"five_hour": 65, "weekly": 65}}
     assert reservation.admission(quota_evidence(), quota_need(10), [row], now=1000)["decision"] == "quota_wait"
     assert reservation.admission(quota_evidence(now=1002), quota_need(10), [row], now=1002)["decision"] == "ok"
-    assert reservation.admission(quota_evidence(now=1002), quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "quota_wait"
+    later_estimate = dict(quota_evidence(now=1002), source="estimated")
+    assert reservation.admission(later_estimate, quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "quota_wait"
+    assert reservation.admission(quota_evidence(now=1002), quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "ok"
 
 
 def test_calibration_requires_explicit_attribution_and_stable_window():
@@ -434,3 +445,194 @@ def test_goal_fit_demand_exceeding_a_whole_window_needs_another_model():
     result = reservation.goal_fit([forecast_task("T1", 50), forecast_task("T2", 50)],
                                   {"a": quota_evidence()}, now=1000)
     assert result["status"] == "needs_another_model"
+
+
+def magpie_codex(now, used=9, weekly=22):
+    # Shape produced by subscription_quota.magpie_quota_windows (2026-10-21 live snapshot).
+    return {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie", "observed_at": now - 300,
+            "account_ref": "acct", "windows": [
+                {"window": "5 hours", "basis": "official_percent", "used_percent": used, "resets_at": now + 3600},
+                {"window": "7 days", "basis": "official_percent", "used_percent": weekly, "resets_at": now + 86400}]}
+
+
+def uncalibrated_need():
+    need = estimate(history())
+    return reservation.window_need(dict(need, units={"median": 2, "p80": 4}), "acct", {})
+
+
+def test_real_window_names_and_uncalibrated_prior_admit_fresh_headroom():
+    now = 10_000
+    selected = reservation.observation("acct", [magpie_codex(now)], clock=lambda: now)
+    assert [w["window"] for w in selected["windows"]] == ["five_hour", "weekly"]
+    need = uncalibrated_need()
+    assert need["windows"] == reservation.UNCALIBRATED_WINDOW_NEED
+    assert need["prior_windows"] == ["five_hour", "weekly"] and need["uncertain"]
+    verdict = reservation.admission(magpie_codex(now), need, now=now)
+    assert verdict["decision"] == "ok", verdict
+
+
+def test_uncalibrated_prior_still_holds_near_exhaustion_and_stale_evidence():
+    now = 10_000
+    need = uncalibrated_need()
+    assert reservation.admission(magpie_codex(now, used=70), need, now=now)["blocking_windows"] == ["five_hour"]
+    assert reservation.admission(magpie_codex(now, weekly=90), need, now=now)["blocking_windows"] == ["weekly"]
+    stale = dict(magpie_codex(now), observed_at=now - 3600)
+    assert reservation.admission(stale, need, now=now)["decision"] == "quota_wait"
+
+
+def test_calibration_keyed_by_source_window_name_is_used():
+    need = dict(estimate(history()), units={"median": 2, "p80": 4}, uncertain=False)
+    converted = reservation.window_need(need, "a", {"a": {"5 hours": 2, "7 days": 4}})
+    assert converted["windows"] == {"five_hour": {"median": 1, "p80": 2}, "weekly": {"median": .5, "p80": 1}}
+    assert converted["prior_windows"] == [] and not converted["uncertain"]
+
+
+def _quota_host(monkeypatch, provider, quotas, account_ref=None):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    connection = {"connection_id": "conn", "executor_provider_id": provider,
+                  "auth_method": "external_cli_session", "account_ref": account_ref}
+    calls = []
+    host._store = SimpleNamespace(
+        list_bindings_public=lambda: [{"binding_id": "bind", "connection_id": "conn", "model_id": "gpt-6.1-sol"}],
+        get_connection_public=lambda _id: connection)
+    host._task_store = SimpleNamespace()
+    host._control_store = SimpleNamespace(quota_calibration=lambda account: {},
+        prepare_quota_admission=lambda **kw: calls.append(kw))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: quotas, raising=False)
+    import reverse_agent.platform_v1.usage_ledger as ledger
+    monkeypatch.setattr(ledger, "estimation_records", lambda store: [])
+    task = SimpleNamespace(id="t", binding_ref="bind", executor_kind="codex", kind="code", difficulty=3)
+    host._prepare_task_quota(task)
+    return calls
+
+
+def test_host_adopts_provider_observation_for_its_own_cli_login(monkeypatch):
+    import time
+    now = time.time()
+    calls = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now), "claude-code": dict(magpie_codex(now), used=99)})
+    [call] = calls
+    assert call["account_ref"] == "conn" and call["evidence"]["account_ref"] == "conn"
+    assert call["evidence"]["fresh"]
+    assert reservation.admission(call["evidence"], call["need"])["decision"] == "ok"
+
+
+def test_host_keeps_explicit_account_identity_and_skips_quota_less_sessions(monkeypatch):
+    import time
+    now = time.time()
+    [call] = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now)}, account_ref="other-account")
+    assert not call["evidence"]["fresh"]  # another account's observation is never this account's evidence
+    assert _quota_host(monkeypatch, "ai", {"codex": magpie_codex(now)}) == []
+
+
+def test_uncalibrated_account_keeps_admitting_sequential_tasks():
+    # Review B1 on #1307: settled uncalibrated tasks (quota_state UNKNOWN) must not pile up.
+    now = 10_000
+    need = uncalibrated_need()
+    settled = []
+    for step in range(6):
+        observed = now + step * 600
+        evidence = dict(magpie_codex(observed), observed_at=observed - 60)
+        verdict = reservation.admission(evidence, need, settled, now=observed)
+        assert verdict["decision"] == "ok", (step, verdict)
+        settled.append({"account_ref": "acct", "state": "UNKNOWN", "quota_state": "UNKNOWN",
+                        "quota_windows": {"five_hour": 30.0, "weekly": 6.0},
+                        "reconciled_at": quota_forecast_iso(observed + 300)})
+    # The latest task finished after the last observation: it is still held.
+    held = reservation.admission(dict(magpie_codex(now, used=50), observed_at=now + 5 * 600 - 60),
+                                 need, settled, now=now + 5 * 600)
+    assert held["decision"] == "quota_wait"
+
+
+def quota_forecast_iso(at):
+    from reverse_agent.model_access import quota_forecast
+    return quota_forecast.iso(at)
+
+
+def _iso(at):
+    from reverse_agent.model_access import quota_forecast
+    return quota_forecast.iso(at)
+
+
+def _magpie(at, five, weekly, reset=50_000):
+    return {"account_ref": "acct", "source": "magpie", "state": "OBSERVED", "observed_at": _iso(at),
+            "windows": [{"window": "5 hours", "used_percent": five, "resets_at": _iso(reset)},
+                        {"window": "7 days", "used_percent": weekly, "resets_at": _iso(reset * 10)}]}
+
+
+def _settled(task_id, created, finished, units=0.8, state="UNKNOWN"):
+    return {"task_id": task_id, "account_ref": "acct", "state": state, "created_at": _iso(created),
+            "reconciled_at": _iso(finished) if finished else "", "settlement": {"price_units": units}}
+
+
+def test_settlement_prices_measured_tokens_in_need_units():
+    obs = [{"id": "o", "status": "PARTIAL", "source_kind": "native_summary", "input_units": 121186,
+            "cache_read_units": 3238400, "cache_write_units": None, "output_units": 21972,
+            "reasoning_units": None, "cost_micro_units": None}]
+    estimate = {"estimate": {"model": "gpt-6.1-sol"}, "calibration": {}}
+    fact = reservation.settlement(obs, estimate, usage_unknown=False)
+    assert fact["cost_units"] is None and fact["price_units"] > 0  # never reported as spend
+    assert reservation.settlement(obs, estimate, usage_unknown=True)["price_units"] is None
+    missing = [dict(obs[0], output_units=None)]
+    assert reservation.settlement(missing, estimate, usage_unknown=False)["price_units"] is None
+
+
+def test_isolated_task_delta_gives_a_conservative_rate():
+    # 2026-10-21 shape: admitted at 52%/28%, next fresh Magpie reading 74%/32%.
+    rows = [_settled("t", 1010, 1500, units=0.786)]
+    rates = reservation.delta_calibration("t", _magpie(1000, 52, 28), _magpie(2000, 74, 32), rows)
+    assert rates == pytest.approx({"five_hour": 0.786 / 23, "weekly": 0.786 / 5})
+
+
+@pytest.mark.parametrize("change", ["overlap", "running_overlap", "reset", "no_increase", "estimated_after",
+                                    "estimated_before", "unknown_before",
+                                    "started_before", "finished_after", "no_units", "active"])
+def test_delta_calibration_refuses_unattributable_intervals(change):
+    before, after = _magpie(1000, 52, 28), _magpie(2000, 74, 32)
+    rows = [_settled("t", 1010, 1500)]
+    if change == "overlap":
+        rows.append(_settled("other", 1400, 1600))
+    elif change == "running_overlap":
+        rows.append(_settled("other", 1200, None, state="ACTIVE"))
+    elif change == "reset":
+        after = _magpie(2000, 74, 32, reset=60_000)
+    elif change == "no_increase":
+        after = _magpie(2000, 52, 28)
+    elif change == "estimated_after":
+        after = dict(after, source="estimated")
+    elif change == "estimated_before":
+        before = dict(before, source="estimated")  # review B1: an overstated start shrinks the delta
+    elif change == "unknown_before":
+        before = dict(before, state="UNKNOWN")
+    elif change == "started_before":
+        rows = [_settled("t", 900, 1500)]
+    elif change == "finished_after":
+        rows = [_settled("t", 1010, 2500)]
+    elif change == "no_units":
+        rows = [_settled("t", 1010, 1500, units=None)]
+    elif change == "active":
+        rows = [_settled("t", 1010, 1500, state="ACTIVE")]
+    assert reservation.delta_calibration("t", before, after, rows) == {}
+
+
+def test_control_store_learns_each_task_once_and_uses_the_median(tmp_path, monkeypatch):
+    import json
+    store, control, _ = settled_store(tmp_path, monkeypatch)
+    conn = store._conn
+    for index, (task_id, used_before, used_after) in enumerate((("t1", 10, 20), ("t2", 20, 26), ("t3", 26, 40))):
+        task = store.create_task(title=task_id, executor_kind="codex", binding_ref="b")
+        start = 1000 + index * 1000
+        conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,"
+                     "need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
+                     (task.id, "b", "acct", json.dumps(_magpie(start, used_before, 1)), "{}", 0, 10))
+        rows = [dict(_settled(task.id, start + 10, start + 500, units=1.0))]
+        after = _magpie(start + 900, used_after, 1)
+        with control._lock, conn:
+            control._delta_calibrate_locked("acct", after, rows)
+            control._delta_calibrate_locked("acct", after, rows)  # replay learns nothing new
+    rates = control.quota_calibration("acct")
+    # Samples 1/11, 1/7, 1/15 per pp: the median is used, weekly saw no increase.
+    assert rates == pytest.approx({"five_hour": 1 / 11})
+    evidence = json.loads(conn.execute("SELECT evidence_json FROM platform_quota_calibrations").fetchone()[0])
+    assert len(evidence["delta_samples"]["five_hour"]) == 3 and evidence["basis"] == "provider_delta_lower_bound"

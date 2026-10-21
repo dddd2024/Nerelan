@@ -96,9 +96,11 @@ class CombinedTrustedHost:
         vault: Any = _PLATFORM_VAULT,
         local_client_session: LocalClientSession | None = None,
         magpie_factory: Callable | None = None,
+        landing_owner_decisions: Callable | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
+        self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
         self._reset_signal_reader = reset_signal_reader
         self._availability_probe = availability_probe
         task_store = task_store or _make_task_store(task_db_path)
@@ -754,7 +756,7 @@ class CombinedTrustedHost:
         for window in evidence.get("windows", ()):
             capacity = (window.get("capacity_units") or {}).get("low")
             if quota_reservation._number(capacity) and capacity > 0:
-                rates[window["window"]] = capacity / 100
+                rates[quota_reservation.canonical_window(window["window"])] = capacity / 100
         return quota_reservation.window_need(need, account, {account: rates})
 
     def _goal_quota_fit(self, goal, tasks):
@@ -861,13 +863,23 @@ class CombinedTrustedHost:
         connection = self._store.get_connection_public(binding["connection_id"])
         if connection.get("auth_method") != "external_cli_session":
             return
+        from ..model_access.contracts import NATIVE_CLI_PROVIDERS
+        provider = connection.get("executor_provider_id")
+        if provider not in NATIVE_CLI_PROVIDERS:
+            return  # no account quota windows exist for this session (e.g. a free OpenCode login)
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)
             quotas = self._subscription_quotas()
-            # A provider summary for another account is never account evidence.
-            return [q for q in quotas.values() if q.get("account_ref") == account]
-        evidence = quota_reservation.observation(account, read(account), refresh=read, clock=time.time)
+            # A provider summary for another account is never account evidence. A
+            # connection without a recorded account is the machine's own CLI login,
+            # which is exactly what the provider-keyed observation describes.
+            own = quotas.get(provider)
+            if not connection.get("account_ref") and isinstance(own, Mapping):
+                own = dict(own, account_ref=account)
+            return [q for q in (own, *(v for k, v in quotas.items() if k != provider))
+                    if isinstance(q, Mapping) and q.get("account_ref") == account]
+        evidence = quota_reservation.observation(account, read(account), refresh=read)
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
@@ -1195,11 +1207,18 @@ class CombinedTrustedHost:
             if live_github is None:
                 live_github = LiveGitHubAdapter()
             self._publication_controller = PublicationController(
+                landing_decisions=self._landing_owner_decisions,
                 store=self._task_store,
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
             )
             workspace_root = self._task_workspace_root()
+            from .landing_loop import LandingLoopController
+            from .live_landing import RoutedLandingGitHubAdapter
+            landing = LandingLoopController(control_store=self._control_store,
+                autonomy=self._autonomy_service,
+                github=RoutedLandingGitHubAdapter(self._control_store),
+                owner_decisions=self._landing_owner_decisions)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -1212,6 +1231,7 @@ class CombinedTrustedHost:
                 planning_sha=self._planning_sha,
                 goal_escalator=self._goal_service.escalate_failed_tasks,
                 quota_preparer=self._prepare_task_quota,
+                landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(
                 self._task_store,
