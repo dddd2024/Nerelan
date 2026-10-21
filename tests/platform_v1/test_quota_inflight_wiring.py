@@ -619,6 +619,39 @@ def test_coordinator_restart_readmits_saved_native_work_with_new_reservation(res
         r.store._conn.close()
 
 
+def test_quota_parked_goal_is_stranded_then_rebound_and_resumed_in_a_new_window(reserved, monkeypatch):
+    n = reserved
+    park_for_resume(n, monkeypatch)
+    r = coordinator_recovery(n, monkeypatch)
+    launches, _ = resume_transport(n, r, monkeypatch)
+    try:
+        # The quota reset outlives the window: the parked Goal must surface and move, not freeze.
+        r.store._conn.execute("UPDATE platform_autonomous_windows SET status='EXPIRED' WHERE id=?", (n.window.id,))
+        stranded = r.control.stranded_goals()
+        assert [(g["goal_id"], g["quota_wait"]) for g in stranded] == [(r.goal.id, 1)]
+        repositories = sorted({r.goal.repository, n.task.repository})
+        successor = r.control.activate_window({
+            "window_id": "quota-window-2", "policy_id": "fake-successor", "policy_revision": 1,
+            "owner_identity": "test", "starts_at": "2020-01-01T00:00:00Z",
+            "expires_at": "2099-01-01T00:00:00Z", "repositories": repositories,
+            "capabilities": ["execute_task", "resume_task"], "max_concurrent_tasks": 1, "max_tasks": 5,
+            "max_retries": 5,
+        }, confirmation="ACTIVATE")
+        # The window ends long after the paused attempt's durable lease (5 minutes).
+        monkeypatch.setattr(run_store.time, "time", lambda: 1_800_000_400.0)
+        rebound = r.control.rebind_goal_to_window(r.goal.id, window_id=successor.id)
+        assert [(t["task_id"], t["status"], t["operation"]) for t in rebound["tasks"]] == [
+            (n.task.id, "QUOTA_WAIT", "resume_task")]
+        assert r.control.stranded_goals() == ()
+        assert r.coordinator.tick() == 1, (r.coordinator._last_error, r.coordinator._last_batch)
+        assert len(launches) == 1
+        assert r.store._conn.execute(
+            "SELECT window_id FROM platform_budget_reservations WHERE task_id=? AND claim_epoch=2",
+            (n.task.id,)).fetchone()[0] == successor.id
+    finally:
+        r.store._conn.close()
+
+
 @pytest.mark.parametrize("refusal", ["missing", "tampered", "unknown", "cached", "authority", "binding", "no_model"])
 def test_coordinator_quota_recovery_stays_parked_without_proof_or_authority(reserved, monkeypatch, refusal):
     n = reserved

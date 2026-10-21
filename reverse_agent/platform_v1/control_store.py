@@ -44,7 +44,7 @@ USAGE_ENFORCEMENT_CLASSES = frozenset(
 )
 PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
 # Tasks a window rebind may move (#1277); terminal tasks keep their original window.
-REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED"})
+REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED", "QUOTA_WAIT"})
 TERMINAL_TASK_STATES = frozenset(
     {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED", "CANCELLED"}
 )
@@ -1185,7 +1185,7 @@ class PlatformControlStore:
                                   (task.id, now_ms)).fetchone() is not None:
                 raise TaskStoreError("goal_task_claim_live")
             operation = task_operation(task)
-            if task.status == "INTERRUPTED" and operation != "validate_task":
+            if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
             if operation not in window.capabilities:
                 raise TaskStoreError(f"rebind_window_missing_{operation}_capability")
@@ -1274,12 +1274,13 @@ class PlatformControlStore:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT g.id AS goal_id, g.title, g.window_id, COALESCE(w.status, 'MISSING') AS window_status, "
-                "SUM(t.status = 'QUEUED') AS queued, SUM(t.status = 'INTERRUPTED') AS interrupted "
+                "SUM(t.status = 'QUEUED') AS queued, SUM(t.status = 'INTERRUPTED') AS interrupted, "
+                "SUM(t.status = 'QUOTA_WAIT') AS quota_wait "
                 "FROM platform_goals g "
                 "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                 "JOIN tasks t ON t.id = l.task_id "
                 "LEFT JOIN platform_autonomous_windows w ON w.id = g.window_id "
-                "WHERE g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED') "
+                "WHERE g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT') "
                 "AND (w.id IS NULL OR w.status <> 'ACTIVE' OR julianday(w.expires_at) <= julianday(?)) "
                 "GROUP BY g.id ORDER BY g.created_at ASC LIMIT ?",
                 (now, max(1, min(limit, 500)))).fetchall()
