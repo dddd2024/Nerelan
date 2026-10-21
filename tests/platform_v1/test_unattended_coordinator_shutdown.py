@@ -299,3 +299,29 @@ def test_default_reconcile_interval_is_bounded_below_by_poll_interval(tmp_path):
         assert coordinator.reconcile_interval == 60.0
     finally:
         store._conn.close()
+
+
+def test_failing_periodic_reconcile_never_ends_the_coordinator_loop(tmp_path):
+    store, _control, coordinator, _task_id = _runtime_with_one_task(tmp_path)
+    coordinator.poll_interval = coordinator.reconcile_interval = 0.1
+    ticks = []
+    ticked = threading.Event()
+    calls = []
+    def reconcile():
+        calls.append(1)
+        if len(calls) > 1:
+            raise RuntimeError("durable service unavailable")
+        return ()
+    def tick(*, background=False):
+        ticks.append(1)
+        if len(ticks) >= 3:
+            ticked.set()
+        return 0
+    coordinator.reconcile, coordinator.tick = reconcile, tick
+    try:
+        coordinator.start()
+        assert ticked.wait(5), (calls, ticks)
+        assert len(calls) >= 2  # the loop survived failing reconciles and kept ticking
+    finally:
+        coordinator.stop()
+        store._conn.close()

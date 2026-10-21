@@ -709,7 +709,10 @@ class UnattendedCoordinator:
             while not self._stop.is_set():
                 if time.monotonic() - reconciled_at >= self.reconcile_interval:
                     reconciled_at = time.monotonic()
-                    self.reconcile()
+                    try:
+                        self.reconcile()
+                    except Exception as exc:  # a reconcile fault must not stop dispatch
+                        self._last_error = f"reconcile_failed:{type(exc).__name__}"
                 try:
                     self.tick(background=True)
                 except Exception as exc:
