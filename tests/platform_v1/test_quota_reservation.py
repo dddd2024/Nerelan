@@ -122,7 +122,16 @@ def test_completed_usage_is_not_counted_twice_but_unknown_is_retained():
     row = {"account_ref": "a", "quota_windows": {"five_hour": 50, "weekly": 50},
            "state": "RECONCILED", "reconciled_at": "1970-01-01T00:16:39Z"}
     assert reservation.admission(quota_evidence(), quota_need(30), [row], now=1000)["decision"] == "ok"
-    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    # Unknown spend stays held against an estimate taken after completion ...
+    estimated = dict(quota_evidence(), source="estimated")
+    assert reservation.admission(estimated, quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    assert reservation.admission(estimated, quota_need(30), [dict(row, quota_state="UNKNOWN")], now=1000)["decision"] == "quota_wait"
+    # ... but a provider-reported percentage taken after completion already includes it.
+    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="UNKNOWN")], now=1000)["decision"] == "ok"
+    # Before completion (or still running) it is always held.
+    late = dict(row, state="UNKNOWN", reconciled_at="1970-01-01T00:16:41Z")
+    assert reservation.admission(quota_evidence(), quota_need(30), [late], now=1000)["decision"] == "quota_wait"
+    assert reservation.admission(quota_evidence(), quota_need(30), [dict(row, state="ACTIVE")], now=1000)["decision"] == "quota_wait"
 
 
 def test_atomic_account_reservation_separate_connections(tmp_path):
@@ -294,7 +303,9 @@ def test_settled_actual_is_held_until_later_observation():
         "actual_windows": {"five_hour": 65, "weekly": 65}}
     assert reservation.admission(quota_evidence(), quota_need(10), [row], now=1000)["decision"] == "quota_wait"
     assert reservation.admission(quota_evidence(now=1002), quota_need(10), [row], now=1002)["decision"] == "ok"
-    assert reservation.admission(quota_evidence(now=1002), quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "quota_wait"
+    later_estimate = dict(quota_evidence(now=1002), source="estimated")
+    assert reservation.admission(later_estimate, quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "quota_wait"
+    assert reservation.admission(quota_evidence(now=1002), quota_need(30), [dict(row, state="UNKNOWN")], now=1002)["decision"] == "ok"
 
 
 def test_calibration_requires_explicit_attribution_and_stable_window():
@@ -513,3 +524,27 @@ def test_host_keeps_explicit_account_identity_and_skips_quota_less_sessions(monk
     [call] = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now)}, account_ref="other-account")
     assert not call["evidence"]["fresh"]  # another account's observation is never this account's evidence
     assert _quota_host(monkeypatch, "ai", {"codex": magpie_codex(now)}) == []
+
+
+def test_uncalibrated_account_keeps_admitting_sequential_tasks():
+    # Review B1 on #1307: settled uncalibrated tasks (quota_state UNKNOWN) must not pile up.
+    now = 10_000
+    need = uncalibrated_need()
+    settled = []
+    for step in range(6):
+        observed = now + step * 600
+        evidence = dict(magpie_codex(observed), observed_at=observed - 60)
+        verdict = reservation.admission(evidence, need, settled, now=observed)
+        assert verdict["decision"] == "ok", (step, verdict)
+        settled.append({"account_ref": "acct", "state": "UNKNOWN", "quota_state": "UNKNOWN",
+                        "quota_windows": {"five_hour": 30.0, "weekly": 6.0},
+                        "reconciled_at": quota_forecast_iso(observed + 300)})
+    # The latest task finished after the last observation: it is still held.
+    held = reservation.admission(dict(magpie_codex(now, used=50), observed_at=now + 5 * 600 - 60),
+                                 need, settled, now=now + 5 * 600)
+    assert held["decision"] == "quota_wait"
+
+
+def quota_forecast_iso(at):
+    from reverse_agent.model_access import quota_forecast
+    return quota_forecast.iso(at)

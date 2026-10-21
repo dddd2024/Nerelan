@@ -163,6 +163,8 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
     waits = []
     windows = {w["window"]: w for w in _canonical_windows(evidence.get("windows", ()))}
     observed = quota_forecast.parse_time(selected.get("observed_at"))
+    provider_reported = (selected.get("source") in {"magpie", "official", "cli", "claude_rate_limit_event"}
+                         or selected.get("provenance") == "OFFICIAL_VIA_CLI")
     uncertain = not selected["fresh"]
     for name in ("five_hour", "weekly"):
         window = windows.get(name, {})
@@ -185,7 +187,11 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
             if row.get("state") == "UNKNOWN" or row.get("quota_state") == "UNKNOWN":
                 uncertain = True
             completed = quota_forecast.parse_time(row.get("reconciled_at"))
-            if row.get("state") not in {"ACTIVE", "UNKNOWN"} and row.get("quota_state") != "UNKNOWN" and completed is not None and observed is not None and completed < observed:
+            finished = row.get("state") != "ACTIVE" and completed is not None and observed is not None and completed < observed
+            if finished and (provider_reported or (row.get("state") != "UNKNOWN" and row.get("quota_state") != "UNKNOWN")):
+                # A provider-reported percentage taken after completion already
+                # counts that task's spend, measured or not; holding its estimate
+                # as well would double-book and eventually stall the account.
                 continue
             amount = row.get("actual_windows", {}).get(name) if row.get("state") not in {"ACTIVE", "UNKNOWN"} else None
             details = row.get("actual_observations", [])
