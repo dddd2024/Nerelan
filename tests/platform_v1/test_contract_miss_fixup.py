@@ -365,3 +365,53 @@ def test_unsettled_claim_prevents_fixup_reservation(case, monkeypatch):
     assert service.escalate_failed_tasks(goal.id) == ()
     assert store.count_tasks() == count
     assert recovery.failed_snapshot(store.get_task(task.id), root=root)
+
+
+# Capability escalation never downgrades while an eligible equal-or-higher tier exists.
+from test_model_router import candidate, choose
+
+
+def test_top_tier_failure_with_only_weaker_alternatives_retries_same_model():
+    pool = [candidate("codex", "gpt-6.1-sol", "subscription", "codex"),
+            candidate("ds", "deepseek-v4-pro"), candidate("flash", "flash-lite")]
+    result = choose(pool, failed_model="gpt-6.1-sol", failed_tier=5, difficulty=4)
+    assert result["binding_ref"] == "codex" and result["reason"] == "retry_only_model"
+    assert "downgrade_fallback" not in result
+
+
+def test_equal_and_higher_tier_alternatives_are_preferred_over_weaker():
+    pool = [candidate("codex", "gpt-6.1-sol", "subscription", "codex"), candidate("opus", "opus", "paid_api"),
+            candidate("ds", "deepseek-v4-pro")]
+    equal = choose(pool, failed_model="gpt-6.1-sol", failed_tier=5, difficulty=4)
+    assert equal["binding_ref"] == "opus" and equal["reason"] == "retry_different_model"
+    stronger = choose(pool[1:] + [candidate("glm", "glm-5.3")], failed_model="glm-5.3", failed_tier=3, difficulty=3)
+    assert stronger["tier"] > 3 and stronger["reason"] == "escalation_higher_tier"
+
+
+def test_unavailable_stronger_models_fall_back_explicitly():
+    pool = [candidate("codex", "gpt-6.1-sol", "subscription", "codex", runnable=False),
+            candidate("ds", "deepseek-v4-pro"), candidate("flash", "flash-lite")]
+    result = choose(pool, failed_model="gpt-6.1-sol", failed_tier=5, difficulty=4)
+    assert result["binding_ref"] == "ds" and result["tier"] == 4
+    assert result["downgrade_fallback"] and result["reason"] == "retry_lower_tier_fallback"
+
+
+def test_recorded_failed_tier_not_current_profile_bounds_selection():
+    # The failed model now looks weaker, but the recorded tier 5 still forbids a tier-4 pick.
+    pool = [candidate("codex", "gpt-6.1-sol", "subscription", "codex"), candidate("ds", "deepseek-v4-pro")]
+    profiles = {"codex": {"task_buckets": {"code:5": {"attempts": 3, "success_rate": 1., "timeouts": 0}}},
+                "ds": {"task_buckets": {"code:4": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}}
+    result = choose(pool, failed_model="gpt-6.1-sol", failed_tier=5, difficulty=4, profiles=profiles)
+    assert result["binding_ref"] == "codex"
+
+
+def test_contract_miss_fixup_never_consults_capability_routing(case):
+    root, _, store, _, service, goal, _, task = case
+    wrong_tree(root)
+    validate(case)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("contract misses must not run capability selection")
+    service.task_resolver = forbidden
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "contract_fixup"
+    assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
