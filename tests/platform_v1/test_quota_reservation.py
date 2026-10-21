@@ -434,3 +434,82 @@ def test_goal_fit_demand_exceeding_a_whole_window_needs_another_model():
     result = reservation.goal_fit([forecast_task("T1", 50), forecast_task("T2", 50)],
                                   {"a": quota_evidence()}, now=1000)
     assert result["status"] == "needs_another_model"
+
+
+def magpie_codex(now, used=9, weekly=22):
+    # Shape produced by subscription_quota.magpie_quota_windows (2026-10-21 live snapshot).
+    return {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie", "observed_at": now - 300,
+            "account_ref": "acct", "windows": [
+                {"window": "5 hours", "basis": "official_percent", "used_percent": used, "resets_at": now + 3600},
+                {"window": "7 days", "basis": "official_percent", "used_percent": weekly, "resets_at": now + 86400}]}
+
+
+def uncalibrated_need():
+    need = estimate(history())
+    return reservation.window_need(dict(need, units={"median": 2, "p80": 4}), "acct", {})
+
+
+def test_real_window_names_and_uncalibrated_prior_admit_fresh_headroom():
+    now = 10_000
+    selected = reservation.observation("acct", [magpie_codex(now)], clock=lambda: now)
+    assert [w["window"] for w in selected["windows"]] == ["five_hour", "weekly"]
+    need = uncalibrated_need()
+    assert need["windows"] == reservation.UNCALIBRATED_WINDOW_NEED
+    assert need["prior_windows"] == ["five_hour", "weekly"] and need["uncertain"]
+    verdict = reservation.admission(magpie_codex(now), need, now=now)
+    assert verdict["decision"] == "ok", verdict
+
+
+def test_uncalibrated_prior_still_holds_near_exhaustion_and_stale_evidence():
+    now = 10_000
+    need = uncalibrated_need()
+    assert reservation.admission(magpie_codex(now, used=70), need, now=now)["blocking_windows"] == ["five_hour"]
+    assert reservation.admission(magpie_codex(now, weekly=90), need, now=now)["blocking_windows"] == ["weekly"]
+    stale = dict(magpie_codex(now), observed_at=now - 3600)
+    assert reservation.admission(stale, need, now=now)["decision"] == "quota_wait"
+
+
+def test_calibration_keyed_by_source_window_name_is_used():
+    need = dict(estimate(history()), units={"median": 2, "p80": 4}, uncertain=False)
+    converted = reservation.window_need(need, "a", {"a": {"5 hours": 2, "7 days": 4}})
+    assert converted["windows"] == {"five_hour": {"median": 1, "p80": 2}, "weekly": {"median": .5, "p80": 1}}
+    assert converted["prior_windows"] == [] and not converted["uncertain"]
+
+
+def _quota_host(monkeypatch, provider, quotas, account_ref=None):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    connection = {"connection_id": "conn", "executor_provider_id": provider,
+                  "auth_method": "external_cli_session", "account_ref": account_ref}
+    calls = []
+    host._store = SimpleNamespace(
+        list_bindings_public=lambda: [{"binding_id": "bind", "connection_id": "conn", "model_id": "gpt-6.1-sol"}],
+        get_connection_public=lambda _id: connection)
+    host._task_store = SimpleNamespace()
+    host._control_store = SimpleNamespace(quota_calibration=lambda account: {},
+        prepare_quota_admission=lambda **kw: calls.append(kw))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: quotas, raising=False)
+    import reverse_agent.platform_v1.usage_ledger as ledger
+    monkeypatch.setattr(ledger, "estimation_records", lambda store: [])
+    task = SimpleNamespace(id="t", binding_ref="bind", executor_kind="codex", kind="code", difficulty=3)
+    host._prepare_task_quota(task)
+    return calls
+
+
+def test_host_adopts_provider_observation_for_its_own_cli_login(monkeypatch):
+    import time
+    now = time.time()
+    calls = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now), "claude-code": dict(magpie_codex(now), used=99)})
+    [call] = calls
+    assert call["account_ref"] == "conn" and call["evidence"]["account_ref"] == "conn"
+    assert call["evidence"]["fresh"]
+    assert reservation.admission(call["evidence"], call["need"])["decision"] == "ok"
+
+
+def test_host_keeps_explicit_account_identity_and_skips_quota_less_sessions(monkeypatch):
+    import time
+    now = time.time()
+    [call] = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now)}, account_ref="other-account")
+    assert not call["evidence"]["fresh"]  # another account's observation is never this account's evidence
+    assert _quota_host(monkeypatch, "ai", {"codex": magpie_codex(now)}) == []
