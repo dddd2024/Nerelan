@@ -59,7 +59,9 @@ def test_timeout_retains_observed_failures(host, monkeypatch):
                                 "failures": [{"test": "test_bad", "message": "assert False"}]}}
     monkeypatch.setattr(fv, "_run_check", lambda *args: observed)
     result = validate()
-    assert result["reason"] == result["failure_kind"] == "check_timeout"
+    # Observed failing tests make a timeout an ordinary capability failure.
+    assert result["reason"] == "functional_check_failed"
+    assert result["failure_kind"] == "capability_failure"
     assert result["checks"][0] == observed
     assert "incomplete report; not accepted" in fv.functional_feedback(result)
     assert "assert False" in fv.functional_feedback(result)
@@ -279,6 +281,13 @@ def test_timeout_once_with_explicit_targets(case, monkeypatch, outcome):
     code, reason, _ = validate(case)
     assert len(calls) == (2 if outcome in {"pass", "timeout"} else 1)
     assert (code == 0) == (outcome == "pass")
+    if outcome == "failure":
+        # Observed failing tests are a capability failure: no retained tree, ordinary escalation.
+        assert reason == "functional_check_failed"
+        assert _load_evidence(store.get_task(task.id), recovery.FAILED, task.execution_id) is None
+        [step] = service.escalate_failed_tasks(goal.id)
+        assert step["reason"].startswith("failed:")
+        return
     if code:
         assert reason == "check_timeout"
         assert service.escalate_failed_tasks(goal.id) == ()

@@ -523,7 +523,10 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         result["tree_after"] = after
         if before != after or result["head_before"] != result["head_after"]:
             raise TaskStoreError("functional_artifact_changed_during_checks")
-        if any(check["timed_out"] for check in result["checks"]):
+        # A timeout is only a check_timeout when no test was observed failing;
+        # observed failures stay ordinary capability failures (#1280).
+        if any(check["timed_out"] for check in result["checks"]) and not any(
+                check["test_report"].get("failed", 0) for check in result["checks"]):
             raise TaskStoreError("check_timeout")
         if after_hygiene["exit_code"] != 0:
             raise TaskStoreError("functional_patch_hygiene_failed")
@@ -540,7 +543,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         result["failure_kind"] = (
             "target_mismatch" if reason.startswith("functional_target_missing:") else
             "patch_hygiene" if reason == "functional_patch_hygiene_failed" else
-            "check_timeout" if any(check.get("timed_out") for check in result["checks"]) else
+            "check_timeout" if reason == "check_timeout" else
             "capability_failure" if reason == "functional_check_failed" and any(
                 (check.get("test_report") or {}).get("failed", 0) for check in result["checks"])
             else "host_observation")
