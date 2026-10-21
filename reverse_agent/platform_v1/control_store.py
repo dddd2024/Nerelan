@@ -2375,7 +2375,8 @@ class PlatformControlStore:
         rates = json.loads(current["rates_json"]) if current else {}
         evidence = json.loads(current["evidence_json"]) if current else {}
         samples = evidence.get("delta_samples", {}) if isinstance(evidence.get("delta_samples"), dict) else {}
-        used = set(evidence.get("delta_tasks", []))
+        learned_order = [t for t in evidence.get("delta_tasks", []) if isinstance(t, str)]
+        used = set(learned_order)
         changed = False
         for row in rows:
             if row["task_id"] in used or row.get("state") == "ACTIVE" or not row.get("reconciled_at"):
@@ -2388,13 +2389,14 @@ class PlatformControlStore:
             if not learned:
                 continue
             used.add(row["task_id"])
+            learned_order.append(row["task_id"])
             for name, rate in learned.items():
                 samples.setdefault(name, []).append(rate)
                 samples[name] = samples[name][-quota_reservation.DELTA_SAMPLES:]
                 rates[name] = median(samples[name])
             changed = True
         if changed:
-            evidence = {**evidence, "delta_samples": samples, "delta_tasks": sorted(used)[-200:],
+            evidence = {**evidence, "delta_samples": samples, "delta_tasks": learned_order[-200:],
                         "delta_after": after, "basis": "provider_delta_lower_bound"}
             self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
                                (account_ref, json.dumps(rates), json.dumps(evidence)))

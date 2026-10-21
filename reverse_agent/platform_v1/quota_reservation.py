@@ -271,8 +271,11 @@ def delta_calibration(task_id, before, after, settlements):
     start = quota_forecast.parse_time(before.get("observed_at"))
     end = quota_forecast.parse_time(after.get("observed_at"))
     account = after.get("account_ref")
+    provider = {"official", "magpie", "cli", "claude_rate_limit_event"}
+    # Both ends must be provider readings: an estimated start could overstate usage
+    # and shrink the delta, which would make the rate optimistic.
     if (before.get("account_ref") != account or start is None or end is None or start >= end
-            or after.get("source") not in {"official", "magpie", "cli", "claude_rate_limit_event"}):
+            or any(o.get("source") not in provider or o.get("state") == "UNKNOWN" for o in (before, after))):
         return {}
     own = [r for r in settlements if r.get("task_id") == task_id and r.get("account_ref") == account]
     if len(own) != 1:

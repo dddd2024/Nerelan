@@ -586,6 +586,7 @@ def test_isolated_task_delta_gives_a_conservative_rate():
 
 
 @pytest.mark.parametrize("change", ["overlap", "running_overlap", "reset", "no_increase", "estimated_after",
+                                    "estimated_before", "unknown_before",
                                     "started_before", "finished_after", "no_units", "active"])
 def test_delta_calibration_refuses_unattributable_intervals(change):
     before, after = _magpie(1000, 52, 28), _magpie(2000, 74, 32)
@@ -600,6 +601,10 @@ def test_delta_calibration_refuses_unattributable_intervals(change):
         after = _magpie(2000, 52, 28)
     elif change == "estimated_after":
         after = dict(after, source="estimated")
+    elif change == "estimated_before":
+        before = dict(before, source="estimated")  # review B1: an overstated start shrinks the delta
+    elif change == "unknown_before":
+        before = dict(before, state="UNKNOWN")
     elif change == "started_before":
         rows = [_settled("t", 900, 1500)]
     elif change == "finished_after":
