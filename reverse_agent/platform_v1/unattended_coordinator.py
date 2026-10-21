@@ -56,6 +56,7 @@ class UnattendedCoordinator:
         owner: str | None = None,
         goal_escalator: Any | None = None,
         quota_preparer: Any | None = None,
+        quota_rerouter: Any | None = None,
         landing_loop=None, publication=None, goals=None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
@@ -63,6 +64,8 @@ class UnattendedCoordinator:
         self.publication = publication
         self.goals = goals
         self.quota_preparer = quota_preparer
+        # goal_id -> moves; quota-held tasks to an equal-or-higher-tier model (#1313 D).
+        self.quota_rerouter = quota_rerouter
         self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
@@ -256,6 +259,7 @@ class UnattendedCoordinator:
         if free_slots == 0:
             return 0
         claimed: dict[str, int] = {}
+        held: list[str] = []
         recovered = 0
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
@@ -319,11 +323,17 @@ class UnattendedCoordinator:
                     break
                 if str(exc) == "task_already_claimed":
                     continue
+                if str(exc).startswith("QUOTA_WAIT"):
+                    held.append(task_id)
                 self._last_error = str(exc)
                 continue
             claimed[task_id] = epoch
             if self._stop.is_set():
                 break
+        if held:
+            # A fully held goal claims nothing, so post-execution escalation never
+            # runs for it: offer the held tasks to the rerouter here.
+            self._reroute_held(held)
         if not claimed:
             return recovered
         if not self._begin_dispatch(background=background):
@@ -619,6 +629,21 @@ class UnattendedCoordinator:
             # Never mask an escalation error raised while refreshing this batch's goals.
             self._last_error = f"task_unsuccessful:{failed.get('task_id', '')}"
         return completed
+
+    def _reroute_held(self, task_ids: list[str]) -> None:
+        if self.quota_rerouter is None:
+            return
+        goal_ids: set[str] = set()
+        for task_id in task_ids:
+            try:
+                goal_ids.add(self.control_store.goal_id_for_task(task_id))
+            except TaskStoreError:
+                continue  # a task outside any goal has no plan to re-route against
+        for goal_id in sorted(goal_ids):
+            try:
+                self.quota_rerouter(goal_id)
+            except Exception as exc:  # noqa: BLE001 - rerouting must never break the loop
+                self._last_error = f"quota_reroute_failed:{type(exc).__name__}"
 
     def _refresh_claimed_goals(self, task_ids: tuple[str, ...]) -> None:
         if self._last_error.startswith("goal_escalation_failed:"):

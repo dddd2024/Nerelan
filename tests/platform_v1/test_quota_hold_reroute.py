@@ -85,3 +85,48 @@ def test_started_or_unheld_or_unselected_tasks_are_never_moved(monkeypatch):
     store._conn.commit()
     assert goals.escalate_failed_tasks(goal.id) == ()
     assert store.get_task(task_id).binding_ref == "codex-bind"
+
+
+def test_another_binding_of_the_held_model_is_not_a_move(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _hold(store, control, task_id)
+    same = dict(ALTERNATIVE, binding_ref="codex-via-magpie", model_id="codex/gpt-6.1-sol", tier=4)
+    goals.task_resolver = _resolver(same, [])
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    # Not marked as rerouted: a genuinely different model can still be chosen later.
+    goals.task_resolver = _resolver(ALTERNATIVE, [])
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["to_binding"] == "kimi-bind"
+
+
+def test_native_target_needs_an_exact_launch_base(monkeypatch):
+    native = dict(ALTERNATIVE, binding_ref="claude-bind", executor_kind="claude_code", model_id="claude-opus", tier=5)
+    store, control, goals, goal = _launched(monkeypatch)  # no checks: launch froze no base
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _hold(store, control, task_id)
+    goals.task_resolver = _resolver(native, [])
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store.get_task(task_id).binding_ref == "codex-bind"
+    checks = [{"profile_id": "python_pytest", "working_directory": ".", "targets": ["tests/test_x.py"]}]
+    store, control, goals, goal = _launched(monkeypatch, checks=checks)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _hold(store, control, task_id)
+    goals.task_resolver = _resolver(native, [])
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    task = store.get_task(task_id)
+    assert moved["to_binding"] == "claude-bind" and task.executor_kind == "claude_code" and len(task.branch) == 40
+
+
+def test_coordinator_offers_fully_held_goals_to_the_rerouter(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    store, control, goals, goal = _launched(monkeypatch)
+    rerouted = []
+    def held(task):
+        raise TaskStoreError("QUOTA_WAIT:2026-10-21T09:16:37Z")
+    coordinator = UnattendedCoordinator(store=store, control_store=control,
+        autonomy=SimpleNamespace(authorize=lambda **kwargs: True), router=SimpleNamespace(),
+        workspace_root=tmp_path, quota_preparer=held, quota_rerouter=rerouted.append)
+    assert coordinator.tick() == 0
+    assert rerouted == [goal.id]

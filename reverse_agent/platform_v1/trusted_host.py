@@ -1196,6 +1196,7 @@ class CombinedTrustedHost:
                 execution_authority_sha=self._execution_authority_sha,
                 planning_sha=self._planning_sha,
                 goal_escalator=self._goal_service.escalate_failed_tasks,
+                quota_rerouter=self._goal_service.reroute_quota_held,
                 quota_preparer=self._prepare_task_quota,
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )

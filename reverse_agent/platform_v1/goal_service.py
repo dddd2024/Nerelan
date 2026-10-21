@@ -461,6 +461,19 @@ class GoalService:
         visit(task.artifact_input["plan_task_id"])
         return tuple(sorted(visited))
 
+    def reroute_quota_held(self, goal_id: str) -> tuple[dict[str, Any], ...]:
+        """Coordinator entry for quota holds; same window and mode bounds as escalation."""
+        goal = self.control_store.get_goal(goal_id)
+        if goal.orchestration_mode != "agent_team" or not goal.window_id or self.task_resolver is None:
+            return ()
+        window = self.control_store.get_window(goal.window_id)
+        if window.status != "ACTIVE" or not self.store._conn.execute(
+                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
+                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+            return ()
+        planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
+        return tuple(self._reroute_quota_held(goal, planned))
+
     def _reroute_quota_held(self, goal: Any, planned: Mapping[str, PlannedTask]) -> list[dict[str, Any]]:
         """A quota hold moves a never-started task to an equal-or-higher-tier model (#1313 D).
 
@@ -493,14 +506,20 @@ class GoalService:
                                               failed_tier=held_tier, **self._review_authors(plan_task, goal, planned))
             except TaskStoreError:
                 continue
-            if (decision.get("binding_ref") in {"", task.binding_ref} or decision.get("downgrade_fallback")
+            from .model_router import model_identity
+            same_model = bool(selected.get("model_id")) and model_identity(
+                str(decision.get("model_id") or "")) == model_identity(str(selected["model_id"]))
+            if (decision.get("binding_ref") in {"", task.binding_ref} or same_model
+                    or decision.get("downgrade_fallback")
                     or type(decision.get("tier")) is not int or decision["tier"] < held_tier):
-                continue
+                continue  # another binding of the held model is not a different model
             native = decision["executor_kind"] in {"codex", "claude_code"}
             try:
                 base = self._approved_base(task)
             except TaskStoreError:
                 continue
+            if native and not base:
+                continue  # native executors need an exact launch base; without one, keep waiting
             if not self.control_store.reroute_held_task(
                     task.id, expected_binding=task.binding_ref, binding_ref=decision["binding_ref"],
                     executor_kind=decision["executor_kind"], branch=base if native and base else ""):
