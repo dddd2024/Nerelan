@@ -1764,6 +1764,8 @@ class PlatformControlStore:
                     existing.update(rates)
                     self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
                         (account_ref, json.dumps(existing), json.dumps({"before": json.loads(previous[0]), "after": selected, "claims": rows})))
+                else:
+                    self._delta_calibrate_locked(account_ref, selected, rows)
             self._conn.execute("INSERT INTO platform_quota_observations VALUES (?,?,?) ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, evidence_json=excluded.evidence_json WHERE excluded.observed_at > platform_quota_observations.observed_at",
                                (account_ref, selected.get("observed_at") or "", json.dumps(selected)))
             self._conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
@@ -2363,6 +2365,41 @@ class PlatformControlStore:
             "stop_reason": window.stop_reason,
             "accounts": self.account_budget_summary(window_id),
         }
+
+    def _delta_calibrate_locked(self, account_ref: str, after: Mapping[str, Any], rows: list[dict[str, Any]]) -> None:
+        """Learn from each settled, isolated task once, against its own admission evidence (#1313 B)."""
+        from statistics import median
+        from . import quota_reservation
+        current = self._conn.execute("SELECT rates_json, evidence_json FROM platform_quota_calibrations WHERE account_ref=?",
+                                     (account_ref,)).fetchone()
+        rates = json.loads(current["rates_json"]) if current else {}
+        evidence = json.loads(current["evidence_json"]) if current else {}
+        samples = evidence.get("delta_samples", {}) if isinstance(evidence.get("delta_samples"), dict) else {}
+        learned_order = [t for t in evidence.get("delta_tasks", []) if isinstance(t, str)]
+        used = set(learned_order)
+        changed = False
+        for row in rows:
+            if row["task_id"] in used or row.get("state") == "ACTIVE" or not row.get("reconciled_at"):
+                continue
+            admitted = self._conn.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=? AND account_ref=?",
+                                          (row["task_id"], account_ref)).fetchone()
+            if admitted is None:
+                continue
+            learned = quota_reservation.delta_calibration(row["task_id"], json.loads(admitted[0]), after, rows)
+            if not learned:
+                continue
+            used.add(row["task_id"])
+            learned_order.append(row["task_id"])
+            for name, rate in learned.items():
+                samples.setdefault(name, []).append(rate)
+                samples[name] = samples[name][-quota_reservation.DELTA_SAMPLES:]
+                rates[name] = median(samples[name])
+            changed = True
+        if changed:
+            evidence = {**evidence, "delta_samples": samples, "delta_tasks": learned_order[-200:],
+                        "delta_after": after, "basis": "provider_delta_lower_bound"}
+            self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
+                               (account_ref, json.dumps(rates), json.dumps(evidence)))
 
     def quota_calibration(self, account_ref: str) -> dict[str, float]:
         with self._lock:
