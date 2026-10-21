@@ -822,7 +822,7 @@ class CombinedTrustedHost:
         from . import quota_reservation
         from .usage_ledger import estimation_records
         resume_route = None
-        if task.status == "QUOTA_WAIT":
+        if getattr(task, "status", "") == "QUOTA_WAIT":
             from .goal_service import GoalService
             from dataclasses import replace
             link = self._task_store._conn.execute(
