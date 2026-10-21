@@ -35,7 +35,7 @@ def load_campaign(path):
         raise ValueError("invalid campaign_id")
     for name, default in (("max_rounds", 12), ("max_hours", 72),
                           ("max_consecutive_failed_rounds", 2), ("poll_seconds", 30),
-                          ("max_job_wait_hours", 24)):
+                          ("max_job_wait_hours", 24), ("max_resume_wait_minutes", 60)):
         value = config.setdefault(name, default)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value < float("inf"):
             raise ValueError(name + " must be positive and finite")
@@ -252,6 +252,8 @@ class ResearchLoop:
             goal_terminal = goal["status"] in {"COMPLETED", "FAILED", "BLOCKED", "CANCELLED", "INTERRUPTED"}
             if not goal_terminal and (not tasks or not all(t["status"] in terminal for t in tasks)):
                 return
+            if not goal_terminal and self._awaiting_resume(record, tasks, window, path):
+                return
             record["tasks"] = [dict(t) for t in tasks]
             for task in record["tasks"]:
                 if task["status"] in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
@@ -266,7 +268,11 @@ class ResearchLoop:
         elif state == "GOAL_DONE":
             self._integrate(campaign, record, path)
         elif state == "INTEGRATED":
-            self._event(record, "WAITING_JOBS", "waiting for broker collections", path)
+            orphaned = self._orphaned_jobs(n, record)
+            if orphaned:
+                record["orphaned_jobs"] = orphaned
+            self._event(record, "WAITING_JOBS", "waiting for broker collections" + (
+                "; orphaned: " + ", ".join(orphaned) if orphaned else ""), path)
         elif state == "WAITING_JOBS":
             if not self.broker_root:
                 if record["jobs"]:
@@ -333,6 +339,37 @@ class ResearchLoop:
             outcome = ("INTERRUPTED" if record.get("interrupted") else
                        "FAILED" if record.get("goal_failed") else "DONE")
             self._event(record, outcome, "round finished", path)
+
+    def _awaiting_resume(self, record, tasks, window, path):
+        """An INTERRUPTED task the coordinator can still resume keeps its round open (#1320).
+
+        Ending the round would freeze its work, and any experiment it already
+        requested, outside integration. Waiting is bounded by the window (active,
+        resume_task capability, retry budget) and by max_resume_wait_minutes.
+        """
+        interrupted = [t["task_id"] for t in tasks if t["status"] == "INTERRUPTED"]
+        resumable = (window is not None and "resume_task" in getattr(window, "capabilities", ())
+                     and getattr(window, "retries_used", 0) < getattr(window, "max_retries", 0))
+        if not interrupted or not resumable:
+            return False
+        since = record.setdefault("resume_wait_since", self.clock())
+        if self.clock() - since >= self.config["max_resume_wait_minutes"] * 60:
+            return False
+        if record.get("resume_waiting") != interrupted:
+            record["resume_waiting"] = interrupted
+            self._event(record, "LAUNCHED", "waiting for resume of " + ", ".join(interrupted), path)
+        return True
+
+    def _orphaned_jobs(self, n, record):
+        """Broker runs with this round's prefix whose request was never integrated (#1320).
+
+        Their results stay unimported: evidence must be bound to a committed request.
+        """
+        if not self.broker_root or not self.broker_root.exists():
+            return []
+        prefix = self._job_prefix(n)
+        return sorted(p.parent.name for p in self.broker_root.glob(prefix + "*/receipt.json")
+                      if p.parent.name not in record["jobs"])
 
     def _job_prefix(self, n):
         identity = self.config["campaign_id"]
@@ -404,14 +441,19 @@ class ResearchLoop:
 
     def _objective(self, n, interrupted):
         previous = self.root / "rounds" / f"{n - 1}.json"
-        stale = []
+        stale, orphaned = [], []
         if previous.exists():
-            stale = [job for job, entry in json.loads(previous.read_text(encoding="utf-8")).get("imports", {}).items()
+            earlier = json.loads(previous.read_text(encoding="utf-8"))
+            stale = [job for job, entry in earlier.get("imports", {}).items()
                      if entry.get("error") == "STALE_RECEIPT"]
+            orphaned = earlier.get("orphaned_jobs", [])
 
         return (f"{self.config['objective']}\n\nResearch round {n}.\n"
                 + ("The previous round was INTERRUPTED; nothing was automatically replayed.\n" if interrupted else "")
                 + ("STALE_RECEIPT jobs: " + ", ".join(stale) + "; use new job ids for these experiments.\n" if stale else "")
+                + ("ORPHANED jobs (they ran, but their request was never integrated, so no results were "
+                   "imported): " + ", ".join(orphaned) + "; request these experiments again with new job ids.\n"
+                   if orphaned else "")
                 + "Read RESEARCH_LOG.md, results/ and earlier rounds in the repository. "
                 "Append a section for this round to RESEARCH_LOG.md: hypothesis, what was run, "
                 "what the results show, what's next; state uncertainty. Request remote experiments "
