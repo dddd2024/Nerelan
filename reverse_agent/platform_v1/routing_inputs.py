@@ -32,6 +32,8 @@ GATEWAY_COST_CLASSES = {
     "opencode-zen-free": "free",
     "sensenova": "free",
     "sensetime": "free",
+    # Magpie's id for the SenseNova gateway (#1170).
+    "token-sensenova": "free",
     "copilot": "subscription",
     "codex": "subscription",
     "claude": "subscription",

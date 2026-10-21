@@ -235,6 +235,8 @@ def binding(model, connection_id='c'):
     ('openrouter/non-free-model', {'auth_method': 'api_key'}, 'paid_api'),
     ('openrouter/non-free-model:free', {'auth_method': 'api_key'}, 'free'),
     ('sensetime/sensenova-6.7-flash-lite', {'auth_method': 'api_key'}, 'free'),
+    # The same SenseNova gateway as Magpie lists it after the #1170 migration.
+    ('token-sensenova/glm-5.2', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'api_key'}, 'free'),
     ('glm-5.2', {'base_url': 'https://token.sensenova.cn/v1', 'auth_method': 'api_key'}, 'free'),
     ('glm-5.2', {'executor_provider_id': 'sensetime', 'auth_method': 'api_key'}, 'free'),
     ('plain-model', {'auth_method': 'external_cli_session'}, 'subscription'),
