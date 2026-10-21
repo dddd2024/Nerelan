@@ -332,7 +332,7 @@ share the Owner's subscription quota, so they are bound only on the Owner's expl
 | `openrouter` | `https://openrouter.ai/api/v1` | preset **OpenRouter** | `openrouter/<model>` |
 | `groq` | `https://api.groq.com/openai/v1` | preset **Groq** | `groq/<model>` |
 | `mistral` | `https://api.mistral.ai/v1` | preset **Mistral** | `mistral/<model>` |
-| `deepseek-flash` | `https://token.sensenova.cn/v1` | custom vendor `sensenova`, same base URL | `sensenova/<model>` |
+| `deepseek-flash` | `https://token.sensenova.cn/v1` | custom vendor, same base URL (Magpie lists it as `token-sensenova`) | `token-sensenova/<model>` |
 | `agnes` | `https://apihub.agnes-ai.com/v1` | custom vendor `agnes`, same base URL | `agnes/<model>` |
 
 Steps:
