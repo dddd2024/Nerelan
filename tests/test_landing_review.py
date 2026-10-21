@@ -263,13 +263,23 @@ def test_bounded_update_merges(repo: Path, count: int) -> None:
 
 
 @pytest.mark.parametrize("path", [
-    "AGENTS.md", "docs/agents/nested/a.md", ".github/workflows/check.yml",
-    "reverse_agent/landing_review.py", "requirements.txt", "requirements-dev.txt",
-    "pyproject.toml", "frontend/package.json", "frontend/package-lock.json",
+    "AGENTS.md", ".github/workflows/check.yml", ".github/workflows/nested/x.yml",
+    "reverse_agent/landing_review.py",
 ])
 def test_carry_excludes_sensitive_paths(repo: Path, path: str) -> None:
     accepted, merges = carry_chain(repo, path=path)
     assert not carry(merges[-1], accepted).accepted
+
+
+@pytest.mark.parametrize("path", [
+    "docs/agents/nested/a.md", "requirements.txt", "requirements-dev.txt",
+    "pyproject.toml", "frontend/package.json", "frontend/package-lock.json",
+])
+def test_other_r2_paths_carry_over_pure_merge_main(repo: Path, path: str) -> None:
+    # Owner decision 2026-10-21 (#1310 C): all other carry-over conditions still apply.
+    accepted, merges = carry_chain(repo, path=path)
+    result = carry(merges[-1], accepted)
+    assert result.accepted and result.reason == "accepted_carried_over"
 
 
 def test_normal_commit_cannot_carry(repo: Path) -> None:

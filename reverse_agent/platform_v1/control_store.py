@@ -440,6 +440,8 @@ class PlatformControlStore:
                 """
             )
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_admissions (task_id TEXT PRIMARY KEY REFERENCES tasks(id), binding_ref TEXT NOT NULL, account_ref TEXT NOT NULL, evidence_json TEXT NOT NULL, need_json TEXT NOT NULL, small_task INTEGER NOT NULL, safety_buffer REAL NOT NULL, verdict_json TEXT NOT NULL DEFAULT '{}')")
+            # Owner-approved standing window policies (Governance v2.1 D, #1310).
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_standing_windows (policy_id TEXT PRIMARY KEY, window_hours INTEGER NOT NULL, renew_until TEXT NOT NULL, status TEXT NOT NULL, stop_reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_observations (account_ref TEXT PRIMARY KEY, observed_at TEXT NOT NULL, evidence_json TEXT NOT NULL)")
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_calibrations (account_ref TEXT PRIMARY KEY, rates_json TEXT NOT NULL, evidence_json TEXT NOT NULL)")
             quota_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(platform_budget_reservations)")}
@@ -1107,7 +1109,7 @@ class PlatformControlStore:
 
     # Window rebind (#1277) -------------------------------------------
 
-    def rebind_goal_to_window(self, goal_id: str, *, window_id: str) -> dict[str, Any]:
+    def rebind_goal_to_window(self, goal_id: str, *, window_id: str, reason: str = "owner_rebind") -> dict[str, Any]:
         """Move a stranded Goal's unfinished tasks under a new, explicitly activated window.
 
         Never extends the old window. Trusted host/Owner entry only: callers are the
@@ -1117,7 +1119,7 @@ class PlatformControlStore:
             cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN IMMEDIATE")
-                outcome = self._rebind_goal_locked(goal_id, window_id=window_id, reason="owner_rebind")
+                outcome = self._rebind_goal_locked(goal_id, window_id=window_id, reason=reason)
                 cur.execute("COMMIT")
                 return outcome
             except BaseException as exc:
@@ -1349,7 +1351,8 @@ class PlatformControlStore:
                         _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
                         _host_preserve_claim_windows: bool = False,
-                        _host_expected_goal_id: str | None = None) -> AutonomousWindowRecord:
+                        _host_expected_goal_id: str | None = None,
+                        _standing_renewal: bool = False) -> AutonomousWindowRecord:
         """Create the window and optional trusted-host SQL admission in one commit.
 
         `_host_sql_admit` is INTERNAL and never accepted from HTTP. The callback
@@ -1390,7 +1393,14 @@ class PlatformControlStore:
                 raise TaskStoreError("host_atomic_window_time_invalid") from exc
         elif _host_expected_goal_id is not None:
             raise TaskStoreError("host_atomic_admission_invalid")
-        if confirmation.strip() != ("DELEGATED_CONTROLLER" if _trusted_binding else "ACTIVATE"):
+        standing = payload.get("standing_renewal")
+        if standing is not None and (_trusted_binding is not None or _host_sql_admit is not None):
+            raise TaskStoreError("standing_window_requires_owner_activation")
+        if _standing_renewal and (standing is None or _trusted_binding is not None or _host_sql_admit is not None):
+            raise TaskStoreError("standing_renewal_invalid")
+        expected = ("DELEGATED_CONTROLLER" if _trusted_binding
+                    else "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE")
+        if confirmation.strip() != expected:
             raise TaskStoreError("owner_activation_confirmation_required")
         digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
         window_id = str(payload.get("window_id") or _id("window"))
@@ -1504,6 +1514,13 @@ class PlatformControlStore:
                          _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
+                if standing is not None and not _standing_renewal:
+                    # The Owner's activation approves the standing policy once.
+                    cur.execute(
+                        "INSERT INTO platform_standing_windows (policy_id, window_hours, renew_until, status, created_at, updated_at) "
+                        "VALUES (?, ?, ?, 'ACTIVE', ?, ?) ON CONFLICT(policy_id) DO UPDATE SET window_hours=excluded.window_hours, "
+                        "renew_until=excluded.renew_until, status='ACTIVE', stop_reason='', updated_at=excluded.updated_at",
+                        (str(payload["policy_id"]), int(standing["window_hours"]), str(standing["renew_until"]), now, now))
                 for goal_id in adopted:
                     self._rebind_goal_locked(goal_id, window_id=window_id, reason="adopted_on_activation")
                 if _host_sql_admit is not None:
@@ -1615,7 +1632,103 @@ class PlatformControlStore:
             )
             if cur.rowcount != 1:
                 raise TaskStoreError("window_not_active")
+            # Stopping a window always revokes its standing renewal immediately.
+            self._conn.execute(
+                "UPDATE platform_standing_windows SET status='REVOKED', stop_reason=?, updated_at=? "
+                "WHERE policy_id=(SELECT policy_id FROM platform_autonomous_windows WHERE id=?) AND status='ACTIVE'",
+                (reason[:200], _utc_now(), window_id))
+            self._conn.commit()
         return self.get_window(window_id)
+
+    def revoke_standing_window(self, policy_id: str, *, reason: str = "owner_revoked") -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_standing_windows SET status='REVOKED', stop_reason=?, updated_at=? "
+                "WHERE policy_id=? AND status='ACTIVE'", (reason[:200], _utc_now(), policy_id))
+            self._conn.commit()
+            return cur.rowcount == 1
+
+    def standing_window(self, policy_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM platform_standing_windows WHERE policy_id=?", (policy_id,)).fetchone()
+            return dict(row) if row is not None else None
+
+    def renew_standing_window(self, *, now: datetime | None = None) -> AutonomousWindowRecord | None:
+        """Activate the successor of a time-expired standing window (Governance v2.1 D).
+
+        Only a window that expired by time renews; a STOPPED/BLOCKED window or a
+        revoked policy never does. The successor copies the Owner-approved bounds
+        exactly; only revision and times change, capped by ``renew_until``.
+        """
+        clock = now or datetime.now(timezone.utc)
+        if self.active_window() is not None:
+            return None
+        with self._lock:
+            policies = self._conn.execute("SELECT * FROM platform_standing_windows WHERE status='ACTIVE'").fetchall()
+        for policy in policies:
+            until = datetime.fromisoformat(policy["renew_until"].replace("Z", "+00:00"))
+            if clock >= until - timedelta(minutes=1):
+                with self._lock:
+                    self._conn.execute("UPDATE platform_standing_windows SET status='EXPIRED', stop_reason='renew_until_reached', "
+                                       "updated_at=? WHERE policy_id=? AND status='ACTIVE'", (_utc_now(), policy["policy_id"]))
+                    self._conn.commit()
+                continue
+            with self._lock:
+                latest = self._conn.execute(
+                    "SELECT * FROM platform_autonomous_windows WHERE policy_id=? ORDER BY policy_revision DESC LIMIT 1",
+                    (policy["policy_id"],)).fetchone()
+            if latest is None or latest["status"] != "EXPIRED" or latest["stop_reason"] != "window_expired":
+                continue
+            if latest["confirmation"] not in {"ACTIVATE", "STANDING_RENEWAL"}:
+                continue
+            expires = min(clock + timedelta(hours=int(policy["window_hours"])), until)
+            payload = {
+                "policy_id": latest["policy_id"], "policy_revision": int(latest["policy_revision"]) + 1,
+                "owner_identity": latest["owner_identity"],
+                "starts_at": clock.isoformat().replace("+00:00", "Z"),
+                "expires_at": expires.isoformat().replace("+00:00", "Z"),
+                "repositories": json.loads(latest["repositories_json"]),
+                "capabilities": json.loads(latest["capabilities_json"]),
+                "max_concurrent_tasks": int(latest["max_concurrent_tasks"]), "max_tasks": int(latest["max_tasks"]),
+                "max_retries": int(latest["max_retries"]), "max_token_units": int(latest["max_token_units"]),
+                "max_cost_micro_units": int(latest["max_cost_micro_units"]),
+                "per_task_token_reservation": int(latest["per_task_token_reservation"]),
+                "per_task_cost_reservation": int(latest["per_task_cost_reservation"]),
+                "provider_quota_state": latest["provider_quota_state"],
+                "enforcement_class": latest["enforcement_class"],
+                "standing_renewal": {"window_hours": int(policy["window_hours"]), "renew_until": policy["renew_until"]},
+            }
+            window = self.activate_window(payload, confirmation="STANDING_RENEWAL", _standing_renewal=True)
+            self.append_receipt(
+                window_id=window.id, operation_type="standing_window_renewal", capability="not_applicable",
+                repository=",".join(window.repositories), subject_id=window.policy_id, decision="allowed",
+                reason="owner_standing_policy",
+                input_payload={"from_window_id": latest["id"], "to_window_id": window.id,
+                               "policy_revision": window.policy_revision, "renew_until": policy["renew_until"]},
+                result=f"renewed:{window.id}")
+            return window
+        return None
+
+    def adopt_standing_goals(self, window_id: str) -> tuple[dict[str, Any], ...]:
+        """Move RUNNING goals stranded on earlier windows of the same standing policy."""
+        window = self.get_window(window_id)
+        policy = self.standing_window(window.policy_id)
+        if policy is None or policy["status"] != "ACTIVE":
+            return ()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id = g.window_id "
+                "WHERE g.status='RUNNING' AND w.policy_id=? AND w.id<>? AND w.status='EXPIRED' "
+                "AND w.stop_reason='window_expired' ORDER BY g.created_at", (window.policy_id, window.id)).fetchall()
+        outcomes = []
+        for row in rows:
+            try:
+                outcomes.append(self.rebind_goal_to_window(row["id"], window_id=window.id,
+                                                           reason="standing_window_adoption"))
+            except TaskStoreError as exc:
+                # In-flight or held work is retried on a later tick, never forced.
+                outcomes.append({"goal_id": row["id"], "status": "DEFERRED", "reason": str(exc)})
+        return tuple(outcomes)
 
     def quota_hold(self, task_id: str) -> dict[str, Any] | None:
         """A hold is dispatch state, not observed usage or an executor failure."""
