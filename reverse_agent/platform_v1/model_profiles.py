@@ -16,6 +16,8 @@ import time
 from statistics import median
 from typing import Any
 
+from .model_availability import transient_overload
+
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
@@ -42,7 +44,7 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
     """Profiles for the most recent ``limit`` model-backed tasks, keyed by binding_ref."""
     conn = store._conn
     tasks = conn.execute(
-        "SELECT id, binding_ref, executor_kind, status, failure_classification FROM tasks "
+        "SELECT id, binding_ref, executor_kind, status, failure_classification, failure_detail FROM tasks "
         "WHERE binding_ref <> '' ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
     if not tasks:
         return {}
@@ -100,6 +102,10 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         seconds = _seconds(span[0], span[1]) if span[0] and span[1] else None
         if classification.startswith("model_unavailable"):
             continue  # entitlement and transient dispatch errors are not capability evidence
+        if status == "FAILED" and transient_overload(classification, row["failure_detail"] or ""):
+            # Provider capacity is availability evidence, never capability evidence.
+            profile["overloaded"] = profile.get("overloaded", 0) + 1
+            continue
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}
         if refused or status in OK_STATUSES or status == "FAILED":

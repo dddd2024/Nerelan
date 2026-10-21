@@ -10,10 +10,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, replace
 import re
 import json
+import time
 import subprocess
 import hashlib
 from pathlib import Path
 import shutil
+
+from .model_availability import transient_overload
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -57,6 +60,19 @@ AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer
 ESCALATION_LADDER = {"simple": "coder", "coder": "complex"}
 # Failures a pricier agent would hit the same way (login, workspace, base,
 # contract, artifact, budget, cancellation, transport) never escalate.
+# Provider overload: bounded same-model retries with exponential backoff.
+MAX_TRANSIENT_RETRIES = 2
+TRANSIENT_BACKOFF_SECONDS = 120
+
+
+def _parse_utc(value: str) -> float | None:
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat((value or "").replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 _NON_AGENT_FAILURE = re.compile(
     r"auth|login|readiness|unavailable|not_found|network|transport|dispatch|session|resume|workspace"
     r"|contract|artifact|budget|reservation|cancel|head_moved|base|ambiguous|coordinator|process_start"
@@ -654,6 +670,26 @@ class GoalService:
                         continue  # already re-run once on its explicit targets; never a capability signal
                 except (ValueError, TypeError):
                     continue
+            overloaded = not miss and failed.status == "FAILED" and transient_overload(
+                failed.failure_classification, failed.failure_detail)
+            if overloaded:
+                transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == "transient_overload"
+                                for row in history)
+                if transient >= MAX_TRANSIENT_RETRIES:
+                    overloaded = False  # persistent overload: ordinary routing may move on
+                else:
+                    failed_at = _parse_utc(failed.updated_at)
+                    wait = TRANSIENT_BACKOFF_SECONDS * (2 ** transient)
+                    if failed_at is not None and time.time() < failed_at + wait:
+                        continue  # backoff; a later tick retries without spending budget
+                    snapshot = None
+                    try:
+                        from .contract_recovery import attempt_worktree, retain_interrupted_tree
+                        worktree = attempt_worktree(self.store, failed)
+                        if worktree is not None:
+                            snapshot = retain_interrupted_tree(self.store, failed.id, worktree=worktree)
+                    except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                        snapshot = None  # retried from the approved base when the tree is unavailable
             if miss:
                 if any(row["plan_task_id"] == plan_task.id and row.get("reason") == "contract_fixup" for row in history):
                     record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
@@ -672,7 +708,7 @@ class GoalService:
             refusal = failed.failure_classification == "MODEL_REFUSED"
             unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not miss and not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            if not miss and not overloaded and not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
@@ -686,7 +722,9 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
-            if miss:
+            if miss or overloaded:
+                # Contract misses and provider overload are not capability failures:
+                # the same model retries, never a weaker one.
                 target = (role, failed.executor_kind, failed.binding_ref)
             elif self.task_resolver is not None:
                 # Compare with the tier actually selected for this attempt, rather
@@ -767,15 +805,22 @@ class GoalService:
                 # The approved plan pinned no base (no checks, no handoff, no native
                 # agent), so the failed attempt itself ran against the live HEAD.
                 base = repository_base(goal.repository)
-            if not miss:
+            if not miss and not (overloaded and snapshot is not None):
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
             task = self.store.create_task(
                 title=self._execution_title(goal, plan_task), repository=goal.repository,
-                executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native or miss else "",
+                executor_kind=executor_kind, binding_ref=binding_ref,
+                branch=base if native or miss or overloaded else "",
                 permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                 orchestration_mode="single",
             )
+            if decision is None and (miss or overloaded):
+                # The same binding retries: carry its selection evidence (context window,
+                # context need, reservation) so the model-specific context check still applies.
+                decision = next((event.metadata for event in reversed(self.store.get_events(failed.id))
+                                 if event.type == "MODEL_SELECTED"
+                                 and event.metadata.get("binding_ref") == failed.binding_ref), None)
             if decision is not None:
                 self._record_model_selection(task, decision)
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
@@ -785,6 +830,20 @@ class GoalService:
             if repair is not None:
                 self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
                                                  document=repair)
+            if overloaded and snapshot is not None:
+                from .functional_validation import digest
+                self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
+                    document={"task_id": task.id, "execution_id": task.execution_id,
+                              "source_task_id": failed.id, "snapshot_digest": digest(snapshot),
+                              "feedback": snapshot["feedback"]})
+                record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
+            if overloaded:
+                # Events reach the context packet; evidence detail does not.
+                self.store.add_event(task.id, event_type="VALIDATED", title="Retry after provider overload",
+                                     description=(snapshot["feedback"] if snapshot is not None else
+                                                  "The provider was at capacity; your previous attempt was cut "
+                                                  "off and is not available. Start from the approved base."),
+                                     metadata={"source_task_id": failed.id})
             if miss:
                 from .functional_validation import digest
                 self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
@@ -794,7 +853,8 @@ class GoalService:
                 self.store.add_event(task.id, event_type="VALIDATED", title="Contract fix-up required",
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
-            reason = "contract_fixup" if miss else f"failed:{failed.failure_classification or 'unknown'}"
+            reason = ("contract_fixup" if miss else "transient_overload" if overloaded
+                      else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                 to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)

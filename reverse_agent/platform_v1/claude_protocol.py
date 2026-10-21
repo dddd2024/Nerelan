@@ -185,12 +185,15 @@ class ClaudeStreamJson:
                 result_text = public_text(event.get("result"), 500)
                 failure_texts = (detail, result_text)
                 detail = public_text("\n".join(text for text in failure_texts if text), 500)
-                from .model_availability import availability_error
+                from .model_availability import availability_error, provider_overloaded
                 unavailable = availability_error(json.dumps(event))
                 if any(usage_limit_hit(text) for text in failure_texts):
                     self.turn.failure_classification = "claude_code_usage_limit"
                 elif unavailable:
                     self.turn.failure_classification = "MODEL_UNAVAILABLE:" + unavailable
+                elif provider_overloaded(detail) or provider_overloaded(reason):
+                    from .model_availability import OVERLOADED
+                    self.turn.failure_classification = OVERLOADED
                 elif subtype in {"policy_refusal", "content_policy_violation"}:
                     self.turn.failure_classification = "policy_refusal"
                 else:
