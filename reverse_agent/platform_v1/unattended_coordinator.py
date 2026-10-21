@@ -188,7 +188,18 @@ class UnattendedCoordinator:
             return 0
         window = self.control_store.active_window()
         if window is None:
-            return 0
+            # An Owner-approved standing policy renews a time-expired window (#1310 D).
+            try:
+                window = self.control_store.renew_standing_window()
+            except TaskStoreError as exc:
+                self._last_error = f"standing_renewal_failed:{exc}"
+                window = None
+            if window is None:
+                return 0
+        try:
+            self.control_store.adopt_standing_goals(window.id)
+        except TaskStoreError as exc:
+            self._last_error = f"standing_adoption_failed:{exc}"
         if getattr(self.autonomy, "delegated_mode", False) and "approve_goal" in window.capabilities:
             from .goal_service import GoalService
             try:

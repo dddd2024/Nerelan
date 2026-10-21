@@ -17,6 +17,9 @@ from .authority_adapter import AuthorityBundleError, PolicyAuthority
 
 
 MAX_WINDOW_DURATION = timedelta(days=7)
+# A standing policy renews windows of at most MAX_WINDOW_DURATION each, never
+# beyond this horizon from its Owner activation (Governance v2.1 D, #1310).
+MAX_STANDING_HORIZON = timedelta(days=90)
 KNOWN_OPERATIONS = frozenset(
     {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr", "approve_goal"}
 )
@@ -607,6 +610,17 @@ class AutonomyService:
         if adopted:
             # Only an explicit Owner list adopts stranded Goals (#1277); absent keeps the digest unchanged.
             normalized["adopt_unfinished_goals"] = tuple(adopted)
+        standing = payload.get("standing_renewal")
+        if standing is not None:
+            if not isinstance(standing, Mapping) or set(standing) != {"window_hours", "renew_until"}:
+                raise TaskStoreError("standing_renewal_invalid")
+            hours = standing["window_hours"]
+            if type(hours) is not int or not 1 <= hours <= MAX_WINDOW_DURATION.days * 24:
+                raise TaskStoreError("standing_renewal_window_hours_invalid")
+            until = self._parse_time(str(standing["renew_until"]))
+            if until <= expires or until > now + MAX_STANDING_HORIZON:
+                raise TaskStoreError("standing_renewal_horizon_invalid")
+            normalized["standing_renewal"] = {"window_hours": hours, "renew_until": self._format_time(until)}
         return normalized
 
     @staticmethod
