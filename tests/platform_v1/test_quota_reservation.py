@@ -548,3 +548,86 @@ def test_uncalibrated_account_keeps_admitting_sequential_tasks():
 def quota_forecast_iso(at):
     from reverse_agent.model_access import quota_forecast
     return quota_forecast.iso(at)
+
+
+def _iso(at):
+    from reverse_agent.model_access import quota_forecast
+    return quota_forecast.iso(at)
+
+
+def _magpie(at, five, weekly, reset=50_000):
+    return {"account_ref": "acct", "source": "magpie", "state": "OBSERVED", "observed_at": _iso(at),
+            "windows": [{"window": "5 hours", "used_percent": five, "resets_at": _iso(reset)},
+                        {"window": "7 days", "used_percent": weekly, "resets_at": _iso(reset * 10)}]}
+
+
+def _settled(task_id, created, finished, units=0.8, state="UNKNOWN"):
+    return {"task_id": task_id, "account_ref": "acct", "state": state, "created_at": _iso(created),
+            "reconciled_at": _iso(finished) if finished else "", "settlement": {"price_units": units}}
+
+
+def test_settlement_prices_measured_tokens_in_need_units():
+    obs = [{"id": "o", "status": "PARTIAL", "source_kind": "native_summary", "input_units": 121186,
+            "cache_read_units": 3238400, "cache_write_units": None, "output_units": 21972,
+            "reasoning_units": None, "cost_micro_units": None}]
+    estimate = {"estimate": {"model": "gpt-6.1-sol"}, "calibration": {}}
+    fact = reservation.settlement(obs, estimate, usage_unknown=False)
+    assert fact["cost_units"] is None and fact["price_units"] > 0  # never reported as spend
+    assert reservation.settlement(obs, estimate, usage_unknown=True)["price_units"] is None
+    missing = [dict(obs[0], output_units=None)]
+    assert reservation.settlement(missing, estimate, usage_unknown=False)["price_units"] is None
+
+
+def test_isolated_task_delta_gives_a_conservative_rate():
+    # 2026-10-21 shape: admitted at 52%/28%, next fresh Magpie reading 74%/32%.
+    rows = [_settled("t", 1010, 1500, units=0.786)]
+    rates = reservation.delta_calibration("t", _magpie(1000, 52, 28), _magpie(2000, 74, 32), rows)
+    assert rates == pytest.approx({"five_hour": 0.786 / 23, "weekly": 0.786 / 5})
+
+
+@pytest.mark.parametrize("change", ["overlap", "running_overlap", "reset", "no_increase", "estimated_after",
+                                    "started_before", "finished_after", "no_units", "active"])
+def test_delta_calibration_refuses_unattributable_intervals(change):
+    before, after = _magpie(1000, 52, 28), _magpie(2000, 74, 32)
+    rows = [_settled("t", 1010, 1500)]
+    if change == "overlap":
+        rows.append(_settled("other", 1400, 1600))
+    elif change == "running_overlap":
+        rows.append(_settled("other", 1200, None, state="ACTIVE"))
+    elif change == "reset":
+        after = _magpie(2000, 74, 32, reset=60_000)
+    elif change == "no_increase":
+        after = _magpie(2000, 52, 28)
+    elif change == "estimated_after":
+        after = dict(after, source="estimated")
+    elif change == "started_before":
+        rows = [_settled("t", 900, 1500)]
+    elif change == "finished_after":
+        rows = [_settled("t", 1010, 2500)]
+    elif change == "no_units":
+        rows = [_settled("t", 1010, 1500, units=None)]
+    elif change == "active":
+        rows = [_settled("t", 1010, 1500, state="ACTIVE")]
+    assert reservation.delta_calibration("t", before, after, rows) == {}
+
+
+def test_control_store_learns_each_task_once_and_uses_the_median(tmp_path, monkeypatch):
+    import json
+    store, control, _ = settled_store(tmp_path, monkeypatch)
+    conn = store._conn
+    for index, (task_id, used_before, used_after) in enumerate((("t1", 10, 20), ("t2", 20, 26), ("t3", 26, 40))):
+        task = store.create_task(title=task_id, executor_kind="codex", binding_ref="b")
+        start = 1000 + index * 1000
+        conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,"
+                     "need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
+                     (task.id, "b", "acct", json.dumps(_magpie(start, used_before, 1)), "{}", 0, 10))
+        rows = [dict(_settled(task.id, start + 10, start + 500, units=1.0))]
+        after = _magpie(start + 900, used_after, 1)
+        with control._lock, conn:
+            control._delta_calibrate_locked("acct", after, rows)
+            control._delta_calibrate_locked("acct", after, rows)  # replay learns nothing new
+    rates = control.quota_calibration("acct")
+    # Samples 1/11, 1/7, 1/15 per pp: the median is used, weekly saw no increase.
+    assert rates == pytest.approx({"five_hour": 1 / 11})
+    evidence = json.loads(conn.execute("SELECT evidence_json FROM platform_quota_calibrations").fetchone()[0])
+    assert len(evidence["delta_samples"]["five_hour"]) == 3 and evidence["basis"] == "provider_delta_lower_bound"
