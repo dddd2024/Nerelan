@@ -754,7 +754,7 @@ class CombinedTrustedHost:
         for window in evidence.get("windows", ()):
             capacity = (window.get("capacity_units") or {}).get("low")
             if quota_reservation._number(capacity) and capacity > 0:
-                rates[window["window"]] = capacity / 100
+                rates[quota_reservation.canonical_window(window["window"])] = capacity / 100
         return quota_reservation.window_need(need, account, {account: rates})
 
     def _goal_quota_fit(self, goal, tasks):
@@ -827,12 +827,22 @@ class CombinedTrustedHost:
         connection = self._store.get_connection_public(binding["connection_id"])
         if connection.get("auth_method") != "external_cli_session":
             return
+        from ..model_access.contracts import NATIVE_CLI_PROVIDERS
+        provider = connection.get("executor_provider_id")
+        if provider not in NATIVE_CLI_PROVIDERS:
+            return  # no account quota windows exist for this session (e.g. a free OpenCode login)
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)
             quotas = self._subscription_quotas()
-            # A provider summary for another account is never account evidence.
-            return [q for q in quotas.values() if q.get("account_ref") == account]
+            # A provider summary for another account is never account evidence. A
+            # connection without a recorded account is the machine's own CLI login,
+            # which is exactly what the provider-keyed observation describes.
+            own = quotas.get(provider)
+            if not connection.get("account_ref") and isinstance(own, Mapping):
+                own = dict(own, account_ref=account)
+            return [q for q in (own, *(v for k, v in quotas.items() if k != provider))
+                    if isinstance(q, Mapping) and q.get("account_ref") == account]
         evidence = quota_reservation.observation(account, read(account), refresh=read)
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
