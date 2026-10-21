@@ -325,3 +325,21 @@ def test_reviewed_initial_snapshot_is_valid_and_cited():
     priors = cb.compute_priors(data)
     assert priors['kimi-k3']['code']['confidence'] == 'high'
     assert priors['doubao-seed-code']['code']['confidence'] == 'low'  # one source only
+
+
+@pytest.mark.parametrize('model, family', [
+    # Live Magpie ids seen 2026-10-21 (#1313): exact same models under provider prefixes.
+    ('opencode-zen-free/deepseek-v4.1-flash-free', 'deepseek-v4.1-flash'),
+    ('workbuddy-ai/deepseek-v4.1-flash-sg', 'deepseek-v4.1-flash'),
+    ('group/auto-deepseek-v4-1-flash', 'deepseek-v4.1-flash'),
+    ('raccoon/sn-glm-5-3', 'glm-5.3'), ('trae-cn/glm-5.3-max', 'glm-5.3'),
+    ('group/auto-kimi-k3', 'kimi-k3'), ('raccoon/sn-kimi-k3', 'kimi-k3'),
+    ('group/auto-gpt-6-1-sol', 'gpt-6.1-sol'), ('workbuddy/deepseek-v4-pro', 'deepseek-v4-pro'),
+    ('trae-cn/Doubao-Seed-Code', 'doubao-seed-code'), ('minimax-code/MiniMax-M3', 'minimax-m3'),
+    # Different (smaller or unverified) models must not inherit a family's prior.
+    ('trae-cn/glm-5.3-flash', None), ('workbuddy/glm-5.3-flash', None), ('workbuddy/kimi-k3-1', None),
+    ('workbuddy/minimax-m3.1-flash', None), ('trae-cn/DeepSeek-V4-Flash', None),
+])
+def test_live_magpie_ids_resolve_only_to_their_own_family(model, family):
+    priors = cb.BenchmarkPriors(cb.read_snapshot(SNAPSHOT))
+    assert priors.family(model) == family
