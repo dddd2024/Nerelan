@@ -1731,6 +1731,28 @@ class PlatformControlStore:
                 outcomes.append({"goal_id": row["id"], "status": "DEFERRED", "reason": str(exc)})
         return tuple(outcomes)
 
+    def reroute_held_task(self, task_id: str, *, expected_binding: str, binding_ref: str,
+                          executor_kind: str, branch: str) -> bool:
+        """Move a never-started, quota-held QUEUED task to another binding (#1313 D).
+
+        Compare-and-set on status and binding; the stale admission input is dropped so
+        the next claim prepares quota evidence for the new binding.
+        """
+        with self._lock, self._conn:
+            started = self._conn.execute(
+                "SELECT 1 FROM platform_coordinator_claims WHERE task_id=? UNION ALL "
+                "SELECT 1 FROM durable_runs WHERE task_id=? LIMIT 1", (task_id, task_id)).fetchone()
+            if started is not None:
+                return False
+            moved = self._conn.execute(
+                "UPDATE tasks SET binding_ref=?, executor_kind=?, branch=?, updated_at=? "
+                "WHERE id=? AND status='QUEUED' AND binding_ref=?",
+                (binding_ref, executor_kind, branch, _utc_now(), task_id, expected_binding))
+            if moved.rowcount != 1:
+                return False
+            self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
+            return True
+
     def quota_hold(self, task_id: str) -> dict[str, Any] | None:
         """A hold is dispatch state, not observed usage or an executor failure."""
         with self._lock:
