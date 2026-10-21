@@ -52,6 +52,7 @@ class UnattendedCoordinator:
         planning_sha: str = "",
         task_executor: TaskExecutor | None = None,
         poll_interval: float = 1.0,
+        reconcile_interval: float = 60.0,
         claim_lease_ms: int = 15 * 60 * 1000,
         owner: str | None = None,
         goal_escalator: Any | None = None,
@@ -78,6 +79,9 @@ class UnattendedCoordinator:
         self.planning_sha = planning_sha
         self.task_executor = task_executor
         self.poll_interval = max(0.1, poll_interval)
+        # Startup only sees leases that already expired; a run orphaned by a host
+        # restart while its lease was still live expires later and must be found.
+        self.reconcile_interval = max(self.poll_interval, reconcile_interval)
         self.claim_lease_ms = max(1, claim_lease_ms)
         self.owner = owner or f"coordinator-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self._stop = threading.Event()
@@ -701,7 +705,11 @@ class UnattendedCoordinator:
     def _run(self) -> None:
         current = threading.current_thread()
         try:
+            reconciled_at = time.monotonic()
             while not self._stop.is_set():
+                if time.monotonic() - reconciled_at >= self.reconcile_interval:
+                    reconciled_at = time.monotonic()
+                    self.reconcile()
                 try:
                     self.tick(background=True)
                 except Exception as exc:
