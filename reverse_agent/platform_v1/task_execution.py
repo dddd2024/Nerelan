@@ -38,6 +38,7 @@ from .run_store import (
 )
 from .task_runtime import (
     ExecutorCallback,
+    QuotaPauseOutcome,
     ExecutorRouter,
     ExecutorRuntimeError,
     LocalValidationRunner,
@@ -56,6 +57,7 @@ class TaskExecutionOutcome:
     evidence_ids: tuple[str, ...] = ()
     failure_classification: str = ""
     failure_detail: str = ""
+    quota_pause: QuotaPauseOutcome | None = None
 
 
 def _build_executor_kwargs(

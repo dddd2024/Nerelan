@@ -377,6 +377,30 @@ class _DurableFencedExecutorStore:
             epoch=self._epoch,
         )
 
+    def quota_resume_context(self, task_id):
+        if task_id != self._task_id:
+            raise TaskStoreError("durable_quota_task_mismatch")
+        self._store._validate_durable_lease(self._run_id, self._owner, self._epoch)
+        row = self._store._conn.execute(
+            "SELECT payload_json FROM quota_partial_checkpoints WHERE run_id=? AND state='RESUMING'",
+            (self._run_id,)).fetchone()
+        if row is None:
+            return ""
+        value = self._store._verify_quota_resume(task_id)
+        return ("\n\nSaved interrupted work (context only; current task authority still applies):\n"
+                + value["summary"] + "\nRemaining work:\n" + value["remaining_work"])
+
+    def native_quota(self, task_id, prepared):
+        """Return a host-bound controller; no raw store capability reaches a child."""
+        if task_id != self._task_id:
+            raise TaskStoreError("durable_quota_task_mismatch")
+        from .native_quota import NativeQuota
+        snapshot = self._store.native_quota_snapshot(self._run_id, self._owner, self._epoch)
+        if snapshot is None:
+            return None
+        return NativeQuota(self._store, self._run_id, self._owner, self._epoch,
+                           prepared, snapshot)
+
     def active_usage_reservation(self, task_id: str) -> dict[str, int]:
         if task_id != self._task_id:
             raise TaskStoreError(
@@ -846,6 +870,13 @@ class DurableExecutionService:
         from .binding_resolver import BindingResolutionError
         from .run_store import TERMINAL_STATUSES
 
+        # A saved pause must be reconciled, never overwritten by generic failure cleanup.
+        with self.store._lock:
+            pending = self.store._conn.execute(
+                "SELECT 1 FROM quota_partial_checkpoints WHERE run_id=? AND request_epoch=? AND state='PAUSED'",
+                (lease.run_id, lease.epoch)).fetchone()
+            if pending:
+                return
         classification = "executor_dispatch_failed"
         if isinstance(exc, BindingResolutionError):
             # Resolver codes are finite public identifiers; never persist arbitrary
@@ -1234,6 +1265,14 @@ class DurableExecutionService:
             owner=lease.owner,
             epoch=lease.epoch,
         )
+
+        if getattr(exec_result, "quota_pause", None) is not None:
+            pause = exec_result.quota_pause
+            self.store.interrupt_for_quota(lease.run_id, task_id, lease.owner, lease.epoch, pause)
+            return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id,
+                success=False, validation_command_id="", validation_exit_code=-1,
+                failure_classification="quota_paused" if pause["state"] == "PAUSED" else "quota_checkpoint_failed",
+                failure_detail=_json_payload(pause), quota_pause=pause)
 
         if (not exec_result.success and exec_result.validation_command_id == "git_diff_check"
                 and exec_result.validation_exit_code != 0
@@ -3153,6 +3192,12 @@ class DurableExecutionService:
 
         executor_kwargs = self._build_executor_kwargs(task)
         idempotency_key = f"single-exec-{task_id}-{run.execution_id}"
+        partial = self.store._conn.execute(
+            "SELECT checkpoint_id FROM quota_partial_checkpoints WHERE run_id=? AND state='RESUMING'",
+            (lease.run_id,)).fetchone()
+        if partial:
+            # Saved work is a distinct dispatch; the interrupted call remains journaled.
+            idempotency_key += "-quota-" + partial[0]
         request_digest = _digest(_json_payload({
             "task_id": task_id,
             "execution_id": run.execution_id,
@@ -3335,6 +3380,20 @@ class DurableExecutionService:
                 failure_classification=final.failure_classification,
                 failure_detail=final.failure_detail,
             )
+
+        if partial:
+            self.store.quota_checkpoint(lease.run_id, partial[0], lease.owner, lease.epoch, state="RESUMED")
+
+        if getattr(exec_raw, "quota_pause", None) is not None:
+            pause = exec_raw.quota_pause
+            self.store._reconcile_external_operation(
+                operation_id=ext_op.operation_id, external_operation_id=ext_op.operation_id,
+                result_state="failure", run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
+            self.store.interrupt_for_quota(lease.run_id, task_id, lease.owner, lease.epoch, pause)
+            return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id,
+                success=False, validation_command_id="", validation_exit_code=-1,
+                failure_classification="quota_paused" if pause["state"] == "PAUSED" else "quota_checkpoint_failed",
+                failure_detail=_json_payload(pause), quota_pause=pause)
 
         from .model_availability import availability_error
         unavailable = availability_error(str(exec_result.get("failure_classification", "")) + " " + str(exec_result.get("error", "")))
@@ -4264,8 +4323,10 @@ class DurableExecutionService:
 
         Does NOT automatically launch models. Returns list of reconciliation records.
         """
-        return self.store._reconcile_expired_runs(
-            now_ms=now_ms or _utc_now_ms(),
+        current_ms = now_ms or _utc_now_ms()
+        quota_records = self.store.recover_quota_pauses(now_ms=current_ms)
+        return quota_records + self.store._reconcile_expired_runs(
+            now_ms=current_ms,
             max_age_ms=max_age_ms or self.expiry_ms,
         )
 

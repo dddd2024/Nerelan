@@ -349,17 +349,23 @@ class CodexExecutor:
         context = executor_context(store, task_id=task_id, workspace=prepared.worktree,
                                    expected_head=prepared.base_sha)
         prompt += context
+        if hasattr(store, "quota_resume_context"):
+            prompt += store.quota_resume_context(task_id)
         if context:
             context_blob = context.rsplit("\n", 1)[-1].encode()
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
                 "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
                             "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":prepared.base_sha}})
+        quota = store.native_quota(task_id, prepared) if hasattr(store, "native_quota") else None
         def progress(item):
+            if quota is not None:
+                quota.observe(item)
             _emit(event_callback, task_id, {"type": "EXECUTOR_PROGRESS", "title": self.LABEL,
                 "description": public_text(item.get("text") or item.get("command") or f"{self.LABEL} activity"),
                 "metadata": {"executor_kind": self.KIND, "event": item}})
         parser = self._parser(progress)
+        parser.native_quota = quota
         code = None
         def persist_unknown_usage():
             from .usage_ledger import _native
@@ -384,6 +390,11 @@ class CodexExecutor:
             } for model in models])
         try:
             code = self._stream(prepared, prompt, parser)
+            if isinstance(code, dict) and "checkpoint_id" in code:
+                persist_unknown_usage()
+                return ExecutorResult(False, -1, "", "", "", workspace=str(prepared.worktree),
+                    execution_id=prepared.execution_id, quota_pause=code,
+                    failure_classification="quota_paused" if code["state"] == "PAUSED" else "quota_checkpoint_failed")
             turn = parser.finish()
             if code != 0 or turn.failed:
                 raise CodexProtocolError(turn.failure_classification or self._e("process_failed"))
@@ -470,6 +481,7 @@ class CodexExecutor:
 
     def _stream(self, prepared, prompt, parser, *, runtime_path=None):
         from .functional_validation import _WindowsJob, _terminate
+        from .native_quota import QuotaBoundary
         environment = _task_temp_env(runtime_path or prepared.worktree, self._child_env())
         job = _WindowsJob() if os.name == "nt" else None
         try:
@@ -516,7 +528,9 @@ class CodexExecutor:
         def write_prompt():
             try:
                 proc.stdin.write(prompt.encode())
-                proc.stdin.close()
+                proc.stdin.flush()
+                if getattr(proc, "supports_quota_checkpoint", False) is not True:
+                    proc.stdin.close()
             except (OSError, ValueError):
                 send(("writer_error", b""))
         readers.append(threading.Thread(target=write_prompt, daemon=True))
@@ -525,6 +539,7 @@ class CodexExecutor:
         deadline = time.monotonic() + self._timeout
         finished = set()
         stderr_bytes = 0
+        quota_boundary = False
         try:
             while len(finished) < 2:
                 remaining = deadline - time.monotonic()
@@ -550,10 +565,19 @@ class CodexExecutor:
                 return proc.wait(timeout=max(0.001, deadline - time.monotonic()))
             except subprocess.TimeoutExpired as exc:
                 raise CodexProtocolError(self._e("timeout")) from exc
+        except QuotaBoundary:
+            quota_boundary = True
+            return parser.native_quota.finish(proc, job, parser, prompt)
         finally:
             stopping.set()
             # Close only this owned process tree, including surviving tool children.
-            _terminate(proc, job)
+            try:
+                _terminate(proc, job)
+            except (OSError, subprocess.SubprocessError):
+                if not quota_boundary:
+                    raise
+                # The quota result already records unconfirmed stop as FAILED;
+                # never replace it with a generic timeout or claim saved bytes.
             for pipe in (proc.stdin, proc.stdout, proc.stderr):
                 pipe.close()
             for reader in readers:
