@@ -96,9 +96,11 @@ class CombinedTrustedHost:
         vault: Any = _PLATFORM_VAULT,
         local_client_session: LocalClientSession | None = None,
         magpie_factory: Callable | None = None,
+        landing_owner_decisions: Callable | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
+        self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
         self._reset_signal_reader = reset_signal_reader
         self._availability_probe = availability_probe
         task_store = task_store or _make_task_store(task_db_path)
@@ -1171,11 +1173,18 @@ class CombinedTrustedHost:
             if live_github is None:
                 live_github = LiveGitHubAdapter()
             self._publication_controller = PublicationController(
+                landing_decisions=self._landing_owner_decisions,
                 store=self._task_store,
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
             )
             workspace_root = self._task_workspace_root()
+            from .landing_loop import LandingLoopController
+            from .live_landing import RoutedLandingGitHubAdapter
+            landing = LandingLoopController(control_store=self._control_store,
+                autonomy=self._autonomy_service,
+                github=RoutedLandingGitHubAdapter(self._control_store),
+                owner_decisions=self._landing_owner_decisions)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -1188,6 +1197,7 @@ class CombinedTrustedHost:
                 planning_sha=self._planning_sha,
                 goal_escalator=self._goal_service.escalate_failed_tasks,
                 quota_preparer=self._prepare_task_quota,
+                landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(
                 self._task_store,

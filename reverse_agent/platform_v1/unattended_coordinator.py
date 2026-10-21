@@ -56,8 +56,12 @@ class UnattendedCoordinator:
         owner: str | None = None,
         goal_escalator: Any | None = None,
         quota_preparer: Any | None = None,
+        landing_loop=None, publication=None, goals=None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
+        self.landing_loop = landing_loop
+        self.publication = publication
+        self.goals = goals
         self.quota_preparer = quota_preparer
         self.goal_escalator = goal_escalator
         self.store = store
@@ -180,6 +184,37 @@ class UnattendedCoordinator:
                 self._manual_tick_active = False
                 self._manual_tick_idle.set()
 
+    def _advance_landing(self, window):
+        if self.landing_loop is None:
+            return
+        # Bounded scan over local intent; GitHub truth is read by each tick.
+        if window is not None and self.publication is not None and self.goals is not None:
+            from . import artifact_handoff as artifacts
+            rows = self.control_store._conn.execute(
+                "SELECT task_id FROM platform_goal_task_links LIMIT 100").fetchall()
+            for row in rows:
+                task = self.store.get_task(row["task_id"])
+                if task.status != "READY_FOR_REVIEW" or not artifacts._load_evidence(
+                        task, artifacts.ACCEPTED_CATEGORY, task.execution_id):
+                    continue
+                goal = self.control_store.get_goal(self.control_store.goal_id_for_task(task.id))
+                if goal.window_id != window.id or self.control_store.landing_progress(goal.id):
+                    continue
+                try:
+                    self.landing_loop.publish_and_review(task.id, window_id=window.id,
+                        publication=self.publication, goals=self.goals,
+                        execution=self._durable_service(), workspace_root=self.workspace_root)
+                except TaskStoreError as exc:
+                    self._last_error = str(exc)
+                break
+        rows = self.control_store._conn.execute(
+            "SELECT identity,goal_id FROM platform_landing_state WHERE phase NOT IN "
+            "('BLOCKED','COMPLETE','SUPERSEDED') ORDER BY next_attempt_ms LIMIT 10").fetchall()
+        for row in rows:
+            goal = self.control_store.get_goal(row["goal_id"])
+            if goal.window_id:
+                self.landing_loop.tick(row["identity"], window_id=goal.window_id)
+
     def _tick_impl(self, *, background: bool) -> int:
         if self._stop.is_set():
             return 0
@@ -188,7 +223,9 @@ class UnattendedCoordinator:
             return 0
         window = self.control_store.active_window()
         if window is None:
+            self._advance_landing(None)
             return 0
+        self._advance_landing(window)
         if getattr(self.autonomy, "delegated_mode", False) and "approve_goal" in window.capabilities:
             from .goal_service import GoalService
             try:

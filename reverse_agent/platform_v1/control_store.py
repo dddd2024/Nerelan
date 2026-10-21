@@ -232,10 +232,46 @@ class PlatformControlStore:
                 self._init_schema()
                 task_store._platform_control_initialized = True
 
+        with self._lock:
+            columns = {r[1] for r in self._conn.execute("PRAGMA table_info(platform_landing_state)")}
+            if "tick_lease_ms" not in columns:
+                self._conn.execute("ALTER TABLE platform_landing_state ADD COLUMN tick_lease_ms INTEGER NOT NULL DEFAULT 0")
+            if "parking_reason" not in columns:
+                self._conn.execute("ALTER TABLE platform_landing_state ADD COLUMN parking_reason TEXT NOT NULL DEFAULT ''")
+
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS platform_landing_state (
+                    identity TEXT PRIMARY KEY,
+                    repository TEXT NOT NULL,
+                    goal_id TEXT NOT NULL,
+                    pr_number INTEGER NOT NULL,
+                    head_sha TEXT NOT NULL,
+                    review_round INTEGER NOT NULL,
+                    phase TEXT NOT NULL DEFAULT 'PENDING',
+                    next_attempt_ms INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS platform_landing_operations (
+                    identity TEXT NOT NULL REFERENCES platform_landing_state(identity),
+                    operation TEXT NOT NULL,
+                    claim_id TEXT NOT NULL,
+                    window_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    next_attempt_ms INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(identity, operation)
+                );
+                CREATE TABLE IF NOT EXISTS platform_landing_receipts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    identity TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    claim_id TEXT NOT NULL,
+                    window_id TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS platform_goals (
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
@@ -457,6 +493,158 @@ class PlatformControlStore:
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
 
     # Goal records -----------------------------------------------------
+
+    def landing_progress(self, goal_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_landing_state WHERE goal_id=? ORDER BY rowid DESC LIMIT 1",
+                (goal_id,)).fetchone()
+        return dict(row) if row else None
+
+    def lease_landing_tick(self, identity: str, now: int) -> bool:
+        # A persisted lease also fences competing host processes. Remote writes
+        # have their own non-expiring claims and must be reconciled after a crash.
+        with self._lock:
+            return self._conn.execute(
+                "UPDATE platform_landing_state SET tick_lease_ms=? WHERE identity=? "
+                "AND next_attempt_ms<=? AND tick_lease_ms<=? AND phase NOT IN ('BLOCKED','COMPLETE','SUPERSEDED')",
+                (now + 300000, identity, now, now)).rowcount == 1
+
+    def finish_landing_tick(self, identity: str, phase: str, reason: str, retry: int, *, lease: int | None = None) -> dict[str, Any]:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE platform_landing_state SET phase=?,parking_reason=?,next_attempt_ms=?,tick_lease_ms=0 "
+                "WHERE identity=? AND (? IS NULL OR tick_lease_ms=?)",
+                (phase, reason, retry, identity, lease, lease))
+        return self.get_landing(identity)
+
+    def ensure_landing(self, *, repository: str, goal_id: str, pr_number: int,
+                       head_sha: str, review_round: int) -> dict[str, Any]:
+        """Persist local intent, never a replica of GitHub state or authority."""
+        if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+                or type(pr_number) is not int or pr_number <= 0
+                or not re.fullmatch(r"[0-9a-f]{40}", head_sha)
+                or type(review_round) is not int or review_round < 1):
+            raise TaskStoreError("invalid_landing_identity")
+        if self.get_goal(goal_id).repository != repository:
+            raise TaskStoreError("landing_goal_repository_mismatch")
+        identity = sha256_json([repository, goal_id, pr_number, head_sha, review_round])
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO platform_landing_state "
+                "(identity,repository,goal_id,pr_number,head_sha,review_round) VALUES (?,?,?,?,?,?)",
+                (identity, repository, goal_id, pr_number, head_sha, review_round))
+        return self.get_landing(identity)
+
+    def get_landing(self, identity: str) -> dict[str, Any]:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM platform_landing_state WHERE identity=?",
+                                     (identity,)).fetchone()
+        if row is None:
+            raise TaskStoreError("landing_not_found")
+        return dict(row)
+
+    def schedule_landing(self, identity: str, *, expected_phase: str, phase: str,
+                         next_attempt_ms: int = 0) -> dict[str, Any]:
+        """Compare-and-set local coordination state, never external completion."""
+        if (phase not in {"PENDING", "WAITING", "RECONCILING", "BLOCKED"}
+                or type(next_attempt_ms) is not int or next_attempt_ms < 0):
+            raise TaskStoreError("invalid_landing_schedule")
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_landing_state SET phase=?,next_attempt_ms=? "
+                "WHERE identity=? AND phase=?",
+                (phase, next_attempt_ms, identity, expected_phase))
+            if cur.rowcount != 1:
+                raise TaskStoreError("landing_state_changed")
+            return self.get_landing(identity)
+
+    def claim_landing_operation(self, identity: str, operation: str, *, window_id: str) -> str | None:
+        """Atomic cross-connection claim. Interrupted claims are never auto-replayed."""
+        if operation not in {"review_comment", "update_branch", "mark_ready", "verdict", "merge"}:
+            raise TaskStoreError("unsupported_landing_operation")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                state = self.get_landing(identity)
+                window = self.get_window(window_id)
+                if (not self._window_current_locked(window_id)
+                        or state["repository"] not in window.repositories
+                        or not ("land_reviewed_pr" in window.capabilities
+                                or operation == "review_comment" and "open_draft_pr" in window.capabilities)
+                        or window.confirmation_mode == "DELEGATED_CONTROLLER"
+                        or self.window_policy_binding(window_id)["policy_digest_sha256"]):
+                    raise TaskStoreError("landing_window_denied")
+                now = _utc_now_ms()
+                row = self._conn.execute(
+                    "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
+                    (identity, operation)).fetchone()
+                if state["phase"] == "BLOCKED" or state["next_attempt_ms"] > now or (row and (
+                        row["status"] != "ABSENT" or row["next_attempt_ms"] > now)):
+                    self._conn.commit()
+                    return None
+                claim = _id("landing")
+                self._conn.execute(
+                    "INSERT INTO platform_landing_operations VALUES (?,?,?,?,?,0) "
+                    "ON CONFLICT(identity,operation) DO UPDATE SET claim_id=excluded.claim_id, "
+                    "window_id=excluded.window_id,status=excluded.status,next_attempt_ms=0",
+                    (identity, operation, claim, window_id, "CLAIMED"))
+                self._landing_receipt(identity, operation, claim, window_id, "CLAIMED", {})
+                self._conn.commit()
+                return claim
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def landing_operation(self, identity: str, operation: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
+                (identity, operation)).fetchone()
+            return dict(row) if row else None
+
+    def record_landing_outcome(self, identity: str, operation: str, claim_id: str, *,
+                               outcome: str, evidence: Mapping[str, Any],
+                               next_attempt_ms: int = 0) -> None:
+        """Only reconciled external evidence can establish success or safe retry.
+
+        UNKNOWN and FAILED remain blocked; ABSENT explicitly proves safe retry.
+        Receipts record observations and never advance a loop to merged.
+        """
+        if (outcome not in {"SUCCEEDED", "ABSENT", "UNKNOWN", "FAILED"}
+                or type(next_attempt_ms) is not int or next_attempt_ms < 0
+                or not evidence):
+            raise TaskStoreError("invalid_landing_outcome")
+        reject_sensitive_keys(evidence)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                cur = self._conn.execute(
+                    "UPDATE platform_landing_operations SET status=?,next_attempt_ms=? "
+                    "WHERE identity=? AND operation=? AND claim_id=? AND status IN ('CLAIMED','UNKNOWN')",
+                    (outcome, next_attempt_ms, identity, operation, claim_id))
+                if cur.rowcount != 1:
+                    raise TaskStoreError("landing_claim_mismatch")
+                row = self.landing_operation(identity, operation)
+                self._conn.execute(
+                    "UPDATE platform_landing_state SET next_attempt_ms=? WHERE identity=?",
+                    (next_attempt_ms, identity))
+                self._landing_receipt(identity, operation, claim_id, row["window_id"], outcome, evidence)
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def _landing_receipt(self, identity, operation, claim, window, outcome, evidence):
+        self._conn.execute(
+            "INSERT INTO platform_landing_receipts "
+            "(identity,operation,claim_id,window_id,outcome,evidence_json,created_at) VALUES (?,?,?,?,?,?,?)",
+            (identity, operation, claim, window, outcome, canonical_json(evidence), _utc_now_precise()))
+
+    def landing_receipts(self, identity: str) -> tuple[dict[str, Any], ...]:
+        with self._lock:
+            return tuple(dict(row) for row in self._conn.execute(
+                "SELECT * FROM platform_landing_receipts WHERE identity=? ORDER BY id", (identity,)))
 
     def create_goal(
         self,

@@ -18,7 +18,7 @@ from .authority_adapter import AuthorityBundleError, PolicyAuthority
 
 MAX_WINDOW_DURATION = timedelta(days=7)
 KNOWN_OPERATIONS = frozenset(
-    {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr", "approve_goal"}
+    {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr", "approve_goal", "land_reviewed_pr"}
 )
 
 
@@ -462,6 +462,8 @@ class AutonomyService:
                 raise TaskStoreError("capability_unavailable")
             if operation == "approve_goal" and not self.delegated_mode:
                 raise TaskStoreError("delegated_goal_authority_required")
+            if operation == "land_reviewed_pr" and (self.require_trusted_policy or self.delegated_mode):
+                raise TaskStoreError("trusted_landing_adapter_not_supported")
             if self.require_trusted_policy or self.delegated_mode:
                 authority = self._authority()
                 stored = self.control_store.window_policy_binding(window_id)
