@@ -16,7 +16,7 @@ import time
 from statistics import median
 from typing import Any
 
-from .model_availability import provider_overloaded
+from .model_availability import transient_overload
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 
@@ -102,8 +102,7 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         seconds = _seconds(span[0], span[1]) if span[0] and span[1] else None
         if classification.startswith("model_unavailable"):
             continue  # entitlement and transient dispatch errors are not capability evidence
-        if status == "FAILED" and (classification.startswith("provider_overloaded")
-                                   or provider_overloaded(row["failure_detail"] or "")):
+        if status == "FAILED" and transient_overload(classification, row["failure_detail"] or ""):
             # Provider capacity is availability evidence, never capability evidence.
             profile["overloaded"] = profile.get("overloaded", 0) + 1
             continue

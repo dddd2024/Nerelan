@@ -22,14 +22,31 @@ def native_owner_account(binding: Mapping[str, Any], connection: Mapping[str, An
 
 # Provider-side overload is transient: not an entitlement problem, a quota limit
 # or capability evidence. The same model or tier is retried after a backoff.
-OVERLOAD_RE = re.compile(r"at capacity|overloaded|server (?:is )?busy|temporarily unavailable"
-                         r"|try again later|api_error_(?:503|529)|(?:http|status|error)[ _:]*529|529 overloaded"
-                         r"|503 service unavailable", re.I)
+# Only capacity wording: generic "try again later" also ends usage-limit messages.
+OVERLOAD_RE = re.compile(r"at capacity|overloaded|server (?:is )?busy|api_error_(?:503|529)"
+                         r"|(?:http|status|error)[ _:]*529|503 service unavailable", re.I)
+# Stored classes that are never re-read as overload from their detail text.
+_NOT_OVERLOAD_CLASS = re.compile(r"limit|quota|rate|429|unavailable|refus|no_willing|policy", re.I)
 OVERLOADED = "provider_overloaded"
 
 
 def provider_overloaded(value: str) -> bool:
     return bool(OVERLOAD_RE.search(value or ""))
+
+
+def transient_overload(classification: str, detail: str) -> bool:
+    """A failed attempt is provider overload only when nothing more specific applies.
+
+    Usage/rate limits, entitlement errors and refusals keep their own handling even
+    when their message also mentions capacity.
+    """
+    classification = classification or ""
+    if classification.startswith(OVERLOADED):
+        return True
+    if _NOT_OVERLOAD_CLASS.search(classification):
+        return False
+    from .codex_protocol import usage_limit_hit
+    return provider_overloaded(detail) and not usage_limit_hit(detail or "")
 
 
 def availability_error(value: str) -> str | None:

@@ -16,6 +16,7 @@ LIVE = "Selected model is at capacity. Please try a different model."
 @pytest.mark.parametrize("text, expected", [
     (LIVE, True), ("overloaded_error: Overloaded", True), ("api_error_529", True),
     ("503 Service Unavailable", True), ("The server is busy, try again later", True),
+    ("Login service temporarily unavailable", False), ("please try again later", False),
     ("usage limit reached", False), ("model_not_found", False), ("context limit reached", False),
     ("failed at app.py:529", False), ("HTTP 529", True), ("", False),
 ])
@@ -94,3 +95,31 @@ def test_persistent_overload_falls_back_to_ordinary_routing(case, monkeypatch):
     _fail_overloaded(store, task, root)
     [step] = service.escalate_failed_tasks(goal.id) or [None]
     assert step is None or step["reason"] != "transient_overload"
+
+
+LIMIT_MESSAGES = ["You've hit your usage limit. Upgrade to Pro or try again later.",
+                  "Claude usage limit reached. Try again later",
+                  "Rate limit exceeded, please try again later",
+                  "You've hit your usage limit; the selected model is at capacity"]
+
+
+@pytest.mark.parametrize("message", LIMIT_MESSAGES)
+@pytest.mark.parametrize("classification", ["codex_usage_limit", "claude_code_usage_limit",
+                                            "codex_turn_failed", "MODEL_UNAVAILABLE:not_allowed"])
+def test_limits_and_entitlements_are_never_relabelled_as_overload(message, classification):
+    assert not model_availability.transient_overload(classification, message)
+
+
+@pytest.mark.parametrize("message", LIMIT_MESSAGES)
+def test_usage_limit_failure_keeps_quota_routing_and_profile_counting(case, message):
+    root, _, store, _, service, goal, _, task = case
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="Workspace ready",
+                    metadata={"execution_id": task.execution_id, "workspace": str(root)})
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='codex_usage_limit', "
+                        "failure_detail=?, updated_at='2000-01-01T00:00:00Z' WHERE id=?", (message, task.id))
+    store._conn.commit()
+    profile = model_profiles.compute_agent_profiles(store)[task.binding_ref]
+    assert profile.get("overloaded", 0) == 0 and profile["failed"] == 1
+    steps = service.escalate_failed_tasks(goal.id)
+    assert all(step["reason"] != "transient_overload" for step in steps)
+    assert recovery.recovery_input(store.get_task(steps[0]["to_task_id"])) is None if steps else True

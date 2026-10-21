@@ -16,7 +16,7 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import provider_overloaded
+from .model_availability import transient_overload
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -656,9 +656,8 @@ class GoalService:
                         continue  # already re-run once on its explicit targets; never a capability signal
                 except (ValueError, TypeError):
                     continue
-            overloaded = not miss and failed.status == "FAILED" and (
-                (failed.failure_classification or "").startswith("provider_overloaded")
-                or provider_overloaded(failed.failure_detail or ""))
+            overloaded = not miss and failed.status == "FAILED" and transient_overload(
+                failed.failure_classification, failed.failure_detail)
             if overloaded:
                 transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == "transient_overload"
                                 for row in history)
