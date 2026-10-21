@@ -406,7 +406,7 @@ class CombinedTrustedHost:
     def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
-                            refused_models: Sequence[str] = (), forecast: bool = False) -> dict[str, Any]:
+                            refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -427,7 +427,7 @@ class CombinedTrustedHost:
         connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
         runnable = self._runnable_bindings()
         profiles = self._usage_profiles()
-        forecast_evidence = self._forecast_evidence() if forecast else {}
+        forecast_evidence = (self._forecast_evidence() if quota_evidence is None else quota_evidence) if forecast else {}
         role = task.agent_role or (
             "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
             "coder" if task.difficulty == 3 else "complex")
@@ -821,6 +821,40 @@ class CombinedTrustedHost:
         """Account-bound preparation outside the coordinator's claim transaction."""
         from . import quota_reservation
         from .usage_ledger import estimation_records
+        resume_route = None
+        if getattr(task, "status", "") == "QUOTA_WAIT":
+            from .goal_service import GoalService
+            from dataclasses import replace
+            link = self._task_store._conn.execute(
+                "SELECT goal_id,plan_task_id,goal_revision FROM platform_goal_task_links WHERE task_id=?", (task.id,)).fetchone()
+            if link:
+                goal = self._control_store.get_goal(link["goal_id"])
+                if goal.revision != link["goal_revision"] or goal.status != "RUNNING":
+                    raise TaskStoreError("QUOTA_WAIT:goal_authority_changed")
+                if goal.orchestration_mode == "agent_team" and not goal.binding_ref:
+                    raw = next((t for t in goal.tasks if t["id"] == link["plan_task_id"]), None)
+                    if raw is None:
+                        raise TaskStoreError("QUOTA_WAIT:goal_task_missing")
+                    planned = GoalService._normalize_task(raw, seq=0)
+                    # Review resumes require their frozen author ancestry; never substitute one here.
+                    if planned.kind == "review" or planned.agent_role == "reviewer" or planned.artifact_input:
+                        raise TaskStoreError("QUOTA_WAIT:review_resume_requires_author_ancestry")
+                    try:
+                        self.__dict__.pop("_subscription_quota_cache", None)
+                        observations = self._subscription_quotas().values()
+                        accounts = {q.get("account_ref") for q in observations if q.get("account_ref")}
+                        fresh_evidence = {account: quota_reservation.observation(account, observations, clock=time.time) for account in accounts}
+                        decision = self._resolve_task_model(planned, goal=goal, forecast=True,
+                                                           quota_evidence=fresh_evidence)
+                    except TaskStoreError as exc:
+                        raise TaskStoreError("QUOTA_WAIT:no_qualifying_model") from exc
+                    if decision.get("underpowered") or decision["executor_kind"] not in {"codex", "claude_code"}:
+                        raise TaskStoreError("QUOTA_WAIT:qualifying_native_model_unavailable")
+                    if decision["binding_ref"] != task.binding_ref:
+                        resume_route = {"goal_id": goal.id, "goal_revision": goal.revision,
+                            "source_binding": task.binding_ref, "binding_ref": decision["binding_ref"],
+                            "executor_kind": decision["executor_kind"]}
+                        task = replace(task, binding_ref=decision["binding_ref"], executor_kind=decision["executor_kind"])
         binding = next((b for b in self._store.list_bindings_public() if b["binding_id"] == task.binding_ref), None)
         if binding is None:
             if task.executor_kind in {"codex", "claude_code"}:
@@ -848,7 +882,7 @@ class CombinedTrustedHost:
         evidence = quota_reservation.observation(account, read(account), refresh=read)
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
-            binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need)
+            binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
 
     def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
         from .quota_guard import check, typical_need

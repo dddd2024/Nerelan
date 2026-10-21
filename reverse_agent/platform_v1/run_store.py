@@ -39,6 +39,7 @@ TASK_STATUS_ORDER = (
     "READY_FOR_REVIEW",
     "READY_FOR_REVIEW_FIXTURE",
     "INTERRUPTED",
+    "QUOTA_WAIT",
     "BLOCKED",
     "FAILED",
     "CANCELLED",
@@ -103,6 +104,7 @@ TRANSITION_RULES: dict[str, tuple[str, ...]] = {
         "CANCELLED",
         "INTERRUPTED",
     ),
+    "QUOTA_WAIT": ("CANCELLED",),
     "INTERRUPTED": (
         "RUNNING",
         "RUNNING_FIXTURE",
@@ -459,6 +461,12 @@ class TaskStore:
                 interrupted_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS quota_live_signals (
+                run_id TEXT NOT NULL REFERENCES durable_runs(run_id),
+                epoch INTEGER NOT NULL, attempt TEXT NOT NULL, account_ref TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (run_id, epoch, attempt, account_ref)
             );
             CREATE TABLE IF NOT EXISTS quota_partial_checkpoints (
                 checkpoint_id TEXT PRIMARY KEY,
@@ -2009,6 +2017,234 @@ class TaskStore:
                     f"set_repository_base_failed:{exc}"
                 ) from exc
 
+    def native_quota_snapshot(self, run_id, owner, epoch):
+        """Read frozen admission and current competing reservations under the lease."""
+        with self._lock:
+            self._conn.execute("BEGIN")
+            try:
+                self._validate_durable_lease(run_id, owner, epoch)
+                run = self._get_durable_run(run_id)
+                if not self._conn.execute("SELECT 1 FROM sqlite_master WHERE name='platform_quota_admissions'").fetchone():
+                    return None
+                admission = self._conn.execute("SELECT * FROM platform_quota_admissions WHERE task_id=?", (run.task_id,)).fetchone()
+                if admission is None:
+                    return None
+                own = self.active_quota_reservation(run.task_id)
+                if own is None or own["account_ref"] != admission["account_ref"]:
+                    raise TaskStoreError("native_quota_reservation_missing")
+                rows = self._conn.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=?", (own["account_ref"],)).fetchall()
+                outstanding = []
+                estimate = None
+                for raw in rows:
+                    row = dict(raw)
+                    if row["task_id"] == run.task_id and row["state"] == "ACTIVE":
+                        estimate = json.loads(row["estimate_json"])
+                        continue
+                    row["quota_windows"] = json.loads(row["quota_windows_json"])
+                    fact = json.loads(row["settlement_json"])
+                    row.update(actual_windows=fact.get("actual_windows", {}), actual_observations=fact.get("actual_observations", []))
+                    outstanding.append(row)
+                if not estimate:
+                    raise TaskStoreError("native_quota_estimate_missing")
+                return {"evidence": json.loads(admission["evidence_json"]), "need": estimate,
+                        "outstanding": outstanding, "headroom": admission["safety_buffer"],
+                        "account_ref": own["account_ref"], "reservation_id": run.task_id,
+                        "attempt": str(run.role_attempt),
+                        "usage_before": [r[0] for r in self._conn.execute(
+                            "SELECT id FROM task_usage_observations WHERE task_id=?", (run.task_id,))],
+                        "reservation_claim": dict(self._conn.execute(
+                            "SELECT window_id,owner,epoch FROM platform_coordinator_claims WHERE task_id=?",
+                            (run.task_id,)).fetchone())}
+            finally:
+                self._conn.execute("ROLLBACK")  # Read snapshot only; release its ownership fence.
+
+    def interrupt_for_quota(self, run_id, task_id, owner, epoch, pause, *, recovering=False):
+        """Atomically park verified work and settle its original reservation."""
+        with self._lock:
+            # Initialize the control view before BEGIN: schema initialization may commit.
+            control = None
+            if self._conn.execute("SELECT 1 FROM sqlite_master WHERE name='platform_quota_admissions'").fetchone():
+                from .control_store import PlatformControlStore
+                control = PlatformControlStore(self)
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                row = cur.execute("SELECT task_id,lease_expiry_ms FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+                if (row["task_id"] != task_id or (not recovering and row["lease_expiry_ms"] <= int(time.time()*1000))
+                        or (recovering and row["lease_expiry_ms"] > int(time.time()*1000))):
+                    raise TaskStoreError("quota_pause_lease_invalid")
+                checkpoint = cur.execute("SELECT * FROM quota_partial_checkpoints WHERE checkpoint_id=?",
+                                         (pause["checkpoint_id"],)).fetchone()
+                if (checkpoint is None or checkpoint["run_id"] != run_id or checkpoint["request_epoch"] != epoch
+                        or checkpoint["state"] != pause["state"] or pause["state"] not in {"PAUSED", "FAILED"}):
+                    raise TaskStoreError("quota_pause_checkpoint_invalid")
+                parked = pause["state"] == "PAUSED"
+                task = self.get_task(task_id)
+                encoded = json.dumps(pause, sort_keys=True)
+                if task.status == "QUOTA_WAIT":
+                    if task.failure_detail != encoded:
+                        raise TaskStoreError("quota_pause_conflicting_retry")
+                    cur.execute("COMMIT")
+                    return
+                reset = ""
+                if parked:
+                    from .native_quota import digest, workspace_manifest
+                    from pathlib import Path
+                    payload = json.loads(checkpoint["payload_json"])
+                    proof = dict(payload)
+                    artifact_digest = proof.pop("artifact_digest", None)
+                    identity = Path(payload["workspace"]).stat()
+                    if (artifact_digest != digest(proof)
+                            or payload["workspace_identity"] != [identity.st_dev, identity.st_ino]
+                            or payload["manifest"] != workspace_manifest(Path(payload["workspace"]))
+                            or payload["resume_state"]["run_id"] != run_id
+                            or payload["resume_state"]["epoch"] != epoch
+                            or payload["resume_state"]["execution_id"] != task.execution_id
+                            or payload["resume_state"]["checkpoint_id"] != pause["checkpoint_id"]
+                            or any(payload[k] != pause[k] for k in ("provenance", "agent_acknowledged"))):
+                        raise TaskStoreError("quota_pause_proof_changed")
+                    verdict = payload.get("quota_wait")
+                    if not verdict or verdict.get("decision") != "quota_wait":
+                        raise TaskStoreError("quota_pause_wait_missing")
+                    reset = verdict.get("until") or ""
+                    claim = payload.get("reservation_claim")
+                    if claim is None and self._conn.execute(
+                            "SELECT 1 FROM sqlite_master WHERE name='platform_budget_reservations'").fetchone():
+                        if cur.execute("SELECT 1 FROM platform_budget_reservations WHERE task_id=? AND state='ACTIVE'",
+                                       (task_id,)).fetchone():
+                            raise TaskStoreError("quota_pause_claim_missing")
+                    if claim is not None:
+                        if control is None:
+                            raise TaskStoreError("quota_pause_claim_missing")
+                        current = cur.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?",
+                                              (task_id,)).fetchone()
+                        if (current is None or current["status"] != "ACTIVE"
+                                or (not recovering and current["expires_at_ms"] <= int(time.time()*1000))
+                                or any(current[k] != claim[k] for k in ("window_id", "owner", "epoch"))):
+                            raise TaskStoreError("quota_pause_claim_fenced")
+                        control._finalize_task_claim(window_id=claim["window_id"], task_id=task_id,
+                            owner=claim["owner"], epoch=claim["epoch"], claim_status="FAILED",
+                            count_completion=False, receipt_reason="native_quota_paused",
+                            receipt_result="provider_exhaustion" if verdict.get("confirmed_exhaustion") else "quota_forecast_wait",
+                            in_transaction=True, quota_usage_before=payload.get("usage_before", ()))
+                        cur.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?",
+                                    (json.dumps(dict(verdict, checkpoint_id=pause["checkpoint_id"])), task_id))
+                classification = "quota_paused" if parked else "quota_checkpoint_failed"
+                cur.execute("UPDATE tasks SET status=?, failure_classification=?, failure_detail=?, failure_reset_at=?, updated_at=? WHERE id=?",
+                            ("QUOTA_WAIT" if parked else "INTERRUPTED", classification, encoded, reset, _utc_now(), task_id))
+                cur.execute("UPDATE durable_runs SET recovery_classification=? WHERE run_id=?",
+                            ("quota_wait" if parked else "interrupted", run_id))
+                cur.execute("COMMIT")
+            except BaseException:
+                if self._conn.in_transaction:
+                    cur.execute("ROLLBACK")
+                raise
+
+    def recover_quota_pauses(self, *, now_ms):
+        """Finish verified PAUSED journals left by a dead host; never dispatch work."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT dr.run_id,dr.task_id,dr.lease_owner,dr.lease_epoch,cp.checkpoint_id,cp.payload_json "
+                "FROM durable_runs dr JOIN quota_partial_checkpoints cp ON cp.run_id=dr.run_id "
+                "JOIN tasks t ON t.id=dr.task_id WHERE cp.state='PAUSED' "
+                "AND cp.request_epoch=dr.lease_epoch AND dr.lease_expiry_ms<=? "
+                "AND t.status IN ('RUNNING','PREPARING_WORKSPACE','INTERRUPTED','VALIDATING')",
+                (now_ms,)).fetchall()
+            recovered = []
+            for row in rows:
+                payload = json.loads(row["payload_json"])
+                pause = {"state": "PAUSED", "checkpoint_id": row["checkpoint_id"],
+                         "provenance": payload["provenance"], "agent_acknowledged": payload["agent_acknowledged"]}
+                self.interrupt_for_quota(row["run_id"], row["task_id"], row["lease_owner"],
+                                         row["lease_epoch"], pause, recovering=True)
+                recovered.append({"run_id": row["run_id"], "task_id": row["task_id"],
+                                  "recovery_classification": "quota_wait"})
+            return tuple(recovered)
+
+    def quota_live_signal(self, run_id, owner, epoch, attempt, account_ref, *,
+                          source=None, sequence=None, signal=None, estimate=None):
+        """Atomically fence, normalize and persist live accounting, never milestones."""
+        from .quota_inflight import reduce_signal
+        if not attempt or not account_ref:
+            raise ValueError("live accounting identity required")
+        if estimate is not None and estimate.get("account_ref", account_ref) != account_ref:
+            raise ValueError("live estimate account mismatch")
+        key = (run_id, epoch, str(attempt), account_ref)
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                self._fenced_validate_lease(cur, run_id, owner, epoch)
+                lease = cur.execute("SELECT lease_expiry_ms FROM durable_runs WHERE run_id=?", (run_id,)).fetchone()
+                if lease[0] <= int(time.time() * 1000):
+                    raise TaskStoreError("quota_signal_lease_expired")
+                row = cur.execute("SELECT payload_json FROM quota_live_signals WHERE run_id=? AND epoch=? AND attempt=? AND account_ref=?", key).fetchone()
+                state = json.loads(row[0]) if row else {
+                    "account_ref": account_ref, "estimate": estimate or {}, "sequences": {}, "sources": {},
+                    "high_water": {}, "pressure": {}, "uncertain": False}
+                if row and estimate is not None and state["estimate"] != estimate:
+                    raise TaskStoreError("quota_signal_frozen_estimate_changed")
+                accepted = False
+                if source is not None:
+                    state, accepted = reduce_signal(state, source, sequence, signal)
+                cur.execute("INSERT OR REPLACE INTO quota_live_signals VALUES (?,?,?,?,?)",
+                            (*key, json.dumps(state, sort_keys=True, allow_nan=False)))
+                cur.execute("COMMIT")
+                return dict(state, accepted=accepted)
+            except BaseException:
+                if self._conn.in_transaction:
+                    cur.execute("ROLLBACK")
+                raise
+
+    def _quota_resume_payload(self, task_id):
+        task = self.get_task(task_id)
+        pause = json.loads(task.failure_detail)
+        row = self._conn.execute(
+            "SELECT cp.* FROM quota_partial_checkpoints cp JOIN durable_runs dr ON dr.run_id=cp.run_id "
+            "WHERE dr.task_id=? AND cp.checkpoint_id=? AND cp.state IN ('PAUSED','RESUMING')",
+            (task_id, pause["checkpoint_id"])).fetchone()
+        if row is None:
+            raise TaskStoreError("quota_resume_checkpoint_missing_or_ambiguous")
+        value = json.loads(row["payload_json"])
+        if (value["resume_state"]["run_id"] != row["run_id"]
+                or value["resume_state"]["epoch"] != row["request_epoch"]
+                or value["resume_state"]["checkpoint_id"] != row["checkpoint_id"]):
+            raise TaskStoreError("quota_resume_checkpoint_identity_changed")
+        return value
+
+    def _verify_quota_resume(self, task_id):
+        """Verify saved bytes without trusting native session persistence."""
+        from pathlib import Path
+        from .native_quota import digest, workspace_manifest
+        try:
+            task = self.get_task(task_id)
+            value = self._quota_resume_payload(task_id)
+            proof = dict(value)
+            expected = proof.pop("artifact_digest")
+            state = value["resume_state"]
+            run = self._get_durable_run(state["run_id"])
+            root = Path(value["workspace"])
+            identity = root.stat()
+            original = value.get("reservation_claim")
+            if original and task.status == "QUOTA_WAIT":
+                reservation = self._conn.execute("SELECT binding_ref,account_ref FROM platform_budget_reservations WHERE task_id=? AND claim_epoch=? AND window_id=?",
+                    (task_id, original["epoch"], original["window_id"])).fetchone()
+                if (reservation is None or reservation["binding_ref"] != task.binding_ref
+                        or reservation["account_ref"] != state["account_ref"]):
+                    raise ValueError("binding changed")
+            if (task.orchestration_mode != "single" or task.executor_kind not in {"codex", "claude_code"}
+                    or (task.status == "QUOTA_WAIT" and state["executor_kind"] != task.executor_kind)
+                    or run.task_id != task_id or run.execution_id != task.execution_id
+                    or str(root) != run.worktree_path or state["execution_id"] != task.execution_id
+                    or expected != digest(proof)
+                    or value["workspace_identity"] != [identity.st_dev, identity.st_ino]
+                    or value["manifest"] != workspace_manifest(root)):
+                raise ValueError("proof mismatch")
+            return value
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise TaskStoreError("quota_resume_proof_changed") from exc
+
     def quota_checkpoint(self, run_id, checkpoint_id, owner, epoch, *, state=None, payload=None):
         """Fenced partial-work journal, separate from completed role milestones.
 
@@ -2031,6 +2267,8 @@ class TaskStore:
                                   (checkpoint_id,)).fetchone()
                 if row is not None and row["run_id"] != run_id:
                     raise TaskStoreError("quota_checkpoint_identity_mismatch")
+                if state == "RESUMING" and self.get_task(self._get_durable_run(run_id).task_id).status == "QUOTA_WAIT":
+                    raise TaskStoreError("quota_pause_requires_readmission")
                 old = row["state"] if row else None
                 if payload is not None and state != "SAVED":
                     raise TaskStoreError("quota_checkpoint_payload_immutable")
@@ -2374,6 +2612,26 @@ class TaskStore:
             if row is None:
                 cur.execute("ROLLBACK")
                 raise TaskStoreError(f"durable_run_not_found:{run_id}")
+            paused = cur.execute("SELECT checkpoint_id FROM quota_partial_checkpoints WHERE run_id=? AND state='PAUSED'", (run_id,)).fetchall()
+            if row["recovery_classification"] == "quota_wait":
+                raise TaskStoreError("quota_pause_requires_readmission")
+            if paused:
+                claim = cur.execute(
+                    "SELECT c.* FROM platform_coordinator_claims c JOIN platform_budget_reservations r "
+                    "ON r.task_id=c.task_id AND r.claim_epoch=c.epoch AND r.window_id=c.window_id "
+                    "JOIN platform_autonomous_windows w ON w.id=c.window_id "
+                    "JOIN platform_goal_task_links l ON l.task_id=c.task_id "
+                    "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision AND g.window_id=w.id "
+                    "WHERE w.status='ACTIVE' AND julianday(w.expires_at)>julianday('now') AND g.status='RUNNING' "
+                    "AND c.task_id=? AND c.owner=? AND c.status='ACTIVE' AND c.expires_at_ms>? AND r.state='ACTIVE' AND r.binding_ref=(SELECT binding_ref FROM tasks WHERE id=c.task_id)",
+                    (row["task_id"], lease_owner, _utc_now_ms())).fetchone()
+                if len(paused) != 1 or claim is None or row["task_status"] != "INTERRUPTED":
+                    raise TaskStoreError("quota_pause_requires_readmission")
+                self._verify_quota_resume(row["task_id"])
+                cur.execute("UPDATE quota_partial_checkpoints SET state='RESUMING' WHERE checkpoint_id=? AND state='PAUSED'", (paused[0][0],))
+                cur.execute("UPDATE durable_runs SET recovery_classification='normal' WHERE run_id=?", (run_id,))
+            elif cur.execute("SELECT 1 FROM quota_partial_checkpoints WHERE run_id=? AND state='RESUMING'", (run_id,)).fetchone():
+                raise TaskStoreError("quota_resume_dispatch_ambiguous")
             task_status = row["task_status"]
             if require_interrupted and task_status != "INTERRUPTED":
                 cur.execute("ROLLBACK")
@@ -2444,6 +2702,8 @@ class TaskStore:
             ).fetchone()
             return self._lease_handle_from_row(row2)
         except TaskStoreError:
+            if self._conn.in_transaction:
+                cur.execute("ROLLBACK")
             raise
         except Exception as exc:
             try:
