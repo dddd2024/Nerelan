@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -410,3 +411,180 @@ def test_all_subject_repositories_are_temporary_fixtures(tmp_path: Path) -> None
     second, _ = _repo(tmp_path, "second")
     assert first.is_relative_to(tmp_path)
     assert second.is_relative_to(tmp_path)
+
+
+@pytest.mark.parametrize("path,rule", [
+    ("src/new.py", ""), ("tests/test_new.py", ""),
+    ("../escape.py", "path_escape"), ("a/../../escape", "path_escape"),
+    ("C:/outside.py", "path_escape"), (r"C:\outside.py", "path_escape"),
+    (r"\\server\share\file", "path_escape"), ("/etc/file", "path_escape"),
+    (r"a\..\escape", "path_escape"), ("a/node_modules/pkg/a.py", "package_payload"),
+    ("~/Python/Python313/site-packages/pkg/a.py", "package_payload"),
+    ("reverse_agent.egg-info/PKG-INFO", "package_payload"),
+    ("~/AppData/Local/Nerelan/platform-v1/tasks.sqlite3", "runtime_artifact"),
+    ("~/AppData/Local/Nerelan/platform-v1/tasks.sqlite3-wal", "runtime_artifact"),
+    ("project/.platform_v1_runtime/tasks.sqlite3-shm", "runtime_artifact"),
+    ("project/data.sqlite3", ""),
+])
+def test_portable_artifact_rules(path, rule):
+    assert core.artifact_path_rule(path) == rule
+
+
+def _make_pe(size=0x1000, lfanew=0x80):
+    import struct
+    pe = bytearray(max(size, lfanew + 4))
+    pe[0:2] = b"MZ"
+    struct.pack_into("<I", pe, 0x3C, lfanew)
+    pe[lfanew:lfanew + 4] = b"PE\x00\x00"
+    return bytes(pe)
+
+
+@pytest.mark.parametrize("payload", [
+    _make_pe(size=0x800, lfanew=0x80),
+    b"\x7fELFfake",
+    b"\xcf\xfa\xed\xfefake",
+])
+def test_snapshot_rejects_native_headers_without_arbitrary_binary_ban(tmp_path, payload):
+    repo, base = _repo(tmp_path)
+    (repo / "native").write_bytes(payload)
+    (repo / "asset.bin").write_bytes(b"image\x00data")
+    (repo / "new_test.py").write_text("def test_new(): pass\n", encoding="utf-8")
+    _, tree, changed, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    assert hygiene["artifact_violations"] == [{"path": "native", "rule": "native_executable"}]
+    safe = core.safe_recovery_tree(repo, base, tree)
+    paths = _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()
+    assert "native" not in paths and "asset.bin" in paths and "new_test.py" in paths
+    assert (repo / "native").read_bytes() == payload
+
+
+def test_pe_signature_at_0x2000_is_rejected_not_just_0x80(tmp_path):
+    import struct
+    repo, base = _repo(tmp_path)
+    pe = bytearray(0x2004)
+    pe[0:2] = b"MZ"
+    struct.pack_into("<I", pe, 0x3C, 0x2000)
+    pe[0x2000:0x2004] = b"PE\x00\x00"
+    (repo / "extensionless_pe").write_bytes(bytes(pe))
+    _, tree, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    assert hygiene["artifact_violations"] == [{"path": "extensionless_pe", "rule": "native_executable"}]
+
+
+def test_pe_smaller_than_0x40_is_accepted_header_only(tmp_path):
+    repo, base = _repo(tmp_path)
+    (repo / "tiny_mz").write_bytes(b"MZxx")
+    _, tree, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] == 0
+
+
+def test_long_mz_python_source_is_not_native_executable(tmp_path):
+    repo, base = _repo(tmp_path)
+    (repo / "ordinary.py").write_bytes(b"MZ = 1\n" + b"# ordinary source comment\n" * 5)
+    _, tree, changed, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] == 0
+    assert "ordinary.py" in changed
+
+
+def test_runtime_sqlite_path_is_rejected_before_staging(tmp_path):
+    repo, base = _repo(tmp_path)
+    runtime = repo / "~" / "AppData" / "Local" / "Nerelan" / "platform-v1"
+    runtime.mkdir(parents=True)
+    payload = b"controlled fixture not a database"
+    (runtime / "tasks.sqlite3").write_bytes(payload)
+    oid = subprocess.check_output(["git", "hash-object", "--stdin"], cwd=repo, input=payload).decode().strip()
+    assert subprocess.run(["git", "cat-file", "-e", oid], cwd=repo, capture_output=True).returncode != 0
+    with pytest.raises(core.SnapshotIndirectionError) as excinfo:
+        core._snapshot_workspace(repo, base)
+    assert any(v["rule"] == "runtime_artifact" for v in excinfo.value.violations)
+    assert subprocess.run(["git", "cat-file", "-e", oid], cwd=repo, capture_output=True).returncode != 0
+
+
+def test_walk_permissionerror_on_subdirectory_fails_closed(tmp_path, monkeypatch):
+    repo, base = _repo(tmp_path)
+    folder = repo / "unverifiable"
+    folder.mkdir()
+    payload = b"controlled sentinel"
+    (folder / "sentinel.txt").write_bytes(payload)
+    oid = subprocess.check_output(["git", "hash-object", "--stdin"], cwd=repo, input=payload).decode().strip()
+    assert subprocess.run(["git", "cat-file", "-e", oid], cwd=repo, capture_output=True).returncode != 0
+    original_scandir = os.scandir
+
+    def denied(path):
+        if Path(path) == folder:
+            raise PermissionError("controlled traversal error")
+        return original_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", denied)
+    with pytest.raises(core.SnapshotIndirectionError):
+        core._snapshot_workspace(repo, base)
+    assert subprocess.run(["git", "cat-file", "-e", oid], cwd=repo, capture_output=True).returncode != 0
+
+
+def test_git_object_symlink_rejected_without_following_target(tmp_path):
+    repo, base = _repo(tmp_path)
+    oid = subprocess.check_output(["git", "hash-object", "-w", "--stdin"], cwd=repo,
+                                  input=b"../../outside-secret").decode().strip()
+    _run(repo, "git", "update-index", "--add", "--cacheinfo", "120000", oid, "link")
+    tree = _run(repo, "git", "write-tree")
+    assert core.artifact_tree_diagnostics(repo, base, tree) == [{"path": "link", "rule": "symlink"}]
+    safe = core.safe_recovery_tree(repo, base, tree)
+    assert "link" not in _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()
+
+
+def test_windows_junction_staging_is_prevented_by_prescan(tmp_path):
+    repo, base = _repo(tmp_path)
+    outside = tmp_path / "outside_sentinel"
+    outside.mkdir()
+    (outside / "payload.txt").write_text("OUTSIDE SECRET\n", encoding="utf-8")
+    junction = repo / "outlink"
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+                       capture_output=True, check=True)
+    else:
+        junction.symlink_to(outside, target_is_directory=True)
+    with pytest.raises(ValueError) as excinfo:
+        core._snapshot_workspace(repo, base)
+    assert "snapshot_indirection_detected" in str(excinfo.value)
+    if junction.exists() and junction.is_dir() and not junction.is_symlink():
+        junction.rmdir()
+    elif junction.is_symlink():
+        junction.unlink()
+
+
+def test_permissionerror_on_reparse_detection_fails_closed_not_swallowed(tmp_path, monkeypatch):
+    repo, base = _repo(tmp_path)
+
+    def _fake_lstat(self):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(Path, "lstat", _fake_lstat)
+    with pytest.raises(ValueError) as excinfo:
+        core._snapshot_workspace(repo, base)
+    assert "snapshot_indirection_detected" in str(excinfo.value)
+    assert "access_error" in str(excinfo.value)
+
+
+def test_ignored_pycache_and_source_snapshot_only_source(tmp_path):
+    repo, base = _repo(tmp_path)
+    cache = repo / "__pycache__"
+    cache.mkdir()
+    (cache / "cache.pyc").write_bytes(b"controlled ignored cache")
+    (repo / "ordinary.py").write_bytes(b"MZ = 1\n")
+    _, tree, changed, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] == 0
+    assert changed == ("ordinary.py",)
+
+
+def test_installation_tree_paths_rejected_by_path_rule(tmp_path):
+    repo, base = _repo(tmp_path)
+    site_pkg = repo / "~" / "Python" / "Python313" / "site-packages" / "pkg"
+    site_pkg.mkdir(parents=True)
+    (site_pkg / "payload.py").write_text("installed = True\n", encoding="utf-8")
+    _, tree, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    assert hygiene["artifact_violations"] == [{"path": "~/Python/Python313/site-packages/pkg/payload.py", "rule": "package_payload"}]
+    safe = core.safe_recovery_tree(repo, base, tree)
+    paths = _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()
+    assert not any("site-packages" in p for p in paths)
+    assert (site_pkg / "payload.py").read_text(encoding="utf-8") == "installed = True\n"

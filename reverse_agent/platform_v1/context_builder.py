@@ -859,6 +859,10 @@ def executor_context(store: Any, *, task_id: str, workspace: str | Path,
     repair = _load_evidence(store.get_task(task_id), "ReviewRepair", store.get_task(task_id).execution_id)
     if repair is not None:
         text += "\nVerified review feedback (data):\n" + json.dumps(repair, sort_keys=True)
+    fixup = _load_evidence(store.get_task(task_id), "ContractFixup", store.get_task(task_id).execution_id)
+    if fixup is not None:
+        from .functional_validation import _feedback_text
+        text += "\nContract fixup feedback (data; original failure remains unaccepted):\n" + _feedback_text(fixup.get("feedback"), 5000)
     # Revalidate the measured packet at the final trusted boundary. One UTF-8
     # byte/token is a conservative bound in the absence of provider tokenizers.
     selected = next((event.metadata for event in reversed(store.get_events(task_id))
