@@ -21,6 +21,7 @@ ENV_CAMPAIGN = "REVERSE_AGENT_RESEARCH_CAMPAIGN"
 LOG = logging.getLogger(__name__)
 FINAL = {"STOPPED", "COMPLETED", "EXPIRED", "PAUSED_FAILING"}
 ROUND_FINAL = {"DONE", "FAILED", "INTERRUPTED"}
+RESULTS_ATTRIBUTES = b"* -text\n"  # imported evidence is never end-of-line converted
 COMMIT_IDENTITY = {
     "GIT_AUTHOR_NAME": "Nerelan research",
     "GIT_COMMITTER_NAME": "Nerelan research",
@@ -762,6 +763,18 @@ class ResearchLoop:
             except (OSError, ValueError, KeyError) as exc:
                 record["imports"][job] = {**record["imports"].get(job, {}), "error": str(exc)}
         if paths:
+            # Evidence must stay byte-exact in every checkout: under core.autocrlf (Git for
+            # Windows' default) task worktrees otherwise receive CRLF copies that no longer
+            # match their manifests. Written before `git add` so it also governs this add.
+            attributes = self.repo / "results" / ".gitattributes"
+            if attributes.is_symlink():
+                raise RuntimeError("results/.gitattributes is a symlink; results commit paused")
+            if not attributes.exists():
+                attributes.write_bytes(RESULTS_ATTRIBUTES)
+            elif attributes.read_bytes() != RESULTS_ATTRIBUTES:
+                raise RuntimeError("results/.gitattributes would alter evidence bytes; results commit paused")
+            if self._git("cat-file", "-e", "HEAD:results/.gitattributes", check=False).returncode:
+                paths.append("results/.gitattributes")
             self._git("add", "-f", "--", *paths)
             staged = self._git("diff", "--cached", "--name-only").stdout.splitlines()
             if set(staged) != set(paths):

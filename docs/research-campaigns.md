@@ -67,7 +67,12 @@ Results, manifests, receipts and logs are copied into `results/<job_id>/` after
 manifest size/hash verification, then verified again and committed as
 `round <n>: results`. Durable snapshots and file ownership records allow an
 interrupted copy or commit to resume without overwriting unrelated files.
-Manifest mismatches are recorded for the affected job. Receipt collection or
+Manifest mismatches are recorded for the affected job. The first results commit
+adds `results/.gitattributes` (`* -text`) so evidence is never end-of-line
+converted (for example by Git for Windows' `core.autocrlf`) and every task
+worktree sees the manifest's exact bytes; a different existing rule pauses the
+results commit. Receipt broker bindings accept the committed request either as
+raw blobs or as checked out through the repository's filters. Receipt collection or
 successful commands alone do not establish functional or scientific acceptance.
 Merge and results commits use an explicit loop identity, independent of the
 host repository's git config. A crash can leave the loop's own uncommitted
