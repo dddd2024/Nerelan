@@ -20,8 +20,25 @@ import pytest
 
 from reverse_agent.platform_v1 import remote_jobs, trusted_host
 from reverse_agent.platform_v1.remote_jobs import (
-    REMOTE_HELPER, RemoteJobBroker, RemoteJobProfile, SSHTransport, configured_broker, main,
+    REMOTE_COMMAND,
+    REMOTE_HELPER,
+    RemoteJobBroker,
+    RemoteJobProfile,
+    SSHTransport,
+    _remote_program,
+    configured_broker,
+    main,
 )
+
+
+def _program_request(program: str) -> dict:
+    """Extract the request JSON the broker hands the helper through sys.argv."""
+    lines = program.splitlines()
+    assert lines[0] == "import sys as _sys"
+    prefix = "_sys.argv = ['-', "
+    assert lines[1].startswith(prefix), lines[1][:60]
+    assert lines[1].endswith("]")
+    return json.loads(json.loads(lines[1][len(prefix):-1]))
 
 
 class FakeTransport:
@@ -44,12 +61,12 @@ class FakeTransport:
         self.leader_alive = True
         self.deny_on_signal = None
 
-    def run(self, argv, timeout):
+    def run(self, argv, timeout, stdin_text=None):
         assert argv[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "lab"]
-        words = shlex.split(" ".join(argv[6:]))
-        assert words[:2] == ["python3", "-c"]
-        assert words[2] == REMOTE_HELPER
-        data = json.loads(words[3])
+        assert argv[6:] == ["python3", "-"]
+        assert stdin_text is not None
+        program = stdin_text
+        data = _program_request(program)
         self.calls.append(data)
         if self.fail == data["op"]:
             self.fail = None
@@ -87,14 +104,13 @@ class FakeTransport:
         try:
             with self.monkeypatch.context() as patch, redirect_stdout(output):
                 patch.setattr(Path, "home", classmethod(lambda cls: self.home))
-                patch.setattr(sys, "argv", ["-c", words[3]])
                 patch.setattr(subprocess, "Popen", spawn)
                 patch.setattr(os, "kill", kill)
                 patch.setattr(os, "killpg", killpg, raising=False)
                 patch.setattr(signal, "SIGKILL", 9, raising=False)
                 patch.setattr(Path, "read_text", read)
                 patch.setattr(Path, "iterdir", lambda path: iter([Path("/proc/4321"), Path("/proc/4322")]) if path.as_posix() == "/proc" else iterdir(path))
-                exec(compile(words[2], "<fixed-remote-helper>", "exec"), {})
+                exec(compile(program, "<fixed-remote-helper>", "exec"), {})
         except SystemExit as exc:
             if exc.code:
                 return 1, "", str(exc)
@@ -617,11 +633,11 @@ def test_malformed_reply_isolated_with_backoff(setup, monkeypatch, operation, re
         (remote(transport, "e001-bad") / "exit_code").write_text("0")
     transport.calls.clear()
     original = transport.run
-    def run(argv, timeout):
-        data = json.loads(shlex.split(" ".join(argv[6:]))[3])
+    def run(argv, timeout, stdin_text=None):
+        data = _program_request(stdin_text)
         if data["op"] == operation and data["job_id"] == "e001-bad":
             return 0, reply, ""
-        return original(argv, timeout)
+        return original(argv, timeout, stdin_text=stdin_text)
     monkeypatch.setattr(transport, "run", run)
     broker.tick()
     bad = receipt(broker, "e001-bad")
@@ -639,7 +655,7 @@ def test_stop_abandons_blocked_transport_and_prevents_restart(setup, monkeypatch
     broker, transport, _ = setup
     request(broker)
     entered, release = threading.Event(), threading.Event()
-    def run(argv, timeout):
+    def run(argv, timeout, stdin_text=None):
         entered.set()
         assert release.wait(5)
         return 0, '{"marker": false}', ""
@@ -761,3 +777,77 @@ def test_timeout_term_can_finish_without_kill(setup):
     broker.tick()
     assert receipt(broker)["outcome"] == "TIMED_OUT"
     assert transport.killed == [(4321, signal.SIGTERM)]
+
+
+def test_remote_program_carries_the_request_out_of_band() -> None:
+    data = {"op": "collect", "job_id": "e" * 48, "outputs": ["results/x%d.json" % i for i in range(64)]}
+    program = _remote_program(data)
+    assert REMOTE_HELPER in program
+    assert _program_request(program) == data
+
+
+def test_broker_never_puts_the_helper_on_the_ssh_command_line(setup, monkeypatch):
+    """#1328 P0-A: the remote program must travel on stdin, not in argv.
+
+    A POSIX-quoted helper plus its JSON request does not fit the Windows
+    process command line (8191 characters); the quiet truncation left the
+    remote bash with an unterminated quote. The command line therefore stays
+    a quote-free constant and the program goes through stdin.
+    """
+    broker, transport, _ = setup
+    seen = []
+    original = transport.run
+
+    def run(argv, timeout, stdin_text=None):
+        seen.append((list(argv), stdin_text))
+        return original(argv, timeout, stdin_text=stdin_text)
+
+    monkeypatch.setattr(transport, "run", run)
+    request(broker)
+    broker.tick()
+
+    assert seen
+    for argv, program in seen:
+        assert argv[6:] == list(REMOTE_COMMAND)
+        assert sum(len(part) + 1 for part in argv) < 512
+        assert not ({"'", '"', "\\", "$", "`"} & set("".join(argv)))
+        assert isinstance(program, str) and REMOTE_HELPER in program
+        # the payload must still reach the helper unchanged
+        assert _program_request(program)["job_id"] == "e001-baseline"
+
+
+def test_remote_program_carries_the_request_out_of_band() -> None:
+    data = {"op": "collect", "job_id": "e" * 48, "outputs": ["results/x%d.json" % i for i in range(64)]}
+    program = _remote_program(data)
+    assert REMOTE_HELPER in program
+    assert _program_request(program) == data
+
+
+def test_broker_never_puts_the_helper_on_the_ssh_command_line(setup, monkeypatch):
+    """#1328 P0-A: the remote program must travel on stdin, not in argv.
+
+    A POSIX-quoted helper plus its JSON request does not fit the Windows
+    process command line (8191 characters); the quiet truncation left the
+    remote bash with an unterminated quote. The command line therefore stays
+    a quote-free constant and the program goes through stdin.
+    """
+    broker, transport, _ = setup
+    seen = []
+    original = transport.run
+
+    def run(argv, timeout, stdin_text=None):
+        seen.append((list(argv), stdin_text))
+        return original(argv, timeout, stdin_text=stdin_text)
+
+    monkeypatch.setattr(transport, "run", run)
+    request(broker)
+    broker.tick()
+
+    assert seen
+    for argv, program in seen:
+        assert argv[6:] == list(REMOTE_COMMAND)
+        assert sum(len(part) + 1 for part in argv) < 512
+        assert not ({"'", '"', "\\", "$", "`"} & set("".join(argv)))
+        assert isinstance(program, str) and REMOTE_HELPER in program
+        # the payload must still reach the helper unchanged
+        assert _program_request(program)["job_id"] == "e001-baseline"
