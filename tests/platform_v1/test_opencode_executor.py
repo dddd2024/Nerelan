@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator, Mapping
 from pathlib import Path
@@ -2410,6 +2411,112 @@ def test_binding_child_env_still_uses_allowlist() -> None:
         expected["SystemDrive"] = "C:"
     assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
+
+
+def test_binding_child_env_forwards_user_location_keys_only() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERPROFILE": "C:\\Users\\builder",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": "\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "LOCALAPPDATA": "C:\\Users\\builder\\AppData\\Local",
+        "TEMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "TMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "HOME": "C:\\Users\\builder",
+        # provider/secret material must never be forwarded
+        "OPENAI_API_KEY": "sk-should-not-leak",
+        "MAGPIE_API_KEY": "magpie-should-not-leak",
+        "OPENCODE_CONFIG_CONTENT": "{\"leaked\":true}",
+        "GITHUB_TOKEN": "ghp-should-not-leak",
+    }
+    content = build_binding_config_content(_binding_resolution())
+
+    child = build_binding_child_env(parent, content)
+
+    for key in (
+        "USERPROFILE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "TEMP",
+        "TMP",
+        "HOME",
+    ):
+        assert child[key] == parent[key]
+    assert child["OPENCODE_CONFIG_CONTENT"] == content
+    for key in ("OPENAI_API_KEY", "MAGPIE_API_KEY", "GITHUB_TOKEN"):
+        assert key not in child
+    assert "should-not-leak" not in json.dumps(child)
+
+
+def test_binding_child_env_drops_control_characters_in_location_values() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "USERPROFILE": "C:\\Users\\builder\u0000\\evil",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp\u001f",
+    }
+    content = build_binding_config_content(_binding_resolution())
+
+    child = build_binding_child_env(parent, content)
+
+    assert "USERPROFILE" not in child
+    assert "TEMP" not in child
+    assert child["APPDATA"] == "C:\\Users\\builder\\AppData\\Roaming"
+
+
+@pytest.mark.skipif(
+    platform.system() != "Windows",
+    reason="Windows user-site resolution is the observed defect",
+)
+def test_binding_child_env_resolves_windows_user_site_away_from_literal_tilde(
+    tmp_path: Path,
+) -> None:
+    """The child python must not resolve its user site under a literal ``~``.
+
+    A binding child environment without ``USERPROFILE``/``APPDATA`` makes
+    ``site.getusersitepackages()`` return ``~\\Python\\Python313\\site-packages``
+    relative to the workspace, so an executor that installs a test dependency
+    writes that tree *into the repository* and the artifact hygiene gate
+    rejects the whole patch. This probe runs a real interpreter with the
+    exact child environment instead of asserting on the allowlist alone.
+    """
+    profile = tmp_path / "profile"
+    parent = {
+        "PATH": os.environ.get("PATH", ""),
+        "SystemRoot": os.environ.get("SystemRoot", "C:\\Windows"),
+        "PATHEXT": os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+        "USERPROFILE": str(profile),
+        "HOMEDRIVE": str(profile.drive or "C:"),
+        "HOMEPATH": str(profile)[len(str(profile.drive or "C:")):] or "\\",
+        "APPDATA": str(profile / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(profile / "AppData" / "Local"),
+        "TEMP": str(profile / "AppData" / "Local" / "Temp"),
+    }
+    content = build_binding_config_content(_binding_resolution())
+    child = build_binding_child_env(parent, content)
+
+    probe = "import json, site;print(json.dumps({'site': site.getusersitepackages()}))"
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=child,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=str(tmp_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    observed = json.loads(result.stdout)
+    value = observed["site"]
+    assert isinstance(value, str) and value
+    assert not value.startswith("~")
+    assert "~" not in value.split(os.sep)[:1]
+    assert os.path.isabs(value)
+    assert str(profile) in value
 
 
 def test_role_permission_config_unknown_role_returns_none() -> None:

@@ -245,11 +245,31 @@ _MAX_MODEL_ID_LENGTH = 128
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
+# Non-secret OS user/temp location keys. On Windows, CPython derives its
+# "user base" from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); when
+# a child process has none of them, ``site.getusersitepackages()`` resolves to
+# the *literal* ``~`` directory. An executor that then installs a test
+# dependency writes ``<workspace>/~/Python/Python313/...`` payloads into the
+# very repository it is editing, and the artifact hygiene gate must reject
+# them. These keys are filesystem locations, never credentials, so they are
+# safe to forward while every provider/secret key stays excluded.
+_BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
+    "USERPROFILE",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+)
+
 _BINDING_CHILD_ENV_ALLOWLIST = (
     "PATH",
     "SystemRoot",
     "PATHEXT",
-)
+) + _BINDING_CHILD_ENV_LOCATION_ALLOWLIST
 
 # Conservative Windows executable-extension default used only when the parent
 # environment supplies no usable PATHEXT value. PATHEXT is required for child
@@ -544,12 +564,21 @@ def build_binding_child_env(
     Fixed executor-chosen OpenCode safety flags are injected regardless of
     parent env. These disable unrelated network/plugin surfaces so the fake
     loopback relay/provider is the only inference network target.
+
+    Location keys (user profile, application data, temp) are forwarded because
+    a Windows child without them resolves its user site to the literal ``~``
+    directory and pollutes the workspace when a tooling install is attempted.
+    Values containing control characters are dropped, matching the direct
+    authenticated session path.
     """
     child: dict[str, str] = {}
     for key in _BINDING_CHILD_ENV_ALLOWLIST:
         value = parent_env.get(key)
-        if isinstance(value, str) and value:
-            child[key] = value
+        if not isinstance(value, str) or not value:
+            continue
+        if _CONTROL_RE.search(value):
+            continue
+        child[key] = value
     _ensure_windows_pathext(child, parent_env)
     for key, value in _OPENCODE_DISABLE_ENV.items():
         child[key] = value
