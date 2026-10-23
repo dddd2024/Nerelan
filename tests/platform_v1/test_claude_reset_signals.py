@@ -374,7 +374,8 @@ def test_64_receipt_cap_preserves_revision_of_oldest(tmp_path):
     fresh = event("history-new", kind="credit", windows=["unspecified"],
                   plans=["max"], scope="limited", expires="2026-10-22")
     result = parse(status(latest=old, offers=[fresh]))
-    watcher = signals.ClaudeResetWatcher(tmp_path, fetcher=lambda: result)
+    watcher = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: result, clock=lambda: NOW)
     watcher._state["events"] = {
         "claude-reset:history-old": {"revision": 1, "action": "PLAN_ONLY"},
         **{f"claude-reset:fill-{n}": {"revision": 1, "action": "PLAN_ONLY"} for n in range(63)}
@@ -384,6 +385,34 @@ def test_64_receipt_cap_preserves_revision_of_oldest(tmp_path):
     assert output["events"]["claude-reset:history-old"]["revision"] == 2
     assert "claude-reset:history-new" in output["events"]
     assert len(watcher.poll_once()["new_events"]) == 0
+
+
+def test_expiry_crossing_invalidates_once_and_stale_observation_cannot_reactivate(tmp_path):
+    now = [datetime(2026, 10, 22, 23, 59, tzinfo=timezone.utc)]
+    offer = event("expiry-crossing", kind="credit", when=NOW-timedelta(days=5),
+                  plans=["max"], scope="limited", windows=["unspecified"],
+                  expires="2026-10-22")
+    stale_observation = parse(status(offers=[offer]))
+    watcher = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: stale_observation, clock=lambda: now[0])
+    first = watcher.poll_once()
+    assert [e["action"] for e in first["new_events"]] == ["CLAIM_MANUALLY"]
+    now[0] = datetime(2026, 10, 23, 0, 1, tzinfo=timezone.utc)
+    expired = watcher.poll_once()
+    assert [e["action"] for e in expired["new_events"]] == ["INVALIDATE_HINT"]
+    assert expired["new_events"][0]["kind"] == "BANKED_OFFER_EXPIRED"
+    assert expired["events"]["claude-reset:expiry-crossing"]["action"] == "INVALIDATE_HINT"
+    repeated = watcher.poll_once()
+    assert repeated["new_events"] == []
+    assert repeated["events"]["claude-reset:expiry-crossing"]["action"] == "INVALIDATE_HINT"
+    restart = signals.ClaudeResetWatcher(
+        tmp_path, fetcher=lambda: stale_observation, clock=lambda: now[0])
+    snapshot = restart.snapshot()
+    assert snapshot["status"] == "UNKNOWN"
+    assert snapshot["new_events"] == []
+    saved = snapshot["events"]["claude-reset:expiry-crossing"]
+    assert saved["action"] == "INVALIDATE_HINT"
+    assert saved["kind"] == "BANKED_OFFER_EXPIRED"
 
 
 def test_same_revision_state_changes_are_recorded_without_reactivation(tmp_path):
