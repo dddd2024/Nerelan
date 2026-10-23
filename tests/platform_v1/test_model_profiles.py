@@ -155,3 +155,41 @@ def test_native_token_counts_come_from_the_completion_event():
                         (f"done-{task.id}", task.id, '{"token_usage": {"input_tokens": 1200, "cached_input_tokens": 900, "output_tokens": 300}}'))
     store._conn.commit()
     assert compute_agent_profiles(store)["sonnet"]["median_ok_tokens"] == 1500
+
+
+def test_MODEL_UNAVAILABLE_classification_is_not_capability_evidence():
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:model_not_supported")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:model_not_found")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:not_allowed")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:invalid_api_key")
+    profile = compute_agent_profiles(store)["glm"]
+    assert profile["attempts"] == 1
+    assert profile["ok"] == 1
+    assert profile["failed"] == 0
+    assert profile["failure_kinds"] == {}
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize(("code", "message", "reason"), [
+    ("invalid_api_key", "Request failed", "invalid_api_key"),
+    ("authentication_error", "Request failed", "authentication_error"),
+    ("not_allowed", "not allowed for user type", "not_allowed_for_user_type"),
+])
+def test_real_error_classification_preserves_entitlement_exclusion(nested, code, message, reason):
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+    payload = {"code": code, "message": message, "statusCode": 403}
+    event = {"type": "error", "error": {"data": payload} if nested else payload}
+    classification = OpenCodeExecutor(model_id="fixture/model")._classify_exit(1, [event])
+    assert classification == "MODEL_UNAVAILABLE:" + reason
+    store = TaskStore(":memory:")
+    try:
+        _task(store, "fixture", "READY_FOR_REVIEW")
+        _task(store, "fixture", "FAILED", classification)
+        profile = compute_agent_profiles(store)["fixture"]
+        assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+        assert profile["success_rate"] == 1.0
+        assert profile["failure_kinds"] == {}
+    finally:
+        store._conn.close()

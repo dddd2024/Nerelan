@@ -3316,6 +3316,82 @@ def _is_binary_file(fpath: Path) -> bool:
 # Exit classification
 # ---------------------------------------------------------------------------
 
+_PICK_ERROR_STR_MAX = 512
+
+
+def _extract_error_payloads(events_raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Yield only real error payloads from event dicts.
+
+    An event is a real provider error when ``type`` is ``error`` or
+    ``session.error``, or when it carries a direct ``error`` mapping.
+    For each matching event we return the full ``error`` mapping (or the
+    event itself when ``error`` is not a dict). Both the outer whitelist
+    fields and the inner ``data`` sub-dict remain attached so downstream
+    helpers can scan both. Success text, tool output, and other non-error
+    events are never scanned.
+    """
+    out: list[dict[str, Any]] = []
+    for ev in events_raw:
+        if not isinstance(ev, dict):
+            continue
+        ev_type = ev.get("type")
+        is_error_event = ev_type in ("error", "session.error")
+        ev_error = ev.get("error")
+        has_error_dict = isinstance(ev_error, dict)
+        if not is_error_event and not has_error_dict:
+            continue
+        if isinstance(ev_error, dict):
+            payload = ev_error
+        else:
+            payload = ev
+        out.append(payload)
+    return out
+
+
+def _pick_error_str(payload: dict[str, Any]) -> str:
+    """Collect bounded, clearly-labeled strings from an error payload.
+
+    We accept ``message``, ``msg``, ``code``, ``name`` keys at the top level
+    plus one level down in ``data`` when present. Each field is truncated to
+    ``_PICK_ERROR_STR_MAX`` characters so we never stringify arbitrary nested
+    dicts (body, headers, prompt, etc.) by accident. All collected values
+    are joined with a single space; order is top-level first then ``data``
+    keys. Returns ``""`` when nothing usable is found.
+    """
+    if not isinstance(payload, dict):
+        return ""
+    direct_keys = ("message", "msg", "code", "name")
+    parts: list[str] = []
+    for k in direct_keys:
+        v = payload.get(k)
+        if isinstance(v, str) and v.strip():
+            parts.append(v.strip()[:_PICK_ERROR_STR_MAX].lower())
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for k in direct_keys:
+            v = data.get(k)
+            if isinstance(v, str) and v.strip():
+                parts.append(v.strip()[:_PICK_ERROR_STR_MAX].lower())
+    return " ".join(parts)
+
+
+def _pick_error_status(payload: dict[str, Any]) -> int | None:
+    """Extract numeric HTTP statusCode/status_code from an error payload."""
+    if not isinstance(payload, dict):
+        return None
+    for k in ("statusCode", "status_code", "status"):
+        v = payload.get(k)
+        if isinstance(v, int):
+            return v
+    data = payload.get("data")
+    if isinstance(data, dict):
+        for k in ("statusCode", "status_code", "status"):
+            v = data.get(k)
+            if isinstance(v, int):
+                return v
+    return None
+
+
 def _classify_exit(
     self: "OpenCodeExecutor",
     exit_code: int,
@@ -3325,20 +3401,77 @@ def _classify_exit(
         return "cli_unavailable"
     if exit_code in (124, 137, 143):
         return "timeout"
-    for ev in events_raw:
-        msg = json.dumps(ev, ensure_ascii=False, sort_keys=True).lower()
+    for payload in _extract_error_payloads(events_raw):
+        status = _pick_error_status(payload)
+        text = _pick_error_str(payload)
+        # Preserve explicit entitlement reasons before generic HTTP/auth
+        # classes: downstream capability profiles exclude these failures.
         from .model_availability import availability_error
-        if availability_error(msg):
-            return "MODEL_UNAVAILABLE:" + availability_error(msg)
-        if 'policy_refusal' in msg or 'content_policy_violation' in msg:
+        marker = availability_error(text)
+        if marker:
+            return "MODEL_UNAVAILABLE:" + marker
+        # Explicit refusal is willingness evidence, even when the provider
+        # also supplies an HTTP/auth/quota/overload fallback description.
+        if _POLICY_ERROR_RE.search(text):
             return "policy_refusal"
-        if "auth" in msg or "unauthorized" in msg or "forbidden" in msg:
+
+        if status is not None:
+            if status == 429:
+                if _QUOTA_EXHAUSTED_RE.search(text):
+                    return "quota_exhausted"
+                return "api_error_429"
+            if status in (401, 403):
+                return "auth_provider_route_failure"
+            if status in (503, 529):
+                return "provider_overloaded"
+
+        if _QUOTA_EXHAUSTED_RE.search(text):
+            return "quota_exhausted"
+        if _AUTH_ERROR_RE.search(text):
             return "auth_provider_route_failure"
-        if "network" in msg or "connection" in msg or "dns" in msg:
+        if _OVERLOAD_ERROR_RE.search(text):
+            return "provider_overloaded"
+        if _NETWORK_ERROR_RE.search(text):
             return "network_provider_failure"
-        if "model" in msg and ("not found" in msg or "unavailable" in msg):
+        if (_MODEL_UNAVAILABLE_RE.search(text)
+                or "model" in text and ("not found" in text or "unavailable" in text)):
             return "model_provider_unavailable"
+
     return "executor_nonzero"
+
+
+_QUOTA_EXHAUSTED_RE = re.compile(
+    r"\b(quota[_ -]*(?:exhausted|depleted|used[_ -]?up|fully[_ -]?consumed)|"
+    r"code\s*quota[_ -]?exhausted|"
+    r"insufficient[_ -]?quota|"
+    r"quota\s+has\s+been\s+exhausted|"
+    r"quota\s+is\s+exhausted|"
+    r"quota\s+was\s+exhausted|"
+    r"usage[_ -]?limit[_ -]?reached)\b",
+    re.IGNORECASE,
+)
+_AUTH_ERROR_RE = re.compile(
+    r"\b(invalid[_ -]?api[_ -]?key|authentication[_ -]?error|auth(?:entication|orization)?[_ -]?failed|"
+    r"unauthorized|forbidden|api[_ -]?key[_ -]?invalid|missing[_ -]?api[_ -]?key)\b",
+    re.IGNORECASE,
+)
+_OVERLOAD_ERROR_RE = re.compile(
+    r"\b(overloaded|server[_ -]?is[_ -]?busy|at[_ -]?capacity|service[_ -]?unavailable)\b",
+    re.IGNORECASE,
+)
+_POLICY_ERROR_RE = re.compile(
+    r"\b(policy[_ -]?refusal|content[_ -]?policy[_ -]?violation|content[_ -]?filter)\b",
+    re.IGNORECASE,
+)
+_NETWORK_ERROR_RE = re.compile(
+    r"\b(network[_ -]?error|connection[_ -]?(?:failed|refused|reset|timeout)|dns[_ -]?(?:failure|error|unreachable)|"
+    r"socket[_ -]?timeout|connection[_ -]?aborted)\b",
+    re.IGNORECASE,
+)
+_MODEL_UNAVAILABLE_RE = re.compile(
+    r"\b(model[_ -]?not[_ -]?(?:found|available|supported)|model[_ -]?unavailable|invalid[_ -]?model|model[_ -]?does[_ -]?not[_ -]?exist)\b",
+    re.IGNORECASE,
+)
 
 
 # ---------------------------------------------------------------------------
