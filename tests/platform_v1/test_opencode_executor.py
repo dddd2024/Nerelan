@@ -17,6 +17,7 @@ import pytest
 from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
 from reverse_agent.platform_v1.opencode_executor import (
     OpenCodeExecutor,
+    OwnedCliProcessResult,
     build_binding_child_env,
     build_binding_config_content,
     build_opencode_argv,
@@ -29,6 +30,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     resolve_opencode_cli,
     _extract_usage_observations,
     _persist_usage_observations,
+    _run_owned_cli_process,
     _write_prompt_file,
 )
 from reverse_agent.platform_v1.run_store import TaskStore
@@ -57,6 +59,22 @@ needs_real_interpreter = pytest.mark.skipif(
     not _interpreter_available(),
     reason="real host interpreter with json/site is required",
 )
+
+
+def _owned_result(
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    timed_out: bool = False,
+    cleanup_confirmed: bool = True,
+) -> OwnedCliProcessResult:
+    return OwnedCliProcessResult(
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        cleanup_confirmed=cleanup_confirmed,
+    )
 
 
 def test_usage_extraction_is_numeric_idempotent_and_secret_confined() -> None:
@@ -1121,23 +1139,24 @@ def test_executor_success_with_json_events() -> None:
         )
         received_argvs: list[list[str]] = []
 
-        original_run = subprocess.run
-
-        def fake_run(argv, **kwargs):
+        def fake_owned(argv, *, cwd, env, timeout):
             received_argvs.append(list(argv))
-            if argv[0] == "/fake/opencode":
-                assert kwargs["env"]["PATH"] == "C:\\safe-bin"
-                assert not any(key in kwargs["env"] for key in _GuardedParentEnvironment.forbidden)
-                assert kwargs["env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
-            return subprocess.CompletedProcess(
-                args=argv,
-                returncode=0,
-                stdout=stdout,
-                stderr="",
-            )
+            assert env["PATH"] == "C:\\safe-bin"
+            assert not any(key in env for key in _GuardedParentEnvironment.forbidden)
+            assert env["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+            return _owned_result(stdout=stdout)
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
+        original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
+
+        def fake_run(argv, **kwargs):
+            if argv[:2] == ["git", "init"] or argv[:2] == ["git", "config"]:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
@@ -1157,6 +1176,7 @@ def test_executor_success_with_json_events() -> None:
             assert "json" in opencode_call
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 @pytest.mark.parametrize("auth_method", ["none", "external_cli_session", "account_login"])
@@ -1185,27 +1205,26 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
         )
         captured: list[tuple[list[str], dict[str, object]]] = []
 
-        def fake_run(argv, **kwargs):
-            captured.append((list(argv), dict(kwargs)))
-            stdout = ""
-            if argv and argv[0] == "/fake/opencode":
-                stdout = json.dumps(
-                    {
-                        "type": "tool_call",
-                        "action": "read_file",
-                        "token": "fake-token-not-real",
-                    }
-                )
-            return subprocess.CompletedProcess(
-                args=argv,
-                returncode=0,
-                stdout=stdout,
-                stderr="",
+        def fake_owned(argv, *, cwd, env, timeout):
+            captured.append((list(argv), {"env": dict(env), "cwd": cwd}))
+            stdout = json.dumps(
+                {
+                    "type": "tool_call",
+                    "action": "read_file",
+                    "token": "fake-token-not-real",
+                }
             )
+            return _owned_result(stdout=stdout)
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
+
+        def fake_run(argv, **kwargs):
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             result = executor.execute(
                 task.id,
@@ -1215,6 +1234,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
             )
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
         assert result.success is True
         opencode_calls = [call for call in captured if call[0][0] == "/fake/opencode"]
@@ -1284,15 +1304,17 @@ def test_executor_nonzero_exit_classification() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            if argv[:2] == ["git", "init"]:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            if argv[:1] == ["cmd.exe"]:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=42, stdout="", stderr="auth failure")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(
+                returncode=42, stderr="auth failure"
+            )
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
@@ -1300,6 +1322,7 @@ def test_executor_nonzero_exit_classification() -> None:
             assert result.process_exit_code == 42
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_timeout() -> None:
@@ -1317,22 +1340,22 @@ def test_executor_timeout() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-
-        call_count = {"n": 0}
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            call_count["n"] += 1
-            if call_count["n"] > 5:
-                raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(timed_out=True)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
             assert result.failure_classification == "timeout"
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_malformed_json_does_not_crash() -> None:
@@ -1351,16 +1374,21 @@ def test_executor_malformed_json_does_not_crash() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_changed_files_collected() -> None:
@@ -1379,6 +1407,7 @@ def test_executor_changed_files_collected() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
             if argv[:1] == ["git"] and "diff" in argv:
@@ -1388,13 +1417,12 @@ def test_executor_changed_files_collected() -> None:
                     stdout="1\t0\talpha-ok.txt\n2\t1\tbeta.txt\n",
                     stderr="",
                 )
-            if "commit" in argv:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            if "config" in argv:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
@@ -1406,6 +1434,7 @@ def test_executor_changed_files_collected() -> None:
             assert alpha["deletions"] == 0
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 # ---------------------------------------------------------------------------
@@ -1424,11 +1453,15 @@ def test_router_dispatches_opencode() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result()
+        )
         try:
             result = router.dispatch_execute(
                 task_id=task_id,
@@ -1441,6 +1474,7 @@ def test_router_dispatches_opencode() -> None:
             assert isinstance(result, ExecutorResult)
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_router_dispatches_fixture_unchanged() -> None:
@@ -1477,6 +1511,7 @@ def test_validation_fails_on_whitespace_error() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         call_num = {"n": 0}
 
@@ -1491,9 +1526,12 @@ def test_validation_fails_on_whitespace_error() -> None:
                 )
             if any(a in argv for a in ("commit", "config", "init", "add")):
                 return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
@@ -1501,6 +1539,7 @@ def test_validation_fails_on_whitespace_error() -> None:
             assert result.failure_classification == "deterministic_validation_failure"
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 # ---------------------------------------------------------------------------
@@ -1769,18 +1808,24 @@ def test_executor_real_path_uses_prompt_file_not_positional_task() -> None:
         )
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         captured: list[list[str]] = []
 
         def fake_run(argv, **kwargs):
-            captured.append(list(argv))
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
+        def fake_owned(argv, *, cwd, env, timeout):
+            captured.append(list(argv))
+            return _owned_result()
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             executor.execute(task_id, store, workspace_root=td)
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
         opencode_calls = [a for a in captured if a and a[0] == "/fake/opencode"]
         assert opencode_calls, "opencode must be invoked"

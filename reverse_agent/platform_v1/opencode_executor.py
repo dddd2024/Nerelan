@@ -30,8 +30,11 @@ import os
 import platform
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
+import threading
+import time
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from pathlib import Path
@@ -1316,6 +1319,194 @@ def _validate_execution_timeout(timeout: object) -> int | float:
     return timeout
 
 
+# Bounded streaming capture limits for the owned CLI process. Both are hard
+# caps: once a pipe's decoded budget is exhausted the draining reader stops
+# consuming and the child is never allowed to grow an unbounded in-memory
+# buffer. Partial diagnostics stay within these bounds.
+_OWNED_STDOUT_BOUND_BYTES = 8 * 1024 * 1024
+_OWNED_STDERR_BOUND_BYTES = 256 * 1024
+
+
+class OwnedCliCleanupUnconfirmedError(RuntimeError):
+    """A launched CLI failed and its owned tree could not be confirmed empty."""
+
+
+@dataclass(slots=True)
+class OwnedCliProcessResult:
+    """Outcome of one owned OpenCode CLI invocation.
+
+    ``cleanup_confirmed`` is True only when the owned process tree (Windows
+    job object or POSIX process group) was proven empty before any further
+    worktree read/hash/snapshot. An unconfirmed cleanup must fail closed and
+    must never be treated as proof that descendants exited, that capacity was
+    freed, or that a usage total is complete.
+    """
+
+    returncode: int | None
+    stdout: str
+    stderr: str
+    timed_out: bool
+    cleanup_confirmed: bool
+
+
+def _run_owned_cli_process(
+    argv: list[str],
+    *,
+    cwd: str,
+    env: Mapping[str, str],
+    timeout: int | float,
+    encoding: str = "utf-8",
+) -> OwnedCliProcessResult:
+    """Launch the CLI as an owned process tree and return its bounded output.
+
+    The local CLI and every descendant it spawns are owned from launch:
+    on Windows the child is created suspended, assigned to a kill-on-close
+    job object, then resumed so no descendant can escape the job; on POSIX
+    the child becomes a session/process-group leader. Output is drained into
+    bounded buffers so partial diagnostics survive a timeout. Every exit path
+    attempts to stop the owned tree. Failure to confirm an empty tree remains
+    explicit; callers must withhold artifacts and retries in that case.
+    """
+    from .functional_validation import _WindowsJob
+    from .native_quota import stop_and_confirm
+
+    job = _WindowsJob() if os.name == "nt" else None
+    proc: subprocess.Popen[bytes] | None = None
+    stdout_buf = bytearray()
+    stderr_buf = bytearray()
+    lock = threading.Lock()
+    stopping = threading.Event()
+    readers: list[threading.Thread] = []
+    cleanup_confirmed = False
+    process_error: BaseException | None = None
+
+    def _drain(pipe: Any, sink: bytearray, cap: int) -> None:
+        while not stopping.is_set():
+            try:
+                chunk = pipe.read(4096)
+            except (OSError, ValueError):
+                break
+            if not chunk:
+                break
+            with lock:
+                remaining = cap - len(sink)
+                if remaining > 0:
+                    sink.extend(chunk[:remaining])
+
+    try:
+        if job is not None:
+            proc = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env=dict(env),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                creationflags=(
+                    subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW | 4
+                ),
+            )
+            try:
+                job.attach_and_resume(proc)
+            except BaseException:
+                job.close()
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait(timeout=5)
+                raise
+        else:
+            proc = subprocess.Popen(
+                argv,
+                cwd=cwd,
+                env=dict(env),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                start_new_session=True,
+            )
+
+        readers = [
+            threading.Thread(
+                target=_drain,
+                args=(proc.stdout, stdout_buf, _OWNED_STDOUT_BOUND_BYTES),
+                daemon=True,
+            ),
+            threading.Thread(
+                target=_drain,
+                args=(proc.stderr, stderr_buf, _OWNED_STDERR_BOUND_BYTES),
+                daemon=True,
+            ),
+        ]
+        for reader in readers:
+            reader.start()
+
+        timed_out = False
+        try:
+            proc.wait(timeout=float(timeout))
+        except subprocess.TimeoutExpired:
+            timed_out = True
+    except BaseException as exc:
+        process_error = exc
+        raise
+    finally:
+        stopping.set()
+        try:
+            if proc is not None:
+                try:
+                    cleanup_confirmed = bool(stop_and_confirm(proc, job))
+                except Exception:
+                    cleanup_confirmed = False
+                if job is None and not cleanup_confirmed:
+                    # A repeated stop request is not confirmation. Keep False,
+                    # even if this fallback releases a pipe-holding child.
+                    try:
+                        os.killpg(proc.pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+        finally:
+            if job is not None:
+                try:
+                    job.close()
+                except Exception:
+                    pass
+            for reader in readers:
+                if reader.ident is not None:
+                    reader.join(timeout=1)
+            if proc is not None:
+                for index, pipe in enumerate((proc.stdout, proc.stderr)):
+                    # BufferedReader.close takes the same lock as read(). Never
+                    # wait for that lock while a reader can still be blocked.
+                    if index < len(readers) and readers[index].is_alive():
+                        continue
+                    if pipe is not None:
+                        try:
+                            pipe.close()
+                        except Exception:
+                            pass
+                if proc.stdin is not None:
+                    try:
+                        proc.stdin.close()
+                    except Exception:
+                        pass
+        if proc is not None and not cleanup_confirmed and isinstance(process_error, Exception):
+            raise OwnedCliCleanupUnconfirmedError("owned_cli_exception_cleanup_unconfirmed") from process_error
+
+    with lock:
+        stdout = bytes(stdout_buf).decode(encoding, errors="replace")
+        stderr = bytes(stderr_buf).decode(encoding, errors="replace")
+
+    returncode = proc.poll() if timed_out else proc.returncode
+    return OwnedCliProcessResult(
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        cleanup_confirmed=cleanup_confirmed,
+    )
+
+
 class OpenCodeExecutor:
     """Launches OpenCode CLI as a child process in a real linked Git worktree."""
 
@@ -1490,64 +1681,57 @@ class OpenCodeExecutor:
             })
 
             try:
-                run_kwargs: dict[str, Any] = {
-                    "cwd": str(worktree),
-                    "capture_output": True,
-                    "text": True,
-                    "encoding": "utf-8",
-                    "errors": "replace",
-                    "timeout": self._timeout,
-                    "check": False,
-                }
                 role = role_context.role
                 if self._binding_resolution is not None:
                     config_content = build_binding_config_content(
                         self._binding_resolution,
                         lease=lease_handle,
                     )
-                    run_kwargs["env"] = build_role_child_env(
+                    child_env = build_role_child_env(
                         self._parent_env,
                         config_content,
                         role,
                     )
                 else:
-                    run_kwargs["env"] = build_role_child_env(
+                    child_env = build_role_child_env(
                         self._parent_env,
                         None,
                         role,
                     )
-                proc = subprocess.run(cli_argv, **run_kwargs)
+                owned = _run_owned_cli_process(
+                    cli_argv,
+                    cwd=str(worktree),
+                    env=child_env,
+                    timeout=self._timeout,
+                )
             finally:
                 if lease_handle is not None:
                     try:
                         lease_handle.release()
                     except Exception:
                         pass
-        except subprocess.TimeoutExpired as exc:
+        except OwnedCliCleanupUnconfirmedError:
+            _persist_usage_observations(store, task_id, [{
+                "observation_id": "usage-" + hashlib.sha256(
+                    ("|".join((task_id, execution_id, role_context.role, "cleanup_unconfirmed"))).encode("utf-8")
+                ).hexdigest(),
+                "execution_id": execution_id, "role": role_context.role,
+                "model_id": model_for_cli,
+                "provider_id": model_for_cli.split("/", 1)[0] if "/" in model_for_cli else "",
+                "source_kind": "cleanup_unconfirmed", "source_id": "owned-tree", "status": "UNKNOWN",
+            }])
             _emit(event_callback, task_id, {
-                "type": "EXECUTOR_FINISHED",
-                "title": "OpenCode timeout",
-                "description": "OpenCode CLI exceeded timeout",
-                "metadata": {
-                    "execution_id": execution_id,
-                    "timeout": self._timeout,
-                    "failure_classification": "timeout",
-                    "role": role_context.role,
-                },
+                "type": "EXECUTOR_FINISHED", "title": "OpenCode cleanup unconfirmed",
+                "description": "CLI failed and its process tree could not be confirmed stopped",
+                "metadata": {"execution_id": execution_id, "role": role_context.role,
+                             "failure_classification": "cleanup_unconfirmed", "cleanup_confirmed": False},
             })
-            changed_files = _collect_changed_files(worktree)
             return ExecutorResult(
-                success=False,
-                validation_exit_code=-1,
-                validation_command_id="",
-                validation_output_digest="",
-                validation_output_summary="",
-                changed_files=changed_files,
-                error="opencode_timeout:%s" % self._timeout,
-                workspace=str(worktree),
-                execution_id=execution_id,
-                process_exit_code=-1,
-                failure_classification="timeout",
+                success=False, validation_exit_code=-1, validation_command_id="",
+                validation_output_digest="", validation_output_summary="", changed_files=[],
+                error="opencode_cleanup_unconfirmed:process_error", workspace=str(worktree),
+                execution_id=execution_id, process_exit_code=-1,
+                failure_classification="cleanup_unconfirmed",
             )
         except FileNotFoundError as exc:
             return ExecutorResult(
@@ -1569,9 +1753,109 @@ class OpenCodeExecutor:
             if lease_handle is not None:
                 lease_handle.release()
 
-        exit_code = proc.returncode
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
+        exit_code = owned.returncode
+        stdout = owned.stdout or ""
+        stderr = owned.stderr or ""
+        timed_out = owned.timed_out
+        cleanup_confirmed = owned.cleanup_confirmed
+
+        if timed_out:
+            # Preserve bounded, sanitized partial diagnostics while keeping
+            # the overall accounting UNKNOWN: partial usage rows are persisted
+            # as PARTIAL (never a wholly-OBSERVED total), so reconcile_claim
+            # cannot release holds. The explicit cleanup uncertainty is also
+            # consumed by the separate GoalService retry guard.
+            partial_observations = _extract_usage_observations(
+                stdout,
+                task_id=task_id,
+                execution_id=execution_id,
+                role=role_context.role,
+                fallback_model_id=model_for_cli,
+            )
+            for observation in partial_observations:
+                # Wholly-OBSERVED rows may not survive a timeout as a complete
+                # accounting total: downgrade them to PARTIAL so
+                # reconcile_claim keeps the reservation UNKNOWN. Rows already
+                # UNKNOWN stay UNKNOWN (no numeric totals released).
+                if observation.get("status") == "OBSERVED":
+                    observation["status"] = "PARTIAL"
+            _persist_usage_observations(store, task_id, partial_observations)
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "OpenCode timeout",
+                "description": "OpenCode CLI exceeded timeout",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "timeout": self._timeout,
+                    "failure_classification": "timeout",
+                    "role": role_context.role,
+                    "cleanup_confirmed": cleanup_confirmed,
+                    "partial_usage_observations": len(partial_observations),
+                    "usage_accounting": "UNKNOWN",
+                },
+            })
+            # Never collect/hash/snapshot worktree files while owned
+            # descendants may still be mutating them.
+            changed_files = _collect_changed_files(worktree) if cleanup_confirmed else []
+            error = "opencode_timeout:%s" % self._timeout
+            if not cleanup_confirmed:
+                error = "opencode_timeout:cleanup_unconfirmed:%s" % self._timeout
+            return ExecutorResult(
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=changed_files,
+                error=error,
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=-1,
+                failure_classification="timeout",
+            )
+
+        if not cleanup_confirmed:
+            # A completed (non-timeout) role whose owned tree could not be
+            # proven empty must fail closed: do not accept artifacts, do not
+            # validate, and keep usage UNKNOWN so holds are preserved and no
+            # automatic retry is granted.
+            _persist_usage_observations(store, task_id, [{
+                "observation_id": "usage-" + hashlib.sha256(
+                    ("|".join((task_id, execution_id, role_context.role, "cleanup_unconfirmed"))).encode("utf-8")
+                ).hexdigest(),
+                "execution_id": execution_id,
+                "role": role_context.role,
+                "model_id": model_for_cli,
+                "provider_id": model_for_cli.split("/", 1)[0] if "/" in model_for_cli else "",
+                "source_kind": "cleanup_unconfirmed",
+                "source_id": "owned-tree",
+                "status": "UNKNOWN",
+            }])
+            _emit(event_callback, task_id, {
+                "type": "EXECUTOR_FINISHED",
+                "title": "OpenCode cleanup unconfirmed",
+                "description": "owned process tree could not be proven empty",
+                "metadata": {
+                    "execution_id": execution_id,
+                    "failure_classification": "cleanup_unconfirmed",
+                    "role": role_context.role,
+                    "cleanup_confirmed": False,
+                    "usage_accounting": "UNKNOWN",
+                },
+            })
+            return ExecutorResult(
+                success=False,
+                validation_exit_code=-1,
+                validation_command_id="",
+                validation_output_digest="",
+                validation_output_summary="",
+                changed_files=[],
+                error="opencode_cleanup_unconfirmed",
+                workspace=str(worktree),
+                execution_id=execution_id,
+                process_exit_code=exit_code,
+                failure_classification="cleanup_unconfirmed",
+            )
 
         usage_observations = _extract_usage_observations(
             stdout,
