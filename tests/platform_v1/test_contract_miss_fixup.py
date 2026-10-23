@@ -429,3 +429,35 @@ def test_contract_miss_fixup_never_consults_capability_routing(case):
     [step] = service.escalate_failed_tasks(goal.id)
     assert step["reason"] == "contract_fixup"
     assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
+
+
+def test_public_hygiene_is_bounded_rule_data_for_recovery():
+    raw = {"exit_code": 1, "stdout": "PRIVATE SENTINEL", "stderr": "PRIVATE",
+           "diagnostics": [{"path": "a/b.py", "rule": "package_payload"}] * 30}
+    public = validation.public_hygiene(raw)
+    assert len(public["diagnostics"]) == 20 and public["diagnostics_truncated"]
+    assert "PRIVATE" not in str(public) and "SENTINEL" not in str(public)
+    assert public["diagnostics"][0] == {"path": "a/b.py", "rule": "package_payload"}
+
+
+def test_safe_recovery_tree_drops_artifacts_and_preserves_originals(tmp_path):
+    import subprocess
+    from reverse_agent.executor_neutral import core
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (["init", "-q"], ["config", "user.email", "f@example.invalid"],
+                 ["config", "user.name", "fixture"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True)
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    base = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
+    payload = b"\x7fELF" + b"\x00" * 64
+    (repo / "payload").write_bytes(payload)
+    (repo / "asset.bin").write_bytes(b"image\x00data")
+    _, tree, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    safe = core.safe_recovery_tree(repo, base, tree)
+    names = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", safe]).decode().splitlines()
+    assert "payload" not in names and "asset.bin" in names
+    assert (repo / "payload").read_bytes() == payload

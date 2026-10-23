@@ -20,7 +20,7 @@ import time
 import xml.etree.ElementTree as ET
 from typing import Any, Mapping, Sequence
 
-from reverse_agent.executor_neutral.core import _snapshot_workspace
+from reverse_agent.executor_neutral.core import _snapshot_workspace, SnapshotIndirectionError
 from .repository_workspace import resolve_repository_workspace
 from .run_store import TaskStoreError
 
@@ -499,16 +499,21 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         result["head_before"] = git_output(root, "rev-parse", "HEAD")
         if git_output(root, "merge-base", base_commit, result["head_before"]) != base_commit:
             raise TaskStoreError("functional_base_ancestry_mismatch")
-        _, before, changed, hygiene = _snapshot_workspace(root, base_commit)
+        try:
+            _, before, changed, hygiene = _snapshot_workspace(root, base_commit)
+        except SnapshotIndirectionError as exc:
+            result["hygiene_diagnostics"] = [{"path": item["path"], "rule": item["rule"]} for item in exc.violations]
+            raise TaskStoreError("functional_patch_hygiene_failed")
         result["tree_before"] = before
+        result["hygiene_diagnostics"] = public_hygiene(hygiene)["diagnostics"]
         from .artifact_handoff import check_input_snapshot, _digest as artifact_digest
         consumed = check_input_snapshot(task, root, head=result["head_before"], tree=before)
         if consumed is not None:
             result["artifact_input_digest"] = artifact_digest(consumed)
-        if contract["requires_implementation"] and not changed:
-            raise TaskStoreError("functional_implementation_missing")
         if hygiene["exit_code"] != 0:
             raise TaskStoreError("functional_patch_hygiene_failed")
+        if contract["requires_implementation"] and not changed:
+            raise TaskStoreError("functional_implementation_missing")
         missing = _missing_targets(contract["checks"], root)
         if missing:
             result["missing_targets"] = missing
@@ -551,8 +556,9 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
 
 
 def functional_feedback(result: Mapping[str, Any]) -> str:
-    """Plain summary of a failed validation: the reason, each check and what failed in it."""
     lines = [f"Reason: {result.get('reason') or 'functional_check_failed'}"]
+    for item in result.get("hygiene_diagnostics", ())[:20]:
+        lines.append(f"Artifact rule {item['rule']}: {item['path']}")
     for check in result.get("checks", ()):
         report = check.get("test_report") or {}
         targets = " ".join(check.get("targets", ())) or check.get("working_directory", ".")
@@ -564,6 +570,17 @@ def functional_feedback(result: Mapping[str, Any]) -> str:
         if report.get("output_tail"):
             lines.append("  Output tail:\n" + report["output_tail"])
     return "\n".join(lines)
+
+
+def public_hygiene(hygiene: Mapping[str, Any]) -> dict[str, Any]:
+    rows = hygiene.get("diagnostics", hygiene.get("artifact_violations", ()))
+    diagnostics = [{"path": re.sub(r"[^A-Za-z0-9_./? -]", "?", _feedback_text(item["path"], 180)),
+                    "rule": item["rule"]} for item in rows[:20]]
+    if hygiene.get("exit_code") and not diagnostics:
+        diagnostics = [{"path": "(patch)", "rule": "whitespace"}]
+    return {"exit_code": hygiene.get("exit_code"), "diagnostics": diagnostics,
+            "diagnostics_truncated": bool(hygiene.get("diagnostics_truncated")) or len(rows) > 20,
+            "observation_digest": digest(hygiene)}
 
 
 def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_commit: str = "",

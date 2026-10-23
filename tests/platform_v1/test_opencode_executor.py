@@ -3457,3 +3457,68 @@ def test_binding_config_content_executor_managed_preserves_metadata_and_secret_f
     lowered = content.lower()
     for forbidden in ("apikey", "token", "password", "credential", "cookie"):
         assert forbidden not in lowered, f"secret indicator {forbidden!r} leaked into config"
+
+
+def test_preexecution_boundary_preserves_and_rejects_unrelated_dirt(tmp_path):
+    from reverse_agent.platform_v1.repository_preparation import assert_pristine_workspace
+    from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    assert_pristine_workspace(tmp_path)
+    dirt = tmp_path / "prior_draft.py"
+    dirt.write_text("existing work\n", encoding="utf-8")
+    with pytest.raises(ExecutorRuntimeError, match="workspace_preexisting_changes"):
+        assert_pristine_workspace(tmp_path)
+    assert dirt.read_text(encoding="utf-8") == "existing work\n"
+
+
+def test_producer_prompt_excludes_package_installation():
+    from reverse_agent.platform_v1.opencode_executor import _PROMPT_CONSTRAINTS
+    assert "Do not install dependencies" in _PROMPT_CONSTRAINTS
+
+
+def test_collection_rejects_indirection_and_escaping_paths(tmp_path):
+    from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
+    source = tmp_path / "src"
+    source.mkdir()
+    file = source / "new.py"
+    file.write_text("pass\n", encoding="utf-8")
+    assert _artifact_file_is_safe(tmp_path, file)
+    assert not _artifact_file_is_safe(tmp_path, tmp_path.parent / "outside")
+    site_pkg = tmp_path / "~" / "Python" / "Python313" / "site-packages" / "pkg"
+    site_pkg.mkdir(parents=True)
+    payload = site_pkg / "a.py"
+    payload.write_text("installed\n", encoding="utf-8")
+    assert not _artifact_file_is_safe(tmp_path, payload)
+    runtime = tmp_path / "~" / "AppData" / "Local" / "Nerelan" / "platform-v1"
+    runtime.mkdir(parents=True)
+    db = runtime / "tasks.sqlite3"
+    db.write_bytes(b"controlled")
+    assert not _artifact_file_is_safe(tmp_path, db)
+
+
+def test_artifact_file_is_safe_rejects_reparse_point(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
+    source = tmp_path / "src"
+    source.mkdir()
+    original = Path.is_symlink
+    def _fake_is_symlink(path):
+        if path == source:
+            return True
+        return original(path)
+    monkeypatch.setattr(Path, "is_symlink", _fake_is_symlink)
+    file = source / "a.py"
+    file.write_text("pass\n", encoding="utf-8")
+    assert not _artifact_file_is_safe(tmp_path, file)
+
+
+def test_artifact_file_is_safe_fails_closed_on_permissionerror(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
+    source = tmp_path / "src"
+    source.mkdir()
+    original = Path.lstat
+    def _fake_lstat(path):
+        raise PermissionError("denied")
+    monkeypatch.setattr(Path, "lstat", _fake_lstat)
+    file = source / "a.py"
+    file.write_text("pass\n", encoding="utf-8")
+    assert _artifact_file_is_safe(tmp_path, file) is False
