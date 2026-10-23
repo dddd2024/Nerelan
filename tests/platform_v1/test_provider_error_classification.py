@@ -1,0 +1,262 @@
+"""Parametrized tests for real provider error classification.
+
+Only events with type=error/session.error or a direct error mapping are
+scanned. Success text output, tool results and other non-error events must
+never mis-classify as an auth failure or quota exhaustion.
+"""
+
+import pytest
+
+from reverse_agent.platform_v1.opencode_executor import (
+    OpenCodeExecutor,
+    _extract_error_payloads,
+    _pick_error_status,
+    _pick_error_str,
+)
+
+
+def _dummy_executor() -> OpenCodeExecutor:
+    return OpenCodeExecutor(model_id="provider/model")
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "Your quota has been exhausted",
+            }}}],
+            "quota_exhausted",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "Too many requests",
+            }}}],
+            "api_error_429",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "status_code": 529, "message": "Service provider overload",
+            }}}],
+            "provider_overloaded",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 401, "message": "Invalid API key",
+            }}}],
+            "auth_provider_route_failure",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 403, "message": "Forbidden",
+            }}}],
+            "auth_provider_route_failure",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 503, "message": "Service unavailable",
+            }}}],
+            "provider_overloaded",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "Request rate limited, quota status unknown",
+            }}}],
+            "api_error_429",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "Quota exceeded but reset unknown",
+            }}}],
+            "api_error_429",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 500, "message": "Internal server error",
+            }}}],
+            "executor_nonzero",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 500, "message": "auth check failed",
+            }}}],
+            "executor_nonzero",
+        ),
+    ],
+)
+def test_classify_real_error_events(events, expected):
+    ex = _dummy_executor()
+    assert ex._classify_exit(1, events) == expected
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        (
+            [{"type": "text", "data": "Here is the invalid_api_key I found in auth docs"}],
+            "executor_nonzero",
+        ),
+        (
+            [{"type": "text", "data": "The model_not_supported message appears above"}],
+            "executor_nonzero",
+        ),
+        (
+            [{"type": "tool", "name": "bash", "output": "unauthorized request log"}],
+            "executor_nonzero",
+        ),
+        (
+            [{"type": "text", "data": "quota status reset unknown"}],
+            "executor_nonzero",
+        ),
+    ],
+)
+def test_non_error_events_stay_unknown(events, expected):
+    ex = _dummy_executor()
+    assert ex._classify_exit(1, events) == expected
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "expected"),
+    [
+        (127, "cli_unavailable"),
+        (126, "cli_unavailable"),
+        (124, "timeout"),
+        (137, "timeout"),
+        (143, "timeout"),
+    ],
+)
+def test_exit_code_priority_above_events(exit_code, expected):
+    ex = _dummy_executor()
+    poison = [{"type": "error", "error": {"data": {
+        "statusCode": 401, "message": "invalid api key",
+    }}}]
+    assert ex._classify_exit(exit_code, poison) == expected
+
+
+def test_direct_error_dict_no_data():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {"statusCode": 429, "message": "Too many requests"}}]
+    assert ex._classify_exit(1, ev) == "api_error_429"
+
+
+def test_empty_error_stays_unknown():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {}}]
+    assert ex._classify_exit(1, ev) == "executor_nonzero"
+
+
+def test_simple_529_without_status_code():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {"message": "Service at capacity"}}]
+    assert ex._classify_exit(1, ev) == "provider_overloaded"
+
+
+def test_session_error_type_recognized():
+    ex = _dummy_executor()
+    ev = [{"type": "session.error", "error": {"data": {
+        "statusCode": 401, "message": "authentication failed",
+    }}}]
+    assert ex._classify_exit(1, ev) == "auth_provider_route_failure"
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ({"data": {"statusCode": 429}}, 429),
+        ({"status_code": 401}, 401),
+        ({"data": {"status": 503}}, 503),
+        ({"data": {"body": {"status": 429}}}, None),
+        ({"data": {"statusCode": "429"}}, None),
+    ],
+)
+def test_pick_error_status(payload, expected):
+    assert _pick_error_status(payload) == expected
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_substr"),
+    [
+        ({"data": {"message": "Too many requests"}}, "too many requests"),
+        ({"code": "invalid_api_key"}, "invalid_api_key"),
+        ({"name": "QuotaExceeded"}, "quotaexceeded"),
+        ({"data": {"body": {"message": "ignored"}}}, ""),
+    ],
+)
+def test_pick_error_str(payload, expected_substr):
+    result = _pick_error_str(payload)
+    if expected_substr == "":
+        assert result == ""
+    else:
+        assert expected_substr in result
+
+
+def test_extract_error_payloads_skips_non_errors():
+    events = [
+        {"type": "text", "data": "hello auth"},
+        {"type": "error", "error": {"message": "boom"}},
+        {"type": "tool", "name": "bash", "output": "unrelated"},
+        {"type": "session.error", "error": {"data": {"statusCode": 429}}},
+    ]
+    payloads = _extract_error_payloads(events)
+    assert len(payloads) == 2
+
+
+def test_outer_error_code_used_when_data_is_present():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {
+        "code": "insufficient_quota",
+        "data": {"statusCode": 429, "message": "Request failed"},
+    }}]
+    assert ex._classify_exit(1, ev) == "quota_exhausted"
+
+
+def test_middle_field_code_not_swallowed_by_first_message():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {
+        "message": "Request failed",
+        "code": "insufficient_quota",
+        "statusCode": 429,
+    }}]
+    assert ex._classify_exit(1, ev) == "quota_exhausted"
+
+
+def test_outer_data_fields_both_contribute_to_str():
+    payload = {"code": "insufficient_quota", "data": {"statusCode": 429, "message": "Request failed"}}
+    text = _pick_error_str(payload)
+    assert "insufficient_quota" in text
+    assert "request failed" in text
+
+
+def test_body_field_does_not_pollute_str():
+    payload = {"data": {"statusCode": 429, "body": {"message": "your quota has been exhausted"}}}
+    assert _pick_error_str(payload) == ""
+
+
+def test_secret_and_headers_not_used_for_classification():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {
+        "data": {
+            "statusCode": 429,
+            "body": {"message": "your quota has been exhausted"},
+            "headers": {"x-rate-limit": "0"},
+            "prompt": "use the secret: sk-live-1234",
+        },
+    }}]
+    assert ex._classify_exit(1, ev) == "api_error_429"
+
+
+def test_not_exhausted_is_not_quota_exhausted():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {"data": {
+        "statusCode": 429,
+        "message": "Quota is not exhausted; request rate limited",
+    }}}]
+    assert ex._classify_exit(1, ev) == "api_error_429"
+
+
+def test_model_not_supported_uses_MODEL_UNAVAILABLE_prefix():
+    ex = _dummy_executor()
+    ev = [{"type": "error", "error": {"code": "model_not_supported", "message": "Model not supported"}}]
+    result = ex._classify_exit(1, ev)
+    assert result.startswith("MODEL_UNAVAILABLE:"), f"expected MODEL_UNAVAILABLE:..., got {result!r}"
+    assert result == "MODEL_UNAVAILABLE:model_not_supported"
