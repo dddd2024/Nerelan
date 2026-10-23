@@ -78,6 +78,15 @@ _NON_AGENT_FAILURE = re.compile(
     r"|contract|artifact|budget|reservation|cancel|head_moved|base|ambiguous|coordinator|process_start"
     r"|rate_limit|quota|api_error")
 
+_LEGACY_CLEANUP_UNCERTAIN_PREFIX = "opencode_timeout:cleanup_unconfirmed:"
+
+
+def _explicit_cleanup_uncertainty(failed: Any) -> bool:
+    if failed.failure_classification == "cleanup_unconfirmed":
+        return True
+    return (failed.failure_classification == "timeout"
+            and (failed.failure_detail or "").startswith(_LEGACY_CLEANUP_UNCERTAIN_PREFIX))
+
 
 def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
     payload = asdict(task)
@@ -724,6 +733,8 @@ class GoalService:
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
+            if _explicit_cleanup_uncertainty(failed):
+                continue
             from .contract_recovery import failed_snapshot, KINDS, FIXUP, record_attempt_disposition
             from .artifact_handoff import _load_evidence
             structured = functional_evidence(failed)
