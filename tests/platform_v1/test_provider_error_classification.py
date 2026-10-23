@@ -260,3 +260,49 @@ def test_model_not_supported_uses_MODEL_UNAVAILABLE_prefix():
     result = ex._classify_exit(1, ev)
     assert result.startswith("MODEL_UNAVAILABLE:"), f"expected MODEL_UNAVAILABLE:..., got {result!r}"
     assert result == "MODEL_UNAVAILABLE:model_not_supported"
+
+
+@pytest.mark.parametrize(("event", "expected"), [
+    ({"type": "error", "error": {"message": "Model unavailable"}}, "model_provider_unavailable"),
+    ({"type": "text", "message": "Model unavailable; invalid_api_key"}, "executor_nonzero"),
+])
+def test_generic_model_unavailable_keeps_existing_ui_classification(event, expected):
+    assert _dummy_executor()._classify_exit(1, [event]) == expected
+
+
+@pytest.mark.parametrize(("status", "message", "expected"), [
+    (429, "Your quota has been exhausted", "quota_exhausted"),
+    (429, "Request rate limited; reset unknown", "api_error_429"),
+    (401, "Unauthorized", "auth_provider_route_failure"),
+    (529, "Provider overloaded", "provider_overloaded"),
+])
+def test_actual_core_returns_specific_blocker_without_raw_payload(monkeypatch, tmp_path, status, message, expected):
+    import json
+    from reverse_agent.platform_v1 import opencode_executor as oe
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = TaskStore(":memory:")
+    task = store.create_task(title="controlled provider failure", executor_kind="opencode")
+    payload = {"type": "error", "error": {"data": {
+        "statusCode": status, "message": message, "body": "private-body-marker",
+        "headers": {"Authorization": "private-header-marker"},
+    }}}
+    monkeypatch.setattr(oe, "_run_owned_cli_process", lambda *a, **k:
+        oe.OwnedCliProcessResult(returncode=1, stdout=json.dumps(payload), stderr="",
+                                timed_out=False, cleanup_confirmed=True))
+    monkeypatch.setattr(oe, "_collect_changed_files", lambda *a: [])
+    events = []
+    try:
+        result = _dummy_executor()._run_executor_core(
+            task_id=task.id, store=store, worktree=tmp_path, base_sha="controlled",
+            execution_id="controlled", cli_path="fixture", is_cmd=False,
+            event_callback=lambda tid, event: events.append(event),
+            role_context=oe.RoleContext(role="executor", task_id=task.id, workspace=tmp_path))
+        assert result.failure_classification == expected
+        assert result.error == "opencode_nonzero:exit=1:" + expected
+        finished = [e for e in events if e.get("title") == "OpenCode nonzero exit"]
+        assert len(finished) == 1
+        assert finished[0]["metadata"]["failure_classification"] == expected
+        assert "private-body-marker" not in result.error + json.dumps(finished)
+        assert "private-header-marker" not in result.error + json.dumps(finished)
+    finally:
+        store._conn.close()

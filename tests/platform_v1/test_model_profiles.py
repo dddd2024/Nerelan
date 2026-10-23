@@ -169,3 +169,27 @@ def test_MODEL_UNAVAILABLE_classification_is_not_capability_evidence():
     assert profile["ok"] == 1
     assert profile["failed"] == 0
     assert profile["failure_kinds"] == {}
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize(("code", "message", "reason"), [
+    ("invalid_api_key", "Request failed", "invalid_api_key"),
+    ("authentication_error", "Request failed", "authentication_error"),
+    ("not_allowed", "not allowed for user type", "not_allowed_for_user_type"),
+])
+def test_real_error_classification_preserves_entitlement_exclusion(nested, code, message, reason):
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+    payload = {"code": code, "message": message, "statusCode": 403}
+    event = {"type": "error", "error": {"data": payload} if nested else payload}
+    classification = OpenCodeExecutor(model_id="fixture/model")._classify_exit(1, [event])
+    assert classification == "MODEL_UNAVAILABLE:" + reason
+    store = TaskStore(":memory:")
+    try:
+        _task(store, "fixture", "READY_FOR_REVIEW")
+        _task(store, "fixture", "FAILED", classification)
+        profile = compute_agent_profiles(store)["fixture"]
+        assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+        assert profile["success_rate"] == 1.0
+        assert profile["failure_kinds"] == {}
+    finally:
+        store._conn.close()

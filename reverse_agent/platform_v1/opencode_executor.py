@@ -3404,6 +3404,12 @@ def _classify_exit(
     for payload in _extract_error_payloads(events_raw):
         status = _pick_error_status(payload)
         text = _pick_error_str(payload)
+        # Preserve explicit entitlement reasons before generic HTTP/auth
+        # classes: downstream capability profiles exclude these failures.
+        from .model_availability import availability_error
+        marker = availability_error(text)
+        if marker:
+            return "MODEL_UNAVAILABLE:" + marker
 
         if status is not None:
             if status == 429:
@@ -3426,10 +3432,6 @@ def _classify_exit(
         if _NETWORK_ERROR_RE.search(text):
             return "network_provider_failure"
         if _MODEL_UNAVAILABLE_RE.search(text):
-            from .model_availability import availability_error
-            marker = availability_error(text)
-            if marker:
-                return "MODEL_UNAVAILABLE:" + marker
             return "model_provider_unavailable"
 
     return "executor_nonzero"
@@ -3464,7 +3466,7 @@ _NETWORK_ERROR_RE = re.compile(
     re.IGNORECASE,
 )
 _MODEL_UNAVAILABLE_RE = re.compile(
-    r"\b(model[_ -]?not[_ -]?(?:found|available|supported)|invalid[_ -]?model|model[_ -]?does[_ -]?not[_ -]?exist)\b",
+    r"\b(model[_ -]?not[_ -]?(?:found|available|supported)|model[_ -]?unavailable|invalid[_ -]?model|model[_ -]?does[_ -]?not[_ -]?exist)\b",
     re.IGNORECASE,
 )
 
