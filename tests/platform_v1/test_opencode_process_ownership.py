@@ -59,7 +59,8 @@ def test_posix_confirmation_waits_for_group_disappearance(monkeypatch, disappear
         assert clock[0] == 10.
 
 
-def test_uncertain_cleanup_does_not_close_a_locked_reader(monkeypatch, tmp_path):
+@pytest.mark.parametrize("stop_confirmation", [False, True])
+def test_uncertain_cleanup_does_not_close_a_locked_reader(monkeypatch, tmp_path, stop_confirmation):
     """Release the fixture ourselves even if a regression blocks close()."""
     entered, release, done = threading.Event(), threading.Event(), threading.Event()
     lock = threading.Lock()
@@ -102,7 +103,7 @@ def test_uncertain_cleanup_does_not_close_a_locked_reader(monkeypatch, tmp_path)
     monkeypatch.setattr(oe.subprocess, "CREATE_NO_WINDOW", 0, raising=False)
     monkeypatch.setattr(oe.subprocess, "Popen", lambda *a, **k: Proc())
     monkeypatch.setattr(functional_validation, "_WindowsJob", Job)
-    monkeypatch.setattr(native_quota, "stop_and_confirm", lambda *a: False)
+    monkeypatch.setattr(native_quota, "stop_and_confirm", lambda *a: stop_confirmation)
     results, errors = [], []
 
     def invoke():
@@ -125,6 +126,70 @@ def test_uncertain_cleanup_does_not_close_a_locked_reader(monkeypatch, tmp_path)
     assert not closed_before_release
     assert not errors
     assert results[0].timed_out and not results[0].cleanup_confirmed
+
+
+@pytest.mark.parametrize("has_usage", [False, True])
+def test_truncated_output_does_not_become_complete_accounting(monkeypatch, tmp_path, has_usage):
+    store = TaskStore(":memory:")
+    task = store.create_task(title="controlled truncated output", executor_kind="opencode")
+    usage = {"type": "step_finish", "message": {"role": "assistant", "id": "controlled",
+             "tokens": {"input": 11, "output": 3, "reasoning": 0,
+                        "cache": {"read": 0, "write": 0}}, "cost": 0.0}}
+    stdout = json.dumps(usage) + "\n" if has_usage else ""
+    monkeypatch.setattr(oe, "_run_owned_cli_process", lambda *a, **k:
+        SimpleNamespace(returncode=1, stdout=stdout, stderr="", timed_out=False,
+                        cleanup_confirmed=True, output_truncated=True))
+    monkeypatch.setattr(oe, "_collect_changed_files", lambda *a: [])
+    events = []
+    result = oe.OpenCodeExecutor(model_id="fixture/model", parent_env={})._run_executor_core(
+        task_id=task.id, store=store, worktree=tmp_path, base_sha="controlled", execution_id="controlled",
+        cli_path="fixture", is_cmd=False, event_callback=lambda tid, event: events.append(event),
+        role_context=oe.RoleContext(role="executor", task_id=task.id, workspace=tmp_path))
+    assert not result.success
+    rows = store._conn.execute(
+        "SELECT status,input_units,output_units FROM task_usage_observations WHERE task_id=?", (task.id,)).fetchall()
+    assert [tuple(row) for row in rows] == ([("PARTIAL", 11, 3)] if has_usage else [("UNKNOWN", None, None)])
+    assert any(e.get("metadata", {}).get("output_truncated") is True for e in events)
+
+
+def test_normal_output_drains_before_reader_stop(monkeypatch, tmp_path):
+    from reverse_agent.platform_v1 import functional_validation, native_quota
+    first, release = threading.Event(), threading.Event()
+
+    class Pipe:
+        reads = 0
+
+        def read(self, size):
+            self.reads += 1
+            if self.reads == 1:
+                first.set()
+                release.wait()
+                return b"A"
+            return b"B" if self.reads == 2 else b""
+
+        def close(self):
+            pass
+
+    def wait(timeout):
+        assert first.wait(1)
+        return 0
+
+    def stop(*args):
+        release.set()
+        return True
+
+    proc = SimpleNamespace(stdout=Pipe(), stderr=io.BytesIO(), stdin=None,
+                           returncode=0, wait=wait, poll=lambda: 0)
+    job = SimpleNamespace(attach_and_resume=lambda proc: None, close=lambda: None)
+    monkeypatch.setattr(oe, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(oe.subprocess, "CREATE_NEW_PROCESS_GROUP", 0, raising=False)
+    monkeypatch.setattr(oe.subprocess, "CREATE_NO_WINDOW", 0, raising=False)
+    monkeypatch.setattr(oe.subprocess, "Popen", lambda *a, **k: proc)
+    monkeypatch.setattr(functional_validation, "_WindowsJob", lambda: job)
+    monkeypatch.setattr(native_quota, "stop_and_confirm", stop)
+    result = oe._run_owned_cli_process(["fixture"], cwd=str(tmp_path), env={}, timeout=.01)
+    assert result.stdout == "AB"
+    assert result.cleanup_confirmed and not result.output_truncated
 
 
 @pytest.mark.parametrize("confirmed", [False, True])
@@ -579,3 +644,15 @@ def test_complete_observed_usage_reconciles_for_contrast(tmp_path: Path) -> None
     )
 
     assert reservation_state == "RECONCILED"
+
+
+@needs_real_interpreter
+def test_real_capture_marks_output_beyond_its_bound(monkeypatch, tmp_path):
+    script = tmp_path / "controlled-output.py"
+    script.write_text('import sys\nsys.stdout.write("x" * 1048576)\n', encoding="utf8")
+    monkeypatch.setattr(oe, "_OWNED_STDOUT_BOUND_BYTES", 64)
+    result = oe._run_owned_cli_process([sys.executable, str(script)], cwd=str(tmp_path),
+                                       env=_minimal_env(), timeout=10)
+    assert not result.timed_out and result.cleanup_confirmed
+    assert result.stdout == "x" * 64
+    assert result.output_truncated

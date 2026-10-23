@@ -1347,6 +1347,7 @@ class OwnedCliProcessResult:
     stderr: str
     timed_out: bool
     cleanup_confirmed: bool
+    output_truncated: bool = False
 
 
 def _run_owned_cli_process(
@@ -1379,8 +1380,10 @@ def _run_owned_cli_process(
     readers: list[threading.Thread] = []
     cleanup_confirmed = False
     process_error: BaseException | None = None
+    output_truncated = False
 
     def _drain(pipe: Any, sink: bytearray, cap: int) -> None:
+        nonlocal output_truncated
         while not stopping.is_set():
             try:
                 chunk = pipe.read(4096)
@@ -1390,6 +1393,8 @@ def _run_owned_cli_process(
                 break
             with lock:
                 remaining = cap - len(sink)
+                if len(chunk) > remaining:
+                    output_truncated = True
                 if remaining > 0:
                     sink.extend(chunk[:remaining])
 
@@ -1451,7 +1456,6 @@ def _run_owned_cli_process(
         process_error = exc
         raise
     finally:
-        stopping.set()
         try:
             if proc is not None:
                 try:
@@ -1474,6 +1478,11 @@ def _run_owned_cli_process(
             for reader in readers:
                 if reader.ident is not None:
                     reader.join(timeout=1)
+            # A live reader is observable uncertainty even if a process-group
+            # query reported empty. Do not accept artifacts or complete usage.
+            if any(reader.is_alive() for reader in readers):
+                cleanup_confirmed = False
+            stopping.set()
             if proc is not None:
                 for index, pipe in enumerate((proc.stdout, proc.stderr)):
                     # BufferedReader.close takes the same lock as read(). Never
@@ -1504,6 +1513,7 @@ def _run_owned_cli_process(
         stderr=stderr,
         timed_out=timed_out,
         cleanup_confirmed=cleanup_confirmed,
+        output_truncated=output_truncated,
     )
 
 
@@ -1791,6 +1801,7 @@ class OpenCodeExecutor:
                     "role": role_context.role,
                     "cleanup_confirmed": cleanup_confirmed,
                     "partial_usage_observations": len(partial_observations),
+                    "output_truncated": owned.output_truncated,
                     "usage_accounting": "UNKNOWN",
                 },
             })
@@ -1864,6 +1875,19 @@ class OpenCodeExecutor:
             role=role_context.role,
             fallback_model_id=model_for_cli,
         )
+        if owned.output_truncated:
+            for observation in usage_observations:
+                if observation.get("status") == "OBSERVED":
+                    observation["status"] = "PARTIAL"
+            if not usage_observations:
+                usage_observations.append({
+                    "observation_id": "usage-" + hashlib.sha256(
+                        ("|".join((task_id, execution_id, role_context.role, "output_truncated"))).encode("utf-8")
+                    ).hexdigest(),
+                    "execution_id": execution_id, "role": role_context.role, "model_id": model_for_cli,
+                    "provider_id": model_for_cli.split("/", 1)[0] if "/" in model_for_cli else "",
+                    "source_kind": "output_truncated", "source_id": "bounded-cli-output", "status": "UNKNOWN",
+                })
         _persist_usage_observations(store, task_id, usage_observations)
         events_raw, _json_error = self._parse_json_lines(stdout)
         executor_evidence = _build_executor_evidence(
@@ -1893,6 +1917,7 @@ class OpenCodeExecutor:
                     "exit_code": exit_code,
                     "failure_classification": fail_class,
                     "stderr_summary": stderr_redacted[:512],
+                    "output_truncated": owned.output_truncated,
                     "role": role_context.role,
                 },
             })
@@ -1921,6 +1946,7 @@ class OpenCodeExecutor:
                 "execution_id": execution_id,
                 "exit_code": exit_code,
                 "changed_file_count": len(changed_files),
+                "output_truncated": owned.output_truncated,
                 "model": self._model_id,
                 "role": role_context.role,
             },

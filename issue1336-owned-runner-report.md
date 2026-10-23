@@ -56,3 +56,23 @@ The six focused suites (executor, ownership, runtime budget, quota inflight
 wiring, agent escalation, and GoalService) passed 479 tests with one skip in
 47.05 seconds after this correction. This records a local author-time check;
 the subsequent exact-head Linux CI and review state are tracked on the PR.
+
+## Additional bounded-output checks, 2026-10-23 14:18 UTC
+
+Three further regressions initially failed: a still-blocked reader could
+retain a positive cleanup flag, and truncated output had no explicit signal
+to prevent complete usage accounting. A live reader now makes cleanup
+uncertain; normal output drains before the reader stop signal. Capture-limit
+truncation is explicit, downgrading parseable usage to PARTIAL or recording
+UNKNOWN when no complete usage event remains. Existing successful uncapped
+accounting remains covered by the original positive control.
+
+The six focused suites now report 484 passed, one skipped in 43.06 seconds,
+including controlled locked-reader confirmation, tail drainage, actual output
+exceeding a 64-byte test bound, and truncated-usage persistence checks.
+Repeated independent Windows probes on executor source SHA-256
+`65839bb9a0b618d18073d95ac9b93c11c6126bed607505934394ef59f50146d1`
+returned in 0.244 seconds with forced cleanup uncertainty, and in 1.238 seconds
+for the actual core timeout. Outer fixture cleanup was confirmed; the child
+did not complete its later write. Earlier measurements above name earlier
+source versions and remain preserved as historical evidence.
