@@ -442,3 +442,22 @@ def test_review_missing_chain_binding_cannot_grant_independence(monkeypatch, tmp
                        artifact_input={"plan_task_id": "P"})
     with pytest.raises(TaskStoreError, match="review_not_independent"):
         host._resolve_task_model(task, author_models=["opus"], author_bindings=["deleted-author"])
+
+
+def test_prior_higher_tier_not_capped_by_low_difficulty_measured():
+    from reverse_agent.platform_v1 import capability_benchmarks as cb, routing_capabilities
+    bench = cb.BenchmarkPriors({'version': 1, 'snapshot_id': 'fixture',
+        'families': {'m4': {'aliases': ['m4'], 'scores': []}, 'm3': {'aliases': ['m3'], 'scores': []}}})
+    from tests.platform_v1.test_capability_benchmarks import priors_for
+    bench = priors_for(model='m4')
+    table = routing_capabilities.CapabilityTable()
+    table.benchmarks = bench
+    m4_low = {'task_buckets': {'code:3': {'attempts': 7, 'ok': 5, 'timeouts': 0, 'success_rate': 5 / 7}}}
+    m3_low = {'task_buckets': {'code:3': {'attempts': 7, 'ok': 7, 'timeouts': 0, 'success_rate': 1.}}}
+    decision = select_model([candidate('m4-free', 'm4', cost='free'),
+                              candidate('m3-sub', 'm3', cost='subscription')],
+                            difficulty=4, kind='code', capability_table=table,
+                            profiles={'m4-free': m4_low, 'm3-sub': m3_low})
+    assert decision['binding_ref'] == 'm4-free'
+    assert decision['tier'] == 4
+    assert not decision['underpowered']

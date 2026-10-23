@@ -130,7 +130,8 @@ def tier_detail(model: str, profile: Mapping[str, Any], kind: str, difficulty: i
         return {'tier': tier, 'unproven': False, 'source': 'owner_override'}
     benchmarks = benchmarks if benchmarks is not None else getattr(table, 'benchmarks', None)
     prior = benchmarks.lookup(model, kind) if benchmarks is not None else None
-    measured, gaps, attempts_seen = [], [], 0
+    measured: list[tuple[int, int, float, int, float]] = []
+    gaps, attempts_seen = [], 0
     for level in range(1, 6):
         bucket = profile.get('task_buckets', {}).get(f'{kind}:{level}', {})
         attempts = bucket.get('attempts', 0)
@@ -138,13 +139,13 @@ def tier_detail(model: str, profile: Mapping[str, Any], kind: str, difficulty: i
             rate = bucket.get('success_rate') or 0
             if prior is not None:
                 expected = expected_success(prior['tier'], level)
-                rate_used = blend(expected, pseudo_count(prior['confidence']), bucket.get('ok', round(rate * attempts)), attempts)
+                posterior = blend(expected, pseudo_count(prior['confidence']), bucket.get('ok', round(rate * attempts)), attempts)
                 if attempts >= PRIOR_GAP_MIN_ATTEMPTS and abs(rate - expected) >= PRIOR_GAP:
                     gaps.append(f'{kind}:{level}')
             else:
-                rate_used = rate
-            good = rate_used >= DEMONSTRATED and bucket.get('timeouts', 0) / attempts <= .2
-            measured.append((level, max(1, level if good else level - 1)))
+                posterior = rate
+            good = posterior >= DEMONSTRATED and bucket.get('timeouts', 0) / attempts <= .2
+            measured.append((level, max(1, level if good else level - 1), posterior, attempts, rate))
             attempts_seen = max(attempts_seen, attempts)
     detail: dict[str, Any] = {}
     if prior is not None:
@@ -152,10 +153,34 @@ def tier_detail(model: str, profile: Mapping[str, Any], kind: str, difficulty: i
         if gaps:
             detail['prior_gap'] = gaps
     if measured:
-        exact = next((tier for level, tier in measured if level == difficulty), None)
+        exact = next((tier for level, tier, _, _, _ in measured if level == difficulty), None)
+        highest_measured = max(tier for _, tier, _, _, _ in measured)
+        # Fallback to prior (owner table or benchmark) is only allowed when:
+        # 1. ALL measured levels are strictly below the target difficulty
+        #    (missing target is treated as missing info, not evidence), AND
+        # 2. No measured bucket has a conclusive failure against the prior
+        #    (many attempts below DEMONSTRATED + significant gap), AND
+        # 3. No measured bucket at or above the target difficulty actually
+        #    succeeded at raw measured rate — positive evidence at >= difficulty
+        #    must count even on few attempts (raw rate, not blended posterior
+        #    which dilutes high successes with prior pseudo-observations).
+        all_below_target = all(level < difficulty for level, _, _, _, _ in measured)
+        conclusive_failure = any(att >= MEASURED_DOMINATES and posterior < DEMONSTRATED
+                                 for _, _, posterior, att, _ in measured)
+        high_success = any(level >= difficulty and raw_rate >= DEMONSTRATED
+                           for level, _, _, _, raw_rate in measured)
+        if (prior is not None and all_below_target and not gaps
+                and not conclusive_failure and not high_success):
+            detail['measured_off_target'] = [level for level, _, _, _, _ in measured]
+            entry = (table or {}).get(model, (table or {}).get(model.rsplit('/', 1)[-1], {}))
+            tier = entry.get('tiers', {}).get(kind)
+            if tier is not None:
+                return {**detail, 'tier': tier, 'unproven': False, 'source': 'owner_table'}
+            return {**detail, 'tier': prior['tier'], 'unproven': prior['confidence'] != 'high', 'source': 'benchmark'}
         source = 'measured' if prior is None or attempts_seen >= MEASURED_DOMINATES else 'measured_with_prior'
-        return {**detail, 'tier': exact if exact is not None else max(tier for _, tier in measured),
-                'unproven': False, 'source': source}
+        if exact is not None:
+            return {**detail, 'tier': exact, 'unproven': False, 'source': source}
+        return {**detail, 'tier': highest_measured, 'unproven': False, 'source': source}
     entry = (table or {}).get(model, (table or {}).get(model.rsplit('/', 1)[-1], {}))
     tier = entry.get('tiers', {}).get(kind)
     if tier is not None:
