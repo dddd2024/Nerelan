@@ -33,6 +33,32 @@ from reverse_agent.platform_v1 import opencode_executor as oe
 from reverse_agent.platform_v1.run_store import TaskStore
 
 
+@pytest.mark.parametrize("disappears", [False, True])
+def test_posix_confirmation_waits_for_group_disappearance(monkeypatch, disappears):
+    from reverse_agent.platform_v1 import native_quota
+    clock, probes, sleeps = [0.], [], []
+
+    def killpg(pid, sig):
+        assert pid == 123  # Controlled seam only; no real OS signal.
+        if sig == 0:
+            probes.append(clock[0])
+            if disappears and len(probes) == 2:
+                raise ProcessLookupError()
+
+    def sleep(delay):
+        sleeps.append(delay)
+        clock[0] += 5.
+
+    proc = SimpleNamespace(pid=123, wait=lambda timeout: 0, poll=lambda: 0)
+    monkeypatch.setattr(native_quota, "os", SimpleNamespace(killpg=killpg))
+    monkeypatch.setattr(native_quota, "signal", SimpleNamespace(SIGKILL=9))
+    monkeypatch.setattr(native_quota, "time", SimpleNamespace(monotonic=lambda: clock[0], sleep=sleep))
+    assert native_quota.stop_and_confirm(proc, None) is disappears
+    assert sleeps and len(probes) >= 2
+    if not disappears:
+        assert clock[0] == 10.
+
+
 def test_uncertain_cleanup_does_not_close_a_locked_reader(monkeypatch, tmp_path):
     """Release the fixture ourselves even if a regression blocks close()."""
     entered, release, done = threading.Event(), threading.Event(), threading.Event()

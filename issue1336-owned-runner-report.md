@@ -40,3 +40,19 @@ Linux CI and a fresh independent exact-head review are required after
 publication. Those later results belong in the PR's dated verification record.
 Provider error diagnostics, availability, capability attribution, pricing,
 state convergence, the remaining short test, and #1191 are still unfinished.
+
+## Dated CI correction, 2026-10-23 10:40 UTC
+
+The first Linux baseline on merge-main head `091a036b` found seven failures:
+six lease tests mocked the replaced subprocess.run seam, and POSIX normal
+parent exit exposed asynchronous descendant reaping during confirmation.
+The lease fixture now mocks the owned-process seam while retaining all
+bind/release/deadline assertions. The shared POSIX confirmation primitive
+polls group existence for at most ten seconds; a surviving group or zombie
+still returns false. Controlled-clock regressions cover both eventual
+disappearance and deadline expiry.
+
+The six focused suites (executor, ownership, runtime budget, quota inflight
+wiring, agent escalation, and GoalService) passed 479 tests with one skip in
+47.05 seconds after this correction. This records a local author-time check;
+the subsequent exact-head Linux CI and review state are tracked on the PR.
