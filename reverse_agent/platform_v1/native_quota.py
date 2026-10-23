@@ -97,11 +97,18 @@ def stop_and_confirm(proc, job):
     except ProcessLookupError:
         pass
     proc.wait(timeout=10)
-    try:
-        os.killpg(proc.pid, 0)
-    except ProcessLookupError:
-        return proc.poll() is not None
-    return False  # A surviving descendant (including an unreaped zombie) is ambiguous.
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            os.killpg(proc.pid, 0)
+        except ProcessLookupError:
+            return proc.poll() is not None
+        if time.monotonic() >= deadline:
+            return False  # A surviving descendant or unreaped zombie stays ambiguous.
+        # SIGKILL and orphan reaping are asynchronous. A stop request alone
+        # cannot prove the group empty, nor does the first live probe prove it
+        # will remain live throughout the bounded confirmation interval.
+        time.sleep(.01)
 
 
 class NativeQuota:
