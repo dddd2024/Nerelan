@@ -3431,7 +3431,8 @@ def _classify_exit(
             return "policy_refusal"
         if _NETWORK_ERROR_RE.search(text):
             return "network_provider_failure"
-        if _MODEL_UNAVAILABLE_RE.search(text):
+        if (_MODEL_UNAVAILABLE_RE.search(text)
+                or "model" in text and ("not found" in text or "unavailable" in text)):
             return "model_provider_unavailable"
 
     return "executor_nonzero"

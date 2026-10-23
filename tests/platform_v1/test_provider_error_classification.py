@@ -264,6 +264,8 @@ def test_model_not_supported_uses_MODEL_UNAVAILABLE_prefix():
 
 @pytest.mark.parametrize(("event", "expected"), [
     ({"type": "error", "error": {"message": "Model unavailable"}}, "model_provider_unavailable"),
+    ({"type": "error", "error": {"message": "Requested model is unavailable"}}, "model_provider_unavailable"),
+    ({"type": "error", "error": {"message": "Model 'provider/model' not found"}}, "model_provider_unavailable"),
     ({"type": "text", "message": "Model unavailable; invalid_api_key"}, "executor_nonzero"),
 ])
 def test_generic_model_unavailable_keeps_existing_ui_classification(event, expected):
