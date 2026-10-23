@@ -3410,6 +3410,10 @@ def _classify_exit(
         marker = availability_error(text)
         if marker:
             return "MODEL_UNAVAILABLE:" + marker
+        # Explicit refusal is willingness evidence, even when the provider
+        # also supplies an HTTP/auth/quota/overload fallback description.
+        if _POLICY_ERROR_RE.search(text):
+            return "policy_refusal"
 
         if status is not None:
             if status == 429:
@@ -3427,8 +3431,6 @@ def _classify_exit(
             return "auth_provider_route_failure"
         if _OVERLOAD_ERROR_RE.search(text):
             return "provider_overloaded"
-        if _POLICY_ERROR_RE.search(text):
-            return "policy_refusal"
         if _NETWORK_ERROR_RE.search(text):
             return "network_provider_failure"
         if (_MODEL_UNAVAILABLE_RE.search(text)

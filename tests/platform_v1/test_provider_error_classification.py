@@ -277,6 +277,8 @@ def test_generic_model_unavailable_keeps_existing_ui_classification(event, expec
     (429, "Request rate limited; reset unknown", "api_error_429"),
     (401, "Unauthorized", "auth_provider_route_failure"),
     (529, "Provider overloaded", "provider_overloaded"),
+    (403, "content_policy_violation: Forbidden", "policy_refusal"),
+    (429, "policy_refusal; quota has been exhausted", "policy_refusal"),
 ])
 def test_actual_core_returns_specific_blocker_without_raw_payload(monkeypatch, tmp_path, status, message, expected):
     import json
@@ -308,3 +310,33 @@ def test_actual_core_returns_specific_blocker_without_raw_payload(monkeypatch, t
         assert "private-header-marker" not in result.error + json.dumps(finished)
     finally:
         store._conn.close()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize(("status", "message"), [
+    (401, "Unauthorized"), (403, "Forbidden"),
+    (429, "Your quota has been exhausted"), (503, "Provider overloaded"),
+    (529, "Provider at capacity"), (None, "Forbidden"),
+])
+def test_explicit_policy_precedes_generic_status_and_refusal_consumer(nested, status, message):
+    from reverse_agent.platform_v1.routing_inputs import model_refused
+    payload = {"code": "content_policy_violation", "message": message}
+    if status is not None:
+        payload["statusCode"] = status
+    event = {"type": "error", "error": {"data": payload} if nested else payload}
+    classification = _dummy_executor()._classify_exit(1, [event])
+    assert classification == "policy_refusal"
+    assert model_refused("", changed_files=[],
+                         policy_refusal=classification in {"policy_refusal", "MODEL_REFUSED"})
+
+
+def test_availability_exit_and_event_order_remain_ahead_of_policy():
+    executor = _dummy_executor()
+    policy = {"type": "error", "error": {"code": "policy_refusal", "message": "Forbidden", "statusCode": 403}}
+    unavailable = {"type": "error", "error": {"code": "invalid_api_key", "message": "policy_refusal", "statusCode": 403}}
+    auth = {"type": "error", "error": {"message": "Forbidden", "statusCode": 403}}
+    assert executor._classify_exit(1, [unavailable]) == "MODEL_UNAVAILABLE:invalid_api_key"
+    assert executor._classify_exit(127, [policy]) == "cli_unavailable"
+    assert executor._classify_exit(124, [policy]) == "timeout"
+    assert executor._classify_exit(1, [auth, policy]) == "auth_provider_route_failure"
+    assert executor._classify_exit(1, [policy, auth]) == "policy_refusal"
