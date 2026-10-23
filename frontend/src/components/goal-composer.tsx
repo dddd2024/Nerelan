@@ -66,7 +66,7 @@ function readDraft(): GoalComposerDraft {
       typeof parsed.repository !== "string" ||
       !["opencode", "codex", "claude_code", "deterministic_fixture"].includes(parsed.executorKind ?? "") ||
       typeof parsed.bindingRef !== "string" ||
-      parsed.autonomyHours !== 2 ||
+      ![0.5, 1, 2, 4].includes(parsed.autonomyHours ?? 0) ||
       typeof parsed.operationId !== "string" ||
       !OPERATION_ID_PATTERN.test(parsed.operationId) ||
       typeof parsed.confirmed !== "boolean" ||
@@ -79,7 +79,7 @@ function readDraft(): GoalComposerDraft {
       repository: parsed.repository.slice(0, 500),
       executorKind: parsed.executorKind as StartGoalInput["executorKind"],
       bindingRef: parsed.bindingRef.slice(0, 500),
-      autonomyHours: 2,
+      autonomyHours: parsed.autonomyHours!,
       operationId: parsed.operationId,
       confirmed: parsed.confirmed,
       teamMode: parsed.teamMode === true,
@@ -209,7 +209,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           repository: draftRef.current.repository.trim(),
           executorKind: checkerOnly ? "opencode" : draftRef.current.executorKind,
           bindingRef: checkerOnly ? "" : draftRef.current.bindingRef,
-          autonomyHours: 2,
+          autonomyHours: draftRef.current.autonomyHours,
           operationId: draftRef.current.operationId,
           ...(!checkerOnly && draftRef.current.teamMode ? { teamMode: true } : {}),
           ...(checkerOnly && approvedPolicy?.goal_idempotency_key ? { checkerDraft: {
@@ -291,6 +291,21 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           data-testid="goal-composer-options"
           className="border-t border-ra-border/60 px-3 py-2.5"
         >
+          <label className="mb-2 flex flex-wrap items-center gap-2 text-xs text-ra-text-secondary">
+            自治执行授权
+            <select
+              aria-label="自治窗口时长"
+              value={draft.autonomyHours}
+              onChange={(event) => editDraft({ autonomyHours: Number(event.target.value) })}
+              className="rounded-md border border-ra-border bg-ra-base px-2 py-1"
+            >
+              <option value={0.5}>30 分钟 · 1 任务 · 0 重试</option>
+              <option value={1}>1 小时 · 最多 20 任务</option>
+              <option value={2}>2 小时 · 最多 20 任务</option>
+              <option value={4}>4 小时 · 最多 20 任务</option>
+            </select>
+            <span>实际权限以服务端确认结果为准</span>
+          </label>
           <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
               <label className="inline-flex items-center gap-2 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text-secondary">
