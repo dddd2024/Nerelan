@@ -562,10 +562,16 @@ def test_timeout_usage_accounting_stays_unknown(tmp_path: Path) -> None:
     assert row["observed_cost_micro_units"] is None
 
 
-@needs_real_interpreter
-def test_complete_observed_usage_reconciles_for_contrast(tmp_path: Path) -> None:
-    """Contrast fixture: a wholly-OBSERVED row reconciles (RETCONCILED), proving
-    the PARTIAL/UNKNOWN path above is what preserves the hold."""
+@pytest.mark.parametrize(("timeout_stdout", "cleanup_confirmed"), [
+    (None, True), ("", True), ("", False),
+    ('{"type":"text","part":{"text":"no usage"}}', True),
+    ('{"type":"text","part":{"text":"no usage"}}', False),
+])
+def test_prior_observed_usage_only_reconciles_without_later_unknown_attempt(
+    monkeypatch, tmp_path: Path, timeout_stdout, cleanup_confirmed,
+) -> None:
+    """Earlier complete usage cannot conceal a later attempt with no usage.
+    The ordinary completion remains a positive reconciliation control."""
     from reverse_agent.platform_v1.control_store import PlatformControlStore
 
     store = TaskStore(str(tmp_path / "tasks.sqlite3"))
@@ -632,6 +638,30 @@ def test_complete_observed_usage_reconciles_for_contrast(tmp_path: Path) -> None
         cost_micro_units=0,
     )
 
+    if timeout_stdout is not None:
+        monkeypatch.setattr(oe, "_run_owned_cli_process", lambda *args, **kwargs:
+            oe.OwnedCliProcessResult(returncode=-1, stdout=timeout_stdout, stderr="",
+                                    timed_out=True, cleanup_confirmed=cleanup_confirmed))
+        artifact_reads = []
+        def collect(*args):
+            assert cleanup_confirmed, "uncertain cleanup must not read artifacts"
+            artifact_reads.append(True)
+            return []
+        monkeypatch.setattr(oe, "_collect_changed_files", collect)
+        result = oe.OpenCodeExecutor(model_id="fixture/model")._run_executor_core(
+            task_id=task.id, store=store, worktree=tmp_path, base_sha="controlled",
+            execution_id="later-timeout", cli_path="fixture", is_cmd=False,
+            event_callback=None,
+            role_context=oe.RoleContext(role="executor", task_id=task.id, workspace=tmp_path))
+        assert result.failure_classification == "timeout"
+        assert artifact_reads == ([True] if cleanup_confirmed else [])
+        observations = store._conn.execute(
+            "SELECT status, execution_id FROM task_usage_observations WHERE task_id=?",
+            (task.id,)).fetchall()
+        assert sorted(row["status"] for row in observations) == ["OBSERVED", "UNKNOWN"]
+        assert any(row["execution_id"] == "later-timeout" and row["status"] == "UNKNOWN"
+                   for row in observations)
+
     reservation_state = control._finalize_task_claim(
         window_id=window.id,
         task_id=task.id,
@@ -643,7 +673,13 @@ def test_complete_observed_usage_reconciles_for_contrast(tmp_path: Path) -> None
         receipt_result="success",
     )
 
-    assert reservation_state == "RECONCILED"
+    assert reservation_state == ("RECONCILED" if timeout_stdout is None else "UNKNOWN")
+    if timeout_stdout is not None:
+        reservation = store._conn.execute(
+            "SELECT observed_token_units, observed_cost_micro_units "
+            "FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+        assert reservation["observed_token_units"] is None
+        assert reservation["observed_cost_micro_units"] is None
 
 
 @needs_real_interpreter

@@ -76,3 +76,15 @@ returned in 0.244 seconds with forced cleanup uncertainty, and in 1.238 seconds
 for the actual core timeout. Outer fixture cleanup was confirmed; the child
 did not complete its later write. Earlier measurements above name earlier
 source versions and remain preserved as historical evidence.
+
+## Independent rejection correction, 2026-10-23 afternoon UTC
+
+A separate read-only reviewer rejected head 811de05e: actual executor core
+with empty timeout output persisted no usage row, so an earlier role's
+OBSERVED total incorrectly reconciled the reservation. The timeout now
+persists an explicit UNKNOWN observation when no usage event is parseable.
+Four prior-role regressions initially failed (empty or non-usage output,
+cleanup confirmed or unconfirmed); all now preserve UNKNOWN with no numeric
+settled totals. The ordinary successful OBSERVED reconciliation control stays.
+The six focused suites passed 488 tests, one skipped in 47.91 seconds.
+This author-time correction requires new exact-head CI and independent review.

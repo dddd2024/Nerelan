@@ -1789,6 +1789,22 @@ class OpenCodeExecutor:
                 # UNKNOWN stay UNKNOWN (no numeric totals released).
                 if observation.get("status") == "OBSERVED":
                     observation["status"] = "PARTIAL"
+            if not partial_observations:
+                # Earlier roles may already have complete observations. Record
+                # this attempt explicitly so their totals cannot reconcile a
+                # timeout whose usage is entirely unknown.
+                partial_observations.append({
+                    "observation_id": "usage-" + hashlib.sha256(
+                        ("|".join((task_id, execution_id, role_context.role, "timeout"))).encode("utf-8")
+                    ).hexdigest(),
+                    "execution_id": execution_id,
+                    "role": role_context.role,
+                    "model_id": model_for_cli,
+                    "provider_id": model_for_cli.split("/", 1)[0] if "/" in model_for_cli else "",
+                    "source_kind": "timeout",
+                    "source_id": "owned-process",
+                    "status": "UNKNOWN",
+                })
             _persist_usage_observations(store, task_id, partial_observations)
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
