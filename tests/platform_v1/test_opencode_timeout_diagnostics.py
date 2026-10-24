@@ -219,8 +219,9 @@ def test_core_timeout_retains_bounded_partial_diagnostics(tmp_path: Path) -> Non
         assert stderr_events, "expected stderr timeout event"
         stderr_meta = stderr_events[0].get("metadata", {})
         assert stderr_meta.get("is_partial") is True
-        assert sentinel in str(stderr_meta.get("stderr_summary", "")) or True  # stderr text mentions sentinel context
+        assert "before-timeout" in str(stderr_meta.get("stderr_summary", ""))
         assert synthetic_secret not in str(stderr_meta.get("stderr_summary", ""))
+        assert "sk-test-not-a-real-key" not in str(stderr_meta.get("stderr_summary", ""))
 
         # --- Evidence rows persisted to TaskStore ---
         try:
@@ -441,7 +442,13 @@ def test_timeout_with_unparseable_tail_line_still_keeps_good_diagnostics(tmp_pat
         # We must NOT leak the raw malformed partial tail
         serialized_events = json.dumps(events)
         assert '{"type":"tool"' not in serialized_events  # incomplete tail must not appear
-        assert "UNKNOWN" not in serialized_events.split("timeout")[0] or True  # sanity
+        assert "timeout" in serialized_events, "timeout event must be present in serialized events"
+        assert "EXECUTOR_COMPLETED" not in serialized_events, "timeout path must not emit EXECUTOR_COMPLETED"
+        timeout_events_in_serialized = [e for e in events
+                                        if e.get("type") == "EXECUTOR_FINISHED"
+                                        and e.get("title") == "OpenCode timeout"]
+        assert timeout_events_in_serialized, "must have an OpenCode timeout event"
+        assert timeout_events_in_serialized[0]["metadata"].get("usage_accounting") == "UNKNOWN"
 
     finally:
         exec_mod.subprocess.run = original_run
