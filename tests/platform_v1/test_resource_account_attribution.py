@@ -161,20 +161,23 @@ def test_stale_account_keeps_its_reason_and_never_presents_old_numbers_as_curren
     # magpie.parse_quotas moves a stale reading into cached_windows; this also feeds
     # windows directly so the suppression is proven, not merely inherited from an
     # empty input.
-    stale_window = {"name": "5 hours", "used_percent": 44, "remaining_percent": 56,
-                    "resets_at": None, "unlimited": False}
+    cached = {"name": "5 hours", "used_percent": 44, "remaining_percent": 56,
+              "resets_at": None, "unlimited": False}
+    still_current_looking = {"name": "5 hours", "used_percent": 99, "remaining_percent": 1,
+                             "resets_at": None, "unlimited": False}
     stale = {"status": "available", "reason": None, "accounts": [
         {"provider": "codex", "kind": "subscription", "state": "STALE", "reason": "stale_reading",
-         "observed_at": "2026-10-20T00:00:00Z", "windows": [dict(stale_window)],
-         "cached_windows": [dict(stale_window)]}]}
+         "observed_at": "2026-10-20T00:00:00Z", "windows": [dict(still_current_looking)],
+         "cached_windows": [dict(cached)]}]}
     account = _accounts(_view(stale))["codex"]
 
     assert account["state"] == "STALE" and account["reason"] == "stale_reading"
     assert account["attribution"]["status"] == "unobserved"
     assert account["windows"] == []  # nothing stale is presented as current use
+    # The cached reading comes from cached_windows, not from the account's windows field.
     assert account["cached_windows"] == [{"window": "5 hours", "used_percent": 44,
                                           "remaining_percent": 56, "resets_at": None,
-                                          "unlimited": False}]  # display-only, still reachable
+                                          "unlimited": False}]
 
 
 def test_disabled_or_unavailable_magpie_is_explicit_and_invents_nothing():
@@ -210,7 +213,6 @@ def test_attribution_never_changes_admission_or_quota_known():  # noqa: C901 - o
     assert {account["provider"] for account in view["account_attribution"]["accounts"]} >= {"workbuddy", "trae-cn"}
     # ... and it neither mutates its inputs nor adds provider keys to admission.
     assert quotas == before
-    assert set(quotas) == {"codex", "claude-code"}
 
     # The gateway keeps its honest UNKNOWN: account telemetry is not a route window.
     assert by_id["magpie"]["quota"]["state"] == "UNKNOWN"
@@ -260,7 +262,9 @@ def test_a_disabled_native_connection_is_not_an_executable_route():
                              "enabled": False})
     view = build_resource_view(store, lambda: {}, external=(lambda: SNAPSHOT), mode="hybrid")
 
-    assert _accounts(view)["claude"]["attribution"]["status"] == "no_route_identity"
+    assert _accounts(view)["claude"]["attribution"] == {
+        "status": "no_route_identity", "reason": "only_disabled_connections_declare_this_provider",
+        "route_provider": "claude-code", "connection_ids": ["claude-account"]}
     assert view["account_attribution"]["summary"]["route_bound"] == 0
 
 
@@ -299,3 +303,21 @@ def test_a_non_mapping_source_status_is_reported_as_unavailable():
 
     assert section["status"] == "unavailable" and section["reason"] is None
     assert section["accounts"] == []
+
+
+def test_a_reading_without_a_read_time_is_current_but_says_so():
+    # magpie.parse_quotas reports UNDATED when the windows are real and only their age
+    # is unknown; that must stay current, with a reason that names the gap.
+    undated = {"status": "available", "reason": None, "accounts": [
+        {"provider": "codex", "kind": "subscription", "state": "UNDATED", "reason": "no_read_time",
+         "observed_at": None, "windows": [{"name": "5 hours", "used_percent": 23,
+                                           "remaining_percent": 77, "resets_at": None,
+                                           "unlimited": False}]}]}
+    view = _view(undated)
+    codex = _accounts(view)["codex"]
+
+    assert codex["state"] == "UNDATED" and codex["reason"] == "no_read_time"
+    assert codex["windows"][0]["used_percent"] == 23
+    assert codex["cached_windows"] == []
+    assert codex["attribution"]["status"] == "route_bound"
+    assert view["account_attribution"]["summary"]["route_bound"] == 1

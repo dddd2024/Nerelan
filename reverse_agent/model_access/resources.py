@@ -272,12 +272,15 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
     number Magpie was displaying.  Both halves are true: the observation exists,
     and no route in this repository may spend it.
 
-    ``route_bound`` is provider-level only.  It says one executable route
-    declares that provider, never that this account served a particular task.
-    Weaker or conflicting evidence is named instead of resolved:
+    ``route_bound`` is provider-level only.  It says one enabled native CLI
+    connection declares that provider; it does not say the connection is ready
+    now, and never that this account served a particular task (readiness and
+    session state stay in the resource rows).  Weaker or conflicting evidence is
+    named instead of resolved:
 
-    * ``no_route_identity`` - the provider is not mapped to an executor, or no
-      connection declares it; the windows stay account-level telemetry.
+    * ``no_route_identity`` - the provider is not mapped to an executor, no
+      connection declares it, or only disabled connections do; the windows stay
+      account-level telemetry.
     * ``ambiguous_multiple_accounts`` - several observed accounts share one
       provider, so no single one may be presented as *the* route's balance.
     * ``ambiguous_multiple_routes`` - several connections declare the provider.
@@ -303,21 +306,25 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
             provider_route = route_of(account)
             if provider_route:
                 observed_per_route[provider_route] = observed_per_route.get(provider_route, 0) + 1
+    # Declared providers are tracked separately from enabled ones: a provider that only
+    # a disabled connection declares must not be reported as undeclared.
     connections_per_route: dict[str, list[str]] = {}
+    declared_elsewhere: dict[str, list[str]] = {}
     for connection in connections:
         if not isinstance(connection, Mapping):
             continue
         # Only an executor provider id that *is* a native CLI route counts.  Magpie's
         # account aliases ("openai", "anthropic") must not be reused here: a gateway
         # connection declaring "openai" is not the Codex CLI account, and its quota
-        # lookup key is its own id.  A disabled connection cannot execute anything.
+        # lookup key is its own id.
         declared = connection.get("executor_provider_id")
-        if declared not in NATIVE_CLI_PROVIDERS or connection.get("enabled") is not True:
+        if declared not in NATIVE_CLI_PROVIDERS or not connection.get("connection_id"):
             continue
-        if connection.get("connection_id"):
-            entry = connections_per_route.setdefault(declared, [])
-            if connection["connection_id"] not in entry:
-                entry.append(connection["connection_id"])
+        enabled = connection.get("enabled") is True
+        target = connections_per_route if enabled else declared_elsewhere
+        entry = target.setdefault(declared, [])
+        if connection["connection_id"] not in entry:
+            entry.append(connection["connection_id"])
 
     summary["malformed"] = sum(1 for a in (magpie.get("accounts") or ()) if not isinstance(a, Mapping))
     accounts = []
@@ -340,6 +347,11 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
             attribution = {"status": "ambiguous_multiple_routes", "reason": "connections_share_one_provider",
                            "route_provider": provider_route,
                            "connection_ids": connections_per_route.get(provider_route, [])}
+        elif provider_route in declared_elsewhere and provider_route not in connections_per_route:
+            attribution = {"status": "no_route_identity",
+                           "reason": "only_disabled_connections_declare_this_provider",
+                           "route_provider": provider_route,
+                           "connection_ids": declared_elsewhere[provider_route]}
         elif provider_route not in connections_per_route:
             attribution = {"status": "no_route_identity", "reason": "no_connection_declares_this_provider",
                            "route_provider": provider_route, "connection_ids": []}
