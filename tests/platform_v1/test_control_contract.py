@@ -178,7 +178,10 @@ def test_invalid_launch_scopes_rejected(field, value):
 
 
 def test_unbounded_objective_and_control_character_are_rejected():
-    for text in ("x" * 2049, "safe\nrun dangerous tool", "", "lone \ud800 surrogate", "pair \ud83d\ude00 inside"):
+    # Lone escaped surrogates survive json.loads as unpaired code points and
+    # break downstream UTF-8 encoding; valid pairs are combined by the decoder
+    # into ordinary astral characters and must stay acceptable.
+    for text in ("x" * 2049, "safe\nrun dangerous tool", "", "lone \ud800 surrogate", "trailing \udfff"):
         obj = {
             "repository": "dddd2024/Nerelan", "objective": text,
             "executor_kind": "codex", "idempotency_key": "retry-1",
@@ -186,6 +189,12 @@ def test_unbounded_objective_and_control_character_are_rejected():
         with pytest.raises(ControlContractError) as err:
             parse_request(wire("goal.create", obj))
         assert err.value.code == "invalid_argument"
+    emoji = {
+        "repository": "dddd2024/Nerelan", "objective": "pair \ud83d\ude00 inside",
+        "executor_kind": "codex", "idempotency_key": "retry-1",
+    }
+    parsed = parse_request(wire("goal.create", emoji))
+    assert dict(parsed.arguments)["objective"].encode("utf-8")
 
 
 def test_parse_never_uses_io_even_on_valid_mutator(monkeypatch):
