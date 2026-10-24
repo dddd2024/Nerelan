@@ -180,10 +180,10 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
             or {k: v for k, v in current.items() if k != "task_id"}
                != {k: v for k, v in original.items() if k != "task_id"}):
         raise TaskStoreError("failed_snapshot_recovery_mismatch")
+    previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     base = snapshot["base_commit"]
     recovery_tree = safe_recovery_tree(root, base, snapshot["tree"])
     restored_identity = {**binding, "source_tree": snapshot["tree"], "recovery_tree": recovery_tree}
-    previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     if previous is not None:
         if previous != restored_identity:
             raise TaskStoreError("failed_snapshot_restore_conflict")

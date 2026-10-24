@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator, Mapping
 from pathlib import Path
@@ -16,6 +17,7 @@ import pytest
 from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
 from reverse_agent.platform_v1.opencode_executor import (
     OpenCodeExecutor,
+    OwnedCliProcessResult,
     build_binding_child_env,
     build_binding_config_content,
     build_opencode_argv,
@@ -28,6 +30,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     resolve_opencode_cli,
     _extract_usage_observations,
     _persist_usage_observations,
+    _run_owned_cli_process,
     _write_prompt_file,
 )
 from reverse_agent.platform_v1.run_store import TaskStore
@@ -37,6 +40,41 @@ from reverse_agent.platform_v1.task_runtime import (
     ExecutorRouter,
     ExecutorResult,
 )
+
+
+def _interpreter_available() -> bool:
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", "import json, site"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+needs_real_interpreter = pytest.mark.skipif(
+    not _interpreter_available(),
+    reason="real host interpreter with json/site is required",
+)
+
+
+def _owned_result(
+    returncode: int = 0,
+    stdout: str = "",
+    stderr: str = "",
+    timed_out: bool = False,
+    cleanup_confirmed: bool = True,
+) -> OwnedCliProcessResult:
+    return OwnedCliProcessResult(
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=timed_out,
+        cleanup_confirmed=cleanup_confirmed,
+    )
 
 
 def test_usage_extraction_is_numeric_idempotent_and_secret_confined() -> None:
@@ -1101,23 +1139,24 @@ def test_executor_success_with_json_events() -> None:
         )
         received_argvs: list[list[str]] = []
 
-        original_run = subprocess.run
-
-        def fake_run(argv, **kwargs):
+        def fake_owned(argv, *, cwd, env, timeout):
             received_argvs.append(list(argv))
-            if argv[0] == "/fake/opencode":
-                assert kwargs["env"]["PATH"] == "C:\\safe-bin"
-                assert not any(key in kwargs["env"] for key in _GuardedParentEnvironment.forbidden)
-                assert kwargs["env"]["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
-            return subprocess.CompletedProcess(
-                args=argv,
-                returncode=0,
-                stdout=stdout,
-                stderr="",
-            )
+            assert env["PATH"] == "C:\\safe-bin"
+            assert not any(key in env for key in _GuardedParentEnvironment.forbidden)
+            assert env["OPENCODE_DISABLE_AUTOUPDATE"] == "true"
+            return _owned_result(stdout=stdout)
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
+        original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
+
+        def fake_run(argv, **kwargs):
+            if argv[:2] == ["git", "init"] or argv[:2] == ["git", "config"]:
+                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
@@ -1137,6 +1176,7 @@ def test_executor_success_with_json_events() -> None:
             assert "json" in opencode_call
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 @pytest.mark.parametrize("auth_method", ["none", "external_cli_session", "account_login"])
@@ -1165,27 +1205,26 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
         )
         captured: list[tuple[list[str], dict[str, object]]] = []
 
-        def fake_run(argv, **kwargs):
-            captured.append((list(argv), dict(kwargs)))
-            stdout = ""
-            if argv and argv[0] == "/fake/opencode":
-                stdout = json.dumps(
-                    {
-                        "type": "tool_call",
-                        "action": "read_file",
-                        "token": "fake-token-not-real",
-                    }
-                )
-            return subprocess.CompletedProcess(
-                args=argv,
-                returncode=0,
-                stdout=stdout,
-                stderr="",
+        def fake_owned(argv, *, cwd, env, timeout):
+            captured.append((list(argv), {"env": dict(env), "cwd": cwd}))
+            stdout = json.dumps(
+                {
+                    "type": "tool_call",
+                    "action": "read_file",
+                    "token": "fake-token-not-real",
+                }
             )
+            return _owned_result(stdout=stdout)
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
+
+        def fake_run(argv, **kwargs):
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             result = executor.execute(
                 task.id,
@@ -1195,6 +1234,7 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
             )
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
         assert result.success is True
         opencode_calls = [call for call in captured if call[0][0] == "/fake/opencode"]
@@ -1264,15 +1304,17 @@ def test_executor_nonzero_exit_classification() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            if argv[:2] == ["git", "init"]:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            if argv[:1] == ["cmd.exe"]:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=42, stdout="", stderr="auth failure")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(
+                returncode=42, stderr="auth failure"
+            )
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
@@ -1280,6 +1322,7 @@ def test_executor_nonzero_exit_classification() -> None:
             assert result.process_exit_code == 42
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_timeout() -> None:
@@ -1297,22 +1340,22 @@ def test_executor_timeout() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
-
-        call_count = {"n": 0}
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            call_count["n"] += 1
-            if call_count["n"] > 5:
-                raise subprocess.TimeoutExpired(cmd=argv, timeout=1)
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(timed_out=True)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
             assert result.failure_classification == "timeout"
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_malformed_json_does_not_crash() -> None:
@@ -1331,16 +1374,21 @@ def test_executor_malformed_json_does_not_crash() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_executor_changed_files_collected() -> None:
@@ -1359,6 +1407,7 @@ def test_executor_changed_files_collected() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
             if argv[:1] == ["git"] and "diff" in argv:
@@ -1368,13 +1417,12 @@ def test_executor_changed_files_collected() -> None:
                     stdout="1\t0\talpha-ok.txt\n2\t1\tbeta.txt\n",
                     stderr="",
                 )
-            if "commit" in argv:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            if "config" in argv:
-                return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is True
@@ -1386,6 +1434,7 @@ def test_executor_changed_files_collected() -> None:
             assert alpha["deletions"] == 0
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 # ---------------------------------------------------------------------------
@@ -1404,11 +1453,15 @@ def test_router_dispatches_opencode() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         def fake_run(argv, **kwargs):
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result()
+        )
         try:
             result = router.dispatch_execute(
                 task_id=task_id,
@@ -1421,6 +1474,7 @@ def test_router_dispatches_opencode() -> None:
             assert isinstance(result, ExecutorResult)
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 def test_router_dispatches_fixture_unchanged() -> None:
@@ -1457,6 +1511,7 @@ def test_validation_fails_on_whitespace_error() -> None:
 
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         call_num = {"n": 0}
 
@@ -1471,9 +1526,12 @@ def test_validation_fails_on_whitespace_error() -> None:
                 )
             if any(a in argv for a in ("commit", "config", "init", "add")):
                 return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
-            return subprocess.CompletedProcess(args=argv, returncode=0, stdout=stdout, stderr="")
+            return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = (
+            lambda argv, *, cwd, env, timeout: _owned_result(stdout=stdout)
+        )
         try:
             result = executor.execute(task_id, store, workspace_root=td)
             assert result.success is False
@@ -1481,6 +1539,7 @@ def test_validation_fails_on_whitespace_error() -> None:
             assert result.failure_classification == "deterministic_validation_failure"
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
 
 # ---------------------------------------------------------------------------
@@ -1749,18 +1808,24 @@ def test_executor_real_path_uses_prompt_file_not_positional_task() -> None:
         )
         import reverse_agent.platform_v1.opencode_executor as exec_mod
         original_run = subprocess.run
+        original_owned = exec_mod._run_owned_cli_process
 
         captured: list[list[str]] = []
 
         def fake_run(argv, **kwargs):
-            captured.append(list(argv))
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
 
+        def fake_owned(argv, *, cwd, env, timeout):
+            captured.append(list(argv))
+            return _owned_result()
+
         exec_mod.subprocess.run = fake_run
+        exec_mod._run_owned_cli_process = fake_owned
         try:
             executor.execute(task_id, store, workspace_root=td)
         finally:
             exec_mod.subprocess.run = original_run
+            exec_mod._run_owned_cli_process = original_owned
 
         opencode_calls = [a for a in captured if a and a[0] == "/fake/opencode"]
         assert opencode_calls, "opencode must be invoked"
@@ -2410,6 +2475,289 @@ def test_binding_child_env_still_uses_allowlist() -> None:
         expected["SystemDrive"] = "C:"
     assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
+
+
+def _role_binding_config() -> str:
+    return build_binding_config_content(_binding_resolution())
+
+
+def test_role_binding_child_env_forwards_valid_os_location_keys_only() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERPROFILE": "C:\\Users\\builder",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": "\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "LOCALAPPDATA": "C:\\Users\\builder\\AppData\\Local",
+        "TEMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "TMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "HOME": "C:\\Users\\builder",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0001",
+        "FAKE_SENTINEL_RELAY_KEY": "sentinel-not-a-real-key-0002",
+        "OPENCODE_CONFIG_CONTENT": "{\"caller\":\"inherited\"}",
+    }
+    existing = _role_binding_config()
+
+    child = build_role_child_env(parent, existing, "planner")
+
+    for key in (
+        "USERPROFILE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "TEMP",
+        "TMP",
+        "HOME",
+    ):
+        assert child[key] == parent[key]
+    assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+    assert "FAKE_SENTINEL_RELAY_KEY" not in child
+    assert "sentinel-not-a-real-key" not in json.dumps(child)
+    merged = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert "caller" not in merged
+    assert merged["permission"]["edit"]["*"] == "deny"
+    assert _binding_resolution().provider_id in merged["provider"]
+
+
+def test_role_binding_child_env_drops_control_and_empty_location_values() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERPROFILE": "C:\\Users\\build\u0000er",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming\u001f",
+        "TEMP": "",
+        "TMP": "C:\\Temp\n",
+        "HOME": "C:\\Temp\x7f",
+        "LOCALAPPDATA": "C:\\Users\\builder\\AppData\\Local",
+    }
+
+    child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    for key in ("USERPROFILE", "APPDATA", "TEMP", "TMP", "HOME"):
+        assert key not in child
+    assert child["LOCALAPPDATA"] == "C:\\Users\\builder\\AppData\\Local"
+
+
+def test_role_binding_child_env_matches_binding_helper_validation() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "USERPROFILE": "C:\\Users\\build\u0000er",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+        "TMP": "",
+        "HOME": "C:\\Temp\x7f",
+    }
+
+    binding_child = build_binding_child_env(parent, _role_binding_config())
+    role_child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    for key in ("USERPROFILE", "APPDATA", "TEMP", "TMP", "HOME", "PATH", "SystemRoot"):
+        assert role_child.get(key) == binding_child.get(key)
+
+
+@needs_real_interpreter
+def test_role_binding_child_env_real_interpreter_resolves_user_site(
+    tmp_path: Path,
+) -> None:
+    """A real tooling interpreter in binding-mode role env must not use ``~``.
+
+    The child runs with the exact ``build_role_child_env(binding-mode)``
+    result. A parent profile/AppData/Temp with a NUL in a location value
+    would reach ``subprocess`` as an uncaught ``ValueError`` before the fix,
+    and a dropped valid profile makes CPython resolve its user site to the
+    literal ``~`` directory inside the workspace, which the artifact hygiene
+    gate rejects.
+    """
+    profile = tmp_path / "profile"
+    local_appdata = profile / "AppData" / "Local"
+    parent = {
+        "PATH": os.environ.get("PATH", ""),
+        "SystemRoot": os.environ.get("SystemRoot", "C:\\Windows"),
+        "PATHEXT": os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+        "USERPROFILE": str(profile),
+        "HOMEDRIVE": profile.drive or "C:",
+        "HOMEPATH": str(profile)[len(profile.drive or "C:"):] or "\\",
+        "APPDATA": str(profile / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(local_appdata),
+        "TEMP": str(local_appdata / "Temp"),
+        "TMP": str(local_appdata / "Temp"),
+        "HOME": str(profile),
+        "FAKE_SENTINEL_API_KEY": "sentinel-not-a-real-key-0003",
+    }
+
+    child = build_role_child_env(parent, _role_binding_config(), "coder")
+
+    assert "FAKE_SENTINEL_API_KEY" not in child
+    assert "sentinel-not-a-real-key-0003" not in json.dumps(child)
+    config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert config["permission"]["bash"]["git push*"] == "deny"
+    probe = "import json, site;print(json.dumps({'site': site.getusersitepackages()}))"
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=child,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=str(tmp_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    value = json.loads(result.stdout)["site"]
+    assert isinstance(value, str) and value
+    assert not value.startswith("~")
+    assert os.path.isabs(value)
+    assert str(profile) in value
+
+
+def test_role_direct_child_env_forwards_valid_custom_pathext() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".EXE;.PY",
+        "COMSPEC": "C:\\Windows\\system32\\cmd.exe",
+        "USERPROFILE": "C:\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+        "XDG_DATA_HOME": "C:\\Users\\builder\\share",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0004",
+        "OPENCODE_CONFIG_CONTENT": "{\"caller\":\"inherited\"}",
+    }
+
+    child = build_role_child_env(parent, None, "reviewer")
+
+    assert child["PATHEXT"] == ".EXE;.PY"
+    assert child["COMSPEC"] == parent["COMSPEC"]
+    assert child["USERPROFILE"] == parent["USERPROFILE"]
+    assert child["XDG_DATA_HOME"] == parent["XDG_DATA_HOME"]
+    assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+    assert "sentinel-not-a-real-key-0004" not in json.dumps(child)
+    if platform.system() == "Windows":
+        assert child["PATHEXT"] != ".COM;.EXE;.BAT;.CMD"
+        assert child["SystemDrive"] == "C:"
+    config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert "caller" not in config
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert config["permission"]["bash"]["git diff*"] == "allow"
+
+
+_DEFAULT_WINDOWS_PATHEXT = ".COM;.EXE;.BAT;.CMD"
+
+
+def _role_direct_child_env_with_platform(
+    parent: Mapping[str, str],
+    system: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, str]:
+    """Build a direct role child env with ``platform.system()`` simulated.
+
+    The direct branch decides PATHEXT handling on ``platform.system()``, so the
+    Windows and POSIX contracts must be exercised by mocking that single seam
+    rather than by relying on the host or by mutating ``os.name``/path classes.
+    """
+    import reverse_agent.platform_v1.opencode_executor as module
+
+    monkeypatch.setattr(module.platform, "system", lambda: system)
+    return build_role_child_env(parent, None, "planner")
+
+
+@pytest.mark.parametrize(
+    "pathext",
+    [None, "", ".EXE;.PY\n", "../bad", "C:\\Windows\\bad.exe"],
+)
+def test_role_direct_child_env_invalid_pathext_on_windows_uses_default(
+    pathext: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows: an absent, empty or malformed PATHEXT always yields the default.
+
+    ``_ensure_windows_pathext`` is the platform-specific guard here, so on
+    Windows every non-conforming parent value must be replaced by the
+    conservative OS standard default, and a valid profile must still forward.
+    """
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": pathext,
+        "USERPROFILE": "C:\\Users\\builder",
+    }
+
+    child = _role_direct_child_env_with_platform(parent, "Windows", monkeypatch)
+
+    assert child["PATHEXT"] == _DEFAULT_WINDOWS_PATHEXT
+    assert child["SystemDrive"] == "C:"
+    assert child["USERPROFILE"] == "C:\\Users\\builder"
+
+
+@pytest.mark.parametrize(
+    "pathext",
+    [None, "", ".EXE;.PY\n"],
+)
+def test_role_direct_child_env_dropped_pathext_stays_absent_on_posix(
+    pathext: str | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POSIX: an absent, empty or control-bearing PATHEXT is simply dropped.
+
+    The shared ``_safe_child_env_value`` validation drops these identically on
+    every platform, and ``_ensure_windows_pathext`` is a no-op off Windows, so
+    the key must not appear and no Windows default may be invented.
+    """
+    parent = {
+        "PATH": "/usr/bin",
+        "PATHEXT": pathext,
+        "USERPROFILE": "/home/builder",
+    }
+
+    child = _role_direct_child_env_with_platform(parent, "Linux", monkeypatch)
+
+    assert "PATHEXT" not in child
+    assert child["USERPROFILE"] == "/home/builder"
+    assert child["PATH"] == "/usr/bin"
+
+
+@pytest.mark.parametrize("pathext", ["../bad", "C:\\Windows\\bad.exe"])
+def test_role_direct_child_env_preserves_nonempty_control_free_pathext_on_posix(
+    pathext: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """POSIX: the direct branch intentionally preserves any nonempty value.
+
+    The direct-path allowlist forwards a control-free string verbatim and only
+    Windows interprets PATHEXT via ``_ensure_windows_pathext``. This is the
+    pre-existing compatibility behavior, not a defect: it must not be "fixed"
+    into a Windows-shaped rejection.
+    """
+    parent = {
+        "PATH": "/usr/bin",
+        "PATHEXT": pathext,
+        "USERPROFILE": "/home/builder",
+    }
+
+    child = _role_direct_child_env_with_platform(parent, "Linux", monkeypatch)
+
+    assert child["PATHEXT"] == pathext
+
+
+def test_role_direct_child_env_pathext_matches_binding_branch() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".EXE;.PY",
+        "USERPROFILE": "C:\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+    }
+
+    direct_child = build_role_child_env(parent, None, "planner")
+    binding_child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    assert direct_child["PATHEXT"] == ".EXE;.PY"
+    assert binding_child["PATHEXT"] == ".EXE;.PY"
+    assert direct_child["PATHEXT"] == binding_child["PATHEXT"]
 
 
 def test_role_permission_config_unknown_role_returns_none() -> None:
@@ -3158,6 +3506,7 @@ def test_binding_config_content_executor_managed_preserves_metadata_and_secret_f
 
 def test_preexecution_boundary_preserves_and_rejects_unrelated_dirt(tmp_path):
     from reverse_agent.platform_v1.repository_preparation import assert_pristine_workspace
+    from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
     assert_pristine_workspace(tmp_path)
     dirt = tmp_path / "prior_draft.py"
@@ -3172,14 +3521,49 @@ def test_producer_prompt_excludes_package_installation():
     assert "Do not install dependencies" in _PROMPT_CONSTRAINTS
 
 
-def test_collection_rejects_indirection_and_escaping_paths(tmp_path, monkeypatch):
+def test_collection_rejects_indirection_and_escaping_paths(tmp_path):
     from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
     source = tmp_path / "src"
     source.mkdir()
     file = source / "new.py"
     file.write_text("pass\n", encoding="utf-8")
     assert _artifact_file_is_safe(tmp_path, file)
-    original = Path.is_symlink
-    monkeypatch.setattr(Path, "is_symlink", lambda path: path == source or original(path))
-    assert not _artifact_file_is_safe(tmp_path, file)
     assert not _artifact_file_is_safe(tmp_path, tmp_path.parent / "outside")
+    site_pkg = tmp_path / "~" / "Python" / "Python313" / "site-packages" / "pkg"
+    site_pkg.mkdir(parents=True)
+    payload = site_pkg / "a.py"
+    payload.write_text("installed\n", encoding="utf-8")
+    assert not _artifact_file_is_safe(tmp_path, payload)
+    runtime = tmp_path / "~" / "AppData" / "Local" / "Nerelan" / "platform-v1"
+    runtime.mkdir(parents=True)
+    db = runtime / "tasks.sqlite3"
+    db.write_bytes(b"controlled")
+    assert not _artifact_file_is_safe(tmp_path, db)
+
+
+def test_artifact_file_is_safe_rejects_reparse_point(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
+    source = tmp_path / "src"
+    source.mkdir()
+    original = Path.is_symlink
+    def _fake_is_symlink(path):
+        if path == source:
+            return True
+        return original(path)
+    monkeypatch.setattr(Path, "is_symlink", _fake_is_symlink)
+    file = source / "a.py"
+    file.write_text("pass\n", encoding="utf-8")
+    assert not _artifact_file_is_safe(tmp_path, file)
+
+
+def test_artifact_file_is_safe_fails_closed_on_permissionerror(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.opencode_executor import _artifact_file_is_safe
+    source = tmp_path / "src"
+    source.mkdir()
+    original = Path.lstat
+    def _fake_lstat(path):
+        raise PermissionError("denied")
+    monkeypatch.setattr(Path, "lstat", _fake_lstat)
+    file = source / "a.py"
+    file.write_text("pass\n", encoding="utf-8")
+    assert _artifact_file_is_safe(tmp_path, file) is False

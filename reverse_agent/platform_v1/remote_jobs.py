@@ -85,7 +85,8 @@ class RemoteJobProfile:
 
 
 class Transport(Protocol):
-    def run(self, argv: list[str], timeout: int) -> tuple[int, str, str]: ...
+    def run(self, argv: list[str], timeout: int,
+            stdin_text: str | None = None) -> tuple[int, str, str]: ...
     def upload(self, local_dir: Path, remote_dir: str) -> None: ...
     def download(self, remote_path: str, local_path: Path) -> None: ...
 
@@ -94,9 +95,10 @@ class SSHTransport:
     def __init__(self, profile: RemoteJobProfile):
         self.alias = profile.ssh_alias
 
-    def run(self, argv, timeout):
+    def run(self, argv, timeout, stdin_text=None):
         result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout,
-                                encoding="utf-8", errors="replace", check=False)
+                                encoding="utf-8", errors="replace", check=False,
+                                input=stdin_text)
         return result.returncode, result.stdout, result.stderr
 
     def _scp(self, args):
@@ -106,8 +108,15 @@ class SSHTransport:
             raise OSError("scp failed: " + err[-2000:])
 
     def upload(self, local_dir, remote_dir):
-        self._scp(["-r", *(str(entry) for entry in sorted(local_dir.iterdir())),
-                   self.alias + ":" + shlex.quote(remote_dir + "/")])
+        # scp derives the remote filename from the *local argument*.  On Windows that
+        # argument is an absolute path with backslashes, which POSIX scp keeps
+        # verbatim: a job uploaded from F://...//request//run.py lands as a single file
+        # literally named "F://...//request//run.py", the launch then cannot find
+        # run.py, and the receipt records a failed job.  Name every remote file
+        # explicitly instead of relying on basename rules of the local platform.
+        for entry in sorted(local_dir.iterdir()):
+            target = self.alias + ":" + shlex.quote(remote_dir + "/" + entry.name)
+            self._scp((["-r"] if entry.is_dir() else []) + [str(entry), target])
 
     def download(self, remote_path, local_path):
         self._scp([self.alias + ":" + shlex.quote(remote_path), str(local_path)])
@@ -302,6 +311,28 @@ elif op == 'collect':
 print(json.dumps(answer))
 '''
 
+# The remote interpreter reads its program from stdin. Passing the quoted
+# helper and the JSON request on the ssh command line instead does not fit in
+# the Windows process command line (8191 characters): the helper alone expands
+# from 8067 to ~8.8k characters once shlex.quote escapes its 236 single quotes,
+# and the tail is silently truncated, leaving the remote shell with an
+# unterminated quote ("unexpected EOF while looking for matching '"). Keeping
+# the command line at "python3 -" also means no shell metacharacter is ever
+# interpreted on the way out.
+REMOTE_COMMAND = ("python3", "-")
+REMOTE_COMMAND_LINE_LIMIT = 8191
+
+
+def _remote_program(data: dict) -> str:
+    """Return the program text the remote interpreter executes from stdin.
+
+    The request JSON is handed to the unchanged helper through ``sys.argv`` so
+    the helper keeps its single documented input contract, and none of the
+    payload touches the command line.
+    """
+    request = json.dumps(data, sort_keys=True)
+    return "import sys as _sys\n_sys.argv = ['-', " + json.dumps(request) + "]\n" + REMOTE_HELPER
+
 
 def _atomic_json(path: Path, value):
     temporary = path.with_suffix(".tmp")
@@ -482,8 +513,11 @@ class RemoteJobBroker:
                 "grace": self.profile.termination_grace_seconds,
                 "devices": ",".join(self.profile.gpu_devices) if request["gpu"] else ""}
         argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
-                self.profile.ssh_alias, *map(shlex.quote, ["python3", "-c", REMOTE_HELPER, json.dumps(data)])]
-        code, out, err = self.transport.run(argv, 120)
+                self.profile.ssh_alias, *REMOTE_COMMAND]
+        command_length = sum(len(part) + 1 for part in argv)
+        if command_length > REMOTE_COMMAND_LINE_LIMIT:
+            raise OSError("ssh command line exceeds the platform limit")
+        code, out, err = self.transport.run(argv, 120, stdin_text=_remote_program(data))
         if self._stop.is_set():
             raise _BrokerStopped()
         if code:

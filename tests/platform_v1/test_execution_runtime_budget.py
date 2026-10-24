@@ -510,14 +510,14 @@ def test_both_transports_bind_once_and_release_once(
     def run_cli(argv, **kwargs):
         calls.append(("run", kwargs.get("timeout")))
         if outcome == "timeout":
-            raise subprocess.TimeoutExpired(argv, 247)
+            return oe.OwnedCliProcessResult(-1, "", "", True, True)
         if outcome == "exception":
             raise RuntimeError("synthetic launch failure")
         if outcome == "cancel":
             raise KeyboardInterrupt()
-        return subprocess.CompletedProcess(argv, int(outcome == "nonzero"), "", "")
+        return oe.OwnedCliProcessResult(int(outcome == "nonzero"), "", "", False, True)
 
-    monkeypatch.setattr(oe.subprocess, "run", run_cli)
+    monkeypatch.setattr(oe, "_run_owned_cli_process", run_cli)
 
     if outcome == "argv_error":
         def fail_argv(*_, **__):

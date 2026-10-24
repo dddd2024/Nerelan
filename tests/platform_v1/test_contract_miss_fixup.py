@@ -431,13 +431,45 @@ def test_contract_miss_fixup_never_consults_capability_routing(case):
     assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
 
 
+def test_public_hygiene_is_bounded_rule_data_for_recovery():
+    raw = {"exit_code": 1, "stdout": "PRIVATE SENTINEL", "stderr": "PRIVATE",
+           "diagnostics": [{"path": "a/b.py", "rule": "package_payload"}] * 30}
+    public = validation.public_hygiene(raw)
+    assert len(public["diagnostics"]) == 20 and public["diagnostics_truncated"]
+    assert "PRIVATE" not in str(public) and "SENTINEL" not in str(public)
+    assert public["diagnostics"][0] == {"path": "a/b.py", "rule": "package_payload"}
+
+
+def test_safe_recovery_tree_drops_artifacts_and_preserves_originals(tmp_path):
+    import subprocess
+    from reverse_agent.executor_neutral import core
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (["init", "-q"], ["config", "user.email", "f@example.invalid"],
+                 ["config", "user.name", "fixture"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True)
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "base.txt"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-qm", "base"], check=True)
+    base = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"]).decode().strip()
+    payload = b"\x7fELF" + b"\x00" * 64
+    (repo / "payload").write_bytes(payload)
+    (repo / "asset.bin").write_bytes(b"image\x00data")
+    _, tree, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    safe = core.safe_recovery_tree(repo, base, tree)
+    names = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", safe]).decode().splitlines()
+    assert "payload" not in names and "asset.bin" in names
+    assert (repo / "payload").read_bytes() == payload
+
+
 def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case, tmp_path):
     root, base, store, control, service, goal, _, task = case
     wrong_tree(root)
     package = root / "~" / "Python" / "Python313" / "site-packages" / "pkg"
     package.mkdir(parents=True)
     (package / "payload.py").write_text("installed = True\n", encoding="utf-8")
-    (root / "native").write_bytes(b"MZfake executable")
+    (root / "native").write_bytes(b"ELF native executable payload")
     code, reason, identity = validate(case)
     assert code == 1 and reason == "functional_patch_hygiene_failed"
     failed = store.get_task(task.id)
@@ -464,4 +496,4 @@ def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case
     assert current.evidence_refs[:len(original_refs)] == original_refs
     assert recovery.failed_snapshot(current, root=root) == snapshot
     assert git(root, "rev-parse", snapshot["ref"]) == snapshot["tree"]
-    assert (root / "native").read_bytes() == b"MZfake executable"
+    assert (root / "native").read_bytes() == b"ELF native executable payload"

@@ -343,3 +343,50 @@ def test_reviewed_initial_snapshot_is_valid_and_cited():
 def test_live_magpie_ids_resolve_only_to_their_own_family(model, family):
     priors = cb.BenchmarkPriors(cb.read_snapshot(SNAPSHOT))
     assert priors.family(model) == family
+
+
+@pytest.mark.parametrize('ok,attempts,expected_tier,expected_source,expect_gap', [
+    (5, 7, 4, 'benchmark', False),
+    (0, 6, 2, 'measured_with_prior', True),
+    (60, 100, 2, 'measured', False),
+    (100, 100, 4, 'benchmark', False),
+])
+def test_low_difficulty_measured_does_not_cap_higher_prior_when_target_unmeasured(ok, attempts, expected_tier, expected_source, expect_gap):
+    bench = priors_for(model='m4')
+    profile_ = {'task_buckets': {'code:3': {'attempts': attempts, 'ok': ok, 'timeouts': 0, 'success_rate': ok / attempts}}}
+    detail = routing_capabilities.tier_detail('m4', profile_, 'code', 4, benchmarks=bench)
+    assert detail['tier'] == expected_tier
+    assert detail['source'] == expected_source
+    assert ('prior_gap' in detail) == expect_gap
+    if detail['source'] == 'benchmark':
+        assert detail['measured_off_target'] == [3]
+
+
+def test_exact_target_failure_still_constrains_prior():
+    bench = priors_for(model='m4')
+    profile_ = {'task_buckets': {'code:4': {'attempts': 5, 'ok': 1, 'timeouts': 0, 'success_rate': .2}}}
+    detail = routing_capabilities.tier_detail('m4', profile_, 'code', 4, benchmarks=bench)
+    assert detail['tier'] == 3 and detail['source'] == 'measured_with_prior'
+
+
+def test_low_confidence_prior_and_override_unchanged_after_fix():
+    bench_low = priors_for(model='m4', second_source=False)
+    profile_ = {'task_buckets': {'code:3': {'attempts': 7, 'ok': 5, 'timeouts': 0, 'success_rate': 5 / 7}}}
+    d = routing_capabilities.tier_detail('m4', profile_, 'code', 4, benchmarks=bench_low)
+    assert d['tier'] == 4 and d['source'] == 'benchmark' and d['unproven'] is True
+    assert routing_capabilities.tier_detail('m4', profile_, 'code', 4, None,
+                                             {'tiers': {'code': 5}}, benchmarks=bench_low)['source'] == 'owner_override'
+
+
+def test_no_prior_uses_source_measured_regardless_of_attempt_count():
+    profile_ = {'task_buckets': {'code:3': {'attempts': 7, 'ok': 5, 'timeouts': 0, 'success_rate': 5 / 7}}}
+    d = routing_capabilities.tier_detail('unknown', profile_, 'code', 4, benchmarks=None)
+    assert d['tier'] == 2 and d['source'] == 'measured'
+
+
+def test_high_difficulty_measured_does_not_fallback_to_prior_when_target_missing():
+    bench = priors_for(model='m4')
+    profile_ = {'task_buckets': {'code:5': {'attempts': 4, 'ok': 4, 'timeouts': 0, 'success_rate': 1.0}}}
+    d = routing_capabilities.tier_detail('m4', profile_, 'code', 4, benchmarks=bench)
+    assert d['tier'] == 5 and d['source'] == 'measured_with_prior'
+    assert 'measured_off_target' not in d

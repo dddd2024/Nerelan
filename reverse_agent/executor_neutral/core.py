@@ -319,22 +319,183 @@ def _changed_paths(name_status_z: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(paths))
 
 
+_RUNTIME_DB_SUFFIXES = (".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".db", ".db-wal", ".db-shm")
+
+
+class SnapshotIndirectionError(ValueError):
+    """Pre-read traversal/indirection refusal carrying the offending entries."""
+
+    def __init__(self, violations: Sequence[Mapping[str, str]]) -> None:
+        self.violations = list(violations)
+        super().__init__(f"snapshot_indirection_detected:{self.violations}")
+
+
+def _runtime_artifact_rule(path: str) -> str:
+    value = path.replace("\\", "/")
+    lowered = value.lower()
+    if lowered.startswith("~/appdata/local/nerelan/"):
+        return "runtime_artifact"
+    if re.search(r"(^|/)(platform-v1|\.platform_v1_runtime)(/|$)", lowered) and lowered.endswith(_RUNTIME_DB_SUFFIXES):
+        return "runtime_artifact"
+    return ""
+
+
 def artifact_path_rule(path: str) -> str:
-    """Portable artifact names; do not interpret producer-supplied paths on the host."""
     value = path.replace("\\", "/")
     parts = value.split("/")
     if (value.startswith("/") or ":" in value or any(p in {"", ".", ".."} for p in parts)):
         return "path_escape"
+    runtime = _runtime_artifact_rule(value)
+    if runtime:
+        return runtime
     if any(p.lower() in {"node_modules", "site-packages", "dist-packages", ".venv", "venv", "__pycache__"}
            or p.lower().endswith((".egg-info", ".dist-info")) for p in parts):
         return "package_payload"
     return ""
 
 
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        if path.is_symlink():
+            return True
+    except OSError:
+        raise
+    try:
+        st = path.lstat()
+    except OSError:
+        raise
+    if st.st_mode & 0o170000 == 0o120000:
+        return True
+    try:
+        import stat as _stat
+        if hasattr(st, "st_file_attributes"):
+            if st.st_file_attributes & _stat.FILE_ATTRIBUTE_REPARSE_POINT:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _relative_path(repo_resolved: Path, candidate: Path) -> str:
+    try:
+        relative = candidate.relative_to(repo_resolved)
+    except ValueError:
+        return candidate.as_posix()
+    return relative.as_posix()
+
+
+def _scan_workspace_indirections(repo: Path) -> list[dict[str, str]]:
+    violations: list[dict[str, str]] = []
+    repo_resolved = repo.resolve()
+
+    def onerror(exc: OSError) -> None:
+        target = getattr(exc, "filename", None)
+        path = Path(target) if target else repo
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        violations.append({"path": _relative_path(repo_resolved, resolved), "rule": "access_error"})
+
+    for dirpath, dirnames, filenames in os.walk(repo, followlinks=False, onerror=onerror):
+        current_dir = Path(dirpath)
+        try:
+            if _is_reparse_point(current_dir):
+                violations.append({"path": _relative_path(repo_resolved, current_dir), "rule": "reparse_point"})
+                dirnames[:] = []
+                continue
+            resolved_dir = current_dir.resolve()
+            try:
+                resolved_dir.relative_to(repo_resolved)
+            except ValueError:
+                violations.append({"path": _relative_path(repo_resolved, current_dir), "rule": "path_containment"})
+                dirnames[:] = []
+                continue
+        except PermissionError:
+            violations.append({"path": _relative_path(repo_resolved, current_dir), "rule": "access_error"})
+            dirnames[:] = []
+            continue
+        except OSError:
+            violations.append({"path": _relative_path(repo_resolved, current_dir), "rule": "walk_error"})
+            dirnames[:] = []
+            continue
+        kept = []
+        for name in list(dirnames):
+            candidate = current_dir / name
+            try:
+                if _is_reparse_point(candidate):
+                    violations.append({"path": _relative_path(repo_resolved, candidate), "rule": "reparse_point"})
+                    continue
+                resolved_c = candidate.resolve()
+                try:
+                    resolved_c.relative_to(repo_resolved)
+                except ValueError:
+                    violations.append({"path": _relative_path(repo_resolved, candidate), "rule": "path_containment"})
+                    continue
+                kept.append(name)
+            except PermissionError:
+                violations.append({"path": _relative_path(repo_resolved, candidate), "rule": "access_error"})
+            except OSError:
+                violations.append({"path": _relative_path(repo_resolved, candidate), "rule": "walk_error"})
+        dirnames[:] = kept
+        for name in filenames:
+            fpath = current_dir / name
+            relative = _relative_path(repo_resolved, fpath)
+            runtime_rule = _runtime_artifact_rule(relative)
+            if runtime_rule:
+                violations.append({"path": relative, "rule": runtime_rule})
+                continue
+            try:
+                if _is_reparse_point(fpath):
+                    violations.append({"path": relative, "rule": "reparse_point"})
+                    continue
+                resolved_f = fpath.resolve()
+                try:
+                    resolved_f.relative_to(repo_resolved)
+                except ValueError:
+                    violations.append({"path": relative, "rule": "path_containment"})
+                    continue
+            except PermissionError:
+                violations.append({"path": relative, "rule": "access_error"})
+            except OSError:
+                violations.append({"path": relative, "rule": "walk_error"})
+    return violations
+
+
+def _inspect_native_header(repo: Path, oid: str) -> str:
+    proc = subprocess.Popen(["git", "cat-file", "blob", oid], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        header = proc.stdout.read(4)
+    finally:
+        proc.stdout.close()
+        proc.wait(timeout=60)
+    if header[:2] != b"MZ":
+        if header == b"\x7fELF" or header in {
+                b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf",
+                b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"}:
+            return "native_executable"
+        return ""
+    proc = subprocess.Popen(["git", "cat-file", "blob", oid], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        pe_block = proc.stdout.read(0x2080)
+    finally:
+        proc.stdout.close()
+        proc.wait(timeout=60)
+    if len(pe_block) < 0x40:
+        return ""
+    import struct as _struct
+    try:
+        e_lfanew = _struct.unpack_from("<I", pe_block, 0x3C)[0]
+    except _struct.error:
+        return ""
+    if e_lfanew >= 0x40 and e_lfanew + 4 <= len(pe_block) and pe_block[e_lfanew:e_lfanew + 4] == b"PE\x00\x00":
+        return "native_executable"
+    return ""
+
+
 def artifact_tree_diagnostics(repo: Path, base: str, tree: str) -> list[dict[str, str]]:
-    """Inspect Git objects, never follow workspace symlinks or read payload contents into feedback."""
     changed = set(_changed_paths(_git(repo, "diff", "--name-status", "-z", "--no-renames", base, tree, "--").stdout))
-    diagnostics = []
+    diagnostics: list[dict[str, str]] = []
     entries = _git(repo, "ls-tree", "-rz", tree).stdout.split("\0")
     for entry in entries:
         if not entry:
@@ -349,23 +510,13 @@ def artifact_tree_diagnostics(repo: Path, base: str, tree: str) -> list[dict[str
         elif kind != "blob":
             rule = "nonregular_artifact"
         elif not rule:
-            # Read only the header, including PE, ELF and Mach-O native formats.
-            proc = subprocess.Popen(["git", "cat-file", "blob", oid], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            try:
-                header = proc.stdout.read(4)
-            finally:
-                proc.stdout.close()
-                proc.wait(timeout=60)
-            if header[:2] == b"MZ" or header == b"\x7fELF" or header in {
-                    b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"}:
-                rule = "native_executable"
+            rule = _inspect_native_header(repo, oid)
         if rule:
             diagnostics.append({"path": path, "rule": rule})
     return diagnostics
 
 
 def safe_recovery_tree(repo: Path, base: str, tree: str) -> str:
-    """Derive a source-only recovery tree, leaving original objects immutable."""
     rejected = artifact_tree_diagnostics(repo, base, tree)
     if not rejected:
         return tree
@@ -383,6 +534,9 @@ def _snapshot_workspace(
     base_commit: str,
 ) -> tuple[str, str, tuple[str, ...], dict[str, Any]]:
     base_tree = _git(repo, "rev-parse", f"{base_commit}^{{tree}}").stdout.strip().lower()
+    indirection_violations = _scan_workspace_indirections(repo)
+    if indirection_violations:
+        raise SnapshotIndirectionError(indirection_violations)
     real_index_before, real_bytes_before = _real_index_state(repo)
     temp_dir = Path(tempfile.mkdtemp(prefix="reverse-agent-index-")).resolve()
     temp_index = temp_dir / "index"
@@ -411,7 +565,6 @@ def _snapshot_workspace(
         diff_command = ("git", "diff", "--check", base_tree, observed_tree, "--")
         diff_result = _command_result(diff_command, _run(diff_command, cwd=repo))
         violations = artifact_tree_diagnostics(repo, base_tree, observed_tree)
-        # git diff --check includes source lines. Extract file/line rules only.
         whitespace = []
         for line in diff_result.get("stdout", "").splitlines():
             match = re.match(r"^(.+):(\d+): (?:trailing whitespace|new blank line at EOF|space before tab)", line)

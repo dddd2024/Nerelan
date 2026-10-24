@@ -20,8 +20,25 @@ import pytest
 
 from reverse_agent.platform_v1 import remote_jobs, trusted_host
 from reverse_agent.platform_v1.remote_jobs import (
-    REMOTE_HELPER, RemoteJobBroker, RemoteJobProfile, SSHTransport, configured_broker, main,
+    REMOTE_COMMAND,
+    REMOTE_HELPER,
+    RemoteJobBroker,
+    RemoteJobProfile,
+    SSHTransport,
+    _remote_program,
+    configured_broker,
+    main,
 )
+
+
+def _program_request(program: str) -> dict:
+    """Extract the request JSON the broker hands the helper through sys.argv."""
+    lines = program.splitlines()
+    assert lines[0] == "import sys as _sys"
+    prefix = "_sys.argv = ['-', "
+    assert lines[1].startswith(prefix), lines[1][:60]
+    assert lines[1].endswith("]")
+    return json.loads(json.loads(lines[1][len(prefix):-1]))
 
 
 class FakeTransport:
@@ -44,12 +61,12 @@ class FakeTransport:
         self.leader_alive = True
         self.deny_on_signal = None
 
-    def run(self, argv, timeout):
+    def run(self, argv, timeout, stdin_text=None):
         assert argv[:6] == ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20", "lab"]
-        words = shlex.split(" ".join(argv[6:]))
-        assert words[:2] == ["python3", "-c"]
-        assert words[2] == REMOTE_HELPER
-        data = json.loads(words[3])
+        assert argv[6:] == ["python3", "-"]
+        assert stdin_text is not None
+        program = stdin_text
+        data = _program_request(program)
         self.calls.append(data)
         if self.fail == data["op"]:
             self.fail = None
@@ -87,14 +104,13 @@ class FakeTransport:
         try:
             with self.monkeypatch.context() as patch, redirect_stdout(output):
                 patch.setattr(Path, "home", classmethod(lambda cls: self.home))
-                patch.setattr(sys, "argv", ["-c", words[3]])
                 patch.setattr(subprocess, "Popen", spawn)
                 patch.setattr(os, "kill", kill)
                 patch.setattr(os, "killpg", killpg, raising=False)
                 patch.setattr(signal, "SIGKILL", 9, raising=False)
                 patch.setattr(Path, "read_text", read)
                 patch.setattr(Path, "iterdir", lambda path: iter([Path("/proc/4321"), Path("/proc/4322")]) if path.as_posix() == "/proc" else iterdir(path))
-                exec(compile(words[2], "<fixed-remote-helper>", "exec"), {})
+                exec(compile(program, "<fixed-remote-helper>", "exec"), {})
         except SystemExit as exc:
             if exc.code:
                 return 1, "", str(exc)
@@ -535,14 +551,74 @@ def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp
         entries = [source / "input file.txt", source / "job.json", source / "nested"]
     transport.upload(source, path)
     transport.download(path + "/file with spaces", tmp_path / "destination")
-    assert calls[0] == [
+    # One scp per entry, each naming its remote file explicitly: the remote name must
+    # come from entry.name, never from how the local platform spells the path.
+    expected = [
+        ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
+         *(["-r"] if entry.is_dir() else []), str(entry),
+         "lab:" + shlex.quote(path + "/" + entry.name)]
+        for entry in entries
+    ]
+    assert calls[:len(expected)] == expected
+    for argv in calls[:len(expected)]:
+        assert shlex.split(argv[-1].split(":", 1)[1]) == [path + "/" + Path(argv[-2]).name]
+    assert calls[len(expected)] == [
         "scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
-        "-r", *(str(entry) for entry in entries), "lab:" + shlex.quote(path + "/"),
+        "lab:" + shlex.quote(path + "/file with spaces"), str(tmp_path / "destination"),
     ]
     for argv in calls:
         assert argv[:6] == ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"]
-    assert shlex.split(calls[0][-1].split(":", 1)[1]) == [path + "/"]
-    assert shlex.split(calls[1][-2].split(":", 1)[1]) == [path + "/file with spaces"]
+
+
+def test_upload_names_remote_files_from_the_entry_name_not_a_windows_path(monkeypatch):
+    """A Windows checkout must not decide the remote filename (2026-10-24 incident).
+
+    scp derives the remote name from the local argument; with an absolute Windows
+    path the job landed as one file literally named after that whole path, so the
+    launch failed with "python3: can't open file 'run.py'" while every local hash
+    check had passed.
+    """
+    calls = []
+    backslash = chr(92)
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    transport = SSHTransport(SimpleNamespace(ssh_alias="lab"))
+
+    class _WindowsEntry:
+        def __init__(self, path, name):
+            self._path, self.name = path, name
+
+        def is_dir(self):
+            return False
+
+        def __str__(self):
+            return self._path
+
+        def __lt__(self, other):  # sorted() in upload()
+            return self.name < other.name
+
+    class _FrozenRequest:
+        def iterdir(self):
+            base = "F:" + backslash + "nrl-research" + backslash + "remote-jobs" + backslash + "job" + backslash + "request" + backslash
+            return [_WindowsEntry(base + "run.py", "run.py"),
+                    _WindowsEntry(base + "BENCHMARK.md", "BENCHMARK.md")]
+
+    transport.upload(_FrozenRequest(), "wjc/nerelan-jobs/job")
+
+    assert [argv[-1] for argv in calls] == [
+        "lab:" + shlex.quote("wjc/nerelan-jobs/job/BENCHMARK.md"),
+        "lab:" + shlex.quote("wjc/nerelan-jobs/job/run.py"),
+    ]
+    for argv in calls:
+        local, target = argv[-2], argv[-1]
+        assert backslash in local            # the local spelling stays local
+        assert backslash not in target        # and never names a remote file
+        assert shlex.split(target.split(":", 1)[1]) == [
+            "wjc/nerelan-jobs/job/" + local.replace(backslash, "/").rsplit("/", 1)[-1]]
 
 
 def test_cli_status(setup, monkeypatch, capsys):
@@ -617,11 +693,11 @@ def test_malformed_reply_isolated_with_backoff(setup, monkeypatch, operation, re
         (remote(transport, "e001-bad") / "exit_code").write_text("0")
     transport.calls.clear()
     original = transport.run
-    def run(argv, timeout):
-        data = json.loads(shlex.split(" ".join(argv[6:]))[3])
+    def run(argv, timeout, stdin_text=None):
+        data = _program_request(stdin_text)
         if data["op"] == operation and data["job_id"] == "e001-bad":
             return 0, reply, ""
-        return original(argv, timeout)
+        return original(argv, timeout, stdin_text=stdin_text)
     monkeypatch.setattr(transport, "run", run)
     broker.tick()
     bad = receipt(broker, "e001-bad")
@@ -639,7 +715,7 @@ def test_stop_abandons_blocked_transport_and_prevents_restart(setup, monkeypatch
     broker, transport, _ = setup
     request(broker)
     entered, release = threading.Event(), threading.Event()
-    def run(argv, timeout):
+    def run(argv, timeout, stdin_text=None):
         entered.set()
         assert release.wait(5)
         return 0, '{"marker": false}', ""
@@ -761,3 +837,77 @@ def test_timeout_term_can_finish_without_kill(setup):
     broker.tick()
     assert receipt(broker)["outcome"] == "TIMED_OUT"
     assert transport.killed == [(4321, signal.SIGTERM)]
+
+
+def test_remote_program_carries_the_request_out_of_band() -> None:
+    data = {"op": "collect", "job_id": "e" * 48, "outputs": ["results/x%d.json" % i for i in range(64)]}
+    program = _remote_program(data)
+    assert REMOTE_HELPER in program
+    assert _program_request(program) == data
+
+
+def test_broker_never_puts_the_helper_on_the_ssh_command_line(setup, monkeypatch):
+    """#1328 P0-A: the remote program must travel on stdin, not in argv.
+
+    A POSIX-quoted helper plus its JSON request does not fit the Windows
+    process command line (8191 characters); the quiet truncation left the
+    remote bash with an unterminated quote. The command line therefore stays
+    a quote-free constant and the program goes through stdin.
+    """
+    broker, transport, _ = setup
+    seen = []
+    original = transport.run
+
+    def run(argv, timeout, stdin_text=None):
+        seen.append((list(argv), stdin_text))
+        return original(argv, timeout, stdin_text=stdin_text)
+
+    monkeypatch.setattr(transport, "run", run)
+    request(broker)
+    broker.tick()
+
+    assert seen
+    for argv, program in seen:
+        assert argv[6:] == list(REMOTE_COMMAND)
+        assert sum(len(part) + 1 for part in argv) < 512
+        assert not ({"'", '"', "\\", "$", "`"} & set("".join(argv)))
+        assert isinstance(program, str) and REMOTE_HELPER in program
+        # the payload must still reach the helper unchanged
+        assert _program_request(program)["job_id"] == "e001-baseline"
+
+
+def test_remote_program_carries_the_request_out_of_band() -> None:
+    data = {"op": "collect", "job_id": "e" * 48, "outputs": ["results/x%d.json" % i for i in range(64)]}
+    program = _remote_program(data)
+    assert REMOTE_HELPER in program
+    assert _program_request(program) == data
+
+
+def test_broker_never_puts_the_helper_on_the_ssh_command_line(setup, monkeypatch):
+    """#1328 P0-A: the remote program must travel on stdin, not in argv.
+
+    A POSIX-quoted helper plus its JSON request does not fit the Windows
+    process command line (8191 characters); the quiet truncation left the
+    remote bash with an unterminated quote. The command line therefore stays
+    a quote-free constant and the program goes through stdin.
+    """
+    broker, transport, _ = setup
+    seen = []
+    original = transport.run
+
+    def run(argv, timeout, stdin_text=None):
+        seen.append((list(argv), stdin_text))
+        return original(argv, timeout, stdin_text=stdin_text)
+
+    monkeypatch.setattr(transport, "run", run)
+    request(broker)
+    broker.tick()
+
+    assert seen
+    for argv, program in seen:
+        assert argv[6:] == list(REMOTE_COMMAND)
+        assert sum(len(part) + 1 for part in argv) < 512
+        assert not ({"'", '"', "\\", "$", "`"} & set("".join(argv)))
+        assert isinstance(program, str) and REMOTE_HELPER in program
+        # the payload must still reach the helper unchanged
+        assert _program_request(program)["job_id"] == "e001-baseline"
