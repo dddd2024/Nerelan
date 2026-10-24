@@ -247,7 +247,12 @@ def settlement(observations, estimate, *, usage_unknown):
     model = (estimate.get("estimate") or {}).get("model")
     priced = {name: counters[name] for name in ("input", "cache_read", "output")}
     price_units = None
-    if model and not usage_unknown and all(v is not None for v in priced.values()):
+    # Price measured tokens even when cost or percentage attribution stays
+    # unknown (native CLI turn totals settle as PARTIAL/UNKNOWN). The figure
+    # only feeds delta calibration, where undercounted tokens can only lower
+    # the learned rate and therefore overestimate, never underestimate, the
+    # next task's need (#1323).
+    if model and all(v is not None for v in priced.values()):
         price_units = pricing.equivalent_cost(model, priced).get("usd")
     return {"state": "UNKNOWN" if usage_unknown or not actual or any(v is None for v in actual.values()) else "ESTIMATED",
             "tokens": counters, "turn_count": turns, "cost_units": cost, "price_units": price_units,
