@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .binding_resolver import BindingResolver
-from .artifact_handoff import validation_only_input
+from .artifact_handoff import validation_only_input, model_review_input
 from .opencode_executor import (
     RoleContext,
     _collect_product_diff,
@@ -38,6 +38,7 @@ from .run_store import (
 )
 from .task_runtime import (
     ExecutorCallback,
+    QuotaPauseOutcome,
     ExecutorRouter,
     ExecutorRuntimeError,
     LocalValidationRunner,
@@ -56,6 +57,7 @@ class TaskExecutionOutcome:
     evidence_ids: tuple[str, ...] = ()
     failure_classification: str = ""
     failure_detail: str = ""
+    quota_pause: QuotaPauseOutcome | None = None
 
 
 def _build_executor_kwargs(
@@ -121,11 +123,15 @@ class TaskExecutionService:
         router: ExecutorRouter,
         binding_resolver: Any | None = None,
         lease_provider: Any | None = None,
+        execution_authority_sha: str | None = None,
+        planning_sha: str | None = None,
     ) -> None:
         self.store = store
         self.router = router
         self.binding_resolver = binding_resolver
         self.lease_provider = lease_provider
+        self.execution_authority_sha = execution_authority_sha
+        self.planning_sha = planning_sha
 
     def execute(
         self,
@@ -143,6 +149,9 @@ class TaskExecutionService:
             raise TaskExecutionError(
                 f"task_not_queued:{task_id}:{task.status}"
             )
+
+        if model_review_input(task):
+            return self.execute_model_review(task_id, workspace_root=workspace_root)
 
         if load_host_validation_contract(task) is not None:
             return self.execute_host_validation(task_id)
@@ -190,10 +199,12 @@ class TaskExecutionService:
                 lease_provider=self.lease_provider,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(
@@ -230,10 +241,12 @@ class TaskExecutionService:
                 executor_kwargs=executor_kwargs,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(
@@ -275,6 +288,7 @@ class TaskExecutionService:
                 task_id,
                 classification=classification,
                 detail=exec_result.get("error", "execution failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
             )
             self.store.add_event(
                 task_id,
@@ -300,6 +314,17 @@ class TaskExecutionService:
             failure_classification=final.failure_classification,
             failure_detail=final.failure_detail,
         )
+
+    def execute_model_review(self, task_id: str, *, workspace_root: str) -> TaskExecutionOutcome:
+        """All model review entry points use the same leased durable execution."""
+        from .durable_execution import DurableExecutionService
+        service = DurableExecutionService(store=self.store, router=self.router,
+            binding_resolver=self.binding_resolver, lease_provider=self.lease_provider,
+            execution_authority_sha=self.execution_authority_sha, planning_sha=self.planning_sha)
+        task = self.store.get_task(task_id)
+        method = (service.execute_durable_single if task.orchestration_mode == "single"
+                  else service.execute_durable_sequential_team)
+        return method(task_id, workspace_root=workspace_root)
 
     def execute_host_validation(self, task_id: str, *, lease: Any | None = None) -> TaskExecutionOutcome:
         """Run the frozen hygiene check without preparing an executor or reading a binding.
@@ -458,6 +483,9 @@ class TaskExecutionService:
                 f"task_not_queued:{task_id}:{task.status}"
             )
 
+        if model_review_input(task):
+            return self.execute_model_review(task_id, workspace_root=workspace_root)
+
         executor_kind = task.executor_kind
         if executor_kind != "opencode":
             raise TaskExecutionError(
@@ -501,10 +529,12 @@ class TaskExecutionService:
                 **executor_kwargs,
             )
         except ExecutorRuntimeError as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
             self.store.classify_failure(
                 task_id,
-                classification="blocked",
-                detail=str(exc),
+                classification="MODEL_UNAVAILABLE" if unavailable else "blocked",
+                detail=unavailable or str(exc),
             )
             final = self.store.get_task(task_id)
             after_evidence = tuple(ev.get("id", "") for ev in final.evidence_refs)
@@ -1109,7 +1139,16 @@ class TaskExecutionService:
         validation_command_id: str,
         executor_kwargs: dict[str, Any],
     ) -> dict[str, Any]:
-        if validation_only_input(task):
+        from .contract_recovery import recovery_input, restore_failed_tree
+        if recovery_input(task) is not None:
+            from .opencode_executor import RoleContext
+            executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
+            prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+            restore_failed_tree(self.store, task.id, worktree=prepared.worktree)
+            result = executor.execute_role_prepared(prepared, self.store,
+                role_context=RoleContext("executor", task.id, prepared.worktree),
+                event_callback=self._store_event_callback)
+        elif validation_only_input(task):
             from .task_runtime import ExecutorResult
             try:
                 executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
@@ -1128,8 +1167,28 @@ class TaskExecutionService:
                 event_callback=self._store_event_callback,
                 **executor_kwargs,
             )
+        from .routing_inputs import model_refused
+        from .model_availability import availability_error
+        events = self.store.get_events(task.id)
+        final_text = next((event.metadata.get("final_text", "") for event in reversed(events)
+                           if event.type == "EXECUTOR_COMPLETED"), "")
+        unavailable = availability_error(str(result.error or "") + " " + str(result.failure_classification or ""))
+        if unavailable:
+            result.success, result.failure_classification, result.error = False, "MODEL_UNAVAILABLE", unavailable
+            self._store_event_callback(task.id, {"type": "MODEL_UNAVAILABLE", "title": "Model unavailable",
+                                                "metadata": {"reason": unavailable}})
+        elif model_refused(final_text, changed_files=result.changed_files,
+                           policy_refusal=result.failure_classification in {"policy_refusal", "MODEL_REFUSED"}):
+            result.success, result.failure_classification, result.error = False, "MODEL_REFUSED", "MODEL_REFUSED"
+            content = next((event.metadata.get("content_class", "code") for event in events
+                            if event.type == "MODEL_SELECTED"), "code")
+            self._store_event_callback(task.id, {"type": "MODEL_REFUSED", "title": "Model declined task",
+                                                "metadata": {"content_class": content}})
         from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
-        if result.success and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
+        hygiene_failure = (result.validation_command_id == "git_diff_check"
+                           and result.validation_exit_code != 0
+                           and result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"})
+        if (result.success or hygiene_failure) and any(row.get("category") == CONTRACT_CATEGORY for row in task.evidence_refs):
             command, code, output, identity = run_task_validation(
                 self.store, task.id, worktree=result.workspace,
                 base_commit=prepared_base(self.store.get_task(task.id), result.workspace),
@@ -1180,6 +1239,7 @@ class TaskExecutionService:
             "changed_files": result.changed_files,
             "error": result.error,
             "failure_classification": getattr(result, "failure_classification", ""),
+            "failure_reset_at": getattr(result, "failure_reset_at", ""),
         }
 
     def _store_event_callback(self, task_id: str, event: dict[str, Any]) -> None:

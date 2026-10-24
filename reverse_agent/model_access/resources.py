@@ -239,6 +239,154 @@ def _correlation(resources: list[dict[str, Any]],
     return {"accounts": account_corr, "models": model_corr, "status": "available"}
 
 
+# Only a fresh or explicitly undated reading may describe current use.
+_OBSERVED_ACCOUNT_STATES = ("FRESH", "UNDATED")
+
+
+def _account_windows(account: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Windows exactly as Magpie reported them; an unreadable value stays ``None``."""
+    windows = []
+    for window in account.get("windows") or ():
+        if not isinstance(window, Mapping):
+            continue
+        name, used = window.get("name"), window.get("used_percent")
+        remaining, resets_at = window.get("remaining_percent"), window.get("resets_at")
+        unlimited = window.get("unlimited")
+        windows.append({
+            "window": name if isinstance(name, str) and name else None,
+            "used_percent": used if type(used) in (int, float) and 0 <= used <= 100 else None,
+            "remaining_percent": remaining if type(remaining) in (int, float) and 0 <= remaining <= 100 else None,
+            "resets_at": resets_at if isinstance(resets_at, str) and len(resets_at) <= 40 else None,
+            "unlimited": unlimited if isinstance(unlimited, bool) else None,
+        })
+    return windows
+
+
+def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[str, Any]]) -> dict[str, Any]:
+    """Every account Magpie reported, its windows, and what a route can claim about it.
+
+    The resource view already lists provider-keyed admission quotas, but only for
+    providers this repository routes.  An account Magpie reports for any other
+    product (for example a credit window with no executor behind it) used to
+    disappear from the view entirely, so the UI showed "UNKNOWN" next to a
+    number Magpie was displaying.  Both halves are true: the observation exists,
+    and no route in this repository may spend it.
+
+    ``route_bound`` is provider-level only.  It says one enabled native CLI
+    connection declares that provider; it does not say the connection is ready
+    now, and never that this account served a particular task (readiness and
+    session state stay in the resource rows).  Weaker or conflicting evidence is
+    named instead of resolved:
+
+    * ``no_route_identity`` - the provider is not mapped to an executor, no
+      connection declares it, or only disabled connections do; the windows stay
+      account-level telemetry.
+    * ``ambiguous_multiple_accounts`` - several observed accounts share one
+      provider, so no single one may be presented as *the* route's balance.
+    * ``ambiguous_multiple_routes`` - several enabled connections declare the provider.
+    * ``unobserved`` - the account state is not fresh; its reason is preserved
+      and no percentage is manufactured.
+    """
+    status = magpie.get("status") if isinstance(magpie, Mapping) else None
+    status = status if isinstance(status, str) and status else "unavailable"
+    summary = {"accounts": 0, "route_bound": 0, "no_route_identity": 0, "ambiguous": 0, "unobserved": 0,
+               "malformed": 0}
+    if status != "available":
+        reason = magpie.get("reason") if isinstance(magpie, Mapping) else None
+        return {"status": status, "reason": reason if isinstance(reason, str) else None,
+                "accounts": [], "summary": summary}
+    from .subscription_quota import magpie_route_provider
+
+    def route_of(account: Mapping[str, Any]) -> str | None:
+        return magpie_route_provider(account.get("provider"))
+
+    observed_per_route: dict[str, int] = {}
+    for account in (magpie.get("accounts") or ()):
+        if isinstance(account, Mapping) and account.get("state") in _OBSERVED_ACCOUNT_STATES:
+            provider_route = route_of(account)
+            if provider_route:
+                observed_per_route[provider_route] = observed_per_route.get(provider_route, 0) + 1
+    # Declared providers are tracked separately from enabled ones: a provider that only
+    # a disabled connection declares must not be reported as undeclared.
+    connections_per_route: dict[str, list[str]] = {}
+    declared_elsewhere: dict[str, list[str]] = {}
+    for connection in connections:
+        if not isinstance(connection, Mapping):
+            continue
+        # Only an executor provider id that *is* a native CLI route counts.  Magpie's
+        # account aliases ("openai", "anthropic") must not be reused here: a gateway
+        # connection declaring "openai" is not the Codex CLI account, and its quota
+        # lookup key is its own id.
+        declared = connection.get("executor_provider_id")
+        if declared not in NATIVE_CLI_PROVIDERS or not connection.get("connection_id"):
+            continue
+        enabled = connection.get("enabled") is True
+        target = connections_per_route if enabled else declared_elsewhere
+        entry = target.setdefault(declared, [])
+        if connection["connection_id"] not in entry:
+            entry.append(connection["connection_id"])
+
+    summary["malformed"] = sum(1 for a in (magpie.get("accounts") or ()) if not isinstance(a, Mapping))
+    accounts = []
+    for account in sorted((a for a in (magpie.get("accounts") or ()) if isinstance(a, Mapping)),
+                          key=lambda a: (str(a.get("provider") or ""), str(a.get("account_ref") or ""),
+                                         str(a.get("observed_at") or ""))):
+        provider_route = route_of(account)
+        if account.get("state") not in _OBSERVED_ACCOUNT_STATES:
+            reason = account.get("reason")
+            attribution = {"status": "unobserved", "reason": reason if isinstance(reason, str) else None,
+                           "route_provider": provider_route, "connection_ids": []}
+        elif provider_route is None:
+            attribution = {"status": "no_route_identity", "reason": "provider_not_mapped_to_any_executor",
+                           "route_provider": None, "connection_ids": []}
+        elif observed_per_route.get(provider_route, 0) > 1:
+            attribution = {"status": "ambiguous_multiple_accounts", "reason": "accounts_share_one_provider",
+                           "route_provider": provider_route,
+                           "connection_ids": connections_per_route.get(provider_route, [])}
+        elif len(connections_per_route.get(provider_route, [])) > 1:
+            attribution = {"status": "ambiguous_multiple_routes", "reason": "connections_share_one_provider",
+                           "route_provider": provider_route,
+                           "connection_ids": connections_per_route.get(provider_route, [])}
+        elif provider_route in declared_elsewhere and provider_route not in connections_per_route:
+            attribution = {"status": "no_route_identity",
+                           "reason": "only_disabled_connections_declare_this_provider",
+                           "route_provider": provider_route,
+                           "connection_ids": declared_elsewhere[provider_route]}
+        elif provider_route not in connections_per_route:
+            attribution = {"status": "no_route_identity", "reason": "no_connection_declares_this_provider",
+                           "route_provider": provider_route, "connection_ids": []}
+        else:
+            attribution = {"status": "route_bound", "reason": None, "route_provider": provider_route,
+                           "connection_ids": connections_per_route[provider_route]}
+        account_ref, observed_at = account.get("account_ref"), account.get("observed_at")
+        current = account.get("state") in _OBSERVED_ACCOUNT_STATES
+        accounts.append({
+            "provider": account.get("provider") if isinstance(account.get("provider"), str) else None,
+            "account_ref": account_ref if isinstance(account_ref, str) and account_ref else None,
+            "state": account.get("state") if isinstance(account.get("state"), str) else None,
+            "reason": account.get("reason") if isinstance(account.get("reason"), str) else None,
+            "observed_at": observed_at if isinstance(observed_at, str) and len(observed_at) <= 40 else None,
+            "usage_scope": "account",
+            # A stale or unknown reading is display-only: it never counts as current use,
+            # and the numbers stay reachable under cached_windows.
+            "windows": _account_windows(account) if current else [],
+            "cached_windows": [] if current else _account_windows(
+                {"windows": account.get("cached_windows") or account.get("windows")}),
+            "attribution": attribution,
+        })
+        summary["accounts"] += 1
+        state = attribution["status"]
+        if state == "route_bound":
+            summary["route_bound"] += 1
+        elif state == "no_route_identity":
+            summary["no_route_identity"] += 1
+        elif state == "unobserved":
+            summary["unobserved"] += 1
+        else:
+            summary["ambiguous"] += 1
+    return {"status": "available", "reason": None, "accounts": accounts, "summary": summary}
+
+
 def _magpie_view(magpie: Mapping[str, Any],
                  summary: Mapping[str, Any]) -> dict[str, Any]:
     """Magpie-primary view: leads with external models/accounts, legacy as fallback.
@@ -295,13 +443,14 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
     observed, observation_status = _read_profiles(profiles)
     token_totals, quota_snapshots = _read_source(tokens), _read_source(quotas)
     resources = []
-    for connection in store.list_connections_public():
+    connections = store.list_connections_public()
+    for connection in connections:
         connection_id = connection["connection_id"]
         try:
             compatible = store.compatible_executors(connection_id)
         except ValueError:
             compatible = []
-        connection_ok = connection.get("enabled") is True and _session_usable(connection)
+        connection_ok = connection.get("enabled") is True and _session_usable(connection) and store.magpie_connection_runnable(connection_id)
         ready = {executor_id: connection_ok and _executor_ready(executors.get(executor_id), connection)
                  for executor_id in compatible}
         rows, totals = [], dict.fromkeys(_TOTAL_FIELDS, 0)
@@ -366,6 +515,7 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
     view["view_mode"] = mode
     view["external_sources"] = {"magpie": magpie_snapshot}
     view["correlation"] = _correlation(resources, magpie_snapshot)
+    view["account_attribution"] = _account_attribution(magpie_snapshot, connections)
     if mode == "magpie_primary":
         view["magpie_view"] = _magpie_view(magpie_snapshot, view["summary"])
     return view

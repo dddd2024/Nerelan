@@ -697,6 +697,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                         tasks=payload.get("tasks", ()),
                     )
                     response = goal_to_dict(result.goal)
+                    response["quota_fit"] = result.quota_fit
                     response["planner"] = result.planner
                     response["spec_kit_available"] = result.spec_kit_available
                     self._send_json(HTTPStatus.OK, response)
@@ -1061,6 +1062,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
     def _platform_status_response(self) -> dict[str, Any]:
         coordinator = getattr(self, "coordinator", None)
         return {
+            "magpie": self.magpie_status() if getattr(self, "magpie_status", None) else {
+                "status": "MAGPIE_DISABLED", "reason": "", "last_probe_at": None, "model_count": 0},
             "service": "reverse-agent-platform-v2",
             "instance": _instance_metadata(self.store, self.autonomy_service),
             "autonomy": self.autonomy_service.status(),
@@ -1285,10 +1288,12 @@ def _handler_factory(
     publication_controller: PublicationController | None = None,
     coordinator: Any | None = None,
     local_client_session: Any | None = None,
+    magpie_status: Callable | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
+    ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin

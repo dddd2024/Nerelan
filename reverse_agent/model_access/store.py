@@ -30,6 +30,7 @@ from .os_vault import (
     connection_vault_ref,
 )
 from .provider_identity import identity_authority_changed
+from .magpie import DEFAULT_MAGPIE, validate_settings
 
 
 # Schema version for persisted sanitized product setup state.
@@ -396,6 +397,8 @@ class ModelProfileStore:
             self._state_path = Path(state_path).resolve()
         self._vault: VaultAdapter | None = vault
 
+        self._magpie = dict(DEFAULT_MAGPIE)
+        self.magpie_status = lambda: {"status": "MAGPIE_DISABLED", "reason": "", "last_probe_at": None, "model_count": 0}
         self._profiles: dict[str, _StoredProfile] = {}
         self._connections: dict[str, _StoredConnection] = {}
         self._executors = {
@@ -417,7 +420,9 @@ class ModelProfileStore:
             ),
         }
         self._bindings: dict[str, Binding] = {}
+        self._routing_catalogs: dict[str, Any] = {}
         self._agent_roster: dict[str, str] = {}
+        self._agent_pins: set[str] = set()
         self._agent_policy: dict[str, Any] = {}
         # Owner-declared stand-ins per coding role, used only when the role's account is exhausted.
         self._agent_standins: dict[str, list[str]] = {}
@@ -431,6 +436,36 @@ class ModelProfileStore:
             except StoreError:
                 # A damaged roster never blocks connections/bindings; roles start unfilled.
                 self._agent_roster = {}
+            try:
+                catalogs = json.loads(self._state_path.with_name("model_catalog_observations.json").read_text(encoding="utf-8"))
+                if isinstance(catalogs, dict):
+                    for connection_id, catalog in catalogs.items():
+                        if isinstance(catalog, dict) and connection_id in self._connections:
+                            self.record_model_catalog(connection_id, catalog.get("models", []), catalog.get("metadata", {}), persist=False)
+            except (OSError, ValueError, TypeError):
+                self._routing_catalogs = {}
+
+    def record_model_catalog(self, connection_id: str, models: list[str], metadata: Mapping[str, Any], *, persist: bool = True) -> None:
+        """Save sanitized listing observations, never entitlement or credentials."""
+        from .magpie import parse_models
+        if not isinstance(models, list) or len(models) > 300 or any(not isinstance(m, str) or not m or len(m) > 200 for m in models):
+            raise ValueError("invalid_routing_catalog")
+        if not isinstance(metadata, Mapping):
+            raise ValueError("invalid_routing_catalog")
+        normalized = {}
+        for model in models:
+            raw = metadata.get(model, {})
+            if isinstance(raw, Mapping):
+                parsed = parse_models({"object": "list", "data": [{**raw, "id": model}]})
+                if parsed:
+                    normalized[model] = parsed[0]
+        with self._lock:
+            if connection_id not in self._connections:
+                raise ValueError("routing_catalog_unknown_connection")
+            self._routing_catalogs[connection_id] = {"status": "discovered", "models": list(dict.fromkeys(models)), "metadata": normalized}
+            if persist and self._state_path:
+                _write_atomic(json.dumps(self._routing_catalogs, allow_nan=False).encode("utf-8"),
+                              self._state_path.with_name("model_catalog_observations.json"))
 
     def _connection_secret_status(self, stored: _StoredConnection) -> str:
         """Compute the live public secret status for one Connection.
@@ -893,6 +928,7 @@ class ModelProfileStore:
                 upstream_provider_id=conn.upstream_provider_id,
                 protocol_family="anthropic" if relay_anthropic else conn.protocol_family,
                 executor_provider_id=conn.executor_provider_id,
+                native_endpoint=self.get_binding_public(binding_id).get("native_endpoint", "/chat/completions"),
             )
 
     def list_executors_public(self) -> list[dict[str, Any]]:
@@ -928,10 +964,49 @@ class ModelProfileStore:
                 raise KeyError(f"executor not found: {executor_id}")
             return executor.to_public_dict()
 
+    def get_magpie(self) -> dict[str, Any]:
+        with self._lock:
+            return dict(self._magpie)
+
+    def put_magpie(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        candidate = validate_settings(payload)
+        with self._lock:
+            self._ensure_connection_binding_ready()
+            previous = self._magpie
+            self._magpie = candidate
+            try:
+                if self._state_path is not None:
+                    _write_atomic(self._build_state_doc(), self._state_path)
+            except Exception as exc:
+                self._magpie = previous
+                if isinstance(exc, _PostReplaceDurabilityUncertainError):
+                    self._handle_post_replace_uncertainty(exc)
+                raise StoreError("Magpie settings persistence failed") from exc
+            return dict(candidate)
+
+    def magpie_connection_runnable(self, connection_id: str) -> bool:
+        from urllib.parse import urlsplit
+        with self._lock:
+            connection = self._connections[connection_id].connection
+            config = self._magpie
+            if not config["enabled"]:
+                # Manual gateway connections retain their existing execution behavior.
+                return True
+
+            def endpoint(url: str) -> tuple[str, str | None, int]:
+                parsed = urlsplit(url)
+                host = parsed.hostname
+                if host in ("localhost", "127.0.0.1", "::1"):
+                    host = "loopback"
+                return parsed.scheme, host, parsed.port or (443 if parsed.scheme == "https" else 80)
+            if endpoint(connection.base_url) != endpoint(config["base_url"]):
+                return True
+            return config["enabled"] and self.magpie_status()["status"] in {"STARTED", "ALREADY_RUNNING"}
+
     def list_bindings_public(self) -> list[dict[str, Any]]:
         with self._lock:
             self._ensure_connection_binding_ready()
-            return [binding.to_public_dict() for binding in self._bindings.values()]
+            return [self.get_binding_public(binding.binding_id) for binding in self._bindings.values()]
 
     def get_binding_public(self, binding_id: str) -> dict[str, Any]:
         with self._lock:
@@ -939,7 +1014,11 @@ class ModelProfileStore:
             binding = self._bindings.get(binding_id)
             if binding is None:
                 raise KeyError(f"binding not found: {binding_id}")
-            return binding.to_public_dict()
+            result = binding.to_public_dict()
+            metadata = getattr(self, "_routing_catalogs", {}).get(binding.connection_id, {}).get("metadata", {}).get(binding.model_id, {})
+            result["native_endpoint"] = "/responses" if metadata.get("native_endpoints") and all(
+                endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in metadata["native_endpoints"]) else "/chat/completions"
+            return result
 
     def upsert_binding(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         binding = Binding.from_mapping(payload)
@@ -956,7 +1035,12 @@ class ModelProfileStore:
                 from ..platform_v1.task_runtime import ExecutorRuntimeError
                 prefix = binding.executor_id
                 try:
-                    validate_codex_model(binding.model_id)
+                    connection = self._connections[binding.connection_id].connection
+                    if binding.executor_id == "claude_code":
+                        from ..platform_v1.claude_executor import validate_claude_model
+                        validate_claude_model(binding.model_id, relay_mode=is_anthropic_relay_connection(connection))
+                    else:
+                        validate_codex_model(binding.model_id)
                 except ExecutorRuntimeError as exc:
                     raise ValueError(f"{prefix}_model_id_invalid") from exc
                 connection = self._connections[binding.connection_id].connection
@@ -1068,6 +1152,7 @@ class ModelProfileStore:
             raise StoreError("invalid agent roster file")
         self._agent_roster = {role: binding for role, binding in roles.items()
                               if role in AGENT_ROLES and isinstance(binding, str) and binding}
+        self._agent_pins = {role for role in data.get("pins", []) if role in self._agent_roster}
         policy = data.get("policy")
         self._agent_policy = _sanitize_agent_policy(policy) if isinstance(policy, dict) else {}
         standins = data.get("standins")
@@ -1082,6 +1167,7 @@ class ModelProfileStore:
                 binding = self._bindings.get(binding_id)
                 roles[role] = {
                     "binding_id": binding_id,
+                    **({"pin": True} if role in self._agent_pins else {}),
                     # A deleted or disabled binding leaves the role unfilled, never silently remapped.
                     "available": bool(binding and binding.enabled),
                     "executor_id": binding.executor_id if binding else "",
@@ -1094,15 +1180,25 @@ class ModelProfileStore:
                     "standins": {role: ids for role, ids in standins.items() if ids}}
 
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        """Legacy role hints, or explicit {binding_id, pin: True} task-route pins."""
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
         if not isinstance(roles, Mapping):
             raise ValueError("agent_roster_roles_required")
         with self._lock:
             self._ensure_connection_binding_ready()
             roster: dict[str, str] = {}
+            pins: set[str] = set()
             for role, binding_id in roles.items():
                 if role not in AGENT_ROLES:
                     raise ValueError(f"unknown_agent_role:{role}")
+                if isinstance(binding_id, Mapping):
+                    if type(binding_id.get("pin", False)) is not bool:
+                        raise ValueError(f"agent_role_pin_invalid:{role}")
+                    if binding_id.get("pin"):
+                        pins.add(role)
+                    binding_id = binding_id.get("binding_id", "")
+                elif role in self._agent_pins:
+                    pins.add(role)
                 if binding_id in (None, ""):
                     continue
                 if not isinstance(binding_id, str) or binding_id not in self._bindings:
@@ -1110,6 +1206,7 @@ class ModelProfileStore:
                 if not self._bindings[binding_id].enabled:
                     raise ValueError(f"agent_role_binding_disabled:{role}")
                 roster[role] = binding_id
+            pins.intersection_update(roster)
             reviewer, coder = roster.get("reviewer"), roster.get("coder")
             if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
                 # Independent review needs a different underlying model, not just another label.
@@ -1132,6 +1229,8 @@ class ModelProfileStore:
             path = self._roster_path()
             if path is not None:
                 document: dict[str, Any] = {"schema_version": 1, "roles": roster}
+                if pins:
+                    document["pins"] = sorted(pins)
                 if policy:
                     document["policy"] = policy
                 if standins:
@@ -1139,6 +1238,7 @@ class ModelProfileStore:
                 _write_atomic(json.dumps(document, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
                               .encode("utf-8"), path)
             self._agent_roster = roster
+            self._agent_pins = pins
             self._agent_standins = standins
             # A manual role edit drops the stored natural-language policy it no longer reflects.
             self._agent_policy = policy
@@ -1255,6 +1355,10 @@ class ModelProfileStore:
 
         data = self._parse_state_doc(raw)
         schema_version = int(data["schema_version"])
+        try:
+            magpie = validate_settings(data.get("magpie", {}), check_file=False)
+        except ValueError as exc:
+            raise StoreError("invalid persisted Magpie settings") from exc
 
         # Parse into temporary maps first. A malformed v1/v2 document therefore
         # never leaves a partially replaced in-memory relation behind.
@@ -1303,6 +1407,7 @@ class ModelProfileStore:
                 )
             binding_by_id[binding.binding_id] = binding
 
+        self._magpie = magpie
         self._connections.clear()
         self._connections.update(conn_by_id)
         self._bindings.clear()
@@ -1398,6 +1503,7 @@ class ModelProfileStore:
         bindings = [b.to_public_dict() for b in self._bindings.values()]
         doc = {
             "schema_version": _STATE_SCHEMA_VERSION,
+            "magpie": self._magpie,
             "connections": connections,
             "bindings": bindings,
         }

@@ -23,6 +23,7 @@ from http.server import ThreadingHTTPServer
 import collections
 import json
 import os
+from pathlib import Path
 import subprocess
 import threading
 import time
@@ -58,6 +59,7 @@ from .goal_service import GoalService
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
 from .local_client_session import LocalClientSession
+from .remote_jobs import configured_broker
 
 
 class CombinedTrustedHost:
@@ -89,11 +91,18 @@ class CombinedTrustedHost:
         account_auth_server_factory: ServerFactory | None = None,
         codex_readiness_probe: Callable[[], str] | None = None,
         claude_code_readiness_probe: Callable[[], str] | None = None,
+        reset_signal_reader: Callable[[], Mapping[str, Any]] | None = None,
+        availability_probe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
         vault: Any = _PLATFORM_VAULT,
         local_client_session: LocalClientSession | None = None,
+        magpie_factory: Callable | None = None,
+        landing_owner_decisions: Callable | None = None,
     ) -> None:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
+        self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
+        self._reset_signal_reader = reset_signal_reader
+        self._availability_probe = availability_probe
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:
             self._store = store
@@ -111,6 +120,9 @@ class CombinedTrustedHost:
                 state_path=state_path,
                 vault=resolved_vault,
             )
+        from .magpie_launch import MagpieLaunch
+        self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
+        self._store.magpie_status = self._magpie.status
         self._task_store = task_store
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
@@ -143,9 +155,12 @@ class CombinedTrustedHost:
             store=self._task_store,
             control_store=self._control_store,
             roster_resolver=self._resolve_agent_role,
+            task_resolver=self._resolve_task_model,
+            quota_forecaster=self._goal_quota_fit,
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
+        self._claude_reset_watcher: Any | None = None
 
         self._model_control_host = validate_bind_host(model_control_host)
         self._model_control_port = model_control_port
@@ -163,6 +178,9 @@ class CombinedTrustedHost:
         # until the separately governed guard and native bootstrap are wired.
         self._local_client_session = local_client_session or LocalClientSession()
         self._trusted_client = None
+        self._remote_job_broker = None
+        self._research_loop = None
+        self._workspace_reclaimer = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
@@ -276,6 +294,8 @@ class CombinedTrustedHost:
                 raise RuntimeError("base_url_drift_before_lease")
             if snapshot.auth_method != resolution.auth_method:
                 raise RuntimeError("auth_method_drift_before_lease")
+            if snapshot.native_endpoint != getattr(resolution, "native_endpoint", "/chat/completions"):
+                raise RuntimeError("native_endpoint_drift_before_lease")
             anthropic = snapshot.protocol_family == "anthropic" and snapshot.executor_id == "claude_code"
             expected_model = (snapshot.raw_model_id if anthropic
                               else _normalize_model_id(snapshot.provider, snapshot.raw_model_id))
@@ -306,6 +326,10 @@ class CombinedTrustedHost:
 
         return _provider
 
+    def _task_workspace_root(self) -> str:
+        return os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip() or os.path.join(
+            os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".", "task_workspaces")
+
     def _agent_planner(self) -> Any:
         from .agent_planner import AgentPlanner
         from .repository_workspace import resolve_repository_workspace
@@ -314,6 +338,7 @@ class CombinedTrustedHost:
             roster_resolver=self._resolve_agent_role,
             binding_model=lambda binding_ref: self._store.get_binding_public(binding_ref)["model_id"],
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
+            workspace_root=self._task_workspace_root(),
         )
 
     def _context_recovery(self) -> Any:
@@ -378,8 +403,334 @@ class CombinedTrustedHost:
         return PolicyConfigurator(bindings=bindings, health=lambda: binding_health(self._task_store),
                                   interpreter=interpreter, apply_roster=self._store.put_agent_roster)
 
+    def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
+                            author_binding: str = "", author_bindings: Sequence[str] = (),
+                            author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
+                            refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        """Route across the entire runnable catalog, including discovered connections."""
+        if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
+            raise TaskStoreError("model_review_artifact_input_required")
+        import random
+        from .model_router import capability, select_model
+        from .routing_inputs import read_overrides, binding_cost_class
+        from .routing_capabilities import read_capability_table
+        try:
+            owner = read_overrides(getattr(self._store, "_state_path", None))
+            capability_table = read_capability_table(getattr(self._store, "_state_path", None))
+        except ValueError as exc:
+            raise TaskStoreError(str(exc)) from exc
+        signal = self._routing_reset_signal() if forecast else self._routing_refresh_quota_for_signal()
+        if not forecast:
+            self._routing_bind_discovered()
+        bindings = self._store.list_bindings_public()
+        by_id = {b["binding_id"]: b for b in bindings}
+        connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        runnable = self._runnable_bindings()
+        profiles = self._usage_profiles()
+        forecast_evidence = (self._forecast_evidence() if quota_evidence is None else quota_evidence) if forecast else {}
+        role = task.agent_role or (
+            "reviewer" if task.kind == "review" else "simple" if task.difficulty <= 2 else
+            "coder" if task.difficulty == 3 else "complex")
+        chain_models = list(author_models)
+        chain_executors = list(author_executors)
+        review_lease_provider = self._lease_provider_factory() if (role == "reviewer" or task.kind == "review") else None
+        required = (*author_bindings, *((author_binding,) if author_binding else ()))
+        if (role == "reviewer" or task.kind == "review") and task.artifact_input:
+            if not chain_models and not required:
+                raise TaskStoreError("review_not_independent")
+            for binding_id in required:
+                model = by_id.get(binding_id, {}).get("model_id")
+                if not model:
+                    raise TaskStoreError("review_not_independent")
+                chain_models.append(model)
+                chain_executors.append(by_id[binding_id]["executor_id"])
+        candidates = []
+        metadata = self._routing_model_metadata()
+        allow_paid = self._routing_paid_allowed(goal, owner)
+        availability_history = self._routing_availability_history()
+        for binding in bindings:
+            connection = connections.get(binding["connection_id"], {})
+            native = connection.get("auth_method") == "external_cli_session"
+            cost_class = binding_cost_class(binding, connection, owner)
+            quota = None if forecast else self._quota_check(binding)
+            provider = connection.get("executor_provider_id", "")
+            try:
+                quota_view = (forecast_evidence.get(connection.get("account_ref") or connection["connection_id"], {})
+                              if forecast else self._subscription_quotas().get(provider, {})) if native else {}
+                windows = quota_view.get("windows", ())
+            except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
+                windows = ()
+            weekly_window = next((w for w in windows if w.get("window") in {"weekly", "7d", "week"}), {})
+            short_window = next((w for w in windows if w.get("window") in {"5h", "five_hour", "five_hours"}), {})
+            need = (quota or {}).get("need_units")
+            if forecast:
+                from . import quota_reservation
+                from .usage_ledger import estimation_records
+                need = quota_reservation.task_need(estimation_records(self._task_store),
+                    binding=binding["binding_id"], kind=task.kind, difficulty=str(task.difficulty),
+                    model=binding["model_id"])["units"]["p80"]
+            def fraction(window: Mapping[str, Any]) -> float | None:
+                capacity = (window.get("capacity_units") or {}).get("low")
+                return need / capacity if type(need) in (int, float) and type(capacity) in (int, float) and capacity > 0 else None
+            try:
+                raw_reset = short_window.get("resets_at")
+                short_reset = float(raw_reset) if type(raw_reset) in (int, float) else datetime.fromisoformat(raw_reset.replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError, AttributeError, OverflowError):
+                short_reset = None
+            remaining = [1 - w["used_percent"] / 100 for w in windows
+                         if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
+            candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
+                               "review_connection": {"auth_method": connection.get("auth_method"),
+                                   "protocol_family": connection.get("protocol_family"),
+                                   "relay_required": connection.get("auth_method") == "api_key",
+                                   "native_endpoint": binding.get("native_endpoint", "")},
+                               "review_lease_provider": review_lease_provider,
+                               "metadata": metadata.get(binding["model_id"], {}),
+                               "weekly_headroom": next((1 - w["used_percent"] / 100 for w in windows
+                                   if w.get("window") in {"weekly", "7d", "week"} and type(w.get("used_percent")) in (int, float)), None),
+                               "quota_headroom": min(remaining, default=None),
+                               "task_weekly_fraction": fraction(weekly_window), "task_short_fraction": fraction(short_window),
+                               "short_headroom": 1 - short_window["used_percent"] / 100 if type(short_window.get("used_percent")) in (int, float) else None,
+                               "short_resets_at": short_reset,
+                               "cost_class": cost_class}
+            # Evaluate the same pure hard filters before spending a probe. A
+            # catalog entry excluded by scope, quota or calibration costs no call.
+            try:
+                select_model([{**candidate, "availability": {"state": "AVAILABLE"}}],
+                    difficulty=task.difficulty, kind=task.kind, role=role, profiles=profiles,
+                    capability_table=capability_table, allow_paid=allow_paid,
+                    context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
+                    needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
+                    refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
+                    reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03))
+                can_probe = True
+            except ValueError:
+                can_probe = False
+            candidate["availability"] = self._routing_availability(binding, connection, allow_paid=allow_paid,
+                cost_class=cost_class, readonly=forecast,
+                probe_allowed=not forecast and can_probe and self._routing_probe_window_allowed(goal),
+                history=availability_history.get(binding["binding_id"], ()),
+                runnable=binding["binding_id"] in runnable)
+            candidates.append(candidate)
+        # Legacy labels only identify optional pins; unpinned tasks use the full pool.
+        entry = self._store.get_agent_roster_public()["roles"].get(role, {})
+        pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
+        failed = by_id.get(failed_binding, {})
+        tier = failed_tier if failed_tier is not None else (
+            capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
+                       task.kind, task.difficulty)[0] if failed_binding else 0)
+        try:
+            decision = select_model(candidates, difficulty=task.difficulty, kind=task.kind, role=role,
+                                profiles=profiles, pin=pin, capability_table=capability_table, allow_paid=allow_paid,
+                                context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
+                                needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
+                                reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
+                                refused_models=refused_models, refusal_tier=tier if refused_models else 0,
+                                author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
+                                failed_model=failed.get("model_id", ""), failed_tier=tier,
+                                exploration_draw=1.0 if forecast else random.random())
+            decision["context_packet_reservation"] = 16384 + 256
+            return decision
+        except ValueError as exc:
+            error = TaskStoreError(str(exc))
+            error.decision = getattr(exc, "decision", {"reason": str(exc)})
+            raise error from exc
+
+    def _routing_paid_allowed(self, goal: Any, owner: Mapping[str, Any] | None = None) -> bool:
+        # Owner configuration names a specific active window; a generic setting
+        # or a caller-supplied task flag cannot enable paid spend.
+        if not goal or not getattr(goal, "window_id", ""):
+            return False
+        try:
+            window = self._control_store.get_window(goal.window_id)
+            if window.status != "ACTIVE":
+                return False
+            binding = self._control_store.window_policy_binding(goal.window_id)
+            return (binding.get("authority", {}).get("allow_paid_api") is True
+                    or goal.window_id in (owner or {}).get("paid_api_windows", []))
+        except (AttributeError, KeyError, TaskStoreError):
+            return False
+
+    def _routing_bind_discovered(self) -> None:
+        """Use sanitized, host-observed listings from every connection.
+
+        Listing is not availability. This hook never discovers keys or performs
+        inference. Existing bindings (including disabled ones) are preserved.
+        """
+        catalogs = getattr(self._store, "_routing_catalogs", {}) | getattr(self, "_routing_connection_catalogs", {})
+        for connection in self._store.list_connections_public():
+            snapshot = catalogs.get(connection["connection_id"], {})
+            if not connection.get("enabled") or snapshot.get("status") != "discovered":
+                continue
+            models = snapshot.get("models", [])
+            if models:
+                self._store.bind_connection_models(connection["connection_id"], models, "auto")
+
+    def _routing_probe_window_allowed(self, goal: Any) -> bool:
+        if getattr(self, "_availability_probe", None) is not None:
+            return True  # Explicit trusted callback, also the provider-free fake seam.
+        if not goal or not getattr(goal, "window_id", ""):
+            return False
+        try:
+            window = self._control_store.get_window(goal.window_id)
+            authority = self._control_store.window_policy_binding(goal.window_id).get("authority", {})
+            return (window.status == "ACTIVE"
+                    and authority.get("model_call_limit") != 0 and authority.get("provider_call_limit") != 0
+                    and datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time())
+        except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
+            return False
+
+    def _routing_availability_history(self) -> dict[str, list[Any]]:
+        """One snapshot per selection, bounded to the latest 20 tasks per binding."""
+        store = getattr(self, "_task_store", None)
+        if store is None:
+            return {}
+        rows = store._conn.execute(
+            "SELECT * FROM (SELECT binding_ref, status, failure_classification, failure_detail, updated_at, "
+            "ROW_NUMBER() OVER (PARTITION BY binding_ref ORDER BY updated_at DESC, rowid DESC) AS recency "
+            "FROM tasks) WHERE recency <= 20 ORDER BY binding_ref, recency DESC").fetchall()
+        result: dict[str, list[Any]] = {}
+        for row in rows:
+            result.setdefault(row["binding_ref"], []).append(row)
+        return result
+
+    def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
+                              allow_paid: bool, cost_class: str, probe_allowed: bool = True,
+                              history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
+        from .model_availability import AvailabilityCache, observation, native_owner_account
+        cache = getattr(self, "_availability_cache", None)
+        if cache is None:
+            path = getattr(self._store, "_state_path", None)
+            cache = AvailabilityCache(Path(path).with_name("model_availability.json") if path else None)
+            if not readonly:
+                self._availability_cache = cache
+        if readonly:
+            # Replay evidence in a disposable cache; remember() must never persist it.
+            from copy import deepcopy
+            snapshot = AvailabilityCache()
+            with cache.lock:
+                snapshot.entries = deepcopy(cache.entries)
+            cache = snapshot
+            probe_allowed = False
+        if history is None:
+            history = self._routing_availability_history().get(binding["binding_id"], ())
+        for row in history:
+            try:
+                at = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError):
+                continue
+            entry = cache.entries.get(cache.key(binding, connection), {})
+            if at <= entry.get("observed_at", 0):
+                continue
+            classification = row["failure_classification"] or ""
+            if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
+                cache.remember(binding, connection, observation(now=at, success=True))
+            elif classification == "MODEL_UNAVAILABLE":
+                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
+            elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
+                    ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
+                cache.remember(binding, connection, observation(now=at, error="transient"))
+        probe = getattr(self, "_availability_probe", None)
+        live = (os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
+                and os.environ.get("REVERSE_AGENT_ROUTING_PROBES") == "1")
+        result = cache.check(binding, connection,
+                           probe=probe or self._probe_routing_binding,
+                           allow_probe=probe_allowed and (probe is not None or live) and (cost_class != "paid_api" or allow_paid))
+        if native_owner_account(binding, connection) and result["state"] in {"UNKNOWN", "TRANSIENT"}:
+            if runnable is None:
+                runnable = binding["binding_id"] in self._runnable_bindings()
+            if runnable:
+                # A relay executor can be runnable without a native login. Do not
+                # label that API connection as a managed native account.
+                executor = self._store.get_executor_public(binding["executor_id"])
+                if executor.get("readiness_status") == "managed_login_ready":
+                    return {"state": "READY", "reason": "managed_login_ready"}
+                if (connection.get("auth_method") == "external_cli_session"
+                        and binding["executor_id"] not in {"codex", "claude_code"}):
+                    return {"state": "READY", "reason": "external_session_ready"}
+        return result
+
+    def _probe_routing_binding(self, binding: Mapping[str, Any]) -> Mapping[str, Any]:
+        """One tiny request through the host relay's confined transport."""
+        from ..model_access.credential_relay import forward_keyless_probe
+        from ..model_access.http_safe import urlopen
+        from urllib.request import Request
+        from urllib.error import HTTPError
+        from .model_availability import availability_error
+        snapshot = self._store.resolve_execution_snapshot(binding["binding_id"])
+        anthropic = snapshot.protocol_family == "anthropic" and binding["executor_id"] == "claude_code"
+        endpoint = "/v1/messages" if anthropic else snapshot.native_endpoint
+        body = {"model": snapshot.raw_model_id, "messages": [{"role": "user", "content": "Reply OK"}], "max_tokens": 4}
+        if endpoint == "/responses":
+            body = {"model": snapshot.raw_model_id, "input": "Reply OK", "max_output_tokens": 4}
+        if snapshot.auth_method == "none":
+            status, response, _ = forward_keyless_probe(snapshot, body=json.dumps(body).encode(), timeout=10)
+            if not 200 <= status < 300:
+                return {"ok": False, "error": availability_error(response.decode("utf-8", errors="replace")) or "transient"}
+            payload = json.loads(response)
+            return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
+        lease = self._relay_manager.create_lease(snapshot, relay_url=self.relay_url)
+        try:
+            request = Request(lease.relay_url.rstrip("/") + endpoint, data=json.dumps(body).encode(),
+                headers={"Authorization": "Bearer " + lease.lease_id, "Content-Type": "application/json"})
+            try:
+                with urlopen(request, timeout=10) as response:
+                    payload = json.loads(response.read(65536))
+                    return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
+            except HTTPError as exc:
+                reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
+                return {"ok": False, "error": reason or "transient"}
+        finally:
+            self._relay_manager.release_lease(lease.lease_id)
+
+    def _routing_refresh_quota_for_signal(self) -> Mapping[str, Any]:
+        """Refresh at selection and again at the real dispatch boundary."""
+        from .routing_inputs import reset_decision
+        signal = self._routing_reset_signal()
+        if reset_decision(signal, now=time.time())["refresh_quota"]:
+            previous_quota = self.__dict__.pop("_subscription_quota_cache", None)
+            try:
+                self._subscription_quotas()
+            except Exception:
+                if previous_quota is not None:
+                    self._subscription_quota_cache = previous_quota
+                return {"state": "UNKNOWN", "refresh_failed": True}
+        return signal
+
+    def _routing_reset_signal(self) -> Mapping[str, Any]:
+        """Injected validated observation; missing reader/fetch failure is UNKNOWN."""
+        reader = getattr(self, "_reset_signal_reader", None)
+        try:
+            value = reader() if reader else None
+            return value if isinstance(value, Mapping) else {"state": "UNKNOWN"}
+        except Exception:  # noqa: BLE001 - forecasts are optional, never capacity
+            return {"state": "UNKNOWN"}
+
+    def _routing_model_metadata(self) -> dict[str, Any]:
+        """Consume an already-observed Magpie snapshot, never fetch during routing."""
+        snapshot = getattr(self, "_routing_magpie_snapshot", {})
+        result = {m["model_id"]: m for m in snapshot.get("models", ()) if isinstance(m, Mapping) and m.get("model_id")}
+        for catalog in getattr(self._store, "_routing_catalogs", {}).values():
+            result.update(catalog.get("metadata", {}))
+        return result
+
+    def _routing_context_tokens(self, task: Any, goal: Any) -> int:
+        """Reserve packet byte budget before materialization (one byte/token).
+
+        Actual packets are measured at dispatch; this conservative upper bound
+        prevents selecting a window that cannot hold the later packet.
+        """
+        prompt = " ".join(str(getattr(value, field, "") or "") for value, field in
+                          ((task, "instruction"), (task, "title"), (goal, "title")))
+        return 16384 + 256 + 512 + len(prompt.encode("utf-8"))
+
     def _resolve_agent_role(self, role: str) -> tuple[str, str]:
-        """Role -> (executor_kind, binding_ref) from the in-process agent roster."""
+        """Legacy role resolution; planning also uses the task-aware candidate pool."""
+        if role == "planner":
+            from .goal_service import PlannedTask
+            decision = self._resolve_task_model(PlannedTask("planner", "Plan", "Plan", agent_role="planner",
+                                                           difficulty=4, kind="research_design"))
+            return decision["executor_kind"], decision["binding_ref"]
         roster = self._store.get_agent_roster_public()
         entry = roster["roles"].get(role)
         if not entry or not entry["available"]:
@@ -387,6 +738,151 @@ class CombinedTrustedHost:
         executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
         return self._quota_guarded(role, executor_id, binding_id, roster["roles"],
                                    standins=roster.get("standins", {}).get(role, ()))
+
+    def _forecast_evidence(self):
+        """Only persisted account observations; never refresh or read credentials."""
+        with self._task_store._lock:
+            return {r["account_ref"]: json.loads(r["evidence_json"]) for r in
+                    self._task_store._conn.execute("SELECT account_ref, evidence_json FROM platform_quota_observations")}
+
+    def _account_task_need(self, binding, task, evidence, records):
+        from . import quota_reservation
+        connection = self._store.get_connection_public(binding["connection_id"])
+        account = connection.get("account_ref") or connection["connection_id"]
+        need = quota_reservation.task_need(records, binding=binding["binding_id"],
+            kind=getattr(task, "kind", "code"), difficulty=str(getattr(task, "difficulty", "unknown")),
+            model=binding["model_id"])
+        rates = self._control_store.quota_calibration(account)
+        for window in evidence.get("windows", ()):
+            capacity = (window.get("capacity_units") or {}).get("low")
+            if quota_reservation._number(capacity) and capacity > 0:
+                rates[quota_reservation.canonical_window(window["window"])] = capacity / 100
+        return quota_reservation.window_need(need, account, {account: rates})
+
+    def _goal_quota_fit(self, goal, tasks):
+        from . import quota_reservation
+        from .usage_ledger import estimation_records
+        evidence = self._forecast_evidence()
+        bindings = {b["binding_id"]: b for b in self._store.list_bindings_public()}
+        records = estimation_records(self._task_store)
+        routed = []
+        alternatives = []
+        chosen = {}
+        for task in tasks:
+            try:
+                if goal.orchestration_mode == "agent_team":
+                    ancestry = self._goal_service._review_ancestry(task, {t.id: t for t in tasks})
+                    decision = self._resolve_task_model(task, goal=goal, forecast=True,
+                        author_models=tuple(chosen[a]["model_id"] for a in ancestry if a in chosen))
+                    binding_id = decision["binding_ref"]
+                    chosen[task.id] = decision
+                else:
+                    binding_id = goal.binding_ref
+                    decision = {}
+                binding = bindings.get(binding_id)
+                if binding is None:
+                    raise TaskStoreError("binding_unknown")
+                if not binding.get("enabled", True) or binding_id not in self._runnable_bindings():
+                    raise TaskStoreError("binding_not_runnable")
+                connection = self._store.get_connection_public(binding["connection_id"])
+                if connection.get("auth_method") != "external_cli_session":
+                    raise TaskStoreError("quota_not_observed")
+                account = connection.get("account_ref") or connection["connection_id"]
+                routed.append({"task_id": task.id, "binding_ref": binding_id, "account_ref": account,
+                    "need": self._account_task_need(binding, task, evidence.get(account, {}), records),
+                    "routing": decision})
+                # An author substitution must not invalidate a later independent reviewer.
+                reviewed = any(task.id in self._goal_service._review_ancestry(t, {x.id: x for x in tasks})
+                               for t in tasks)
+                if not goal.binding_ref and not reviewed:
+                    for candidate in decision.get("candidates", ()):
+                        other = bindings.get(candidate["binding_id"])
+                        if other is None or other["model_id"] == binding["model_id"]:
+                            continue
+                        conn = self._store.get_connection_public(other["connection_id"])
+                        if conn.get("auth_method") != "external_cli_session":
+                            continue
+                        other_account = conn.get("account_ref") or conn["connection_id"]
+                        alternatives.append({"task_id": task.id, "binding_ref": other["binding_id"],
+                            "account_ref": other_account, "need": self._account_task_need(other, task,
+                                evidence.get(other_account, {}), records)})
+            except TaskStoreError as exc:
+                routed.append({"task_id": task.id, "account_ref": None, "reason": str(exc)})
+        with self._task_store._lock:
+            rows = [dict(r) for r in self._task_store._conn.execute("SELECT * FROM platform_budget_reservations WHERE account_ref<>''")]
+        for row in rows:
+            row["quota_windows"] = json.loads(row["quota_windows_json"])
+            fact = json.loads(row["settlement_json"])
+            row["actual_windows"] = fact.get("actual_windows", {})
+            row["actual_observations"] = fact.get("actual_observations", [])
+        return quota_reservation.goal_fit(routed, evidence, rows, alternatives=alternatives)
+
+    def _prepare_task_quota(self, task) -> None:
+        """Account-bound preparation outside the coordinator's claim transaction."""
+        from . import quota_reservation
+        from .usage_ledger import estimation_records
+        resume_route = None
+        if getattr(task, "status", "") == "QUOTA_WAIT":
+            from .goal_service import GoalService
+            from dataclasses import replace
+            link = self._task_store._conn.execute(
+                "SELECT goal_id,plan_task_id,goal_revision FROM platform_goal_task_links WHERE task_id=?", (task.id,)).fetchone()
+            if link:
+                goal = self._control_store.get_goal(link["goal_id"])
+                if goal.revision != link["goal_revision"] or goal.status != "RUNNING":
+                    raise TaskStoreError("QUOTA_WAIT:goal_authority_changed")
+                if goal.orchestration_mode == "agent_team" and not goal.binding_ref:
+                    raw = next((t for t in goal.tasks if t["id"] == link["plan_task_id"]), None)
+                    if raw is None:
+                        raise TaskStoreError("QUOTA_WAIT:goal_task_missing")
+                    planned = GoalService._normalize_task(raw, seq=0)
+                    # Review resumes require their frozen author ancestry; never substitute one here.
+                    if planned.kind == "review" or planned.agent_role == "reviewer" or planned.artifact_input:
+                        raise TaskStoreError("QUOTA_WAIT:review_resume_requires_author_ancestry")
+                    try:
+                        self.__dict__.pop("_subscription_quota_cache", None)
+                        observations = self._subscription_quotas().values()
+                        accounts = {q.get("account_ref") for q in observations if q.get("account_ref")}
+                        fresh_evidence = {account: quota_reservation.observation(account, observations, clock=time.time) for account in accounts}
+                        decision = self._resolve_task_model(planned, goal=goal, forecast=True,
+                                                           quota_evidence=fresh_evidence)
+                    except TaskStoreError as exc:
+                        raise TaskStoreError("QUOTA_WAIT:no_qualifying_model") from exc
+                    if decision.get("underpowered") or decision["executor_kind"] not in {"codex", "claude_code"}:
+                        raise TaskStoreError("QUOTA_WAIT:qualifying_native_model_unavailable")
+                    if decision["binding_ref"] != task.binding_ref:
+                        resume_route = {"goal_id": goal.id, "goal_revision": goal.revision,
+                            "source_binding": task.binding_ref, "binding_ref": decision["binding_ref"],
+                            "executor_kind": decision["executor_kind"]}
+                        task = replace(task, binding_ref=decision["binding_ref"], executor_kind=decision["executor_kind"])
+        binding = next((b for b in self._store.list_bindings_public() if b["binding_id"] == task.binding_ref), None)
+        if binding is None:
+            if task.executor_kind in {"codex", "claude_code"}:
+                raise TaskStoreError("QUOTA_WAIT:binding_unknown")
+            return
+        connection = self._store.get_connection_public(binding["connection_id"])
+        if connection.get("auth_method") != "external_cli_session":
+            return
+        from ..model_access.contracts import NATIVE_CLI_PROVIDERS
+        provider = connection.get("executor_provider_id")
+        if provider not in NATIVE_CLI_PROVIDERS:
+            return  # no account quota windows exist for this session (e.g. a free OpenCode login)
+        account = connection.get("account_ref") or connection["connection_id"]
+        def read(_account):
+            self.__dict__.pop("_subscription_quota_cache", None)
+            quotas = self._subscription_quotas()
+            # A provider summary for another account is never account evidence. A
+            # connection without a recorded account is the machine's own CLI login,
+            # which is exactly what the provider-keyed observation describes.
+            own = quotas.get(provider)
+            if not connection.get("account_ref") and isinstance(own, Mapping):
+                own = dict(own, account_ref=account)
+            return [q for q in (own, *(v for k, v in quotas.items() if k != provider))
+                    if isinstance(q, Mapping) and q.get("account_ref") == account]
+        evidence = quota_reservation.observation(account, read(account), refresh=read)
+        need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
+        self._control_store.prepare_quota_admission(task_id=task.id,
+            binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
 
     def _quota_check(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
         from .quota_guard import check, typical_need
@@ -412,19 +908,54 @@ class CombinedTrustedHost:
                     if b["connection_id"] == connection.get("connection_id")]
         if not bindings:
             return None
-        since = datetime.fromtimestamp(time.time() - 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now = time.time()
+        # Stated resets are bounded to seven days from the recorded failure,
+        # never from a later admission check. Keep those older failures discoverable.
+        since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, updated_at FROM tasks WHERE status IN ('FAILED', 'BLOCKED') "
+            "SELECT failure_classification, failure_reset_at, failure_at, updated_at FROM tasks "
+            "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
-        # Our own refusals are not new answers from the account and must never extend the hold.
-        hit = next((row["updated_at"] for row in rows if ACCOUNT_LIMIT.search(row["failure_classification"] or "")), None)
-        if hit is None:
-            return None
-        hit_at = datetime.fromisoformat(hit.replace("Z", "+00:00")).timestamp()
-        quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "")
-        until = limit_hit_until(hit_at, quota)
-        return until if until > time.time() else None
+        quota = None
+        holds = []
+        for row in rows:
+            # Host refusals are not fresh account evidence.
+            if not ACCOUNT_LIMIT.search(row["failure_classification"] or ""):
+                continue
+            hit_at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            if hit_at > now:
+                continue
+            if quota is None:
+                quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "", {})
+            stated = None
+            try:
+                reset = datetime.fromisoformat(row["failure_reset_at"].replace("Z", "+00:00"))
+                if reset.utcoffset() is not None and hit_at < reset.timestamp() <= hit_at + 7 * 86400:
+                    stated = reset.timestamp()
+            except (ValueError, TypeError, OverflowError):
+                pass
+            if stated is not None and stated <= now:
+                continue  # An expired stated failure cannot renew on a later quota window.
+            if stated is not None:
+                # Only exhausted windows may extend a stated account hold.
+                from .quota_guard import parse_time
+                resets = [stated]
+                for window in quota.get("windows", ()):
+                    used = window.get("used_percent")
+                    remaining = window.get("remaining_percent")
+                    if not ((type(used) in (int, float) and used >= 100)
+                            or (type(remaining) in (int, float) and remaining == 0)):
+                        continue
+                    value = window.get("resets_at")
+                    reset = float(value) if type(value) in (int, float) else parse_time(value)
+                    if reset is not None and reset > hit_at:
+                        resets.append(reset)
+                holds.append(max(resets))
+            elif hit_at >= now - 86400:
+                holds.append(limit_hit_until(hit_at, quota))
+        until = max(holds, default=0)
+        return until if until > now else None
 
     def _runnable_bindings(self) -> set[str]:
         """Bindings that could dispatch now: enabled, credential usable, executor ready (resolver rules)."""
@@ -468,11 +999,12 @@ class CombinedTrustedHost:
                 if verdict is None or verdict["decision"] in {"ok", "warn"}:
                     self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
                     return candidate["executor_id"], candidate["binding_id"]
-            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS:
+            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS or decision["reason"] in {"predicted_insufficient", "quota_capacity"}:
                 entry["decision"], entry["reason"] = "refuse", f"{decision['reason']}:no_alternative"
                 self._record_quota_decision(entry)
                 # Do not advertise an exhausted role as an executable route.
-                raise TaskStoreError(f"quota_exhausted:{decision['reason']}:no_alternative")
+                prefix = "quota_exhausted" if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS else "QUOTA_WAIT"
+                raise TaskStoreError(f"{prefix}:{decision['reason']}:no_alternative")
             entry["decision"], entry["reason"] = "warn", f"{decision['reason']}:no_alternative"
         self._record_quota_decision(entry)
         return executor_id, binding_id
@@ -508,9 +1040,39 @@ class CombinedTrustedHost:
             account = [b["binding_id"] for b in bindings if b["executor_id"] == "claude_code"
                        and connections.get(b["connection_id"], {}).get("auth_method") == "external_cli_session"]
             # Official numbers first; the local CLI logs fill in what they do not say.
-            return {"codex": codex_quota(),
-                    "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            local = {"codex": codex_quota(),
+                     "claude-code": claude_quota(latest_rate_limits(self._task_store, account))}
+            return self._merge_magpie_quotas(local)
         return _cached(self, "_subscription_quota_cache", read)
+
+    def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
+        """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        from ..model_access.subscription_quota import magpie_quota_windows
+        if not magpie_enabled(os.environ):
+            return local
+        try:
+            snapshot = fetch_magpie_snapshot(
+                os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
+        except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            return local
+        magpie = magpie_quota_windows(snapshot)
+        merged = dict(local)
+        for key, quota in magpie.items():
+            merged[key] = quota
+        return merged
+
+    def _claude_reset_quota_recheck(self) -> None:
+        # Read-only official CLI telemetry; never change entitlement/limits.
+        # Invalidate any minute-old presentation cache after public notice.
+        self._subscription_quota_cache = None
+        self._subscription_quotas()
+
+    def _claude_reset_status(self) -> dict[str, Any]:
+        watcher = self._claude_reset_watcher
+        if watcher is None:
+            return {"provider": "claude-code", "enabled": False, "status": "UNKNOWN", "reason": "monitor_disabled"}
+        return {"enabled": True, **watcher.snapshot()}
 
     def _prefer_measured_pairing(self, role: str, executor_id: str, binding_id: str) -> tuple[str, str]:
         """Same model, another executor: let real outcomes pick the pairing that works better."""
@@ -538,17 +1100,22 @@ class CombinedTrustedHost:
 
         class FreshExternalSessionBindingResolver:
             def resolve(self, binding_ref: str, *, task_executor: str) -> Any:
+                binding_info = host._store.get_binding_public(binding_ref)
+                if not host._store.magpie_connection_runnable(binding_info["connection_id"]):
+                    raise BindingResolutionError("magpie_unreachable")
+                host._routing_refresh_quota_for_signal()
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
                 verdict = host._quota_check(binding) if binding else None
                 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
-                if verdict and verdict.get("decision") == "switch" and verdict.get("reason") in CONFIRMED_EXHAUSTION_REASONS:
+                if verdict and verdict.get("decision") == "switch" and verdict.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
                     # Explicit/single-Goal binding routes have the same hard
                     # quota boundary as an agent-team role: no model call.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "refuse",
                                                  "reason": verdict["reason"], "window": verdict.get("window"),
                                                  "switched_to": None})
-                    raise BindingResolutionError(f"quota_exhausted:{verdict['reason']}")
+                    prefix = "quota_exhausted" if verdict["reason"] in CONFIRMED_EXHAUSTION_REASONS else "QUOTA_WAIT"
+                    raise BindingResolutionError(f"{prefix}:{verdict['reason']}")
                 if verdict and verdict["decision"] in {"warn", "switch"}:
                     # A binding the task named itself is kept; the shortfall is recorded before the run.
                     host._record_quota_decision({"role": None, "binding_id": binding_ref, "decision": "warn",
@@ -585,6 +1152,7 @@ class CombinedTrustedHost:
     ) -> None:
         if self._started_servers:
             raise RuntimeError("trusted_host_already_started")
+        self._magpie.start()
         self._refresh_external_session_auth(True)
 
         # Startup reconciliation: find expired durable runs, mark stale
@@ -594,11 +1162,13 @@ class CombinedTrustedHost:
             store=self._task_store,
             router=self._router,
         )
-        try:
-            if not coordinator_paused:
+        if not coordinator_paused:
+            try:
                 dur_svc.reconcile_expired_runs()
-        except Exception:
-            pass
+            except Exception as exc:
+                # Do not publish a healthy host when persisted RUNNING tasks
+                # could not be reconciled. Paused/read-only startup is explicit.
+                raise RuntimeError("trusted_host_startup_reconciliation_failed") from exc
 
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
@@ -615,6 +1185,7 @@ class CombinedTrustedHost:
                 token_usage=self._token_usage,
                 subscription_quotas=self._subscription_quotas,
                 quota_guard_log=self._quota_guard_entries,
+                claude_reset_status=self._claude_reset_status,
             )
             self._model_server = ThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
@@ -638,16 +1209,18 @@ class CombinedTrustedHost:
             if live_github is None:
                 live_github = LiveGitHubAdapter()
             self._publication_controller = PublicationController(
+                landing_decisions=self._landing_owner_decisions,
                 store=self._task_store,
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
             )
-            workspace_root = os.environ.get("REVERSE_AGENT_TASK_WORKSPACE_ROOT", "").strip()
-            if not workspace_root:
-                workspace_root = os.path.join(
-                    os.path.dirname(os.path.abspath(self._task_store.db_path)) or ".",
-                    "task_workspaces",
-                )
+            workspace_root = self._task_workspace_root()
+            from .landing_loop import LandingLoopController
+            from .live_landing import RoutedLandingGitHubAdapter
+            landing = LandingLoopController(control_store=self._control_store,
+                autonomy=self._autonomy_service,
+                github=RoutedLandingGitHubAdapter(self._control_store),
+                owner_decisions=self._landing_owner_decisions)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -659,6 +1232,9 @@ class CombinedTrustedHost:
                 execution_authority_sha=self._execution_authority_sha,
                 planning_sha=self._planning_sha,
                 goal_escalator=self._goal_service.escalate_failed_tasks,
+                quota_rerouter=self._goal_service.reroute_quota_held,
+                quota_preparer=self._prepare_task_quota,
+                landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(
                 self._task_store,
@@ -679,6 +1255,7 @@ class CombinedTrustedHost:
                 publication_controller=self._publication_controller,
                 coordinator=self._coordinator,
                 local_client_session=self._local_client_session,
+                magpie_status=self._magpie.status,
             )
             self._task_server = ThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
@@ -696,11 +1273,55 @@ class CombinedTrustedHost:
                 self._started_servers.append(server)
             if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
+            self._remote_job_broker = configured_broker()
+            if self._remote_job_broker is not None:
+                self._remote_job_broker.start()
+            from .research_loop import configured_loop
+            self._research_loop = configured_loop(
+                goal_service=self._goal_service, planner=self._agent_planner(),
+                broker=self._remote_job_broker)
+            if self._research_loop is not None:
+                self._research_loop.start()
+            # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
+            # dirty, unpushed, recent or still-running task workspaces.
+            from .workspace_reclaim import configured_reclaimer
+            self._workspace_reclaimer = configured_reclaimer(
+                workspace_root, self._task_store.db_path)
+            if self._workspace_reclaimer is not None:
+                self._workspace_reclaimer.start()
+            # Optional, independent public-announcement observer. This never
+            # changes a quota guard decision or starts any model execution.
+            if os.environ.get("REVERSE_AGENT_CLAUDE_RESET_WATCH") == "1":
+                db_path = self._task_store.db_path
+                if db_path and db_path != ":memory:":
+                    from ..model_access.claude_reset_signals import ClaudeResetWatcher
+                    self._claude_reset_watcher = ClaudeResetWatcher(
+                        os.path.dirname(os.path.abspath(db_path)) or ".",
+                        on_quota_refresh=self._claude_reset_quota_recheck,
+                    )
+                    self._claude_reset_watcher.start()
         except BaseException:
             self._cleanup_runtime_resources(close_account_auth=True)
             raise
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
+        self._magpie.stop()
+        reclaimer, self._workspace_reclaimer = getattr(self, "_workspace_reclaimer", None), None
+        if reclaimer is not None:
+            reclaimer.stop()
+        if self._research_loop is not None:
+            self._research_loop.stop()
+            self._research_loop = None
+        if self._remote_job_broker is not None:
+            self._remote_job_broker.stop()
+            self._remote_job_broker = None
+        watcher = self._claude_reset_watcher
+        self._claude_reset_watcher = None
+        if watcher is not None:
+            try:
+                watcher.stop()
+            except Exception:
+                pass
         self._local_client_session.revoke()
         if self._trusted_client is not None:
             try:
@@ -803,34 +1424,57 @@ def _resolve_store_state_path(task_store: TaskStore) -> str:
     return os.path.join(parent, "model_setup_state.json")
 
 
+def _git_lines(directory: str | Path, *args: str) -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", *args],
+            cwd=str(directory), capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
+            timeout=10,
+        )
+    except Exception:
+        return []
+    return [line.strip() for line in result.stdout.strip().splitlines()]
+
+
+def _host_source_head() -> str:
+    """HEAD of the checkout this host's own code runs from, or '' if it is not one.
+
+    Only a work tree whose top level is exactly the package's source root counts;
+    an unrelated repository that merely encloses an installed package does not.
+    """
+    root = Path(__file__).resolve().parents[2]
+    lines = _git_lines(root, "--show-toplevel", "HEAD")
+    if len(lines) != 2 or Path(lines[0]).resolve() != root:
+        return ""
+    return lines[1]
+
+
+def _resolve_source_identity(env_name: str) -> str:
+    explicit = os.environ.get(env_name, "").strip()
+    if explicit:
+        return explicit
+    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
+    if not repo_dir:
+        return ""
+    # Pin to the host's own code, never the target checkout: a research campaign
+    # integrates into REPO_DIR every round, so its HEAD would change the identity
+    # on each restart and make every interrupted run unresumable (#1322).
+    return _host_source_head() or next(iter(_git_lines(repo_dir, "HEAD")), "")
+
+
 def _resolve_trusted_authority_sha() -> str:
     """Resolve trusted execution authority SHA from trusted runtime config.
 
     HTTP request bodies MUST NOT supply this value. Resolution order:
     1. REVERSE_AGENT_EXECUTION_AUTHORITY_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    2. With REVERSE_AGENT_REPO_DIR configured: git HEAD of the host's own source
+       checkout, else (installed, non-checkout code) git HEAD of REVERSE_AGENT_REPO_DIR
     3. Empty string if none available (causes fail-closed on durable /execute)
 
     REVERSE_AGENT_PLANNING_SHA is NOT a valid execution authority source.
     Authority and planning SHA are independent dimensions.
     """
-    explicit = os.environ.get("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "").strip()
-    if explicit:
-        return explicit
-    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
-    if repo_dir:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
-                timeout=10,
-            )
-            sha = result.stdout.strip()
-            if sha:
-                return sha
-        except Exception:
-            pass
-    return ""
+    return _resolve_source_identity("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA")
 
 
 def _resolve_trusted_planning_sha() -> str:
@@ -838,26 +1482,11 @@ def _resolve_trusted_planning_sha() -> str:
 
     HTTP request bodies MUST NOT supply this value. Resolution order:
     1. REVERSE_AGENT_PLANNING_SHA env var (explicit trusted config)
-    2. Repository git HEAD SHA from REVERSE_AGENT_REPO_DIR
+    2. With REVERSE_AGENT_REPO_DIR configured: git HEAD of the host's own source
+       checkout, else (installed, non-checkout code) git HEAD of REVERSE_AGENT_REPO_DIR
     3. Empty string if none available (causes fail-closed on durable /execute)
     """
-    explicit = os.environ.get("REVERSE_AGENT_PLANNING_SHA", "").strip()
-    if explicit:
-        return explicit
-    repo_dir = os.environ.get("REVERSE_AGENT_REPO_DIR", "").strip()
-    if repo_dir:
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=repo_dir, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
-                timeout=10,
-            )
-            sha = result.stdout.strip()
-            if sha:
-                return sha
-        except Exception:
-            pass
-    return ""
+    return _resolve_source_identity("REVERSE_AGENT_PLANNING_SHA")
 
 
 def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) -> None:

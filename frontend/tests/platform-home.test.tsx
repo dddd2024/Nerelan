@@ -512,6 +512,6 @@ describe("Platform V2 Home Workspace V2", () => {
     }
     await userEvent.click(recent.getByRole("button", { name: /证据缺失目标/ }));
     expect(await screen.findByRole("heading", { name: "证据缺失目标" })).toBeVisible();
-    expect(screen.getByTestId("goal-functional-status-missing-task")).toHaveTextContent("功能尚未验证");
+    expect(screen.getByTestId("goal-functional-status-missing-task")).toHaveTextContent("尚未完成测试");
   });
 });

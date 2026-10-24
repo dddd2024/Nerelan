@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import math
+from pathlib import Path
 from typing import Any, Mapping
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -79,13 +80,21 @@ def parse_models(payload: Any) -> list[dict[str, Any]]:
         model_id = _text(item.get("id"), secrets)
         if model_id is None:
             continue
+        architecture = item.get("architecture") if isinstance(item.get("architecture"), dict) else {}
+        modalities = item.get("input_modalities", item.get("modalities", architecture.get("input_modalities", ["text"])))
+        top_provider = item.get("top_provider") if isinstance(item.get("top_provider"), dict) else {}
         result.append({
             "model_id": model_id,
             "provider": model_id.split("/", 1)[0] if "/" in model_id else _text(item.get("owned_by"), secrets),
             "display_name": _text(item.get("display_name"), secrets),
             "reasoning": item.get("reasoning") if isinstance(item.get("reasoning"), bool) else None,
-            "context_window": _number(item.get("context_window")),
-            "max_output_tokens": _number(item.get("max_output_tokens")),
+            "context_window": _number(item.get("context_window", item.get("context_length"))),
+            "max_output_tokens": _number(item.get("max_output_tokens", top_provider.get("max_completion_tokens"))),
+            "input_modalities": [m for m in modalities if isinstance(m, str) and m in {"text", "image", "audio", "video"}]
+                if isinstance(modalities, list) else ["text"],
+            "native_endpoints": [endpoint for endpoint in item.get("native_endpoints", [])
+                                 if isinstance(endpoint, str) and endpoint in {"/v1/responses", "/responses", "/v1/chat/completions", "/chat/completions", "responses", "chat/completions"}]
+                if isinstance(item.get("native_endpoints", []), list) else [],
             "is_group": "/" not in model_id,
         })
     return result
@@ -240,3 +249,36 @@ def fetch_magpie_snapshot(base_url: str = "http://127.0.0.1:3425", timeout: floa
         # Transport errors may embed URLs, response bodies, or personal data.
         snapshot.update(status="unavailable", reason="request_failed")
     return snapshot
+
+
+DEFAULT_MAGPIE = {"enabled": False, "executable": "", "base_url": "http://127.0.0.1:3425"}
+
+
+def validate_settings(value: Any, *, check_file: bool = True) -> dict[str, Any]:
+    """Validate Owner metadata; defer file existence on load to keep host startup available."""
+    if not isinstance(value, dict) or set(value) - set(DEFAULT_MAGPIE):
+        raise ValueError("invalid Magpie settings")
+    result = {**DEFAULT_MAGPIE, **value}
+    if type(result["enabled"]) is not bool:
+        raise ValueError("Magpie enabled must be a boolean")
+    executable = result["executable"]
+    if not isinstance(executable, str):
+        raise ValueError("Magpie executable must be an absolute .exe path")
+    if executable or result["enabled"]:
+        path = Path(executable)
+        if not path.is_absolute() or path.suffix.lower() != ".exe":
+            raise ValueError("Magpie executable must be an absolute .exe path")
+        if check_file and not path.is_file():
+            raise ValueError("Magpie executable must be an existing file")
+    try:
+        url = urlsplit(result["base_url"])
+        host = url.hostname
+        if host not in ("127.0.0.1", "::1", "localhost"):
+            raise ValueError()
+        if (url.scheme not in ("http", "https") or url.username is not None or url.password is not None
+                or url.path not in ("", "/") or url.query or url.fragment or url.port == 0):
+            raise ValueError()
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("Magpie base_url must be a loopback HTTP(S) origin") from None
+    result["base_url"] = result["base_url"].rstrip("/")
+    return result

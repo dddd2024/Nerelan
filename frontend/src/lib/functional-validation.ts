@@ -1,13 +1,18 @@
+import { taskCopy, type UiLocale } from "@/lib/ui-locale";
 import type { FunctionalCheckInput, FunctionalCheckResult, FunctionalValidation, TestStatus } from "@/types";
 
 export const FUNCTIONAL_PROFILES = { python_pytest: "Python · pytest", npm_test: "JavaScript · npm test" } as const;
 
-export const FUNCTIONAL_STATUS_LABELS: Record<FunctionalValidation["status"], string> = {
-  VERIFIED: "功能已验证",
-  UNVERIFIED: "功能尚未验证",
-  FAILED: "功能检查未通过",
-  FIXTURE_VERIFIED: "仅测试夹具通过",
-};
+/** Locale-aware heading for a functional-validation state (#1200). */
+export function functionalStatusLabel(status: FunctionalValidation["status"], locale?: UiLocale): string {
+  const copy = taskCopy(locale).functional;
+  switch (status) {
+    case "VERIFIED": return copy.verifiedTitle;
+    case "FAILED": return copy.failedTitle;
+    case "FIXTURE_VERIFIED": return copy.fixtureTitle;
+    default: return copy.missingTitle;
+  }
+}
 
 export function functionalChecksError(checks: FunctionalCheckInput[] = []): string {
   if (checks.length > 8) return "每个任务最多选择 8 项功能检查。";

@@ -1095,3 +1095,104 @@ def test_unknown_usage_still_stops_a_zero_budget_hard_admission_window():
     control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
     stopped = control.get_window(window.id)
     assert (stopped.status, stopped.stop_reason, stopped.enforcement_class) == ("BLOCKED", "usage_unknown", "USAGE_UNKNOWN")
+
+
+@pytest.mark.parametrize("mutation", ["owner", "epoch", "window", "status", "expired", "gone"])
+def test_renew_claim_is_fenced(monkeypatch, mutation):
+    from reverse_agent.platform_v1 import control_store as cs
+
+    store = TaskStore(":memory:")
+    try:
+        control = PlatformControlStore(store)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        window = _budget_window(autonomy, policy_id="renew", max_tokens=0, reservation=0)
+        task = store.create_task(title="renew", executor_kind="deterministic_fixture")
+        epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="worker", lease_ms=300)
+        original = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+        monkeypatch.setattr(cs, "_utc_now_ms", lambda: original - 200)
+        kwargs = dict(window_id=window.id, task_id=task.id, owner="worker", epoch=epoch, lease_ms=600)
+        assert control.renew_claim(**kwargs)
+        extended = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+        assert extended == original + 400
+        if mutation == "owner":
+            kwargs["owner"] = "other"
+        elif mutation == "epoch":
+            kwargs["epoch"] += 1
+        elif mutation == "window":
+            kwargs["window_id"] = "other"
+        elif mutation == "status":
+            store._conn.execute("UPDATE platform_coordinator_claims SET status='COMPLETED'")
+        elif mutation == "expired":
+            monkeypatch.setattr(cs, "_utc_now_ms", lambda: extended)
+        else:
+            store._conn.execute("DELETE FROM platform_coordinator_claims")
+        assert not control.renew_claim(**{**kwargs, "lease_ms": 1000})
+        row = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()
+        assert row is None or row[0] == extended
+    finally:
+        store._conn.close()
+
+
+def test_coordinator_renews_claim_through_long_execution(tmp_path, monkeypatch):
+    import time
+
+    store = TaskStore(":memory:")
+    try:
+        control = PlatformControlStore(store)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        window = _budget_window(autonomy, policy_id="long-turn", max_tokens=0, reservation=0)
+        goals = GoalService(store=store, control_store=control)
+        goal = _parallel_goal(goals, window.id, key="long-turn", count=1)
+        task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+        renewed = []
+        original = control.renew_claim
+
+        def renew(**kwargs):
+            result = original(**kwargs)
+            renewed.append(result)
+            return result
+
+        monkeypatch.setattr(control, "renew_claim", renew)
+
+        def execute(task_id):
+            initial = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+            time.sleep(0.9)  # Three times the injected lease.
+            with store._lock:
+                claim = store._conn.execute("SELECT * FROM platform_coordinator_claims").fetchone()
+            assert claim["status"] == "ACTIVE"
+            assert claim["expires_at_ms"] > initial
+            assert claim["expires_at_ms"] > int(time.time() * 1000)
+            return _ready_fixture(store, task_id)
+
+        coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+            router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute, claim_lease_ms=300)
+        assert coordinator.tick() == 1
+        assert renewed and all(renewed)
+        count = len(renewed)
+        time.sleep(0.15)
+        assert len(renewed) == count
+        assert store.get_task(task_id).status == "READY_FOR_REVIEW_FIXTURE"
+    finally:
+        store._conn.close()
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_failed_claim_renewal_is_logged_and_stops(tmp_path, monkeypatch, caplog, raises):
+    import time
+
+    calls = []
+    def renew(**kwargs):
+        calls.append(kwargs)
+        if raises:
+            raise TaskStoreError("fixture_fenced")
+        return False
+
+    coordinator = UnattendedCoordinator(store=None, control_store=SimpleNamespace(renew_claim=renew),
+        autonomy=None, router=ExecutorRouter(), workspace_root=tmp_path, claim_lease_ms=30)
+    def execute(task_id):
+        time.sleep(0.12)
+        return "finished"
+    monkeypatch.setattr(coordinator, "_execute_task", execute)
+    assert coordinator._execute_with_claim_renewal("window", "task", 1) == "finished"
+    assert len(calls) == 1
+    assert "claim renewal" in caplog.text
