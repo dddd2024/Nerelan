@@ -551,14 +551,74 @@ def test_scp_transport_uses_argv_and_quotes_remote_paths(setup, monkeypatch, tmp
         entries = [source / "input file.txt", source / "job.json", source / "nested"]
     transport.upload(source, path)
     transport.download(path + "/file with spaces", tmp_path / "destination")
-    assert calls[0] == [
+    # One scp per entry, each naming its remote file explicitly: the remote name must
+    # come from entry.name, never from how the local platform spells the path.
+    expected = [
+        ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
+         *(["-r"] if entry.is_dir() else []), str(entry),
+         "lab:" + shlex.quote(path + "/" + entry.name)]
+        for entry in entries
+    ]
+    assert calls[:len(expected)] == expected
+    for argv in calls[:len(expected)]:
+        assert shlex.split(argv[-1].split(":", 1)[1]) == [path + "/" + Path(argv[-2]).name]
+    assert calls[len(expected)] == [
         "scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20",
-        "-r", *(str(entry) for entry in entries), "lab:" + shlex.quote(path + "/"),
+        "lab:" + shlex.quote(path + "/file with spaces"), str(tmp_path / "destination"),
     ]
     for argv in calls:
         assert argv[:6] == ["scp", "-O", "-o", "BatchMode=yes", "-o", "ConnectTimeout=20"]
-    assert shlex.split(calls[0][-1].split(":", 1)[1]) == [path + "/"]
-    assert shlex.split(calls[1][-2].split(":", 1)[1]) == [path + "/file with spaces"]
+
+
+def test_upload_names_remote_files_from_the_entry_name_not_a_windows_path(monkeypatch):
+    """A Windows checkout must not decide the remote filename (2026-10-24 incident).
+
+    scp derives the remote name from the local argument; with an absolute Windows
+    path the job landed as one file literally named after that whole path, so the
+    launch failed with "python3: can't open file 'run.py'" while every local hash
+    check had passed.
+    """
+    calls = []
+    backslash = chr(92)
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    transport = SSHTransport(SimpleNamespace(ssh_alias="lab"))
+
+    class _WindowsEntry:
+        def __init__(self, path, name):
+            self._path, self.name = path, name
+
+        def is_dir(self):
+            return False
+
+        def __str__(self):
+            return self._path
+
+        def __lt__(self, other):  # sorted() in upload()
+            return self.name < other.name
+
+    class _FrozenRequest:
+        def iterdir(self):
+            base = "F:" + backslash + "nrl-research" + backslash + "remote-jobs" + backslash + "job" + backslash + "request" + backslash
+            return [_WindowsEntry(base + "run.py", "run.py"),
+                    _WindowsEntry(base + "BENCHMARK.md", "BENCHMARK.md")]
+
+    transport.upload(_FrozenRequest(), "wjc/nerelan-jobs/job")
+
+    assert [argv[-1] for argv in calls] == [
+        "lab:" + shlex.quote("wjc/nerelan-jobs/job/BENCHMARK.md"),
+        "lab:" + shlex.quote("wjc/nerelan-jobs/job/run.py"),
+    ]
+    for argv in calls:
+        local, target = argv[-2], argv[-1]
+        assert backslash in local            # the local spelling stays local
+        assert backslash not in target        # and never names a remote file
+        assert shlex.split(target.split(":", 1)[1]) == [
+            "wjc/nerelan-jobs/job/" + local.replace(backslash, "/").rsplit("/", 1)[-1]]
 
 
 def test_cli_status(setup, monkeypatch, capsys):

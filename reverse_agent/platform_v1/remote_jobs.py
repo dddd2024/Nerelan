@@ -108,8 +108,15 @@ class SSHTransport:
             raise OSError("scp failed: " + err[-2000:])
 
     def upload(self, local_dir, remote_dir):
-        self._scp(["-r", *(str(entry) for entry in sorted(local_dir.iterdir())),
-                   self.alias + ":" + shlex.quote(remote_dir + "/")])
+        # scp derives the remote filename from the *local argument*.  On Windows that
+        # argument is an absolute path with backslashes, which POSIX scp keeps
+        # verbatim: a job uploaded from F://...//request//run.py lands as a single file
+        # literally named "F://...//request//run.py", the launch then cannot find
+        # run.py, and the receipt records a failed job.  Name every remote file
+        # explicitly instead of relying on basename rules of the local platform.
+        for entry in sorted(local_dir.iterdir()):
+            target = self.alias + ":" + shlex.quote(remote_dir + "/" + entry.name)
+            self._scp((["-r"] if entry.is_dir() else []) + [str(entry), target])
 
     def download(self, remote_path, local_path):
         self._scp([self.alias + ":" + shlex.quote(remote_path), str(local_path)])
