@@ -369,6 +369,24 @@ def _http_roundtrip(
         raise CredentialRelayError(f"upstream_error:{exc.__class__.__name__}") from exc
 
 
+def forward_keyless_probe(snapshot: ExecutionSnapshot, *, body: bytes, timeout: float = 10.0):
+    """Host-only tiny probe for endpoints that require no credential or lease.
+
+    Reuse the relay's URL validation, redirect refusal and bounded transport.
+    Native sessions and API-key snapshots cannot enter this keyless path.
+    """
+    if snapshot.auth_method != "none" or not snapshot.binding_enabled or not snapshot.connection_enabled:
+        raise CredentialRelayError("keyless_probe_not_allowed")
+    payload = json.loads(body)
+    expected = {"model": snapshot.raw_model_id, "input": "Reply OK", "max_output_tokens": 4} if snapshot.native_endpoint == "/responses" else {
+        "model": snapshot.raw_model_id, "messages": [{"role": "user", "content": "Reply OK"}], "max_tokens": 4}
+    if payload != expected or snapshot.native_endpoint not in {"/responses", "/chat/completions"}:
+        raise CredentialRelayError("keyless_probe_payload_invalid")
+    _validate_upstream_url(snapshot.base_url)
+    return _http_roundtrip(snapshot.base_url + snapshot.native_endpoint, "POST", body,
+                          {"Content-Type": "application/json", "Accept": "application/json"}, timeout)
+
+
 def forward_to_upstream(
     active: _ActiveLease,
     *,
@@ -377,7 +395,7 @@ def forward_to_upstream(
 ) -> tuple[int, bytes, dict[str, str]]:
     """Inject provider Authorization and forward to the frozen upstream URL."""
     _validate_upstream_url(active.snapshot.base_url)
-    upstream_url = f"{active.snapshot.base_url}/chat/completions"
+    upstream_url = f"{active.snapshot.base_url}{active.snapshot.native_endpoint}"
     headers = {
         "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
         "Content-Type": "application/json",
@@ -405,7 +423,7 @@ def stream_sse(
     read in bounded chunks and flushed to the client in upstream order.
     """
     _validate_upstream_url(active.snapshot.base_url)
-    upstream_url = f"{active.snapshot.base_url}/chat/completions"
+    upstream_url = f"{active.snapshot.base_url}{active.snapshot.native_endpoint}"
     headers = {
         "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
         "Content-Type": "application/json",
@@ -461,7 +479,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
             return
 
         request_path = urlsplit(self.path).path
-        if request_path not in {"/chat/completions", *ANTHROPIC_RELAY_PATHS}:
+        if request_path not in {"/chat/completions", "/responses", *ANTHROPIC_RELAY_PATHS}:
             self._send_error(404, "relay_route_not_found")
             return
 
@@ -482,7 +500,10 @@ class _RelayHandler(BaseHTTPRequestHandler):
                 path=request_path,
                 model=request_model,
             )
-        except CredentialRelayError:
+        except CredentialRelayError as exc:
+            if str(exc).startswith("lease_path_mismatch") and request_path == "/responses":
+                self._send_error(404, "relay_route_not_found")
+                return
             self._send_error(401, "lease_invalid")
             return
         if request_path in ANTHROPIC_RELAY_PATHS:
@@ -575,7 +596,9 @@ class _RelayHandler(BaseHTTPRequestHandler):
                     self.wfile.write(chunk)
                     self.wfile.flush()
         except HTTPError as exc:
-            self._send_sanitized_error(int(exc.code))
+            from ..platform_v1.model_availability import availability_error
+            reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
+            self._send_sanitized_error(int(exc.code), reason=reason)
         except (IncompleteRead, URLError, OSError):
             self._end_failed_stream(headers_sent, anthropic=True)
 
@@ -627,8 +650,8 @@ class _RelayHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _send_sanitized_error(self, code: int) -> None:
-        body = json.dumps({"error": "upstream_error"}, separators=(",", ":")).encode("utf-8")
+    def _send_sanitized_error(self, code: int, *, reason: str | None = None) -> None:
+        body = json.dumps({"error": reason or "upstream_error"}, separators=(",", ":")).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -638,7 +661,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
 
     def _relay_sse_fail_closed(self, active: _ActiveLease, body: bytes) -> None:
         _validate_upstream_url(active.snapshot.base_url)
-        upstream_url = f"{active.snapshot.base_url}/chat/completions"
+        upstream_url = f"{active.snapshot.base_url}{active.snapshot.native_endpoint}"
         headers = {
             "Authorization": f"Bearer {active.snapshot.resolved_api_key}",
             "Content-Type": "application/json",
@@ -667,7 +690,9 @@ class _RelayHandler(BaseHTTPRequestHandler):
                     self.wfile.write(chunk)
                     self.wfile.flush()
         except HTTPError as exc:
-            self._send_sanitized_error(int(exc.code))
+            from ..platform_v1.model_availability import availability_error
+            reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
+            self._send_sanitized_error(int(exc.code), reason=reason)
         except (IncompleteRead, URLError, OSError):
             self._end_failed_stream(headers_sent, anthropic=False)
 
@@ -732,7 +757,7 @@ def _lease_paths(snapshot: ExecutionSnapshot) -> frozenset[str]:
     """A lease may call only the API its connection speaks."""
     if snapshot.protocol_family == ANTHROPIC_PROTOCOL:
         return ANTHROPIC_RELAY_PATHS
-    return frozenset({"/chat/completions"})
+    return frozenset({snapshot.native_endpoint})
 
 
 def _normalize_model_id(provider: str, model_id: str) -> str:

@@ -6,9 +6,12 @@ import os
 import hashlib
 import queue
 import re
+import secrets
 import shutil
+import stat
 import subprocess
 import threading
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +21,102 @@ from .codex_protocol import CodexJsonl, CodexProtocolError, public_text
 from .opencode_executor import _collect_final_product_files, _emit, _persist_usage_observations
 from .repository_preparation import prepare_linked_worktree
 from .task_runtime import ExecutorResult, ExecutorRuntimeError, LocalValidationRunner
+
+
+_TASK_TEMP = ".nt"  # Legacy fixed name: older residue is never adopted or deleted.
+_TASK_TEMP_PREFIX = ".nt-"
+_ANCHORED_WRITE = (hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NOFOLLOW")
+                   and os.open in os.supports_dir_fd)
+
+
+def _is_task_temp(path: str) -> bool:
+    top = path.replace("\\", "/").split("/", 1)[0]
+    return top == _TASK_TEMP or top.startswith(_TASK_TEMP_PREFIX)
+
+
+def _plain_directory(info: os.stat_result) -> bool:
+    return (stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode)
+            and not getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _write_scratch_ignore(scratch: Path, identity: tuple[int, int]) -> None:
+    """Create the local ignore file inside the exact directory just made.
+
+    Where the platform supports it, the write is anchored to a no-follow
+    directory handle so a swapped path cannot redirect it. Otherwise the
+    exclusive create can only add a new file, and the directory identity is
+    re-checked afterwards so a substitution still fails closed.
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if _ANCHORED_WRITE:
+        directory = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            info = os.fstat(directory)
+            if (info.st_dev, info.st_ino) != identity:
+                raise OSError("scratch replaced")
+            handle = os.open(".gitignore", flags | os.O_NOFOLLOW, 0o666, dir_fd=directory)
+        finally:
+            os.close(directory)
+    else:
+        handle = os.open(scratch / ".gitignore", flags, 0o666)
+    with os.fdopen(handle, "w", encoding="utf-8") as stream:
+        stream.write("*\n")
+    info = scratch.lstat()
+    if not _plain_directory(info) or (info.st_dev, info.st_ino) != identity:
+        raise OSError("scratch replaced")
+
+
+def _task_temp_env(worktree: Path, environment: Mapping[str, str]) -> dict[str, str]:
+    """Create fresh, short execution scratch, never reuse repository content.
+
+    No readiness probe calls this. Every native attempt gets its own
+    unpredictable ``.nt-*`` directory, created exclusively, so a retry in the
+    same worktree never collides with an earlier attempt. Earlier scratch,
+    including the legacy ``.nt``, is never adopted, followed or deleted.
+    """
+    try:
+        root = worktree.absolute()
+        for component in (*reversed(root.parents), root):
+            if not _plain_directory(component.lstat()):
+                raise OSError("unverifiable workspace")
+        if root.resolve(strict=True) != root:
+            raise OSError("unverifiable workspace")
+        tracked = subprocess.run(["git", "ls-files", "--", _TASK_TEMP, _TASK_TEMP_PREFIX + "*"], cwd=root,
+            capture_output=True, timeout=10, check=False)
+        if tracked.returncode:
+            # A read-only planner may operate in an ordinary (non-Git)
+            # directory. Do not require a Git index where none exists.
+            # Any visible Git marker, including a worktree .git file,
+            # means a failed index check must remain fatal.
+            for ancestor in (root, *root.parents):
+                try:
+                    (ancestor / ".git").lstat()
+                except FileNotFoundError:
+                    continue
+                raise OSError("Git index unavailable")
+            if b"not a git repository" not in tracked.stderr.lower():
+                raise OSError("Git index unavailable")
+        if tracked.stdout:
+            # Scratch is excluded from product evidence, so tracked
+            # repository content under its names must never be hidden.
+            raise OSError("reserved scratch is tracked")
+        scratch = root / (_TASK_TEMP_PREFIX + secrets.token_hex(6))
+        scratch.mkdir()  # Inherit workspace permissions; no exist_ok or parents.
+        info = scratch.lstat()
+        if not _plain_directory(info) or scratch.resolve(strict=True) != scratch:
+            raise OSError("unverifiable scratch")
+        # Local ignore only: no shared Git configuration or exclude-file edits.
+        # This also keeps ordinary Git-based role snapshots free of scratch.
+        _write_scratch_ignore(scratch, (info.st_dev, info.st_ino))
+        if scratch.resolve(strict=True) != scratch:
+            raise OSError("scratch escaped workspace")
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+        raise ExecutorRuntimeError("native_task_temp_unavailable") from exc
+    result = {k: v for k, v in environment.items() if k.casefold() not in {"temp", "tmp", "tmpdir"}}
+    result.update(TEMP=str(scratch), TMP=str(scratch))
+    if os.name != "nt":
+        result["TMPDIR"] = str(scratch)
+    return result
 
 
 def validate_codex_model(value: Any) -> str:
@@ -144,14 +243,14 @@ class CodexExecutor:
                  base_ref: str = "", codex_exe: str | None = None, timeout: float = 300,
                  sandbox: str = "workspace-write", parent_env=None, process_factory=None,
                  readiness_probe=None, lease_provider=None):
-        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 600:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
             raise ExecutorRuntimeError(self._e("timeout_invalid"))
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
         if binding_resolution is not None:
             self._accept_binding(binding_resolution)
             model_id = binding_resolution.model_id
-        self._model_id = validate_codex_model(model_id)
+        self._model_id = self._validate_model(model_id)
         self._repo_dir = repo_dir
         self._base_ref = base_ref
         self._codex_exe = codex_exe
@@ -161,6 +260,9 @@ class CodexExecutor:
         self._process_factory = process_factory or subprocess.Popen
         self._readiness_probe = readiness_probe or type(self).default_readiness_probe
         self._validate_options()
+
+    def _validate_model(self, model: str) -> str:
+        return validate_codex_model(model)
 
     def _accept_binding(self, resolution) -> None:
         """Native CLIs run on the Owner's own managed login, never on a relayed API key."""
@@ -247,29 +349,52 @@ class CodexExecutor:
         context = executor_context(store, task_id=task_id, workspace=prepared.worktree,
                                    expected_head=prepared.base_sha)
         prompt += context
+        if hasattr(store, "quota_resume_context"):
+            prompt += store.quota_resume_context(task_id)
         if context:
             context_blob = context.rsplit("\n", 1)[-1].encode()
             _emit(event_callback, task_id, {"type":"EXECUTOR_RUNNING", "title":"Durable context rebuilt",
                 "description":"Non-authoritative projection from current TaskStore and Git",
                 "metadata":{"context_packet_digest":hashlib.sha256(context_blob).hexdigest(),
-                            "context_packet_bytes":len(context_blob), "base_sha":prepared.base_sha}})
+                            "context_packet_bytes":len(context_blob), "measured_context_packet_tokens":len(context.encode("utf-8")), "base_sha":prepared.base_sha}})
+        quota = store.native_quota(task_id, prepared) if hasattr(store, "native_quota") else None
         def progress(item):
+            if quota is not None:
+                quota.observe(item)
             _emit(event_callback, task_id, {"type": "EXECUTOR_PROGRESS", "title": self.LABEL,
                 "description": public_text(item.get("text") or item.get("command") or f"{self.LABEL} activity"),
                 "metadata": {"executor_kind": self.KIND, "event": item}})
         parser = self._parser(progress)
+        parser.native_quota = quota
         code = None
         def persist_unknown_usage():
+            from .usage_ledger import _native
+            counters = _native(parser.turn.usage, self.KIND) if parser.turn.usage else None
+            metrics = {} if counters is None else {
+                "input_units": counters["input"], "output_units": counters["output"],
+                "cache_read_units": counters["cache_read"], "cache_write_units": counters["cache_write"],
+                "reasoning_units": counters["reasoning"],
+            }
+            models = parser.turn.models or [self._model_id]
             identity = hashlib.sha256((prepared.execution_id + ":" + (parser.turn.thread_id or "no-thread")).encode()).hexdigest()
             _persist_usage_observations(store, task_id, [{
-                "observation_id": f"usage-{self.KIND}-" + identity, "execution_id": prepared.execution_id,
-                "role": "executor", "model_id": self._model_id, "provider_id": self.PROVIDER_ID,
-                "source_kind": "assistant_message", "source_id": f"{self.KIND}-turn-" + identity,
+                "observation_id": f"usage-{self.KIND}-" + hashlib.sha256((identity + model).encode()).hexdigest(),
+                "execution_id": prepared.execution_id,
+                "role": "executor", "model_id": model, "provider_id": self.PROVIDER_ID,
+                # Turn totals belong to one model; with several observed models they stay UNKNOWN.
+                "source_kind": "native_summary" if counters is not None and len(models) == 1 else "assistant_message",
+                "source_id": f"{self.KIND}-turn-" + identity,
                 # CLI tokens do not provide reasoning/cache-write or dollar cost.
-                "status": "UNKNOWN",
-            }])
+                "status": "PARTIAL" if counters is not None and len(models) == 1 else "UNKNOWN",
+                **(metrics if len(models) == 1 else {}),
+            } for model in models])
         try:
             code = self._stream(prepared, prompt, parser)
+            if isinstance(code, dict) and "checkpoint_id" in code:
+                persist_unknown_usage()
+                return ExecutorResult(False, -1, "", "", "", workspace=str(prepared.worktree),
+                    execution_id=prepared.execution_id, quota_pause=code,
+                    failure_classification="quota_paused" if code["state"] == "PAUSED" else "quota_checkpoint_failed")
             turn = parser.finish()
             if code != 0 or turn.failed:
                 raise CodexProtocolError(turn.failure_classification or self._e("process_failed"))
@@ -282,9 +407,12 @@ class CodexExecutor:
         except (ExecutorRuntimeError, OSError) as exc:
             persist_unknown_usage()
             classification = str(exc) if isinstance(exc, ExecutorRuntimeError) else self._e("process_start_failed")
-            return ExecutorResult(False, -1, "", "", "", error=classification,
+            detail = parser.turn.failure_detail
+            error = classification if not detail else f"{classification}: {detail}"
+            return ExecutorResult(False, -1, "", "", "", error=error,
                 workspace=str(prepared.worktree), execution_id=prepared.execution_id,
-                process_exit_code=code, failure_classification=classification)
+                process_exit_code=code, failure_classification=classification,
+                failure_reset_at=parser.turn.failure_reset_at)
         persist_unknown_usage()
         _emit(event_callback, task_id, {"type": "EXECUTOR_COMPLETED", "title": f"{self.LABEL} response",
             "description": public_text(turn.final_text), "metadata": {"executor_kind": self.KIND,
@@ -295,17 +423,70 @@ class CodexExecutor:
                 **({"cli_reported_cost_usd": turn.reported_cost_usd}
                    if turn.reported_cost_usd is not None else {})}})
         exit_code, summary, digest = LocalValidationRunner().run(task_id=task_id, command_id="git_diff_check", cwd=str(prepared.worktree))
-        return ExecutorResult(exit_code == 0, exit_code, "git_diff_check", digest, summary,
-            changed_files=_collect_final_product_files(prepared.worktree), workspace=str(prepared.worktree),
+        changed_files = [f for f in _collect_final_product_files(prepared.worktree)
+                         if not _is_task_temp(f["path"])]
+        # git diff --check returns zero for an unchanged worktree. That proves
+        # only patch hygiene, not that an implementation task produced work.
+        # An empty result must never be promoted to READY_FOR_REVIEW.
+        no_product_changes = exit_code == 0 and not changed_files
+        return ExecutorResult(exit_code == 0 and not no_product_changes, exit_code,
+            "git_diff_check", digest,
+            "No product changes were produced; patch hygiene is not functional acceptance."
+            if no_product_changes else summary,
+            changed_files=changed_files, workspace=str(prepared.worktree),
             execution_id=prepared.execution_id, process_exit_code=code,
-            failure_classification="" if exit_code == 0 else "patch_hygiene_failed")
+            failure_classification=(self._e("no_product_changes") if no_product_changes
+                                    else ("" if exit_code == 0 else "patch_hygiene_failed")))
 
-    def _stream(self, prepared, prompt, parser):
+    def enforces_read_only_review(self):
+        # Subclasses have different permission semantics and must opt in explicitly.
+        return self.KIND == "codex" and self._sandbox == "read-only"
+
+    def execute_review_prepared(self, prepared, store, *, task_id, prompt):
+        """Run only the reviewer with native sandbox enforcement and external scratch."""
+        if not self.enforces_read_only_review():
+            raise ExecutorRuntimeError("model_review_sandbox_unsupported")
+        if (prepared.execution_id != f"exec-{task_id}" or prepared.worktree.name != task_id
+                or prepared.executor_kind != self.KIND):
+            raise ExecutorRuntimeError("model_review_prepared_identity_mismatch")
+        self._verify_workspace(prepared.worktree, prepared.base_sha)
+        if any((prepared.worktree / relative).exists() for relative in self.PROJECT_CONFIG):
+            raise ExecutorRuntimeError("codex_project_configuration_unapproved")
+        if self._binding_resolution is None:
+            raise ExecutorRuntimeError("review_not_independent")
+        parser = self._parser(None)
+        with tempfile.TemporaryDirectory(prefix="nerelan-review-") as runtime:
+            runtime_path = Path(runtime).resolve()
+            if runtime_path == prepared.worktree or prepared.worktree in runtime_path.parents:
+                raise ExecutorRuntimeError("model_review_runtime_inside_product")
+            code = self._stream(prepared, prompt, parser, runtime_path=runtime_path)
+            turn = parser.finish()
+        if code != 0 or turn.failed or turn.tool_launch_failed:
+            raise ExecutorRuntimeError("model_review_process_failed")
+        self._verify_workspace(prepared.worktree, prepared.base_sha)
+        if not turn.thread_id or not turn.models:
+            raise ExecutorRuntimeError("review_not_independent")
+        identity = hashlib.sha256((prepared.execution_id + ":" + turn.thread_id).encode()).hexdigest()
+        _persist_usage_observations(store, task_id, [{
+            "observation_id": "usage-review-" + hashlib.sha256((identity + model).encode()).hexdigest(),
+            "execution_id": prepared.execution_id, "role": "reviewer",
+            "model_id": model, "provider_id": self.PROVIDER_ID,
+            "source_kind": "assistant_message", "source_id": "review-turn-" + identity,
+            "status": "UNKNOWN",
+        } for model in turn.models])
+        return {"response": turn.final_text, "actual_models": turn.models,
+                "request_id": turn.thread_id, "execution_id": prepared.execution_id,
+                "binding_ref": self._binding_resolution.binding_ref,
+                "quota_observations": turn.rate_limits}
+
+    def _stream(self, prepared, prompt, parser, *, runtime_path=None):
         from .functional_validation import _WindowsJob, _terminate
+        from .native_quota import QuotaBoundary
+        environment = _task_temp_env(runtime_path or prepared.worktree, self._child_env())
         job = _WindowsJob() if os.name == "nt" else None
         try:
             proc = self._process_factory(self._argv(prepared),
-                cwd=str(prepared.worktree), env=self._child_env(), stdin=subprocess.PIPE,
+                cwd=str(prepared.worktree), env=environment, stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False,
                 start_new_session=os.name != "nt",
                 creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW | 4) if job else 0)
@@ -347,7 +528,9 @@ class CodexExecutor:
         def write_prompt():
             try:
                 proc.stdin.write(prompt.encode())
-                proc.stdin.close()
+                proc.stdin.flush()
+                if getattr(proc, "supports_quota_checkpoint", False) is not True:
+                    proc.stdin.close()
             except (OSError, ValueError):
                 send(("writer_error", b""))
         readers.append(threading.Thread(target=write_prompt, daemon=True))
@@ -356,6 +539,7 @@ class CodexExecutor:
         deadline = time.monotonic() + self._timeout
         finished = set()
         stderr_bytes = 0
+        quota_boundary = False
         try:
             while len(finished) < 2:
                 remaining = deadline - time.monotonic()
@@ -381,10 +565,19 @@ class CodexExecutor:
                 return proc.wait(timeout=max(0.001, deadline - time.monotonic()))
             except subprocess.TimeoutExpired as exc:
                 raise CodexProtocolError(self._e("timeout")) from exc
+        except QuotaBoundary:
+            quota_boundary = True
+            return parser.native_quota.finish(proc, job, parser, prompt)
         finally:
             stopping.set()
             # Close only this owned process tree, including surviving tool children.
-            _terminate(proc, job)
+            try:
+                _terminate(proc, job)
+            except (OSError, subprocess.SubprocessError):
+                if not quota_boundary:
+                    raise
+                # The quota result already records unconfirmed stop as FAILED;
+                # never replace it with a generic timeout or claim saved bytes.
             for pipe in (proc.stdin, proc.stdout, proc.stderr):
                 pipe.close()
             for reader in readers:

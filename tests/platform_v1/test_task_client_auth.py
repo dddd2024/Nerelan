@@ -32,6 +32,7 @@ def authenticated_server(tmp_path, monkeypatch):
     monkeypatch.setattr(router, "dispatch_execute", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate_policy", forbidden)
+    monkeypatch.setattr(handler.goal_service, "rebind", forbidden)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -81,6 +82,16 @@ def test_missing_capability_rejected_before_body_lookup_or_dispatch(authenticate
     assert not actions and store._conn.total_changes == before
 
 
+def test_goal_rebind_is_not_reachable_with_session_possession(authenticated_server):
+    """The renderer holds the session capability; a window rebind needs Owner authority (#1277)."""
+    port, _, _, actions, store = authenticated_server
+    before = store._conn.total_changes
+    status, _, _ = request(port, "POST", "/api/goals/unknown/rebind", capability=TOKEN, origin=ORIGIN,
+                           body=json.dumps({"window_id": "window-x", "expected_revision": 1}).encode())
+    assert status != 200
+    assert not actions and store._conn.total_changes == before
+
+
 @pytest.mark.parametrize("kind", ["wrong", "expired", "stale", "duplicate", "non-ascii", "oversized", "query-only"])
 def test_invalid_client_identity_rejected_fail_closed(authenticated_server, kind):
     port, session, clock, actions, _ = authenticated_server
@@ -127,3 +138,43 @@ def test_unconfigured_handler_has_no_unauthenticated_compatibility_mode(tmp_path
         assert request(server.server_address[1], "GET", "/api/health")[1] == {"ready": True}
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("assertions", [
+    {},  # An arbitrary first Goal is not a human selection.
+    {"selected_goal_id": "first-goal"},
+    {"selected_goal_id": "other-goal"},
+    {"selected_goal_id": "first-goal", "expected_revision": 2},
+    {"executor_kind": "codex"},
+    {"executor_kind": "claude_code", "binding_ref": "other-account"},
+    {"human_confirmed": True, "confirmation_mode": "OWNER"},
+    {"client_nonce": TOKEN, "receipt": {"approved": True}},
+    {"policy_revision": 0, "policy_digest": "stale"},
+    {"window_id": "other-window", "receipt_window_id": "first-window"},
+    {"confirmation_mode": "DELEGATED_CONTROLLER"},
+])
+def test_authenticated_client_assertions_cannot_activate_owner_window(authenticated_server, assertions):
+    from datetime import datetime, timedelta, timezone
+    port, _, _, actions, store = authenticated_server
+    now = datetime.now(timezone.utc)
+    payload = {
+        "policy_id": "untrusted-owner-selection", "policy_revision": 1,
+        "owner_identity": "human-owner", "confirmation": "ACTIVATE",
+        "starts_at": (now - timedelta(seconds=1)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0,
+        "selected_goal_id": "first-goal", "expected_revision": 1,
+        "executor_kind": "deterministic_fixture", "binding_ref": "fixture",
+        **assertions,
+    }
+    before = store._conn.total_changes
+    # Identical replay and a second window must both fail without reservations.
+    for candidate in (payload, payload, {**payload, "policy_id": "second-window"}):
+        status, result, _ = request(port, "POST", "/api/windows/activate",
+                                    capability=TOKEN, origin=ORIGIN,
+                                    body=json.dumps(candidate).encode())
+        assert status == 409
+        assert result == {"error": "owner_selection_confirmation_unavailable"}
+    assert not actions  # Neither activation path nor model dispatch was reached.
+    assert store._conn.total_changes == before

@@ -11,7 +11,7 @@ import pytest
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
-from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel
+from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel, _usage_evidence
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
 
@@ -772,3 +772,100 @@ def test_queue_cancel_control_is_disabled_for_every_non_queue_status(
     control = model.run_detail(task.id)["controls"]["cancel"]
     assert control["availability"] == "UNAVAILABLE"
     assert control["reason_code"] == expected_reason
+
+def test_no_usage_receipt_does_not_claim_model_consumption(read_model) -> None:
+    model, store, control = read_model
+    _, task = _seed_goal_with_task(control, store, "no-usage-evidence")
+    run = model.list_runs()["runs"][0]
+    assert run["usage_evidence"]["state"] == "NO_USAGE_RECEIPT"
+    assert run["usage_evidence"]["confirmed_numeric_records"] == 0
+    assert run["usage_evidence"]["positive_token_units"] == 0
+    assert run["usage_evidence"]["provider_request_receipt"] == "UNVERIFIED"
+    assert run["usage_evidence"]["served_magpie_route"] == "UNKNOWN"
+    assert run["usage_evidence"]["attribution_scope"] == "TASK_STORE_ONLY"
+
+
+def test_unknown_receipt_or_zero_usage_is_not_called_positive_model_usage(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="unknown resource use", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="unknown-receipt-1", execution_id="unknown-exec",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-unknown",
+        status="UNKNOWN",
+    )
+    summary = model.run_detail(task.id)
+    assert summary["usage_evidence"]["state"] == "USAGE_UNKNOWN"
+    assert summary["usage_evidence"]["confirmed_numeric_records"] == 0
+    store.append_usage_observation(
+        task.id, observation_id="zero-receipt-2", execution_id="unknown-exec",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-zero",
+        status="OBSERVED", input_units=0, output_units=0,
+        reasoning_units=0, cache_read_units=0, cache_write_units=0,
+        cost_micro_units=0,
+    )
+    mixed = model.run_detail(task.id)["usage_evidence"]
+    assert mixed["state"] == "PARTIALLY_OBSERVED"
+    assert mixed["confirmed_numeric_records"] == 1
+    assert mixed["positive_token_units"] == 0
+
+
+def test_proven_positive_task_usage_is_not_attributed_to_magpie_by_default(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="observed task", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="observed-task-use", execution_id="exec1",
+        role="coder", model_id="relay/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-observed",
+        status="OBSERVED", input_units=120, output_units=20,
+        reasoning_units=0, cache_read_units=0, cache_write_units=0,
+        cost_micro_units=0,
+    )
+    data = model.run_detail(task.id)["usage_evidence"]
+    assert data["state"] == "USAGE_OBSERVED"
+    assert data["positive_token_units"] == 140
+    assert data["task_usage_records"] == 1
+    assert data["served_magpie_route"] == "UNKNOWN"
+    assert data["provider_request_receipt"] == "UNVERIFIED"
+
+
+@pytest.mark.parametrize(
+    "token_fields,expected",
+    [
+        ({}, "UNKNOWN"),
+        ({"total_token_units": None}, "UNKNOWN"),
+        ({"total_token_units": "invalid"}, "UNKNOWN"),
+        ({"total_token_units": -1}, "UNKNOWN"),
+        ({"total_token_units": True}, "UNKNOWN"),
+        ({"total_token_units": 0}, "ZERO_TOKEN_USAGE_OBSERVED"),
+        ({"total_token_units": 42}, "USAGE_OBSERVED"),
+    ],
+)
+def test_malformed_token_totals_never_claim_observed_model_usage(
+    token_fields, expected
+) -> None:
+    evidence = _usage_evidence({
+        "observation_count": 1,
+        "unknown_observation_count": 0,
+        **token_fields,
+    })
+    assert evidence["state"] == expected
+    assert evidence["confirmed_numeric_records"] == 1
+    assert evidence["positive_token_units"] == (
+        42 if token_fields.get("total_token_units") == 42 else 0
+    )
+    assert evidence["provider_request_receipt"] == "UNVERIFIED"
+
+
+def test_landing_progress_visible_without_github_state_replica(read_model):
+    model, store, control = read_model
+    goal, task = _seed_goal_with_task(control, store, "landing-progress")
+    state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+        pr_number=1266, head_sha="a" * 40, review_round=2)
+    control.finish_landing_tick(state["identity"], "WAITING", "fresh_current_head_checks_required", 123456)
+    changes = control._conn.total_changes
+    assert model.run_detail(task.id)["landing"] == dict(phase="WAITING", review_round=2,
+        pr_number=1266, head_sha="a" * 40, next_attempt_ms=123456,
+        parking_reason="fresh_current_head_checks_required")
+    assert control._conn.total_changes == changes

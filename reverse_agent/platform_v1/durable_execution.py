@@ -41,7 +41,7 @@ from .repository_workspace import (
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
-from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input
+from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +377,30 @@ class _DurableFencedExecutorStore:
             epoch=self._epoch,
         )
 
+    def quota_resume_context(self, task_id):
+        if task_id != self._task_id:
+            raise TaskStoreError("durable_quota_task_mismatch")
+        self._store._validate_durable_lease(self._run_id, self._owner, self._epoch)
+        row = self._store._conn.execute(
+            "SELECT payload_json FROM quota_partial_checkpoints WHERE run_id=? AND state='RESUMING'",
+            (self._run_id,)).fetchone()
+        if row is None:
+            return ""
+        value = self._store._verify_quota_resume(task_id)
+        return ("\n\nSaved interrupted work (context only; current task authority still applies):\n"
+                + value["summary"] + "\nRemaining work:\n" + value["remaining_work"])
+
+    def native_quota(self, task_id, prepared):
+        """Return a host-bound controller; no raw store capability reaches a child."""
+        if task_id != self._task_id:
+            raise TaskStoreError("durable_quota_task_mismatch")
+        from .native_quota import NativeQuota
+        snapshot = self._store.native_quota_snapshot(self._run_id, self._owner, self._epoch)
+        if snapshot is None:
+            return None
+        return NativeQuota(self._store, self._run_id, self._owner, self._epoch,
+                           prepared, snapshot)
+
     def active_usage_reservation(self, task_id: str) -> dict[str, int]:
         if task_id != self._task_id:
             raise TaskStoreError(
@@ -552,10 +576,9 @@ class _HeartbeatContext:
 
 # One agent turn may run this long. Free models are slow: 300 s timed out every free-model task
 # in the first real team runs. Trusted host configuration only (never a request field); it stays
-# below the coordinator's 15-minute claim lease, and native CLIs accept at most 600 s.
+# bounded at one hour. Nerelan enforces the deadline and renews the coordinator claim.
 DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 600
-MAX_EXECUTOR_TIMEOUT_SECONDS = 840
-NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS = 600
+MAX_EXECUTOR_TIMEOUT_SECONDS = 3600
 
 
 def executor_timeout_seconds() -> int:
@@ -567,6 +590,58 @@ def executor_timeout_seconds() -> int:
     except ValueError:
         return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
     return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
+
+def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolution: Any) -> None:
+    """Enforce the exact nonsecret binding approved in a native Owner receipt.
+
+    The saved Task normally contains only a mutable binding_ref. Native Owner
+    admission instead records the chosen effective model/connection in the same
+    SQLite transaction as its Task. Re-resolution at dispatch must not silently
+    substitute a different model or connection. Read-only guard, before CLI launch.
+    """
+    policy_ref = getattr(task, "policy_ref", "")
+    if getattr(task, "executor_kind", "") != "codex" or not policy_ref:
+        return
+    try:
+        with store._lock:
+            native_window = store._conn.execute(
+                "SELECT confirmation_mode FROM platform_autonomous_windows "
+                "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1",
+                (policy_ref,),
+            ).fetchone()
+            # Ordinary pre-existing Codex windows keep their legacy behavior.
+            # Only windows atomically marked by native Owner admission are pinned.
+            if native_window is None or native_window["confirmation_mode"] != "NATIVE_OWNER":
+                return
+            rows = store._conn.execute(
+                "SELECT r.evidence_json FROM platform_operation_receipts r "
+                "JOIN platform_goal_task_links l ON l.goal_id = r.subject_id "
+                "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id = r.window_id "
+                "WHERE l.task_id = ? AND w.policy_id = ? "
+                "AND r.operation_type = 'native_goal_admission' AND r.decision = 'allowed'",
+                (task.id, policy_ref),
+            ).fetchall()
+        if len(rows) != 1:
+            raise ValueError("missing_or_ambiguous_receipt")
+        proof = json.loads(rows[0]["evidence_json"])
+        expected = proof["approved_binding"]
+        observed = {
+            "binding_ref": resolution.binding_ref,
+            "model_id": resolution.model_id,
+            "connection_id": resolution.connection_id,
+            "executor_id": resolution.executor_id,
+            "provider_id": resolution.provider_id,
+            "auth_method": resolution.auth_method,
+            "base_url": resolution.base_url,
+        }
+        if (type(expected) is not dict or expected != observed
+                or resolution.relay_required
+                or resolution.executor_id != "codex"):
+            raise ValueError("binding_changed")
+    except Exception as exc:
+        raise ExecutorRuntimeError("native_owner_execution_binding_changed_or_missing") from exc
+
 
 class DurableExecutionService:
     """Level-1 durable sequential-team execution with lease fencing.
@@ -696,6 +771,8 @@ class DurableExecutionService:
         non-empty. None, empty, or whitespace-only values all fail closed
         BEFORE durable run creation.
         """
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         self._assert_trusted_identity_for_execute()
         task = self.store.get_task(task_id)
         if task.executor_kind == "opencode":
@@ -750,6 +827,8 @@ class DurableExecutionService:
         external-operation journaling, and resume-capable terminal state.
         """
         from .task_execution import TaskExecutionOutcome
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         self._assert_trusted_identity_for_execute()
         task = self.store.get_task(task_id)
         if task.orchestration_mode != "single":
@@ -791,6 +870,13 @@ class DurableExecutionService:
         from .binding_resolver import BindingResolutionError
         from .run_store import TERMINAL_STATUSES
 
+        # A saved pause must be reconciled, never overwritten by generic failure cleanup.
+        with self.store._lock:
+            pending = self.store._conn.execute(
+                "SELECT 1 FROM quota_partial_checkpoints WHERE run_id=? AND request_epoch=? AND state='PAUSED'",
+                (lease.run_id, lease.epoch)).fetchone()
+            if pending:
+                return
         classification = "executor_dispatch_failed"
         if isinstance(exc, BindingResolutionError):
             # Resolver codes are finite public identifiers; never persist arbitrary
@@ -849,6 +935,9 @@ class DurableExecutionService:
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
 
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
+
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
         if artifact_failure is not None:
             return artifact_failure
@@ -885,10 +974,10 @@ class DurableExecutionService:
         try:
             executor_kwargs = self._build_executor_kwargs(task)
         except ExecutorRuntimeError as exc:
-            if not str(exc).startswith("quota_exhausted"):
+            if not str(exc).startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
                 raise
-            # The host refused dispatch because the account already answered with its limit.
-            # A FAILED terminal lets the Goal reroute the role (or block) instead of retrying here.
+            # No external call has started. Record a durable failure instead of
+            # leaving a stale RUNNING task or retrying with another model.
             self.store._fenced_classify_failure(
                 lease.run_id, task_id, classification=str(exc)[:120], detail=str(exc),
                 owner=lease.owner, epoch=lease.epoch,
@@ -935,6 +1024,8 @@ class DurableExecutionService:
                     task_id, Path(workspace_root),
                     prepared_cb
                 )
+                from .contract_recovery import restore_failed_tree
+                restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)
             except Exception as exc:
                 self.store._fenced_classify_failure(
                     lease.run_id, task_id,
@@ -1175,6 +1266,24 @@ class DurableExecutionService:
             epoch=lease.epoch,
         )
 
+        if getattr(exec_result, "quota_pause", None) is not None:
+            pause = exec_result.quota_pause
+            self.store.interrupt_for_quota(lease.run_id, task_id, lease.owner, lease.epoch, pause)
+            return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id,
+                success=False, validation_command_id="", validation_exit_code=-1,
+                failure_classification="quota_paused" if pause["state"] == "PAUSED" else "quota_checkpoint_failed",
+                failure_detail=_json_payload(pause), quota_pause=pause)
+
+        if (not exec_result.success and exec_result.validation_command_id == "git_diff_check"
+                and exec_result.validation_exit_code != 0
+                and exec_result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"}
+                and self._has_functional_contract(task_id)):
+            command, code, detail, identity = self._validate_prepared_artifact(
+                task_id, prepared.worktree, run, lease)
+            exec_result.validation_command_id = command
+            exec_result.validation_exit_code = code
+            exec_result.validation_output_digest = identity
+            exec_result.error = detail
         if not exec_result.success:
             classification = (
                 "blocked"
@@ -1206,6 +1315,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.validation_output_digest,
                 failure_classification=classification,
                 failure_detail=exec_result.error,
+                failure_reset_at=getattr(exec_result, "failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -1227,6 +1337,7 @@ class DurableExecutionService:
                 "validation_exit_code": exec_result.validation_exit_code,
                 "error": exec_result.error,
                 "failure_classification": exec_result.failure_classification,
+                "failure_reset_at": getattr(exec_result, "failure_reset_at", ""),
             })),
             1, lease.owner, lease.epoch,
         )
@@ -1459,6 +1570,7 @@ class DurableExecutionService:
             "failure_classification": getattr(
                 exec_raw, "failure_classification", ""
             ),
+            "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
         }
 
         self.store._reconcile_external_operation(
@@ -1501,6 +1613,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.get("validation_output_digest", ""),
                 failure_classification=classification,
                 failure_detail=exec_result.get("error", "executor failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -1715,6 +1828,9 @@ class DurableExecutionService:
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
 
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
+
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=False)
         if artifact_failure is not None:
             return artifact_failure
@@ -1768,6 +1884,8 @@ class DurableExecutionService:
                 task_id, Path(workspace_root),
                 prepared_cb
             )
+            from .contract_recovery import restore_failed_tree
+            restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)
         except Exception as exc:
             self.store._fenced_classify_failure(
                 lease.run_id, task_id,
@@ -2089,6 +2207,10 @@ class DurableExecutionService:
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
+    def _execute_model_review(self, task_id: str, workspace_root: str, lease: LeaseHandle) -> Any:
+        from .model_review import execute_review
+        return execute_review(self, task_id, workspace_root, lease)
+
     def _validate_input_without_roles(self, task_id: str, lease: LeaseHandle) -> Any:
         """Advance existing milestones as explicitly skipped roles, then use host validation.
 
@@ -2125,10 +2247,17 @@ class DurableExecutionService:
                                     lease: LeaseHandle) -> tuple[str, int, str, str]:
         run = self.store._get_durable_run(lease.run_id)
         try:
-            return run_task_validation(self.store, task_id, worktree=worktree,
-                                       base_commit=run.repository_base_sha,
-                                       execution_id=run.execution_id, lease=lease)
-        except ExecutorRuntimeError as exc:
+            reviewing = model_review_input(self.store.get_task(task_id))
+            if reviewing:
+                from .model_review import verified_evidence
+                verified_evidence(self.store, self.store.get_task(task_id), run)
+            result = run_task_validation(self.store, task_id, worktree=worktree,
+                                        base_commit=run.repository_base_sha,
+                                        execution_id=run.execution_id, lease=lease)
+            if reviewing:
+                verified_evidence(self.store, self.store.get_task(task_id), run)
+            return result
+        except (ExecutorRuntimeError, TaskStoreError) as exc:
             return "git_diff_check", -1, str(exc), ""
 
     def _has_functional_contract(self, task_id: str) -> bool:
@@ -2171,6 +2300,9 @@ class DurableExecutionService:
         task = self.store.get_task(task_id)
         try:
             bind_consumer_input(self.store, task_id, lease=lease, allow_create=False)
+            if model_review_input(task):
+                from .model_review import verified_evidence
+                verified_evidence(self.store, task, run)
             proof = accepted_checkpoint_proof(task, run)
         except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError) as exc:
             proof = {"passed": False, "verified": False, "status": "UNVERIFIED", "reason":
@@ -2215,9 +2347,10 @@ class DurableExecutionService:
             from .codex_executor import codex_executor_kwargs
             native = codex_executor_kwargs(task, binding_resolver=self.binding_resolver, artifact_input=artifact_input,
                                            kind=task.executor_kind)
+            _require_native_owner_execution_binding(self.store, task, native["binding_resolution"])
             if getattr(native.get("binding_resolution"), "relay_required", False) and self.lease_provider is not None:
                 native["lease_provider"] = self.lease_provider  # API-key model inside Claude Code
-            return {**native, "timeout": min(timeout, NATIVE_EXECUTOR_TIMEOUT_MAX_SECONDS)}
+            return {**native, "timeout": timeout}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
@@ -2247,6 +2380,10 @@ class DurableExecutionService:
                 ["git", "rev-parse", "HEAD"],
                 cwd=wt_path, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
             )
+            root = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=wt_path,
+                capture_output=True, text=True, encoding="utf-8", errors="replace", check=True)
+            if Path(root.stdout.strip()).resolve() != Path(wt_path).resolve():
+                return ""
             return result.stdout.strip()
         except Exception:
             return ""
@@ -2555,6 +2692,8 @@ class DurableExecutionService:
         """
         from .task_execution import TaskExecutionOutcome
 
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
             execution_authority_sha=execution_authority_sha,
             planning_sha=planning_sha,
@@ -2563,6 +2702,19 @@ class DurableExecutionService:
             repo_sha = repository_base_sha
         else:
             repo_sha = ""
+
+        completed = self.store.get_task(task_id)
+        if model_review_input(completed) and completed.status == "READY_FOR_REVIEW":
+            row = self.store._conn.execute(
+                "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                raise DurableResumeError(f"no_durable_run:{task_id}")
+            completed_run = self.store._get_durable_run(row["run_id"])
+            if (completed_run.execution_authority_sha != auth_sha or completed_run.planning_sha != plan_sha):
+                raise DurableResumeError("model_review_authority_mismatch")
+            return self._functional_checkpoint_outcome(task_id, completed_run)
 
         run = self.store._find_active_durable_run(task_id)
         if run is None:
@@ -2600,7 +2752,7 @@ class DurableExecutionService:
             raise DurableResumeError(
                 f"invalid_orchestration_mode:{stored_task.orchestration_mode}"
             )
-        if stored_task.executor_kind != "opencode":
+        if stored_task.executor_kind != "opencode" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"invalid_executor_kind:{stored_task.executor_kind}"
             )
@@ -2670,7 +2822,7 @@ class DurableExecutionService:
             )
 
         accepted_cp = getattr(run_obj, "accepted_checkpoint", "") or ""
-        if accepted_cp == "":
+        if accepted_cp == "" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"pre_pre_planner_no_reconstruction_path:{task_id}:"
                 f"accepted_checkpoint_empty_fail_closed"
@@ -2725,6 +2877,8 @@ class DurableExecutionService:
         """
         from .task_execution import TaskExecutionOutcome
 
+        from .unknown_claim_isolation import refuse_held
+        refuse_held(self.store, task_id)
         auth_sha, plan_sha = self._assert_trusted_identity_for_resume(
             execution_authority_sha=execution_authority_sha,
             planning_sha=planning_sha,
@@ -2736,7 +2890,11 @@ class DurableExecutionService:
             row = self.store._conn.execute("SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1", (task_id,)).fetchone()
             if row is None:
                 raise DurableResumeError(f"no_durable_run:{task_id}")
-            return self._functional_checkpoint_outcome(task_id, self.store._get_durable_run(row["run_id"]))
+            completed_run = self.store._get_durable_run(row["run_id"])
+            if model_review_input(stored_task) and (completed_run.execution_authority_sha != auth_sha
+                                                    or completed_run.planning_sha != plan_sha):
+                raise DurableResumeError("model_review_authority_mismatch")
+            return self._functional_checkpoint_outcome(task_id, completed_run)
         if stored_task.status in ("READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"):
             run_raw = self.store._find_active_durable_run(task_id)
             if run_raw is None:
@@ -2871,7 +3029,7 @@ class DurableExecutionService:
                 validation_exit_code=run_obj.validation_exit_code or 0,
             )
 
-        if accepted_cp == "":
+        if accepted_cp == "" and not model_review_input(stored_task):
             raise DurableResumeError(
                 f"pre_pre_planner_no_reconstruction_path:{task_id}:"
                 f"accepted_checkpoint_empty_fail_closed"
@@ -2932,6 +3090,9 @@ class DurableExecutionService:
         )
 
         self.store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
 
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
         if artifact_failure is not None:
@@ -3031,6 +3192,12 @@ class DurableExecutionService:
 
         executor_kwargs = self._build_executor_kwargs(task)
         idempotency_key = f"single-exec-{task_id}-{run.execution_id}"
+        partial = self.store._conn.execute(
+            "SELECT checkpoint_id FROM quota_partial_checkpoints WHERE run_id=? AND state='RESUMING'",
+            (lease.run_id,)).fetchone()
+        if partial:
+            # Saved work is a distinct dispatch; the interrupted call remains journaled.
+            idempotency_key += "-quota-" + partial[0]
         request_digest = _digest(_json_payload({
             "task_id": task_id,
             "execution_id": run.execution_id,
@@ -3145,6 +3312,7 @@ class DurableExecutionService:
                     "failure_classification": getattr(
                         exec_raw, "failure_classification", ""
                     ),
+                    "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
                 }
             else:
                 exec_raw = executor.execute(
@@ -3172,12 +3340,17 @@ class DurableExecutionService:
                     "failure_classification": getattr(
                         exec_raw, "failure_classification", ""
                     ),
+                    "failure_reset_at": getattr(exec_raw, "failure_reset_at", ""),
                 }
         except Exception as exc:
+            from .model_availability import availability_error
+            unavailable = availability_error(str(exc))
+            dispatch_class = "MODEL_UNAVAILABLE" if unavailable else "executor_dispatch_failed"
+            dispatch_detail = unavailable or f"executor_dispatch_exception:{exc}"
             self.store._fenced_classify_failure(
                 lease.run_id, task_id,
-                classification="executor_dispatch_failed",
-                detail=f"executor_dispatch_exception:{exc}",
+                classification=dispatch_class,
+                detail=dispatch_detail,
                 owner=lease.owner, epoch=lease.epoch,
             )
             self.store._fenced_terminalize(
@@ -3186,8 +3359,8 @@ class DurableExecutionService:
                 validation_command_id="",
                 validation_exit_code=-1,
                 validation_output_digest="",
-                failure_classification="executor_dispatch_failed",
-                failure_detail=f"executor_dispatch_exception:{exc}",
+                failure_classification=dispatch_class,
+                failure_detail=dispatch_detail,
                 owner=lease.owner, epoch=lease.epoch,
             )
             self.store._reconcile_external_operation(
@@ -3208,6 +3381,36 @@ class DurableExecutionService:
                 failure_detail=final.failure_detail,
             )
 
+        if partial:
+            self.store.quota_checkpoint(lease.run_id, partial[0], lease.owner, lease.epoch, state="RESUMED")
+
+        if getattr(exec_raw, "quota_pause", None) is not None:
+            pause = exec_raw.quota_pause
+            self.store._reconcile_external_operation(
+                operation_id=ext_op.operation_id, external_operation_id=ext_op.operation_id,
+                result_state="failure", run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
+            self.store.interrupt_for_quota(lease.run_id, task_id, lease.owner, lease.epoch, pause)
+            return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id,
+                success=False, validation_command_id="", validation_exit_code=-1,
+                failure_classification="quota_paused" if pause["state"] == "PAUSED" else "quota_checkpoint_failed",
+                failure_detail=_json_payload(pause), quota_pause=pause)
+
+        from .model_availability import availability_error
+        unavailable = availability_error(str(exec_result.get("failure_classification", "")) + " " + str(exec_result.get("error", "")))
+        if unavailable:
+            exec_result.update(success=False, failure_classification="MODEL_UNAVAILABLE", error=unavailable)
+            fenced_cb(task_id, {"type": "MODEL_UNAVAILABLE", "title": "Model unavailable",
+                                "metadata": {"reason": unavailable}})
+        from .routing_inputs import model_refused
+        finals = [event.metadata.get("final_text", "") for event in self.store.get_events(task_id)
+                  if event.type == "EXECUTOR_COMPLETED"]
+        explicit_refusal = exec_result.get("failure_classification") in {"policy_refusal", "MODEL_REFUSED"}
+        if model_refused(finals[-1] if finals else "", changed_files=exec_result.get("changed_files"),
+                         policy_refusal=explicit_refusal):
+            exec_result.update(success=False, failure_classification="MODEL_REFUSED", error="MODEL_REFUSED")
+            fenced_cb(task_id, {"type": "MODEL_REFUSED", "title": "Model declined task",
+                                "metadata": {"content_class": next((e.metadata.get("content_class", "code")
+                                    for e in self.store.get_events(task_id) if e.type == "MODEL_SELECTED"), "code")}})
         success_flag = exec_result["success"]
         self.store._reconcile_external_operation(
             operation_id=ext_op.operation_id,
@@ -3249,6 +3452,7 @@ class DurableExecutionService:
                 validation_output_digest=exec_result.get("validation_output_digest", ""),
                 failure_classification=classification,
                 failure_detail=exec_result.get("error", "executor failed"),
+                failure_reset_at=exec_result.get("failure_reset_at", ""),
                 owner=lease.owner, epoch=lease.epoch,
             )
             final = self.store.get_task(task_id)
@@ -3485,6 +3689,9 @@ class DurableExecutionService:
     ) -> TaskExecutionOutcome:
         from .task_execution import TaskExecutionOutcome
         from .opencode_executor import _collect_product_diff
+
+        if model_review_input(self.store.get_task(task_id)):
+            return self._execute_model_review(task_id, workspace_root, lease)
 
         artifact_failure = self._admit_artifact_input(task_id, lease, resume=True)
         if artifact_failure is not None:
@@ -4116,8 +4323,10 @@ class DurableExecutionService:
 
         Does NOT automatically launch models. Returns list of reconciliation records.
         """
-        return self.store._reconcile_expired_runs(
-            now_ms=now_ms or _utc_now_ms(),
+        current_ms = now_ms or _utc_now_ms()
+        quota_records = self.store.recover_quota_pauses(now_ms=current_ms)
+        return quota_records + self.store._reconcile_expired_runs(
+            now_ms=current_ms,
             max_age_ms=max_age_ms or self.expiry_ms,
         )
 

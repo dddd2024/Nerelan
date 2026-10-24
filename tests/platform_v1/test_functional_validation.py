@@ -257,3 +257,73 @@ def test_targets_limit_pytest_to_the_named_files(tmp_path):
 def test_checks_without_targets_keep_their_frozen_shape():
     assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
         {"profile_id": "python_pytest", "working_directory": "."},)
+
+
+def test_public_hygiene_is_bounded_rule_data_only():
+    from reverse_agent.platform_v1.functional_validation import public_hygiene
+    raw = {"exit_code": 1, "stdout": "PRIVATE SOURCE SENTINEL", "stderr": "PRIVATE STDERR",
+           "diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 25}
+    public = public_hygiene(raw)
+    assert len(public["diagnostics"]) == 20 and public["diagnostics_truncated"]
+    assert "PRIVATE" not in str(public)
+    assert "SENTINEL" not in str(public)
+    assert "src/a.py" in str(public)
+    assert "whitespace" in str(public)
+    assert len(public["observation_digest"]) == 64
+
+
+def test_public_hygiene_whitespace_fallback_when_exit_nonzero_no_diagnostics():
+    from reverse_agent.platform_v1.functional_validation import public_hygiene
+    raw = {"exit_code": 1, "stdout": "some git diff --check", "diagnostics": []}
+    public = public_hygiene(raw)
+    assert public["exit_code"] == 1
+    assert public["diagnostics"] == [{"path": "(patch)", "rule": "whitespace"}]
+
+
+def test_functional_feedback_includes_hygiene_diagnostics():
+    from reverse_agent.platform_v1.functional_validation import functional_feedback
+    result = {"reason": "functional_patch_hygiene_failed", "checks": [],
+              "hygiene_diagnostics": [{"path": "native", "rule": "native_executable"},
+                                      {"path": "a/node_modules/x.js", "rule": "package_payload"}]}
+    feedback = functional_feedback(result)
+    assert "Artifact rule native_executable: native" in feedback
+    assert "Artifact rule package_payload: a/node_modules/x.js" in feedback
+    assert feedback.count("Artifact rule") == 2
+
+
+def test_functional_feedback_truncates_hygiene_diagnostics_to_twenty():
+    from reverse_agent.platform_v1.functional_validation import functional_feedback
+    result = {"reason": "functional_patch_hygiene_failed", "checks": [],
+              "hygiene_diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 30}
+    feedback = functional_feedback(result)
+    assert feedback.count("Artifact rule") == 20
+
+
+def test_preexisting_junction_is_classified_patch_hygiene_not_host_observation(implementation):
+    root, base, store, task_id = implementation
+    index_before = (root / ".git/index").read_bytes()
+    outside = root.parent / "outside-sentinel"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("OUTSIDE SECRET\n", encoding="utf-8")
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    junction = root / "link"
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+                       capture_output=True, check=True)
+    else:
+        junction.symlink_to(outside, target_is_directory=True)
+    try:
+        result = validate(implementation)
+        assert result["passed"] is False
+        assert result["reason"] == "functional_patch_hygiene_failed"
+        assert result["failure_kind"] == "patch_hygiene"
+        feedback = fv.functional_feedback(result)
+        assert "link" in feedback
+        assert any(token in feedback for token in ("reparse", "symlink", "indirection"))
+        assert (root / ".git/index").read_bytes() == index_before
+        assert git(root, "rev-parse", "HEAD") == base
+    finally:
+        if junction.exists() and junction.is_dir() and not junction.is_symlink():
+            junction.rmdir()
+        elif junction.is_symlink():
+            junction.unlink()

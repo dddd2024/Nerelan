@@ -33,6 +33,11 @@ class Capability:
 
 BUILTIN_CAPABILITIES = (
     Capability(
+        "github-reviewed-landing", "Reviewed PR landing", "controller", "GitHub", "1",
+        "Durable landing intent; requires an explicit window grant and injected adapter.",
+        ("land_reviewed_pr",), "guarded",
+    ),
+    Capability(
         "delegated-goal-admission", "Delegated Goal admission", "controller", "Nerelan", "1",
         "Atomic admission of exact host-authorized Goal snapshots; no proposal self-approval.",
         ("approve_goal",), "guarded",
