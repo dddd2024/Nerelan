@@ -178,7 +178,7 @@ def test_invalid_launch_scopes_rejected(field, value):
 
 
 def test_unbounded_objective_and_control_character_are_rejected():
-    for text in ("x" * 2049, "safe\nrun dangerous tool", ""):
+    for text in ("x" * 2049, "safe\nrun dangerous tool", "", "lone \ud800 surrogate", "pair \ud83d\ude00 inside"):
         obj = {
             "repository": "dddd2024/Nerelan", "objective": text,
             "executor_kind": "codex", "idempotency_key": "retry-1",

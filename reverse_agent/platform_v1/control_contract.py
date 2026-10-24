@@ -99,8 +99,10 @@ def _validate_value(field: str, value: object) -> str | int:
         raise ControlContractError("invalid_argument")
     if field == "objective":
         # Objective is untrusted natural language, never an authorization
-        # statement. Bound its size and reject controls.
-        if not (1 <= len(value) <= 2048) or any(ord(c) < 32 for c in value):
+        # statement. Bound its size, reject controls and surrogate code
+        # points (they cannot be encoded to UTF-8 downstream).
+        if (not 1 <= len(value) <= 2048
+                or any(ord(c) < 32 or 0xD800 <= ord(c) <= 0xDFFF for c in value)):
             raise ControlContractError("invalid_argument")
     elif field == "repository":
         if not _REPOSITORY.fullmatch(value) or any(part in {".", ".."} for part in value.split("/")):
