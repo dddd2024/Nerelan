@@ -1162,11 +1162,13 @@ class CombinedTrustedHost:
             store=self._task_store,
             router=self._router,
         )
-        try:
-            if not coordinator_paused:
+        if not coordinator_paused:
+            try:
                 dur_svc.reconcile_expired_runs()
-        except Exception:
-            pass
+            except Exception as exc:
+                # Do not publish a healthy host when persisted RUNNING tasks
+                # could not be reconciled. Paused/read-only startup is explicit.
+                raise RuntimeError("trusted_host_startup_reconciliation_failed") from exc
 
         mcp = model_control_port if model_control_port is not None else self._model_control_port
         tap = task_api_port if task_api_port is not None else self._task_api_port
