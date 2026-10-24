@@ -275,7 +275,7 @@ def test_background_loop_reconciles_leases_that_expire_after_start(tmp_path):
     coordinator.poll_interval = coordinator.reconcile_interval = 0.1
     calls = []
     periodic = threading.Event()
-    def reconcile():
+    def reconcile(*, fail_closed_on_durable=False):
         calls.append(threading.current_thread().name)
         if len(calls) >= 3:
             periodic.set()
@@ -307,7 +307,7 @@ def test_failing_periodic_reconcile_never_ends_the_coordinator_loop(tmp_path):
     ticks = []
     ticked = threading.Event()
     calls = []
-    def reconcile():
+    def reconcile(*, fail_closed_on_durable=False):
         calls.append(1)
         if len(calls) > 1:
             raise RuntimeError("durable service unavailable")
