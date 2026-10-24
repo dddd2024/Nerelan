@@ -1806,6 +1806,55 @@ class OpenCodeExecutor:
                     "status": "UNKNOWN",
                 })
             _persist_usage_observations(store, task_id, partial_observations)
+
+            # Retain bounded, redacted partial diagnostics from the
+            # pre-timeout stdout/stderr using the same parsing/redaction
+            # primitives as the normal exit path. Malformed (truncated) tail
+            # lines are tolerated by _parse_json_lines; the rest of the
+            # timeout semantics (failure_classification, usage UNKNOWN,
+            # cleanup uncertainty) are intentionally NOT altered.
+            partial_events, _malformed = self._parse_json_lines(stdout)
+            partial_evidence = _build_executor_evidence(
+                partial_events,
+                exit_code=-1,
+                model_id=self._model_id,
+            )
+            _emit_executor_evidence_events(event_callback, task_id, execution_id, partial_evidence)
+            _persist_executor_evidence(store, task_id, partial_evidence)
+
+            partial_text_parts = [ev["part"]["text"] for ev in partial_events
+                                  if ev.get("type") == "text" and isinstance(ev.get("part"), Mapping)
+                                  and ev["part"].get("type") == "text"
+                                  and isinstance(ev["part"].get("text"), str)]
+            if partial_text_parts:
+                _emit(event_callback, task_id, {
+                    "type": "EXECUTOR_FINISHED",
+                    "title": "OpenCode partial text before timeout",
+                    "description": "First partial text retained; completion was cut off",
+                    "metadata": {
+                        "execution_id": execution_id,
+                        "failure_classification": "timeout",
+                        "role": role_context.role,
+                        "partial_text": redact_secrets(partial_text_parts[0])[:MAX_EVIDENCE_STRING_LEN],
+                        "is_partial": True,
+                    },
+                })
+
+            stderr_redacted = redact_secrets(_sanitize_output(stderr, 2048))
+            if stderr_redacted:
+                _emit(event_callback, task_id, {
+                    "type": "EXECUTOR_FINISHED",
+                    "title": "OpenCode stderr before timeout",
+                    "description": "Bounded stderr retained for timeout diagnosis",
+                    "metadata": {
+                        "execution_id": execution_id,
+                        "failure_classification": "timeout",
+                        "role": role_context.role,
+                        "stderr_summary": stderr_redacted[:512],
+                        "is_partial": True,
+                    },
+                })
+
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
                 "title": "OpenCode timeout",
@@ -1817,6 +1866,8 @@ class OpenCodeExecutor:
                     "role": role_context.role,
                     "cleanup_confirmed": cleanup_confirmed,
                     "partial_usage_observations": len(partial_observations),
+                    "partial_evidence_items": len(partial_evidence),
+                    "partial_text_items": len(partial_text_parts),
                     "output_truncated": owned.output_truncated,
                     "usage_accounting": "UNKNOWN",
                 },
