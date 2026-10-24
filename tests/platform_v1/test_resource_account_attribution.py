@@ -11,6 +11,8 @@ untouched.
 
 from __future__ import annotations
 
+import copy
+
 from reverse_agent.model_access.resources import build_resource_view
 from reverse_agent.model_access.store import ModelProfileStore
 
@@ -102,7 +104,7 @@ def test_every_reported_account_appears_with_what_a_route_can_claim():
     assert accounts["opencode-zen-free"]["attribution"]["status"] == "unobserved"
     assert accounts["opencode-zen-free"]["windows"] == []
     assert section["summary"] == {"accounts": 6, "route_bound": 2, "no_route_identity": 3,
-                                  "ambiguous": 0, "unobserved": 1}
+                                  "ambiguous": 0, "unobserved": 1, "malformed": 0}
 
 
 def test_unrouted_credit_numbers_are_published_verbatim_and_scoped_to_the_account():
@@ -114,6 +116,7 @@ def test_unrouted_credit_numbers_are_published_verbatim_and_scoped_to_the_accoun
     assert workbuddy["windows"] == [{"window": "Credits", "used_percent": 98.27586206896552,
                                      "remaining_percent": 1.7241379310344769, "resets_at": None,
                                      "unlimited": False}]
+    assert workbuddy["cached_windows"] == []  # a current reading is not duplicated as cached
     copilot = accounts["copilot"]["windows"]
     assert [window["unlimited"] for window in copilot] == [False, True]
 
@@ -154,17 +157,24 @@ def test_two_connections_on_one_provider_are_named_not_guessed():
     assert claude["attribution"]["connection_ids"] == ["claude-account", "claude-relay"]
 
 
-def test_stale_account_keeps_its_reason_and_has_no_current_percentage():
+def test_stale_account_keeps_its_reason_and_never_presents_old_numbers_as_current():
+    # magpie.parse_quotas moves a stale reading into cached_windows; this also feeds
+    # windows directly so the suppression is proven, not merely inherited from an
+    # empty input.
+    stale_window = {"name": "5 hours", "used_percent": 44, "remaining_percent": 56,
+                    "resets_at": None, "unlimited": False}
     stale = {"status": "available", "reason": None, "accounts": [
         {"provider": "codex", "kind": "subscription", "state": "STALE", "reason": "stale_reading",
-         "observed_at": "2026-10-20T00:00:00Z", "windows": [],
-         "cached_windows": [{"name": "5 hours", "used_percent": 44, "remaining_percent": 56,
-                             "resets_at": None, "unlimited": False}]}]}
+         "observed_at": "2026-10-20T00:00:00Z", "windows": [dict(stale_window)],
+         "cached_windows": [dict(stale_window)]}]}
     account = _accounts(_view(stale))["codex"]
 
     assert account["state"] == "STALE" and account["reason"] == "stale_reading"
     assert account["attribution"]["status"] == "unobserved"
-    assert account["windows"] == []  # the stale reading is not presented as current use
+    assert account["windows"] == []  # nothing stale is presented as current use
+    assert account["cached_windows"] == [{"window": "5 hours", "used_percent": 44,
+                                          "remaining_percent": 56, "resets_at": None,
+                                          "unlimited": False}]  # display-only, still reachable
 
 
 def test_disabled_or_unavailable_magpie_is_explicit_and_invents_nothing():
@@ -175,12 +185,12 @@ def test_disabled_or_unavailable_magpie_is_explicit_and_invents_nothing():
         assert section["reason"] == "magpie_not_enabled"
         assert section["accounts"] == []
         assert section["summary"] == {"accounts": 0, "route_bound": 0, "no_route_identity": 0,
-                                     "ambiguous": 0, "unobserved": 0}
+                                     "ambiguous": 0, "unobserved": 0, "malformed": 0}
     # The legacy view keeps its pre-existing shape: the section is additive only.
     assert "account_attribution" not in _view(mode="legacy")
 
 
-def test_attribution_never_changes_admission_or_quota_known():
+def test_attribution_never_changes_admission_or_quota_known():  # noqa: C901 - one read model, one assertion set
     def window(used, resets_at):
         return {"window": "5 hours", "basis": "official_percent", "used_percent": used,
                 "resets_at": resets_at, "reset_passed": False, "status": None, "source": "magpie"}
@@ -191,8 +201,16 @@ def test_attribution_never_changes_admission_or_quota_known():
               "claude-code": {"state": "OBSERVED", "provenance": "EXTERNAL_MAGPIE", "source": "magpie",
                               "observed_at": "2026-10-24T03:30:02Z",
                               "windows": [window(99, "2026-10-26T04:59:00+00:00")]}}
+    before = copy.deepcopy(quotas)
     view = _view(quotas=quotas)
     by_id = {item["connection_id"]: item for item in view["resources"]}
+
+    # The new section exists (so a reverted implementation fails here) ...
+    assert "account_attribution" in view
+    assert {account["provider"] for account in view["account_attribution"]["accounts"]} >= {"workbuddy", "trae-cn"}
+    # ... and it neither mutates its inputs nor adds provider keys to admission.
+    assert quotas == before
+    assert set(quotas) == {"codex", "claude-code"}
 
     # The gateway keeps its honest UNKNOWN: account telemetry is not a route window.
     assert by_id["magpie"]["quota"]["state"] == "UNKNOWN"
@@ -200,15 +218,84 @@ def test_attribution_never_changes_admission_or_quota_known():
     assert by_id["claude-account"]["quota"]["state"] == "OBSERVED"
     assert by_id["claude-account"]["quota"]["windows"][0]["used_percent"] == 99
     assert view["summary"]["quota_known"] == 2  # only provider-keyed route quotas count
-    assert "workbuddy" not in quotas and "trae-cn" not in quotas
+
+    # The resources rows are identical to the legacy view: attribution is additive.
+    legacy = _view(quotas=quotas, mode="legacy")
+    assert view["resources"] == legacy["resources"]
 
 
 def test_public_account_rows_carry_no_secret_or_free_text():
     allowed = {"provider", "account_ref", "state", "reason", "observed_at", "usage_scope",
-               "windows", "attribution"}
+               "windows", "cached_windows", "attribution"}
     for account in _view()["account_attribution"]["accounts"]:
         assert set(account) == allowed
         assert all(set(window) == {"window", "used_percent", "remaining_percent", "resets_at",
                                    "unlimited"} for window in account["windows"])
     serialized = str(_view())
     assert "gateway-secret-value" not in serialized
+
+
+def test_a_gateway_declaring_openai_is_not_the_codex_cli_account():
+    # The repository's own Magpie gateway is `provider: "openai"` with an API key.
+    # Magpie's alias table maps "openai" to the codex route, but a gateway's quota
+    # lookup key is its own id, so reusing that table here would claim a route it
+    # can never satisfy.
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "gateway", "name": "Gateway", "provider": "openai",
+                             "base_url": "https://gateway.example/v1", "auth_method": "api_key",
+                             "enabled": True, "api_key": "gateway-secret-value"})
+    view = build_resource_view(store, lambda: {}, external=(lambda: SNAPSHOT), mode="hybrid")
+    codex = _accounts(view)["codex"]
+
+    assert codex["attribution"] == {"status": "no_route_identity",
+                                    "reason": "no_connection_declares_this_provider",
+                                    "route_provider": "codex", "connection_ids": []}
+    assert {item["connection_id"]: item["quota"]["state"] for item in view["resources"]} == {"gateway": "UNKNOWN"}
+
+
+def test_a_disabled_native_connection_is_not_an_executable_route():
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "claude-account", "name": "Claude", "provider": "claude-code",
+                             "base_url": "https://claude.ai", "auth_method": "external_cli_session",
+                             "enabled": False})
+    view = build_resource_view(store, lambda: {}, external=(lambda: SNAPSHOT), mode="hybrid")
+
+    assert _accounts(view)["claude"]["attribution"]["status"] == "no_route_identity"
+    assert view["account_attribution"]["summary"]["route_bound"] == 0
+
+
+def test_an_unreadable_unlimited_flag_stays_unknown_instead_of_false():
+    snapshot = {"status": "available", "reason": None, "accounts": [
+        {"provider": "workbuddy", "state": "FRESH", "reason": None, "observed_at": "2026-10-24T03:30:03Z",
+         "windows": [{"name": "Credits", "used_percent": 5, "remaining_percent": 95,
+                      "resets_at": None, "unlimited": "no"},
+                     {"name": "Tokens", "used_percent": 1, "remaining_percent": 99,
+                      "resets_at": None, "unlimited": True},
+                     {"name": "Calls", "used_percent": 2, "remaining_percent": 98,
+                      "resets_at": None}]}]}
+    windows = _accounts(_view(snapshot))["workbuddy"]["windows"]
+
+    assert [window["unlimited"] for window in windows] == [None, True, None]
+
+
+def test_malformed_and_stateless_rows_are_counted_and_never_shown_as_current():
+    snapshot = {"status": "available", "reason": None, "accounts": [
+        "not-an-account",
+        {"provider": "trae-cn", "reason": None, "observed_at": "2026-10-24T03:30:03Z",
+         "windows": [{"name": "Credits", "used_percent": 90.9, "remaining_percent": 9.1,
+                      "resets_at": None, "unlimited": False}]}]}
+    section = _view(snapshot)["account_attribution"]
+
+    assert section["summary"]["malformed"] == 1
+    trae = _accounts(_view(snapshot))["trae-cn"]
+    assert trae["state"] is None and trae["attribution"]["status"] == "unobserved"
+    assert trae["attribution"]["reason"] is None
+    assert trae["windows"] == []  # no state means no claim about current use
+    assert trae["cached_windows"][0]["used_percent"] == 90.9
+
+
+def test_a_non_mapping_source_status_is_reported_as_unavailable():
+    section = _view({"status": 7, "reason": {"not": "text"}, "accounts": []}, mode="hybrid")["account_attribution"]
+
+    assert section["status"] == "unavailable" and section["reason"] is None
+    assert section["accounts"] == []

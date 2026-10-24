@@ -251,12 +251,13 @@ def _account_windows(account: Mapping[str, Any]) -> list[dict[str, Any]]:
             continue
         name, used = window.get("name"), window.get("used_percent")
         remaining, resets_at = window.get("remaining_percent"), window.get("resets_at")
+        unlimited = window.get("unlimited")
         windows.append({
             "window": name if isinstance(name, str) and name else None,
             "used_percent": used if type(used) in (int, float) and 0 <= used <= 100 else None,
             "remaining_percent": remaining if type(remaining) in (int, float) and 0 <= remaining <= 100 else None,
             "resets_at": resets_at if isinstance(resets_at, str) and len(resets_at) <= 40 else None,
-            "unlimited": window.get("unlimited") is True,
+            "unlimited": unlimited if isinstance(unlimited, bool) else None,
         })
     return windows
 
@@ -283,10 +284,13 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
     * ``unobserved`` - the account state is not fresh; its reason is preserved
       and no percentage is manufactured.
     """
-    status = magpie.get("status") if isinstance(magpie, Mapping) else "unavailable"
-    summary = {"accounts": 0, "route_bound": 0, "no_route_identity": 0, "ambiguous": 0, "unobserved": 0}
+    status = magpie.get("status") if isinstance(magpie, Mapping) else None
+    status = status if isinstance(status, str) and status else "unavailable"
+    summary = {"accounts": 0, "route_bound": 0, "no_route_identity": 0, "ambiguous": 0, "unobserved": 0,
+               "malformed": 0}
     if status != "available":
-        return {"status": status, "reason": magpie.get("reason") if isinstance(magpie, Mapping) else None,
+        reason = magpie.get("reason") if isinstance(magpie, Mapping) else None
+        return {"status": status, "reason": reason if isinstance(reason, str) else None,
                 "accounts": [], "summary": summary}
     from .subscription_quota import magpie_route_provider
 
@@ -303,21 +307,27 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
     for connection in connections:
         if not isinstance(connection, Mapping):
             continue
-        # A connection may declare its provider under either id; both are stable.
-        for declared in (connection.get("executor_provider_id"), connection.get("upstream_provider_id")):
-            declared_route = magpie_route_provider(declared)
-            if declared_route and connection.get("connection_id"):
-                entry = connections_per_route.setdefault(declared_route, [])
-                if connection["connection_id"] not in entry:
-                    entry.append(connection["connection_id"])
+        # Only an executor provider id that *is* a native CLI route counts.  Magpie's
+        # account aliases ("openai", "anthropic") must not be reused here: a gateway
+        # connection declaring "openai" is not the Codex CLI account, and its quota
+        # lookup key is its own id.  A disabled connection cannot execute anything.
+        declared = connection.get("executor_provider_id")
+        if declared not in NATIVE_CLI_PROVIDERS or connection.get("enabled") is not True:
+            continue
+        if connection.get("connection_id"):
+            entry = connections_per_route.setdefault(declared, [])
+            if connection["connection_id"] not in entry:
+                entry.append(connection["connection_id"])
 
+    summary["malformed"] = sum(1 for a in (magpie.get("accounts") or ()) if not isinstance(a, Mapping))
     accounts = []
     for account in sorted((a for a in (magpie.get("accounts") or ()) if isinstance(a, Mapping)),
                           key=lambda a: (str(a.get("provider") or ""), str(a.get("account_ref") or ""),
                                          str(a.get("observed_at") or ""))):
         provider_route = route_of(account)
         if account.get("state") not in _OBSERVED_ACCOUNT_STATES:
-            attribution = {"status": "unobserved", "reason": account.get("reason"),
+            reason = account.get("reason")
+            attribution = {"status": "unobserved", "reason": reason if isinstance(reason, str) else None,
                            "route_provider": provider_route, "connection_ids": []}
         elif provider_route is None:
             attribution = {"status": "no_route_identity", "reason": "provider_not_mapped_to_any_executor",
@@ -337,6 +347,7 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
             attribution = {"status": "route_bound", "reason": None, "route_provider": provider_route,
                            "connection_ids": connections_per_route[provider_route]}
         account_ref, observed_at = account.get("account_ref"), account.get("observed_at")
+        current = account.get("state") in _OBSERVED_ACCOUNT_STATES
         accounts.append({
             "provider": account.get("provider") if isinstance(account.get("provider"), str) else None,
             "account_ref": account_ref if isinstance(account_ref, str) and account_ref else None,
@@ -344,7 +355,11 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
             "reason": account.get("reason") if isinstance(account.get("reason"), str) else None,
             "observed_at": observed_at if isinstance(observed_at, str) and len(observed_at) <= 40 else None,
             "usage_scope": "account",
-            "windows": _account_windows(account),
+            # A stale or unknown reading is display-only: it never counts as current use,
+            # and the numbers stay reachable under cached_windows.
+            "windows": _account_windows(account) if current else [],
+            "cached_windows": [] if current else _account_windows(
+                {"windows": account.get("cached_windows") or account.get("windows")}),
             "attribution": attribution,
         })
         summary["accounts"] += 1
