@@ -125,8 +125,10 @@ def test_econnreset_retains_sanitized_reason_in_result_event_and_evidence(
     assert result.success is False
     assert result.failure_classification == "network_provider_failure"
     assert result.process_exit_code == 1
-    # Legacy prefix preserved exactly.
-    assert result.error == "opencode_nonzero:exit=1:network_provider_failure"
+    # Keep the legacy prefix while carrying the cause to durable failure_detail.
+    assert result.error.startswith("opencode_nonzero:exit=1:network_provider_failure ")
+    assert "ECONNRESET" in result.error
+    assert "status=502" in result.error
     # stderr was empty, so the sanitized reason must survive in the summary.
     assert "ECONNRESET" in result.validation_output_summary
     assert "status=502" in result.validation_output_summary
@@ -206,8 +208,9 @@ def test_unknown_502_stays_generic_but_reports_bounded_detail(
 
     # No ECONNRESET -> stays generic (502 is not auto-network/quota/auth).
     assert result.failure_classification == "executor_nonzero"
-    assert result.error == "opencode_nonzero:exit=1:executor_nonzero"
-    # But a bounded useful detail still reaches the summary and evidence.
+    assert result.error.startswith("opencode_nonzero:exit=1:executor_nonzero ")
+    assert "unknown gateway error" in result.error
+    # Classification stays generic while the actual cause reaches durable consumers.
     assert "unknown gateway error" in result.validation_output_summary
     assert "status=502" in result.validation_output_summary
     rows = _evidence_rows(store, task_id)
@@ -459,7 +462,8 @@ def test_execute_path_retains_econnreset_diagnostic(tmp_path) -> None:
         )
         assert result.success is False
         assert result.failure_classification == "network_provider_failure"
-        assert result.error == "opencode_nonzero:exit=1:network_provider_failure"
+        assert result.error.startswith("opencode_nonzero:exit=1:network_provider_failure ")
+        assert "ECONNRESET" in result.error
         assert "ECONNRESET" in result.validation_output_summary
         finished = [e for e in events if e.get("title") == "OpenCode nonzero exit"]
         assert finished and "ECONNRESET" in finished[0]["metadata"]["error_diagnostic"]
@@ -519,3 +523,97 @@ def test_bounded_error_diagnostic_empty_when_no_real_errors() -> None:
     assert _bounded_error_diagnostic(
         [{"type": "text", "data": "ECONNRESET noise"}]
     ) == ""
+
+
+@pytest.mark.parametrize(("provider_message", "local_unapproved"), [
+    ("Trae CN: ECONNRESET: The socket connection was closed unexpectedly.", False),
+    ("ECONNRESET while handling unapproved retry from upstream", False),
+    ("ECONNRESET fixture", True),
+])
+def test_nested_reason_reaches_real_durable_failure_detail(
+    monkeypatch, tmp_path, provider_message, local_unapproved
+) -> None:
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
+    from reverse_agent.platform_v1.opencode_executor import PreparedWorkspaceContext
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    # Give the fenced production context a real, fixture-owned Git identity.
+    for args in (("init",), ("config", "user.name", "Fixture"),
+                 ("config", "user.email", "fixture@example.invalid")):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "fixture.txt").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "fixture.txt"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "fixture"], cwd=tmp_path, check=True, capture_output=True)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    # Reuse only the fake CLI seam; execute the real durable dispatch and sink.
+    payload = _econnreset_payload()
+    payload["error"]["data"]["message"] = provider_message
+    result, _, store, task_id = _run_core(
+        monkeypatch, tmp_path, stdout=json.dumps(payload) + "\n"
+    )
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-planning",
+    )
+    lease = service._acquire_or_find_lease(task_id, "fixture-owner", "", str(tmp_path))
+    try:
+        store._set_worktree_identity(lease.run_id, str(tmp_path), head, lease.owner, lease.epoch)
+        store._set_repository_base_sha(lease.run_id, head, lease.owner, lease.epoch)
+        store._accept_checkpoint(lease.run_id, "PRE_PLANNER", "fixture", 1, lease.owner, lease.epoch)
+        run = store._get_durable_run(lease.run_id)
+        prepared = PreparedWorkspaceContext(
+            worktree=tmp_path, base_sha=head, execution_id=run.execution_id,
+            cli_path="/fake/opencode", is_cmd=False, opencode_exe="/fake/opencode",
+        )
+        executor = _executor()
+        if local_unapproved:
+            # Local policy failure control: only the executor-result seam is
+            # injected; the fenced durable classification/persistence is real.
+            result = replace(result, error="host_validation_command_unapproved",
+                             failure_classification="deterministic_validation_failure")
+            executor = SimpleNamespace(execute_role_prepared=lambda *a, **kw: result)
+        outcome = service._dispatch_opencode_durable_single(
+            task_id=task_id, run=run, lease=lease, executor=executor,
+            prepared=prepared, workspace_root=str(tmp_path),
+            idempotency_key="fixture-nested-error", request_digest="fixture",
+        )
+        persisted = store.get_task(task_id)
+        assert not outcome.success
+        assert persisted.status == "FAILED"
+        if local_unapproved:
+            assert persisted.failure_classification == "blocked"
+            assert persisted.failure_detail == "host_validation_command_unapproved"
+        else:
+            assert persisted.failure_classification == "network_provider_failure", persisted.failure_detail
+            assert persisted.failure_detail.startswith("opencode_nonzero:exit=1:network_provider_failure ")
+            assert "ECONNRESET" in persisted.failure_detail
+            assert "status=502" in persisted.failure_detail
+        assert outcome.failure_detail == persisted.failure_detail
+    finally:
+        store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+
+def test_short_control_bytes_and_split_secret_are_sanitized(monkeypatch, tmp_path) -> None:
+    secret = "short-fixture-value"
+    payload = {"type": "error", "error": {"name": "APIError", "data": {
+        "message": "socket\x01 closed\x1b\n api_\x01key: " + secret + "\x7f",
+        "statusCode": 502,
+    }}}
+    diagnostic = _single_error_diagnostic(payload["error"], MAX_EVIDENCE_STRING_LEN)
+    assert all(ord(ch) >= 32 and ord(ch) != 127 for ch in diagnostic)
+    assert secret not in diagnostic
+    result, events, store, task_id = _run_core(
+        monkeypatch, tmp_path, stdout=json.dumps(payload) + "\n"
+    )
+    finished = next(e for e in events if e.get("title") == "OpenCode nonzero exit")
+    surfaces = [result.error, result.validation_output_summary,
+                finished["metadata"]["error_diagnostic"], finished["description"]]
+    surfaces += [row["value"] for row in _evidence_rows(store, task_id)]
+    assert surfaces and all("socket closed" in value for value in surfaces)
+    for value in surfaces:
+        assert secret not in value
+        assert "[REDACTED]" in value
+        assert all(ord(ch) >= 32 and ord(ch) != 127 for ch in value)
+    assert len(finished["metadata"]["error_diagnostic"]) <= MAX_EVIDENCE_STRING_LEN
