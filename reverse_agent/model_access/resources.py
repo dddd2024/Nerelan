@@ -283,7 +283,7 @@ def _account_attribution(magpie: Mapping[str, Any], connections: list[Mapping[st
       account-level telemetry.
     * ``ambiguous_multiple_accounts`` - several observed accounts share one
       provider, so no single one may be presented as *the* route's balance.
-    * ``ambiguous_multiple_routes`` - several connections declare the provider.
+    * ``ambiguous_multiple_routes`` - several enabled connections declare the provider.
     * ``unobserved`` - the account state is not fresh; its reason is preserved
       and no percentage is manufactured.
     """
