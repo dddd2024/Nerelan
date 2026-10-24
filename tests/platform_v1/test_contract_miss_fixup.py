@@ -461,3 +461,39 @@ def test_safe_recovery_tree_drops_artifacts_and_preserves_originals(tmp_path):
     names = subprocess.check_output(["git", "-C", str(repo), "ls-tree", "-r", "--name-only", safe]).decode().splitlines()
     assert "payload" not in names and "asset.bin" in names
     assert (repo / "payload").read_bytes() == payload
+
+
+def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case, tmp_path):
+    root, base, store, control, service, goal, _, task = case
+    wrong_tree(root)
+    package = root / "~" / "Python" / "Python313" / "site-packages" / "pkg"
+    package.mkdir(parents=True)
+    (package / "payload.py").write_text("installed = True\n", encoding="utf-8")
+    (root / "native").write_bytes(b"\x7fELF native executable payload")
+    code, reason, identity = validate(case)
+    assert code == 1 and reason == "functional_patch_hygiene_failed"
+    failed = store.get_task(task.id)
+    original_refs = list(failed.evidence_refs)
+    snapshot = recovery.failed_snapshot(failed, root=root)
+    assert "package_payload" in snapshot["feedback"] and "native_executable" in snapshot["feedback"]
+    assert _load_evidence(failed, ACCEPTED_CATEGORY, task.execution_id) is None
+    [step] = service.escalate_failed_tasks(goal.id)
+    fixup = store.get_task(step["to_task_id"])
+    dest = destination(case, tmp_path)
+    recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+    restored = _load_evidence(store.get_task(fixup.id), "FailedTreeRestored", fixup.execution_id)
+    assert restored["source_tree"] == snapshot["tree"]
+    assert restored["recovery_tree"] != snapshot["tree"]
+    assert git(dest, "cat-file", "-t", restored["recovery_tree"]) == "tree"
+    assert not (dest / "~").exists() and not (dest / "native").exists()
+    assert (dest / "wrong_name.py").exists() and (dest / "app.py").exists()
+    prompt = cb.executor_context(store, task_id=fixup.id, workspace=dest, expected_head=base)
+    assert "Contract fixup feedback" in prompt and "package_payload" in prompt
+    (dest / "wrong_name.py").rename(dest / "test_exact.py")
+    assert validate(case, fixup, dest)[0] == 0
+    assert validation.functional_evidence(store.get_task(fixup.id))["verified"]
+    current = store.get_task(task.id)
+    assert current.evidence_refs[:len(original_refs)] == original_refs
+    assert recovery.failed_snapshot(current, root=root) == snapshot
+    assert git(root, "rev-parse", snapshot["ref"]) == snapshot["tree"]
+    assert (root / "native").read_bytes() == b"\x7fELF native executable payload"
