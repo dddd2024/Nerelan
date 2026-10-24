@@ -1975,28 +1975,47 @@ class OpenCodeExecutor:
 
         if exit_code != 0:
             fail_class = self._classify_exit(exit_code, events_raw)
+            # Derive a bounded, allowlisted, sanitized diagnostic from real
+            # error envelopes so durable failure_detail/API consumers get a
+            # human reason even when stderr is empty. The legacy
+            # opencode_nonzero:exit=...:classification prefix is preserved.
+            error_diagnostic = _bounded_error_diagnostic(events_raw)
+            nonzero_summary = stderr_redacted[:1024]
+            if not nonzero_summary and error_diagnostic:
+                nonzero_summary = error_diagnostic[:1024]
+            nonzero_description = "exit=%d" % exit_code
+            if error_diagnostic:
+                nonzero_description = (
+                    "exit=%d %s" % (exit_code, error_diagnostic[:MAX_EVIDENCE_STRING_LEN])
+                )
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
                 "title": "OpenCode nonzero exit",
-                "description": "exit=%d" % exit_code,
+                "description": nonzero_description,
                 "metadata": {
                     "execution_id": execution_id,
                     "exit_code": exit_code,
                     "failure_classification": fail_class,
                     "stderr_summary": stderr_redacted[:512],
+                    "error_diagnostic": error_diagnostic,
                     "output_truncated": owned.output_truncated,
                     "role": role_context.role,
                 },
             })
             changed_files = _collect_changed_files(worktree)
+            nonzero_error = "opencode_nonzero:exit=%d:%s" % (exit_code, fail_class)
+            if error_diagnostic:
+                nonzero_error = "%s %s" % (
+                    nonzero_error, error_diagnostic[:MAX_EVIDENCE_STRING_LEN]
+                )
             return ExecutorResult(
                 success=False,
                 validation_exit_code=-1,
                 validation_command_id="",
                 validation_output_digest="",
-                validation_output_summary=stderr_redacted[:1024],
+                validation_output_summary=nonzero_summary,
                 changed_files=changed_files,
-                error="opencode_nonzero:exit=%d:%s" % (exit_code, fail_class),
+                error=nonzero_error,
                 workspace=str(worktree),
                 execution_id=execution_id,
                 process_exit_code=exit_code,
@@ -3153,6 +3172,14 @@ def _bounded_value(event: dict[str, Any], limit: int) -> str:
             # OpenCode CLI text lives inside a typed part. Redact before
             # truncation so a boundary cannot hide the end of a secret pattern.
             return redact_secrets(text.replace("\x00", ""))[:limit]
+    # A real provider error envelope carries a human reason even when stderr
+    # is empty. Retain only the allowlisted name/code/message + numeric status
+    # (one-level data) so body/headers/prompt/stack never enter durable
+    # evidence. Non-error text/tool output never reaches this branch.
+    ev_error = event.get("error")
+    if event.get("type") in ("error", "session.error") or isinstance(ev_error, dict):
+        payload = ev_error if isinstance(ev_error, dict) else event
+        return _single_error_diagnostic(payload, limit)
     return ""
 
 
@@ -3443,6 +3470,68 @@ def _pick_error_status(payload: dict[str, Any]) -> int | None:
     return None
 
 
+# Allowlisted error-envelope fields retained in the bounded diagnostic. Body,
+# response, headers, prompt, stack and hidden reasoning are deliberately absent
+# so arbitrary nested dicts are never stringified into durable evidence.
+_ERROR_DIAGNOSTIC_KEYS = ("name", "code", "message", "msg")
+
+# Prohibited C0 control bytes (0x00-0x1f, including ESC) and DEL (0x7f) are
+# stripped from diagnostics before redaction so a control byte cannot split a
+# secret pattern or survive into durable evidence; printable text is preserved.
+_ERROR_DIAGNOSTIC_CONTROL_BYTES = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _single_error_diagnostic(payload: Any, limit: int) -> str:
+    """Build a bounded, allowlisted, redacted diagnostic from one error payload.
+
+    Only ``name``/``code``/``message``/``msg`` and the numeric HTTP status are
+    retained, including one level down in a ``data`` sub-dict. Body, response,
+    headers, prompt, stack, hidden reasoning and arbitrary nested dicts are
+    never stringified. Prohibited C0/ESC/DEL control bytes are stripped before
+    redaction so a control byte cannot split a secret pattern or survive into
+    durable evidence; secrets are then redacted BEFORE truncation so a boundary
+    cannot hide the end of a secret pattern. Returns ``""`` when no allowlisted
+    field carries a usable value.
+    """
+    if not isinstance(payload, Mapping):
+        return ""
+    parts: list[str] = []
+    for key in _ERROR_DIAGNOSTIC_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            parts.append("%s=%s" % (key, value.strip()))
+    status = _pick_error_status(payload)
+    if status is not None:
+        parts.append("status=%d" % status)
+    data = payload.get("data")
+    if isinstance(data, Mapping):
+        for key in _ERROR_DIAGNOSTIC_KEYS:
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                parts.append("%s=%s" % (key, value.strip()))
+    if not parts:
+        return ""
+    joined = " ".join(parts)
+    sanitized = _ERROR_DIAGNOSTIC_CONTROL_BYTES.sub("", joined)
+    return redact_secrets(sanitized)[:limit]
+
+
+def _bounded_error_diagnostic(events_raw: list[dict[str, Any]]) -> str:
+    """Return the first bounded sanitized diagnostic from real error envelopes.
+
+    Scans only real provider error payloads (``type`` ``error`` /
+    ``session.error`` or a direct ``error`` mapping) via the existing
+    ``_extract_error_payloads`` helper, so non-error text or tool output
+    mentioning network/auth terms never contributes. Returns ``""`` when no
+    real error payload carries an allowlisted field.
+    """
+    for payload in _extract_error_payloads(events_raw):
+        diag = _single_error_diagnostic(payload, MAX_EVIDENCE_STRING_LEN)
+        if diag:
+            return diag
+    return ""
+
+
 def _classify_exit(
     self: "OpenCodeExecutor",
     exit_code: int,
@@ -3516,7 +3605,11 @@ _POLICY_ERROR_RE = re.compile(
 )
 _NETWORK_ERROR_RE = re.compile(
     r"\b(network[_ -]?error|connection[_ -]?(?:failed|refused|reset|timeout)|dns[_ -]?(?:failure|error|unreachable)|"
-    r"socket[_ -]?timeout|connection[_ -]?aborted)\b",
+    r"socket[_ -]?timeout|connection[_ -]?aborted|"
+    # Explicit POSIX socket errno codes that name the same conditions as the
+    # intent-level alternatives above. Only these exact codes are recognised so
+    # a generic HTTP 502 with no reset signal never reclassifies as network.
+    r"econnreset|econnrefused|econnaborted|etimedout)\b",
     re.IGNORECASE,
 )
 _MODEL_UNAVAILABLE_RE = re.compile(
