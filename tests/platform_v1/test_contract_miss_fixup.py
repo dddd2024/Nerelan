@@ -469,7 +469,7 @@ def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case
     package = root / "~" / "Python" / "Python313" / "site-packages" / "pkg"
     package.mkdir(parents=True)
     (package / "payload.py").write_text("installed = True\n", encoding="utf-8")
-    (root / "native").write_bytes(b"ELF native executable payload")
+    (root / "native").write_bytes(b"\x7fELF native executable payload")
     code, reason, identity = validate(case)
     assert code == 1 and reason == "functional_patch_hygiene_failed"
     failed = store.get_task(task.id)
@@ -496,4 +496,4 @@ def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case
     assert current.evidence_refs[:len(original_refs)] == original_refs
     assert recovery.failed_snapshot(current, root=root) == snapshot
     assert git(root, "rev-parse", snapshot["ref"]) == snapshot["tree"]
-    assert (root / "native").read_bytes() == b"ELF native executable payload"
+    assert (root / "native").read_bytes() == b"\x7fELF native executable payload"
