@@ -361,6 +361,16 @@ _MAGPIE_PROVIDER_KEYS = {
 }
 
 
+def magpie_route_provider(provider: Any) -> str | None:
+    """The executor provider id this repository already routes for a Magpie account.
+
+    ``None`` means the account is genuinely observed but no route in this
+    repository claims its provider, so its windows stay account-level telemetry
+    instead of being turned into an admission decision.
+    """
+    return _MAGPIE_PROVIDER_KEYS.get(provider) if isinstance(provider, str) else None
+
+
 def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = None) -> dict[str, dict[str, Any]]:
     """Map a Magpie snapshot's fresh subscription accounts onto the guard's quota shape.
 
@@ -384,7 +394,7 @@ def magpie_quota_windows(snapshot: Mapping[str, Any], *, now: float | None = Non
     for account in snapshot.get("accounts") or []:
         if not isinstance(account, Mapping) or account.get("state") != "FRESH":
             continue
-        key = _MAGPIE_PROVIDER_KEYS.get(account.get("provider"))
+        key = magpie_route_provider(account.get("provider"))
         if key is None:
             continue
         windows = []
