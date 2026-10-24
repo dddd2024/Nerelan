@@ -16,6 +16,8 @@ import time
 from statistics import median
 from typing import Any
 
+from .model_availability import transient_overload
+
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
@@ -42,7 +44,7 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
     """Profiles for the most recent ``limit`` model-backed tasks, keyed by binding_ref."""
     conn = store._conn
     tasks = conn.execute(
-        "SELECT id, binding_ref, executor_kind, status, failure_classification FROM tasks "
+        "SELECT id, binding_ref, executor_kind, status, failure_classification, failure_detail FROM tasks "
         "WHERE binding_ref <> '' ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
     if not tasks:
         return {}
@@ -76,6 +78,18 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             if all(type(value) is int and value >= 0 for value in counts):
                 tokens[row["task_id"]] = sum(counts)
 
+    traits, contents = {}, {}
+    for row in conn.execute(f"SELECT task_id, metadata FROM task_events WHERE type = 'MODEL_SELECTED' "
+                            f"AND task_id IN ({marks}) ORDER BY seq", ids):
+        try:
+            data = json.loads(row["metadata"] or "{}")
+            contents[row["task_id"]] = data.get("content_class", data.get("kind", "code"))
+            if data.get("kind") and type(data.get("difficulty")) is int:
+                traits[row["task_id"]] = f"{data['kind']}:{data['difficulty']}"
+        except (ValueError, AttributeError):
+            continue
+    refused_tasks = {row["task_id"] for row in conn.execute(
+        f"SELECT DISTINCT task_id FROM task_events WHERE type='MODEL_REFUSED' AND task_id IN ({marks})", ids)}
     grouped: dict[str, dict[str, Any]] = {}
     for row in tasks:
         profile = grouped.setdefault(row["binding_ref"], {
@@ -86,6 +100,34 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         classification = (row["failure_classification"] or "").lower()
         span = spans.get(row["id"], ["", ""])
         seconds = _seconds(span[0], span[1]) if span[0] and span[1] else None
+        if classification.startswith("model_unavailable"):
+            continue  # entitlement and transient dispatch errors are not capability evidence
+        if status == "FAILED" and transient_overload(classification, row["failure_detail"] or ""):
+            # Provider capacity is availability evidence, never capability evidence.
+            profile["overloaded"] = profile.get("overloaded", 0) + 1
+            continue
+        content = contents.get(row["id"], "code")
+        refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}
+        if refused or status in OK_STATUSES or status == "FAILED":
+            evidence = profile.setdefault("content_attempts", {}).setdefault(content, {"attempts": 0, "refusals": 0})
+            evidence["attempts"] += 1
+            evidence["refusals"] += int(refused)
+        if refused:
+            profile["observed_tokens"] += tokens.get(row["id"], 0)
+            profile["refusal_tokens"] = profile.get("refusal_tokens", 0) + tokens.get(row["id"], 0)
+            continue  # refusal is willingness evidence, never capability failure
+        if any(code in classification for code in ("protocol", "malformed_tool", "tool_call")):
+            profile["tool_errors"] = profile.get("tool_errors", 0) + 1
+        if row["id"] in traits and (status in OK_STATUSES or status == "FAILED"):
+            bucket = profile.setdefault("task_buckets", {}).setdefault(traits[row["id"]],
+                        {"attempts": 0, "ok": 0, "timeouts": 0, "_seconds": [], "_tokens": []})
+            bucket["attempts"] += 1
+            bucket["ok"] += int(status in OK_STATUSES)
+            bucket["timeouts"] += int("timeout" in classification)
+            if seconds is not None and status in OK_STATUSES:
+                bucket["_seconds"].append(seconds)
+            if row["id"] in tokens and status in OK_STATUSES:
+                bucket["_tokens"].append(tokens[row["id"]])
         if status in OK_STATUSES or status == "FAILED":
             profile["observed_tokens"] += tokens.get(row["id"], 0)
         if status in OK_STATUSES:
@@ -107,6 +149,15 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             if "rate" in classification or "429" in classification or "quota" in classification:
                 profile["rate_limited"] += 1
     for profile in grouped.values():
+        profile["refusal_rates"] = {content: evidence["refusals"] / evidence["attempts"]
+                                     for content, evidence in profile.get("content_attempts", {}).items()}
+        profile["tool_reliability"] = 1 - profile.get("tool_errors", 0) / max(1, profile["attempts"])
+        for bucket in profile.get("task_buckets", {}).values():
+            values = bucket.pop("_seconds")
+            bucket["success_rate"] = bucket["ok"] / bucket["attempts"]
+            bucket["median_ok_seconds"] = median(values) if values else None
+            bucket_tokens = bucket.pop("_tokens")
+            bucket["median_ok_tokens"] = median(bucket_tokens) if bucket_tokens else None
         ok_seconds, ok_tokens = profile.pop("_ok_seconds"), profile.pop("_ok_tokens")
         timeout_seconds = profile.pop("_timeout_seconds")
         profile["failure_kinds"] = dict(sorted(profile["failure_kinds"].items(), key=lambda kv: -kv[1])[:4])

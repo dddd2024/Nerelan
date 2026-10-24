@@ -32,6 +32,7 @@ def authenticated_server(tmp_path, monkeypatch):
     monkeypatch.setattr(router, "dispatch_execute", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate_policy", forbidden)
+    monkeypatch.setattr(handler.goal_service, "rebind", forbidden)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -78,6 +79,16 @@ def test_missing_capability_rejected_before_body_lookup_or_dispatch(authenticate
     status, result, _ = request(port, method, path)
     assert status == 401
     assert result["code"] == "local_client_session_required"
+    assert not actions and store._conn.total_changes == before
+
+
+def test_goal_rebind_is_not_reachable_with_session_possession(authenticated_server):
+    """The renderer holds the session capability; a window rebind needs Owner authority (#1277)."""
+    port, _, _, actions, store = authenticated_server
+    before = store._conn.total_changes
+    status, _, _ = request(port, "POST", "/api/goals/unknown/rebind", capability=TOKEN, origin=ORIGIN,
+                           body=json.dumps({"window_id": "window-x", "expected_revision": 1}).encode())
+    assert status != 200
     assert not actions and store._conn.total_changes == before
 
 

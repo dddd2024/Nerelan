@@ -856,3 +856,16 @@ def test_malformed_token_totals_never_claim_observed_model_usage(
         42 if token_fields.get("total_token_units") == 42 else 0
     )
     assert evidence["provider_request_receipt"] == "UNVERIFIED"
+
+
+def test_landing_progress_visible_without_github_state_replica(read_model):
+    model, store, control = read_model
+    goal, task = _seed_goal_with_task(control, store, "landing-progress")
+    state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+        pr_number=1266, head_sha="a" * 40, review_round=2)
+    control.finish_landing_tick(state["identity"], "WAITING", "fresh_current_head_checks_required", 123456)
+    changes = control._conn.total_changes
+    assert model.run_detail(task.id)["landing"] == dict(phase="WAITING", review_round=2,
+        pr_number=1266, head_sha="a" * 40, next_attempt_ms=123456,
+        parking_reason="fresh_current_head_checks_required")
+    assert control._conn.total_changes == changes

@@ -27,7 +27,8 @@ def subject():
         (task.id,),
     )
     conn.execute(
-        "INSERT INTO platform_budget_reservations VALUES (?,7,'old',50,60,'ACTIVE',NULL,NULL,'old','old','')",
+        "INSERT INTO platform_budget_reservations "
+        "(task_id, claim_epoch, window_id, reserved_token_units, reserved_cost_micro_units, state, observed_token_units, observed_cost_micro_units, created_at, updated_at, reconciled_at) VALUES (?,7,'old',50,60,'ACTIVE',NULL,NULL,'old','old','')",
         (task.id,),
     )
     conn.execute(

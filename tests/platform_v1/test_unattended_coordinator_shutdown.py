@@ -266,3 +266,71 @@ def test_stop_winning_after_claim_abandons_before_dispatch(tmp_path, monkeypatch
     assert status["last_batch"]["reasons"] == [
         "coordinator_stop_requested_before_dispatch"
     ]
+
+
+def test_background_loop_reconciles_leases_that_expire_after_start(tmp_path):
+    # Short test 2026-10-21: a host restart while a task's lease was still live left the
+    # task RUNNING forever, because expiry reconciliation ran only once at start().
+    store, _control, coordinator, _task_id = _runtime_with_one_task(tmp_path)
+    coordinator.poll_interval = coordinator.reconcile_interval = 0.1
+    calls = []
+    periodic = threading.Event()
+    def reconcile():
+        calls.append(threading.current_thread().name)
+        if len(calls) >= 3:
+            periodic.set()
+        return ()
+    coordinator.reconcile = reconcile
+    coordinator.tick = lambda *, background=False: 0
+    try:
+        coordinator.start()
+        assert periodic.wait(5), calls
+        # Startup reconciles in the caller; later passes run in the coordinator thread.
+        assert calls[0] != "reverse-agent-unattended"
+        assert set(calls[1:]) == {"reverse-agent-unattended"}
+    finally:
+        coordinator.stop()
+        store._conn.close()
+
+
+def test_default_reconcile_interval_is_bounded_below_by_poll_interval(tmp_path):
+    store, _control, coordinator, _task_id = _runtime_with_one_task(tmp_path)
+    try:
+        assert coordinator.reconcile_interval == 60.0
+    finally:
+        store._conn.close()
+
+
+def test_failing_periodic_reconcile_never_ends_the_coordinator_loop(tmp_path):
+    store, _control, coordinator, _task_id = _runtime_with_one_task(tmp_path)
+    coordinator.poll_interval = coordinator.reconcile_interval = 0.1
+    ticks = []
+    ticked = threading.Event()
+    calls = []
+    def reconcile():
+        calls.append(1)
+        if len(calls) > 1:
+            raise RuntimeError("durable service unavailable")
+        return ()
+    def tick(*, background=False):
+        ticks.append(1)
+        if len(ticks) >= 3:
+            ticked.set()
+        return 0
+    coordinator.reconcile, coordinator.tick = reconcile, tick
+    try:
+        coordinator.start()
+        assert ticked.wait(5), (calls, ticks)
+        assert len(calls) >= 2  # the loop survived failing reconciles and kept ticking
+    finally:
+        coordinator.stop()
+        store._conn.close()
+
+
+def test_resume_refusal_reason_is_kept_and_other_errors_stay_opaque():
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError
+    from reverse_agent.platform_v1.unattended_coordinator import _failure_detail
+    assert _failure_detail(DurableResumeError("authority_sha_mismatch:a!=b")) == \
+        "DurableResumeError:authority_sha_mismatch:a!=b"
+    assert len(_failure_detail(DurableResumeError("x" * 1000))) == len("DurableResumeError:") + 300
+    assert _failure_detail(RuntimeError("provider said something")) == "RuntimeError"

@@ -43,6 +43,11 @@ USAGE_ENFORCEMENT_CLASSES = frozenset(
     {"HARD_ADMISSION_ENFORCED", "POST_RUN_OBSERVED", "USAGE_UNKNOWN"}
 )
 PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
+# Tasks a window rebind may move (#1277); terminal tasks keep their original window.
+REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED", "QUOTA_WAIT"})
+TERMINAL_TASK_STATES = frozenset(
+    {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED", "CANCELLED"}
+)
 
 
 def _utc_now() -> str:
@@ -220,12 +225,53 @@ class PlatformControlStore:
         self.task_store = task_store
         self._conn = task_store._conn
         self._lock = task_store._lock
-        self._init_schema()
+        # Reconstructing a read view must not executescript/commit a caller's
+        # admission transaction. Each TaskStore connection initializes once.
+        with self._lock:
+            if not getattr(task_store, "_platform_control_initialized", False):
+                self._init_schema()
+                task_store._platform_control_initialized = True
+
+        with self._lock:
+            columns = {r[1] for r in self._conn.execute("PRAGMA table_info(platform_landing_state)")}
+            if "tick_lease_ms" not in columns:
+                self._conn.execute("ALTER TABLE platform_landing_state ADD COLUMN tick_lease_ms INTEGER NOT NULL DEFAULT 0")
+            if "parking_reason" not in columns:
+                self._conn.execute("ALTER TABLE platform_landing_state ADD COLUMN parking_reason TEXT NOT NULL DEFAULT ''")
 
     def _init_schema(self) -> None:
         with self._lock:
             self._conn.executescript(
                 """
+                CREATE TABLE IF NOT EXISTS platform_landing_state (
+                    identity TEXT PRIMARY KEY,
+                    repository TEXT NOT NULL,
+                    goal_id TEXT NOT NULL,
+                    pr_number INTEGER NOT NULL,
+                    head_sha TEXT NOT NULL,
+                    review_round INTEGER NOT NULL,
+                    phase TEXT NOT NULL DEFAULT 'PENDING',
+                    next_attempt_ms INTEGER NOT NULL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS platform_landing_operations (
+                    identity TEXT NOT NULL REFERENCES platform_landing_state(identity),
+                    operation TEXT NOT NULL,
+                    claim_id TEXT NOT NULL,
+                    window_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    next_attempt_ms INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY(identity, operation)
+                );
+                CREATE TABLE IF NOT EXISTS platform_landing_receipts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    identity TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    claim_id TEXT NOT NULL,
+                    window_id TEXT NOT NULL,
+                    outcome TEXT NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS platform_goals (
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
@@ -393,6 +439,16 @@ class PlatformControlStore:
                 );
                 """
             )
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_admissions (task_id TEXT PRIMARY KEY REFERENCES tasks(id), binding_ref TEXT NOT NULL, account_ref TEXT NOT NULL, evidence_json TEXT NOT NULL, need_json TEXT NOT NULL, small_task INTEGER NOT NULL, safety_buffer REAL NOT NULL, verdict_json TEXT NOT NULL DEFAULT '{}')")
+            # Owner-approved standing window policies (Governance v2.1 D, #1310).
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_standing_windows (policy_id TEXT PRIMARY KEY, window_hours INTEGER NOT NULL, renew_until TEXT NOT NULL, status TEXT NOT NULL, stop_reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_observations (account_ref TEXT PRIMARY KEY, observed_at TEXT NOT NULL, evidence_json TEXT NOT NULL)")
+            self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_calibrations (account_ref TEXT PRIMARY KEY, rates_json TEXT NOT NULL, evidence_json TEXT NOT NULL)")
+            quota_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(platform_budget_reservations)")}
+            for column, definition in (("account_ref", "TEXT NOT NULL DEFAULT ''"), ("binding_ref", "TEXT NOT NULL DEFAULT ''"), ("quota_windows_json", "TEXT NOT NULL DEFAULT '{}'"), ("quota_state", "TEXT NOT NULL DEFAULT 'UNKNOWN'"), ("settlement_json", "TEXT NOT NULL DEFAULT '{}'"), ("estimate_json", "TEXT NOT NULL DEFAULT '{}'")):
+                if column not in quota_columns:
+                    self._conn.execute(f"ALTER TABLE platform_budget_reservations ADD COLUMN {column} {definition}")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_quota_account ON platform_budget_reservations(account_ref, state)")
             window_columns = {
                 row["name"]
                 for row in self._conn.execute(
@@ -439,6 +495,158 @@ class PlatformControlStore:
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
 
     # Goal records -----------------------------------------------------
+
+    def landing_progress(self, goal_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_landing_state WHERE goal_id=? ORDER BY rowid DESC LIMIT 1",
+                (goal_id,)).fetchone()
+        return dict(row) if row else None
+
+    def lease_landing_tick(self, identity: str, now: int) -> bool:
+        # A persisted lease also fences competing host processes. Remote writes
+        # have their own non-expiring claims and must be reconciled after a crash.
+        with self._lock:
+            return self._conn.execute(
+                "UPDATE platform_landing_state SET tick_lease_ms=? WHERE identity=? "
+                "AND next_attempt_ms<=? AND tick_lease_ms<=? AND phase NOT IN ('BLOCKED','COMPLETE','SUPERSEDED')",
+                (now + 300000, identity, now, now)).rowcount == 1
+
+    def finish_landing_tick(self, identity: str, phase: str, reason: str, retry: int, *, lease: int | None = None) -> dict[str, Any]:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE platform_landing_state SET phase=?,parking_reason=?,next_attempt_ms=?,tick_lease_ms=0 "
+                "WHERE identity=? AND (? IS NULL OR tick_lease_ms=?)",
+                (phase, reason, retry, identity, lease, lease))
+        return self.get_landing(identity)
+
+    def ensure_landing(self, *, repository: str, goal_id: str, pr_number: int,
+                       head_sha: str, review_round: int) -> dict[str, Any]:
+        """Persist local intent, never a replica of GitHub state or authority."""
+        if (not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository)
+                or type(pr_number) is not int or pr_number <= 0
+                or not re.fullmatch(r"[0-9a-f]{40}", head_sha)
+                or type(review_round) is not int or review_round < 1):
+            raise TaskStoreError("invalid_landing_identity")
+        if self.get_goal(goal_id).repository != repository:
+            raise TaskStoreError("landing_goal_repository_mismatch")
+        identity = sha256_json([repository, goal_id, pr_number, head_sha, review_round])
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO platform_landing_state "
+                "(identity,repository,goal_id,pr_number,head_sha,review_round) VALUES (?,?,?,?,?,?)",
+                (identity, repository, goal_id, pr_number, head_sha, review_round))
+        return self.get_landing(identity)
+
+    def get_landing(self, identity: str) -> dict[str, Any]:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM platform_landing_state WHERE identity=?",
+                                     (identity,)).fetchone()
+        if row is None:
+            raise TaskStoreError("landing_not_found")
+        return dict(row)
+
+    def schedule_landing(self, identity: str, *, expected_phase: str, phase: str,
+                         next_attempt_ms: int = 0) -> dict[str, Any]:
+        """Compare-and-set local coordination state, never external completion."""
+        if (phase not in {"PENDING", "WAITING", "RECONCILING", "BLOCKED"}
+                or type(next_attempt_ms) is not int or next_attempt_ms < 0):
+            raise TaskStoreError("invalid_landing_schedule")
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_landing_state SET phase=?,next_attempt_ms=? "
+                "WHERE identity=? AND phase=?",
+                (phase, next_attempt_ms, identity, expected_phase))
+            if cur.rowcount != 1:
+                raise TaskStoreError("landing_state_changed")
+            return self.get_landing(identity)
+
+    def claim_landing_operation(self, identity: str, operation: str, *, window_id: str) -> str | None:
+        """Atomic cross-connection claim. Interrupted claims are never auto-replayed."""
+        if operation not in {"review_comment", "update_branch", "mark_ready", "verdict", "merge"}:
+            raise TaskStoreError("unsupported_landing_operation")
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                state = self.get_landing(identity)
+                window = self.get_window(window_id)
+                if (not self._window_current_locked(window_id)
+                        or state["repository"] not in window.repositories
+                        or not ("land_reviewed_pr" in window.capabilities
+                                or operation == "review_comment" and "open_draft_pr" in window.capabilities)
+                        or window.confirmation_mode == "DELEGATED_CONTROLLER"
+                        or self.window_policy_binding(window_id)["policy_digest_sha256"]):
+                    raise TaskStoreError("landing_window_denied")
+                now = _utc_now_ms()
+                row = self._conn.execute(
+                    "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
+                    (identity, operation)).fetchone()
+                if state["phase"] == "BLOCKED" or state["next_attempt_ms"] > now or (row and (
+                        row["status"] != "ABSENT" or row["next_attempt_ms"] > now)):
+                    self._conn.commit()
+                    return None
+                claim = _id("landing")
+                self._conn.execute(
+                    "INSERT INTO platform_landing_operations VALUES (?,?,?,?,?,0) "
+                    "ON CONFLICT(identity,operation) DO UPDATE SET claim_id=excluded.claim_id, "
+                    "window_id=excluded.window_id,status=excluded.status,next_attempt_ms=0",
+                    (identity, operation, claim, window_id, "CLAIMED"))
+                self._landing_receipt(identity, operation, claim, window_id, "CLAIMED", {})
+                self._conn.commit()
+                return claim
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def landing_operation(self, identity: str, operation: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
+                (identity, operation)).fetchone()
+            return dict(row) if row else None
+
+    def record_landing_outcome(self, identity: str, operation: str, claim_id: str, *,
+                               outcome: str, evidence: Mapping[str, Any],
+                               next_attempt_ms: int = 0) -> None:
+        """Only reconciled external evidence can establish success or safe retry.
+
+        UNKNOWN and FAILED remain blocked; ABSENT explicitly proves safe retry.
+        Receipts record observations and never advance a loop to merged.
+        """
+        if (outcome not in {"SUCCEEDED", "ABSENT", "UNKNOWN", "FAILED"}
+                or type(next_attempt_ms) is not int or next_attempt_ms < 0
+                or not evidence):
+            raise TaskStoreError("invalid_landing_outcome")
+        reject_sensitive_keys(evidence)
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                cur = self._conn.execute(
+                    "UPDATE platform_landing_operations SET status=?,next_attempt_ms=? "
+                    "WHERE identity=? AND operation=? AND claim_id=? AND status IN ('CLAIMED','UNKNOWN')",
+                    (outcome, next_attempt_ms, identity, operation, claim_id))
+                if cur.rowcount != 1:
+                    raise TaskStoreError("landing_claim_mismatch")
+                row = self.landing_operation(identity, operation)
+                self._conn.execute(
+                    "UPDATE platform_landing_state SET next_attempt_ms=? WHERE identity=?",
+                    (next_attempt_ms, identity))
+                self._landing_receipt(identity, operation, claim_id, row["window_id"], outcome, evidence)
+                self._conn.commit()
+            except BaseException:
+                self._conn.rollback()
+                raise
+
+    def _landing_receipt(self, identity, operation, claim, window, outcome, evidence):
+        self._conn.execute(
+            "INSERT INTO platform_landing_receipts "
+            "(identity,operation,claim_id,window_id,outcome,evidence_json,created_at) VALUES (?,?,?,?,?,?,?)",
+            (identity, operation, claim, window, outcome, canonical_json(evidence), _utc_now_precise()))
+
+    def landing_receipts(self, identity: str) -> tuple[dict[str, Any], ...]:
+        with self._lock:
+            return tuple(dict(row) for row in self._conn.execute(
+                "SELECT * FROM platform_landing_receipts WHERE identity=? ORDER BY id", (identity,)))
 
     def create_goal(
         self,
@@ -721,7 +929,10 @@ class PlatformControlStore:
                            to_task_id: str, from_role: str, to_role: str, reason: str) -> int:
         """Repoint one plan task's link to a stronger agent's task; returns the escalation step."""
         with self._lock:
-            with self._conn:
+            owns_transaction = not self._conn.in_transaction
+            try:
+                if owns_transaction:
+                    self._conn.execute("BEGIN IMMEDIATE")
                 row = self._conn.execute(
                     "SELECT task_id FROM platform_goal_task_links WHERE goal_id = ? AND goal_revision = ? "
                     "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()
@@ -739,6 +950,12 @@ class PlatformControlStore:
                     "to_task_id, from_role, to_role, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, from_role, to_role,
                      reason[:200], _utc_now()))
+                if owns_transaction:
+                    self._conn.execute("COMMIT")
+            except BaseException:
+                if owns_transaction:
+                    self._conn.execute("ROLLBACK")
+                raise
         return step
 
     def list_task_escalations(self, goal_id: str) -> tuple[Mapping[str, Any], ...]:
@@ -796,6 +1013,13 @@ class PlatformControlStore:
         """
         from .unknown_claim_isolation import refuse_held
         refuse_held(self.task_store, task_id)
+        stale = self._conn.execute(
+            "SELECT window_id FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE' "
+            "AND window_id <> ?", (task_id, window_id)).fetchone()
+        if (stale is not None and not self._window_current_locked(stale["window_id"])
+                and self._stale_claim_unknown_locked(task_id, stale["window_id"], _utc_now_ms())):
+            # A stopped window's leftover claim is as unknown as an expired one's (#1277).
+            raise TaskStoreError("unknown_claim_task_held")
         window = self.get_window(window_id)
         if not self.is_strict_owner_window(window):
             return
@@ -827,7 +1051,7 @@ class PlatformControlStore:
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED')) "
+                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT')) "
                 "OR (g.status IN ('RUNNING', 'COMPLETED', 'BLOCKED') AND t.status IN ('READY_FOR_REVIEW', 'FAILED') AND EXISTS ("
                 "SELECT 1 FROM platform_coordinator_claims original_claim "
                 "JOIN platform_budget_reservations original_reservation "
@@ -882,6 +1106,186 @@ class PlatformControlStore:
                 (status, _utc_now(), goal_id, status),
             )
         return self.get_goal(goal_id)
+
+    # Window rebind (#1277) -------------------------------------------
+
+    def rebind_goal_to_window(self, goal_id: str, *, window_id: str, reason: str = "owner_rebind") -> dict[str, Any]:
+        """Move a stranded Goal's unfinished tasks under a new, explicitly activated window.
+
+        Never extends the old window. Trusted host/Owner entry only: callers are the
+        native-session HTTP route and explicit activation adoption, not the renderer.
+        """
+        with self._lock:
+            cur = self._conn.cursor()
+            try:
+                cur.execute("BEGIN IMMEDIATE")
+                outcome = self._rebind_goal_locked(goal_id, window_id=window_id, reason=reason)
+                cur.execute("COMMIT")
+                return outcome
+            except BaseException as exc:
+                self._conn.rollback()
+                if isinstance(exc, TaskStoreError) and str(exc) == "receipt_persistence_failed":
+                    self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                                       "stop_reason='receipt_persistence_failed', updated_at=? WHERE id=?",
+                                       (_utc_now(), window_id))
+                if not isinstance(exc, Exception) or isinstance(exc, TaskStoreError):
+                    raise
+                raise TaskStoreError(f"goal_rebind_failed:{exc}") from exc
+
+    def _window_current_locked(self, window_id: str) -> bool:
+        row = self._conn.execute(
+            "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
+            "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?)",
+            (window_id, _utc_now_precise(), _utc_now_precise())).fetchone()
+        return row is not None
+
+    def _rebind_goal_locked(self, goal_id: str, *, window_id: str, reason: str) -> dict[str, Any]:
+        """Caller holds the store lock inside BEGIN IMMEDIATE; all checks precede any write."""
+        from .task_runtime import task_operation
+        from .unknown_claim_isolation import held_task
+        goal = self.get_goal(goal_id)
+        if goal.status == "RUNNING" and goal.window_id == window_id:
+            # A concurrent or repeated rebind already won; nothing is charged twice.
+            return {"goal_id": goal.id, "window_id": window_id, "status": "ALREADY_BOUND",
+                    "from_window_id": "", "tasks": [], "held_tasks": [], "retired_claims": []}
+        if goal.status != "RUNNING" or not goal.window_id:
+            raise TaskStoreError("goal_not_rebindable")
+        old = self.get_window(goal.window_id)
+        if self._window_current_locked(old.id):
+            raise TaskStoreError("goal_window_still_active")
+        window = self.get_window(window_id)
+        if not self._window_current_locked(window.id):
+            raise TaskStoreError("rebind_window_not_active")
+        if self.is_strict_owner_window(window):
+            # Strict Owner windows bind exactly one natively admitted Goal.
+            raise TaskStoreError("rebind_strict_window_unsupported")
+        if goal.repository not in window.repositories:
+            raise TaskStoreError("rebind_window_repository_mismatch")
+        links = self.list_goal_tasks(goal.id)
+        unfinished = [link for link in links if link["status"] in REBINDABLE_TASK_STATES]
+        if any(link["status"] not in REBINDABLE_TASK_STATES | TERMINAL_TASK_STATES for link in links):
+            raise TaskStoreError("goal_task_in_flight")
+        if not unfinished:
+            raise TaskStoreError("goal_has_no_unfinished_tasks")
+        now_ms = _utc_now_ms()
+        planned: list[dict[str, Any]] = []
+        held: list[str] = []
+        for link in unfinished:
+            task = self.task_store.get_task(link["task_id"])
+            if task.status not in REBINDABLE_TASK_STATES:
+                raise TaskStoreError("goal_task_in_flight")
+            if task.repository not in window.repositories:
+                raise TaskStoreError("rebind_window_repository_mismatch")
+            if held_task(self._conn, task.id) or self._stale_claim_unknown_locked(task.id, old.id, now_ms):
+                # Unknown external side effects stay on HOLD (#1206): the claim and its
+                # reservation are retained and the scheduler keeps refusing the task.
+                held.append(task.id)
+                continue
+            if self._conn.execute("SELECT 1 FROM durable_runs WHERE task_id = ? AND lease_expiry_ms > ?",
+                                  (task.id, now_ms)).fetchone() is not None:
+                raise TaskStoreError("goal_task_claim_live")
+            operation = task_operation(task)
+            if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
+                operation = "resume_task"
+            if operation not in window.capabilities:
+                raise TaskStoreError(f"rebind_window_missing_{operation}_capability")
+            claim = self._conn.execute(
+                "SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE'",
+                (task.id,)).fetchone()
+            if claim is not None and int(claim["expires_at_ms"]) > now_ms:
+                raise TaskStoreError("goal_task_claim_live")
+            if claim is not None and claim["window_id"] != old.id:
+                raise TaskStoreError("goal_task_claim_window_mismatch")
+            planned.append({"task_id": task.id, "status": task.status, "operation": operation, "claim": claim})
+        if not planned:
+            raise TaskStoreError("goal_unfinished_tasks_held")
+        queued = sum(1 for item in planned if item["status"] == "QUEUED")
+        interrupted = len(planned) - queued
+        tasks_remaining = window.max_tasks - window.tasks_started
+        if queued > tasks_remaining or (interrupted and tasks_remaining < 1):
+            raise TaskStoreError("rebind_window_task_budget_insufficient")
+        if interrupted > window.max_retries - window.retries_used:
+            raise TaskStoreError("rebind_window_retry_budget_insufficient")
+        retired = []
+        for item in planned:
+            claim = item.pop("claim")
+            if claim is None:
+                continue
+            epoch = int(claim["epoch"])
+            updated = self._conn.execute(
+                "UPDATE platform_coordinator_claims SET status = 'RETIRED', updated_at = ? "
+                "WHERE task_id = ? AND window_id = ? AND epoch = ? AND status = 'ACTIVE' AND expires_at_ms <= ?",
+                (_utc_now(), item["task_id"], old.id, epoch, now_ms))
+            if updated.rowcount != 1:
+                raise TaskStoreError("coordinator_claim_fenced")
+            # Usage of the abandoned attempt is unknown: no release, refund or zero-cost inference.
+            self._conn.execute(
+                "UPDATE platform_budget_reservations SET state = 'UNKNOWN', updated_at = ?, reconciled_at = ? "
+                "WHERE task_id = ? AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
+                (_utc_now(), _utc_now(), item["task_id"], epoch, old.id))
+            self.append_receipt(
+                window_id=old.id, operation_type="claim_retirement", capability="not_applicable",
+                repository=goal.repository, subject_id=item["task_id"], decision="not_evaluated",
+                reason="goal_rebound_to_window",
+                input_payload={"task_id": item["task_id"], "claim_epoch": epoch,
+                               "claim_owner": claim["owner"], "to_window_id": window.id},
+                result=f"retired:{window.id}")
+            retired.append({"task_id": item["task_id"], "window_id": old.id, "epoch": epoch})
+        moved = self._conn.execute(
+            "UPDATE platform_goals SET window_id = ?, updated_at = ? "
+            "WHERE id = ? AND window_id = ? AND status = 'RUNNING'",
+            (window.id, _utc_now(), goal.id, old.id))
+        if moved.rowcount != 1:
+            raise TaskStoreError("goal_not_rebindable")
+        self.append_receipt(
+            window_id=window.id, operation_type="goal_window_rebind", capability="not_applicable",
+            repository=goal.repository, subject_id=goal.id, decision="allowed", reason=reason,
+            input_payload={"goal_id": goal.id, "from_window_id": old.id, "to_window_id": window.id,
+                           "tasks": [item["task_id"] for item in planned], "held_tasks": held,
+                           "retired_claims": [item["task_id"] for item in retired]},
+            result=f"rebound:{len(planned)}:held:{len(held)}")
+        return {"goal_id": goal.id, "window_id": window.id, "status": "REBOUND",
+                "from_window_id": old.id, "tasks": planned, "held_tasks": held, "retired_claims": retired}
+
+    def window_adopted_goals(self, window_id: str) -> tuple[str, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT subject_id FROM platform_operation_receipts WHERE window_id = ? "
+                "AND operation_type = 'goal_window_rebind' AND reason = 'adopted_on_activation' "
+                "ORDER BY created_at, id", (window_id,)).fetchall()
+        return tuple(str(row["subject_id"]) for row in rows)
+
+    def _stale_claim_unknown_locked(self, task_id: str, window_id: str, now_ms: int) -> bool:
+        """held_task's evidence test for any non-current window, not only a time-expired one.
+
+        A STOPPED or BLOCKED window can end before its expires_at; its leftover claim
+        is just as unknown and must not be retired into a fresh run.
+        """
+        return self._conn.execute(
+            "SELECT 1 FROM platform_coordinator_claims c JOIN tasks t ON t.id = c.task_id "
+            "WHERE c.task_id = ? AND c.window_id = ? AND c.status = 'ACTIVE' AND c.expires_at_ms <= ? "
+            "AND t.status IN ('FAILED', 'INTERRUPTED') AND NOT EXISTS (SELECT 1 FROM durable_runs r "
+            "JOIN durable_external_operations o ON o.run_id = r.run_id WHERE r.task_id = c.task_id)",
+            (task_id, window_id, now_ms)).fetchone() is not None
+
+    def stranded_goals(self, *, limit: int = 100) -> tuple[dict[str, Any], ...]:
+        """RUNNING Goals whose unfinished tasks are bound to a window that can no longer dispatch."""
+        now = _utc_now_precise()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT g.id AS goal_id, g.title, g.window_id, COALESCE(w.status, 'MISSING') AS window_status, "
+                "SUM(t.status = 'QUEUED') AS queued, SUM(t.status = 'INTERRUPTED') AS interrupted, "
+                "SUM(t.status = 'QUOTA_WAIT') AS quota_wait "
+                "FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "LEFT JOIN platform_autonomous_windows w ON w.id = g.window_id "
+                "WHERE g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT') "
+                "AND (w.id IS NULL OR w.status <> 'ACTIVE' OR julianday(w.expires_at) <= julianday(?)) "
+                "GROUP BY g.id ORDER BY g.created_at ASC LIMIT ?",
+                (now, max(1, min(limit, 500)))).fetchall()
+        return tuple({**dict(row), "window_status": ("EXPIRED" if row["window_status"] == "ACTIVE"
+                                                     else row["window_status"])} for row in rows)
 
     # Autonomous windows and receipts ---------------------------------
 
@@ -948,7 +1352,8 @@ class PlatformControlStore:
                         _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
                         _host_preserve_claim_windows: bool = False,
-                        _host_expected_goal_id: str | None = None) -> AutonomousWindowRecord:
+                        _host_expected_goal_id: str | None = None,
+                        _standing_renewal: bool = False) -> AutonomousWindowRecord:
         """Create the window and optional trusted-host SQL admission in one commit.
 
         `_host_sql_admit` is INTERNAL and never accepted from HTTP. The callback
@@ -989,13 +1394,28 @@ class PlatformControlStore:
                 raise TaskStoreError("host_atomic_window_time_invalid") from exc
         elif _host_expected_goal_id is not None:
             raise TaskStoreError("host_atomic_admission_invalid")
-        if confirmation.strip() != ("DELEGATED_CONTROLLER" if _trusted_binding else "ACTIVATE"):
+        standing = payload.get("standing_renewal")
+        if standing is not None and (_trusted_binding is not None or _host_sql_admit is not None):
+            raise TaskStoreError("standing_window_requires_owner_activation")
+        if _standing_renewal and (standing is None or _trusted_binding is not None or _host_sql_admit is not None):
+            raise TaskStoreError("standing_renewal_invalid")
+        expected = ("DELEGATED_CONTROLLER" if _trusted_binding
+                    else "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE")
+        if confirmation.strip() != expected:
             raise TaskStoreError("owner_activation_confirmation_required")
         digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
         window_id = str(payload.get("window_id") or _id("window"))
         now = _utc_now()
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
         capabilities = tuple(str(v) for v in payload.get("capabilities", ()))
+        adopted = payload.get("adopt_unfinished_goals") or ()
+        if adopted:
+            # Explicit Owner listing only; host-native and delegated windows never adopt.
+            if (_host_sql_admit is not None or _trusted_binding is not None
+                    or not isinstance(adopted, (list, tuple)) or len(adopted) > 100
+                    or any(type(goal_id) is not str or not goal_id.strip() for goal_id in adopted)
+                    or len(set(adopted)) != len(adopted)):
+                raise TaskStoreError("window_adoption_invalid")
         with self._lock:
             cur = self._conn.cursor()
             try:
@@ -1095,6 +1515,15 @@ class PlatformControlStore:
                          _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
                          _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
                     )
+                if standing is not None and not _standing_renewal:
+                    # The Owner's activation approves the standing policy once.
+                    cur.execute(
+                        "INSERT INTO platform_standing_windows (policy_id, window_hours, renew_until, status, created_at, updated_at) "
+                        "VALUES (?, ?, ?, 'ACTIVE', ?, ?) ON CONFLICT(policy_id) DO UPDATE SET window_hours=excluded.window_hours, "
+                        "renew_until=excluded.renew_until, status='ACTIVE', stop_reason='', updated_at=excluded.updated_at",
+                        (str(payload["policy_id"]), int(standing["window_hours"]), str(standing["renew_until"]), now, now))
+                for goal_id in adopted:
+                    self._rebind_goal_locked(goal_id, window_id=window_id, reason="adopted_on_activation")
                 if _host_sql_admit is not None:
                     # A trusted callback still must not COMMIT, ROLLBACK or run
                     # executescript (which implicitly COMMITs). Enforce this
@@ -1204,7 +1633,181 @@ class PlatformControlStore:
             )
             if cur.rowcount != 1:
                 raise TaskStoreError("window_not_active")
+            # Stopping a window always revokes its standing renewal immediately.
+            self._conn.execute(
+                "UPDATE platform_standing_windows SET status='REVOKED', stop_reason=?, updated_at=? "
+                "WHERE policy_id=(SELECT policy_id FROM platform_autonomous_windows WHERE id=?) AND status='ACTIVE'",
+                (reason[:200], _utc_now(), window_id))
+            self._conn.commit()
         return self.get_window(window_id)
+
+    def revoke_standing_window(self, policy_id: str, *, reason: str = "owner_revoked") -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE platform_standing_windows SET status='REVOKED', stop_reason=?, updated_at=? "
+                "WHERE policy_id=? AND status='ACTIVE'", (reason[:200], _utc_now(), policy_id))
+            self._conn.commit()
+            return cur.rowcount == 1
+
+    def standing_window(self, policy_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM platform_standing_windows WHERE policy_id=?", (policy_id,)).fetchone()
+            return dict(row) if row is not None else None
+
+    def renew_standing_window(self, *, now: datetime | None = None) -> AutonomousWindowRecord | None:
+        """Activate the successor of a time-expired standing window (Governance v2.1 D).
+
+        Only a window that expired by time renews; a STOPPED/BLOCKED window or a
+        revoked policy never does. The successor copies the Owner-approved bounds
+        exactly; only revision and times change, capped by ``renew_until``.
+        """
+        clock = now or datetime.now(timezone.utc)
+        if self.active_window() is not None:
+            return None
+        with self._lock:
+            policies = self._conn.execute("SELECT * FROM platform_standing_windows WHERE status='ACTIVE'").fetchall()
+        for policy in policies:
+            until = datetime.fromisoformat(policy["renew_until"].replace("Z", "+00:00"))
+            if clock >= until - timedelta(minutes=1):
+                with self._lock:
+                    self._conn.execute("UPDATE platform_standing_windows SET status='EXPIRED', stop_reason='renew_until_reached', "
+                                       "updated_at=? WHERE policy_id=? AND status='ACTIVE'", (_utc_now(), policy["policy_id"]))
+                    self._conn.commit()
+                continue
+            with self._lock:
+                latest = self._conn.execute(
+                    "SELECT * FROM platform_autonomous_windows WHERE policy_id=? ORDER BY policy_revision DESC LIMIT 1",
+                    (policy["policy_id"],)).fetchone()
+            if latest is None or latest["status"] != "EXPIRED" or latest["stop_reason"] != "window_expired":
+                continue
+            if latest["confirmation"] not in {"ACTIVATE", "STANDING_RENEWAL"}:
+                continue
+            expires = min(clock + timedelta(hours=int(policy["window_hours"])), until)
+            payload = {
+                "policy_id": latest["policy_id"], "policy_revision": int(latest["policy_revision"]) + 1,
+                "owner_identity": latest["owner_identity"],
+                "starts_at": clock.isoformat().replace("+00:00", "Z"),
+                "expires_at": expires.isoformat().replace("+00:00", "Z"),
+                "repositories": json.loads(latest["repositories_json"]),
+                "capabilities": json.loads(latest["capabilities_json"]),
+                "max_concurrent_tasks": int(latest["max_concurrent_tasks"]), "max_tasks": int(latest["max_tasks"]),
+                "max_retries": int(latest["max_retries"]), "max_token_units": int(latest["max_token_units"]),
+                "max_cost_micro_units": int(latest["max_cost_micro_units"]),
+                "per_task_token_reservation": int(latest["per_task_token_reservation"]),
+                "per_task_cost_reservation": int(latest["per_task_cost_reservation"]),
+                "provider_quota_state": latest["provider_quota_state"],
+                "enforcement_class": latest["enforcement_class"],
+                "standing_renewal": {"window_hours": int(policy["window_hours"]), "renew_until": policy["renew_until"]},
+            }
+            window = self.activate_window(payload, confirmation="STANDING_RENEWAL", _standing_renewal=True)
+            self.append_receipt(
+                window_id=window.id, operation_type="standing_window_renewal", capability="not_applicable",
+                repository=",".join(window.repositories), subject_id=window.policy_id, decision="allowed",
+                reason="owner_standing_policy",
+                input_payload={"from_window_id": latest["id"], "to_window_id": window.id,
+                               "policy_revision": window.policy_revision, "renew_until": policy["renew_until"]},
+                result=f"renewed:{window.id}")
+            return window
+        return None
+
+    def adopt_standing_goals(self, window_id: str) -> tuple[dict[str, Any], ...]:
+        """Move RUNNING goals stranded on earlier windows of the same standing policy."""
+        window = self.get_window(window_id)
+        policy = self.standing_window(window.policy_id)
+        if policy is None or policy["status"] != "ACTIVE":
+            return ()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id = g.window_id "
+                "WHERE g.status='RUNNING' AND w.policy_id=? AND w.id<>? AND w.status='EXPIRED' "
+                "AND w.stop_reason='window_expired' ORDER BY g.created_at", (window.policy_id, window.id)).fetchall()
+        outcomes = []
+        for row in rows:
+            try:
+                outcomes.append(self.rebind_goal_to_window(row["id"], window_id=window.id,
+                                                           reason="standing_window_adoption"))
+            except TaskStoreError as exc:
+                # In-flight or held work is retried on a later tick, never forced.
+                outcomes.append({"goal_id": row["id"], "status": "DEFERRED", "reason": str(exc)})
+        return tuple(outcomes)
+
+    def reroute_held_task(self, task_id: str, *, expected_binding: str, binding_ref: str,
+                          executor_kind: str, branch: str) -> bool:
+        """Move a never-started, quota-held QUEUED task to another binding (#1313 D).
+
+        Compare-and-set on status and binding; the stale admission input is dropped so
+        the next claim prepares quota evidence for the new binding.
+        """
+        with self._lock, self._conn:
+            started = self._conn.execute(
+                "SELECT 1 FROM platform_coordinator_claims WHERE task_id=? UNION ALL "
+                "SELECT 1 FROM durable_runs WHERE task_id=? LIMIT 1", (task_id, task_id)).fetchone()
+            if started is not None:
+                return False
+            moved = self._conn.execute(
+                "UPDATE tasks SET binding_ref=?, executor_kind=?, branch=?, updated_at=? "
+                "WHERE id=? AND status='QUEUED' AND binding_ref=?",
+                (binding_ref, executor_kind, branch, _utc_now(), task_id, expected_binding))
+            if moved.rowcount != 1:
+                return False
+            self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
+            return True
+
+    def quota_hold(self, task_id: str) -> dict[str, Any] | None:
+        """A hold is dispatch state, not observed usage or an executor failure."""
+        with self._lock:
+            row = self._conn.execute("SELECT verdict_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+            verdict = json.loads(row["verdict_json"]) if row else {}
+            return verdict if verdict.get("decision") == "quota_wait" else None
+
+    def prepare_quota_admission(self, *, task_id: str, binding_ref: str,
+                                account_ref: str, evidence: Mapping[str, Any],
+                                need: Mapping[str, Any], small_task: bool = False,
+                                safety_buffer: float = 10, refresh=None, resume_route=None) -> None:
+        """Refresh outside SQL locks, then persist an account-bound admission input.
+
+        The transaction rechecks freshness; this preparation grants no claim.
+        """
+        from . import quota_reservation
+        selected = quota_reservation.observation(account_ref, [evidence], refresh=refresh,
+                                                 small_task=small_task)
+        quota_reservation.admission(selected, need, buffer=safety_buffer, small_task=small_task)
+        with self._lock, self._conn:
+            active = self._conn.execute("SELECT account_ref, binding_ref FROM platform_budget_reservations WHERE task_id=? AND state='ACTIVE'", (task_id,)).fetchone()
+            if active and (active["account_ref"] != account_ref or active["binding_ref"] != binding_ref):
+                raise TaskStoreError("quota_reservation_identity_changed")
+            resume_checkpoint = None
+            if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
+                payload = self.task_store._verify_quota_resume(task_id)
+                prior = self._conn.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+                from ..model_access.quota_forecast import parse_time
+                def observed_at(value):
+                    return float(value) if quota_reservation._number(value) else parse_time(value)
+                old_at = observed_at(json.loads(prior[0]).get("observed_at")) if prior else None
+                new_at = observed_at(selected.get("observed_at"))
+                if old_at is None or new_at is None or new_at <= old_at:
+                    raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
+                resume_checkpoint = payload["resume_state"]["checkpoint_id"]
+            previous = self._conn.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (account_ref,)).fetchone()
+            if previous:
+                rows = [dict(r) for r in self._conn.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=?", (account_ref,))]
+                for row in rows:
+                    row["settlement"] = json.loads(row["settlement_json"])
+                rates = quota_reservation.attributable_calibration(json.loads(previous[0]), selected, rows)
+                if rates:
+                    existing = self.quota_calibration(account_ref)
+                    existing.update(rates)
+                    self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
+                        (account_ref, json.dumps(existing), json.dumps({"before": json.loads(previous[0]), "after": selected, "claims": rows})))
+                else:
+                    self._delta_calibrate_locked(account_ref, selected, rows)
+            self._conn.execute("INSERT INTO platform_quota_observations VALUES (?,?,?) ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, evidence_json=excluded.evidence_json WHERE excluded.observed_at > platform_quota_observations.observed_at",
+                               (account_ref, selected.get("observed_at") or "", json.dumps(selected)))
+            self._conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
+                               (task_id, binding_ref, account_ref, json.dumps(selected), json.dumps(need), int(small_task), safety_buffer))
+            if resume_checkpoint:
+                self._conn.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?",
+                                   (json.dumps({"resume_checkpoint": resume_checkpoint, "resume_route": resume_route}), task_id))
 
     def claim_task(
         self,
@@ -1256,9 +1859,9 @@ class PlatformControlStore:
             if task is None:
                 raise TaskStoreError("task_not_claimable")
             completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
-            if task["status"] not in {"QUEUED", "INTERRUPTED"} and not completion_recovery:
+            if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] == "INTERRUPTED" and not completion_recovery:
+            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
             elif not completion_recovery and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
@@ -1275,6 +1878,65 @@ class PlatformControlStore:
                 "ORDER BY claim_epoch DESC LIMIT 1",
                 (task_id, window_id),
             ).fetchone()
+            quota_input = cur.execute("SELECT * FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+            quota_verdict = None
+            if quota_input is not None:
+                identity = cur.execute("SELECT binding_ref FROM tasks WHERE id=?", (task_id,)).fetchone()
+                route = json.loads(quota_input["verdict_json"]).get("resume_route")
+                if route:
+                    link = cur.execute("SELECT goal_id,goal_revision FROM platform_goal_task_links WHERE task_id=?", (task_id,)).fetchone()
+                    goal = self.get_goal(link["goal_id"]) if link else None
+                    current = self.task_store.get_task(task_id)
+                    if (task["status"] != "QUOTA_WAIT" or goal is None or goal.revision != link["goal_revision"]
+                            or goal.revision != route["goal_revision"] or goal.id != route["goal_id"]
+                            or goal.status != "RUNNING" or goal.window_id != window_id
+                            or goal.orchestration_mode != "agent_team" or goal.binding_ref
+                            or route["source_binding"] != current.binding_ref
+                            or route["binding_ref"] != quota_input["binding_ref"]
+                            or route["executor_kind"] not in {"codex", "claude_code"}
+                            or self.is_strict_owner_window(self.get_window(window_id))):
+                        raise TaskStoreError("quota_resume_substitution_unauthorized")
+                if not route and identity["binding_ref"] != quota_input["binding_ref"]:
+                    raise TaskStoreError("quota_reservation_identity_changed")
+                if active_reservation is not None and (active_reservation["account_ref"] != quota_input["account_ref"] or active_reservation["binding_ref"] != quota_input["binding_ref"]):
+                    raise TaskStoreError("quota_reservation_identity_changed")
+            if quota_input is not None and not completion_recovery:
+                from . import quota_reservation
+                outstanding = [dict(r) for r in cur.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=? AND NOT (task_id=? AND state='ACTIVE')", (quota_input["account_ref"], task_id))]
+                for row in outstanding:
+                    row["quota_windows"] = json.loads(row["quota_windows_json"])
+                    fact = json.loads(row["settlement_json"])
+                    row["actual_windows"] = fact.get("actual_windows", {})
+                    row["actual_observations"] = fact.get("actual_observations", [])
+                latest = cur.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (quota_input["account_ref"],)).fetchone()
+                quota_need = json.loads(quota_input["need_json"])
+                if active_reservation is not None:
+                    previous_need = json.loads(active_reservation["quota_windows_json"])
+                    for name, amount in previous_need.items():
+                        proposed = quota_need["windows"].get(name, {}).get("p80")
+                        if quota_reservation._number(amount) and quota_reservation._number(proposed):
+                            quota_need["windows"][name]["p80"] = max(amount, proposed)
+                quota_verdict = quota_reservation.admission(json.loads(latest["evidence_json"]), quota_need, outstanding,
+                    small_task=bool(quota_input["small_task"]), buffer=quota_input["safety_buffer"])
+                cur.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?", (json.dumps(quota_verdict), task_id))
+                if quota_verdict["decision"] == "quota_wait":
+                    # Persist the hold without acquiring a claim or spending budgets.
+                    cur.execute("COMMIT")
+                    raise TaskStoreError("QUOTA_WAIT:" + (quota_verdict["until"] or "unknown_reset"))
+            if task["status"] == "QUOTA_WAIT":
+                if quota_input is None or active_reservation is not None:
+                    raise TaskStoreError("quota_resume_requires_fresh_reservation")
+                payload = self.task_store._verify_quota_resume(task_id)
+                if json.loads(quota_input["verdict_json"]).get("resume_checkpoint") != payload["resume_state"]["checkpoint_id"]:
+                    raise TaskStoreError("quota_resume_requires_fresh_evidence")
+                previous = cur.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (task_id,)).fetchone()
+                evidence = json.loads(previous[0])
+                # Freeze the same account observation that preparation selected.
+                old = cur.execute("SELECT evidence_json FROM platform_quota_observations WHERE account_ref=?", (quota_input["account_ref"],)).fetchone()
+                if not old or json.loads(old[0]) != evidence:
+                    raise TaskStoreError("quota_resume_evidence_changed")
+                if "resume_task" not in json.loads(window["capabilities_json"]):
+                    raise TaskStoreError("window_missing_resume_task_capability")
             token_reservation = int(window["per_task_token_reservation"])
             cost_reservation = int(window["per_task_cost_reservation"])
             if active_reservation is None:
@@ -1332,9 +1994,17 @@ class PlatformControlStore:
                         int(active_reservation["claim_epoch"]),
                     ),
                 )
+            if quota_input is not None and not completion_recovery:
+                cur.execute("UPDATE platform_budget_reservations SET account_ref=?, binding_ref=?, quota_windows_json=?, quota_state=?, estimate_json=? WHERE task_id=? AND claim_epoch=?",
+                    (quota_input["account_ref"], quota_input["binding_ref"], json.dumps({name: value["p80"] for name, value in quota_need["windows"].items()}), quota_verdict["state"], json.dumps(quota_need), task_id, epoch))
+            if task["status"] == "QUOTA_WAIT":
+                if route:
+                    cur.execute("UPDATE tasks SET executor_kind=?,binding_ref=? WHERE id=?", (route["executor_kind"], route["binding_ref"], task_id))
+                cur.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task_id,))
+                cur.execute("UPDATE durable_runs SET recovery_classification='interrupted' WHERE task_id=? AND recovery_classification='quota_wait'", (task_id,))
             if completion_recovery:
                 pass  # Finish the original persisted result; no new task/retry spending.
-            elif task["status"] == "INTERRUPTED":
+            elif task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
                     "updated_at = ? WHERE id = ?",
@@ -1359,6 +2029,29 @@ class PlatformControlStore:
             except Exception:
                 pass
             raise TaskStoreError(f"coordinator_claim_failed:{exc}") from exc
+
+    def renew_claim(
+        self,
+        *,
+        window_id: str,
+        task_id: str,
+        owner: str,
+        epoch: int,
+        lease_ms: int,
+    ) -> bool:
+        """Extend only the caller's still-live admission claim, fenced by epoch."""
+        if lease_ms <= 0:
+            raise TaskStoreError("claim_lease_invalid")
+        with self._lock:
+            now_ms = _utc_now_ms()
+            cur = self._conn.execute(
+                "UPDATE platform_coordinator_claims "
+                "SET expires_at_ms = MAX(expires_at_ms, ?), updated_at = ? "
+                "WHERE window_id = ? AND task_id = ? AND owner = ? AND epoch = ? "
+                "AND status = 'ACTIVE' AND expires_at_ms > ?",
+                (now_ms + lease_ms, _utc_now(), window_id, task_id, owner, epoch, now_ms),
+            )
+            return cur.rowcount == 1
 
     def abandon_task_claim(
         self,
@@ -1389,6 +2082,14 @@ class PlatformControlStore:
         epoch: int,
         result: str,
     ) -> None:
+        with self._lock:
+            if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
+                claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?",
+                                           (task_id,)).fetchone()
+                if (claim is not None and claim["window_id"] == window_id and claim["owner"] == owner
+                        and claim["epoch"] == epoch and claim["status"] == "FAILED"):
+                    return
+                raise TaskStoreError("coordinator_claim_fenced")
         self._finalize_task_claim(
             window_id=window_id,
             task_id=task_id,
@@ -1484,6 +2185,8 @@ class PlatformControlStore:
         receipt_reason: str,
         receipt_result: str,
         persisted_host_recovery: bool = False,
+        in_transaction: bool = False,
+        quota_usage_before: Sequence[str] | None = None,
     ) -> str:
         """Fence a claim and reconcile its reservation exactly once."""
 
@@ -1492,7 +2195,16 @@ class PlatformControlStore:
         with self._lock:
             cur = self._conn.cursor()
             try:
-                cur.execute("BEGIN IMMEDIATE")
+                if in_transaction:
+                    if not self._conn.in_transaction:
+                        raise TaskStoreError("quota_settlement_transaction_missing")
+                else:
+                    cur.execute("BEGIN IMMEDIATE")
+                    if cur.execute(
+                            "SELECT 1 FROM quota_partial_checkpoints cp JOIN durable_runs dr ON dr.run_id=cp.run_id "
+                            "WHERE dr.task_id=? AND cp.request_epoch=dr.lease_epoch AND cp.state='PAUSED'",
+                            (task_id,)).fetchone():
+                        raise TaskStoreError("quota_pause_pending_recovery")
                 from .unknown_claim_isolation import refuse_held
                 refuse_held(self.task_store, task_id)
                 claim = cur.execute(
@@ -1537,7 +2249,7 @@ class PlatformControlStore:
                     (window_id,),
                 ).fetchone()
                 task = cur.execute(
-                    "SELECT executor_kind FROM tasks WHERE id = ?", (task_id,)
+                    "SELECT executor_kind, execution_id, failure_classification FROM tasks WHERE id = ?", (task_id,)
                 ).fetchone()
                 if window is None or task is None:
                     raise TaskStoreError("budget_reconciliation_subject_missing")
@@ -1551,8 +2263,15 @@ class PlatformControlStore:
                 ).fetchall()
                 unknown_count = sum(
                     1 for observation in observations
-                    if observation["status"] == "UNKNOWN"
+                    if observation["status"] != "OBSERVED" or any(observation[key] is None for key in
+                        ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units", "cost_micro_units"))
                 )
+                if quota_usage_before is not None and not any(
+                        o["id"] not in quota_usage_before and o["claim_epoch"] == epoch
+                        and o["execution_id"] == task["execution_id"] for o in observations):
+                    # A crash after saving but before usage persistence cannot attribute
+                    # an earlier role's observations to the paused attempt.
+                    unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
                 host_zero = not observations and self._completed_host_checker(task_id)
                 if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
@@ -1604,6 +2323,15 @@ class PlatformControlStore:
                         _utc_now(), _utc_now(), task_id, epoch,
                     ),
                 )
+                from . import quota_reservation
+                settlement = quota_reservation.settlement(
+                    [dict(o) for o in observations], json.loads(reservation["estimate_json"]),
+                    usage_unknown=usage_unknown)
+                settlement["limit_cutoff"] = any(word in (task["failure_classification"] + ":" + receipt_result)
+                    for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget", "provider_exhaustion"))
+                cur.execute("UPDATE platform_budget_reservations SET settlement_json=?, quota_state=? "
+                            "WHERE task_id=? AND claim_epoch=?",
+                            (json.dumps(settlement), settlement["state"], task_id, epoch))
                 cur.execute(
                     "UPDATE platform_coordinator_claims SET status = ?, updated_at = ? "
                     "WHERE task_id = ? AND window_id = ? AND owner = ? "
@@ -1658,7 +2386,8 @@ class PlatformControlStore:
                                    if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
                     result=f"{receipt_result}:{reservation_state}",
                 )
-                cur.execute("COMMIT")
+                if not in_transaction:
+                    cur.execute("COMMIT")
                 return reservation_state
             except TaskStoreError as exc:
                 try:
@@ -1703,8 +2432,8 @@ class PlatformControlStore:
             active = self._conn.execute(
                 "SELECT COALESCE(SUM(reserved_token_units), 0) AS token_units, "
                 "COALESCE(SUM(reserved_cost_micro_units), 0) AS cost_units, "
-                "COUNT(*) AS reservation_count FROM platform_budget_reservations "
-                "WHERE window_id = ? AND state = 'ACTIVE'",
+                "SUM(CASE WHEN state='ACTIVE' THEN 1 ELSE 0 END) AS reservation_count FROM platform_budget_reservations "
+                "WHERE window_id = ? AND state IN ('ACTIVE', 'UNKNOWN')",
                 (window_id,),
             ).fetchone()
         reserved_tokens = int(active["token_units"])
@@ -1729,9 +2458,80 @@ class PlatformControlStore:
                 if window.max_cost_micro_units else None
             ),
             "unknown_observation_count": window.unknown_observation_count,
-            "active_reservation_count": int(active["reservation_count"]),
+            "active_reservation_count": int(active["reservation_count"] or 0),
             "stop_reason": window.stop_reason,
+            "accounts": self.account_budget_summary(window_id),
         }
+
+    def _delta_calibrate_locked(self, account_ref: str, after: Mapping[str, Any], rows: list[dict[str, Any]]) -> None:
+        """Learn from each settled, isolated task once, against its own admission evidence (#1313 B)."""
+        from statistics import median
+        from . import quota_reservation
+        current = self._conn.execute("SELECT rates_json, evidence_json FROM platform_quota_calibrations WHERE account_ref=?",
+                                     (account_ref,)).fetchone()
+        rates = json.loads(current["rates_json"]) if current else {}
+        evidence = json.loads(current["evidence_json"]) if current else {}
+        samples = evidence.get("delta_samples", {}) if isinstance(evidence.get("delta_samples"), dict) else {}
+        learned_order = [t for t in evidence.get("delta_tasks", []) if isinstance(t, str)]
+        used = set(learned_order)
+        changed = False
+        for row in rows:
+            if row["task_id"] in used or row.get("state") == "ACTIVE" or not row.get("reconciled_at"):
+                continue
+            admitted = self._conn.execute("SELECT evidence_json FROM platform_quota_admissions WHERE task_id=? AND account_ref=?",
+                                          (row["task_id"], account_ref)).fetchone()
+            if admitted is None:
+                continue
+            learned = quota_reservation.delta_calibration(row["task_id"], json.loads(admitted[0]), after, rows)
+            if not learned:
+                continue
+            used.add(row["task_id"])
+            learned_order.append(row["task_id"])
+            for name, rate in learned.items():
+                samples.setdefault(name, []).append(rate)
+                samples[name] = samples[name][-quota_reservation.DELTA_SAMPLES:]
+                rates[name] = median(samples[name])
+            changed = True
+        if changed:
+            evidence = {**evidence, "delta_samples": samples, "delta_tasks": learned_order[-200:],
+                        "delta_after": after, "basis": "provider_delta_lower_bound"}
+            self._conn.execute("INSERT OR REPLACE INTO platform_quota_calibrations VALUES (?,?,?)",
+                               (account_ref, json.dumps(rates), json.dumps(evidence)))
+
+    def quota_calibration(self, account_ref: str) -> dict[str, float]:
+        with self._lock:
+            row = self._conn.execute("SELECT rates_json FROM platform_quota_calibrations WHERE account_ref=?", (account_ref,)).fetchone()
+            return json.loads(row[0]) if row else {}
+
+    def account_budget_summary(self, window_id: str) -> dict[str, Any]:
+        """Account totals retain NULL actual/error whenever any usage is unresolved."""
+        result = {}
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM platform_budget_reservations WHERE window_id=? AND account_ref<>''", (window_id,)).fetchall()
+            for row in rows:
+                entry = result.setdefault(row["account_ref"], {"reserved": {}, "actual": {}, "estimate_error": {},
+                    "unknown_count": 0, "quota_held_tasks": 0, "limit_cutoff_count": 0,
+                    "actual_token_units": 0, "actual_cost_micro_units": 0, "actual_basis": "measured_cost_with_frozen_calibration"})
+                fact = json.loads(row["settlement_json"])
+                actual = fact.get("actual_windows", {})
+                for name, reserved in json.loads(row["quota_windows_json"]).items():
+                    entry["reserved"][name] = entry["reserved"].get(name, 0) + reserved
+                    value = actual.get(name)
+                    previous = entry["actual"].get(name, 0)
+                    entry["actual"][name] = previous + value if previous is not None and value is not None else None
+                    entry["estimate_error"][name] = (entry["actual"][name] - entry["reserved"][name]
+                        if entry["actual"][name] is not None else None)
+                entry["unknown_count"] += int(row["state"] == "UNKNOWN" or row["quota_state"] == "UNKNOWN")
+                entry["limit_cutoff_count"] += int(fact.get("limit_cutoff", False))
+                for name, column in (("actual_token_units", "observed_token_units"), ("actual_cost_micro_units", "observed_cost_micro_units")):
+                    entry[name] = entry[name] + row[column] if entry[name] is not None and row[column] is not None else None
+            for row in self._conn.execute("SELECT account_ref, verdict_json FROM platform_quota_admissions"):
+                if json.loads(row["verdict_json"]).get("decision") == "quota_wait":
+                    entry = result.setdefault(row["account_ref"], {"reserved": {}, "actual": {}, "estimate_error": {},
+                        "unknown_count": 0, "quota_held_tasks": 0, "limit_cutoff_count": 0,
+                        "actual_token_units": None, "actual_cost_micro_units": None})
+                    entry["quota_held_tasks"] += 1
+        return result
 
     def append_receipt(
         self,

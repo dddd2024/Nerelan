@@ -1,0 +1,702 @@
+{
+  "version": 1,
+  "snapshot_id": "public-leaderboards@2026-10-20",
+  "families": {
+    "deepseek-v4.1-flash": {
+      "aliases": [
+        "deepseek-v4.1-flash",
+        "deepseek-v4.1-flash-free",
+        "deepseek-v4.1-flash-sg",
+        "auto-deepseek-v4-1-flash",
+        "sn-deepseek-v4-1-flash"
+      ],
+      "scores": [
+        {
+          "benchmark": "terminal_bench",
+          "score": 19.697,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "deepseek/deepseek-v4.1-flash"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.392493049119555,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/deepseek-v4-1-flash",
+          "retrieved_at": "2026-10-20",
+          "variant": "DeepSeek V4.1 Flash (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.267676767676768,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/deepseek-v4-1-flash",
+          "retrieved_at": "2026-10-20",
+          "variant": "DeepSeek V4.1 Flash (Max)"
+        }
+      ]
+    },
+    "deepseek-v4-pro": {
+      "aliases": [
+        "deepseek-v4-pro",
+        "workbuddy/deepseek-v4-pro",
+        "trae-cn/deepseek-v4-pro-official"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 77.4,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "deepseek/deepseek-v4-pro"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 89.394,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "deepseek/deepseek-v4-pro"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 87.484,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "deepseek/deepseek-v4-pro"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 11.111,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "deepseek/deepseek-v4-pro"
+        }
+      ]
+    },
+    "glm-5.3": {
+      "aliases": [
+        "glm-5.3",
+        "workbuddy/glm-5.3",
+        "auto-glm-5-3",
+        "sn-glm-5-3",
+        "glm-5.3-max"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 95.4,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 88.132,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.3"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 80.535,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.3"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 38.889,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.917171717171717,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-3",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.3 (Max)"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.422613531047266,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-3",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.3 (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.419191919191919,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-3",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.3 (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 41.82,
+          "source": "tbench.ai",
+          "url": "https://www.tbench.ai/",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.3 (Claude Code, max)"
+        }
+      ]
+    },
+    "glm-5.2": {
+      "aliases": [
+        "glm-5.2",
+        "workbuddy/glm-5.2",
+        "workbuddy-ai/glm-5.2",
+        "z-ai/glm-5.2",
+        "auto-glm-5-2",
+        "glm-5.2-max"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 82.8,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.2"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 85.606,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.2"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 69.5,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "zai/glm-5.2"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.894949494949495,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-2",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.2 (Max)"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.411492122335496,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-2",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.2 (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.0101010101010101,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/glm-5-2",
+          "retrieved_at": "2026-10-20",
+          "variant": "GLM-5.2 (Max)"
+        }
+      ]
+    },
+    "kimi-k3": {
+      "aliases": [
+        "kimi-k3",
+        "auto-kimi-k3",
+        "sn-kimi-k3"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 93.4,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 92.929,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k3"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 87.185,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k3"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 17.172,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.935353535353535,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k3",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K3 (Max)"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.468952734012975,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k3",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K3 (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.126262626262626,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k3",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K3 (Max)"
+        }
+      ]
+    },
+    "kimi-k2.7-code": {
+      "aliases": [
+        "kimi-k2.7-code"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 78.2,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k2.7-code"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 82.05,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "kimi/kimi-k2.7-code"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.895959595959596,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k2-7-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K2.7 Code"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.35032437442076,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k2-7-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K2.7 Code"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.0101010101010101,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/kimi-k2-7-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Kimi K2.7 Code"
+        }
+      ]
+    },
+    "minimax-m3": {
+      "aliases": [
+        "minimax-m3",
+        "auto-minimax-m3"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 75,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "minimax/MiniMax-M3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 92.676,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "minimax/MiniMax-M3"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 82.154,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "minimax/MiniMax-M3"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 1.01,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "minimax/MiniMax-M3"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.929292929292929,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/minimax-m3",
+          "retrieved_at": "2026-10-20",
+          "variant": "MiniMax-M3"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.389712696941613,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/minimax-m3",
+          "retrieved_at": "2026-10-20",
+          "variant": "MiniMax-M3"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.0202020202020202,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/minimax-m3",
+          "retrieved_at": "2026-10-20",
+          "variant": "MiniMax-M3"
+        }
+      ]
+    },
+    "doubao-seed-code": {
+      "aliases": [
+        "doubao-seed-code"
+      ],
+      "scores": [
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.763636363636364,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/doubao-seed-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Doubao Seed Code"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.140871177015755,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/doubao-seed-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Doubao Seed Code"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 0.766137566137566,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/doubao-seed-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Doubao Seed Code"
+        },
+        {
+          "benchmark": "aime",
+          "score": 0.793333333333333,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/doubao-seed-code",
+          "retrieved_at": "2026-10-20",
+          "variant": "Doubao Seed Code"
+        }
+      ]
+    },
+    "gpt-6.1-sol": {
+      "aliases": [
+        "gpt-6.1-sol",
+        "auto-gpt-6-1-sol"
+      ],
+      "scores": [
+        {
+          "benchmark": "terminal_bench",
+          "score": 55.051,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-6.1-sol"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.529193697868397,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-6.1 Sol (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.560606060606061,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-6.1 Sol (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 58.18,
+          "source": "tbench.ai",
+          "url": "https://www.tbench.ai/",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-6.1 Sol (Codex, max)"
+        }
+      ]
+    },
+    "gpt-5.6-luna": {
+      "aliases": [
+        "gpt-5.6-luna"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 93,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-5.6-luna"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 91.666,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-5.6-luna"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 11.616,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/terminal-bench-4",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-5.6-luna"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.911111111111111,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-5-6-luna",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-5.6 Luna (Max)"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.394810009267841,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-5-6-luna",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-5.6 Luna (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0.116161616161616,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-5-6-luna",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-5.6 Luna (Max)"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 17.27,
+          "source": "tbench.ai",
+          "url": "https://www.tbench.ai/",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-5.6 Luna (Codex, max)"
+        }
+      ]
+    },
+    "gpt-4.1": {
+      "aliases": [
+        "gpt-4.1",
+        "copilot/gpt-4.1"
+      ],
+      "scores": [
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 65.404,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-4.1-2025-04-14"
+        },
+        {
+          "benchmark": "aime",
+          "score": 39.583,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/aime",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-4.1-2025-04-14"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 54.666,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/lcb",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-4.1-2025-04-14"
+        },
+        {
+          "benchmark": "math",
+          "score": 87.2,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/math500",
+          "retrieved_at": "2026-10-20",
+          "variant": "openai/gpt-4.1-2025-04-14"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.665656565656566,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-4-1",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-4.1"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.0418,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-4-1",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-4.1"
+        },
+        {
+          "benchmark": "livecodebench",
+          "score": 0.457142857142857,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-4-1",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-4.1"
+        },
+        {
+          "benchmark": "aime",
+          "score": 0.346666666666667,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/gpt-4-1",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-4.1"
+        },
+        {
+          "benchmark": "aider_polyglot",
+          "score": 52.4,
+          "source": "aider.chat",
+          "url": "https://aider.chat/docs/leaderboards/",
+          "retrieved_at": "2026-10-20",
+          "variant": "gpt-4.1 (diff)"
+        },
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 39.58,
+          "source": "swebench.com",
+          "url": "https://www.swebench.com/",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT 4.1 (2025-04-14), bash-only mini-SWE-agent 1.0.0"
+        },
+        {
+          "benchmark": "hle",
+          "score": 5.4,
+          "source": "scale.com",
+          "url": "https://labs.scale.com/leaderboard/humanitys_last_exam",
+          "retrieved_at": "2026-10-20",
+          "variant": "GPT-4.1"
+        }
+      ]
+    },
+    "claude-opus": {
+      "aliases": [
+        "claude-opus"
+      ],
+      "scores": []
+    },
+    "claude-sonnet": {
+      "aliases": [
+        "claude-sonnet"
+      ],
+      "scores": []
+    },
+    "mistral-medium-3.5": {
+      "aliases": [
+        "mistral-medium-3.5"
+      ],
+      "scores": [
+        {
+          "benchmark": "swe_bench_verified",
+          "score": 66.4,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/swebench",
+          "retrieved_at": "2026-10-20",
+          "variant": "mistralai/mistral-medium-3.5"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 34.848,
+          "source": "vals.ai",
+          "url": "https://www.vals.ai/benchmarks/gpqa",
+          "retrieved_at": "2026-10-20",
+          "variant": "mistralai/mistral-medium-3.5"
+        },
+        {
+          "benchmark": "gpqa_diamond",
+          "score": 0.748484848484849,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/mistral-medium-3-5",
+          "retrieved_at": "2026-10-20",
+          "variant": "Mistral Medium 3.5"
+        },
+        {
+          "benchmark": "hle",
+          "score": 0.137627432808156,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/mistral-medium-3-5",
+          "retrieved_at": "2026-10-20",
+          "variant": "Mistral Medium 3.5"
+        },
+        {
+          "benchmark": "terminal_bench",
+          "score": 0,
+          "source": "artificialanalysis.ai",
+          "url": "https://artificialanalysis.ai/models/mistral-medium-3-5",
+          "retrieved_at": "2026-10-20",
+          "variant": "Mistral Medium 3.5"
+        }
+      ]
+    },
+    "codestral": {
+      "aliases": [
+        "codestral"
+      ],
+      "scores": []
+    },
+    "agnes-3.0": {
+      "aliases": [
+        "agnes-3.0"
+      ],
+      "scores": []
+    }
+  }
+}

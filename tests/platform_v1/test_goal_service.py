@@ -628,3 +628,114 @@ def test_dependency_selection_does_not_accept_cyclic_plans():
             {"id": "B", "title": "second", "instruction": "second", "dependencies": ["A"]},
             {"id": "A", "title": "first", "instruction": "first", "dependencies": ["B"]},
         ])
+
+
+def test_goal_fit_plan_detail_use_host_account_estimator_without_reservations(monkeypatch):
+    import json
+    import time
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import quota_reservation
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    from tests.platform_v1.test_quota_reservation import quota_evidence
+    store, control, _, goals = _services()
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store = store
+    host._control_store = control
+    host._goal_service = goals
+    host._store = SimpleNamespace(
+        list_bindings_public=lambda: [{"binding_id": "b", "connection_id": "c", "model_id": "fixture"}],
+        get_connection_public=lambda _: {"connection_id": "c", "account_ref": "a", "auth_method": "external_cli_session"})
+    monkeypatch.setattr(host, "_runnable_bindings", lambda: {"b"})
+    goals.quota_forecaster = host._goal_quota_fit
+    monkeypatch.setattr(quota_reservation.pricing, "equivalent_cost", lambda *args: {"usd": 30})
+    now = time.time()
+    observed = quota_evidence(weekly=40, now=now)
+    for w in observed["windows"]:
+        w["capacity_units"] = {"low": 100}
+    store._conn.execute("INSERT INTO platform_quota_observations VALUES (?, ?, ?)",
+                        ("a", str(now), json.dumps(observed)))
+    goal = goals.create({"objective": "Forecast two tasks", "idempotency_key": "fit",
+                         "orchestration_mode": "single", "binding_ref": "b"})
+    tables = ("platform_quota_admissions", "platform_quota_observations", "platform_budget_reservations", "platform_quota_calibrations")
+    before = {t: [tuple(r) for r in store._conn.execute("SELECT * FROM " + t)] for t in tables}
+    planned = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+        {"id": "T1", "title": "First", "instruction": "First"},
+        {"id": "T2", "title": "Second", "instruction": "Second"}])
+    fit = planned.quota_fit
+    assert fit["status"] == "needs_a_reset"
+    assert fit["accounts"]["a"]["blocking_windows"] == ["weekly"]
+    assert fit["tasks"][0]["need"]["estimate"]["cold_start"]
+    assert fit["tasks"][0]["need"]["estimate"]["uncertain"]
+    assert '"status": "needs_a_reset"' in planned.goal.plan_markdown
+    detail = goals.detail(goal.id)
+    assert detail["quota_fit"]["status"] == "needs_a_reset"
+    assert detail["account_accounting"] == {}
+    assert before == {t: [tuple(r) for r in store._conn.execute("SELECT * FROM " + t)] for t in tables}
+    store._conn.execute("DELETE FROM platform_quota_observations")
+    assert goals.detail(goal.id)["quota_fit"]["status"] == "UNKNOWN"
+
+
+def test_goal_fit_default_unknown_is_explicit():
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Unobserved", "idempotency_key": "unknown-fit"})
+    planned = goals.plan(goal.id, expected_revision=goal.revision)
+    assert planned.quota_fit["status"] == "UNKNOWN"
+    assert goals.detail(goal.id)["quota_fit"]["status"] == "UNKNOWN"
+
+
+def test_goal_forecast_router_does_not_discover_refresh_or_probe(monkeypatch, tmp_path):
+    from tests.platform_v1.test_model_router import fixture_host
+    from reverse_agent.platform_v1.goal_service import PlannedTask
+    host = fixture_host(monkeypatch, tmp_path)
+    store, control, _, goals = _services()
+    host._task_store = store
+    host._control_store = control
+    host._goal_service = goals
+    def forbidden(*args, **kwargs):
+        pytest.fail("forecast attempted a refresh, discovery, quota read or availability probe")
+    for name in ("_routing_bind_discovered", "_routing_refresh_quota_for_signal", "_subscription_quotas",
+                 "_quota_check", "_probe_routing_binding"):
+        monkeypatch.setattr(host, name, forbidden)
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    monkeypatch.setattr(host, "_routing_availability",
+                        CombinedTrustedHost._routing_availability.__get__(host))
+    decision = host._resolve_task_model(PlannedTask("T1", "Forecast", "Implement", difficulty=3), forecast=True)
+    assert decision["binding_ref"] in {"cheap", "mid", "strong"}
+    assert not hasattr(host, "_availability_cache")
+    assert store._conn.execute("SELECT COUNT(*) FROM platform_quota_admissions").fetchone()[0] == 0
+
+
+def test_goal_detail_surfaces_existing_account_accounting(monkeypatch):
+    _, control, _, goals = _services()
+    goal = goals.create({"objective": "Accounting projection", "idempotency_key": "account-projection",
+                         "window_id": "fixture-window"})
+    expected = {"a": {"reserved": {"weekly": 5}, "actual": {"weekly": None}, "unknown_count": 1}}
+    calls = []
+    def summary(window_id):
+        calls.append(window_id)
+        return expected
+    monkeypatch.setattr(control, "account_budget_summary", summary)
+    assert goals.detail(goal.id)["account_accounting"] == expected
+    assert calls == ["fixture-window"]
+
+
+def test_forecast_replays_availability_without_changing_persisted_cache(tmp_path):
+    import time
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    from reverse_agent.platform_v1 import model_availability
+    host = object.__new__(CombinedTrustedHost)
+    host._store = SimpleNamespace(_state_path=None)
+    cache = model_availability.AvailabilityCache(tmp_path / "availability.json")
+    host._availability_cache = cache
+    binding = {"binding_id": "b", "model_id": "m", "executor_id": "opencode"}
+    connection = {"connection_id": "c", "auth_method": "api_key"}
+    now = time.time()
+    cache.remember(binding, connection, model_availability.observation(now=now - 100, success=True))
+    before = cache.path.read_bytes()
+    result = host._routing_availability(binding, connection, allow_paid=False, cost_class="free",
+        readonly=True, runnable=True, history=[{"updated_at": datetime.fromtimestamp(now - 10, timezone.utc).isoformat(),
+            "status": "FAILED", "failure_classification": "MODEL_UNAVAILABLE", "failure_detail": "model_not_found"}])
+    assert result["state"] == "UNAVAILABLE"
+    assert cache.path.read_bytes() == before
+    assert cache.check(binding, connection)["state"] == "AVAILABLE"

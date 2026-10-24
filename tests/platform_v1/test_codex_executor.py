@@ -94,6 +94,90 @@ def test_native_noop_turn_is_not_accepted_as_implementation(repository, tmp_path
     assert len(launched) == 1 and launched[0].poll() == 0
 
 
+@pytest.mark.parametrize("write_product", [False, True])
+def test_native_bytecode_only_cannot_mask_no_product_changes(repository, tmp_path, write_product):
+    repo, base = repository
+    generate = (
+        "from pathlib import Path;"
+        "Path('__pycache__').mkdir();"
+        "Path('__pycache__/fixture.cpython-313.pyc').write_bytes(b'compiled');"
+    )
+    if write_product:
+        generate += "Path('fixture.txt').write_text('changed\\n');"
+    executor, _ = fixture_executor(repo, base, generate + SUCCESS_SCRIPT)
+    store = SimpleNamespace(get_task=lambda _: SimpleNamespace(title="Change fixture.txt"))
+    result = executor.execute("bytecode-work", store,
+        workspace_root=str(tmp_path / "workspaces"))
+    assert result.process_exit_code == result.validation_exit_code == 0
+    if write_product:
+        assert result.success
+        assert [item["path"] for item in result.changed_files] == ["fixture.txt"]
+    else:
+        assert not result.success
+        assert result.failure_classification == "codex_no_product_changes"
+        assert not result.changed_files
+    assert (Path(result.workspace) / "__pycache__" / "fixture.cpython-313.pyc").exists()
+
+
+def test_literal_posix_backslash_cannot_hide_tracked_bytecode(monkeypatch, tmp_path):
+    """Git byte paths must not be folded across POSIX backslash/slash identities."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    def fake_ls_files(argv, **_kwargs):
+        if argv[:3] != ["git", "ls-files", "--others"]:
+            assert argv[:3] == ["git", "diff", "--no-renames"]
+            return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+        return SimpleNamespace(
+            returncode=0,
+            stdout=b"__pycache__" + bytes([92]) + b"fixture.pyc" + bytes([0]),
+            stderr=b"",
+        )
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_ls_files)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": "__pycache__/fixture.pyc", "status": "modified"}
+    ])
+    files = collector._collect_final_product_files(tmp_path)
+    assert [f["path"] for f in files] == ["__pycache__/fixture.pyc"]
+
+
+def test_head_tracked_change_wins_over_untracked_cache_view(monkeypatch, tmp_path):
+    """The same path in the HEAD delta must remain product evidence."""
+    from reverse_agent.platform_v1 import opencode_executor as collector
+
+    path = "__pycache__/original.pyc"
+
+    def fake_git(argv, **_kwargs):
+        assert argv[0] == "git"
+        if argv[1] == "ls-files":
+            return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+        assert argv[1] == "diff"
+        return SimpleNamespace(returncode=0, stdout=path.encode() + bytes([0]))
+
+    monkeypatch.setattr(collector.subprocess, "run", fake_git)
+    monkeypatch.setattr(collector, "_collect_changed_files", lambda _root: [
+        {"path": path, "status": "modified"}
+    ])
+    assert collector._collect_final_product_files(tmp_path) == [
+        {"path": path, "status": "modified"}
+    ]
+
+
+def test_tracked_python_bytecode_still_counts_as_product_change(repository):
+    from reverse_agent.platform_v1.opencode_executor import _collect_final_product_files
+    repo, _ = repository
+    cache = repo / "__pycache__"
+    cache.mkdir()
+    tracked = cache / "intentionally-tracked.pyc"
+    tracked.write_bytes(b"original")
+    git(repo, "add", "--", "__pycache__/intentionally-tracked.pyc")
+    git(repo, "commit", "-m", "track binary fixture")
+    tracked.write_bytes(b"changed")
+    (cache / "runtime.pyc").write_bytes(b"generated")
+    files = _collect_final_product_files(repo)
+    assert [item["path"] for item in files] == ["__pycache__/intentionally-tracked.pyc"]
+
+
 @pytest.mark.parametrize("helper_fields", [
     {"status": "failed", "exit_code": -1},
     {"aggregated_output": "helper_unknown_error: setup refresh had errors"},
@@ -230,3 +314,50 @@ def test_project_provider_or_hook_configuration_is_denied_without_dispatch(repos
 def test_opencode_prefixes_and_argv_injection_are_not_native_model_ids(model):
     with pytest.raises(ExecutorRuntimeError, match="codex_model_id_invalid"):
         validate_codex_model(model)
+
+
+@pytest.mark.parametrize("kind", ["codex", "claude_code"])
+def test_shared_executor_preserves_structured_failure_reset(tmp_path, monkeypatch, kind):
+    from reverse_agent.platform_v1.claude_executor import ClaudeCodeExecutor
+    from reverse_agent.platform_v1.codex_protocol import CodexTurn
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1 import run_store
+
+    monkeypatch.setattr(run_store, "_utc_now", lambda: "2026-10-19T11:00:00Z")
+    executor_class = CodexExecutor if kind == "codex" else ClaudeCodeExecutor
+    executor = object.__new__(executor_class)
+    executor._model_id = "offline"
+    executor._binding_resolution = None
+    store = TaskStore(str(tmp_path / "tasks.db"))
+    task = store.create_task(title="offline test")
+    task_id = task.id
+    workspace = tmp_path / task_id
+    workspace.mkdir()
+    prepared = SimpleNamespace(executor_kind=kind, worktree=workspace,
+                               base_sha="a" * 40, execution_id=f"exec-{task_id}")
+    turn = CodexTurn(failed=True, failure_classification=f"{kind}_usage_limit",
+                     failure_detail="Historical diagnostics mention a different reset",
+                     failure_reset_at="2026-10-19T16:00:00Z")
+    monkeypatch.setattr(executor, "_verify_workspace", lambda *a: None)
+    monkeypatch.setattr(executor, "_parser", lambda *a: SimpleNamespace(turn=turn, finish=lambda: turn))
+    monkeypatch.setattr(executor, "_stream", lambda *a: 1)
+    result = executor.execute_role_prepared(prepared, store,
+        role_context=RoleContext("executor", task_id, workspace))
+    assert result.failure_reset_at == "2026-10-19T16:00:00Z"
+    assert not result.success
+
+    class OfflineRouter(ExecutorRouter):
+        def dispatch_execute(self, **kwargs):
+            return result
+
+    TaskExecutionService(store=store, router=OfflineRouter()).execute(task.id, workspace_root=str(tmp_path / "ws"))
+    # Reopen to verify durable task storage, not only the in-memory result.
+    reopened = TaskStore(str(tmp_path / "tasks.db"))
+    persisted = reopened.get_task(task.id)
+    assert persisted.failure_reset_at == result.failure_reset_at
+    assert persisted.failure_at == "2026-10-19T11:00:00Z"
+    assert persisted.failure_classification == turn.failure_classification
+    reopened._conn.close()
+    store._conn.close()

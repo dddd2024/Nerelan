@@ -5,6 +5,7 @@ import { useTasks } from "@/hooks/use-tasks";
 import { TaskInbox } from "@/components/task-inbox";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/cn";
+import { taskCopy } from "@/lib/ui-locale";
 
 export const TASK_LIST_REFRESH_INTERVAL_MS = 2_500;
 
@@ -63,11 +64,9 @@ export function TasksPage() {
        * The task collection previously rendered with no heading at all: this
        * was the only top-level surface without an `h1` or a page header.
        */}
-      <PageHeader
-        title="任务"
-        icon={ListChecks}
-        description="按状态分组的任务集合；打开任一任务查看执行流、变更与证据。"
-      />
+      {/* No helper line: the grouped list explains itself, and the previous
+          sentence described the surface to evaluators rather than users (#1200). */}
+      <PageHeader title={taskCopy().tasksTitle} icon={ListChecks} />
       {repository ? (
         <div
           data-testid="tasks-repository-filter"

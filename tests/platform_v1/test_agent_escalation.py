@@ -214,3 +214,70 @@ def test_a_claim_still_in_recovery_does_not_escalate(monkeypatch):
     _fail(store, _link(control, goal.id, "T001")["task_id"])
     monkeypatch.setattr(control, "can_complete_host_claim", lambda **kwargs: True)
     assert goals.escalate_failed_tasks(goal.id) == ()
+
+
+def _claimed_unknown_failure(store, control, goal, classification, detail=""):
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    window_id = control.get_goal(goal.id).window_id
+    epoch, _ = control.claim_task(window_id=window_id, task_id=task_id, owner="host", lease_ms=60_000)
+    task = store.get_task(task_id)
+    store.append_usage_observation(task_id, observation_id=f"unknown-{task_id}",
+        execution_id=task.execution_id, role="executor", model_id="fixture",
+        provider_id="", source_kind="fixture", source_id="original", status="UNKNOWN")
+    store._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = ?, "
+                        "failure_detail = ? WHERE id = ?", (classification, detail, task_id))
+    store._conn.commit()
+    control.complete_task_claim(window_id=window_id, task_id=task_id, owner="host", epoch=epoch, result="terminal")
+    return task_id, window_id
+
+
+@pytest.mark.parametrize("classification, detail", [
+    ("cleanup_unconfirmed", ""),
+    ("timeout", "opencode_timeout:cleanup_unconfirmed:cleanup state unknown"),
+])
+def test_explicit_cleanup_uncertainty_never_retries(monkeypatch, classification, detail):
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id, _ = _claimed_unknown_failure(store, control, goal, classification, detail)
+    task_before = store.get_task(task_id)
+    tasks_before = store._conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
+    links_before = control.list_goal_tasks(goal.id)
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store._conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == tasks_before
+    assert _link(control, goal.id, "T001")["task_id"] == task_id
+    assert control.list_goal_tasks(goal.id) == links_before
+    assert control.list_task_escalations(goal.id) == ()
+    assert store.get_task(task_id) == task_before
+    reservation = store._conn.execute(
+        "SELECT state, observed_token_units, observed_cost_micro_units FROM platform_budget_reservations "
+        "WHERE task_id = ?", (task_id,)).fetchone()
+    assert tuple(reservation) == ("UNKNOWN", None, None)
+
+
+def test_unknown_usage_alone_does_not_disable_ordinary_retry(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id, _ = _claimed_unknown_failure(store, control, goal, "patch_hygiene_failed")
+    [step] = goals.escalate_failed_tasks(goal.id)
+    assert step["from_task_id"] == task_id
+    assert store.get_task(step["to_task_id"]).status == "QUEUED"
+    reservation = store._conn.execute(
+        "SELECT state FROM platform_budget_reservations WHERE task_id = ?", (task_id,)).fetchone()
+    assert reservation["state"] == "UNKNOWN"
+
+
+def test_escalation_records_task_resolver_failure_on_failed_task(monkeypatch):
+    store, control, goals, goal = _launched(monkeypatch)
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first)
+    control.refresh_goal_status(goal.id)
+
+    def unavailable(*args, **kwargs):
+        raise TaskStoreError("no_runnable_model")
+
+    goals.task_resolver = unavailable
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    [event] = [e for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"]
+    assert event.description == "no_runnable_model"
+    assert event.metadata == {"reason": "no_runnable_model"}
+    assert store.get_task(first).status == "FAILED"
+    assert _link(control, goal.id, "T001")["task_id"] == first
+    assert control.list_task_escalations(goal.id) == ()

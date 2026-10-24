@@ -116,3 +116,65 @@ def test_publication_fails_closed_on_path_outside_allowlist(tmp_path, monkeypatc
         controller.publish(
             task.id, window_id=window.id, base_branch="main", allowed_paths=["allowed"]
         )
+
+
+from test_goal_functional_checks import goal_checks
+from test_model_review_execution import review_setup
+from reverse_agent.platform_v1 import artifact_handoff
+from test_model_review_feedback import rejected, repair_and_review
+
+
+def artifact_publisher(setup):
+    store = setup[0]
+    control = PlatformControlStore(store)
+    goal = control.get_goal(control.goal_id_for_task(setup[2]))
+    store._conn.execute("UPDATE platform_autonomous_windows SET capabilities_json = ?",
+        (json.dumps(["execute_task", "validate_only", "open_draft_pr", "land_reviewed_pr"]),))
+    remote = {"head": "", "creates": 0, "pushes": [], "pr": False}
+    def runner(argv, cwd):
+        if argv[:2] == ("git", "push"):
+            remote["head"] = argv[3].split(":")[0]
+            remote["pushes"].append(argv[3])
+            return CommandResult(0)
+        if argv[:2] in {("git", "rev-parse"), ("git", "rev-list")}:
+            artifact = next(artifact_handoff._load_evidence(store.get_task(row["task_id"]),
+                artifact_handoff.ACCEPTED_CATEGORY, store.get_task(row["task_id"]).execution_id)
+                for row in control.list_goal_tasks(goal.id) if row["plan_task_id"] == "A")
+            if argv[1] == "rev-list":
+                return CommandResult(0, artifact["commit"] + " " + artifact["source_head"])
+            return CommandResult(0, artifact["tree"] if argv[2].endswith("^{tree}") else artifact["commit"])
+        if argv[:3] == ("gh", "pr", "create"):
+            remote["creates"] += 1
+            remote["pr"] = True
+            return CommandResult(0)
+        if argv[:3] == ("gh", "pr", "list"):
+            return CommandResult(0, json.dumps([{"number": 1266, "url": "https://example/pr/1266",
+                "isDraft": True, "headRefOid": remote["head"], "baseRefName": "main"}] if remote["pr"] else []))
+        pytest.fail(f"unexpected command {argv}")
+    publication = PublicationController(store=store, control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()), runner=runner)
+    return publication, control, goal, remote
+
+
+def test_retained_publication_reuses_goal_branch_and_draft_across_repairs(review_setup):
+    publication, control, goal, remote = artifact_publisher(review_setup)
+    first = publication.publish_artifact(review_setup[2], window_id=goal.window_id, goal_id=goal.id)
+    store, control, service, goal_id = rejected(review_setup)
+    repair, _, result = repair_and_review(review_setup, service, goal_id, '{"verdict":"ACCEPT","findings":[]}')
+    assert result.success
+    second = publication.publish_artifact(repair, window_id=goal.window_id, goal_id=goal.id)
+    replay = publication.publish_artifact(repair, window_id=goal.window_id, goal_id=goal.id)
+    assert first.pr_number == second.pr_number == replay.pr_number == 1266
+    assert first.branch == second.branch == "nerelan/" + goal.id
+    assert first.commit_sha != second.commit_sha
+    assert remote["creates"] == 1
+    assert all(push.endswith(":refs/heads/" + first.branch) for push in remote["pushes"])
+
+
+def test_artifact_publication_refuses_unverified_output(review_setup, monkeypatch):
+    publication, control, goal, remote = artifact_publisher(review_setup)
+    from reverse_agent.platform_v1 import functional_validation
+    monkeypatch.setattr(functional_validation, "functional_evidence", lambda task: {"verified": False})
+    with pytest.raises(TaskStoreError, match="unverified"):
+        publication.publish_artifact(review_setup[2], window_id=goal.window_id, goal_id=goal.id)
+    assert not remote["pushes"] and remote["creates"] == 0

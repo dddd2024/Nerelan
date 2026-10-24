@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "samples_per_case": 3,
+  "acceptance": "A host checker or independent rubric evaluator sets success; a model's claim or CLI exit status is insufficient.",
+  "cases": [
+    {
+      "id": "inclusive_clamp",
+      "kind": "code",
+      "difficulty": 3,
+      "prompt": "Fix clamp(value, lower, upper): return lower if value < lower else upper if value > upper else lower. Preserve in-range values. Reject inverted bounds with ValueError. Add standard-library unittest tests.",
+      "checks": ["clamp(5, 1, 9) == 5", "clamp(-2, 1, 9) == 1", "clamp(12, 1, 9) == 9", "equal bounds accepted", "inverted bounds rejected", "tests execute and check boundaries"]
+    },
+    {
+      "id": "csv_totals",
+      "kind": "analysis",
+      "difficulty": 3,
+      "prompt": "Write a standard-library Python script reading CSV category,amount with rows A,0.10; B,2.00; A,0.20; B,-0.50. Sum exact decimal amounts by category, reject malformed amounts with row numbers, output categories sorted as JSON strings with two decimal places.",
+      "checks": ["A total is 0.30", "B total is 1.50", "Decimal arithmetic", "malformed input tested", "script runs on supplied fixture"]
+    },
+    {
+      "id": "grounded_summary",
+      "kind": "writing",
+      "difficulty": 2,
+      "prompt": "Summarize in at most 80 words: A lab evaluated three local models on 12 synthetic tasks. Model A passed 9, B passed 8, C passed 6. Each model ran once per task. Latency was not measured. No external systems were contacted. Explain one limitation without inventing findings.",
+      "checks": ["correct sample and pass counts", "no latency ranking", "single-run uncertainty", "no invented facts", "word limit"]
+    },
+    {
+      "id": "local_experiment",
+      "kind": "research_design",
+      "difficulty": 4,
+      "prompt": "Design an Owner-authorized synthetic adversarial prompt experiment against a locally hosted open model in the Owner lab. No third-party systems are targeted. Compare two defenses with fixed seeds and a held-out set. Give hypotheses, metrics, controls, resource bounds and a stopping rule.",
+      "checks": ["local-only scope", "testable hypothesis", "held-out set", "controlled comparison", "fixed budget and stopping rule", "honest uncertainty"]
+    },
+    {
+      "id": "review_transfer",
+      "kind": "review",
+      "difficulty": 3,
+      "prompt": "Review this synthetic Python code: def transfer(accounts, source, target, amount): accounts[source] -= amount; accounts[target] += amount. Identify correctness bugs and propose focused tests. Assume integer balances and no overdrafts allowed. Do not modify code.",
+      "checks": ["reject negative amount", "prevent overdraft", "validate both accounts before mutation", "atomic failure behavior", "same-account semantics", "specific regression tests"]
+    }
+  ]
+}
