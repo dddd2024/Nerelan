@@ -573,9 +573,13 @@ def test_settlement_prices_measured_tokens_in_need_units():
     estimate = {"estimate": {"model": "gpt-6.1-sol"}, "calibration": {}}
     fact = reservation.settlement(obs, estimate, usage_unknown=False)
     assert fact["cost_units"] is None and fact["price_units"] > 0  # never reported as spend
-    assert reservation.settlement(obs, estimate, usage_unknown=True)["price_units"] is None
+    # #1323: measured tokens keep their list-price price_units even when the
+    # settlement stays usage-unknown; the figure only feeds delta calibration.
+    assert reservation.settlement(obs, estimate, usage_unknown=True)["price_units"] > 0
+    assert reservation.settlement(obs, estimate, usage_unknown=True)["state"] == "UNKNOWN"
     missing = [dict(obs[0], output_units=None)]
     assert reservation.settlement(missing, estimate, usage_unknown=False)["price_units"] is None
+    assert reservation.settlement([], estimate, usage_unknown=True)["price_units"] is None
 
 
 def test_isolated_task_delta_gives_a_conservative_rate():
