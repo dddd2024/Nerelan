@@ -319,6 +319,7 @@ def test_host_parks_and_settles_once_with_reset_persisted(reserved, monkeypatch,
                 cache_read_units=0, cache_write_units=0, cost_micro_units=12 if observed == "complete" else None)
         return n.raw
     measured = observed == "complete"
+    tokens_measured = observed != "missing"
     service, dispatch = host_dispatch(n, monkeypatch, transport)
     result = dispatch()
     raw = n.raw
@@ -332,12 +333,17 @@ def test_host_parks_and_settles_once_with_reset_persisted(reserved, monkeypatch,
     run = n.store._get_durable_run(n.lease.run_id)
     assert run.accepted_checkpoint == "PRE_PLANNER"
     row = reservation_row(n)
+    # PARTIAL rows keep the reservation and overrun enforcement conservative
+    # (never reconciled), but their measured tokens still carry a list-price
+    # price_units so delta calibration can learn (#1323).
     assert row["state"] == ("RECONCILED" if measured else "UNKNOWN")
     assert row["observed_token_units"] == (9 if measured else None)
+    assert row["observed_cost_micro_units"] == (12 if measured else None)
     settlement = json.loads(row["settlement_json"])
     assert not settlement["limit_cutoff"]
-    assert settlement["tokens"]["input"] == (7 if observed != "missing" else None)
+    assert settlement["tokens"]["input"] == (7 if tokens_measured else None)
     assert settlement["state"] == ("ESTIMATED" if measured else "UNKNOWN")
+    assert settlement["price_units"] == (7 if tokens_measured else None)
     assert n.control.get_window(n.window.id).tasks_completed == 0
     n.store.interrupt_for_quota(n.lease.run_id, n.task.id, "host", n.lease.epoch, raw.quota_pause)
     n.control.complete_task_claim(window_id=n.window.id, task_id=n.task.id, owner="coordinator", epoch=1, result="terminal:QUOTA_WAIT")
@@ -350,6 +356,67 @@ def test_host_parks_and_settles_once_with_reset_persisted(reserved, monkeypatch,
         service.resume_single(n.task.id, workspace_root=str(n.root.parent))
     with pytest.raises(run_store.TaskStoreError, match="quota_pause_requires_readmission"):
         n.quota.journal("RESUMING", None)
+
+
+def test_native_codex_tokens_only_settlement_feeds_delta_calibration(reserved, monkeypatch):
+    """#1323: native CLI turn totals must reach the settlement with price units.
+
+    A PARTIAL native_summary observation (measured tokens, no dollar cost) settles
+    the reservation on the token axis, keeps the cost axis honestly NULL, and the
+    resulting price_units lets delta calibration learn a units-per-percent rate
+    from the account's provider-reported window delta.
+    """
+    from reverse_agent.model_access import quota_forecast
+
+    n = reserved
+    def transport():
+        n.raw = execute(n, monkeypatch, "codex")
+        n.store.append_usage_observation(n.task.id, observation_id="native-turn", execution_id=n.task.execution_id,
+            role="executor", model_id="fake", provider_id="codex", source_kind="native_summary", source_id="attempt-1",
+            status="PARTIAL", input_units=7, output_units=2, reasoning_units=0,
+            cache_read_units=0, cache_write_units=0, cost_micro_units=None)
+        return n.raw
+    service, dispatch = host_dispatch(n, monkeypatch, transport)
+    assert not dispatch().success
+    row = reservation_row(n)
+    # The reservation stays conservative (PARTIAL never reconciles the budget
+    # axes), but the settlement prices the measured turn totals so that delta
+    # calibration can finally learn from native Codex runs.
+    assert row["state"] == "UNKNOWN"
+    assert row["observed_token_units"] is None and row["observed_cost_micro_units"] is None
+    settlement = json.loads(row["settlement_json"])
+    assert settlement["state"] == "UNKNOWN"  # window attribution still needs dollar cost
+    assert settlement["price_units"] == 7  # list-price equivalent of measured tokens
+
+    # A later fresh provider reading lets delta calibration learn from this task.
+    start = 1_800_000_000.0
+    conn = n.store._conn
+    # delta_calibration parses timestamps; normalize the admission evidence to ISO.
+    admission = conn.execute(
+        "SELECT evidence_json FROM platform_quota_admissions WHERE task_id=?", (n.task.id,)).fetchone()
+    before = json.loads(admission[0])
+    before["observed_at"] = quota_forecast.iso(start)
+    conn.execute(
+        "UPDATE platform_quota_admissions SET evidence_json=? WHERE task_id=?",
+        (json.dumps(before), n.task.id),
+    )
+    conn.execute(
+        "UPDATE platform_budget_reservations SET created_at=?, reconciled_at=? WHERE task_id=?",
+        (quota_forecast.iso(start + 10), quota_forecast.iso(start + 500), n.task.id),
+    )
+    conn.commit()
+    before_windows = before["windows"]
+    after = {"account_ref": "account", "source": "official", "observed_at": quota_forecast.iso(start + 900),
+             "windows": [dict(before_windows[0], used_percent=60), before_windows[1]]}
+    rows = [dict(r) for r in conn.execute(
+        "SELECT * FROM platform_budget_reservations WHERE account_ref='account'")]
+    for item in rows:
+        item["settlement"] = json.loads(item["settlement_json"])
+    with n.control._lock, conn:
+        n.control._delta_calibrate_locked("account", after, rows)
+    rates = n.control.quota_calibration("account")
+    # units per percentage point: 7 units over (60 - 50 + 1) pp, weekly saw no increase.
+    assert rates == pytest.approx({"five_hour": 7 / 11})
 
 
 @pytest.mark.parametrize("boundary", ["saved", "settlement", "park"])
