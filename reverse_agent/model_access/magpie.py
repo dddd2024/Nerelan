@@ -22,6 +22,28 @@ def magpie_enabled(env: Mapping[str, str]) -> bool:
     return env.get("REVERSE_AGENT_MAGPIE") == "1"
 
 
+# Application identification only. Magpie accepts any Authorization value, so this
+# is a fixed local constant and never an upstream credential.
+MAGPIE_AUTH = "Bearer magpie-nerelan"
+
+
+def validate_loopback_origin(base_url: Any) -> bool:
+    """True only for a loopback http(s) origin with no credentials and no query.
+
+    Every Magpie read validates its origin here so no caller can widen it.
+    """
+    try:
+        url = urlsplit(base_url)
+        if (url.scheme not in ("http", "https") or url.hostname not in ("127.0.0.1", "::1", "localhost")
+                or url.username is not None or url.password is not None or url.path not in ("", "/")
+                or url.query or url.fragment):
+            return False
+        url.port  # Validate the port before issuing any request.
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return True
+
+
 def _decode(payload: Any) -> Any:
     if isinstance(payload, (str, bytes, bytearray)):
         try:
@@ -211,19 +233,12 @@ def fetch_magpie_snapshot(base_url: str = "http://127.0.0.1:3425", timeout: floa
     The injectable opener has the same callable contract as http_safe.urlopen.
     """
     snapshot = dict(status="refused", version=None, models=[], accounts=[], reason="invalid_url")
-    try:
-        url = urlsplit(base_url)
-        if (url.scheme not in ("http", "https") or url.hostname not in ("127.0.0.1", "::1", "localhost")
-                or url.username is not None or url.password is not None or url.path not in ("", "/")
-                or url.query or url.fragment):
-            return snapshot
-        url.port  # Validate the port before issuing any request.
-    except (ValueError, TypeError, AttributeError):
+    if not validate_loopback_origin(base_url):
         return snapshot
     open_request = opener or http_safe.urlopen
 
     def get(path: str) -> Any:
-        request = Request(base_url.rstrip("/") + path, headers={"Authorization": "Bearer magpie-nerelan"}, method="GET")
+        request = Request(base_url.rstrip("/") + path, headers={"Authorization": MAGPIE_AUTH}, method="GET")
         with open_request(request, timeout=timeout) as response:
             status = response.getcode()
             if status is not None and not 200 <= status < 300:
