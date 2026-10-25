@@ -599,3 +599,48 @@ def test_a_private_source_version_is_scrubbed_from_usage_results():
     # A public version is untouched by the same scan.
     plain, _ = run([body(HELLO), body(ledger([row()], total=1))])
     assert fetch_usage_requests(opener=plain)["source_version"] == HELLO["version"]
+
+
+# --- hello payload privacy (private values seen only in the handshake) ---
+
+
+def test_a_private_hello_alias_is_scrubbed_from_usage_rows():
+    secret = "synthetic-hello-alias"
+    opener, _ = run([body({"name": "magpie", "version": "0.1.1313", "alias": secret}),
+                     body(ledger([row(model=secret), row(rid="r2")], total=2))])
+    result = fetch_usage_requests(opener=opener)
+    assert (result["status"], result["reason"], result["complete"]) == ("ok", None, True)
+    assert result["source_version"] == "0.1.1313"
+    # The value is private because the handshake held it, not because any row did.
+    assert result["rows"][0]["model"] is None
+    assert result["rows"][1]["model"] == "claude-fable-5-1"
+    assert result["row_count"] == 2
+    assert secret not in json.dumps(result)
+
+
+def test_a_private_hello_alias_is_scrubbed_from_route_traces_and_sessions():
+    secret = "synthetic-hello-alias-route"
+    opener, _ = run([body({"name": "magpie", "version": "0.1.1313", "alias": secret}),
+                     body({"model": secret, "served": secret})])
+    result = fetch_session_routes([secret], opener=opener)
+    assert (result["status"], result["reason"], result["complete"]) == ("ok", None, True)
+    assert result["source_version"] == "0.1.1313"
+    assert result["returned"] == 1 and result["missing"] == 0
+    assert result["sessions"] == [None]
+    assert result["traces"][0]["session"] is None
+    assert result["traces"][0]["trace"]["model"] is None
+    assert result["traces"][0]["trace"]["served"] is None
+    assert secret not in json.dumps(result)
+
+
+def test_an_invalid_private_hello_scrubs_the_supplied_session():
+    secret = "synthetic-hello-alias-invalid"
+    opener, calls = run([body({"name": "other", "version": "1", "alias": secret})])
+    result = fetch_session_routes([secret], opener=opener)
+    assert (result["status"], result["reason"], result["complete"]) == \
+        ("not_magpie", "invalid_hello", False)
+    assert result["source_version"] is None
+    assert result["sessions"] == [None]
+    assert result["traces"] == [] and result["returned"] == 0 and result["missing"] == 1
+    assert secret not in json.dumps(result)
+    assert len(calls) == 1

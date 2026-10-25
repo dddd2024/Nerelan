@@ -402,9 +402,14 @@ def fetch_usage_requests(base_url: str = "http://127.0.0.1:3425", opener: Any = 
     origin = base_url.rstrip("/")
     open_request = opener or http_safe.urlopen
     try:
-        version = parse_hello(_read_page(open_request, origin, HELLO_ENDPOINT, timeout))
+        # The hello payload is private evidence too: seed the fetch-wide private
+        # set from it before parse_hello drops it, so a hello user/alias is scrubbed
+        # from every later row and from the refused-hello result.
+        hello = _read_page(open_request, origin, HELLO_ENDPOINT, timeout)
+        page_secrets: set[str] = _private_strings(hello)
+        version = parse_hello(hello)
         if version is None:
-            return _usage_result("not_magpie", "invalid_hello")
+            return _usage_result("not_magpie", "invalid_hello", secrets=page_secrets)
         rows: list[dict[str, Any]] = []
         scanned = invalid_rows = pages_read = 0
         reported_total: int | None = None
@@ -413,7 +418,6 @@ def fetch_usage_requests(base_url: str = "http://127.0.0.1:3425", opener: Any = 
         total_changed = False
         duplicate_rid = False
         missing_rid = False
-        page_secrets: set[str] = set()
         raw_rids: list[str | None] = []
         offset = 0
         while pages_read < MAX_PAGES:
@@ -511,9 +515,15 @@ def fetch_session_routes(sessions: Iterable[Any], base_url: str = "http://127.0.
     traces: list[dict[str, Any]] = []
     page_secrets: set[str] = set()
     try:
-        version = parse_hello(_read_page(open_request, origin, HELLO_ENDPOINT, timeout))
+        # The hello payload is private evidence too: seed the fetch-wide private
+        # set from it before parse_hello drops it, so a hello user/alias is scrubbed
+        # from the refused-hello sessions and from every later trace.
+        hello = _read_page(open_request, origin, HELLO_ENDPOINT, timeout)
+        page_secrets |= _private_strings(hello)
+        version = parse_hello(hello)
         if version is None:
-            return _route_result("not_magpie", "invalid_hello", None, provided, traces, False)
+            return _route_result("not_magpie", "invalid_hello", None, provided, traces, False,
+                                 page_secrets)
         for session, query in zip(provided, encoded):
             page = _read_page(open_request, origin,
                               "%s?session=%s" % (ROUTE_ENDPOINT, query), timeout)
