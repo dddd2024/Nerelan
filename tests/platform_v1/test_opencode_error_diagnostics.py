@@ -685,3 +685,199 @@ def test_resume_path_keeps_typed_class_over_unapproved_provider_text(
         assert "unapproved" in persisted.failure_detail
     finally:
         store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+
+# ---------------------------------------------------------------------------
+# Provider-side quota limit: one exact structured message, capacity not account
+# ---------------------------------------------------------------------------
+
+ZCODE_QUOTA_MESSAGE = "ZCode did not stream: exceed quota limit"
+
+
+def _quota_limit_payload(
+    message: str = ZCODE_QUOTA_MESSAGE, status: int = 502, top: bool = False
+) -> dict:
+    payload = {"message": message, "statusCode": status}
+    return {
+        "type": "error",
+        "error": payload if top else {"name": "APIError", "data": payload},
+    }
+
+
+@pytest.mark.parametrize("top", [False, True])
+def test_provider_quota_limit_matches_the_exact_structured_prefix(top: bool) -> None:
+    ex = _executor()
+    assert ex._classify_exit(1, [_quota_limit_payload(top=top)]) == "provider_quota_limit"
+
+
+@pytest.mark.parametrize("message", [
+    "ZCode did not stream: no quota limit was exceeded",
+    "documentation: " + ZCODE_QUOTA_MESSAGE,
+    "ZCode: exceed quota limit",
+    "ZCode did not stream: exceed usage limit",
+    "the model said it would exceed quota limit",
+])
+def test_arbitrary_or_negated_quota_wording_does_not_classify_as_capacity(
+    message: str,
+) -> None:
+    ex = _executor()
+    for top in (False, True):
+        assert ex._classify_exit(1, [_quota_limit_payload(message, top=top)]) == "executor_nonzero", message
+
+
+@pytest.mark.parametrize("field", ["code", "name", "body", "stack"])
+def test_quota_wording_outside_the_message_field_does_not_classify(
+    field: str,
+) -> None:
+    ex = _executor()
+    envelope = {"name": "APIError", "data": {field: ZCODE_QUOTA_MESSAGE, "statusCode": 502}}
+    assert ex._classify_exit(1, [{"type": "error", "error": envelope}]) == "executor_nonzero"
+
+
+def test_non_error_text_carrying_the_quota_message_stays_generic() -> None:
+    ex = _executor()
+    event = {"type": "text", "part": {"type": "text", "text": ZCODE_QUOTA_MESSAGE}}
+    assert ex._classify_exit(1, [event]) == "executor_nonzero"
+
+
+def test_provider_quota_limit_is_the_capacity_class_profiles_exclude() -> None:
+    from reverse_agent.platform_v1.model_profiles import PROVIDER_QUOTA_LIMIT
+
+    ex = _executor()
+    assert ex._classify_exit(1, [_quota_limit_payload()]) == PROVIDER_QUOTA_LIMIT
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        (429, "api_error_429"),
+        (401, "auth_provider_route_failure"),
+        (403, "auth_provider_route_failure"),
+        (503, "provider_overloaded"),
+        (529, "provider_overloaded"),
+    ],
+)
+def test_http_statuses_precede_provider_quota_limit(
+    status: int, expected: str,
+) -> None:
+    ex = _executor()
+    assert ex._classify_exit(1, [_quota_limit_payload(status=status)]) == expected
+
+
+def test_entitlement_availability_precedes_provider_quota_limit() -> None:
+    ex = _executor()
+    assert ex._classify_exit(
+        1, [_quota_limit_payload(ZCODE_QUOTA_MESSAGE + "; invalid_api_key")]) == \
+        "MODEL_UNAVAILABLE:invalid_api_key"
+
+
+def test_policy_refusal_precedes_provider_quota_limit() -> None:
+    ex = _executor()
+    assert ex._classify_exit(
+        1, [_quota_limit_payload(ZCODE_QUOTA_MESSAGE + " content filter")]) == "policy_refusal"
+
+
+def test_account_quota_exhausted_is_not_conflated_with_provider_capacity() -> None:
+    ex = _executor()
+    payload = _quota_limit_payload(ZCODE_QUOTA_MESSAGE + ", your quota has been exhausted", status=429)
+    assert ex._classify_exit(1, [payload]) == "quota_exhausted"
+
+
+def test_provider_quota_limit_starts_no_shared_connection_hold() -> None:
+    from reverse_agent.platform_v1.quota_guard import ACCOUNT_LIMIT, LIMIT_HIT
+
+    classification = "provider_quota_limit"
+    assert not ACCOUNT_LIMIT.search(classification)
+    assert not LIMIT_HIT.search(classification)
+
+
+def test_provider_quota_limit_retains_bounded_redacted_diagnostic(
+    monkeypatch, tmp_path,
+) -> None:
+    labelled_secret = "sk-realsecret12345678"
+    payload = _quota_limit_payload(ZCODE_QUOTA_MESSAGE + " api_key: " + labelled_secret)
+    result, events, store, task_id = _run_core(
+        monkeypatch, tmp_path, stdout=json.dumps(payload) + "\n", stderr=""
+    )
+
+    assert result.success is False
+    assert result.failure_classification == "provider_quota_limit"
+    assert result.error.startswith("opencode_nonzero:exit=1:provider_quota_limit ")
+    assert "exceed quota limit" in result.error
+    assert "status=502" in result.error
+    # The typed class is not an account answer, and no reset time is invented.
+    assert "quota_exhausted" not in result.error
+
+    assert "exceed quota limit" in result.validation_output_summary
+    assert "[REDACTED]" in result.validation_output_summary
+    assert labelled_secret not in result.validation_output_summary
+    assert len(result.validation_output_summary) <= MAX_EVIDENCE_STRING_LEN
+
+    finished = [e for e in events if e.get("title") == "OpenCode nonzero exit"]
+    assert finished[0]["metadata"]["failure_classification"] == "provider_quota_limit"
+    diagnostic = finished[0]["metadata"]["error_diagnostic"]
+    assert "exceed quota limit" in diagnostic
+    assert labelled_secret not in diagnostic
+    for row in _evidence_rows(store, task_id):
+        assert labelled_secret not in str(row)
+
+
+def _git_head(tmp_path) -> str:
+    """Fixture-owned git identity, as the fenced durable path requires."""
+    for args in (("init",), ("config", "user.name", "Fixture"),
+                 ("config", "user.email", "fixture@example.invalid")):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "fixture.txt").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "fixture.txt"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "fixture"], cwd=tmp_path, check=True, capture_output=True)
+    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+
+
+@pytest.mark.parametrize("top", [False, True])
+def test_provider_quota_limit_reaches_real_durable_failure_detail(
+    monkeypatch, tmp_path, top,
+) -> None:
+    """The typed capacity class survives the real durable sink, redacted and bounded."""
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
+    from reverse_agent.platform_v1.opencode_executor import PreparedWorkspaceContext
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    head = _git_head(tmp_path)
+    labelled_secret = "sk-realsecret12345678"
+    payload = _quota_limit_payload(ZCODE_QUOTA_MESSAGE + " api_key: " + labelled_secret, top=top)
+    result, _, store, task_id = _run_core(
+        monkeypatch, tmp_path, stdout=json.dumps(payload) + "\n"
+    )
+    assert result.failure_classification == "provider_quota_limit"
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-planning",
+    )
+    lease = service._acquire_or_find_lease(task_id, "fixture-owner", "", str(tmp_path))
+    try:
+        store._set_worktree_identity(lease.run_id, str(tmp_path), head, lease.owner, lease.epoch)
+        store._set_repository_base_sha(lease.run_id, head, lease.owner, lease.epoch)
+        store._accept_checkpoint(lease.run_id, "PRE_PLANNER", "fixture", 1, lease.owner, lease.epoch)
+        run = store._get_durable_run(lease.run_id)
+        prepared = PreparedWorkspaceContext(
+            worktree=tmp_path, base_sha=head, execution_id=run.execution_id,
+            cli_path="/fake/opencode", is_cmd=False, opencode_exe="/fake/opencode",
+        )
+        outcome = service._dispatch_opencode_durable_single(
+            task_id=task_id, run=run, lease=lease, executor=_executor(),
+            prepared=prepared, workspace_root=str(tmp_path),
+            idempotency_key="fixture-provider-quota", request_digest="fixture",
+        )
+        persisted = store.get_task(task_id)
+        assert not outcome.success
+        assert persisted.status == "FAILED"
+        assert persisted.failure_classification == "provider_quota_limit", persisted.failure_detail
+        assert persisted.failure_detail.startswith("opencode_nonzero:exit=1:provider_quota_limit ")
+        assert "exceed quota limit" in persisted.failure_detail
+        assert "status=502" in persisted.failure_detail
+        assert labelled_secret not in persisted.failure_detail
+        assert "[REDACTED]" in persisted.failure_detail
+        assert persisted.failure_reset_at == ""  # no provider reset was invented
+        assert outcome.failure_detail == persisted.failure_detail
+    finally:
+        store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)

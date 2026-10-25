@@ -21,6 +21,9 @@ from .model_availability import transient_overload
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
+# OpenCode's typed provider-side quota limit: capacity evidence, never a capability
+# failure. Kept apart from the account's own quota answers, so it starts no hold.
+PROVIDER_QUOTA_LIMIT = "provider_quota_limit"
 # OpenCode reports EXECUTOR_RUNNING; native CLIs start right after WORKSPACE_READY.
 _STARTS, _ENDS = ("EXECUTOR_RUNNING", "WORKSPACE_READY"), ("EXECUTOR_COMPLETED", "EXECUTOR_FINISHED")
 MIN_SAMPLES = 2
@@ -105,6 +108,12 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         if status == "FAILED" and transient_overload(classification, row["failure_detail"] or ""):
             # Provider capacity is availability evidence, never capability evidence.
             profile["overloaded"] = profile.get("overloaded", 0) + 1
+            continue
+        if status == "FAILED" and classification == PROVIDER_QUOTA_LIMIT:
+            # Provider-side capacity, seen before any capability was exercised:
+            # keep only the tokens the attempt already spent.
+            profile["observed_tokens"] += tokens.get(row["id"], 0)
+            profile["provider_quota_limited"] = profile.get("provider_quota_limited", 0) + 1
             continue
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}

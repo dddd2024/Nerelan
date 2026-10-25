@@ -3532,6 +3532,23 @@ def _bounded_error_diagnostic(events_raw: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _has_provider_quota_limit(payload: dict[str, Any]) -> bool:
+    """True only when a structured message carries the exact ZCode quota prefix.
+
+    The prefix must start the ``message``/``msg`` field at the top level or one
+    level down in ``data``. Negated wording, and prose that merely quotes the
+    message, are not capacity evidence.
+    """
+    if not isinstance(payload, dict):
+        return False
+    fields = [payload.get("message"), payload.get("msg")]
+    data = payload.get("data")
+    if isinstance(data, dict):
+        fields += [data.get("message"), data.get("msg")]
+    return any(_PROVIDER_QUOTA_LIMIT_RE.match(value)
+               for value in fields if isinstance(value, str))
+
+
 def _classify_exit(
     self: "OpenCodeExecutor",
     exit_code: int,
@@ -3565,6 +3582,12 @@ def _classify_exit(
             if status in (503, 529):
                 return "provider_overloaded"
 
+        # A provider-side quota limit is capacity, not account exhaustion and not
+        # capability evidence: it keeps the goal blocked, starts no shared
+        # connection hold, and is excluded from capability profiles.
+        if _has_provider_quota_limit(payload):
+            return "provider_quota_limit"
+
         if _QUOTA_EXHAUSTED_RE.search(text):
             return "quota_exhausted"
         if _AUTH_ERROR_RE.search(text):
@@ -3588,6 +3611,13 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     r"quota\s+is\s+exhausted|"
     r"quota\s+was\s+exhausted|"
     r"usage[_ -]?limit[_ -]?reached)\b",
+    re.IGNORECASE,
+)
+# One exact structured message names a provider-side quota limit. Only that
+# prefix counts, so generic quota wording, negations and descriptive text that
+# quotes it never classify as a provider capacity limit.
+_PROVIDER_QUOTA_LIMIT_RE = re.compile(
+    r"\AzCode\s+did\s+not\s+stream\s*:\s*exceed\s+quota\s+limit\b",
     re.IGNORECASE,
 )
 _AUTH_ERROR_RE = re.compile(
