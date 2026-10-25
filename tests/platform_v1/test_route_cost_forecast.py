@@ -120,3 +120,18 @@ def test_output_forecast_is_optional_and_flagged():
 def test_negative_prompt_tokens_are_rejected():
     with pytest.raises(ValueError, match="prompt_tokens_must_not_be_negative"):
         forecast([], prompt_tokens=-1)
+
+
+def test_separately_reported_cache_writes_are_in_the_denominator():
+    # Normalized Claude/OpenCode counters report cache writes separately from
+    # input and reads; they are part of the same prompt and must not inflate
+    # the observed affinity (review finding on the first head).
+    history = [obs(NOW - 60, cache_read=100, prompt=0)]
+    history[0]["cache_write"] = 900
+    fact = forecast(history)
+    assert fact["cache_read_probability"] == pytest.approx(0.1)
+    assert fact["expected_tokens"] == {"input": 900, "cache_read": 100, "cache_write": 900, "output": None}
+    # A written-but-never-read history alone must not look warm either.
+    only_writes = [obs(NOW - 60, cache_read=0, prompt=0)]
+    only_writes[0]["cache_write"] = 500
+    assert forecast(only_writes)["cache_read_probability"] == 0.0

@@ -28,7 +28,11 @@ def _cache_read_ratio(observation: Mapping[str, Any]) -> float | None:
     prompt = observation.get("input")
     if cache_read is None or prompt is None:
         return None
-    total = prompt + cache_read
+    # Separately reported cache writes are part of the same prompt; omitting
+    # them would inflate the observed affinity (input=0, read=100, write=900
+    # must rate 0.1, not 1.0).
+    cache_write = observation.get("cache_write") or 0
+    total = prompt + cache_read + cache_write
     if total <= 0:
         return None
     return min(1.0, max(0.0, cache_read / total))
