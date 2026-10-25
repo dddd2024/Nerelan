@@ -924,8 +924,8 @@ def test_native_interpreter_reads_the_remote_program_from_real_stdin(tmp_path) -
     """
     import base64
     hostile_command = (
-        "echo 'single' \"double\" \back\slash $(not-expanded) `not-run`\n"
-        "printf '%s\n' 'line two with spaces'"
+        "echo 'single' \"double\" \\\\back\\\\slash $(not-expanded) `not-run`\n"
+        "printf '%s\\n' 'line two with spaces'"
     )
     hostile_outputs = ["results/ünïcode ✓/*.json", "logs/directory with spaces/**"]
     base64_payload = base64.b64encode(json.dumps({"k": "va'lue\"with\nnewlines"}).encode()).decode()
@@ -947,7 +947,8 @@ def test_native_interpreter_reads_the_remote_program_from_real_stdin(tmp_path) -
         assert json.loads(completed.stdout) == {"marker": False}
         assert fixture_root.is_dir()  # the real prelude created the job dir
     finally:
-        shutil.rmtree(fixture_root.parent, ignore_errors=True)
+        # Only the fixture directory itself; a real ~/wjc must never be touched.
+        shutil.rmtree(fixture_root, ignore_errors=True)
 
 
 def test_native_ssh_argv_is_accepted_by_the_real_openssh_binary(monkeypatch) -> None:
@@ -964,7 +965,7 @@ def test_native_ssh_argv_is_accepted_by_the_real_openssh_binary(monkeypatch) -> 
     if ssh is None:
         pytest.skip("native OpenSSH client not installed")
     monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
-    hostile = "it's \"quoted\" \and\ hosti'le\nwith newlines ünïcode ✓"
+    hostile = "it's \"quoted\" \\\\and\\\\ hosti'le\nwith newlines ünïcode ✓"
     data = {"op": "probe", "root": "wjc/x", "job_id": "j", "digest": "0" * 64,
             "now": 1, "command": hostile, "outputs": [hostile], "wall": 1,
             "cap": 1, "fallback_launched_at": 1, "grace": 1, "devices": ""}
