@@ -661,6 +661,18 @@ def test_resume_path_keeps_typed_class_over_unapproved_provider_text(
         store._set_repository_base_sha(lease.run_id, head, lease.owner, lease.epoch)
         store._accept_checkpoint(lease.run_id, "PRE_PLANNER", "fixture", 1, lease.owner, lease.epoch)
         run = store._get_durable_run(lease.run_id)
+        # Fake only the CLI seam: reconstruction would resolve a real OpenCode
+        # CLI, which CI hosts do not install. Everything after reconstruction
+        # (dispatch, classification, fencing, terminalize) stays real.
+        from reverse_agent.platform_v1.opencode_executor import (
+            OpenCodeExecutor, PreparedWorkspaceContext,
+        )
+        monkeypatch.setattr(
+            OpenCodeExecutor, "reconstruct_prepared_context", classmethod(
+                lambda cls, **kw: PreparedWorkspaceContext(
+                    worktree=tmp_path, base_sha=head, execution_id=run.execution_id,
+                    cli_path="/fake/opencode", is_cmd=False, opencode_exe="/fake/opencode",
+                )))
         outcome = service._resume_single_pre_planner(
             task_id=task_id, workspace_root=str(tmp_path.parent), run=run, lease=lease,
             task=store.get_task(task_id), executor_kind="opencode", role_attempt=1,
