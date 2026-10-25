@@ -327,3 +327,76 @@ def test_preexisting_junction_is_classified_patch_hygiene_not_host_observation(i
             junction.rmdir()
         elif junction.is_symlink():
             junction.unlink()
+
+
+@pytest.fixture
+def red_phase(implementation):
+    root, base, store, _task_id = implementation
+    goal = SimpleNamespace(id="goal-functional", revision=2, artifact_digest="a" * 64)
+    plan = SimpleNamespace(id="T002", capability="execute_task", validation_checks=(
+        {"profile_id": "python_pytest", "working_directory": ".", "targets": ["test_new.py"],
+         "expected_failures": ["test_new::test_new_behavior"]},))
+    task = store.create_task(title="Deliver the expected failing test first",
+                             repository="owner/sample", executor_kind="opencode")
+    fv.freeze_contract(store, task, goal=goal, plan_task=plan, base_commit=base)
+    yield root, base, store, task.id
+
+
+def test_expected_failures_field_requires_pytest_targets_and_bounded_names():
+    valid = {"profile_id": "python_pytest", "working_directory": ".",
+             "targets": ["test_new.py"], "expected_failures": ["test_new::test_new_behavior"]}
+    assert fv.normalize_checks([valid])[0]["expected_failures"] == ["test_new::test_new_behavior"]
+    # The frozen shape of a plain check is unchanged by the optional field.
+    assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
+        {"profile_id": "python_pytest", "working_directory": "."},)
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": []}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": ["a", "a"]}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": ["bad\x1bname"]}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        # An expected-RED contract without explicit targets cannot be judged.
+        fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": ".",
+                              "expected_failures": ["test_new::test_new_behavior"]}])
+
+
+def test_expected_red_phase_accepts_the_failing_first_deliverable(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\ndef test_new_behavior():\n    assert value == 2\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red")
+    assert result["passed"] is True and result["verified"] is True, result
+    assert result["expected_red_phase"] is True
+    check = result["checks"][0]
+    assert check["exit_code"] != 0 and check["expected_red_met"] is True
+    assert check["missing_expected_failures"] == [] and check["unexpected_failures"] == []
+    assert check["expected_failures"] == ["test_new::test_new_behavior"]
+
+
+def test_expected_red_names_the_missing_failure_when_the_test_passes(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    (root / "test_new.py").write_text(
+        "from app import value\ndef test_new_behavior():\n    assert value == 2\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-missing")
+    assert result["passed"] is False
+    assert result["reason"] == "expected_red_missing:test_new::test_new_behavior"
+    assert result["failure_kind"] == "expected_red"
+    assert result["checks"][0]["missing_expected_failures"] == ["test_new::test_new_behavior"]
+
+
+def test_expected_red_rejects_unexpected_failures(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\n"
+        "def test_new_behavior():\n    assert value == 2\n"
+        "def test_neighbor_behavior():\n    assert value == 3\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-unexpected")
+    assert result["passed"] is False
+    assert result["reason"] == "expected_red_unexpected:test_new::test_neighbor_behavior"
+    assert result["failure_kind"] == "expected_red"
+    assert result["checks"][0]["unexpected_failures"] == ["test_new::test_neighbor_behavior"]

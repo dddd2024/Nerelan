@@ -54,6 +54,10 @@ def catalog_digest() -> str:
 
 
 MAX_CHECK_TARGETS = 16
+MAX_EXPECTED_FAILURES = 8
+# Pytest node ids are file paths plus ::-separated test names, parameters in
+# brackets and sometimes quotes; every character class is bounded, no controls.
+_EXPECTED_FAILURE_RE = re.compile(r"[A-Za-z0-9_./:\[\]'\" (),=-]{1,200}\Z")
 
 
 def _relative_path_invalid(value: Any) -> bool:
@@ -68,10 +72,10 @@ def _relative_path_invalid(value: Any) -> bool:
 def normalize_checks(raw: Any) -> tuple[dict[str, Any], ...]:
     if not isinstance(raw, (list, tuple)) or len(raw) > 8:
         raise TaskStoreError("functional_checks_invalid")
-    checks: list[dict[str, str]] = []
+    checks: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
     for item in raw:
-        if not isinstance(item, Mapping) or set(item) - {"profile_id", "working_directory", "targets"}:
+        if not isinstance(item, Mapping) or set(item) - {"profile_id", "working_directory", "targets", "expected_failures"}:
             raise TaskStoreError("functional_check_fields_invalid")
         profile = item.get("profile_id")
         directory = item.get("working_directory", ".")
@@ -88,13 +92,28 @@ def normalize_checks(raw: Any) -> tuple[dict[str, Any], ...]:
                     or any(_relative_path_invalid(target) or target == "." for target in targets)
                     or len(set(targets)) != len(targets)):
                 raise TaskStoreError("functional_targets_invalid")
-        identity = (profile, directory, tuple(targets or ()))
+        # Optional explicit expected-RED phase (#1328 P0-C): the named tests
+        # MUST fail and every other targeted test MUST pass in this phase. A
+        # plan may then demand the failing-test-first deliverable without the
+        # same phase also requiring all checks green.
+        expected = item.get("expected_failures")
+        if expected is not None:
+            if (profile != "python_pytest" or targets is None
+                    or not isinstance(expected, (list, tuple))
+                    or not 1 <= len(expected) <= MAX_EXPECTED_FAILURES
+                    or any(not isinstance(name, str) or not _EXPECTED_FAILURE_RE.fullmatch(name)
+                           for name in expected)
+                    or len(set(expected)) != len(expected)):
+                raise TaskStoreError("functional_expected_failures_invalid")
+        identity = (profile, directory, tuple(targets or ()), tuple(expected or ()))
         if identity in seen:
             raise TaskStoreError("functional_check_duplicate")
         seen.add(identity)
         check: dict[str, Any] = {"profile_id": profile, "working_directory": directory}
         if targets is not None:
             check["targets"] = list(targets)
+        if expected is not None:
+            check["expected_failures"] = list(expected)
         checks.append(check)
     return tuple(checks)
 
@@ -313,6 +332,24 @@ def _terminate(proc: subprocess.Popen[bytes], job: _WindowsJob | None) -> None:
     proc.wait(timeout=10)
 
 
+def _evaluate_expected_red(check: Mapping[str, Any], observed: Mapping[str, Any]) -> dict[str, Any]:
+    """Judge an explicit expected-RED phase (#1328 P0-C).
+
+    The named tests MUST fail, every other observed failure is an unexpected
+    break, and the counts must agree — so an expected-RED contract can never
+    absorb collateral damage or a suite-wide failure.
+    """
+    expected = list(check["expected_failures"])
+    report = observed.get("test_report") or {}
+    failures = {item.get("test") for item in report.get("failures", ())}
+    missing = [name for name in expected if name not in failures]
+    unexpected = sorted(name for name in failures if name not in set(expected))
+    met = (not missing and not unexpected and not observed.get("timed_out")
+           and report.get("failed") == len(expected))
+    return {"expected_failures": expected, "missing_expected_failures": missing,
+            "unexpected_failures": unexpected, "expected_red_met": met}
+
+
 def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
     profile = check["profile_id"]
     missing = _missing_targets([check], root)
@@ -520,6 +557,12 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             raise TaskStoreError("\n".join(f"functional_target_missing:{path}" for path in missing))
         for check in contract["checks"]:
             observed = _run_check(check, root)
+            if "expected_failures" in check:
+                observed.update(_evaluate_expected_red(check, observed))
+                result["checks"].append(observed)
+                if not observed["expected_red_met"]:
+                    break
+                continue
             result["checks"].append(observed)
             if observed["timed_out"] or observed["exit_code"] != 0 or not observed["test_report"]["accepted"]:
                 break
@@ -536,11 +579,25 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
         if after_hygiene["exit_code"] != 0:
             raise TaskStoreError("functional_patch_hygiene_failed")
         if len(result["checks"]) != len(contract["checks"]) or any(
-            check["timed_out"] or check["exit_code"] != 0 or not check["test_report"]["accepted"] for check in result["checks"]
+            (not check["expected_red_met"]) if "expected_failures" in check else
+            (check["timed_out"] or check["exit_code"] != 0 or not check["test_report"]["accepted"])
+            for check in result["checks"]
         ):
+            red_missed = next((check for check in result["checks"]
+                               if "expected_failures" in check and not check["expected_red_met"]), None)
+            if red_missed is not None:
+                # Name the exact contract breach so the next repair step knows
+                # which expected failure was missing or which test broke (#1328 P0-C).
+                raise TaskStoreError("expected_red_missing:" + ",".join(red_missed["missing_expected_failures"])
+                                     if red_missed["missing_expected_failures"] else
+                                     "expected_red_unexpected:" + ",".join(red_missed["unexpected_failures"]))
             raise TaskStoreError("functional_check_failed")
         result.update(passed=True, verified=task.executor_kind != "deterministic_fixture",
                       status="FIXTURE_VERIFIED" if task.executor_kind == "deterministic_fixture" else "VERIFIED")
+        if any("expected_failures" in check for check in contract["checks"]):
+            # The phase acceptance is the RED evidence itself; the plan's GREEN
+            # phase is a separate task with its own contract.
+            result["expected_red_phase"] = True
     except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
         result["reason"] = str(exc) if isinstance(exc, TaskStoreError) else f"functional_observation_failed:{type(exc).__name__}"
     if not result["passed"]:
@@ -549,6 +606,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             "target_mismatch" if reason.startswith("functional_target_missing:") else
             "patch_hygiene" if reason == "functional_patch_hygiene_failed" else
             "check_timeout" if reason == "check_timeout" else
+            "expected_red" if reason.startswith(("expected_red_missing:", "expected_red_unexpected:")) else
             "capability_failure" if reason == "functional_check_failed" and any(
                 (check.get("test_report") or {}).get("failed", 0) for check in result["checks"])
             else "host_observation")
