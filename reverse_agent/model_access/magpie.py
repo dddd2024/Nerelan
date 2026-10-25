@@ -69,6 +69,8 @@ def _private_strings(payload: Any) -> set[str]:
 def _text(value: Any, secrets: set[str]) -> str | None:
     if not isinstance(value, str) or not value or any(s in value for s in secrets):
         return None
+    if any('\ud800' <= ch <= '\udfff' for ch in value):
+        return None
     return value
 
 

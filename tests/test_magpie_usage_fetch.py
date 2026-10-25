@@ -379,7 +379,8 @@ def test_unencodable_sessions_fail_closed_before_any_request():
     def forbidden(*args, **kwargs):
         pytest.fail("opener must not be called")
     bad = ("", None, 5, "x" * (MAX_SESSION_LEN + 1), "sess\n1", "sess&x", "sess#x",
-           "sess?x", "sess=x", "sess%20x", " sess", "sess ", ["sess"])
+           "sess?x", "sess=x", "sess%20x", " sess", "sess ", ["sess"],
+           "\ud800", "\udfff")
     for value in bad:
         result = fetch_session_routes([value], opener=forbidden)
         assert (result["status"], result["reason"]) == ("refused", "invalid_session"), value
@@ -644,3 +645,68 @@ def test_an_invalid_private_hello_scrubs_the_supplied_session():
     assert result["traces"] == [] and result["returned"] == 0 and result["missing"] == 1
     assert secret not in json.dumps(result)
     assert len(calls) == 1
+
+
+# --- unicode safety (no surrogate echo, UTF-8-safe results) ---
+
+
+def _utf8(result):
+    """Prove the result is serializable with ensure_ascii=False then UTF-8."""
+    return json.dumps(result, ensure_ascii=False).encode("utf-8")
+
+
+def test_surrogate_hello_version_scrubbed_from_usage_result():
+    for point in (0xD800, 0xDFFF):
+        opener, _ = run([body({"name": "magpie", "version": chr(point)}),
+                         body(ledger([row()], total=1))])
+        result = fetch_usage_requests(opener=opener)
+        assert (result["status"], result["reason"]) == ("not_magpie", "invalid_hello")
+        assert result["source_version"] is None
+        _utf8(result)
+
+
+def test_surrogate_model_scrubbed_from_usage_result():
+    for point in (0xD800, 0xDFFF):
+        opener, _ = run([body(HELLO),
+                         body(ledger([row(model=chr(point))], total=1))])
+        result = fetch_usage_requests(opener=opener)
+        assert (result["status"], result["reason"], result["complete"]) == ("ok", None, True)
+        assert result["rows"][0]["model"] is None
+        _utf8(result)
+
+
+def test_surrogate_model_scrubbed_from_route_result():
+    for point in (0xD800, 0xDFFF):
+        opener, _ = run([body(HELLO),
+                         body({"model": chr(point), "served": chr(point)})])
+        result = fetch_session_routes(["opaque-session"], opener=opener)
+        # A scrubbed model is None, so the trace is rejected as invalid_schema.
+        assert (result["status"], result["reason"]) == ("unavailable", "invalid_schema")
+        assert result["complete"] is False
+        _utf8(result)
+
+
+def test_refused_session_result_is_utf8_safe():
+    for point in (0xD800, 0xDFFF):
+        result = fetch_session_routes([chr(point)], opener=None)
+        assert result["status"] == "refused" and result["reason"] == "invalid_session"
+        _utf8(result)
+
+
+def test_valid_nonbmp_preserved_in_hello_version():
+    opener, _ = run([body({"name": "magpie", "version": "v-\U0001F642"}),
+                     body(ledger([row()], total=1))])
+    result = fetch_usage_requests(opener=opener)
+    assert result["source_version"] == "v-\U0001F642"
+    assert "\U0001F642" in json.dumps(result, ensure_ascii=False)
+
+
+def test_valid_nonbmp_preserved_in_usage_and_route():
+    opener, _ = run([body(HELLO), body(ledger([row(model="m-\U0001F642")], total=1))])
+    result = fetch_usage_requests(opener=opener)
+    assert result["rows"][0]["model"] == "m-\U0001F642"
+    assert "\U0001F642" in json.dumps(result, ensure_ascii=False)
+    opener, _ = run([body(HELLO), body({"model": "r-\U0001F642", "served": "r-\U0001F642"})])
+    result = fetch_session_routes(["opaque-session"], opener=opener)
+    assert result["traces"][0]["trace"]["model"] == "r-\U0001F642"
+    assert "\U0001F642" in json.dumps(result, ensure_ascii=False)

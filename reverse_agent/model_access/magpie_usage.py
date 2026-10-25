@@ -379,7 +379,10 @@ def _validated_session(value: Any) -> str | None:
         return None
     if any(ch in value for ch in ("&", "#", "?", "=", "%")):
         return None
-    encoded = quote(value, safe="")
+    try:
+        encoded = quote(value, safe="")
+    except UnicodeEncodeError:
+        return None
     if (not encoded or len(encoded) > MAX_SESSION_LEN * 4
             or any(ch not in _ENCODED_QUERY_CHARS for ch in encoded)):
         return None
