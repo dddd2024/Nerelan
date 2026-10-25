@@ -911,3 +911,81 @@ def test_broker_never_puts_the_helper_on_the_ssh_command_line(setup, monkeypatch
         assert isinstance(program, str) and REMOTE_HELPER in program
         # the payload must still reach the helper unchanged
         assert _program_request(program)["job_id"] == "e001-baseline"
+
+
+def test_native_interpreter_reads_the_remote_program_from_real_stdin(tmp_path) -> None:
+    """#1328 P0-A native repro: real subprocess, real stdin, hostile payload.
+
+    The incident report inferred remote-shell quoting failures from mocks; the
+    checklist forbids mock-only success. Launch the actual interpreter exactly
+    as the remote side would ("python -" reading its program from stdin) with
+    single quotes, double quotes, spaces, newlines, backslashes, Unicode and a
+    base64 JSON payload in the request, and require the helper's real reply.
+    """
+    import base64
+    hostile_command = (
+        "echo 'single' \"double\" \back\slash $(not-expanded) `not-run`\n"
+        "printf '%s\n' 'line two with spaces'"
+    )
+    hostile_outputs = ["results/ünïcode ✓/*.json", "logs/directory with spaces/**"]
+    base64_payload = base64.b64encode(json.dumps({"k": "va'lue\"with\nnewlines"}).encode()).decode()
+    data = {
+        "op": "probe", "root": "wjc/.nerelan-native-stdin-fixture",
+        "job_id": "native-probe-fixture", "digest": "0" * 64, "now": 1790000000,
+        "command": hostile_command + " #" + base64_payload, "outputs": hostile_outputs,
+        "wall": 60, "cap": 1024, "fallback_launched_at": 1790000000, "grace": 5,
+        "devices": "",
+    }
+    fixture_root = Path.home() / "wjc" / ".nerelan-native-stdin-fixture"
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-"], input=_remote_program(data),
+            capture_output=True, text=True, encoding="utf-8", timeout=120)
+        assert completed.returncode == 0, completed.stderr
+        # The real helper answered: the whole hostile request survived the
+        # stdin round trip through json escaping into the interpreter.
+        assert json.loads(completed.stdout) == {"marker": False}
+        assert fixture_root.is_dir()  # the real prelude created the job dir
+    finally:
+        shutil.rmtree(fixture_root.parent, ignore_errors=True)
+
+
+def test_native_ssh_argv_is_accepted_by_the_real_openssh_binary(monkeypatch) -> None:
+    """#1328 P0-A native repro: real ssh argv evidence, no payload on the line.
+
+    Run the real OpenSSH client with exactly the argv the broker builds plus a
+    hostile program on stdin against a reserved, never-resolving host. ssh must
+    reject the destination at name resolution (exit 255), which proves it
+    accepted every option and argument locally — the incident's failure mode
+    (local command-line truncation/mangling) cannot have happened. Also pin the
+    Windows CreateProcess command line well under the 8191-character limit.
+    """
+    ssh = shutil.which("ssh")
+    if ssh is None:
+        pytest.skip("native OpenSSH client not installed")
+    monkeypatch.delenv("SSH_AUTH_SOCK", raising=False)
+    hostile = "it's \"quoted\" \and\ hosti'le\nwith newlines ünïcode ✓"
+    data = {"op": "probe", "root": "wjc/x", "job_id": "j", "digest": "0" * 64,
+            "now": 1, "command": hostile, "outputs": [hostile], "wall": 1,
+            "cap": 1, "fallback_launched_at": 1, "grace": 1, "devices": ""}
+    argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=1",
+            "native-argv-fixture.invalid", *REMOTE_COMMAND]
+    assert REMOTE_COMMAND == ("python3", "-")
+    if os.name == "nt":
+        from subprocess import list2cmdline
+        line = list2cmdline(argv)
+        assert len(line) < 8191
+        for marker in ("'", '"', "\\", "\n", "ünïcode"):
+            assert marker not in line
+    completed = subprocess.run(
+        argv, input=_remote_program(data), capture_output=True, text=True,
+        encoding="utf-8", errors="replace", timeout=60)
+    assert completed.returncode == 255, completed.stderr
+    lowered = completed.stderr.lower()
+    # A local argv problem would print a usage/option error instead of
+    # attempting the connection; both resolve failures and connection-stage
+    # timeouts prove every option and argument was accepted locally.
+    assert not any(phrase in lowered for phrase in (
+        "usage:", "bad configuration option", "unknown option", "command-line line")), completed.stderr
+    assert any(phrase in lowered for phrase in (
+        "resolve", "timed out", "refused", "unreachable", "reset", "closed")), completed.stderr
