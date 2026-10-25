@@ -83,6 +83,7 @@ def execute(native, monkeypatch, kind):
         def read(self, size=-1):
             assert n.written.wait(3)
             return super().read(size)
+        read1 = read
     class Process:
         supports_quota_checkpoint = n.cooperative
         def __init__(self, *a, **k):
