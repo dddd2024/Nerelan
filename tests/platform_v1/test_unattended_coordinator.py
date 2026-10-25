@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -1228,6 +1229,10 @@ def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_pat
         store.add_event(task_id, event_type="EXECUTOR_RUNNING",
                         title="fixture interval start", metadata={"executor_kind": "deterministic_fixture"})
         barrier.wait(timeout=10)
+        # Hold the overlap across a second boundary: store timestamps have
+        # one-second resolution, so the proof needs the earlier task's
+        # recorded finish to land in a strictly later second.
+        time.sleep(1.2)
         result = _ready_fixture(store, task_id)
         store.add_event(task_id, event_type="EXECUTOR_FINISHED",
                         title="fixture interval end", metadata={"executor_kind": "deterministic_fixture"})
@@ -1243,8 +1248,8 @@ def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_pat
     for link in control.list_goal_tasks(goal.id):
         task_id = link["task_id"]
         events = store.get_events(task_id)
-        starts = [e.created_at for e in events if e.type == "EXECUTOR_RUNNING"]
-        ends = [e.created_at for e in events if e.type == "EXECUTOR_FINISHED"]
+        starts = [e.timestamp for e in events if e.type == "EXECUTOR_RUNNING"]
+        ends = [e.timestamp for e in events if e.type == "EXECUTOR_FINISHED"]
         assert len(starts) == 1 and len(ends) == 1, events
         intervals[task_id] = (starts[0], ends[0])
     (first_start, first_end), (second_start, second_end) = sorted(intervals.values())
