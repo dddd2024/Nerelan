@@ -869,3 +869,60 @@ def test_landing_progress_visible_without_github_state_replica(read_model):
         pr_number=1266, head_sha="a" * 40, next_attempt_ms=123456,
         parking_reason="fresh_current_head_checks_required")
     assert control._conn.total_changes == changes
+
+
+def test_partial_native_tokens_are_real_usage_not_unknown(read_model) -> None:
+    """#1342: a native CLI PARTIAL row (measured tokens, no dollar cost) must
+    surface as observed token usage instead of "usage unknown"."""
+    model, store, _control = read_model
+    task = store.create_task(title="native codex run", executor_kind="codex", binding_ref="b")
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-native-turn",
+        execution_id="exec-native",
+        role="executor",
+        model_id="gpt-6.1-sol",
+        provider_id="codex",
+        source_kind="native_summary",
+        source_id="codex-turn-1",
+        status="PARTIAL",
+        input_units=121186,
+        output_units=21972,
+        reasoning_units=None,
+        cache_read_units=3238400,
+        cache_write_units=None,
+        cost_micro_units=None,
+    )
+    summary = store.usage_summary(task.id)
+    assert summary["status"] == "OBSERVED"
+    assert summary["unknown_observation_count"] == 0
+    assert summary["total_token_units"] == 121186 + 21972 + 3238400
+    assert summary["input_units"] == 121186 and summary["cache_read_units"] == 3238400
+    # The cost axis stays honestly zero-priced: the CLI reported no dollars.
+    assert summary["cost_micro_units"] == 0
+    runs = [r for r in model.list_runs()["runs"] if r["task_id"] == task.id]
+    assert runs and runs[0]["usage"]["status"] == "OBSERVED"
+    assert runs[0]["usage_evidence"]["state"] == "USAGE_OBSERVED"
+    assert runs[0]["usage_evidence"]["positive_token_units"] == 121186 + 21972 + 3238400
+
+
+def test_unknown_rows_still_keep_the_summary_unknown(read_model) -> None:
+    model, store, _control = read_model
+    task = store.create_task(title="opaque run", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id,
+        observation_id="usage-opaque",
+        execution_id="exec-opaque",
+        role="executor",
+        model_id="provider/model",
+        provider_id="provider",
+        source_kind="assistant_message",
+        source_id="msg-1",
+        status="UNKNOWN",
+    )
+    summary = store.usage_summary(task.id)
+    assert summary["status"] == "USAGE_UNKNOWN"
+    assert summary["unknown_observation_count"] == 1
+    assert summary["total_token_units"] == 0
+    runs = [r for r in model.list_runs()["runs"] if r["task_id"] == task.id]
+    assert runs and runs[0]["usage_evidence"]["state"] == "USAGE_UNKNOWN"

@@ -1427,7 +1427,14 @@ class TaskStore:
             )
             role_totals["observation_count"] += 1
             role_totals["provenance_ids"].append(observation.id)
-            if observation.status != "OBSERVED":
+            # A PARTIAL native CLI row carries measured tokens without dollar
+            # cost; its tokens are real usage and must not read as UNKNOWN
+            # (#1342: the task list kept showing "usage unknown"). The store's
+            # append validation already guarantees a PARTIAL row carries at
+            # least one numeric measurement; unreported fields count as zero,
+            # exactly as they already do for OBSERVED rows.
+            measured = observation.status in ("OBSERVED", "PARTIAL")
+            if not measured:
                 unknown += 1
                 role_totals["unknown_observation_count"] += 1
                 continue
