@@ -171,7 +171,7 @@ export const policySchema = z
     ];
     for (const [enabled, key] of quotas) {
       if (enabled && (policy.budgets[key] === 0 || (policy.autonomousWindow.enabled && policy.autonomousWindow[key] === 0))) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["budgets", key], message: "已启用的发布能力必须有正数额度" });
+        ctx.addIssue({ code: "custom", path: ["budgets", key], message: "已启用的发布能力必须有正数额度" });
       }
     }
 
@@ -179,7 +179,7 @@ export const policySchema = z
     if (has("merge_pr")) {
       if (policy.mergePolicy.allowedRepositories.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["mergePolicy", "allowedRepositories"],
           message: "merge_pr 要求 allowedRepositories 非空",
         });
@@ -187,7 +187,7 @@ export const policySchema = z
       }
       if (policy.mergePolicy.allowedBaseBranches.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["mergePolicy", "allowedBaseBranches"],
           message: "merge_pr 要求 allowedBaseBranches 非空",
         });
@@ -195,7 +195,7 @@ export const policySchema = z
       }
       if (policy.mergePolicy.requiredChecks.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["mergePolicy", "requiredChecks"],
           message: "merge_pr 要求 requiredChecks 非空",
         });
@@ -207,7 +207,7 @@ export const policySchema = z
     if (hasPub("deploy_production")) {
       if (policy.publicationPolicy.allowedEnvironment.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["publicationPolicy", "allowedEnvironment"],
           message: "deploy_production 要求 allowedEnvironment",
         });
@@ -215,7 +215,7 @@ export const policySchema = z
       }
       if (!policy.publicationPolicy.rollbackStrategy) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["publicationPolicy", "rollbackStrategy"],
           message: "deploy_production 要求 rollbackStrategy",
         });
@@ -231,7 +231,7 @@ export const policySchema = z
     if (pubNeedsArtifact) {
       if (policy.publicationPolicy.allowedArtifactOrPackage.length === 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["publicationPolicy", "allowedArtifactOrPackage"],
           message:
             "发布能力要求 allowedArtifactOrPackage",
@@ -242,7 +242,7 @@ export const policySchema = z
       const hasRepo = policy.publicationPolicy.allowedRepository.length > 0;
       if (!hasRegistry && !hasRepo) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["publicationPolicy", "allowedRegistry"],
           message:
             "发布能力要求 allowedRegistry 或 allowedRepository",
@@ -258,14 +258,14 @@ export const policySchema = z
       const expires = Date.parse(policy.autonomousWindow.expiresAt);
       if (Number.isNaN(expires)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["autonomousWindow", "expiresAt"],
           message: "autonomousWindow.expiresAt 必须为有效的 ISO 日期",
         });
         errors.push("autonomousWindow.expiresAt 必须为有效的 ISO 日期");
       } else if (expires <= Date.now()) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["autonomousWindow", "expiresAt"],
           message: "autonomousWindow.expiresAt 必须为未来时间",
         });
@@ -276,7 +276,7 @@ export const policySchema = z
     // secrets must not be "raw_values"
     if (policy.resourceAccess.secrets.access === "raw_values") {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["resourceAccess", "secrets", "access"],
         message: "不允许使用 raw 密钥值",
       });
@@ -309,7 +309,7 @@ export const policySchema = z
     // Expose collected errors via a hidden path for the validatePolicy helper.
     if (errors.length > 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["__collected__"],
         message: errors.join("；"),
       });
