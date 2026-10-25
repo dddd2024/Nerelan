@@ -127,6 +127,23 @@ def test_other_failures_at_the_top_still_block(monkeypatch):
     assert goals.escalate_failed_tasks(goal.id) == ()
 
 
+def test_provider_quota_limit_blocks_without_escalation_or_a_connection_hold(monkeypatch):
+    # Retry budget (3) and a stronger alternative (simple -> coder -> complex) are both
+    # available, yet a provider-side quota limit is neither skill nor an account answer.
+    store, control, goals, goal = _launched(monkeypatch)
+    first = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, first, classification="provider_quota_limit")
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store._conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 2  # no replacement task
+    assert control.list_task_escalations(goal.id) == ()
+    assert _link(control, goal.id, "T001")["task_id"] == first
+    assert store.get_task(first).status == "FAILED"
+    assert store.get_task(first).failure_classification == "provider_quota_limit"
+    assert control.quota_hold(first) is None  # no account hold: no shared connection is frozen
+    control.refresh_goal_status(goal.id)
+    assert control.get_goal(goal.id).status == "BLOCKED"  # parked for the Owner, not escalated
+
+
 @pytest.mark.parametrize("status", ["BLOCKED", "CANCELLED"])
 def test_blocked_and_cancelled_tasks_never_escalate(monkeypatch, status):
     store, control, goals, goal = _launched(monkeypatch)
