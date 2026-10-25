@@ -344,7 +344,13 @@ def _evaluate_expected_red(check: Mapping[str, Any], observed: Mapping[str, Any]
     failures = {item.get("test") for item in report.get("failures", ())}
     missing = [name for name in expected if name not in failures]
     unexpected = sorted(name for name in failures if name not in set(expected))
+    # Exit 1 is pytest's plain "tests failed": the only outcome where every
+    # targeted test actually ran to a verdict. An interrupted run (exit 2)
+    # still writes a JUnit report holding the expected failure, but the tests
+    # after the interrupt neither passed nor failed — not acceptable RED
+    # evidence (#1354 review).
     met = (not missing and not unexpected and not observed.get("timed_out")
+           and observed.get("exit_code") == 1
            and report.get("failed") == len(expected))
     return {"expected_failures": expected, "missing_expected_failures": missing,
             "unexpected_failures": unexpected, "expected_red_met": met}

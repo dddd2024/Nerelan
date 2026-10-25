@@ -400,3 +400,26 @@ def test_expected_red_rejects_unexpected_failures(red_phase):
     assert result["reason"] == "expected_red_unexpected:test_new::test_neighbor_behavior"
     assert result["failure_kind"] == "expected_red"
     assert result["checks"][0]["unexpected_failures"] == ["test_new::test_neighbor_behavior"]
+
+
+def test_expected_red_rejects_an_interrupted_run(red_phase):
+    """#1354 review: KeyboardInterrupt still writes the JUnit report with the
+    expected failure, but the tests after the interrupt never ran to a verdict
+    — an interrupted run is not RED evidence."""
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\n"
+        "import pytest\n"
+        "@pytest.mark.order(1)\n"
+        "def test_new_behavior():\n"
+        "    assert value == 2\n"
+        "@pytest.mark.order(2)\n"
+        "def test_interrupted_neighbor():\n"
+        "    raise KeyboardInterrupt\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-interrupted")
+    assert result["passed"] is False
+    assert result["failure_kind"] == "expected_red"
+    check = result["checks"][0]
+    assert check["expected_red_met"] is False
+    assert check["exit_code"] != 1  # pytest was interrupted, not merely failing
