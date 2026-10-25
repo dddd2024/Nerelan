@@ -1196,3 +1196,58 @@ def test_failed_claim_renewal_is_logged_and_stops(tmp_path, monkeypatch, caplog,
     assert coordinator._execute_with_claim_renewal("window", "task", 1) == "finished"
     assert len(calls) == 1
     assert "claim renewal" in caplog.text
+
+
+def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_path):
+    """#1267 evidence basis: prove interval overlap from platform timestamps.
+
+    The barrier proves the two executors were genuinely running at the same
+    wall-clock moment; the interval markers are written through the store's own
+    event log (its created_at is host-owned, not test-supplied), so the
+    overlap holds in recorded evidence, not just in the test's own clocks.
+    """
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-intervals", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="parallel-interval-evidence")
+    barrier = threading.Barrier(2)
+
+    def execute(task_id):
+        store.add_event(task_id, event_type="EXECUTOR_RUNNING",
+                        title="fixture interval start", metadata={"executor_kind": "deterministic_fixture"})
+        barrier.wait(timeout=10)
+        result = _ready_fixture(store, task_id)
+        store.add_event(task_id, event_type="EXECUTOR_FINISHED",
+                        title="fixture interval end", metadata={"executor_kind": "deterministic_fixture"})
+        return result
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 2
+    assert control.get_goal(goal.id).status == "COMPLETED"
+    intervals = {}
+    for link in control.list_goal_tasks(goal.id):
+        task_id = link["task_id"]
+        events = store.get_events(task_id)
+        starts = [e.created_at for e in events if e.type == "EXECUTOR_RUNNING"]
+        ends = [e.created_at for e in events if e.type == "EXECUTOR_FINISHED"]
+        assert len(starts) == 1 and len(ends) == 1, events
+        intervals[task_id] = (starts[0], ends[0])
+    (first_start, first_end), (second_start, second_end) = sorted(intervals.values())
+    # Recorded overlap: the later task started strictly before the earlier
+    # task's recorded finish — impossible under serial dispatch.
+    assert second_start < first_end, intervals
