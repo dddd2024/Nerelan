@@ -1430,7 +1430,8 @@ class TaskStore:
             if observation.status != "OBSERVED":
                 unknown += 1
                 role_totals["unknown_observation_count"] += 1
-                continue
+                if observation.status == "UNKNOWN":
+                    continue
             for key in totals:
                 value = int(getattr(observation, key) or 0)
                 totals[key] += value
