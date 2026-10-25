@@ -151,3 +151,42 @@ def test_correlate_missing_token_keeps_the_total_unknown():
 def test_correlate_attributes_by_request_id_when_no_session_is_known():
     report = correlate_task_usage([], [parsed(rid="req-9", session="")], rids=["req-9"])
     assert report["request_count"] == 1 and report["basis"] == "magpie_measured"
+
+
+def test_page_wide_private_values_never_survive_in_other_rows():
+    import json as _json
+    page = {"rows": [row(rid="a", user="person@example.test"),
+                     row(rid="b", providerAccount="person@example.test")]}
+    ledger = parse_usage_ledger(page)
+    dumped = _json.dumps(ledger)
+    assert "person@example.test" not in dumped
+    assert ledger["rows"][0]["rid"] == "a" and ledger["rows"][1]["rid"] == "b"
+
+
+def test_non_finite_and_huge_numbers_fail_closed():
+    record = parse_usage_request(row(**{"in": float("nan"), "out": float("inf"),
+                                        "cost": 10 ** 400}))
+    assert record["input"] is None and record["output"] is None
+    assert record["cost_usd"] is None
+
+
+def test_non_iterable_rows_and_tries_do_not_crash_the_parsers():
+    bad_page = parse_usage_ledger({"rows": 5})
+    assert bad_page["rows"] == [] and bad_page["invalid_rows"] == 1
+    trace = parse_route({"asked": "route-main", "tries": 5})
+    assert trace is not None and trace["tries"] == []
+
+
+def test_one_shot_generator_local_observations_keep_their_cost():
+    def generate():
+        yield local(cost_micro_units=500)
+    report = correlate_task_usage(generate(), [parsed()], sessions=["sess-task-1"])
+    assert report["local_cross_check"]["cost_micro_units"] == 500
+    assert report["local_cross_check"]["observations"] == 1
+
+
+def test_attributed_requests_are_capped_with_a_flag():
+    rows = [parsed(rid="r%d" % i) for i in range(205)]
+    report = correlate_task_usage([], rows, sessions=["sess-task-1"])
+    assert report["request_count"] == 205
+    assert len(report["requests"]) == 200 and report["requests_truncated"] is True

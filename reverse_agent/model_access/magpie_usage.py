@@ -42,19 +42,28 @@ _TEXT_FIELDS = (
 def _count(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    number = int(value)
-    return number if number >= 0 and value == number else None
+    if isinstance(value, float):
+        # json.loads accepts NaN/Infinity literals; neither is a count.
+        if not math.isfinite(value):
+            return None
+        return int(value) if value >= 0 and value == int(value) else None
+    return value if value >= 0 else None
 
 
 def _flag(value: Any) -> bool:
     return value is True
 
 
-def parse_usage_request(row: Any) -> dict[str, Any] | None:
-    """Sanitize one usage ledger row; unknown shapes return None."""
+def parse_usage_request(row: Any, *, page_secrets: frozenset[str] | set[str] = frozenset()) -> dict[str, Any] | None:
+    """Sanitize one usage ledger row; unknown shapes return None.
+
+    ``page_secrets`` carries private values collected from the whole ledger
+    page, so a value one row marks private never survives in another row of a
+    mixed-vintage page (the per-row scan alone cannot see it).
+    """
     if not isinstance(row, Mapping):
         return None
-    secrets = _private_strings(row)
+    secrets = _private_strings(row) | set(page_secrets)
     record: dict[str, Any] = {}
     for name, source in _TEXT_FIELDS:
         text = _text(row.get(source), secrets)
@@ -66,9 +75,12 @@ def parse_usage_request(row: Any) -> dict[str, Any] | None:
     record["t_epoch"] = parse_time(record["t"]) if record["t"] else None
     record["route_id"] = row.get("route_id") if _count(row.get("route_id")) is not None else None
     cost = row.get("cost")
-    record["cost_usd"] = (round(float(cost), 6)
-                          if isinstance(cost, (int, float)) and not isinstance(cost, bool)
-                          and math.isfinite(cost) and cost >= 0 else None)
+    try:
+        number = float(cost) if not isinstance(cost, bool) else None
+    except (TypeError, ValueError, OverflowError):
+        number = None  # a huge JSON integer literal overflows float conversion
+    record["cost_usd"] = (round(number, 6)
+                          if number is not None and math.isfinite(number) and number >= 0 else None)
     record["priced"] = _flag(row.get("priced"))
     for name in ("swapped", "routed", "rejected", "handed_on"):
         record[name] = _flag(row.get(name))
@@ -81,9 +93,15 @@ def parse_usage_ledger(payload: Any) -> dict[str, Any]:
     data = _decode(payload)
     if not isinstance(data, Mapping):
         return {"rows": [], "total": None, "offset": None, "invalid_rows": 0}
+    raw_rows = data.get("rows")
+    if raw_rows is not None and not isinstance(raw_rows, list):
+        return {"rows": [], "total": None, "offset": None, "invalid_rows": 1}
+    # Private values are collected page-wide: any row's user/alias/from must
+    # be scrubbed from every other row too, not only its own.
+    page_secrets = _private_strings(data)
     rows, invalid = [], 0
-    for row in data.get("rows") or ():
-        parsed = parse_usage_request(row)
+    for row in raw_rows or ():
+        parsed = parse_usage_request(row, page_secrets=page_secrets)
         if parsed is None:
             invalid += 1
         else:
@@ -108,7 +126,9 @@ def parse_route(payload: Any) -> dict[str, Any] | None:
             return None
         return {"model": clean(try_row.get("model")), "effort": clean(try_row.get("effort")),
                 "tier": clean(try_row.get("tier")), "tier_served": clean(try_row.get("tier_served"))}
-    tries = [kept for kept in (attempt(item) for item in data.get("tries") or ()) if kept is not None]
+    raw_tries = data.get("tries")
+    tries = ([kept for kept in (attempt(item) for item in raw_tries) if kept is not None]
+             if isinstance(raw_tries, list) else [])
     return {"asked": clean(data.get("asked")), "group": clean(data.get("group")),
             "model": clean(data.get("model")), "effort": clean(data.get("effort")),
             "tier": clean(data.get("tier")), "tier_served": clean(data.get("tier_served")),
@@ -117,24 +137,24 @@ def parse_route(payload: Any) -> dict[str, Any] | None:
             "ms": _count(data.get("ms")), "tries": tries[:8]}
 
 
-def _local_totals(local_observations: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+def _local_totals(local_rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     """Sum the local ledger observations; any None metric keeps the sum None."""
     keys = (("input_units", "input"), ("output_units", "output"),
             ("cache_read_units", "cache_read"), ("cache_write_units", "cache_write"),
             ("reasoning_units", "reasoning"))
     sums = {name: 0 for _, name in keys}
-    observations = 0
-    for observation in local_observations:
-        observations += 1
+    for observation in local_rows:
         for field, name in keys:
             value = observation.get(field)
             sums[name] = (sums[name] + value if isinstance(sums[name], int)
-                          and isinstance(value, int) and value >= 0 else None)
+                          and isinstance(value, int) and not isinstance(value, bool)
+                          and value >= 0 else None)
     cost = 0
-    for observation in local_observations:
+    for observation in local_rows:
         value = observation.get("cost_micro_units")
-        cost = cost + value if isinstance(cost, int) and isinstance(value, int) and value >= 0 else None
-    return {"token_fields": sums, "cost_micro_units": cost, "observations": observations}
+        cost = (cost + value if isinstance(cost, int) and isinstance(value, int)
+                and not isinstance(value, bool) and value >= 0 else None)
+    return {"token_fields": sums, "cost_micro_units": cost, "observations": len(local_rows)}
 
 
 def correlate_task_usage(
@@ -158,6 +178,9 @@ def correlate_task_usage(
     """
     wanted_sessions = {value for value in sessions if isinstance(value, str) and value}
     wanted_rids = {value for value in rids if isinstance(value, str) and value}
+    # Materialize once: a one-shot generator must not silently lose the cost
+    # pass of _local_totals.
+    local_rows = list(local_observations)
     by_rid: dict[str, Mapping[str, Any]] = {}
     loose: list[Mapping[str, Any]] = []
     unattributed = handed_on = duplicates = 0
@@ -210,7 +233,7 @@ def correlate_task_usage(
         accounts[account] = accounts.get(account, 0) + 1
         model = row.get("served") or row.get("model") or "unknown"
         served[model] = served.get(model, 0) + 1
-    local = _local_totals(local_observations)
+    local = _local_totals(local_rows)
     basis = "magpie_measured" if attributed else ("local_only" if local["observations"] else "unknown")
     truncated = len(attributed) > _MAX_REQUESTS
     return {
