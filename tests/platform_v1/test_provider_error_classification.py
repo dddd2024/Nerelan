@@ -302,7 +302,9 @@ def test_actual_core_returns_specific_blocker_without_raw_payload(monkeypatch, t
             event_callback=lambda tid, event: events.append(event),
             role_context=oe.RoleContext(role="executor", task_id=task.id, workspace=tmp_path))
         assert result.failure_classification == expected
-        assert result.error == "opencode_nonzero:exit=1:" + expected
+        # The typed class stays pinned immediately after the prefix; a bounded,
+        # sanitized provider diagnostic may follow it after one space.
+        assert result.error.split(" ", 1)[0] == "opencode_nonzero:exit=1:" + expected
         finished = [e for e in events if e.get("title") == "OpenCode nonzero exit"]
         assert len(finished) == 1
         assert finished[0]["metadata"]["failure_classification"] == expected
