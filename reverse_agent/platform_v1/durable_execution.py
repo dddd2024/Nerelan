@@ -3425,9 +3425,13 @@ class DurableExecutionService:
         )
 
         if not success_flag:
+            # Provider detail follows the trusted executor prefix; its
+            # arbitrary text must not override the typed failure class here
+            # either (resume path, review finding on the dispatch-path guard).
             classification = (
                 "blocked"
                 if "unapproved" in exec_result.get("error", "")
+                and not exec_result.get("error", "").startswith("opencode_nonzero:exit=")
                 else exec_result.get("failure_classification", "failed")
             ) or "failed"
             self.store._accept_checkpoint(

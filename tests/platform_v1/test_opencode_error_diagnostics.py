@@ -617,3 +617,59 @@ def test_short_control_bytes_and_split_secret_are_sanitized(monkeypatch, tmp_pat
         assert "[REDACTED]" in value
         assert all(ord(ch) >= 32 and ord(ch) != 127 for ch in value)
     assert len(finished["metadata"]["error_diagnostic"]) <= MAX_EVIDENCE_STRING_LEN
+
+
+def test_resume_path_keeps_typed_class_over_unapproved_provider_text(
+    monkeypatch, tmp_path
+) -> None:
+    """Review regression: the resume path must apply the same guard.
+
+    A provider diagnostic containing 'unapproved' appended after the typed
+    opencode_nonzero class must not reclassify the durable task as 'blocked'
+    when the run resumes from a PRE_PLANNER crash state.
+    """
+    from dataclasses import replace
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+
+    for args in (("init",), ("config", "user.name", "Fixture"),
+                 ("config", "user.email", "fixture@example.invalid")):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / "fixture.txt").write_text("fixture\n", encoding="utf-8")
+    subprocess.run(["git", "add", "--", "fixture.txt"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "fixture"], cwd=tmp_path, check=True, capture_output=True)
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    result, _, store, task_id = _run_core(
+        monkeypatch, tmp_path, stdout=json.dumps(_econnreset_payload()) + "\n"
+    )
+    crafted = replace(
+        result,
+        error="opencode_nonzero:exit=1:provider_overloaded "
+              "message=ECONNRESET while handling unapproved retry from upstream",
+        failure_classification="provider_overloaded",
+    )
+    service = DurableExecutionService(
+        store=store, router=ExecutorRouter(),
+        execution_authority_sha="fixture-authority", planning_sha="fixture-planning",
+    )
+    monkeypatch.setattr(service.router, "create_executor",
+                        lambda **k: SimpleNamespace(execute_role_prepared=lambda *a, **kw: crafted))
+    lease = service._acquire_or_find_lease(task_id, "fixture-owner", "", str(tmp_path))
+    try:
+        store._set_worktree_identity(lease.run_id, str(tmp_path), head, lease.owner, lease.epoch)
+        store._set_repository_base_sha(lease.run_id, head, lease.owner, lease.epoch)
+        store._accept_checkpoint(lease.run_id, "PRE_PLANNER", "fixture", 1, lease.owner, lease.epoch)
+        run = store._get_durable_run(lease.run_id)
+        outcome = service._resume_single_pre_planner(
+            task_id=task_id, workspace_root=str(tmp_path.parent), run=run, lease=lease,
+            task=store.get_task(task_id), executor_kind="opencode", role_attempt=1,
+            prepared_path=None, review_status="",
+        )
+        persisted = store.get_task(task_id)
+        assert not outcome.success
+        assert persisted.failure_classification == "provider_overloaded", persisted.failure_detail
+        assert persisted.failure_detail.startswith("opencode_nonzero:exit=1:provider_overloaded ")
+        assert "unapproved" in persisted.failure_detail
+    finally:
+        store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
