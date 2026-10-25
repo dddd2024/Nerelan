@@ -313,9 +313,10 @@ class _FetchRefused(Exception):
 def _usage_result(status: str, reason: str | None, source_version: str | None = None,
                   rows: Iterable[Mapping[str, Any]] = (), scanned: int = 0, invalid_rows: int = 0,
                   reported_total: int | None = None, pages_read: int = 0, reached_cap: bool = False,
-                  complete: bool = False) -> dict[str, Any]:
+                  complete: bool = False,
+                  secrets: frozenset[str] | set[str] = frozenset()) -> dict[str, Any]:
     kept = [dict(row) for row in rows]
-    return {"source": SOURCE, "endpoint": USAGE_ENDPOINT, "source_version": source_version,
+    return {"source": SOURCE, "endpoint": USAGE_ENDPOINT, "source_version": _text(source_version, secrets),
             "status": status, "reason": reason, "rows": kept, "row_count": len(kept),
             "scanned": scanned, "invalid_rows": invalid_rows, "reported_total": reported_total,
             "pages_read": pages_read, "page_limit": PAGE_LIMIT, "row_cap": MAX_ROWS,
@@ -326,7 +327,8 @@ def _route_result(status: str, reason: str | None, source_version: str | None,
                   sessions: list[Any], traces: list[dict[str, Any]], complete: bool,
                   secrets: frozenset[str] | set[str] = frozenset()) -> dict[str, Any]:
     safe_sessions = [_text(_bounded_session(session), secrets) for session in sessions]
-    return {"source": SOURCE, "endpoint": ROUTE_ENDPOINT, "source_version": source_version,
+    return {"source": SOURCE, "endpoint": ROUTE_ENDPOINT,
+            "source_version": _text(source_version, secrets),
             "status": status, "reason": reason, "sessions": safe_sessions, "traces": traces,
             "requested": len(sessions), "returned": len(traces),
             "missing": len(sessions) - len(traces), "session_cap": MAX_SESSIONS,
@@ -417,11 +419,13 @@ def fetch_usage_requests(base_url: str = "http://127.0.0.1:3425", opener: Any = 
         while pages_read < MAX_PAGES:
             page = _read_page(open_request, origin,
                               "%s?offset=%d&limit=%d" % (USAGE_ENDPOINT, offset, PAGE_LIMIT), timeout)
+            # Private values are collected before the structural checks refuse a page,
+            # so a malformed page still scrubs the evidence already read.
+            page_secrets |= _private_strings(page)
             if not isinstance(page, Mapping) or not isinstance(page.get("rows"), list):
                 raise _FetchRefused("unavailable", "invalid_schema")
             if len(page["rows"]) > PAGE_LIMIT:
                 raise _FetchRefused("unavailable", "invalid_schema")
-            page_secrets |= _private_strings(page)
             pages_read += 1
             has_total = "total" in page
             total = _count(page["total"]) if has_total else None
@@ -465,11 +469,11 @@ def fetch_usage_requests(base_url: str = "http://127.0.0.1:3425", opener: Any = 
         if pages_read >= MAX_PAGES:
             reached_cap = True
         return _usage_result("ok", None, source_version=version, rows=rows, scanned=scanned,
-                             invalid_rows=invalid_rows, reported_total=reported_total,
-                             pages_read=pages_read, reached_cap=reached_cap,
-                             complete=(reported_total is not None and not reached_cap
-                                       and scanned == reported_total and invalid_rows == 0
-                                       and not duplicate_rid and not missing_rid and not total_changed))
+                              invalid_rows=invalid_rows, reported_total=reported_total,
+                              pages_read=pages_read, reached_cap=reached_cap, secrets=page_secrets,
+                              complete=(reported_total is not None and not reached_cap
+                                        and scanned == reported_total and invalid_rows == 0
+                                        and not duplicate_rid and not missing_rid and not total_changed))
     except _FetchRefused as exc:
         return _usage_result(exc.status, exc.reason)
     except Exception:
@@ -513,9 +517,11 @@ def fetch_session_routes(sessions: Iterable[Any], base_url: str = "http://127.0.
         for session, query in zip(provided, encoded):
             page = _read_page(open_request, origin,
                               "%s?session=%s" % (ROUTE_ENDPOINT, query), timeout)
+            # Private values are collected before the structural checks refuse a page,
+            # so a malformed page still scrubs the traces already read.
+            page_secrets |= _private_strings(page)
             if not isinstance(page, Mapping) or not any(key in page for key in _ROUTE_FIELDS):
                 raise _FetchRefused("unavailable", "invalid_schema")
-            page_secrets |= _private_strings(page)
             trace = parse_route(page)
             if trace is None or trace.get("model") is None:
                 raise _FetchRefused("unavailable", "invalid_schema")

@@ -550,3 +550,52 @@ def test_malformed_route_model_not_complete():
     result = fetch_session_routes(["opaque-session"], opener=opener)
     assert result["complete"] is False
     assert result["status"] == "unavailable"
+
+
+def test_a_malformed_route_page_scrubs_the_trace_already_read_for_a_dict_payload():
+    secret = "synthetic-late-alias"
+    opener, _ = run([body(HELLO), body({"model": "m", "served": secret}),
+                     body({"alias": secret})])
+    result = fetch_session_routes(["sess-1", "sess-2"], opener=opener)
+    assert (result["status"], result["reason"]) == ("unavailable", "invalid_schema")
+    assert result["complete"] is False
+    # The earlier trace is kept as useful partial evidence, but scrubbed.
+    assert result["returned"] == 1 and result["missing"] == 1
+    assert result["traces"][0]["session"] == "sess-1"
+    assert result["traces"][0]["trace"]["served"] is None
+    assert secret not in json.dumps(result)
+
+
+def test_a_malformed_route_page_scrubs_the_trace_already_read_for_a_list_payload():
+    secret = "synthetic-late-alias-list"
+    opener, _ = run([body(HELLO), body({"model": "m", "served": secret}),
+                     body([{"alias": secret}])])
+    result = fetch_session_routes(["sess-1", "sess-2"], opener=opener)
+    assert (result["status"], result["reason"]) == ("unavailable", "invalid_schema")
+    assert result["complete"] is False
+    assert result["returned"] == 1 and result["missing"] == 1
+    assert result["traces"][0]["trace"]["served"] is None
+    assert secret not in json.dumps(result)
+
+
+def test_a_private_source_version_is_scrubbed_from_route_results():
+    secret = "synthetic-private-version"
+    opener, _ = run([body({"name": "magpie", "version": secret}),
+                     body({"model": "m", "served": "m", "alias": secret})])
+    result = fetch_session_routes(["opaque-session"], opener=opener)
+    assert (result["status"], result["reason"], result["complete"]) == ("ok", None, True)
+    assert result["source_version"] is None
+    assert secret not in json.dumps(result)
+
+
+def test_a_private_source_version_is_scrubbed_from_usage_results():
+    secret = "synthetic-private-version"
+    opener, _ = run([body({"name": "magpie", "version": secret}),
+                     body(ledger([row(alias=secret)], total=1))])
+    result = fetch_usage_requests(opener=opener)
+    assert (result["status"], result["reason"], result["complete"]) == ("ok", None, True)
+    assert result["source_version"] is None
+    assert secret not in json.dumps(result)
+    # A public version is untouched by the same scan.
+    plain, _ = run([body(HELLO), body(ledger([row()], total=1))])
+    assert fetch_usage_requests(opener=plain)["source_version"] == HELLO["version"]
