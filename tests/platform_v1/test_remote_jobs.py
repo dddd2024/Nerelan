@@ -936,18 +936,24 @@ def test_native_interpreter_reads_the_remote_program_from_real_stdin(tmp_path) -
         "wall": 60, "cap": 1024, "fallback_launched_at": 1790000000, "grace": 5,
         "devices": "",
     }
-    fixture_root = Path.home() / "wjc" / ".nerelan-native-stdin-fixture"
+    # The subprocess gets an isolated temporary home (Path.home() honours
+    # HOME/USERPROFILE), so the real prelude's ~/wjc semantics are exercised
+    # without touching — or deleting anything from — the account's real home,
+    # and concurrent runs each own their fixture.
+    isolated_home = tmp_path / "isolated-home"
+    isolated_home.mkdir()
+    env = dict(os.environ, HOME=str(isolated_home), USERPROFILE=str(isolated_home))
+    fixture_root = isolated_home / "wjc" / ".nerelan-native-stdin-fixture"
     try:
         completed = subprocess.run(
             [sys.executable, "-"], input=_remote_program(data),
-            capture_output=True, text=True, encoding="utf-8", timeout=120)
+            capture_output=True, text=True, encoding="utf-8", timeout=120, env=env)
         assert completed.returncode == 0, completed.stderr
         # The real helper answered: the whole hostile request survived the
         # stdin round trip through json escaping into the interpreter.
         assert json.loads(completed.stdout) == {"marker": False}
         assert fixture_root.is_dir()  # the real prelude created the job dir
     finally:
-        # Only the fixture directory itself; a real ~/wjc must never be touched.
         shutil.rmtree(fixture_root, ignore_errors=True)
 
 
