@@ -134,12 +134,61 @@ def test_break_even_carries_previous_when_sparse():
     assert update_break_even(runs)["cross_over_task_count"] is None
 
 
-def test_team_per_task_not_cheaper_reports_hint_and_no_cross_over():
+def test_team_per_task_not_cheaper_is_decisive_for_single():
+    # When the fitted marginal team cost is not lower, no size makes the team
+    # cheaper: cross-over 0 (single at every size), not a silent default.
     runs = single_runs([(10.0, 2), (20.0, 4), (40.0, 8)]) + team_runs([(30.0, 2), (60.0, 4), (120.0, 8)])
     record = update_break_even(runs)
-    assert record["sufficient_evidence"] is False
+    assert record["sufficient_evidence"] is True
     assert record["hint"] == "team_per_task_not_cheaper"
     assert record["cross_over_task_count"] is None
+    decision = select_orchestration(size_estimate={"task_count": 9}, break_even=record)
+    assert decision["mode"] == "single" and decision["reason"] == "measured_team_not_cheaper"
+    # Without sufficiency the same hint must NOT decide.
+    weak = update_break_even(runs[:2] + runs[3:])
+    if weak["hint"] == "team_per_task_not_cheaper":
+        weak_decision = select_orchestration(size_estimate={"task_count": 9}, break_even=weak)
+        assert weak_decision["reason"] != "measured_team_not_cheaper"
+
+
+def test_evidence_minimum_is_enforced_per_size_band():
+    # The issue bar: at least 3 tasks per size band in BOTH modes before the
+    # default may move. One thin band keeps the previous cross-over even when
+    # the pooled totals look plentiful.
+    runs = single_runs([(20.0, 2), (40.0, 4), (80.0, 8)]) + team_runs([(30.0, 2), (40.0, 4), (60.0, 8)])
+    thin = [run("single", cost=5.0, count=2, band="medium"), run("agent_team", cost=9.0, count=2, band="medium")]
+    record = update_break_even(runs + thin)
+    assert record["sufficient_evidence"] is False
+    assert record["hint"] == "insufficient_evidence"
+    assert record["usable_runs_per_band"]["medium"] == {"single": 1, "agent_team": 1}
+    assert record["cross_over_task_count"] is None
+    carried = update_break_even(runs + thin, previous={"cross_over_task_count": 4.0})
+    assert carried["cross_over_task_count"] == 4.0 and carried["carried_from_previous"] is True
+    # Completing the thin band restores sufficiency, pooling bands by task count.
+    # Medium-band runs drawn from the same generating model (single 10/task,
+    # team 20 + 5n) so completing the band restores the pooled cross-over 4.0.
+    completed = thin + [run("single", cost=50.0, count=5, band="medium"),
+                        run("single", cost=60.0, count=6, band="medium"),
+                        run("agent_team", cost=45.0, count=5, band="medium"),
+                        run("agent_team", cost=50.0, count=6, band="medium")]
+    full = update_break_even(runs + completed)
+    assert full["sufficient_evidence"] is True
+    # The pooled fit absorbs the thin band's off-model point, so the exact
+    # cross-over moves; the band gate is what this test pins.
+    assert full["cross_over_task_count"] is not None and full["cross_over_task_count"] > 0
+    assert full["hint"] is None
+
+
+def test_runs_without_a_band_are_treated_as_one_unbanded_bucket():
+    unbanded = [{"mode": mode, "accepted": True, "cost_units": cost, "task_count": n,
+                 "tokens": {"planner": 1, "executor": 2, "reviewer": 3},
+                 "wall_seconds": 10.0, "size_band": None}
+                for mode, costs in (("single", [(20.0, 2), (40.0, 4), (80.0, 8)]),
+                                    ("agent_team", [(30.0, 2), (40.0, 4), (60.0, 8)]))
+                for cost, n in costs]
+    record = update_break_even(unbanded)
+    assert record["sufficient_evidence"] is True
+    assert record["usable_runs_per_band"]["unbanded"] == {"single": 3, "agent_team": 3}
 
 
 def test_zero_overhead_team_wins_from_first_split():

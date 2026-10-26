@@ -14,11 +14,12 @@ The break-even model is linear in the estimated task count ``n``: a single
 model costs about ``S·n`` (same per-task price at any size), the team costs
 ``C + T·n`` (planner plus coordination overhead ``C``, per-task ``T`` — often
 cheaper per task through model fit). The team wins for ``n > C/(S−T)``, which
-is the measured ``cross_over_task_count``. Defaults until measurements exist
-follow the issue: ``single`` for an objective that clearly maps to one task,
-otherwise ``agent_team``. An Owner pin always wins and is reported as such.
-Unknown token or money counts stay UNKNOWN — a run with unknown usage is
-counted as such, never silently averaged in as zero.
+is the measured ``cross_over_task_count``; a team whose marginal per-task cost
+is not lower yields cross-over 0 — single at every size. Defaults until
+measurements exist follow the issue: ``single`` for an objective that clearly
+maps to one task, otherwise ``agent_team``. An Owner pin always wins and is
+reported as such. Unknown token or money counts stay UNKNOWN — a run with
+unknown usage is counted as such, never silently averaged in as zero.
 """
 from __future__ import annotations
 
@@ -82,6 +83,12 @@ def select_orchestration(
                 "evidence": {"estimated_task_count": estimate,
                              "cross_over_task_count": cross_over,
                              "break_even_used": True}}
+    # A decisive negative measurement: the fitted marginal team cost is not
+    # lower, so no size makes the team cheaper — single at every estimate.
+    if (isinstance(break_even, Mapping) and break_even.get("sufficient_evidence") is True
+            and break_even.get("hint") == "team_per_task_not_cheaper" and estimate is not None):
+        return {"mode": "single", "reason": "measured_team_not_cheaper",
+                "evidence": {"estimated_task_count": estimate, "break_even_used": True}}
     # Default until evidence exists: one task → one model; more → team mode.
     mode = "single" if estimate is not None and estimate <= 1 else "agent_team"
     reason = "default_single_task" if mode == "single" else "default_multi_task_no_evidence"
@@ -131,38 +138,53 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
     cost-per-task of accepted single runs (no overhead term); the team's
     ``cost = C + T·n`` is fitted by least squares over its accepted runs
     (median ratios would absorb the overhead into ``T`` and hide it);
-    ``cross_over_task_count = C/(S−T)``. Fewer than
-    ``_MIN_OBSERVATIONS_PER_MODE`` usable accepted runs per mode keeps the
-    previous break-even and flags ``insufficient_evidence`` — the default must
-    not move on sparse data (#1267: a report from at least 3 tasks per size
-    band in both modes before changing the default).
+    ``cross_over_task_count = C/(S−T)``. Per the issue's evidence bar — at
+    least 3 tasks per size band in both modes before the default may move —
+    every ``size_band`` represented in the data must hold
+    ``_MIN_OBSERVATIONS_PER_MODE`` usable accepted runs per mode, otherwise the
+    previous break-even is kept and flagged ``insufficient_evidence``. When
+    the team's marginal per-task cost is not lower, no size makes it cheaper:
+    the record is decisive (``sufficient_evidence`` with hint
+    ``team_per_task_not_cheaper``) and the selector maps every estimate to
+    single from it, instead of silently falling back to the default.
     """
     rows = [dict(row) for row in runs
             if isinstance(row, Mapping) and _mode(row.get("mode")) and row.get("accepted") is True]
-    usable: dict[str, list[tuple[float, float]]] = {"single": [], "agent_team": []}
+    usable: dict[str, dict[str, list[tuple[float, float]]]] = {}
     for row in rows:
         cost, count = _known_number(row.get("cost_units")), _positive(row.get("task_count"))
-        if cost is not None and count is not None:
-            usable[row["mode"]].append((cost, count))
+        if cost is None or count is None:
+            continue
+        band = row.get("size_band") if isinstance(row.get("size_band"), str) and row.get("size_band") else "unbanded"
+        usable.setdefault(band, {"single": [], "agent_team": []})[row["mode"]].append((cost, count))
+    band_counts = {band: {mode: len(values) for mode, values in sides.items()}
+                   for band, sides in sorted(usable.items())}
     record: dict[str, Any] = {
-        "usable_runs": {mode: len(values) for mode, values in usable.items()},
+        "usable_runs": {mode: sum(counts[mode] for counts in band_counts.values())
+                        for mode in sorted(_MODES)},
+        "usable_runs_per_band": band_counts,
         "cross_over_task_count": None,
         "sufficient_evidence": False,
         "carried_from_previous": False,
         "hint": None,
     }
-    if min(len(usable["single"]), len(usable["agent_team"])) < _MIN_OBSERVATIONS_PER_MODE:
+    enough = (bool(band_counts) and all(
+        min(counts["single"], counts["agent_team"]) >= _MIN_OBSERVATIONS_PER_MODE
+        for counts in band_counts.values()))
+    if not enough:
         record["hint"] = "insufficient_evidence"
-        if isinstance(previous, Mapping) and _positive(previous.get("cross_over_task_count")) is not None:
+        if isinstance(previous, Mapping) and _known_number(previous.get("cross_over_task_count")) is not None:
             record["cross_over_task_count"] = previous["cross_over_task_count"]
             record["carried_from_previous"] = True
         return record
-    single_per_task = statistics.median(cost / count for cost, count in usable["single"])
+    pooled_single = [(cost, count) for sides in usable.values() for cost, count in sides["single"]]
+    pooled_team = [(cost, count) for sides in usable.values() for cost, count in sides["agent_team"]]
+    single_per_task = statistics.median(cost / count for cost, count in pooled_single)
     # Team cost follows the linear model C + T·n; the median of cost/n is NOT
     # the marginal cost when overhead is present (it drifts down with n), so
     # fit slope T and intercept C by least squares instead.
-    team_n = [float(count) for _, count in usable["agent_team"]]
-    team_c = [float(cost) for cost, _ in usable["agent_team"]]
+    team_n = [float(count) for _, count in pooled_team]
+    team_c = [float(cost) for cost, _ in pooled_team]
     if len(set(team_n)) < 2:
         record["hint"] = "degenerate_team_sizes"
         return record
@@ -176,8 +198,10 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
     record["unit_cost_per_task"] = {"single": round(single_per_task, 6),
                                     "agent_team": round(team_per_task, 6)}
     if team_per_task >= single_per_task:
-        # The team's marginal per-task cost is not lower, so no size makes it
-        # cheaper no matter how the overhead amortizes.
+        # The team's marginal per-task cost is not lower: no size makes it
+        # cheaper. There is no cross-over quantity to report; the decisive
+        # measurement lives in the hint the selector reads explicitly.
+        record["sufficient_evidence"] = True
         record["hint"] = "team_per_task_not_cheaper"
         return record
     if overhead <= 0:
