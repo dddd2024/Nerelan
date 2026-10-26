@@ -27,7 +27,7 @@ def ledger(raw_rows):
 
 def token_totals(correlated):
     return {k: correlated["totals"][k] for k in
-            ("input", "output", "cache_read", "cache_write", "reasoning")}
+            ("input", "output", "cache_read", "cache_write", "cache_write_1h", "reasoning")}
 
 
 def snapshot(credits, *, account="acct-1", window="credits", observed_at=T1,
@@ -252,7 +252,8 @@ def test_cache_and_reasoning_tokens_stay_in_their_own_dimension():
                       "tokens": token_totals(correlated),
                       "cost_usd": correlated["totals"]["cost_usd"], "priced": True}])
     assert record["tasks"][0]["tokens"] == {"input": 100, "output": 200, "cache_read": 500,
-                                            "cache_write": 0, "reasoning": 300}
+                                            "cache_write": 0, "cache_write_1h": None,
+                                            "reasoning": 300}
     assert record["account_delta_credits"] == 2.0
     assert record["unattributed_residual_credits"] == 0.0
 
@@ -340,3 +341,65 @@ def test_non_provider_or_mismatched_endpoints_refuse():
 def test_record_is_json_safe():
     record = reconcile_account_interval(snapshot(100.0, observed_at=T0), snapshot(99.0))
     json.dumps(record, allow_nan=False)
+
+
+# --- review round 1 findings (F1/F2/F3/F5) -------------------------------------
+
+
+def test_unplaceable_sibling_reservation_fails_closed():
+    # F1: a same-account reservation whose start cannot be parsed cannot be
+    # proven non-overlapping, so the interval must refuse, not settle.
+    before, after = snapshot(100.0, observed_at=T0), snapshot(98.0)
+    for bad in ({"account_ref": "acct-1", "created_at": None, "reconciled_at": None},
+                {"account_ref": "acct-1", "created_at": "garbage", "reconciled_at": None},
+                {"account_ref": "acct-1", "reconciled_at": "2026-10-25T10:30:00Z"}):
+        record = reconcile_account_interval(
+            before, after,
+            task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                          "requests": 1, "tokens": {"input": 10}, "cost_usd": 1.0, "priced": True}],
+            other_reservations=[bad])
+        assert record["status"] == "REFUSED" and record["reason"] == "unplaceable_reservation", bad
+        assert record["account_delta_credits"] is None
+
+
+def test_refusal_digest_is_injective_over_task_inputs():
+    # F3: two refusals of the same interval with different task sets must not
+    # share one inputs_digest.
+    before = snapshot(100.0, observed_at=T0)
+    after = snapshot(99.0, source="estimated")
+    first = reconcile_account_interval(before, after, task_usages=[])
+    second = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": 1, "tokens": {"input": 10}, "cost_usd": 1.0, "priced": True}])
+    assert first["inputs_digest"] != second["inputs_digest"]
+
+
+def test_cache_write_1h_flows_through_the_documented_plumbing():
+    # F2: the correlation totals carry six token buckets; dropping one from
+    # settlement must not silently shrink a measured task's usage.
+    correlated = correlate_task_usage(
+        [], ledger([usage_row("r-1h", "s-1h", cost=2.0, cache_write=10)]),
+        sessions=("s-1h",))
+    # inject a cache_write_1h bucket the wire row carries
+    rows = parse_usage_ledger({"rows": [dict(usage_row("r-1h", "s-1h", cost=2.0),
+                                              cache_write_1h=77)]})["rows"]
+    correlated = correlate_task_usage([], rows, sessions=("s-1h",))
+    assert correlated["totals"]["cache_write_1h"] == 77
+    before, after = snapshot(50.0, observed_at=T0), snapshot(48.0)
+    record = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": correlated["request_count"], "tokens": token_totals(correlated),
+                      "cost_usd": correlated["totals"]["cost_usd"], "priced": True}])
+    assert record["tasks"][0]["tokens"]["cache_write_1h"] == 77
+    assert record["dimensions"]["task_token_usage"]["tokens"]["cache_write_1h"] == 77
+
+
+def test_exact_refusal_reasons_for_malformed_shapes():
+    # F5: the two previously unasserted refusal reasons.
+    record = reconcile_account_interval("not-a-snapshot", snapshot(99.0))
+    assert record["status"] == "REFUSED" and record["reason"] == "invalid_snapshot"
+    record = reconcile_account_interval(snapshot(100.0, observed_at=T0), snapshot(99.0),
+                                        task_usages=[{"task_id": f"t-{i}"} for i in range(65)])
+    assert record["status"] == "REFUSED" and record["reason"] == "too_many_tasks"

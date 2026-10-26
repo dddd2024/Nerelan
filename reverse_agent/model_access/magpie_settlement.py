@@ -39,7 +39,7 @@ from .quota_forecast import parse_time
 
 _PROVIDER_SOURCES = frozenset({"magpie", "official", "cli", "claude_rate_limit_event"})
 _MAX_TASKS = 64
-_TOKEN_FIELDS = ("input", "output", "cache_read", "cache_write", "reasoning")
+_TOKEN_FIELDS = ("input", "output", "cache_read", "cache_write", "cache_write_1h", "reasoning")
 
 
 def _number(value: Any) -> float | None:
@@ -67,7 +67,8 @@ def _digest(before: Mapping[str, Any], after: Mapping[str, Any],
 
 
 def _refused(reason: str, before: Mapping[str, Any], after: Mapping[str, Any],
-             unattributed_request_rows: int) -> dict[str, Any]:
+             unattributed_request_rows: int, tasks: Iterable[Mapping[str, Any]] = ()) -> dict[str, Any]:
+    task_list = [dict(task) for task in tasks if isinstance(task, Mapping)]
     return {"status": "REFUSED", "reason": reason, "account_ref": after.get("account_ref"),
             "interval": {"start": before.get("observed_at"), "end": after.get("observed_at"),
                          "window": _text(after.get("window"))},
@@ -75,7 +76,9 @@ def _refused(reason: str, before: Mapping[str, Any], after: Mapping[str, Any],
             "unattributed_residual_credits": None,
             "dimensions": {"account_balance_credits": None, "task_token_usage": None,
                            "estimated_money": None},
-            "inputs_digest": _digest(before, after, (), unattributed_request_rows)}
+            # The digest covers the task inputs too, so two refusals of the
+            # same interval with different task sets never share one identity.
+            "inputs_digest": _digest(before, after, task_list, unattributed_request_rows)}
 
 
 def reconcile_account_interval(
@@ -102,39 +105,44 @@ def reconcile_account_interval(
     instead of guessing.
     """
     if not isinstance(before, Mapping) or not isinstance(after, Mapping):
-        return _refused("invalid_snapshot", {}, {}, 0)
+        return _refused("invalid_snapshot", {}, {}, 0, ())
     tasks = [dict(task) for task in task_usages if isinstance(task, Mapping)]
     if len(tasks) > _MAX_TASKS:
-        return _refused("too_many_tasks", before, after, unattributed_request_rows)
+        return _refused("too_many_tasks", before, after, unattributed_request_rows, tasks)
     start, end = _observed_at(before), _observed_at(after)
     account = _text(after.get("account_ref"))
     if not account or before.get("account_ref") != account:
-        return _refused("account_mismatch", before, after, unattributed_request_rows)
+        return _refused("account_mismatch", before, after, unattributed_request_rows, tasks)
     if (_text(before.get("source")) not in _PROVIDER_SOURCES
             or _text(after.get("source")) not in _PROVIDER_SOURCES):
-        return _refused("non_provider_reading", before, after, unattributed_request_rows)
+        return _refused("non_provider_reading", before, after, unattributed_request_rows, tasks)
     if _text(before.get("window")) != _text(after.get("window")) or _text(after.get("window")) is None:
-        return _refused("window_identity_changed", before, after, unattributed_request_rows)
+        return _refused("window_identity_changed", before, after, unattributed_request_rows, tasks)
     if start is None or end is None or start >= end:
-        return _refused("invalid_interval", before, after, unattributed_request_rows)
+        return _refused("invalid_interval", before, after, unattributed_request_rows, tasks)
     # Item 2: absolute counters only. A rounded percentage delta of zero is not
     # proof of zero use, so a percentage-only interval can never settle a task.
     prior, latest = _number(before.get("credits_remaining")), _number(after.get("credits_remaining"))
     if prior is None or latest is None:
-        return _refused("percentage_only_quantized", before, after, unattributed_request_rows)
+        return _refused("percentage_only_quantized", before, after, unattributed_request_rows, tasks)
     if before.get("resets_at") != after.get("resets_at"):
-        return _refused("window_reset", before, after, unattributed_request_rows)
+        return _refused("window_reset", before, after, unattributed_request_rows, tasks)
     if latest > prior:
         # Credits going up is a top-up, expiry refund or correction, not
         # negative consumption: the interval cannot attribute anything.
-        return _refused("credit_increase", before, after, unattributed_request_rows)
+        return _refused("credit_increase", before, after, unattributed_request_rows, tasks)
     for reservation in other_reservations:
         if not isinstance(reservation, Mapping) or reservation.get("account_ref") != account:
             continue
         created = parse_time(_text(reservation.get("created_at")) or "")
         finished = parse_time(_text(reservation.get("reconciled_at")) or "")
-        if created is not None and created < end and (finished is None or finished > start):
-            return _refused("overlapping_reservation", before, after, unattributed_request_rows)
+        # Fail closed like delta_calibration: a same-account reservation whose
+        # start cannot be placed cannot be proven non-overlapping, so it voids
+        # the verified-exclusive precondition instead of being skipped.
+        if created is None:
+            return _refused("unplaceable_reservation", before, after, unattributed_request_rows, tasks)
+        if created < end and (finished is None or finished > start):
+            return _refused("overlapping_reservation", before, after, unattributed_request_rows, tasks)
 
     delta = round(prior - latest, 6)
     mine = [task for task in tasks if task.get("account_ref") == account]
