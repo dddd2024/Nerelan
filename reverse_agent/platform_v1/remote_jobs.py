@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import base64
 from dataclasses import dataclass, replace
+import ctypes
+import errno
 import hashlib
 import json
 import logging
@@ -16,6 +18,8 @@ import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shlex
+import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -29,6 +33,24 @@ JOB_ID = re.compile(r"[a-z0-9][a-z0-9._-]{2,63}\Z")
 REQUEST_FIELDS = ("job_id", "command", "files", "outputs", "max_wall_seconds", "gpu", "purpose")
 TERMINAL = {"SUCCEEDED", "FAILED", "TIMED_OUT", "LOST"}
 LOG_LIMIT = 1024 * 1024
+QUARANTINE_DIR = ".quarantine"
+QUARANTINE_FENCE = "quarantine.json"
+QUARANTINE_FENCE_STATES = {"SEALING", "COMMITTED", "INCOMPLETE"}
+# States where the remote process may still be occupying a slot.  Quarantining
+# these states locally would free a counted concurrent slot without confirming
+# the remote process actually stopped, so the broker refuses before any move.
+_ACTIVE_UNCONFIRMED_STATES = {
+    "UPLOADED", "LAUNCHED", "RUNNING", "TIMED_OUT_KILL_PENDING", "LOST"}
+# Windows FILE_ATTRIBUTE_REPARSE_POINT: junctions and symlinks alike.
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+_WIN_SHARE_ALL = 0x00000007
+_WIN_OPEN_EXISTING = 3
+_WIN_FLAG_BACKUP_SEMANTICS = 0x02000000
+_WIN_FLAG_POSIX_SEMANTICS = 0x01000000
+_WIN_INVALID_HANDLE = ctypes.c_size_t(-1).value
+# Rename is the normal path; the copy fallback is only a degraded mode, so it
+# is bounded by the profile payload limits plus slack for broker control files.
+ARCHIVE_COPY_SLACK = 8 * 1024 * 1024
 
 
 def _relative(value: str) -> str:
@@ -357,7 +379,7 @@ def _hash(path, max_bytes=None):
 
 
 def _copy_limited(source, dest, limit):
-    if any(p.is_symlink() for p in (source, *source.parents)):
+    if any(_is_link_like(p) for p in (source, *source.parents)):
         raise ValueError("symlinks are forbidden")
     size = 0
     with source.open("rb") as inp, dest.open("wb") as out:
@@ -375,6 +397,194 @@ def _fingerprint(path):
             return hashlib.sha256(stream.read(65537)).hexdigest()
     except OSError as exc:
         return "unreadable:" + str(exc)
+
+
+def _is_link_like(path: Path) -> bool:
+    """True for symlinks, Windows junctions and any other reparse point.
+
+    ``Path.is_symlink()`` alone misses the unprivileged directory junctions that
+    ``mklink /J`` creates, so the platform reparse attribute is checked as well.
+    """
+    if Path(path).is_symlink():
+        return True
+    try:
+        info = os.stat(path, follow_symlinks=False)
+    except OSError:
+        return False
+    if os.name == "nt":
+        return bool((getattr(info, "st_file_attributes", 0) or 0)
+                    & _FILE_ATTRIBUTE_REPARSE_POINT)
+    return stat.S_ISLNK(info.st_mode)
+
+
+def _no_symlinks(path: Path) -> None:
+    """Refuse symlinks and Windows reparse points in ``path`` and its parents."""
+    for part in (path, *path.parents):
+        if _is_link_like(part):
+            raise ValueError("symlinks and reparse points are forbidden")
+
+
+def _first_link_like_entry(root: Path):
+    """Return the first link-like entry below ``root`` without following it."""
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                children = sorted(entries, key=lambda item: item.name)
+        except OSError as exc:
+            raise ValueError("archive tree cannot be inspected: " + str(exc)) from exc
+        for entry in children:
+            if _is_link_like(Path(entry.path)):
+                return Path(entry.path)
+            if entry.is_dir(follow_symlinks=False):
+                stack.append(Path(entry.path))
+    return None
+
+
+def _fsync_dir(directory: Path) -> None:
+    """Best effort directory entry durability; each OS decides what it supports.
+
+    POSIX exposes ``fsync(2)`` on a directory handle.  Windows only exposes
+    ``FlushFileBuffers`` on a handle opened with ``FILE_FLAG_BACKUP_SEMANTICS``,
+    and most filesystems decline that flush, so an unavailable or declined
+    flush is a no-op rather than an error.  File contents are always fsync'd;
+    no full power-loss guarantee is claimed here.
+    """
+    if os.name == "nt":
+        kernel32 = ctypes.WinDLL("kernel32.dll")
+        create = kernel32.CreateFileW
+        create.argtypes = [ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32,
+                           ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p]
+        create.restype = ctypes.c_size_t
+        handle = create(str(directory), 0, _WIN_SHARE_ALL, None, _WIN_OPEN_EXISTING,
+                        _WIN_FLAG_BACKUP_SEMANTICS | _WIN_FLAG_POSIX_SEMANTICS, None)
+        if handle in (0, _WIN_INVALID_HANDLE):
+            return
+        try:
+            kernel32.FlushFileBuffers(handle)
+        finally:
+            kernel32.CloseHandle(handle)
+        return
+    try:
+        handle = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return
+    try:
+        os.fsync(handle)
+    except OSError as exc:
+        if exc.errno not in {errno.EINVAL, errno.EISDIR, errno.ENOTSUP, errno.EPERM}:
+            raise
+    finally:
+        os.close(handle)
+
+
+def _tree_manifest(directory: Path, prefix: str):
+    """Byte hash manifest of the regular files under ``directory``.
+
+    A link-like entry raises instead of being skipped, so a manifest can never
+    be built over foreign bytes pulled in through a symlink or a junction.
+    """
+    entries = []
+    for path in sorted(directory.rglob("*")):
+        if _is_link_like(path):
+            raise ValueError("archive contains a link-like entry: " + path.relative_to(directory).as_posix())
+        if not path.is_file():
+            continue
+        entries.append({"path": prefix + "/" + path.relative_to(directory).as_posix(),
+                        "size": path.stat().st_size, "sha256": _hash(path)})
+    return entries
+
+
+def _copy_tree_limited(source: Path, dest: Path, limit: int) -> None:
+    """Byte-for-byte copy of an already link-checked tree under a byte budget.
+
+    The budget is enforced against the bytes actually streamed through the copy,
+    not a pre-copy stat, so a source that grows between the stat and the open --
+    or while the copy is running -- is stopped at the cap.  The overrun is never
+    written and the source is never removed on an over-budget failure, so the
+    original source is preserved for the caller.
+    """
+    counters = [0]
+
+    def file(src: Path, target: Path) -> None:
+        with src.open("rb") as inp, target.open("wb") as out:
+            while chunk := inp.read(65536):
+                counters[0] += len(chunk)
+                if counters[0] > limit:
+                    raise ValueError("archive exceeds the copy byte budget")
+                out.write(chunk)
+            out.flush()
+            os.fsync(out.fileno())
+
+    def tree(src: Path, target: Path) -> None:
+        target.mkdir()
+        with os.scandir(src) as entries:
+            children = sorted(entries, key=lambda item: item.name)
+        for entry in children:
+            if _is_link_like(Path(entry.path)):
+                raise ValueError("symlinks and reparse points are forbidden")
+            if entry.is_dir(follow_symlinks=False):
+                tree(Path(entry.path), target / entry.name)
+            else:
+                file(Path(entry.path), target / entry.name)
+        _fsync_dir(target)
+
+    tree(source, dest)
+
+
+def _nesting_refusal(source: Path, dest: Path) -> None:
+    """Refuse an archive destination that equals or contains its source.
+
+    Renaming a directory into its own descendant fails with an ``OSError``, so
+    the blanket fallback in :func:`_archive_tree` would otherwise recursively
+    copy the source -- including the new archive subtree -- into itself.  Refuse
+    equal and descendant relationships before any fence or movement, and again
+    defensively from the helper itself.
+    """
+    src = source.resolve()
+    dst = dest.resolve()
+    if dst.is_relative_to(src) or src.is_relative_to(dst):
+        raise ValueError("archive destination must not equal or contain its source")
+
+
+def _archive_tree(source: Path, dest: Path, limit: int) -> None:
+    """Move ``source`` to ``dest`` byte for byte, refusing link-like escapes.
+
+    A rename is used whenever the two roots share a filesystem.  Otherwise the
+    tree is copied under a byte budget, verified against the source by hash,
+    and only then removed.  Any failure raises and leaves ``source`` untouched,
+    so the fence written before the move keeps the job quarantined.
+    """
+    _nesting_refusal(source, dest)
+    _no_symlinks(source)
+    _no_symlinks(dest.parent)
+    if dest.exists():
+        raise ValueError("archive target already exists")
+    escaped = _first_link_like_entry(source)
+    if escaped is not None:
+        raise ValueError("archive contains a link-like entry: " + escaped.relative_to(source).as_posix())
+    size = 0
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            size += path.stat().st_size
+    if size > limit:
+        raise ValueError("archive exceeds the copy byte budget")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    _no_symlinks(dest.parent)
+    _fsync_dir(dest.parent)
+    try:
+        source.rename(dest)
+        _fsync_dir(dest.parent)
+        return
+    except OSError:
+        pass
+    _copy_tree_limited(source, dest, limit)
+    if _tree_manifest(source, "verify") != _tree_manifest(dest, "verify"):
+        shutil.rmtree(dest, ignore_errors=True)
+        raise ValueError("archive copy verification failed")
+    shutil.rmtree(source)
+    _fsync_dir(dest.parent)
 
 
 class _BrokerStopped(Exception):
@@ -433,7 +643,7 @@ class RemoteJobBroker:
             if name.split("/")[0] in {"job.json", "launch.json", "pid", "exit_code", "stdout.log", "stderr.log", "launch.tmp", ".nerelan-results"}:
                 raise ValueError("broker control paths are reserved")
             file = path.parent / name
-            if any(p.is_symlink() for p in (file, *file.parents)):
+            if any(_is_link_like(p) for p in (file, *file.parents)):
                 raise ValueError("symlinks are forbidden")
             file.resolve().relative_to(path.parent.resolve())
             if not file.is_file():
@@ -447,15 +657,81 @@ class RemoteJobBroker:
         digest = hashlib.sha256(raw + json.dumps(hashes, sort_keys=True).encode()).hexdigest()
         return request, digest
 
+    def _quarantined_ids(self):
+        """Job IDs fenced from discovery and dispatch by a durable archive.
+
+        The archive root is trusted state this broker writes, so a missing root
+        is the empty fence set while a malformed, unreadable or foreign root
+        fails closed: raising here is what stops a fenced id being rediscovered
+        and relaunched.
+        """
+        base = self.profile.local_root / QUARANTINE_DIR
+        if _is_link_like(base):
+            raise ValueError("quarantine archive root is a symlink or reparse point")
+        if not base.is_dir():
+            if base.exists():
+                raise ValueError("quarantine archive root is invalid")
+            return set()
+        fenced = set()
+        for entry in sorted(base.iterdir()):
+            name = entry.name
+            fence = entry / QUARANTINE_FENCE
+            if (not JOB_ID.fullmatch(name) or _is_link_like(entry) or not entry.is_dir()
+                    or _is_link_like(fence) or not fence.is_file()):
+                raise ValueError("quarantine archive contains a foreign entry: " + name)
+            fenced.add(name)
+        return fenced
+
+    def quarantines(self):
+        """Durable quarantine records, read only; the archives are never polled."""
+        base = self.profile.local_root / QUARANTINE_DIR
+        records = []
+        for job_id in sorted(self._quarantined_ids()):
+            try:
+                record = json.loads((base / job_id / QUARANTINE_FENCE).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(record, dict):
+                records.append(record)
+        return records
+
+    def _outbox_entries(self, job_id):
+        """Every outbox job directory matching ``job_id``; unsafe matches refuse.
+
+        A match behind a link-like component, outside its scan root, or not a
+        real directory raises rather than being skipped, so no matching outbox
+        can be left behind while the fence is written.
+        """
+        entries = []
+        for root in self.profile.scan_roots:
+            for path in sorted(root.glob("*/.nerelan-remote/outbox/" + job_id + "/job.json")):
+                directory = path.parent
+                if directory.name != job_id or not directory.is_dir():
+                    raise ValueError("quarantine match is not a real outbox directory: " + str(directory))
+                if any(_is_link_like(part) for part in (path, *path.parents)):
+                    raise ValueError("quarantine match follows a link-like path: " + str(directory))
+                try:
+                    if not directory.resolve().is_relative_to(root.resolve()):
+                        raise ValueError("quarantine match escapes the scan root: " + str(directory))
+                except OSError:
+                    raise ValueError("quarantine match cannot be resolved: " + str(directory))
+                entries.append(directory)
+        return entries
+
     def _discover(self):
+        fenced = self._quarantined_ids()
         for root in self.profile.scan_roots:
             for path in sorted(root.glob("*/.nerelan-remote/outbox/*/job.json")):
                 # Never follow worktree/outbox symlinks supplied by a request.
-                if any(p.is_symlink() for p in (path, *path.parents)):
+                if any(_is_link_like(p) for p in (path, *path.parents)):
                     continue
                 job_id = path.parent.name
                 # Invalid IDs still get a safe, deterministic receipt directory.
                 safe_id = job_id if JOB_ID.fullmatch(job_id) else "rejected-" + hashlib.sha256(str(path).encode()).hexdigest()[:24]
+                # A fenced id is never rediscovered, even while an interrupted
+                # archive still leaves a matching outbox entry on disk.
+                if job_id in fenced or safe_id in fenced:
+                    continue
                 directory = self.profile.local_root / safe_id
                 existing = directory / "receipt.json"
                 try:
@@ -593,8 +869,12 @@ class RemoteJobBroker:
     def tick(self):
         # File locking also excludes a manual CLI tick from the host daemon.
         with self._lock, _BrokerLock(self.profile.local_root / ".broker.lock"):
+            fenced = self._quarantined_ids()
             self._discover()
-            receipts = sorted(self.receipts(), key=lambda r: (r["discovered_at"], r["job_id"]))
+            # A fenced id is never dispatched, even if an interrupted archive
+            # left its receipt directory in place under local_root.
+            receipts = sorted((r for r in self.receipts() if r["job_id"] not in fenced),
+                              key=lambda r: (r["discovered_at"], r["job_id"]))
             # Reconcile pre-existing remote markers even when all local slots
             # are occupied. Recovery is observation, not a new submission.
             for receipt in receipts:
@@ -663,6 +943,139 @@ class RemoteJobBroker:
         receipt["errors"] = receipt.get("errors", 0) + 1
         receipt["retry_at"] = self.clock() + min(600, self.profile.poll_seconds * 2 ** min(receipt["errors"], 10))
         self._event(receipt, receipt["state"], "transport/collection error: " + str(exc)[:2000])
+
+    def quarantine(self, job_id, reason="owner quarantine"):
+        """Archive a receipt and every matching outbox entry so that no later
+        tick or broker restart can rediscover or relaunch the attempt.
+
+        Holds the same in-process lock and ``.broker.lock`` file lock as
+        :meth:`tick`; when another tick still owns the lock it raises ``OSError``
+        rather than racing it.  A durable fence is written into
+        ``<local_root>/.quarantine/<job_id>/quarantine.json`` before any byte is
+        moved, so an interrupted or failing archive stays fail-closed: the id
+        remains fenced while the moves are partial.  Receipt bytes and history
+        are moved, never rewritten, and every archived file is recorded with its
+        size and SHA-256.  No transport call is made.
+
+        Raises ``ValueError`` when the receipt is in a state that still occupies
+        or may occupy remote capacity (``UPLOADED``, ``LAUNCHED``, ``RUNNING``,
+        ``TIMED_OUT_KILL_PENDING``, ``LOST``) — refusing before any fence or
+        data movement conserves the durable ``max_concurrent`` slot until the
+        remote process reaches genuine terminal evidence.
+
+        Returns a report, or ``None`` when the id has neither a receipt nor an
+        outbox entry, or is already fenced.
+        """
+        with self._lock, _BrokerLock(self.profile.local_root / ".broker.lock"):
+            return self._quarantine_locked(job_id, reason)
+
+    def _quarantine_locked(self, job_id, reason):
+        if not isinstance(job_id, str) or not JOB_ID.fullmatch(job_id):
+            raise ValueError("invalid job_id")
+        if not isinstance(reason, str) or not 1 <= len(reason) <= 1000:
+            raise ValueError("reason must be a 1..1000 character string")
+        local_root = self.profile.local_root
+        root = local_root.resolve()
+        receipt_dir = local_root / job_id
+        _no_symlinks(receipt_dir)
+        if receipt_dir.exists() and not receipt_dir.is_dir():
+            raise ValueError("receipt path is not a directory")
+        if not receipt_dir.resolve().is_relative_to(root):
+            raise ValueError("job_id escapes the receipt root")
+        base = local_root / QUARANTINE_DIR
+        if _is_link_like(base):
+            raise ValueError("quarantine archive root is a symlink or reparse point")
+        if base.exists() and not base.is_dir():
+            raise ValueError("quarantine archive root is invalid")
+        for scan_root in self.profile.scan_roots:
+            if scan_root.resolve().is_relative_to(root):
+                raise ValueError("scan root inside the receipt root would rescan the archive")
+        archive = base / job_id
+        fence = archive / QUARANTINE_FENCE
+        if fence.exists():
+            return None
+        if _is_link_like(archive):
+            raise ValueError("quarantine archive path is a symlink or reparse point")
+        if archive.exists() and not archive.is_dir():
+            raise ValueError("quarantine archive path is not a directory")
+        outboxes = self._outbox_entries(job_id)
+        if not receipt_dir.exists() and not outboxes:
+            return None
+
+        # Every proposed archive source must be disjoint from its destination:
+        # renaming a directory into its own descendant fails and the OSError
+        # fallback would recursively copy the source into itself.  Refuse here,
+        # before the fence is written, and again defensively in _archive_tree.
+        if receipt_dir.exists():
+            _nesting_refusal(receipt_dir, archive / "receipt")
+        for index, source in enumerate(outboxes):
+            _nesting_refusal(source, archive / "outbox" / str(index))
+
+        receipt_evidence = None
+        if receipt_dir.exists():
+            receipt_file = receipt_dir / "receipt.json"
+            if not _is_link_like(receipt_file) and receipt_file.is_file():
+                try:
+                    saved = json.loads(receipt_file.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    saved = {}
+                history = saved.get("history") if isinstance(saved, dict) else None
+                receipt_evidence = {"state": saved.get("state"),
+                                    "request_digest": saved.get("request_digest"),
+                                    "history_events": len(history) if isinstance(history, list) else 0}
+
+        if receipt_evidence and receipt_evidence.get("state") in _ACTIVE_UNCONFIRMED_STATES:
+            raise ValueError(
+                "cannot quarantine a job with active or unconfirmed remote state: "
+                + receipt_evidence["state"])
+
+        quarantined_at = self.clock()
+        record = {"state": "SEALING", "job_id": job_id, "reason": reason,
+                  "quarantined_at": quarantined_at,
+                  "receipt_dir": str(receipt_dir) if receipt_dir.exists() else None,
+                  "outbox_dirs": [str(path) for path in outboxes],
+                  "note": "fence written before any move; this job_id is blocked from discovery and dispatch"}
+        archive.mkdir(parents=True, exist_ok=True)
+        _no_symlinks(archive)
+        _atomic_json(fence, record)
+        _fsync_dir(archive)
+        copy_limit = (self.profile.max_upload_bytes + self.profile.max_download_bytes
+                      + len(outboxes) * (65536 + self.profile.max_upload_bytes)
+                      + ARCHIVE_COPY_SLACK)
+
+        manifest, outbox_records = [], []
+        try:
+            if receipt_dir.exists():
+                _archive_tree(receipt_dir, archive / "receipt", copy_limit)
+                manifest.extend(_tree_manifest(archive / "receipt", "receipt"))
+            for index, source in enumerate(outboxes):
+                prefix = "outbox/%d" % index
+                _archive_tree(source, archive / "outbox" / str(index), copy_limit)
+                entries = _tree_manifest(archive / "outbox" / str(index), prefix)
+                manifest.extend(entries)
+                outbox_records.append({"source": str(source), "path": prefix,
+                                        "files": len(entries),
+                                        "bytes": sum(item["size"] for item in entries)})
+        except (OSError, ValueError, NotImplementedError) as exc:
+            record["state"] = "INCOMPLETE"
+            record["error"] = str(exc)[:2000]
+            try:
+                _atomic_json(fence, record)
+                _fsync_dir(archive)
+            except OSError:
+                pass
+            raise
+
+        record.update({"state": "COMMITTED", "receipt": receipt_evidence, "outboxes": outbox_records,
+                       "manifest": manifest, "files": len(manifest),
+                       "bytes": sum(item["size"] for item in manifest)})
+        _atomic_json(fence, record)
+        _fsync_dir(archive)
+        _fsync_dir(base)
+        return {"job_id": job_id, "state": "QUARANTINED", "reason": reason,
+                "quarantined_at": quarantined_at, "archive": str(archive),
+                "receipt": receipt_evidence, "outboxes": outbox_records, "manifest": manifest,
+                "files": len(manifest), "bytes": sum(item["size"] for item in manifest)}
 
     def start(self):
         if self._thread and self._thread.is_alive():
