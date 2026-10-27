@@ -497,18 +497,22 @@ def _tree_manifest(directory: Path, prefix: str):
 
 
 def _copy_tree_limited(source: Path, dest: Path, limit: int) -> None:
-    """Byte-for-byte copy of an already link-checked tree under a byte budget."""
+    """Byte-for-byte copy of an already link-checked tree under a byte budget.
+
+    The budget is enforced against the bytes actually streamed through the copy,
+    not a pre-copy stat, so a source that grows between the stat and the open --
+    or while the copy is running -- is stopped at the cap.  The overrun is never
+    written and the source is never removed on an over-budget failure, so the
+    original source is preserved for the caller.
+    """
     counters = [0]
 
     def file(src: Path, target: Path) -> None:
-        size = src.stat().st_size
-        if size < 0:
-            raise ValueError("archive entry has an invalid size")
-        counters[0] += size
-        if counters[0] > limit:
-            raise ValueError("archive exceeds the copy byte budget")
         with src.open("rb") as inp, target.open("wb") as out:
             while chunk := inp.read(65536):
+                counters[0] += len(chunk)
+                if counters[0] > limit:
+                    raise ValueError("archive exceeds the copy byte budget")
                 out.write(chunk)
             out.flush()
             os.fsync(out.fileno())
@@ -529,6 +533,21 @@ def _copy_tree_limited(source: Path, dest: Path, limit: int) -> None:
     tree(source, dest)
 
 
+def _nesting_refusal(source: Path, dest: Path) -> None:
+    """Refuse an archive destination that equals or contains its source.
+
+    Renaming a directory into its own descendant fails with an ``OSError``, so
+    the blanket fallback in :func:`_archive_tree` would otherwise recursively
+    copy the source -- including the new archive subtree -- into itself.  Refuse
+    equal and descendant relationships before any fence or movement, and again
+    defensively from the helper itself.
+    """
+    src = source.resolve()
+    dst = dest.resolve()
+    if dst.is_relative_to(src) or src.is_relative_to(dst):
+        raise ValueError("archive destination must not equal or contain its source")
+
+
 def _archive_tree(source: Path, dest: Path, limit: int) -> None:
     """Move ``source`` to ``dest`` byte for byte, refusing link-like escapes.
 
@@ -537,6 +556,7 @@ def _archive_tree(source: Path, dest: Path, limit: int) -> None:
     and only then removed.  Any failure raises and leaves ``source`` untouched,
     so the fence written before the move keeps the job quarantined.
     """
+    _nesting_refusal(source, dest)
     _no_symlinks(source)
     _no_symlinks(dest.parent)
     if dest.exists():
@@ -981,6 +1001,15 @@ class RemoteJobBroker:
         outboxes = self._outbox_entries(job_id)
         if not receipt_dir.exists() and not outboxes:
             return None
+
+        # Every proposed archive source must be disjoint from its destination:
+        # renaming a directory into its own descendant fails and the OSError
+        # fallback would recursively copy the source into itself.  Refuse here,
+        # before the fence is written, and again defensively in _archive_tree.
+        if receipt_dir.exists():
+            _nesting_refusal(receipt_dir, archive / "receipt")
+        for index, source in enumerate(outboxes):
+            _nesting_refusal(source, archive / "outbox" / str(index))
 
         receipt_evidence = None
         if receipt_dir.exists():

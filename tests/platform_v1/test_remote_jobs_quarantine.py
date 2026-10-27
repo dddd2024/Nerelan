@@ -8,6 +8,7 @@ the fence -- breaks these tests instead of passing quietly.
 """
 
 from pathlib import Path
+import errno
 import hashlib
 import json
 import os
@@ -572,3 +573,218 @@ def test_refusal_on_a_running_job_keeps_a_second_job_queued_under_max_concurrent
     assert (receipt_dir / "receipt.json").read_bytes() == original_bytes
     assert json.loads(original_bytes)["history"] == original["history"]
     assert not (broker.profile.local_root / QUARANTINE_DIR).exists()
+
+
+# The archive copy budget is enforced against the bytes actually streamed, not a
+# pre-copy stat: a source that grows between the stat and the open, or while the
+# copy is running, must stop at the cap with the original source preserved.
+
+
+def test_copy_budget_enforces_growth_before_open(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    entry = source / "file"
+    entry.write_bytes(b"1234")
+    dest = tmp_path / "dest"
+    original_open = Path.open
+    grown = []
+
+    def grow(path, mode="r", *args, **kwargs):
+        if path == entry and mode == "rb" and not grown:
+            grown.append(True)
+            with original_open(entry, "ab") as out:
+                out.write(b"x" * 100)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", grow)
+    with pytest.raises(ValueError, match="byte budget"):
+        remote_jobs._copy_tree_limited(source, dest, 8)
+
+    assert grown
+    # The 4-byte source grew to 104 before the read; the cap is never exceeded
+    # and the original source is never removed by a failed copy.
+    assert (source / "file").read_bytes() == b"1234" + b"x" * 100
+    assert (dest / "file").stat().st_size == 0
+
+
+def test_copy_budget_enforces_growth_during_read(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    entry = source / "file"
+    entry.write_bytes(b"1234")
+    dest = tmp_path / "dest"
+    original_open = Path.open
+    armed = {"on": True}
+
+    class GrowingStream:
+        """First read returns the original 4 bytes, then the file grows 100."""
+
+        def __init__(self, path):
+            self._base = original_open(path, "rb")
+            self._first = True
+
+        def read(self, n=-1):
+            if self._first:
+                self._first = False
+                return self._base.read(4)
+            if armed["on"]:
+                armed["on"] = False
+                with original_open(entry, "ab") as out:
+                    out.write(b"x" * 100)
+            return self._base.read(n)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self._base.close()
+            return False
+
+    def growing_open(path, mode="r", *args, **kwargs):
+        if path == entry and mode == "rb":
+            return GrowingStream(path)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", growing_open)
+    with pytest.raises(ValueError, match="byte budget"):
+        remote_jobs._copy_tree_limited(source, dest, 8)
+    monkeypatch.setattr(Path, "open", original_open)
+
+    # Only the first 4 bytes were streamed before the source grew to 104; the
+    # overrun is never written and the grown source is left untouched.
+    assert (source / "file").read_bytes() == b"1234" + b"x" * 100
+    assert (dest / "file").stat().st_size == 4
+
+
+def test_copy_budget_aggregates_across_files(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a").write_bytes(b"a" * 5)
+    (source / "b").write_bytes(b"b" * 5)
+    dest = tmp_path / "dest"
+
+    with pytest.raises(ValueError, match="byte budget"):
+        remote_jobs._copy_tree_limited(source, dest, 8)
+
+    # The per-file totals add up: the second file cannot push the archive past
+    # the shared budget, and neither source file is removed.
+    assert (source / "a").read_bytes() == b"a" * 5
+    assert (source / "b").read_bytes() == b"b" * 5
+    total = sum((dest / name).stat().st_size
+                for name in ("a", "b") if (dest / name).exists())
+    assert total <= 8
+
+
+def test_archive_fallback_copies_verifies_and_removes_under_exdev(tmp_path, monkeypatch):
+    """A forced cross-device rename exercises the full copy/verify/delete path."""
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "file").write_bytes(b"payload")
+    dest = tmp_path / "dest"
+    original_rename = Path.rename
+
+    def cross_device(path, target):
+        if path == source:
+            raise OSError(errno.EXDEV, "injected cross-device move")
+        return original_rename(path, target)
+
+    monkeypatch.setattr(Path, "rename", cross_device)
+    remote_jobs._archive_tree(source, dest, 100)
+
+    assert not source.exists()                       # removed only after verify
+    assert (dest / "file").read_bytes() == b"payload"
+
+
+def test_archive_cannot_commit_overbudget_growth(tmp_path, monkeypatch):
+    """Growth past the cap during the EXDEV fallback must fail and keep source."""
+    source = tmp_path / "source"
+    source.mkdir()
+    entry = source / "file"
+    entry.write_bytes(b"1234")
+    dest = tmp_path / "dest"
+    original_open = Path.open
+    original_rename = Path.rename
+    grown = []
+
+    def grow(path, mode="r", *args, **kwargs):
+        if path == entry and mode == "rb" and not grown:
+            grown.append(True)
+            with original_open(entry, "ab") as out:
+                out.write(b"x" * 100)
+        return original_open(path, mode, *args, **kwargs)
+
+    def cross_device(path, target):
+        if path == source:
+            raise OSError(errno.EXDEV, "injected cross-device move")
+        return original_rename(path, target)
+
+    monkeypatch.setattr(Path, "open", grow)
+    monkeypatch.setattr(Path, "rename", cross_device)
+    with pytest.raises(ValueError, match="byte budget"):
+        remote_jobs._archive_tree(source, dest, 8)
+
+    # The over-budget fallback never commits: no archive survives and the source
+    # is preserved so the durable fence stays the only record of the attempt.
+    assert source.exists()
+    assert (source / "file").read_bytes() == b"1234" + b"x" * 100
+
+
+# A source and a destination that equal or contain each other would fall into a
+# recursive self-copy once the rename fails, so every archive path must refuse
+# the relationship before any fence, movement or copy.
+
+
+def test_archive_refuses_nested_destination_before_copy(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "file").write_bytes(b"x")
+    dest = source / "archive" / "target"
+    entered = []
+
+    def stop_copy(src, target, limit):
+        entered.append((src, target))
+        raise OSError("copy must not run")
+
+    monkeypatch.setattr(remote_jobs, "_copy_tree_limited", stop_copy)
+    with pytest.raises(ValueError, match="equal or contain"):
+        remote_jobs._archive_tree(source, dest, 100)
+
+    # The nested destination is refused before any recursive copy is attempted.
+    assert not entered
+    assert (source / "file").read_bytes() == b"x"
+
+
+def test_public_quarantine_refuses_local_root_inside_an_outbox_before_archive(
+        tmp_path, monkeypatch):
+    """A profile whose local_root sits inside a matching outbox must be refused
+    before the fence is written or any archive copy runs."""
+    scan = tmp_path / "ws"
+    outbox = scan / "task" / ".nerelan-remote" / "outbox" / JOB
+    profile = remote_jobs.RemoteJobProfile(
+        "lab", "wjc/jobs", outbox / "broker-local", (scan,),
+        max_upload_bytes=1024, max_download_bytes=2048)
+
+    class ForbiddenTransport:
+        def __getattr__(self, name):
+            raise AssertionError("no transport allowed")
+
+    broker = RemoteJobBroker(profile, ForbiddenTransport(), lambda: 1000)
+    request(broker, JOB, gpu=False)
+
+    original = remote_jobs._archive_tree
+    nested = []
+
+    def stop_nested(source, dest, limit):
+        if dest.resolve().is_relative_to(source.resolve()):
+            nested.append((str(source), str(dest)))
+        raise ValueError("archive copy must not run")
+
+    monkeypatch.setattr(remote_jobs, "_archive_tree", stop_nested)
+    with pytest.raises(ValueError, match="equal or contain"):
+        broker.quarantine(JOB, reason=REASON)
+
+    # Refused before any fence byte or archive copy: no nested pair was passed
+    # to the archive helper and the durable fence was never written.
+    assert not nested
+    assert not (broker.profile.local_root / QUARANTINE_DIR / JOB / QUARANTINE_FENCE).exists()
+    assert (outbox / "job.json").exists()
