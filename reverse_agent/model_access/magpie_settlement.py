@@ -21,12 +21,15 @@ attributes. Whatever the identity-bound sums do not cover stays an
 unattributed residual — it is never forced into a task, split by task count,
 or inferred from token counts, and a shared aggregate stays account-level.
 
-The reconciliation subtracts the identity-bound tasks' estimated request cost
-from the absolute credit delta; the residual is reported, never allocated. The
-function is pure: identical inputs produce an identical record (the inputs
-digest makes persisted records idempotent), so a later run with complete late
-evidence supersedes — never erases — an earlier UNKNOWN record; releasing
-historical holds stays the caller's decision.
+The residual only reconciles the money estimate with the account delta when a
+conversion between the two units is explicitly evidenced for this account and
+window. Without that evidence the residual stays unknown while both
+observations are retained untouched — one credit per dollar is never assumed
+by default. The function is pure: identical inputs produce an identical record
+(the inputs digest covers endpoints, tasks, reservation evidence and
+conversion inputs, so persisted records are idempotent), so a later run with
+complete late evidence supersedes — never erases — an earlier UNKNOWN record;
+releasing historical holds stays the caller's decision.
 """
 from __future__ import annotations
 
@@ -57,17 +60,57 @@ def _observed_at(snapshot: Mapping[str, Any]) -> Any:
     return parse_time(_text(snapshot.get("observed_at")) or "")
 
 
+def _as_time(value: Any) -> float | None:
+    """Parse an endpoint or reset timestamp from an ISO string or epoch number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return parse_time(_text(value) or "")
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _materialized_reservations(other_reservations: Iterable[Any]) -> list[dict[str, str | None]]:
+    """Normalize the reservation evidence the overlap guard decides on.
+
+    Only the fields the guard reads survive, and rows are sorted, so the same
+    reservation set always materializes identically whatever order a caller
+    supplies it in. The result is part of the inputs digest: two decisions over
+    the same endpoints and tasks with different sibling reservations must not
+    share one reconciliation identity.
+    """
+    rows: list[dict[str, str | None]] = []
+    for reservation in other_reservations or ():
+        if not isinstance(reservation, Mapping):
+            continue
+        rows.append({"account_ref": _text(reservation.get("account_ref")),
+                     "created_at": _text(reservation.get("created_at")),
+                     "reconciled_at": _text(reservation.get("reconciled_at"))})
+    rows.sort(key=lambda row: (row["account_ref"] or "", row["created_at"] or "",
+                               row["reconciled_at"] or ""))
+    return rows
+
+
 def _digest(before: Mapping[str, Any], after: Mapping[str, Any],
-            tasks: Iterable[Mapping[str, Any]], unattributed_request_rows: int) -> str:
+            tasks: Iterable[Mapping[str, Any]], unattributed_request_rows: int,
+            other_reservations: Iterable[Any] = (),
+            credit_conversion: Mapping[str, Any] | None = None) -> str:
     payload = json.dumps({"before": dict(before), "after": dict(after),
-                          "tasks": [dict(task) for task in tasks],
-                          "unattributed_request_rows": unattributed_request_rows},
+                          # Order-independent: the identity covers a task set, not
+                          # the sequence a caller happened to hand over.
+                          "tasks": sorted((dict(task) for task in tasks),
+                                          key=lambda task: json.dumps(task, sort_keys=True,
+                                                                      default=str)),
+                          "unattributed_request_rows": unattributed_request_rows,
+                          "other_reservations": _materialized_reservations(other_reservations),
+                          "credit_conversion": (dict(credit_conversion)
+                                                if isinstance(credit_conversion, Mapping) else {})},
                          sort_keys=True, ensure_ascii=True, default=str)
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _refused(reason: str, before: Mapping[str, Any], after: Mapping[str, Any],
-             unattributed_request_rows: int, tasks: Iterable[Mapping[str, Any]] = ()) -> dict[str, Any]:
+             unattributed_request_rows: int, tasks: Iterable[Mapping[str, Any]] = (),
+             other_reservations: Iterable[Any] = (),
+             credit_conversion: Mapping[str, Any] | None = None) -> dict[str, Any]:
     task_list = [dict(task) for task in tasks if isinstance(task, Mapping)]
     return {"status": "REFUSED", "reason": reason, "account_ref": after.get("account_ref"),
             "interval": {"start": before.get("observed_at"), "end": after.get("observed_at"),
@@ -76,9 +119,28 @@ def _refused(reason: str, before: Mapping[str, Any], after: Mapping[str, Any],
             "unattributed_residual_credits": None,
             "dimensions": {"account_balance_credits": None, "task_token_usage": None,
                            "estimated_money": None},
-            # The digest covers the task inputs too, so two refusals of the
-            # same interval with different task sets never share one identity.
-            "inputs_digest": _digest(before, after, task_list, unattributed_request_rows)}
+            # The digest covers tasks, reservation evidence and conversion
+            # inputs, so two refusals of the same interval with different
+            # decision-driving evidence never share one identity.
+            "inputs_digest": _digest(before, after, task_list, unattributed_request_rows,
+                                     other_reservations, credit_conversion)}
+
+
+def _conversion_rate(conversion: Mapping[str, Any], account: str | None, window: str | None) -> float | None:
+    """Return an evidenced credits-per-USD rate, or None when there is none.
+
+    A conversion counts only when it is explicitly marked evidenced, carries a
+    finite positive rate and names this interval's account and window. No rate
+    is ever invented or defaulted to one credit per dollar.
+    """
+    if not isinstance(conversion, Mapping) or conversion.get("evidenced") is not True:
+        return None
+    if conversion.get("account_ref") != account or conversion.get("window") != window:
+        return None
+    rate = _number(conversion.get("credits_per_usd"))
+    if rate is None or rate <= 0:
+        return None
+    return float(rate)
 
 
 def reconcile_account_interval(
@@ -88,6 +150,7 @@ def reconcile_account_interval(
     task_usages: Iterable[Mapping[str, Any]] = (),
     other_reservations: Iterable[Mapping[str, Any]] = (),
     unattributed_request_rows: int = 0,
+    credit_conversion: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Settle one account interval against identity-bound per-task sums.
 
@@ -100,49 +163,81 @@ def reconcile_account_interval(
     estimated ``cost_usd`` with its ``priced`` flag. ``other_reservations``
     are the account's settlement rows, used only to detect overlap;
     ``unattributed_request_rows`` is the correlation's count of rows no task
-    could claim. Percentage-only readings, resets, recharges, overlaps,
-    missing identities and unattributable request rows refuse the settlement
-    instead of guessing.
+    could claim. ``credit_conversion`` is optional evidence converting an
+    estimated money amount into the account's credit unit: ``evidenced`` must
+    be True, ``credits_per_usd`` a positive number, ``account_ref`` and
+    ``window`` this interval's identity, with ``provenance`` and ``observed_at``
+    retained for the record. Without it the residual stays unknown.
+    Percentage-only readings, resets, recharges, overlaps, missing identities
+    and unattributable request rows refuse the settlement instead of guessing.
     """
+    # Materialize the sibling-reservation evidence exactly once so the overlap
+    # guard and every refusal/success digest share the same frozen rows. A
+    # generator is single-pass, so a second iteration in the digest would hash
+    # empty reservation evidence and make the reconciliation identity depend on
+    # the container type (list vs generator) rather than the evidence itself.
+    other_reservations = _materialized_reservations(other_reservations)
     if not isinstance(before, Mapping) or not isinstance(after, Mapping):
-        return _refused("invalid_snapshot", {}, {}, 0, ())
+        return _refused("invalid_snapshot", {}, {}, 0, (), other_reservations, credit_conversion)
     tasks = [dict(task) for task in task_usages if isinstance(task, Mapping)]
     if len(tasks) > _MAX_TASKS:
-        return _refused("too_many_tasks", before, after, unattributed_request_rows, tasks)
+        return _refused("too_many_tasks", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     start, end = _observed_at(before), _observed_at(after)
     account = _text(after.get("account_ref"))
     if not account or before.get("account_ref") != account:
-        return _refused("account_mismatch", before, after, unattributed_request_rows, tasks)
+        return _refused("account_mismatch", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     if (_text(before.get("source")) not in _PROVIDER_SOURCES
             or _text(after.get("source")) not in _PROVIDER_SOURCES):
-        return _refused("non_provider_reading", before, after, unattributed_request_rows, tasks)
-    if _text(before.get("window")) != _text(after.get("window")) or _text(after.get("window")) is None:
-        return _refused("window_identity_changed", before, after, unattributed_request_rows, tasks)
+        return _refused("non_provider_reading", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
+    window = _text(after.get("window"))
+    if _text(before.get("window")) != window or window is None:
+        return _refused("window_identity_changed", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     if start is None or end is None or start >= end:
-        return _refused("invalid_interval", before, after, unattributed_request_rows, tasks)
+        return _refused("invalid_interval", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     # Item 2: absolute counters only. A rounded percentage delta of zero is not
     # proof of zero use, so a percentage-only interval can never settle a task.
     prior, latest = _number(before.get("credits_remaining")), _number(after.get("credits_remaining"))
     if prior is None or latest is None:
-        return _refused("percentage_only_quantized", before, after, unattributed_request_rows, tasks)
-    if before.get("resets_at") != after.get("resets_at"):
-        return _refused("window_reset", before, after, unattributed_request_rows, tasks)
+        return _refused("percentage_only_quantized", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
+    # Item 2: a known reset boundary inside the interval voids the verified
+    # exclusive precondition even when both readings carry the same stale reset
+    # string — a reset can be followed by use that leaves the ending balance
+    # below the starting one, so the credit-increase guard alone never proves
+    # reset-free consumption. Genuinely unknown reset metadata stays supported:
+    # nothing is inferred as a reset, and no reset is refused when it is not
+    # evidenced.
+    before_reset, after_reset = _as_time(before.get("resets_at")), _as_time(after.get("resets_at"))
+    if before_reset != after_reset:
+        return _refused("window_reset", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
+    if before_reset is not None and start < before_reset < end:
+        return _refused("window_reset", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     if latest > prior:
         # Credits going up is a top-up, expiry refund or correction, not
         # negative consumption: the interval cannot attribute anything.
-        return _refused("credit_increase", before, after, unattributed_request_rows, tasks)
+        return _refused("credit_increase", before, after, unattributed_request_rows, tasks,
+                        other_reservations, credit_conversion)
     for reservation in other_reservations:
-        if not isinstance(reservation, Mapping) or reservation.get("account_ref") != account:
+        if reservation.get("account_ref") != account:
             continue
-        created = parse_time(_text(reservation.get("created_at")) or "")
-        finished = parse_time(_text(reservation.get("reconciled_at")) or "")
+        created = parse_time(reservation.get("created_at") or "")
+        finished = parse_time(reservation.get("reconciled_at") or "")
         # Fail closed like delta_calibration: a same-account reservation whose
         # start cannot be placed cannot be proven non-overlapping, so it voids
         # the verified-exclusive precondition instead of being skipped.
         if created is None:
-            return _refused("unplaceable_reservation", before, after, unattributed_request_rows, tasks)
+            return _refused("unplaceable_reservation", before, after, unattributed_request_rows, tasks,
+                            other_reservations, credit_conversion)
         if created < end and (finished is None or finished > start):
-            return _refused("overlapping_reservation", before, after, unattributed_request_rows, tasks)
+            return _refused("overlapping_reservation", before, after, unattributed_request_rows, tasks,
+                            other_reservations, credit_conversion)
 
     delta = round(prior - latest, 6)
     mine = [task for task in tasks if task.get("account_ref") == account]
@@ -164,22 +259,63 @@ def reconcile_account_interval(
                      "requests": _number(task.get("requests")),
                      "tokens": {name: _number(tokens.get(name)) for name in _TOKEN_FIELDS},
                      "estimated_cost_usd": cost if task.get("priced") is True else None})
-    complete = (bool(identity_bound) and not aggregate_only and all_priced
-                and not unattributed_request_rows)
-    residual = (None if attributed_usd is None else round(delta - attributed_usd, 6))
+    # Item 4: token completeness comes from the six bucket observations
+    # themselves. Pricing and session identity never fabricate a token count: a
+    # missing bucket stays unknown while every known counter remains usable.
     token_sums = {name: (sum(row["tokens"][name] for row in rows)
                          if all(isinstance(row["tokens"][name], (int, float)) for row in rows) else None)
                   for name in _TOKEN_FIELDS}
+    known_tokens = [value for value in token_sums.values() if value is not None]
+    token_completeness = ("OBSERVED" if len(known_tokens) == len(_TOKEN_FIELDS)
+                          else "PARTIAL" if known_tokens else "UNKNOWN")
+    # Item 1: credits and estimated money are distinct dimensions. The residual
+    # reconciles them only with an evidenced conversion; otherwise it stays
+    # unknown and both independent observations are kept as they are.
+    conversion_rate = _conversion_rate(credit_conversion or {}, account, window)
+    conversion_reported = None
+    if conversion_rate is not None:
+        conversion_reported = {"credits_per_usd": conversion_rate,
+                               "account_ref": account, "window": window,
+                               "observed_at": _text((credit_conversion or {}).get("observed_at")),
+                               "provenance": _text((credit_conversion or {}).get("provenance"))}
+    if attributed_usd is None:
+        residual: float | None = None
+        residual_completeness = "UNKNOWN"
+    elif conversion_rate is not None:
+        residual = round(delta - attributed_usd * conversion_rate, 6)
+        residual_completeness = "OBSERVED"
+    elif attributed_usd == 0.0:
+        # Nothing was attributed, so no unit conversion is needed at all: every
+        # credit in the delta is unattributed regardless of the unknown ratio.
+        residual = delta
+        residual_completeness = "OBSERVED"
+    else:
+        residual = None
+        residual_completeness = "UNKNOWN"
+    complete = (bool(identity_bound) and not aggregate_only and all_priced
+                and not unattributed_request_rows
+                and token_completeness == "OBSERVED"
+                and residual_completeness == "OBSERVED")
+    if complete:
+        reason = None
+    elif aggregate_only:
+        reason = "aggregate_only_usage_present"
+    elif not identity_bound:
+        reason = "no_identity_bound_task"
+    elif not all_priced:
+        reason = "unpriced_task_requests"
+    elif unattributed_request_rows:
+        reason = "unattributed_request_rows_present"
+    elif token_completeness != "OBSERVED":
+        reason = "incomplete_token_fields"
+    else:
+        reason = "unknown_credit_conversion"
     return {
         "status": "OBSERVED" if complete else "PARTIAL",
-        "reason": (None if complete else
-                   ("aggregate_only_usage_present" if aggregate_only else
-                    ("no_identity_bound_task" if not identity_bound else
-                     ("unpriced_task_requests" if not all_priced else
-                      "unattributed_request_rows_present")))),
+        "reason": reason,
         "account_ref": account,
         "interval": {"start": before.get("observed_at"), "end": after.get("observed_at"),
-                     "window": _text(after.get("window"))},
+                     "window": window},
         "account_delta_credits": delta,
         "tasks": rows,
         "unattributed_tasks": [_text(task.get("task_id")) for task in aggregate_only],
@@ -192,9 +328,13 @@ def reconcile_account_interval(
                 "credits_remaining_before": prior, "credits_remaining_after": latest,
                 "source": _text(after.get("source")), "completeness": "OBSERVED"},
             "task_token_usage": {"tokens": token_sums,
-                                 "completeness": "OBSERVED" if complete else "PARTIAL"},
+                                 "completeness": token_completeness},
             "estimated_money": {"estimated_usd": attributed_usd, "all_priced": all_priced,
-                                "completeness": "ESTIMATED"},
+                                "completeness": "ESTIMATED" if attributed_usd is not None else "UNKNOWN"},
+            "credit_reconciliation": {"residual_credits": residual,
+                                      "conversion": conversion_reported,
+                                      "completeness": residual_completeness},
         },
-        "inputs_digest": _digest(before, after, tasks, unattributed_request_rows),
+        "inputs_digest": _digest(before, after, tasks, unattributed_request_rows,
+                                 other_reservations, credit_conversion),
     }
