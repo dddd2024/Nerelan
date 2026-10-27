@@ -227,17 +227,20 @@ def reconcile_account_interval(
     # string — a reset can be followed by use that leaves the ending balance
     # below the starting one, so the credit-increase guard alone never proves
     # reset-free consumption. The same holds when the boundary lies exactly at
-    # the after-reading endpoint: a reading taken at a known reset cannot
-    # establish that its balance precedes that reset (it can include a
-    # reset/top-up followed by use, or retain stale reset metadata), so the
-    # endpoint is refused too. Genuinely unknown reset metadata stays supported:
-    # nothing is inferred as a reset, and no reset is refused when it is not
-    # evidenced.
+    # either endpoint: a reading taken at a known reset cannot establish that
+    # its balance precedes that reset (it can include a reset/top-up followed by
+    # use, or retain stale reset metadata), so a reset at the after endpoint —
+    # and equally at the before endpoint, where a reset immediately after that
+    # first reading leaves no ordering metadata proving the first balance was
+    # already post-reset — is refused too. There is no baseline guess: the whole
+    # closed interval is refused, and only a reset strictly outside it survives.
+    # Genuinely unknown reset metadata stays supported: nothing is inferred as a
+    # reset, and no reset is refused when it is not evidenced.
     before_reset, after_reset = _as_time(before.get("resets_at")), _as_time(after.get("resets_at"))
     if before_reset != after_reset:
         return _refused("window_reset", before, after, unattributed_request_rows, tasks,
                         other_reservations, credit_conversion)
-    if before_reset is not None and start < before_reset <= end:
+    if before_reset is not None and start <= before_reset <= end:
         return _refused("window_reset", before, after, unattributed_request_rows, tasks,
                         other_reservations, credit_conversion)
     if latest > prior:
@@ -319,12 +322,15 @@ def reconcile_account_interval(
         # observed. Nothing here turns an estimate into a provider debit.
         residual = round(delta - attributed_usd * conversion_rate, 6)
         residual_completeness = "ESTIMATED"
-    elif attributed_usd == 0.0:
-        # Nothing was attributed, so no unit conversion is needed at all: every
-        # credit in the delta is unattributed regardless of the unknown ratio.
-        residual = delta
-        residual_completeness = "OBSERVED"
     else:
+        # No evidenced conversion: the residual stays unknown. This holds for an
+        # estimated money total of zero too — a zero is an estimate (a positive
+        # raw amount can round to it), never verified zero task-credit
+        # consumption, so the whole delta is not promoted to an OBSERVED
+        # unattributed residual just because the money rounded to 0.0. The
+        # supplied zero token counters and the account delta stay observed; only
+        # the certainty of the credit residual is unknown, and a later evidenced
+        # conversion still completes the unit arithmetic (ESTIMATED).
         residual = None
         residual_completeness = "UNKNOWN"
     complete = (bool(identity_bound) and not aggregate_only and all_priced

@@ -94,17 +94,21 @@ def test_isolated_task_delta_reconciles_with_unattributed_residual():
     assert record["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
 
 
-def test_zero_delta_with_zero_requests_is_observed_without_inference():
+def test_zero_delta_with_zero_estimated_money_is_not_observed_credit_consumption():
     before, after = snapshot(100.0, observed_at=T0), snapshot(100.0, observed_at=T1)
     record = reconcile_account_interval(
         before, after,
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 0.0, "priced": True}])
-    assert record["status"] == "OBSERVED"
+    # A zero estimated money total is an estimate, not verified zero task-credit
+    # consumption: without an evidenced conversion the residual stays unknown and
+    # the interval is a partial accounting fact, never an observed provider debit.
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "unknown_credit_conversion"
     assert record["account_delta_credits"] == 0.0
-    # Zero is unit-neutral: nothing was attributed, so the residual is the
-    # whole (zero) delta without any invented rate.
-    assert record["unattributed_residual_credits"] == 0.0
+    assert record["dimensions"]["account_balance_credits"]["completeness"] == "OBSERVED"
+    assert record["dimensions"]["estimated_money"]["estimated_usd"] == 0.0
+    assert record["unattributed_residual_credits"] is None
 
 
 # --- different-account parallel deltas -------------------------------------
@@ -527,16 +531,26 @@ def test_mismatched_conversion_account_or_window_is_not_evidence():
         assert record["unattributed_residual_credits"] is None, bad
 
 
-def test_zero_attributed_leaves_the_whole_delta_as_residual_without_a_rate():
-    # Nothing attributed is unit-neutral: no conversion is needed to know that
-    # every credit in the delta is unattributed.
+def test_zero_estimated_money_does_not_promote_the_whole_delta_to_observed():
+    # A zero estimated money total is an estimate, not verified zero task-credit
+    # consumption, so without an evidenced conversion the residual stays unknown
+    # instead of the whole delta being promoted to an OBSERVED unattributed
+    # residual. The explicit zero token buckets and the account delta are
+    # preserved as observed; only the certainty of the credit residual is unknown.
     before, after = snapshot(100.0, observed_at=T0), snapshot(95.0, observed_at=T1)
     record = reconcile_account_interval(
         before, after,
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 0.0, "priced": True}])
-    assert record["unattributed_residual_credits"] == 5.0
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "unknown_credit_conversion"
+    assert record["unattributed_residual_credits"] is None
+    assert record["account_delta_credits"] == 5.0
+    assert record["dimensions"]["account_balance_credits"]["completeness"] == "OBSERVED"
+    assert record["dimensions"]["task_token_usage"]["completeness"] == "OBSERVED"
+    assert record["dimensions"]["task_token_usage"]["tokens"]["input"] == 10
+    assert record["dimensions"]["estimated_money"]["completeness"] == "ESTIMATED"
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "UNKNOWN"
 
 
 def test_known_reset_inside_interval_refuses_even_when_reset_strings_match():
@@ -839,3 +853,93 @@ def test_control_actual_parser_missing_token_fields_stay_unknown():
     assert record["status"] == "PARTIAL"
     assert record["dimensions"]["task_token_usage"]["completeness"] == "PARTIAL"
     assert record["tasks"][0]["tokens"]["cache_write_1h"] is None
+
+
+# --- PR1361 evidence-final defects 1-2 and their controls (Owner1342) ----------
+
+
+def test_known_reset_at_start_endpoint_refuses_without_order_proof():
+    # A known reset exactly at the before-reading endpoint is just as ambiguous
+    # as one at the after endpoint: no ordering metadata proves the first
+    # balance was already post-reset, so a reset plus subsequent use can leave
+    # the ending balance below the starting one without the interval being the
+    # true consumption. The whole closed interval refuses; no baseline guess.
+    before = snapshot(100.0, observed_at=T0, resets_at=T0)
+    after = snapshot(94.0, observed_at=T1, resets_at=T0)
+    record = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": 1, "tokens": full_tokens(input=10),
+                      "cost_usd": 2.5, "priced": True}],
+        credit_conversion=conversion())
+    assert record["status"] == "REFUSED"
+    assert record["reason"] == "window_reset"
+    assert record["account_delta_credits"] is None
+
+
+def test_positive_raw_cost_rounded_to_zero_keeps_residual_unknown():
+    # Real parser -> correlator -> settlement: a positive raw amount (4e-7)
+    # rounds to cost_usd 0.0 after the six-decimal rounding, but that is an
+    # estimate, not verified zero task-credit consumption. Without a conversion
+    # the credit residual stays UNKNOWN, never promoted to an OBSERVED whole
+    # delta, while the supplied zero token buckets stay observed.
+    before = snapshot(100.0, observed_at=T0)
+    after = snapshot(94.0, observed_at=T1)
+    rows = ledger([{"rid": "r-0", "session": "s-0", "t": T0, "cost": 0.0000004,
+                    "priced": True, "in": 10, "out": 1, "cache_read": 0,
+                    "cache_write": 0, "cache_write_1h": 0, "reasoning": 0}])
+    correlated = correlate_task_usage([], rows, sessions=("s-0",))
+    assert correlated["totals"]["cost_usd"] == 0.0
+    record = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": correlated["request_count"],
+                      "tokens": token_totals(correlated),
+                      "cost_usd": correlated["totals"]["cost_usd"], "priced": True}])
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "unknown_credit_conversion"
+    assert record["unattributed_residual_credits"] is None
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "UNKNOWN"
+    assert record["dimensions"]["task_token_usage"]["completeness"] == "OBSERVED"
+    assert record["dimensions"]["task_token_usage"]["tokens"]["input"] == 10
+    assert record["dimensions"]["account_balance_credits"]["completeness"] == "OBSERVED"
+
+
+def test_zero_estimated_money_with_conversion_keeps_numeric_estimated_residual():
+    # Positive control: with an evidenced conversion even a zero estimated money
+    # total completes the unit arithmetic and keeps the numeric residual
+    # ESTIMATED (the whole delta is unattributed), never an observed promotion.
+    before, after = snapshot(100.0, observed_at=T0), snapshot(95.0, observed_at=T1)
+    record = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": 1, "tokens": full_tokens(input=10),
+                      "cost_usd": 0.0, "priced": True}],
+        credit_conversion=conversion())
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
+    assert record["unattributed_residual_credits"] == 5.0
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
+
+
+def test_positive_raw_cost_not_rounded_to_zero_still_yields_estimated_residual():
+    # Positive control: a positive raw amount that does not round to zero still
+    # reconciles an ESTIMATED numeric residual with an evidenced conversion.
+    before, after = snapshot(100.0, observed_at=T0), snapshot(94.0, observed_at=T1)
+    rows = ledger([{"rid": "r-1", "session": "s-1", "t": T0, "cost": 0.4,
+                    "priced": True, "in": 10, "out": 1, "cache_read": 0,
+                    "cache_write": 0, "cache_write_1h": 0, "reasoning": 0}])
+    correlated = correlate_task_usage([], rows, sessions=("s-1",))
+    assert correlated["totals"]["cost_usd"] == 0.4
+    record = reconcile_account_interval(
+        before, after,
+        task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+                      "requests": correlated["request_count"],
+                      "tokens": token_totals(correlated),
+                      "cost_usd": correlated["totals"]["cost_usd"], "priced": True}],
+        credit_conversion=conversion())
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
+    # 6.0 credits spent, 0.4 USD at the evidenced 1 credit/USD.
+    assert record["unattributed_residual_credits"] == 5.6
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
