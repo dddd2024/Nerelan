@@ -1,6 +1,7 @@
 """Real repository/test-process proof for the fixed functional oracle."""
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -171,6 +172,32 @@ def test_sensitive_parent_environment_is_not_inherited(tmp_path, monkeypatch):
     env = fv._environment(tmp_path)
     assert not {"OPENAI_API_KEY", "GITHUB_TOKEN", "PYTEST_ADDOPTS"} & env.keys()
     assert env["CI"] == "true" and env["NPM_CONFIG_OFFLINE"] == "true"
+
+
+def test_standard_programdata_retained_in_child_environment(tmp_path, monkeypatch):
+    program_data = tmp_path / "ProgramData"
+    program_data.mkdir()
+    monkeypatch.setenv("PROGRAMDATA", str(program_data))
+    env = fv._environment(tmp_path)
+    assert env["PROGRAMDATA"] == str(program_data)
+
+
+def test_windows_ssh_version_runs_under_sanitized_child_environment(tmp_path, monkeypatch):
+    if os.name != "nt":
+        pytest.skip("Windows-only native OpenSSH probe")
+    ssh = shutil.which("ssh")
+    if ssh is None:
+        pytest.skip("no real ssh binary installed")
+    program_data = tmp_path / "ProgramData"
+    program_data.mkdir()
+    monkeypatch.setenv("PROGRAMDATA", str(program_data))
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    monkeypatch.setenv("GITHUB_TOKEN", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    result = subprocess.run([ssh, "-V"], env=env, capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    output = (result.stdout + result.stderr).decode("utf-8", "replace")
+    assert "OpenSSH" in output
 
 
 @pytest.mark.parametrize("test_code", ["# no tests\n", "import pytest\n@pytest.mark.skip(reason='fixture')\ndef test_skipped(): pass\n"])
