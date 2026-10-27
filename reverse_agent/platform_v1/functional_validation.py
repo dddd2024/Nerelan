@@ -260,7 +260,7 @@ def _resolved_argv(profile: str) -> list[str]:
 def _environment(root: Path) -> dict[str, str]:
     # Model/provider/GitHub credentials and parent Python injection flags are not inherited.
     names = ("PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
-             "LOCALAPPDATA", "APPDATA", "COMSPEC", "PATHEXT", "LANG", "LC_ALL")
+             "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "COMSPEC", "PATHEXT", "LANG", "LC_ALL")
     env = {key: os.environ[key] for key in names if key in os.environ}
     env.update(CI="true", PYTHONPATH=str(root), PYTHONDONTWRITEBYTECODE="1",
                NPM_CONFIG_OFFLINE="true", NPM_CONFIG_AUDIT="false",
