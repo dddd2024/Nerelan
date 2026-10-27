@@ -23,9 +23,13 @@ or inferred from token counts, and a shared aggregate stays account-level.
 
 The residual only reconciles the money estimate with the account delta when a
 conversion between the two units is explicitly evidenced for this account and
-window. Without that evidence the residual stays unknown while both
-observations are retained untouched — one credit per dollar is never assumed
-by default. The function is pure: identical inputs produce an identical record
+window *and* carries a usable provenance reference and observation time.
+Because the money input stays ESTIMATED, the derived residual stays ESTIMATED
+too: the arithmetic fixes the unit but never promotes the estimate's
+uncertainty into an observed provider debit. Without that evidence the
+residual stays unknown while both observations are retained untouched — one
+credit per dollar is never assumed by default. The function is pure: identical
+inputs produce an identical record
 (the inputs digest covers endpoints, tasks, reservation evidence and
 conversion inputs, so persisted records are idempotent), so a later run with
 complete late evidence supersedes — never erases — an earlier UNKNOWN record;
@@ -130,8 +134,11 @@ def _conversion_rate(conversion: Mapping[str, Any], account: str | None, window:
     """Return an evidenced credits-per-USD rate, or None when there is none.
 
     A conversion counts only when it is explicitly marked evidenced, carries a
-    finite positive rate and names this interval's account and window. No rate
-    is ever invented or defaulted to one credit per dollar.
+    finite positive rate, names this interval's account and window, and retains
+    a nonempty provenance reference plus a parseable observation time. Without
+    that metadata there is no durable source or moment the rate can be
+    attributed to, so it cannot complete a reconciliation. No rate is ever
+    invented or defaulted to one credit per dollar.
     """
     if not isinstance(conversion, Mapping) or conversion.get("evidenced") is not True:
         return None
@@ -139,6 +146,10 @@ def _conversion_rate(conversion: Mapping[str, Any], account: str | None, window:
         return None
     rate = _number(conversion.get("credits_per_usd"))
     if rate is None or rate <= 0:
+        return None
+    if _text(conversion.get("provenance")) is None:
+        return None
+    if _observed_at(conversion) is None:
         return None
     return float(rate)
 
@@ -165,11 +176,17 @@ def reconcile_account_interval(
     ``unattributed_request_rows`` is the correlation's count of rows no task
     could claim. ``credit_conversion`` is optional evidence converting an
     estimated money amount into the account's credit unit: ``evidenced`` must
-    be True, ``credits_per_usd`` a positive number, ``account_ref`` and
-    ``window`` this interval's identity, with ``provenance`` and ``observed_at``
-    retained for the record. Without it the residual stays unknown.
-    Percentage-only readings, resets, recharges, overlaps, missing identities
-    and unattributable request rows refuse the settlement instead of guessing.
+    be True, ``credits_per_usd`` a positive finite number, ``account_ref`` and
+    ``window`` this interval's identity, plus a nonempty ``provenance`` and a
+    parseable ``observed_at``. Without all of it the conversion cannot complete
+    the reconciliation and the residual stays unknown. When it does apply, the
+    residual keeps its numeric value (positive unattributed credits or a
+    negative over-coverage signal) but stays ESTIMATED with the conversion's
+    provenance retained — the arithmetic fixes the unit, it never promotes the
+    money estimate into an observed provider debit. A known reset boundary at
+    either endpoint or strictly inside the interval, percentage-only readings,
+    recharges, overlaps, missing identities and unattributable request rows
+    refuse the settlement instead of guessing.
     """
     # Materialize the sibling-reservation evidence exactly once so the overlap
     # guard and every refusal/success digest share the same frozen rows. A
@@ -209,14 +226,18 @@ def reconcile_account_interval(
     # exclusive precondition even when both readings carry the same stale reset
     # string — a reset can be followed by use that leaves the ending balance
     # below the starting one, so the credit-increase guard alone never proves
-    # reset-free consumption. Genuinely unknown reset metadata stays supported:
+    # reset-free consumption. The same holds when the boundary lies exactly at
+    # the after-reading endpoint: a reading taken at a known reset cannot
+    # establish that its balance precedes that reset (it can include a
+    # reset/top-up followed by use, or retain stale reset metadata), so the
+    # endpoint is refused too. Genuinely unknown reset metadata stays supported:
     # nothing is inferred as a reset, and no reset is refused when it is not
     # evidenced.
     before_reset, after_reset = _as_time(before.get("resets_at")), _as_time(after.get("resets_at"))
     if before_reset != after_reset:
         return _refused("window_reset", before, after, unattributed_request_rows, tasks,
                         other_reservations, credit_conversion)
-    if before_reset is not None and start < before_reset < end:
+    if before_reset is not None and start < before_reset <= end:
         return _refused("window_reset", before, after, unattributed_request_rows, tasks,
                         other_reservations, credit_conversion)
     if latest > prior:
@@ -262,9 +283,17 @@ def reconcile_account_interval(
     # Item 4: token completeness comes from the six bucket observations
     # themselves. Pricing and session identity never fabricate a token count: a
     # missing bucket stays unknown while every known counter remains usable.
-    token_sums = {name: (sum(row["tokens"][name] for row in rows)
-                         if all(isinstance(row["tokens"][name], (int, float)) for row in rows) else None)
-                  for name in _TOKEN_FIELDS}
+    # An empty identity-bound set is absence of evidence, not an observed empty
+    # execution: no identity-bound row means no task token evidence at all, so
+    # every bucket stays unknown instead of being observed as a fabricated zero.
+    # Explicitly supplied zero observations still count (a nonempty row set with
+    # a zero bucket is an observation, never "missing").
+    if rows:
+        token_sums = {name: (sum(row["tokens"][name] for row in rows)
+                             if all(isinstance(row["tokens"][name], (int, float)) for row in rows) else None)
+                      for name in _TOKEN_FIELDS}
+    else:
+        token_sums = {name: None for name in _TOKEN_FIELDS}
     known_tokens = [value for value in token_sums.values() if value is not None]
     token_completeness = ("OBSERVED" if len(known_tokens) == len(_TOKEN_FIELDS)
                           else "PARTIAL" if known_tokens else "UNKNOWN")
@@ -282,8 +311,14 @@ def reconcile_account_interval(
         residual: float | None = None
         residual_completeness = "UNKNOWN"
     elif conversion_rate is not None:
+        # Item 1/4: the unit conversion fixes dimensions only; the money input
+        # is still ESTIMATED, so the reconciled residual stays ESTIMATED with
+        # the conversion's provenance retained. The numeric value keeps its
+        # sign (positive unattributed credits or a negative over-coverage
+        # signal) and the account delta/token dimensions stay independently
+        # observed. Nothing here turns an estimate into a provider debit.
         residual = round(delta - attributed_usd * conversion_rate, 6)
-        residual_completeness = "OBSERVED"
+        residual_completeness = "ESTIMATED"
     elif attributed_usd == 0.0:
         # Nothing was attributed, so no unit conversion is needed at all: every
         # credit in the delta is unattributed regardless of the unknown ratio.
@@ -308,6 +343,11 @@ def reconcile_account_interval(
         reason = "unattributed_request_rows_present"
     elif token_completeness != "OBSERVED":
         reason = "incomplete_token_fields"
+    elif conversion_rate is not None:
+        # A valid conversion reconciled the estimate, but the residual is only
+        # ESTIMATED (the money input is an estimate), so the interval is a
+        # partial accounting fact, never an observed provider debit.
+        reason = "estimated_credit_reconciliation"
     else:
         reason = "unknown_credit_conversion"
     return {

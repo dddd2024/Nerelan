@@ -80,7 +80,10 @@ def test_isolated_task_delta_reconciles_with_unattributed_residual():
                       "tokens": token_totals(correlated),
                       "cost_usd": correlated["totals"]["cost_usd"], "priced": True}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    # The conversion fixes the unit but the money input stays ESTIMATED, so the
+    # residual is an ESTIMATED accounting fact, never an observed provider debit.
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["account_delta_credits"] == 5.75
     assert record["tasks"][0]["estimated_cost_usd"] == 5.0
     # 5.75 credits spent, 5.0 USD attributed at the evidenced 1 credit/USD:
@@ -88,6 +91,7 @@ def test_isolated_task_delta_reconciles_with_unattributed_residual():
     assert record["unattributed_residual_credits"] == 0.75
     assert record["dimensions"]["account_balance_credits"]["completeness"] == "OBSERVED"
     assert record["dimensions"]["estimated_money"]["completeness"] == "ESTIMATED"
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
 
 
 def test_zero_delta_with_zero_requests_is_observed_without_inference():
@@ -116,7 +120,8 @@ def test_different_account_parallel_tasks_do_not_cross_attribute():
                       "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 2.0, "priced": True},
                      foreign],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["account_delta_credits"] == 2.0
     assert [task["task_id"] for task in record["tasks"]] == ["t-1"]
     assert record["other_account_tasks"] == 1
@@ -136,7 +141,8 @@ def test_shared_account_identity_bound_tasks_sum_and_residual_stays():
                       "requests": 2, "tokens": full_tokens(input=700, reasoning=50),
                       "cost_usd": 3.5, "priced": True}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["unattributed_residual_credits"] == 2.5
     assert record["dimensions"]["task_token_usage"]["tokens"]["input"] == 1000
 
@@ -223,7 +229,8 @@ def test_delayed_after_reading_still_settles_when_ordered():
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 2, "tokens": full_tokens(input=20), "cost_usd": 3.0, "priced": True}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["unattributed_residual_credits"] == 0.0
 
 
@@ -324,7 +331,12 @@ def test_late_complete_evidence_supersedes_partial_without_erasing_it():
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 2, "tokens": full_tokens(input=30), "cost_usd": 3.0, "priced": True}],
         credit_conversion=conversion())
-    assert complete["status"] == "OBSERVED"
+    # The converted residual stays ESTIMATED, so even the fully-evidenced
+    # interval is a partial accounting fact; it is nonetheless strictly more
+    # complete than the empty-evidence refusal above, and both are durable.
+    assert complete["status"] == "PARTIAL"
+    assert complete["reason"] == "estimated_credit_reconciliation"
+    assert complete["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
     assert complete["inputs_digest"] != partial["inputs_digest"]
     # The earlier partial record is a distinct durable fact; nothing above
     # mutates it (pure function), and the caller persists both.
@@ -353,7 +365,8 @@ def test_finished_reservation_outside_interval_does_not_refuse():
         other_reservations=[{"account_ref": "acct-1", "created_at": "2026-10-25T09:00:00Z",
                              "reconciled_at": "2026-10-25T09:59:00Z"}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
 
 
 def test_non_provider_or_mismatched_endpoints_refuse():
@@ -478,9 +491,12 @@ def test_evidenced_conversion_reconciles_a_positive_residual():
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 2, "tokens": full_tokens(input=20), "cost_usd": 5.0, "priced": True}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    # The residual keeps its value but stays ESTIMATED with the provenance
+    # retained: the conversion fixes the unit, it never observes a provider debit.
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["unattributed_residual_credits"] == 0.75
-    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "OBSERVED"
+    assert record["dimensions"]["credit_reconciliation"]["completeness"] == "ESTIMATED"
     reported = record["dimensions"]["credit_reconciliation"]["conversion"]
     assert reported["credits_per_usd"] == 1.0 and reported["account_ref"] == "acct-1"
     assert reported["window"] == "credits" and reported["provenance"] == "fixture"
@@ -552,7 +568,8 @@ def test_unknown_reset_metadata_stays_supported():
         task_usages=[{"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
                       "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 5.0, "priced": True}],
         credit_conversion=conversion())
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
     assert record["unattributed_residual_credits"] == 1.0
 
 
@@ -568,7 +585,8 @@ def test_reset_boundary_outside_the_interval_does_not_refuse():
                           "requests": 1, "tokens": full_tokens(input=10),
                           "cost_usd": 5.0, "priced": True}],
             credit_conversion=conversion())
-        assert record["status"] == "OBSERVED", stamp
+        assert record["status"] == "PARTIAL", stamp
+        assert record["reason"] == "estimated_credit_reconciliation", stamp
 
 
 def test_digest_covers_other_reservations_and_conversion():
@@ -634,7 +652,8 @@ def test_reservation_container_type_does_not_change_decision_or_digest():
                                             other_reservations=(row for row in rows),
                                             credit_conversion=conversion())
         if expected == "success":
-            assert as_list["status"] == "OBSERVED" and as_gen["status"] == "OBSERVED", expected
+            # The converted residual is ESTIMATED, so this is a partial fact.
+            assert as_list["status"] == "PARTIAL" and as_gen["status"] == "PARTIAL", expected
         else:
             assert as_list["reason"] == expected and as_gen["reason"] == expected, expected
         # Same evidence, different container type: identical decision identity.
@@ -675,7 +694,8 @@ def test_all_token_buckets_observed_gives_complete_token_dimension():
                       "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 1.0, "priced": True}],
         credit_conversion=conversion())
     assert record["dimensions"]["task_token_usage"]["completeness"] == "OBSERVED"
-    assert record["status"] == "OBSERVED"
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
 
 
 def test_no_token_observation_is_unknown_not_zero():
@@ -688,3 +708,134 @@ def test_no_token_observation_is_unknown_not_zero():
     assert record["dimensions"]["task_token_usage"]["completeness"] == "UNKNOWN"
     assert record["status"] == "PARTIAL"
     assert record["reason"] == "incomplete_token_fields"
+
+
+# --- corrected-review probes (the four new REJECT findings and their controls) --
+
+
+def corrected_inputs():
+    """The corrected-review probe fixture: 100 -> 94, one priced task, a valid conversion."""
+    before = snapshot(100.0, observed_at=T0, resets_at=None)
+    after = snapshot(94.0, observed_at=T1, resets_at=None)
+    task = {"task_id": "t-1", "account_ref": "acct-1", "coverage": "identity_bound",
+            "requests": 1, "tokens": full_tokens(input=10), "cost_usd": 2.5, "priced": True}
+    return before, after, task
+
+
+def test_reset_at_after_endpoint_must_not_settle():
+    # Finding 1: a known reset at the after-reading endpoint cannot establish
+    # that the ending balance precedes the reset (it may include reset/top-up
+    # followed by use, or retain stale metadata), so the interval must refuse.
+    before, after, task = corrected_inputs()
+    before["resets_at"] = after["resets_at"] = T1
+    record = reconcile_account_interval(before, after, task_usages=[task],
+                                        credit_conversion=conversion())
+    assert record["status"] == "REFUSED", json.dumps(record)
+    assert record["reason"] == "window_reset"
+
+
+def test_empty_identity_evidence_does_not_observe_six_zero_tokens():
+    # Finding 3: no identity-bound rows is absence of task-token evidence, so
+    # the six totals are UNKNOWN (None), never fabricated observed zeros.
+    before, after, _task = corrected_inputs()
+    record = reconcile_account_interval(before, after, task_usages=[],
+                                        unattributed_request_rows=2)
+    tokens = record["dimensions"]["task_token_usage"]
+    assert tokens["completeness"] == "UNKNOWN", json.dumps(record)
+    assert all(value is None for value in tokens["tokens"].values())
+
+
+def test_estimated_money_does_not_become_an_observed_credit_residual():
+    # Finding 2: the unit conversion fixes dimensions but the money input is
+    # still ESTIMATED, so the derived residual stays ESTIMATED with the
+    # conversion provenance, never promoted into an OBSERVED provider debit.
+    before, after, task = corrected_inputs()
+    record = reconcile_account_interval(before, after, task_usages=[task],
+                                        credit_conversion=conversion(rate=2.0))
+    assert record["dimensions"]["estimated_money"]["completeness"] == "ESTIMATED"
+    reconciliation = record["dimensions"]["credit_reconciliation"]
+    assert reconciliation["completeness"] == "ESTIMATED", json.dumps(record)
+    assert reconciliation["conversion"]["provenance"] == "fixture"
+    # 6.0 credits spent, 2.5 USD at the evidenced 2 credits/USD = 5.0 credits.
+    assert record["unattributed_residual_credits"] == 1.0
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "estimated_credit_reconciliation"
+
+
+def test_conversion_without_provenance_cannot_complete_reconciliation():
+    # Finding 4: a conversion needs a nonempty provenance AND a parseable
+    # observed_at; without both the residual cannot be reconciled, whatever the
+    # caller asserts. A caller assertion flag is never real billing proof.
+    before, after, task = corrected_inputs()
+    for bad in (dict(conversion(), provenance=None), dict(conversion(), observed_at=None),
+                dict(conversion(), observed_at="garbage")):
+        record = reconcile_account_interval(before, after, task_usages=[task],
+                                            credit_conversion=bad)
+        assert record["unattributed_residual_credits"] is None, bad
+        assert record["dimensions"]["credit_reconciliation"]["completeness"] == "UNKNOWN"
+        assert record["reason"] == "unknown_credit_conversion"
+
+
+def test_conversion_with_provenance_and_time_retains_the_estimated_residual():
+    # Positive control: a complete conversion (provenance + parseable time) does
+    # complete the unit arithmetic and retains the numeric signed residual, but
+    # the result stays an ESTIMATED accounting fact, never an observed debit.
+    before, after, task = corrected_inputs()
+    record = reconcile_account_interval(before, after, task_usages=[task],
+                                        credit_conversion=conversion(rate=2.0))
+    assert record["unattributed_residual_credits"] == 1.0
+    reported = record["dimensions"]["credit_reconciliation"]["conversion"]
+    assert reported["observed_at"] == T1 and reported["provenance"] == "fixture"
+
+
+def test_control_no_conversion_unknown_and_known_tokens_preserved():
+    # Positive control: without a conversion the residual stays unknown while
+    # the observed token dimension survives intact and account-level.
+    before, after, task = corrected_inputs()
+    record = reconcile_account_interval(before, after, task_usages=[task])
+    assert record["status"] == "PARTIAL"
+    assert record["reason"] == "unknown_credit_conversion"
+    assert record["unattributed_residual_credits"] is None
+    assert record["dimensions"]["task_token_usage"]["completeness"] == "OBSERVED"
+    assert record["account_delta_credits"] == 6.0
+
+
+def test_control_generators_late_evidence_and_original_record_retention():
+    # Positive control: list/generator reservation evidence settles identically,
+    # the earlier partial record is not mutated, and new evidence changes the
+    # reconciliation identity (materialize-once and digest coverage).
+    before, after, task = corrected_inputs()
+    partial = reconcile_account_interval(before, after, task_usages=[],
+                                         unattributed_request_rows=2)
+    original = json.dumps(partial, sort_keys=True)
+    rows = [{"account_ref": "acct-1", "created_at": "2026-10-25T09:00:00Z",
+             "reconciled_at": "2026-10-25T09:30:00Z"}]
+    listed = reconcile_account_interval(before, after, task_usages=[task],
+                                        credit_conversion=conversion(),
+                                        other_reservations=rows)
+    streamed = reconcile_account_interval(before, after, task_usages=(item for item in [task]),
+                                          credit_conversion=conversion(),
+                                          other_reservations=(row for row in rows))
+    assert listed == streamed
+    assert json.dumps(partial, sort_keys=True) == original
+    assert partial["inputs_digest"] != listed["inputs_digest"]
+    assert partial["status"] == "PARTIAL"
+
+
+def test_control_actual_parser_missing_token_fields_stay_unknown():
+    # Positive control: real parser -> correlator -> settlement propagation of a
+    # missing bucket keeps the token dimension PARTIAL/None, never fabricated.
+    before, after, task = corrected_inputs()
+    # The wire row carries no cache_write_1h bucket, so the correlated totals
+    # leave it unknown and settlement keeps it PARTIAL/None, never fabricating 0.
+    rows = ledger([{"rid": "r-1", "session": "s-1", "t": T0,
+                    "in": 10, "out": 0, "cost": 2.5, "priced": True}])
+    correlated = correlate_task_usage([], rows, sessions=["s-1"])
+    task.update(tokens=token_totals(correlated),
+                cost_usd=correlated["totals"]["cost_usd"],
+                requests=correlated["request_count"])
+    record = reconcile_account_interval(before, after, task_usages=[task],
+                                        credit_conversion=conversion())
+    assert record["status"] == "PARTIAL"
+    assert record["dimensions"]["task_token_usage"]["completeness"] == "PARTIAL"
+    assert record["tasks"][0]["tokens"]["cache_write_1h"] is None
