@@ -125,6 +125,9 @@ class UnattendedCoordinator:
             # Refuse to activate dispatch while persisted durable-run state
             # cannot be reconciled. A paused host may expose read-only state,
             # but the coordinator must never poll with unknown recovery truth.
+            # Hold the stop intent until reconciliation succeeds, so a failed
+            # startup cannot be bypassed by a manual or background tick (#1347).
+            self._stop.set()
             self.reconcile(fail_closed_on_durable=True)
             self._stop.clear()
             thread = threading.Thread(
