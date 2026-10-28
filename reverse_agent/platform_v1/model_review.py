@@ -63,10 +63,11 @@ def _claim_rpc_intent(store, task, lease, intent):
         reason = str(exc)
         if reason.startswith("external_operation_already_recorded:"):
             state = reason.rsplit(":", 1)[-1]
+            # A saved intent proves only the reservation, not a dispatch.
             raise CompletionUnknown(
                 f"model_review_completion_unknown:intent_{state.lower()}: reviewer call for "
-                f"{task.execution_id} was already dispatched (journal {state}) and no saved "
-                "response exists; not replayed, reconcile manually") from exc
+                f"{task.execution_id} was reserved (journal {state}) and may have been dispatched "
+                "or completed remotely; no saved response exists; not replayed, reconcile manually") from exc
         if reason.startswith(("external_operation_idempotency_conflict:",
                               "external_operation_idempotency_ambiguous:")):
             raise CompletionUnknown(
@@ -82,19 +83,23 @@ def _settle_saved_response(store, task, lease, evidence):
     if not rows:
         return
     row = rows[0]
-    if (len(rows) != 1 or row["run_id"] != lease.run_id or row["task_id"] != task.id
+    if (len(rows) != 1 or row["operation_key"] != RPC_OPERATION
+            or row["run_id"] != lease.run_id or row["task_id"] != task.id
             or row["request_digest"] != rpc_intent_digest(evidence["request_digest"], evidence["binding_identity"])):
         raise CompletionUnknown("model_review_completion_unknown:intent_scope_conflict: saved review "
-            f"for {task.execution_id} does not match its journaled reviewer call; reconcile manually")
+            f"for {task.execution_id} does not match its journaled reviewer call; not replayed, reconcile manually")
     try:
         store._reconcile_external_operation(operation_id=row["operation_id"],
             external_operation_id=evidence["request_id"], result_state="success",
             run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
     except TaskStoreError as exc:
-        if not str(exc).startswith("external_operation_terminal_conflict:"):
-            raise
-        raise CompletionUnknown("model_review_completion_unknown:receipt_conflict: saved review for "
-            f"{task.execution_id} conflicts with its terminal journal receipt; reconcile manually") from exc
+        if str(exc).startswith("external_operation_terminal_conflict:"):
+            raise CompletionUnknown("model_review_completion_unknown:receipt_conflict: saved review for "
+                f"{task.execution_id} conflicts with its terminal journal receipt; reconcile manually") from exc
+        # The saved response stays immutable; its receipt stays PENDING.
+        raise CompletionUnknown("model_review_completion_unknown:receipt_unsettled: saved review for "
+            f"{task.execution_id} could not settle its journal receipt ({str(exc).split(':', 1)[0]}); "
+            "receipt stays PENDING, not replayed, reconcile manually") from exc
 
 
 def response_schema():
@@ -426,20 +431,28 @@ def execute_review(service, task_id, workspace_root, lease):
                     external_operation_id=request_id if isinstance(request_id, str) else "",
                     result_state="failure", run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
                 raise
-            artifacts.bind_consumer_input(store, task_id, lease=lease, allow_create=False)
-            evidence = {"version": 1, "evidence_kind": "model_review", "run_id": lease.run_id,
-                "execution_id": task.execution_id, "lease_epoch": lease.epoch,
-                "input_digest": digest(binding), "head": before["head"], "tree": before["tree"],
-                "base": binding["base_commit"], "workspace_identity": before,
-                "binding_ref": task.binding_ref, "selected_model": selected_model,
-                "binding_identity": binding_identity,
-                "actual_models": reply["actual_models"], "authors": list(authors),
-                "request_digest": digest(request), "request_id": reply["request_id"],
-                "response": reply["response"], "response_digest": hashlib.sha256(reply["response"].encode()).hexdigest(),
-                "quota_observations": reply.get("quota_observations", []), "result": result}
-            _check_crash_seam("MODEL_REVIEW_BEFORE_EVIDENCE")
-            store._bind_artifact_evidence(task_id, category=CATEGORY, label=task.execution_id,
-                                          document=evidence, lease=lease)
+            try:
+                artifacts.bind_consumer_input(store, task_id, lease=lease, allow_create=False)
+                evidence = {"version": 1, "evidence_kind": "model_review", "run_id": lease.run_id,
+                    "execution_id": task.execution_id, "lease_epoch": lease.epoch,
+                    "input_digest": digest(binding), "head": before["head"], "tree": before["tree"],
+                    "base": binding["base_commit"], "workspace_identity": before,
+                    "binding_ref": task.binding_ref, "selected_model": selected_model,
+                    "binding_identity": binding_identity,
+                    "actual_models": reply["actual_models"], "authors": list(authors),
+                    "request_digest": digest(request), "request_id": reply["request_id"],
+                    "response": reply["response"], "response_digest": hashlib.sha256(reply["response"].encode()).hexdigest(),
+                    "quota_observations": reply.get("quota_observations", []), "result": result}
+                _check_crash_seam("MODEL_REVIEW_BEFORE_EVIDENCE")
+                store._bind_artifact_evidence(task_id, category=CATEGORY, label=task.execution_id,
+                                              document=evidence, lease=lease)
+            except Exception as exc:
+                # A valid reply completed remotely but is not durably saved: a
+                # FAILED task would be retried, so keep the receipt PENDING.
+                raise CompletionUnknown(f"model_review_completion_unknown:response_unsaved: reviewer call "
+                    f"{operation.operation_id} completed but its response was not saved "
+                    f"({type(exc).__name__}: {str(exc).split(':', 1)[0]}); journal stays PENDING, "
+                    "not replayed, reconcile manually") from exc
             _check_crash_seam("MODEL_REVIEW_AFTER_EVIDENCE")
         run = store._get_durable_run(lease.run_id)
         evidence = verified_evidence(store, store.get_task(task_id), run, require_accept=False)

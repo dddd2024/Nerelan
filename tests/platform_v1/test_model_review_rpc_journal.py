@@ -1,10 +1,12 @@
 """ModelReview reviewer RPC intent journal (#1191): fake providers only.
 
 The reviewer call is reserved once per consumer execution in the accepted
-external-operation journal. Post-intent crashes and lost replies park the task
-as BLOCKED with the journal PENDING; they never call the reviewer twice. These
-are provider-free fakes and do not prove real reboot or billing behaviour.
+external-operation journal. Post-intent crashes, lost replies and post-reply
+persistence errors park the task as BLOCKED with the journal PENDING; they never
+call the reviewer twice. These are provider-free fakes and do not prove real
+reboot or billing behaviour.
 """
+from dataclasses import asdict
 import json
 import threading
 import time
@@ -16,7 +18,9 @@ from test_model_review_execution import review_setup, run_review, evidence, REJE
 from test_model_review_toolless import toolless, run as run_toolless
 from test_functional_execution import durable
 from test_external_operation_invariants import _make_store, _leased_task, _record, _rows
-from reverse_agent.platform_v1 import model_review, durable_execution, model_review_transport as transport
+from reverse_agent.platform_v1 import model_review, durable_execution, artifact_handoff, model_review_transport as transport
+from reverse_agent.platform_v1.control_store import PlatformControlStore
+from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStoreError
 
 
@@ -67,13 +71,40 @@ def crash_and_resume(h, monkeypatch, seam, before_resume=None):
     return calls, service.resume_single(h["consumer"], lease_owner="review-restart")
 
 
-def assert_parked(h, result):
+def assert_blocked(h, result, marker=""):
     task = h["store"].get_task(h["consumer"])
     assert not result.success and result.failure_classification == "model_review_completion_unknown", result
     assert task.status == "BLOCKED" and task.failure_classification == "blocked"
-    assert task.failure_detail.startswith("model_review_completion_unknown:")
+    assert task.failure_detail.startswith("model_review_completion_unknown:" + marker)
     assert "not replayed" in task.failure_detail
+
+
+def assert_parked(h, result, marker=""):
+    assert_blocked(h, result, marker)
     assert not evidence(h["store"], h["consumer"])
+
+
+def escalate(h):
+    """Run the real GoalService retry path that replaces FAILED review attempts."""
+    store = h["store"]
+    control = PlatformControlStore(store)
+    goal_id = control.goal_id_for_task(h["consumer"])
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 10")
+    def resolver(plan, **kwargs):
+        return dict(executor_kind="codex", binding_ref="local-test-binding", model_id="local/test",
+                    reason="provider-free fixture")
+    before = [link["task_id"] for link in control.list_goal_tasks(goal_id)]
+    replacements = GoalService(store=store, control_store=control,
+                               task_resolver=resolver).escalate_failed_tasks(goal_id)
+    return replacements, before, [link["task_id"] for link in control.list_goal_tasks(goal_id)]
+
+
+def assert_no_replacement(h):
+    calls = h["calls"]()
+    replacements, before, after = escalate(h)
+    assert replacements == () and after == before
+    assert h["calls"]() == calls == 1
 
 
 @pytest.mark.parametrize("seam,calls_before", [("MODEL_REVIEW_AFTER_INTENT", 0),
@@ -82,6 +113,7 @@ def test_post_intent_crash_parks_without_second_call(harness, monkeypatch, seam,
     calls, result = crash_and_resume(harness, monkeypatch, seam)
     assert calls == calls_before
     assert_parked(harness, result)
+    assert "may have been dispatched" in harness["store"].get_task(harness["consumer"]).failure_detail
     assert harness["calls"]() == calls_before
     rows = journal(harness["store"], harness["consumer"])
     assert len(rows) == 1 and rows[0]["state"] == "PENDING" and rows[0]["operation_key"] == "model_review_rpc"
@@ -136,6 +168,24 @@ def test_changed_request_scope_after_intent_is_not_replayed(harness, monkeypatch
     assert [row["state"] for row in journal(harness["store"], harness["consumer"])] == ["PENDING"]
 
 
+def test_saved_response_with_wrong_operation_kind_is_not_settled(harness, monkeypatch):
+    store, consumer = harness["store"], harness["consumer"]
+    snapshot = {}
+    def retag():
+        rows = journal(store, consumer)
+        assert len(rows) == 1 and rows[0]["state"] == "PENDING"
+        store._conn.execute("UPDATE durable_external_operations SET operation_key = ? WHERE operation_id = ?",
+                            ("another-operation-kind", rows[0]["operation_id"]))
+        snapshot.update(rows=journal(store, consumer), saved=evidence(store, consumer))
+    calls, result = crash_and_resume(harness, monkeypatch, "MODEL_REVIEW_AFTER_EVIDENCE", before_resume=retag)
+    assert_blocked(harness, result, "intent_scope_conflict")
+    assert calls == 1 and harness["calls"]() == 1
+    rows = journal(store, consumer)
+    assert rows == snapshot["rows"] and rows[0]["state"] == "PENDING"
+    assert rows[0]["operation_key"] == "another-operation-kind" and rows[0]["result_state"] in ("", None)
+    assert len(snapshot["saved"]) == 1 and evidence(store, consumer) == snapshot["saved"]
+
+
 def test_lost_reply_after_provider_accepted_stays_pending(harness, monkeypatch):
     if harness["kind"] == "toolless":
         s = harness["state"]
@@ -154,6 +204,65 @@ def test_lost_reply_after_provider_accepted_stays_pending(harness, monkeypatch):
     assert [row["state"] for row in journal(harness["store"], harness["consumer"])] == ["PENDING"]
     if harness["kind"] == "toolless":
         assert harness["state"]["released"] == [True]
+    assert_no_replacement(harness)
+
+
+def test_evidence_save_failure_after_reply_parks_without_replacement(harness, monkeypatch):
+    store = harness["store"]
+    original = store._bind_artifact_evidence
+    def fail(*args, **kwargs):
+        if kwargs.get("category") == model_review.CATEGORY:
+            raise TaskStoreError("synthetic_evidence_write_failed")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(store, "_bind_artifact_evidence", fail)
+    result = harness["run"]()
+    assert_parked(harness, result, "response_unsaved")
+    assert "synthetic_evidence_write_failed" in store.get_task(harness["consumer"]).failure_detail
+    assert harness["calls"]() == 1
+    assert [row["state"] for row in journal(store, harness["consumer"])] == ["PENDING"]
+    monkeypatch.setattr(store, "_bind_artifact_evidence", original)
+    assert_no_replacement(harness)
+
+
+def test_input_rebinding_failure_after_reply_parks_without_replacement(harness, monkeypatch):
+    original = artifact_handoff.bind_consumer_input
+    failed = []
+    def fail(*args, **kwargs):
+        if (not failed and harness["calls"]() == 1 and kwargs.get("lease") is not None
+                and kwargs.get("allow_create") is False):
+            failed.append(True)
+            raise TaskStoreError("synthetic_binding_write_failed")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(artifact_handoff, "bind_consumer_input", fail)
+    result = harness["run"]()
+    assert failed == [True]
+    assert_parked(harness, result, "response_unsaved")
+    assert harness["calls"]() == 1
+    assert [row["state"] for row in journal(harness["store"], harness["consumer"])] == ["PENDING"]
+    monkeypatch.setattr(artifact_handoff, "bind_consumer_input", original)
+    assert_no_replacement(harness)
+
+
+def test_settlement_write_failure_preserves_saved_response(harness, monkeypatch):
+    store, consumer = harness["store"], harness["consumer"]
+    original = store._reconcile_external_operation
+    def fail(**kwargs):
+        if kwargs.get("result_state") == "success":
+            raise TaskStoreError("synthetic_receipt_write_failed")
+        return original(**kwargs)
+    monkeypatch.setattr(store, "_reconcile_external_operation", fail)
+    result = harness["run"]()
+    assert_blocked(harness, result, "receipt_unsettled")
+    assert harness["calls"]() == 1
+    saved = evidence(store, consumer)
+    assert len(saved) == 1
+    record = json.loads(saved[0]["detail"])
+    assert record["result"] == {"verdict": "ACCEPT", "findings": []} and record["request_id"]
+    rows = journal(store, consumer)
+    assert len(rows) == 1 and rows[0]["state"] == "PENDING" and rows[0]["result_state"] in ("", None)
+    monkeypatch.setattr(store, "_reconcile_external_operation", original)
+    assert_no_replacement(harness)
+    assert evidence(store, consumer) == saved and journal(store, consumer) == rows
 
 
 def test_known_invalid_output_keeps_failed_contract(harness):
@@ -166,6 +275,11 @@ def test_known_invalid_output_keeps_failed_contract(harness):
     assert harness["store"].get_task(harness["consumer"]).status == "FAILED"
     rows = journal(harness["store"], harness["consumer"])
     assert len(rows) == 1 and rows[0]["state"] == "RECONCILED" and rows[0]["result_state"] == "failure"
+    # Positive control for the no-replacement regressions: a known failed
+    # review is still retried by the same GoalService path.
+    replacements, before, after = escalate(harness)
+    assert len(replacements) == 1 and after != before
+    assert harness["calls"]() == 1
 
 
 def test_saved_reject_reconciles_and_keeps_repair_contract(harness):
@@ -208,7 +322,8 @@ def test_require_new_preserves_old_replay_and_conflict_rules(tmp_path):
     store = _make_store(tmp_path)
     task, lease = _leased_task(store)
     first = _record(store, task, lease)
-    assert _record(store, task, lease) == first  # old callers keep exact replay
+    # Each call builds a fresh dataclass type, so compare every field value.
+    assert asdict(_record(store, task, lease)) == asdict(first)  # old callers keep exact replay
     with pytest.raises(TaskStoreError, match="external_operation_already_recorded"):
         _record(store, task, lease, require_new=True)
     with pytest.raises(TaskStoreError, match="external_operation_idempotency_conflict"):
