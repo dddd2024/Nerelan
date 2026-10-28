@@ -20,6 +20,12 @@ VERSION = 1
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _REVIEW = re.compile(r"Nerelan-Review: (ACCEPT|REJECT|WITHHELD) ([0-9a-f]{40})")
 _FENCE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})")
+_SPAN_TOKEN = re.compile(r"\\[\s\S]|`+")
+# HTML block starts that interrupt a Markdown paragraph and open a literal
+# context, so a code span can never continue across them.
+_HTML_LITERAL_START = re.compile(r"^[ ]{0,3}(?:<!--|<(?:script|pre|style)(?:[ \t>]|$))",
+                                 re.IGNORECASE)
+_MAX_REPORT_BYTES = 128 * 1024
 _REVIEW_OUTCOME = re.compile(
     r"^(?:Final[ -]?)?(?:Outcome|Decision|Verdict|Review[ -]?Status):\s*"
     r"(REJECT|WITHHELD|FAIL|FAILED)\b", re.IGNORECASE
@@ -39,6 +45,9 @@ class _HtmlBlockTracker(HTMLParser):
     close tag only closes when it matches the innermost open block, so an
     out-of-order close is a mismatch. ``in_tag`` reports whether the lexer is
     holding an unfinished tag or comment (a dangling ``&`` charref is not one).
+    The stdlib script/style raw-text state (``cdata_elem``) is an active
+    literal context too. ``visible`` optionally collects top-level text data,
+    the only text where a Markdown code span can open.
     """
 
     def __init__(self) -> None:
@@ -46,16 +55,28 @@ class _HtmlBlockTracker(HTMLParser):
         self.stack: list[str] = []
         self.mismatch = False
         self.stray_comment_close = False
+        self.visible: list[str] | None = None
 
     def handle_data(self, data: str) -> None:
+        # Text inside an example block or script/style raw text is inert.
+        if self.stack or self.cdata_elem is not None:
+            return
         # A top-level "-->" with no opening comment is as invalid as an
-        # unclosed one; inside an example block it is inert text.
-        if not self.stack and "-->" in data:
+        # unclosed one.
+        if "-->" in data:
             self.stray_comment_close = True
+        if self.visible is not None:
+            self.visible.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() in ("pre", "code"):
             self.stack.append(tag.lower())
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        super().handle_startendtag(tag, attrs)
+        # Browsers ignore "/>" on <script>/<style>: raw text still begins.
+        if tag.lower() in ("script", "style") and self.cdata_elem is None:
+            self.set_cdata_mode(tag.lower())
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
@@ -79,7 +100,40 @@ class _HtmlBlockTracker(HTMLParser):
 
     @property
     def active(self) -> bool:
-        return bool(self.stack) or self.in_tag
+        return bool(self.stack) or self.in_tag or self.cdata_elem is not None
+
+
+def _code_span_end(text: str, lines: list[str], index: int) -> tuple[int, int] | None:
+    """Where a Markdown code span left open in ``text`` closes on a later line.
+
+    ``text`` is the live top-level text of line ``index``. A backtick run of
+    width n opens a code span closed only by the next run of exactly n
+    backticks; a backslash-escaped backtick opens nothing. A run with no
+    closer before the paragraph ends (blank line, fence line, comment or
+    pre/script/style block start, or end of input) is literal text, so a stray
+    backtick never hides a later genuine verdict nor a real literal block.
+    Returns the closing (line, column end) for a span crossing a line end.
+    """
+    pos = 0
+    while True:
+        token = _SPAN_TOKEN.search(text, pos)
+        if token is None:
+            return None
+        pos = token.end()
+        if token.group()[0] == "\\":
+            continue
+        closer = re.compile(r"(?<!`)`{%d}(?!`)" % len(token.group()))
+        same = closer.search(text, pos)
+        if same:
+            pos = same.end()
+            continue
+        for later in range(index + 1, len(lines)):
+            if (not lines[later].strip(" \t") or _FENCE.match(lines[later])
+                    or _HTML_LITERAL_START.match(lines[later])):
+                break
+            found = closer.search(lines[later])
+            if found:
+                return later, found.end()
 
 
 def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
@@ -92,14 +146,21 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     inert. The HTML lexer is persistent across lines and receives each line's
     real terminator, so incomplete tags, quoted attributes and comments keep
     their true lexical state and a marker line inside any of them is not a
-    declaration. Unclosed fences/comments/blocks fail closed. The report
-    remains model-authored and is NOT a substitute for external acceptance.
+    declaration. Script/style raw text is an HTML literal context as well. A
+    Markdown code span opened in live top-level text and closed by an exact
+    matching backtick run on a later line makes every line wholly inside it
+    literal code text, inert to the HTML lexer and never a declaration.
+    Unclosed fences/comments/blocks fail closed. The report remains
+    model-authored and is NOT a substitute for external acceptance.
     """
     markers: list[tuple[str, str]] = []
     fence: str | None = None
+    span: tuple[int, int] | None = None
     html = _HtmlBlockTracker()
-    for raw in content.splitlines(keepends=True):
-        line = (raw.splitlines() or [""])[0]
+    raws = content.splitlines(keepends=True)
+    lines = [(raw.splitlines() or [""])[0] for raw in raws]
+    for index, raw in enumerate(raws):
+        line = lines[index]
         # A Markdown fence makes every HTML/comment literal inside it inert, so
         # fence-active content never feeds the HTML lexer (a literal unclosed
         # <pre> in an example cannot open a real block) and a literal <!-- does
@@ -110,10 +171,16 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
                 if not line[opened.end():].strip():
                     fence = None
             continue
+        resume = 0
+        if span is not None:
+            # A line wholly inside a multiline code span is literal code text.
+            if index < span[0]:
+                continue
+            resume, span = span[1], None
         # A Markdown fence only opens at a line boundary with no active real
-        # pre/code block, unfinished tag or open comment; inside those it is
-        # inert content.
-        live = not html.active
+        # pre/code block, script/style raw text, unfinished tag, open comment
+        # or code span; inside those it is inert content.
+        live = not resume and not html.active
         if live:
             opened = _FENCE.match(line)
             if opened:
@@ -121,14 +188,20 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
                 continue
         # Every real tag and comment on the line is tokenized, with the actual
         # line terminator, so lexical separation and unfinished state persist.
+        # Only top-level text after a code span's closing run can open another.
         try:
-            html.feed(raw)
+            if resume:
+                html.feed(raw[:resume])
+            html.visible = []
+            html.feed(raw[resume:])
         except Exception:
             return None, "review_html_code_mismatched"
+        visible, html.visible = "".join(html.visible), None
         if html.mismatch:
             return None, "review_html_code_mismatched"
         if html.stray_comment_close:
             return None, "review_comment_unclosed"
+        span = _code_span_end(visible, lines, index)
         if not live or html.active:
             continue
         # Do not count block quotes, code indentation, list items or templates.
@@ -245,10 +318,16 @@ def validate_required_artifacts(task: Any, worktree: str | Path) -> tuple[bool, 
             candidate = candidate.resolve(strict=True)
             if not candidate.is_relative_to(root) or not candidate.is_file():
                 return False, "artifact_outside_worktree"
-            size = candidate.stat().st_size
-            if not 40 <= size <= 128 * 1024:
+            # Metadata size is only a fast precheck; the file can grow before it
+            # is read, so the bound is the bytes actually read: never more than
+            # one overflow-detection byte past the cap, checked before decoding.
+            if not 40 <= candidate.stat().st_size <= _MAX_REPORT_BYTES:
                 return False, "artifact_empty_or_oversized"
-            content = candidate.read_text(encoding="utf-8", errors="strict")
+            with candidate.open("rb") as handle:
+                data = handle.read(_MAX_REPORT_BYTES + 1)
+            if not 40 <= len(data) <= _MAX_REPORT_BYTES:
+                return False, "artifact_empty_or_oversized"
+            content = data.decode("utf-8", errors="strict")
             marker, error = _parse_review_marker(content)
             if marker is None:
                 return False, error

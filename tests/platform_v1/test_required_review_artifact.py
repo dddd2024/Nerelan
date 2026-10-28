@@ -278,6 +278,125 @@ def test_required_artifacts_survive_real_sqlite_close_reopen_and_service_rebuild
         store._conn.close()
 
 
+MARKER = "Nerelan-Review: ACCEPT " + SHA
+LIMIT = 128 * 1024
+
+
+@pytest.mark.parametrize("bad", [
+    # Reproductions from independent REVIEW REJECT at a4836900.
+    "<script>\n" + MARKER + "\n</script>",
+    "<style>\n" + MARKER + "\n</style>",
+    "`\n" + MARKER + "\n`",
+    "``\n" + MARKER + "\n``",
+    "<script/>\n" + MARKER + "\n</script>\n",
+    "`\r\n" + MARKER + "\r\n`\r\n",
+    "Notes `\n<script>\n`\n" + MARKER + "\n</script>\n",
+])
+def test_raw_text_or_multiline_code_span_never_passes_full_validation(tmp_path, bad):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(bad.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is False
+    command, status, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    assert command == "required_review_artifact"
+    assert status != 0
+    assert reason.startswith("review_")
+
+
+def test_closed_literal_examples_then_genuine_marker_pass_full_validation(tmp_path):
+    doc = ("Independent evidence: reviewed exact-head source.\n"
+           "<script>\n" + MARKER + "\n</script>\n"
+           "<style>\n" + MARKER + "\n</style>\n"
+           "Inline `example\n" + MARKER + "\n` and ``other\n" + MARKER + "\n``.\n"
+           "<!-- " + MARKER + " -->\n"
+           "```text\n" + MARKER + "\n```\n"
+           "<pre>\n" + MARKER + "\n</pre>\n"
+           "Current review:\n" + MARKER + "\n")
+    store, task, workspace, _ = setup_case(tmp_path, doc)
+    assert validate_required_artifacts(store.get_task(task.id), workspace) == (
+        True, "required_review_artifact_present")
+    command, code, _, _ = run_task_validation(store, task.id, worktree=workspace)
+    assert command == "git_diff_check" and code == 0
+
+
+def _sized_report(size):
+    body = report().encode("utf-8")
+    return b"x" * (size - len(body) - 1) + b"\n" + body
+
+
+def test_report_at_exact_byte_limit_passes(tmp_path):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(_sized_report(LIMIT))
+    assert path.stat().st_size == LIMIT
+    assert validate_required_artifacts(store.get_task(task.id), workspace) == (
+        True, "required_review_artifact_present")
+
+
+def test_report_one_byte_over_limit_is_oversized(tmp_path):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(_sized_report(LIMIT + 1))
+    assert validate_required_artifacts(store.get_task(task.id), workspace) == (
+        False, "artifact_empty_or_oversized")
+
+
+def test_report_with_malformed_utf8_is_rejected(tmp_path):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(report().encode("utf-8") + b"\xff\xfe\n")
+    assert validate_required_artifacts(store.get_task(task.id), workspace) == (
+        False, "required_artifact_missing_or_invalid")
+
+
+def test_growth_after_size_check_is_refused_by_bounded_actual_read(tmp_path, monkeypatch):
+    store, task, workspace, path = setup_case(tmp_path, report())
+    target = path.resolve()
+    assert target.stat().st_size < LIMIT
+    grown = (report() + "x" * LIMIT + "\n").encode("utf-8")
+    original_open = Path.open
+    opened, requests, observed = [], [], []
+
+    class RecordingHandle:
+        def __init__(self, handle):
+            self._handle = handle
+
+        def __enter__(self):
+            self._handle.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._handle.__exit__(*exc)
+
+        def read(self, size=-1, /):
+            requests.append(size)
+            data = self._handle.read(size)
+            observed.append(len(data))
+            return data
+
+        def __getattr__(self, name):
+            return getattr(self._handle, name)
+
+    def grow_then_open(self, *args, **kwargs):
+        if not opened and Path(self).resolve() == target:
+            # Actual growth lands after the validator's stat() size check and
+            # before the file is opened and read.
+            with open(target, "wb") as handle:
+                handle.write(grown)
+            opened.append(target.stat().st_size)
+            return RecordingHandle(original_open(self, *args, **kwargs))
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", grow_then_open)
+    result = validate_required_artifacts(store.get_task(task.id), workspace)
+    assert opened and opened[0] == len(grown) > LIMIT + 1
+    assert result == (False, "artifact_empty_or_oversized")
+    # Every read request is bounded: never unbounded and at most one
+    # overflow-detection byte past the cap.
+    assert requests and all(type(size) is int and 0 < size <= LIMIT + 1 for size in requests)
+    assert sum(observed) == LIMIT + 1
+
+
 def test_actual_unquoted_duplicate_verdicts_remain_ambiguous(tmp_path):
     doc = ("Nerelan-Review: ACCEPT " + SHA + "\n"
            "Nerelan-Review: WITHHELD " + SHA + "\n")

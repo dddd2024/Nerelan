@@ -331,6 +331,107 @@ def test_live_marker_beside_closed_example_and_duplicate_live_refused() -> None:
     assert error == "review_verdict_missing_or_ambiguous"
 
 
+@pytest.mark.parametrize("tag", ["script", "style", "SCRIPT"])
+def test_script_style_raw_text_fake_only_is_not_live(tag: str) -> None:
+    # Regression: HTMLParser raw-text state was ignored, so this was live.
+    marker, error = _parse_review_marker(f"<{tag}>\n{ACCEPT}\n</{tag}>")
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_self_closing_script_still_opens_raw_text() -> None:
+    marker, error = _parse_review_marker(f"<script/>\n{ACCEPT}\n</script>")
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_unclosed_script_fails_closed() -> None:
+    marker, error = _parse_review_marker(f"<script>\n{ACCEPT}\n")
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+
+
+def test_closed_script_style_examples_then_live_marker_accepted() -> None:
+    # Fences, comment closers and pre tags inside raw text are inert data.
+    content = "\n".join([
+        "<script>", "```", "if (a --> b) {}", "<pre>", ACCEPT, "</script>",
+        "<style>", "/* <!-- */", ACCEPT, "</style>",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_script_literal_inside_comment_fence_and_pre_keeps_priority() -> None:
+    content = "\n".join([
+        "<!-- <script> -->",
+        "```html", "<script>", "```",
+        "<pre>", "<script>", ACCEPT, "</script>", "</pre>",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("delimiter", ["`", "``"])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_multiline_inline_code_fake_only_is_not_live(delimiter: str, newline: str) -> None:
+    # Regression: a code span continuing across line ends was ignored.
+    marker, error = _parse_review_marker(newline.join([delimiter, ACCEPT, delimiter]))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+@pytest.mark.parametrize("delimiter", ["`", "``"])
+def test_closed_multiline_code_span_then_live_marker_accepted(delimiter: str) -> None:
+    content = "\n".join([f"Example {delimiter}code", ACCEPT, f"end{delimiter} done", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_code_span_closes_only_on_exact_backtick_run() -> None:
+    # A two-backtick run does not close a one-backtick span, nor vice versa.
+    marker, error = _parse_review_marker("\n".join(["`", ACCEPT, "``", ACCEPT, "`"]))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    content = "\n".join(["``", ACCEPT, "`", "``", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_inline_code_on_one_line_does_not_hide_live_marker() -> None:
+    assert _parse_review_marker("\n".join(["Use `x` and ``y``.", ACCEPT])) == (("ACCEPT", SHA), "")
+
+
+def test_stray_backtick_before_paragraph_break_does_not_hide_live_marker() -> None:
+    assert _parse_review_marker("\n".join(["Stray ` here", "", ACCEPT, "`"])) == (("ACCEPT", SHA), "")
+
+
+def test_escaped_backtick_does_not_open_code_span() -> None:
+    content = "\n".join(["Literal \\` tick", ACCEPT, "`"])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_backtick_in_fence_or_comment_does_not_open_code_span() -> None:
+    content = "\n".join(["```", "`", "```", "<!-- ` -->", ACCEPT, "`"])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_html_inside_multiline_code_span_is_inert() -> None:
+    content = "\n".join(["`", "see <pre> and <!-- here", "`", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_code_span_cannot_cross_real_script_block_start() -> None:
+    # The <script> line interrupts the paragraph: the backtick is literal and
+    # the raw-text block, not a code span, decides that the fake is inert.
+    content = "\n".join(["x `", "<script>", "`", ACCEPT, "</script>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_multiline_code_span_inside_pre_is_not_tracked() -> None:
+    content = "\n".join(["<pre>", "`", "</pre>", ACCEPT, "`"])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
 def test_multiline_attribute_then_outside_marker_accepted() -> None:
     # Positive control: once the real </pre> arrives the multiline quoted
     # attribute is fully closed, so a genuine ACCEPT after it is live.
