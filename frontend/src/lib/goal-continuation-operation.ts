@@ -114,8 +114,14 @@ async function mutateStage(
 }
 
 async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<PlatformWindow> {
-  if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
-  try { return await ensureApprovedWindow(goal.repository, { autonomyHours, operationId: `continue-${goal.id}-r${goal.revision}-${Date.now().toString(36)}` }); } catch (error) {
+  if (!Number.isFinite(autonomyHours) || autonomyHours < 0.5 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
+  // Versioned, unambiguous correlation identity survives retries and remounts.
+  // This client-derived value is NOT evidence of exact Owner Goal authorization.
+  // The authenticated window path must still enforce scope, usage and expiry.
+  const identity = JSON.stringify(["goal-continuation-v1", goal.repository, goal.id, goal.revision, autonomyHours]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  const operationId = `continue-v1-${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")}`;
+  try { return await ensureApprovedWindow(goal.repository, { autonomyHours, operationId }); } catch (error) {
     if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalContinuationError("active_window_repository_conflict", goal.id);
     throw error;
   }

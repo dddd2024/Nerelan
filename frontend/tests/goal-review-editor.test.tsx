@@ -172,6 +172,11 @@ it("completes Inbox capture, configuration, edited-plan review and explicit laun
   await waitFor(() => expect(screen.getByTestId("approval-plan")).toHaveTextContent("Edited full journey implementation"));
   await user.click(screen.getByTestId("approval-approve-button"));
   expect(await screen.findByTestId("approval-launch-button")).toBeDisabled();
+  expect(screen.getByLabelText("自治窗口时长")).toHaveValue("");
+  await user.click(screen.getByLabelText("确认启动当前计划"));
+  expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
+  await user.selectOptions(screen.getByLabelText("自治窗口时长"), "0.5");
+  expect(screen.getByLabelText("确认启动当前计划")).not.toBeChecked();
   await user.click(screen.getByLabelText("确认启动当前计划"));
   await user.click(screen.getByTestId("approval-launch-button"));
   await screen.findByTestId("goal-progress-bar");

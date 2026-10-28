@@ -117,6 +117,12 @@ describe("Approvals continuation page", () => {
       expect(screen.getByTestId("approval-launch-button")).toBeInTheDocument(),
     );
 
+    expect(screen.getByLabelText("自治窗口时长")).toHaveValue("");
+    await user.click(screen.getByLabelText("确认启动当前计划"));
+    expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText("自治窗口时长"), "0.5");
+    expect(screen.getByLabelText("确认启动当前计划")).not.toBeChecked();
+    expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
     await user.selectOptions(screen.getByLabelText("自治窗口时长"), "4");
     expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
     await user.click(screen.getByLabelText("确认启动当前计划"));
