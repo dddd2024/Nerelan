@@ -405,3 +405,47 @@ def test_actual_unquoted_duplicate_verdicts_remain_ambiguous(tmp_path):
     assert command == "required_review_artifact"
     assert code != 0
     assert reason == "review_verdict_missing_or_ambiguous"
+
+
+STALE = "Nerelan-Review: ACCEPT " + "b" * 40
+
+
+@pytest.mark.parametrize("bad", [
+    # Reproduction from independent REVIEW REJECT at ef658f6e.
+    "<blockquote>\n" + MARKER + "\n</blockquote>\n",
+    "<blockquote>\n<blockquote>\n" + STALE + "\n</blockquote>\n" + MARKER + "\n</blockquote>\n",
+    "<q>\n" + MARKER + "\n</q>\n",
+    "Notes `\n<blockquote>\n`\n" + MARKER + "\n</blockquote>\n",
+    "<blockquote/>\n" + MARKER + "\n",
+    "<blockquote />\n" + MARKER + "\n",
+    "<pre/>\n" + MARKER + "\n",
+    "<code/>\n" + MARKER + "\n",
+])
+def test_html_quotation_or_self_closing_container_never_passes_full_validation(tmp_path, bad):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(bad.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is False
+    command, status, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    assert command == "required_review_artifact"
+    assert status != 0
+    assert reason.startswith("review_")
+
+
+@pytest.mark.parametrize("prefix", [
+    "<blockquote>\n<blockquote>\n" + MARKER + "\n</blockquote>\n" + STALE + "\n</blockquote>\n",
+    "<!-- note --><blockquote cite=\"\n</blockquote>\n\">\n" + MARKER + "\n</blockquote>\n",
+    "Use `<blockquote>` and `<q>` inline.\n",
+    "See `quoted <blockquote>\n" + MARKER + "\n</blockquote>` end\n",
+    "```html\n<blockquote>\n" + MARKER + "\n```\n",
+    "<blockquote/>\n" + STALE + "\n</blockquote>\n",
+    "<pre />\n" + MARKER + "\n</pre>\n",
+    "<code/>\n" + MARKER + "\n</code>\n",
+])
+def test_genuine_marker_after_closed_quotation_passes_full_validation(tmp_path, prefix):
+    doc = "Independent evidence: reviewed exact-head source.\n" + prefix + MARKER + "\n"
+    store, task, workspace, _ = setup_case(tmp_path, doc)
+    assert validate_required_artifacts(store.get_task(task.id), workspace) == (
+        True, "required_review_artifact_present")
+    command, code, _, _ = run_task_validation(store, task.id, worktree=workspace)
+    assert command == "git_diff_check" and code == 0

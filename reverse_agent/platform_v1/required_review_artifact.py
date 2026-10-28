@@ -23,8 +23,10 @@ _FENCE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})")
 _SPAN_TOKEN = re.compile(r"\\[\s\S]|`+")
 # HTML block starts that interrupt a Markdown paragraph and open a literal
 # context, so a code span can never continue across them.
-_HTML_LITERAL_START = re.compile(r"^[ ]{0,3}(?:<!--|<(?:script|pre|style)(?:[ \t>]|$))",
-                                 re.IGNORECASE)
+_HTML_LITERAL_START = re.compile(
+    r"^[ ]{0,3}(?:<!--|<(?:script|pre|style|blockquote)(?:[ \t>/]|$))", re.IGNORECASE)
+# Literal example and quotation containers: text inside them is never live.
+_CONTAINERS = ("pre", "code", "blockquote", "q")
 _MAX_REPORT_BYTES = 128 * 1024
 _REVIEW_OUTCOME = re.compile(
     r"^(?:Final[ -]?)?(?:Outcome|Decision|Verdict|Review[ -]?Status):\s*"
@@ -33,7 +35,8 @@ _REVIEW_OUTCOME = re.compile(
 
 
 class _HtmlBlockTracker(HTMLParser):
-    """Persistent stdlib lexer for real <pre>/<code> nesting and comments.
+    """Persistent stdlib lexer for real <pre>/<code>/<blockquote>/<q> nesting
+    and comments; quoted text is as inert as example text.
 
     One tracker is fed every non-fenced line together with its original line
     terminator, so incomplete tags, quoted attribute values and comments keep
@@ -65,18 +68,23 @@ class _HtmlBlockTracker(HTMLParser):
             self.stray_comment_close = True
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() in ("pre", "code"):
+        if tag.lower() in _CONTAINERS:
             self.stack.append(tag.lower())
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # Browsers ignore "/>" on non-void elements: a pre/code/quotation
+        # container stays open until its real close tag, never closed empty.
+        if tag.lower() in _CONTAINERS:
+            self.handle_starttag(tag, attrs)
+            return
         super().handle_startendtag(tag, attrs)
-        # Browsers ignore "/>" on <script>/<style>: raw text still begins.
+        # Likewise on <script>/<style>: raw text still begins.
         if tag.lower() in ("script", "style") and self.cdata_elem is None:
             self.set_cdata_mode(tag.lower())
 
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
-        if tag not in ("pre", "code"):
+        if tag not in _CONTAINERS:
             return
         if self.stack and self.stack[-1] == tag:
             self.stack.pop()
@@ -121,7 +129,8 @@ def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
     A top-level backtick run of width n opens a code span closed only by the
     next run of exactly n backticks; a backslash-escaped backtick opens nothing.
     A run with no closer before the paragraph ends (blank line, fence line, or
-    a comment or pre/script/style block start not itself carrying the closer,
+    a comment or pre/script/style/blockquote block start not itself carrying
+    the closer,
     or end of input) is literal text fed to the lexer, so a stray backtick
     never hides a later genuine verdict nor a real literal block. Returns the
     closing (line, column end) for a span crossing a line end.
@@ -164,7 +173,9 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     inert. The HTML lexer is persistent across lines and receives each line's
     real terminator, so incomplete tags, quoted attributes and comments keep
     their true lexical state and a marker line inside any of them is not a
-    declaration. Script/style raw text is an HTML literal context as well. A
+    declaration. Script/style raw text and real HTML blockquote/q quotation
+    containers are HTML literal contexts as well; a nested quotation stays
+    quoted until its outermost container closes. A
     Markdown code span opened in live top-level text and closed by an exact
     matching backtick run makes its content literal code text: every line
     wholly inside it and the code portions of its opening and closing lines

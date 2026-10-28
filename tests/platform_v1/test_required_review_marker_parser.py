@@ -488,3 +488,81 @@ def test_multiline_attribute_then_outside_marker_accepted() -> None:
         ACCEPT,
     ])
     assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("tag", ["blockquote", "BLOCKQUOTE", "q"])
+def test_html_quotation_sole_marker_is_not_live(tag: str) -> None:
+    # Regression from independent REJECT at ef658f6e: quoted report text was live.
+    marker, error = _parse_review_marker(f"<{tag}>\n{ACCEPT}\n</{tag}>\n")
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_inner_quote_close_does_not_exit_outer_quote() -> None:
+    content = "\n".join(["<blockquote>", "<blockquote>", FAKE, "</blockquote>",
+                         ACCEPT, "</blockquote>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_unclosed_quote_fails_closed() -> None:
+    marker, error = _parse_review_marker("\n".join(["<blockquote>", ACCEPT]))
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+
+
+def test_genuine_marker_after_closed_quote_with_stale_markers_accepted() -> None:
+    content = "\n".join(["<blockquote>", "<blockquote>", ACCEPT, "</blockquote>",
+                         FAKE, ACCEPT.replace("ACCEPT", "REJECT"), "</blockquote>",
+                         ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_comment_adjacent_to_quote_keeps_the_tag() -> None:
+    marker, error = _parse_review_marker("\n".join(["<!-- note --><blockquote>", ACCEPT,
+                                                    "</blockquote>"]))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    content = "\n".join(["<blockquote><!-- note --></blockquote><!-- two -->", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_multiline_quote_attribute_does_not_close_quote() -> None:
+    lines = ['<blockquote cite="', "</blockquote>", '">', ACCEPT, "</blockquote>"]
+    marker, error = _parse_review_marker("\n".join(lines))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    assert _parse_review_marker("\n".join(lines + [ACCEPT])) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("content", [
+    "Use `<blockquote>` here.\n",
+    "See `quoted <blockquote>\n" + ACCEPT + "\n</blockquote>` end\n",
+    "```html\n<blockquote>\n" + ACCEPT + "\n```\n",
+    "~~~\n<q>\n~~~\n",
+])
+def test_quote_markup_inside_code_is_inert(content: str) -> None:
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    assert _parse_review_marker(content + ACCEPT + "\n") == (("ACCEPT", SHA), "")
+
+
+def test_code_span_cannot_cross_real_blockquote_block_start() -> None:
+    content = "\n".join(["x `", "<blockquote>", "`", ACCEPT, "</blockquote>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+@pytest.mark.parametrize("opener", ["<blockquote/>", "<blockquote />", "<pre/>",
+                                    "<code/>", "<q/>"])
+def test_self_closing_container_does_not_close_empty(opener: str) -> None:
+    # Browsers ignore "/>" on non-void elements; the container stays open.
+    marker, error = _parse_review_marker(f"{opener}\n{ACCEPT}\n")
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+    tag = opener.strip("</ >")
+    content = f"{opener}\n{FAKE}\n</{tag}>\n{ACCEPT}\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
