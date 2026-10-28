@@ -2772,10 +2772,14 @@ class TaskStore:
         task_id: str = "",
         owner: str = "",
         epoch: int = 0,
+        require_new: bool = False,
     ) -> Any:
         """Record an external operation BEFORE dispatch.
 
         Validates run_id + owner + epoch under the same lock as the INSERT.
+        With ``require_new`` the caller must win the reservation: an existing
+        identical row raises ``external_operation_already_recorded`` instead of
+        being replayed, so only the inserting caller may dispatch.
         """
         with self._lock:
             cur = self._conn.cursor()
@@ -2828,6 +2832,12 @@ class TaskStore:
                         raise TaskStoreError(
                             f"external_operation_idempotency_conflict:"
                             f"{idempotency_key}:{','.join(mismatched)}"
+                        )
+                    if require_new:
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(
+                            f"external_operation_already_recorded:"
+                            f"{idempotency_key}:{existing['state']}"
                         )
                     cur.execute("COMMIT")
                     return _row_to_external_operation(existing)
