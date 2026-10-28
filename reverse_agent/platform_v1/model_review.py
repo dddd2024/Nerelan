@@ -30,6 +30,8 @@ RPC_OPERATION = "model_review_rpc"
 # the call (timeout, lost reply, transport error) may have completed remotely.
 KNOWN_CALL_FAILURES = frozenset({"model_review_invalid_output", "review_not_independent",
     "model_review_connection_unsupported", "model_review_sandbox_unsupported"})
+# Receipt states that settle the reviewer call; any other row is unresolved.
+SETTLED_STATES = frozenset({"SUCCESS", "RECONCILED"})
 
 
 class CompletionUnknown(TaskStoreError):
@@ -100,6 +102,31 @@ def _settle_saved_response(store, task, lease, evidence):
         raise CompletionUnknown("model_review_completion_unknown:receipt_unsettled: saved review for "
             f"{task.execution_id} could not settle its journal receipt ({str(exc).split(':', 1)[0]}); "
             "receipt stays PENDING, not replayed, reconcile manually") from exc
+
+
+def _unresolved_intent(store, task_id, task, exc):
+    """Central guard for every error path: explain an unresolved reviewer call, else None.
+
+    The journal is keyed by the logical execution, so an intent left by an
+    earlier invocation is found even when this one failed before its own claim.
+    A failed lookup cannot prove absence and is reported as unresolved.
+    """
+    if isinstance(exc, CompletionUnknown):
+        return str(exc)
+    cause = str(exc).split(":", 1)[0] if isinstance(exc, (TaskStoreError, ExecutorRuntimeError)) else type(exc).__name__
+    try:
+        execution_id = (task or store.get_task(task_id)).execution_id
+        rows = _journal_rows(store, rpc_intent_key(execution_id))
+    except Exception as lookup:
+        return (f"model_review_completion_unknown:intent_unverifiable: reviewer journal for {task_id} "
+            f"could not be read ({type(lookup).__name__}) after {cause}; an earlier reviewer call may have "
+            "been dispatched or completed remotely; not replayed, reconcile manually")
+    pending = [row for row in rows if row.get("state") not in SETTLED_STATES]
+    if not pending:
+        return None
+    return (f"model_review_completion_unknown:intent_pending: reviewer call {pending[0].get('operation_id')} "
+        f"for {execution_id} is journaled {pending[0].get('state')} and may have been dispatched or completed "
+        f"remotely; {cause} interrupted this invocation before the receipt settled; not replayed, reconcile manually")
 
 
 def response_schema():
@@ -311,8 +338,9 @@ def execute_review(service, task_id, workspace_root, lease):
     from .task_execution import TaskExecutionOutcome
     store = service.store
     store._validate_durable_lease(lease.run_id, lease.owner, lease.epoch)
-    task = store.get_task(task_id)
+    task = None
     try:
+        task = store.get_task(task_id)
         binding = artifacts.bind_consumer_input(store, task_id, lease=lease)
         if not artifacts.model_review_input(task) or binding is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -471,19 +499,23 @@ def execute_review(service, task_id, workspace_root, lease):
             store._accept_checkpoint(lease.run_id, checkpoint, digest(evidence), 1, lease.owner, lease.epoch)
             _check_crash_seam(checkpoint)
         return service._resume_single_validate_and_terminal(task_id, Path(run.worktree_path), run, lease, 1, "READY_FOR_REVIEW")
-    except CompletionUnknown as exc:
-        # Unknown completion is not a remote failure: BLOCKED is never retried
-        # automatically, so the reviewer cannot be called a second time.
-        reason = str(exc)
-        store._fenced_classify_failure(lease.run_id, task_id, classification="blocked",
+    except Exception as exc:
+        # Every error, wherever it occurs (entry binding, admission, evidence
+        # reads, settlement), first consults the journal of this execution.
+        # BaseException crash seams pass through and leave the intent durable.
+        unresolved = _unresolved_intent(store, task_id, task, exc)
+        if unresolved is not None:
+            # Unknown completion is not a remote failure: BLOCKED is never retried
+            # automatically, so the reviewer cannot be called a second time.
+            classification, reason = "blocked", unresolved
+        elif isinstance(exc, (TaskStoreError, ExecutorRuntimeError, OSError, ValueError, TypeError, KeyError,
+                              subprocess.SubprocessError)):
+            reason = str(exc) if isinstance(exc, (TaskStoreError, ExecutorRuntimeError)) else "model_review_evidence_invalid"
+            classification = reason.split(":", 1)[0]
+        else:
+            raise
+        store._fenced_classify_failure(lease.run_id, task_id, classification=classification,
                                       detail=reason, owner=lease.owner, epoch=lease.epoch)
-        return TaskExecutionOutcome(task_id=task_id, execution_id=task.execution_id, success=False,
-            validation_command_id=functional.FUNCTIONAL_COMMAND_ID, validation_exit_code=-1,
-            failure_classification=reason.split(":", 1)[0], failure_detail=reason)
-    except (TaskStoreError, ExecutorRuntimeError, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError) as exc:
-        reason = str(exc) if isinstance(exc, (TaskStoreError, ExecutorRuntimeError)) else "model_review_evidence_invalid"
-        store._fenced_classify_failure(lease.run_id, task_id, classification=reason.split(":", 1)[0],
-                                      detail=reason, owner=lease.owner, epoch=lease.epoch)
-        return TaskExecutionOutcome(task_id=task_id, execution_id=task.execution_id, success=False,
+        return TaskExecutionOutcome(task_id=task_id, execution_id=task.execution_id if task else "", success=False,
             validation_command_id=functional.FUNCTIONAL_COMMAND_ID, validation_exit_code=-1,
             failure_classification=reason.split(":", 1)[0], failure_detail=reason)

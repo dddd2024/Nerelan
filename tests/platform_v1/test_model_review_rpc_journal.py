@@ -8,6 +8,7 @@ reboot or billing behaviour.
 """
 from dataclasses import asdict
 import json
+import sqlite3
 import threading
 import time
 
@@ -347,3 +348,101 @@ def test_stale_owner_cannot_reserve_review_intent(harness, monkeypatch):
     with pytest.raises(TaskStoreError, match="lease_fenced_external_op"):
         model_review._claim_rpc_intent(store, task, stale, "intent")
     assert journal(store, task.id) == [] and harness["calls"]() == 0
+
+
+def fail_entry_binding(h, monkeypatch, error):
+    """Every consumer binding read raises before this invocation can claim an intent."""
+    original = artifact_handoff.bind_consumer_input
+    def fail(store, task_id, **kwargs):
+        if task_id == h["consumer"]:
+            raise error
+        return original(store, task_id, **kwargs)
+    monkeypatch.setattr(artifact_handoff, "bind_consumer_input", fail)
+    return original
+
+
+def unavailable_journal(monkeypatch):
+    def unreadable(store, key):
+        raise sqlite3.OperationalError("database is locked")
+    monkeypatch.setattr(model_review, "_journal_rows", unreadable)
+
+
+@pytest.mark.parametrize("error", [TaskStoreError("synthetic_recovery_binding_read_failed"),
+                                   RuntimeError("synthetic recovery entry fault")])
+def test_pending_intent_survives_recovery_entry_error(harness, monkeypatch, error):
+    store, consumer = harness["store"], harness["consumer"]
+    snapshot = {}
+    def entry_fault():
+        snapshot.update(rows=journal(store, consumer))
+        snapshot["bind"] = fail_entry_binding(harness, monkeypatch, error)
+    calls, result = crash_and_resume(harness, monkeypatch, "MODEL_REVIEW_AFTER_CALL", before_resume=entry_fault)
+    assert calls == 1
+    assert_parked(harness, result, "intent_pending")
+    detail = store.get_task(consumer).failure_detail
+    assert "may have been dispatched" in detail and snapshot["rows"][0]["operation_id"] in detail
+    assert [row["state"] for row in snapshot["rows"]] == ["PENDING"]
+    assert journal(store, consumer) == snapshot["rows"]
+    # The transient entry fault clears; the real retry path still creates nothing.
+    monkeypatch.setattr(artifact_handoff, "bind_consumer_input", snapshot["bind"])
+    assert_no_replacement(harness)
+    assert journal(store, consumer) == snapshot["rows"] and not evidence(store, consumer)
+
+
+def test_pending_intent_with_saved_response_survives_recovery_entry_error(harness, monkeypatch):
+    store, consumer = harness["store"], harness["consumer"]
+    snapshot = {}
+    def entry_fault():
+        snapshot.update(rows=journal(store, consumer), saved=evidence(store, consumer))
+        fail_entry_binding(harness, monkeypatch, TaskStoreError("synthetic_recovery_binding_read_failed"))
+    calls, result = crash_and_resume(harness, monkeypatch, "MODEL_REVIEW_AFTER_EVIDENCE", before_resume=entry_fault)
+    assert calls == 1 and harness["calls"]() == 1
+    assert_blocked(harness, result, "intent_pending")
+    assert len(snapshot["saved"]) == 1 and evidence(store, consumer) == snapshot["saved"]
+    assert [row["state"] for row in journal(store, consumer)] == ["PENDING"]
+    assert journal(store, consumer) == snapshot["rows"]
+
+
+def test_no_intent_entry_error_keeps_original_failure(harness, monkeypatch):
+    fail_entry_binding(harness, monkeypatch, TaskStoreError("synthetic_recovery_binding_read_failed"))
+    result = harness["run"]()
+    task = harness["store"].get_task(harness["consumer"])
+    assert not result.success and result.failure_classification == "synthetic_recovery_binding_read_failed"
+    assert task.status == "FAILED" and task.failure_classification == "synthetic_recovery_binding_read_failed"
+    assert harness["calls"]() == 0 and journal(harness["store"], harness["consumer"]) == []
+
+
+def test_unexpected_no_intent_entry_error_keeps_dispatch_failure(harness, monkeypatch):
+    fail_entry_binding(harness, monkeypatch, RuntimeError("synthetic recovery entry fault"))
+    with pytest.raises(RuntimeError, match="synthetic recovery entry fault"):
+        harness["run"]()
+    task = harness["store"].get_task(harness["consumer"])
+    assert task.status == "FAILED" and task.failure_classification == "executor_dispatch_failed"
+    assert harness["calls"]() == 0 and journal(harness["store"], harness["consumer"]) == []
+
+
+def test_unreadable_journal_on_recovery_entry_error_keeps_pending_ambiguity(harness, monkeypatch):
+    store, consumer = harness["store"], harness["consumer"]
+    snapshot = {}
+    def entry_fault():
+        snapshot.update(rows=journal(store, consumer))
+        snapshot["bind"] = fail_entry_binding(harness, monkeypatch,
+                                              TaskStoreError("synthetic_recovery_binding_read_failed"))
+        unavailable_journal(monkeypatch)
+    calls, result = crash_and_resume(harness, monkeypatch, "MODEL_REVIEW_AFTER_CALL", before_resume=entry_fault)
+    assert calls == 1
+    assert_parked(harness, result, "intent_unverifiable")
+    assert "may have been dispatched" in store.get_task(consumer).failure_detail
+    assert [row["state"] for row in snapshot["rows"]] == ["PENDING"] and journal(store, consumer) == snapshot["rows"]
+    monkeypatch.setattr(artifact_handoff, "bind_consumer_input", snapshot["bind"])
+    assert_no_replacement(harness)
+    assert journal(store, consumer) == snapshot["rows"]
+
+
+def test_unreadable_journal_cannot_prove_absence_or_authorize_review(harness, monkeypatch):
+    fail_entry_binding(harness, monkeypatch, TaskStoreError("synthetic_recovery_binding_read_failed"))
+    unavailable_journal(monkeypatch)
+    result = harness["run"]()
+    assert_parked(harness, result, "intent_unverifiable")
+    assert harness["calls"]() == 0 and journal(harness["store"], harness["consumer"]) == []
+    replacements, before, after = escalate(harness)
+    assert replacements == () and after == before and harness["calls"]() == 0
