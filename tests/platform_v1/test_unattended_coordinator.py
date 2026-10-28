@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 import threading
 import subprocess
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -260,6 +261,107 @@ def _ready_fixture(store: TaskStore, task_id: str):
     store.transition_to(task_id, "VALIDATING")
     store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
     return SimpleNamespace(success=True)
+
+
+@pytest.mark.parametrize("failed", [False, True])
+@pytest.mark.parametrize("mutation", [None, "goal", "window", "task", "revision", "epoch", "future", "missing_result", "false_result", "artifact", "policy"])
+def test_strict_owner_terminal_recovery_through_coordinator(tmp_path, monkeypatch, failed, mutation):
+    from test_goal_service import _persisted_host_result
+    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+    from reverse_agent.platform_v1.control_store import sha256_json
+
+    store, control, window, goal, task_id = _persisted_host_result(
+        tmp_path, monkeypatch, strict=True, failed=failed)
+    try:
+        store._conn.execute("UPDATE platform_autonomous_windows SET expires_at=? WHERE id=?",
+            ((datetime.now(timezone.utc) + timedelta(minutes=30)).isoformat(), window.id))
+        store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?", (task_id,))
+        task = store.get_task(task_id)
+        store.append_usage_observation(task_id, observation_id="original-unknown", execution_id=task.execution_id,
+            role="executor", model_id="fixture", provider_id="", source_kind="fixture", source_id="original", status="UNKNOWN")
+        if mutation == "goal":
+            store._conn.execute("UPDATE platform_goals SET window_id='' WHERE id=?", (goal.id,))
+        elif mutation == "window":
+            store._conn.execute("UPDATE platform_coordinator_claims SET window_id='foreign' WHERE task_id=?", (task_id,))
+        elif mutation == "task":
+            foreign = store.create_task(title="Foreign", repository=goal.repository, executor_kind=goal.executor_kind)
+            store._conn.execute("UPDATE platform_goal_task_links SET task_id=? WHERE task_id=?", (foreign.id, task_id))
+        elif mutation == "revision":
+            store._conn.execute("UPDATE platform_goal_task_links SET goal_revision=2 WHERE task_id=?", (task_id,))
+        elif mutation == "epoch":
+            store._conn.execute("UPDATE platform_coordinator_claims SET epoch=epoch+1 WHERE task_id=?", (task_id,))
+        elif mutation == "future":
+            store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=9999999999999 WHERE task_id=?", (task_id,))
+        elif mutation == "missing_result":
+            store._conn.execute("UPDATE tasks SET validation_output_digest='' WHERE id=?", (task_id,))
+        elif mutation == "false_result":
+            store._conn.execute("UPDATE tasks SET validation_exit_code=? WHERE id=?", (0 if failed else 1, task_id))
+        elif mutation == "artifact":
+            store._conn.execute("UPDATE platform_goals SET artifact_digest=? WHERE id=?", ("f" * 64, goal.id))
+        elif mutation == "policy":
+            store._conn.execute("UPDATE platform_autonomous_windows SET policy_digest=? WHERE id=?", ("f" * 64, window.id))
+        def forbidden(*args, **kwargs):
+            pytest.fail("Result-only recovery dispatched work")
+        router = ExecutorRouter()
+        monkeypatch.setattr(router, "create_executor", forbidden)
+        monkeypatch.setattr(router, "dispatch_execute", forbidden)
+        monkeypatch.setattr(LocalValidationRunner, "run", forbidden)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        assert not autonomy.authorize(window_id=window.id, operation="validate_task", repository=task.repository,
+            subject_id=task_id, input_payload={"task_id": task_id})
+        monkeypatch.setattr(autonomy, "authorize", forbidden)
+        monkeypatch.setattr(control, "claim_task", forbidden)
+        coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+            router=router, workspace_root=tmp_path, task_executor=forbidden)
+        if mutation is not None:
+            # Even a stale/foreign candidate from discovery must fail at the
+            # transactional completion boundary without admission side effects.
+            monkeypatch.setattr(control, "runnable_tasks", lambda *args, **kwargs: (task_id,))
+        # tick is the actual single-pass coordinator entry point in this checkout.
+        before = tuple(store._conn.iterdump())
+        assert coordinator.tick() == (1 if mutation is None else 0)
+        if mutation is not None:
+            assert tuple(store._conn.iterdump()) == before
+            with pytest.raises(TaskStoreError):
+                control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
+            assert tuple(store._conn.iterdump()) == before
+        else:
+            assert store.get_task(task_id) == task
+            final = control.get_window(window.id)
+            assert (final.tasks_started, final.tasks_completed, final.retries_used) == (1, 1, 0)
+            assert final.capabilities == ("execute_task",)
+            assert final.unknown_observation_count == 1
+            claim = store._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
+            assert claim["status"] == "COMPLETE" and claim["epoch"] == 1 and claim["owner"] == "original"
+            reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
+            assert reservation["state"] == "UNKNOWN" and reservation["claim_epoch"] == 1
+            assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
+            assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 1
+            receipts = control.list_receipts(window_id=window.id)
+            reconciled = [r for r in receipts if r.operation_type == "task_claim_reconciliation"]
+            assert len(reconciled) == 1
+            receipt = reconciled[0]
+            assert receipt.capability == "not_applicable" and receipt.decision == "not_evaluated"
+            assert receipt.reason == "coordinator_persisted_result_reconciled"
+            assert receipt.result == "persisted_host_result:UNKNOWN"
+            assert receipt.subject_id == task_id and receipt.repository == task.repository
+            assert receipt.actor == final.owner_identity
+            assert receipt.policy_revision == final.policy_revision
+            assert receipt.policy_digest == final.policy_digest
+            assert receipt.confirmation_mode == control.window_policy_binding(window.id)["confirmation_mode"]
+            assert receipt.input_digest == sha256_json({"task_id": task_id, "claim_epoch": 1,
+                "claim_owner": "original", "persisted_result_only": True})
+            assert not any(r.decision == "allowed" and r.capability in {"validate_task", "execute_task"}
+                           for r in receipts)
+            assert not any(r.operation_type == "task_execution" for r in receipts)
+            assert all(r.decision != "allowed" for r in reconciled)
+            assert control.receipt_totals(window_id=window.id)["total"] == len(receipts)
+            assert coordinator.tick() == 0
+            with pytest.raises(TaskStoreError):
+                control.complete_persisted_host_claim(window_id=window.id, task_id=task_id)
+            assert control.list_receipts(window_id=window.id) == receipts
+    finally:
+        store._conn.close()
 
 
 def test_coordinator_respects_dependencies_and_restart_does_not_duplicate(tmp_path):
@@ -994,3 +1096,163 @@ def test_unknown_usage_still_stops_a_zero_budget_hard_admission_window():
     control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
     stopped = control.get_window(window.id)
     assert (stopped.status, stopped.stop_reason, stopped.enforcement_class) == ("BLOCKED", "usage_unknown", "USAGE_UNKNOWN")
+
+
+@pytest.mark.parametrize("mutation", ["owner", "epoch", "window", "status", "expired", "gone"])
+def test_renew_claim_is_fenced(monkeypatch, mutation):
+    from reverse_agent.platform_v1 import control_store as cs
+
+    store = TaskStore(":memory:")
+    try:
+        control = PlatformControlStore(store)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        window = _budget_window(autonomy, policy_id="renew", max_tokens=0, reservation=0)
+        task = store.create_task(title="renew", executor_kind="deterministic_fixture")
+        epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="worker", lease_ms=300)
+        original = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+        monkeypatch.setattr(cs, "_utc_now_ms", lambda: original - 200)
+        kwargs = dict(window_id=window.id, task_id=task.id, owner="worker", epoch=epoch, lease_ms=600)
+        assert control.renew_claim(**kwargs)
+        extended = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+        assert extended == original + 400
+        if mutation == "owner":
+            kwargs["owner"] = "other"
+        elif mutation == "epoch":
+            kwargs["epoch"] += 1
+        elif mutation == "window":
+            kwargs["window_id"] = "other"
+        elif mutation == "status":
+            store._conn.execute("UPDATE platform_coordinator_claims SET status='COMPLETED'")
+        elif mutation == "expired":
+            monkeypatch.setattr(cs, "_utc_now_ms", lambda: extended)
+        else:
+            store._conn.execute("DELETE FROM platform_coordinator_claims")
+        assert not control.renew_claim(**{**kwargs, "lease_ms": 1000})
+        row = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()
+        assert row is None or row[0] == extended
+    finally:
+        store._conn.close()
+
+
+def test_coordinator_renews_claim_through_long_execution(tmp_path, monkeypatch):
+    import time
+
+    store = TaskStore(":memory:")
+    try:
+        control = PlatformControlStore(store)
+        autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+        window = _budget_window(autonomy, policy_id="long-turn", max_tokens=0, reservation=0)
+        goals = GoalService(store=store, control_store=control)
+        goal = _parallel_goal(goals, window.id, key="long-turn", count=1)
+        task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+        renewed = []
+        original = control.renew_claim
+
+        def renew(**kwargs):
+            result = original(**kwargs)
+            renewed.append(result)
+            return result
+
+        monkeypatch.setattr(control, "renew_claim", renew)
+
+        def execute(task_id):
+            initial = store._conn.execute("SELECT expires_at_ms FROM platform_coordinator_claims").fetchone()[0]
+            time.sleep(0.9)  # Three times the injected lease.
+            with store._lock:
+                claim = store._conn.execute("SELECT * FROM platform_coordinator_claims").fetchone()
+            assert claim["status"] == "ACTIVE"
+            assert claim["expires_at_ms"] > initial
+            assert claim["expires_at_ms"] > int(time.time() * 1000)
+            return _ready_fixture(store, task_id)
+
+        coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+            router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute, claim_lease_ms=300)
+        assert coordinator.tick() == 1
+        assert renewed and all(renewed)
+        count = len(renewed)
+        time.sleep(0.15)
+        assert len(renewed) == count
+        assert store.get_task(task_id).status == "READY_FOR_REVIEW_FIXTURE"
+    finally:
+        store._conn.close()
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_failed_claim_renewal_is_logged_and_stops(tmp_path, monkeypatch, caplog, raises):
+    import time
+
+    calls = []
+    def renew(**kwargs):
+        calls.append(kwargs)
+        if raises:
+            raise TaskStoreError("fixture_fenced")
+        return False
+
+    coordinator = UnattendedCoordinator(store=None, control_store=SimpleNamespace(renew_claim=renew),
+        autonomy=None, router=ExecutorRouter(), workspace_root=tmp_path, claim_lease_ms=30)
+    def execute(task_id):
+        time.sleep(0.12)
+        return "finished"
+    monkeypatch.setattr(coordinator, "_execute_task", execute)
+    assert coordinator._execute_with_claim_renewal("window", "task", 1) == "finished"
+    assert len(calls) == 1
+    assert "claim renewal" in caplog.text
+
+
+def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_path):
+    """#1267 evidence basis: prove interval overlap from platform timestamps.
+
+    The barrier proves the two executors were genuinely running at the same
+    wall-clock moment; the interval markers are written through the store's own
+    event log (its created_at is host-owned, not test-supplied), so the
+    overlap holds in recorded evidence, not just in the test's own clocks.
+    """
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "parallel-intervals", "policy_revision": 1,
+        "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="parallel-interval-evidence")
+    barrier = threading.Barrier(2)
+
+    def execute(task_id):
+        store.add_event(task_id, event_type="EXECUTOR_RUNNING",
+                        title="fixture interval start", metadata={"executor_kind": "deterministic_fixture"})
+        barrier.wait(timeout=10)
+        # Hold the overlap across a second boundary: store timestamps have
+        # one-second resolution, so the proof needs the earlier task's
+        # recorded finish to land in a strictly later second.
+        time.sleep(1.2)
+        result = _ready_fixture(store, task_id)
+        store.add_event(task_id, event_type="EXECUTOR_FINISHED",
+                        title="fixture interval end", metadata={"executor_kind": "deterministic_fixture"})
+        return result
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+    )
+    assert coordinator.tick() == 2
+    assert control.get_goal(goal.id).status == "COMPLETED"
+    intervals = {}
+    for link in control.list_goal_tasks(goal.id):
+        task_id = link["task_id"]
+        events = store.get_events(task_id)
+        starts = [e.timestamp for e in events if e.type == "EXECUTOR_RUNNING"]
+        ends = [e.timestamp for e in events if e.type == "EXECUTOR_FINISHED"]
+        assert len(starts) == 1 and len(ends) == 1, events
+        intervals[task_id] = (starts[0], ends[0])
+    (first_start, first_end), (second_start, second_end) = sorted(intervals.values())
+    # Recorded overlap: the later task started strictly before the earlier
+    # task's recorded finish — impossible under serial dispatch.
+    assert second_start < first_end, intervals

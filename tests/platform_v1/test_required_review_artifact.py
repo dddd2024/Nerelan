@@ -176,6 +176,108 @@ def test_example_marker_plus_actual_top_level_accept_counts_only_real_declaratio
     assert command == "git_diff_check" and code == 0
 
 
+def test_plan_task_keeps_routing_traits_with_required_artifacts():
+    # Regression: _normalize_task built PlannedTask(task_id=...) but the field is id.
+    planned=GoalService._normalize_task(
+        {"title":"Reviewer","instruction":"Inspect","id":"T009","difficulty":4,"kind":"analysis",
+         "context_need":1000,"needs":["tool_use"],"required_artifacts":[REQUIRED]},seq=0)
+    assert planned.id=="T009"
+    assert (planned.difficulty,planned.kind,planned.context_need,planned.needs)==(4,"analysis",1000,("tool_use",))
+    assert planned.required_artifacts==(REQUIRED,)
+
+
+@pytest.mark.parametrize("extra",[
+    {"capability":"validate_task"},
+    {"validation_command_id":"git_diff_check","capability":"validate_task"},
+])
+def test_plan_rejects_review_artifact_on_non_standalone_tasks(extra):
+    with pytest.raises(TaskStoreError):
+        GoalService._normalize_task({"title":"Reviewer","instruction":"Report","id":"T001",
+                                     "required_artifacts":[REQUIRED],**extra},seq=0)
+
+
+def test_tampered_contract_does_not_become_legacy_success(tmp_path):
+    store,task,workspace,_=setup_case(tmp_path,report())
+    detail=next(ref["detail"] for ref in store.get_task(task.id).evidence_refs
+                if ref.get("category")=="RequiredReviewArtifactContract")
+    store._conn.execute("UPDATE task_evidence SET detail=? WHERE task_id=? AND category=?",
+                        (detail.replace(SHA,"b"*40),task.id,"RequiredReviewArtifactContract"))
+    cmd,code,reason,_=run_task_validation(store,task.id,worktree=workspace)
+    assert cmd=="required_review_artifact" and code!=0
+    assert reason=="required_artifact_contract_tampered"
+
+
+def test_required_artifacts_survive_real_sqlite_close_reopen_and_service_rebuild(tmp_path):
+    from datetime import datetime, timedelta, timezone
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+
+    db=str(tmp_path/"platform.sqlite3")
+    now=datetime.now(timezone.utc)
+    store=TaskStore(db)
+    try:
+        control=PlatformControlStore(store)
+        goals=GoalService(store=store,control_store=control)
+        window=AutonomyService(control_store=control,capabilities=CapabilityRegistry()).activate({
+            "policy_id":"owner-window-1","policy_revision":1,"owner_identity":"owner@example",
+            "starts_at":(now-timedelta(seconds=5)).isoformat(),"expires_at":(now+timedelta(hours=1)).isoformat(),
+            "repositories":["dddd2024/reverse-agent"],"capabilities":["execute_task","validate_task"],
+            "max_concurrent_tasks":2,"max_tasks":10,"max_retries":1,"confirmation":"ACTIVATE"})
+        goal=goals.create({"objective":"Produce an exact-head review report",
+                           "repository":"dddd2024/reverse-agent","idempotency_key":"required-report-reopen",
+                           "executor_kind":"deterministic_fixture","orchestration_mode":"single"})
+        goals.plan(goal.id,expected_revision=1,tasks=[{
+            "id":"T001","title":"Reviewer","instruction":"Inspect and report",
+            "difficulty":4,"kind":"analysis","context_need":1000,"needs":["tool_use"],
+            "required_artifacts":[REQUIRED]}])
+        goals.approve(goal.id,expected_revision=1,policy_ref="owner-window-1")
+        goals.launch(goal.id,expected_revision=1,window_id=window.id)
+        task_id=control.list_goal_tasks(goal.id)[0]["task_id"]
+        frozen=load_required_artifacts(store.get_task(task_id))
+    finally:
+        store._conn.close()
+
+    store=TaskStore(db)
+    try:
+        control=PlatformControlStore(store)
+        goals=GoalService(store=store,control_store=control)
+        reopened=control.get_goal(goal.id)
+        assert reopened.tasks[0]["required_artifacts"]==[REQUIRED]
+        plan_task=goals._normalize_task(reopened.tasks[0],seq=0)
+        assert plan_task.required_artifacts==(REQUIRED,)
+        assert (plan_task.difficulty,plan_task.kind,plan_task.context_need,plan_task.needs)==(
+            4,"analysis",1000,("tool_use",))
+        contract=load_required_artifacts(store.get_task(task_id))
+        assert contract==frozen and contract["task_id"]==task_id and contract["files"]==[REQUIRED]
+        assert (contract["goal_id"],contract["goal_revision"])==(goal.id,reopened.revision)
+        # Re-freezing the same plan task is idempotent after reconstruction.
+        freeze_required_artifacts(store,store.get_task(task_id),goal=reopened,plan_task=plan_task)
+        # A replacement task freezes its own copy, as the escalation path does.
+        replacement=store.create_task(title="Reviewer retry",executor_kind="deterministic_fixture")
+        freeze_required_artifacts(store,replacement,goal=reopened,plan_task=plan_task)
+        replacement_id=replacement.id
+    finally:
+        store._conn.close()
+
+    store=TaskStore(db)
+    try:
+        repo=tmp_path/"repo"
+        repo.mkdir()
+        subprocess.run(["git","init",str(repo)],capture_output=True,check=True)
+        for tid in (task_id,replacement_id):
+            contract=load_required_artifacts(store.get_task(tid))
+            assert contract["task_id"]==tid and contract["files"]==[REQUIRED]
+            cmd,code,_,_=run_task_validation(store,tid,worktree=repo)
+            assert cmd=="required_review_artifact" and code!=0
+        (repo/"review_evidence").mkdir()
+        (repo/"review_evidence"/"review.md").write_text(report(),encoding="utf-8")
+        cmd,code,_,_=run_task_validation(store,replacement_id,worktree=repo)
+        assert cmd=="git_diff_check" and code==0
+    finally:
+        store._conn.close()
+
+
 def test_actual_unquoted_duplicate_verdicts_remain_ambiguous(tmp_path):
     doc = ("Nerelan-Review: ACCEPT " + SHA + "\n"
            "Nerelan-Review: WITHHELD " + SHA + "\n")

@@ -1,0 +1,345 @@
+from __future__ import annotations
+
+import pytest
+
+from reverse_agent.platform_v1.required_review_artifact import _parse_review_marker
+
+SHA = "a" * 40
+ACCEPT = f"Nerelan-Review: ACCEPT {SHA}"
+
+
+def test_genuine_live_marker_accepted() -> None:
+    assert _parse_review_marker(ACCEPT) == (("ACCEPT", SHA), "")
+
+
+def test_nested_html_fake_only_rejected() -> None:
+    content = "\n".join(["<pre>", "<code>", ACCEPT, "</code>", "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_inner_code_close_does_not_exit_outer_pre() -> None:
+    # Regression: a single bool cleared at the inner </code> while the outer
+    # <pre> was still open, letting this quoted ACCEPT falsely count as live.
+    content = "\n".join(["<pre>", "<code>", ACCEPT, "</code>", ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_closed_nested_then_outside_marker_accepted() -> None:
+    content = "\n".join(["<pre>", "<code>", ACCEPT, "</code>", "</pre>", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_unclosed_pre_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["<pre>", ACCEPT]))
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+
+
+def test_unclosed_code_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["<pre>", "<code>", ACCEPT]))
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+
+
+def test_mismatched_close_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["<pre>", "<code>", ACCEPT, "</pre>"]))
+    assert marker is None
+    assert error == "review_html_code_mismatched"
+
+
+def test_mismatched_wrong_close_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["<pre>", "</code>", ACCEPT]))
+    assert marker is None
+    assert error == "review_html_code_mismatched"
+
+
+def test_fenced_fake_ignored() -> None:
+    marker, error = _parse_review_marker("\n".join(["```", ACCEPT, "```"]))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_fenced_html_fake_ignored() -> None:
+    marker, error = _parse_review_marker(
+        "\n".join(["```", "<pre>", ACCEPT, "</pre>", "```"])
+    )
+    assert marker is None
+    assert error
+
+
+def test_comment_fake_ignored() -> None:
+    marker, error = _parse_review_marker(f"<!-- {ACCEPT} -->")
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_indented_fake_ignored() -> None:
+    marker, error = _parse_review_marker(f"    {ACCEPT}")
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_fence_unclosed_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["```", ACCEPT]))
+    assert marker is None
+    assert error == "review_fence_unclosed"
+
+
+def test_comment_unclosed_refused() -> None:
+    marker, error = _parse_review_marker(f"<!-- {ACCEPT}")
+    assert marker is None
+    assert error == "review_comment_unclosed"
+
+
+def test_ambiguous_multiple_markers_refused() -> None:
+    marker, error = _parse_review_marker("\n".join([ACCEPT, ACCEPT]))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_explicit_failure_outcome_refused() -> None:
+    marker, error = _parse_review_marker(f"Outcome: REJECT\n{ACCEPT}")
+    assert marker is None
+    assert error == "review_explicit_failure_outcome"
+
+
+def test_stray_close_does_not_reject_genuine() -> None:
+    assert _parse_review_marker("\n".join(["</pre>", ACCEPT])) == (("ACCEPT", SHA), "")
+
+
+def test_attribute_text_does_not_close_pre() -> None:
+    # A literal "</pre>" inside a quoted attribute value is attribute text, not
+    # a close tag: the surrounding <pre> stays open and the fake ACCEPT inside
+    # it is not live.
+    content = "\n".join([
+        "<pre>",
+        '<span title="</pre>">example</span>',
+        ACCEPT,
+        "</pre>",
+    ])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_html_literal_inside_markdown_fence_does_not_hide_live_verdict() -> None:
+    # A literal unclosed <pre> inside a fenced Markdown example is example text:
+    # it must not open a real HTML block, so the genuine ACCEPT outside the
+    # fence still counts.
+    content = "\n".join([
+        "```html",
+        "<pre>",
+        ACCEPT,
+        "```",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_markdown_fence_close_with_content_does_not_hide_live_verdict() -> None:
+    # Positive control: the fence must actually close before the live verdict,
+    # even when the example contains pre/code-looking HTML.
+    content = "\n".join([
+        "```",
+        "<pre>",
+        "<code>",
+        ACCEPT,
+        "</code>",
+        "</pre>",
+        "```",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_multiline_attribute_does_not_close_pre() -> None:
+    # A literal "</pre>" inside a quoted attribute value that itself spans
+    # lines is attribute text, not a close tag: the surrounding <pre> stays
+    # open and the fake ACCEPT inside it is not live.
+    content = "\n".join([
+        "<pre>",
+        '<span title="',
+        "</pre>",
+        '">example</span>',
+        ACCEPT,
+        "</pre>",
+    ])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_multiline_pre_opener_excludes_marker() -> None:
+    # A <pre opener split over a newline still opens the block when its ">"
+    # arrives; a marker line before the opener completes is inside an unfinished
+    # tag and must not count as live.
+    content = "\n".join([
+        "<pre",
+        ' class="example">',
+        ACCEPT,
+        "</pre>",
+    ])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_marker_inside_unfinished_non_block_tag_excluded() -> None:
+    # A marker line inside an unfinished (non pre/code) tag is lexically inside
+    # the tag, not a top-level verdict line: it must not count as live even
+    # though the tag later completes and the file ends cleanly.
+    content = "\n".join([
+        '<span title="',
+        ACCEPT,
+        '">',
+    ])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_unfinished_tag_fail_closed() -> None:
+    # An unfinished HTML tag that never closes fails closed: the marker line
+    # inside it is not a declaration and the unclosed tag is refused.
+    content = "\n".join([
+        '<span title="',
+        ACCEPT,
+    ])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_html_code_unclosed"
+
+
+def test_comment_literal_in_fence_does_not_hide_real_marker() -> None:
+    # A literal "<!--" inside a fenced Markdown example is example text, not a
+    # comment: it must not open a comment that hides the genuine ACCEPT below.
+    content = "\n".join([
+        "```html",
+        "<!--",
+        "```",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_live_marker_after_comment_and_fence_literals_accepted() -> None:
+    # Positive control: comment and fenced literals never mask a genuine live
+    # verdict, and a raw standalone marker outside every context still counts.
+    content = "\n".join([
+        "<!-- example -->",
+        "```",
+        "Nerelan-Review: ACCEPT " + "a" * 40,
+        "```",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_newline_is_not_removed_from_partial_tag() -> None:
+    # Regression: lines were fed without their terminator, so "<pre" and
+    # 'class=...' fused into an unknown "<preclass" tag and the fake counted.
+    content = "\n".join(["<pre", 'class="example">', ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_crlf_partial_tag_keeps_lexical_separation() -> None:
+    content = "\r\n".join(["<pre", 'class="example">', ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_comment_on_pre_opening_line_does_not_erase_the_tag() -> None:
+    # Regression: a comment sharing the line used to skip the real <pre>.
+    content = "\n".join(["<pre><!-- note -->", ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_comment_before_pre_does_not_erase_the_tag() -> None:
+    content = "\n".join(["<!-- note --><pre>", ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error
+
+
+def test_second_unclosed_comment_fails_closed() -> None:
+    # Regression: only the first "-->" after the first "<!--" was checked.
+    marker, error = _parse_review_marker("\n".join([ACCEPT, "<!-- one --><!-- unclosed"]))
+    assert marker is None
+    assert error == "review_comment_unclosed"
+
+
+def test_unclosed_comment_after_closed_comment_hides_later_marker() -> None:
+    content = "\n".join(["<!-- one --><!-- open", ACCEPT, "-->"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_stray_comment_close_refused() -> None:
+    marker, error = _parse_review_marker("\n".join(["-->", ACCEPT]))
+    assert marker is None
+    assert error == "review_comment_unclosed"
+
+
+def test_closed_comment_and_real_outside_marker_accepted() -> None:
+    content = "\n".join(["<!-- note -->", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_closed_comment_and_closed_pre_on_one_line_then_live_marker_accepted() -> None:
+    content = "\n".join(["<!-- note --><pre>example</pre><!-- two -->", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_multiline_pre_opener_then_outside_marker_accepted() -> None:
+    content = "\n".join(["<pre", 'class="example">', "example", "</pre>", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_fence_inside_real_pre_is_inert() -> None:
+    # A Markdown fence inside a real <pre> is literal text: it neither opens a
+    # fence nor makes the fake marker inside the block live.
+    content = "\n".join(["<pre>", "```", ACCEPT, "```", "</pre>", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_fence_inside_real_comment_is_inert() -> None:
+    content = "\n".join(["<!--", "```", "-->", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_escaped_marker_is_never_decoded() -> None:
+    content = "Nerelan-Review: &#65;CCEPT " + SHA
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_live_marker_beside_closed_example_and_duplicate_live_refused() -> None:
+    content = "\n".join(["<pre>", ACCEPT, "</pre>", ACCEPT, ACCEPT])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_multiline_attribute_then_outside_marker_accepted() -> None:
+    # Positive control: once the real </pre> arrives the multiline quoted
+    # attribute is fully closed, so a genuine ACCEPT after it is live.
+    content = "\n".join([
+        "<pre>",
+        '<span title="',
+        "</pre>",
+        '">example</span>',
+        "</pre>",
+        ACCEPT,
+    ])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")

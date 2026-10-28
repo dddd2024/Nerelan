@@ -1,4 +1,5 @@
 import type { RiskTier, RunState } from "@/types";
+import { taskCopy } from "@/lib/ui-locale";
 
 // ---------------------------------------------------------------------------
 // Time formatting
@@ -184,7 +185,9 @@ export function riskTierLabel(tier: RiskTier): string {
 export function permissionModeLabel(mode: string): string {
   switch (mode) {
     case "ASK_FOR_APPROVAL":
-      return "请求批准";
+      // A policy name, not a pending request: "请求批准" read as if the user
+      // had something to approve on every task using this mode (#1200).
+      return taskCopy().askBeforeActing;
     case "CONTROLLER_REVIEW":
       return "主控代审";
     case "OWNER_CONTROL":

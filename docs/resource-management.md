@@ -242,9 +242,27 @@ the WorkBuddy subscription (provider ids `workbuddy` and `workbuddy-ai`). This i
 
 ### Enabling
 
-Set `REVERSE_AGENT_MAGPIE=1`. The gateway URL defaults to `http://127.0.0.1:3425`; override it
-with `REVERSE_AGENT_MAGPIE_URL` if Magpie listens elsewhere on loopback. When disabled, no
-gateway is contacted and `GET /api/resources` has no `external_sources` key.
+In Settings, enable **Start Magpie with Nerelan**, choose an existing absolute `.exe`
+path, and set its loopback URL (default `http://127.0.0.1:3425`). These Owner settings
+are persisted as `magpie: {enabled, executable, base_url}` in the model setup state;
+they default to disabled. Changes apply on the next host check, within 60 seconds.
+
+The trusted host probes `/v1/models` with a two-second timeout. If it is down and the
+configured executable is not already running, the host starts it detached with no
+arguments and waits up to 30 seconds for health. Failure leaves Nerelan available
+and Magpie bindings unusable. A watcher checks every 60 seconds and allows at most
+three restart attempts per rolling hour, in addition to the initial launch.
+Nerelan never stops Magpie or reads or changes its config or login files.
+
+Settings and `/api/platform/status` show `MAGPIE_DISABLED`, `ALREADY_RUNNING`,
+`STARTED`, `START_FAILED` with a reason, or `UNREACHABLE`, plus the last probe time
+and served model count. A running executable with an unresponsive port is reported
+as `UNREACHABLE` and is never duplicated.
+
+Enabling the setting also enables read-only resource observation. The existing
+`REVERSE_AGENT_MAGPIE=1` / `REVERSE_AGENT_MAGPIE_URL` options remain available for
+observation only; they do not authorize launching an executable. When neither is
+enabled, no gateway is contacted and `GET /api/resources` has no `external_sources` key.
 
 ### What is read
 
@@ -298,3 +316,51 @@ Magpie's gateway is OpenAI-compatible. To use WorkBuddy models through it:
 > action — Nerelan never touches that token. The loopback gateway accepts **any** bearer key;
 > that is a convenience for attribution, **not** access control. Any local process that knows
 > the address can spend every pooled account. Secure the host accordingly.
+
+## One-time move of legacy API connections into Magpie (#1170)
+
+Owner decision 2026-10-21: the API-key Connections configured before Magpie are moved into
+Magpie **once**, and every **new** API provider or account is added in Magpie, not in Nerelan.
+Nerelan keeps consuming Magpie through its single `magpie` openai-compatible Connection and keeps
+its task-level routing, guards and evidence. There is no importer, sync or second provider
+editor in Nerelan. Official CLI sessions (`external_cli_session`: OpenCode, Codex/ChatGPT,
+Claude) keep their native login and are not moved. `claude/*` and `codex/*` models in Magpie
+share the Owner's subscription quota, so they are bound only on the Owner's explicit say-so.
+
+| Legacy Connection | Upstream base URL | Add in Magpie as | Magpie model ids |
+| --- | --- | --- | --- |
+| `openrouter` | `https://openrouter.ai/api/v1` | preset **OpenRouter** | `openrouter/<model>` |
+| `groq` | `https://api.groq.com/openai/v1` | preset **Groq** | `groq/<model>` |
+| `mistral` | `https://api.mistral.ai/v1` | preset **Mistral** | `mistral/<model>` |
+| `deepseek-flash` | `https://token.sensenova.cn/v1` | custom vendor, same base URL (Magpie lists it as `token-sensenova`) | `token-sensenova/<model>` |
+| `agnes` | `https://apihub.agnes-ai.com/v1` | custom vendor `agnes`, same base URL | `agnes/<model>` |
+
+Steps:
+
+1. **Back up locally** `model_setup_state.json` and `~/.config/magpie/providers.json`. Never
+   publish either. Leave the OS-vault keys of the legacy Connections in place.
+2. **The Owner adds each provider in Magpie's Providers UI** with its key. Keys are never pasted
+   into issues, logs or shell arguments (so not `magpie provider add <id> <key>` either), and
+   Nerelan never reads or copies them.
+3. **Check** what Magpie now lists, read-only (GET `/api/hello`, `/v1/models`,
+   `/v1/magpie/quotas?kept=1`; no inference, no config write):
+
+   ```text
+   python -m reverse_agent.model_access.magpie_migration --state <path>/model_setup_state.json
+   ```
+
+   Each `api_key` Connection is reported `IMPORTED` (Magpie lists models under its provider id),
+   `NOT_IMPORTED`, or `UNKNOWN` (Magpie unavailable, or no provider mapping — pass
+   `--provider <connection_id>=<magpie_provider>` if a custom vendor got another name). Each of
+   its Bindings gets the proposed `magpie_model_id`, whether Magpie lists it, and any existing
+   Binding on the `magpie` Connection with that model. `IMPORTED` is not `TESTED`: a provider is
+   `TESTED` only after a bounded live request the Owner authorizes, and `summary.complete` stays
+   `false` in this report by design.
+4. **Rebind** each still-wanted Binding: add a Binding on the `magpie` Connection with the
+   proposed model id and the same executor, run one small live Task, and check the run's actual
+   model and Magpie's usage for it. Then disable the legacy Binding. **Rollback** is re-enabling
+   the legacy Binding; keep the legacy Connection until a live Task on the Magpie Binding has
+   passed.
+5. When every wanted Binding runs through Magpie, the one-time migration is complete. Only then
+   remove legacy Connections the Owner no longer wants, and the duplicated legacy setup UI once
+   nothing depends on it.

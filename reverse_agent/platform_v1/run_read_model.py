@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
 import re
 from typing import Any, Callable, Mapping, Sequence
 
@@ -76,7 +77,7 @@ _METADATA_KEYS = frozenset({
     "execution_id", "path", "file", "validation_command_id",
     "validation_exit_code", "exit_code", "changed_file_count", "failure_classification",
     "waiting_reason", "checkpoint", "recovery_classification", "mutation_command_id",
-    "fixture_path",
+    "fixture_path", "binding_ref", "model_id", "excluded_candidates", "difficulty", "kind", "reason", "candidates",
 })
 
 
@@ -168,7 +169,8 @@ def _metadata(event: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(raw, Mapping):
         source = raw
     elif isinstance(raw, str):
-        if len(raw) > _MAX_METADATA_JSON:
+        limit = 65536 if event.get("type") in {"MODEL_SELECTED", "MODEL_SELECTION_FAILED"} else _MAX_METADATA_JSON
+        if len(raw) > limit:
             return {}
         try:
             decoded = json.loads(raw)
@@ -213,6 +215,8 @@ def _status_for_event(
     metadata: Mapping[str, Any],
     event_type: str = "",
 ) -> str:
+    if event_type == "MODEL_SELECTION_FAILED":
+        return "BLOCKED"
     if event_type == "QUEUE_CANCELLED":
         return "COMPLETED"
     explicit = _safe_text(metadata.get("status"), limit=32).upper()
@@ -233,6 +237,8 @@ def _status_for_event(
 
 
 def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
+    if event_type in {"MODEL_SELECTION_FAILED", "MODEL_REFUSED", "MODEL_UNAVAILABLE"}:
+        return "BLOCKED"
     if event_type == "QUEUE_CANCELLED":
         return "CHECKPOINT"
     explicit = _safe_text(
@@ -248,7 +254,7 @@ def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
         return "AGENT_WAITING"
     if _safe_text(metadata.get("failure_classification")):
         return "BLOCKED"
-    if event_type == "DISCOVERED":
+    if event_type in {"DISCOVERED", "MODEL_SELECTED"}:
         return "PLAN"
     if event_type == "WORKSPACE_READY":
         return "AGENT_STARTED"
@@ -270,7 +276,7 @@ def _category_for_event(event_type: str, metadata: Mapping[str, Any]) -> str:
 def _event_stage(
     event_type: str, category: str, metadata: Mapping[str, Any]
 ) -> str:
-    if event_type == "QUEUE_CANCELLED":
+    if event_type in {"MODEL_SELECTED", "MODEL_SELECTION_FAILED", "QUEUE_CANCELLED"}:
         return "PLAN"
     if category == "PLAN" or event_type == "DISCOVERED":
         return "PLAN"
@@ -309,6 +315,38 @@ def _activity_title(category: str) -> str:
         "OWNER_ACTION_REQUIRED": "Owner action required",
         "PUBLICATION": "Publication activity",
     }.get(category, "Run activity")
+
+
+def _model_selection_description(metadata: Mapping[str, Any]) -> str:
+    summary = (f"{_safe_text(metadata.get('model_id') or metadata.get('binding_ref'), limit=128)} "
+               f"[{_safe_text(metadata.get('binding_ref'), limit=128)}]: "
+               f"{_safe_text(metadata.get('reason'), limit=64)} "
+               f"(difficulty {_safe_int(metadata.get('difficulty'))}, "
+               f"{_safe_text(metadata.get('kind'), limit=32)})")
+    candidates = metadata.get("candidates")
+    if isinstance(candidates, list):
+        rows = []
+        for candidate in candidates[:5]:
+            if isinstance(candidate, Mapping):
+                rows.append(f"{_safe_text(candidate.get('binding_id'), limit=128)} "
+                            f"tier {_safe_int(candidate.get('tier'))} "
+                            f"{_safe_text(candidate.get('cost_class'), limit=32)}")
+                metrics = []
+                for label, key in (("cost", "cost"), ("success", "success_rate"), ("seconds", "speed")):
+                    value = candidate.get(key)
+                    if type(value) in (int, float) and math.isfinite(value):
+                        metrics.append(f"{label} {value:g}")
+                if metrics:
+                    rows[-1] += " (" + ", ".join(metrics) + ")"
+        if rows:
+            summary += ". Candidates: " + "; ".join(rows)
+    exclusions = metadata.get("excluded_candidates")
+    if isinstance(exclusions, list):
+        rows = [f"{_safe_text(row.get('model_id'), limit=128)}: {_safe_text(row.get('filter'), limit=128)}"
+                for row in exclusions[:10] if isinstance(row, Mapping)]
+        if rows:
+            summary += ". Excluded: " + "; ".join(rows)
+    return summary
 
 
 def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
@@ -362,9 +400,10 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
         "title": (
             "Queued task cancelled"
             if event_type == "QUEUE_CANCELLED"
-            else _activity_title(category)
+            else "Model selected" if event_type == "MODEL_SELECTED" else _activity_title(category)
         ),
-        "description": "",
+        "description": (_model_selection_description(metadata) if event_type == "MODEL_SELECTED" else
+                        _safe_text(metadata.get("reason"), limit=512) if event_type == "MODEL_SELECTION_FAILED" else ""),
         "category": category,
         "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),
@@ -499,6 +538,47 @@ def _liveness(
     }
 
 
+def _usage_evidence(usage: Mapping[str, Any]) -> dict[str, Any]:
+    """Never turn task-start/heartbeat into a billable model-call claim.
+
+    Usage observations are task-attributed local receipts; they do not prove a
+    specific Magpie gateway session/served model or upstream provider billing.
+    """
+    count = usage.get("observation_count", 0)
+    unknown = usage.get("unknown_observation_count", 0)
+    if type(count) is not int or type(unknown) is not int or count < 0 or unknown < 0 or unknown > count:
+        state = "UNKNOWN"
+        known = 0
+    else:
+        known = count - unknown
+        if count == 0:
+            state = "NO_USAGE_RECEIPT"
+        elif known == 0:
+            state = "USAGE_UNKNOWN"
+        elif type(usage.get("total_token_units")) is not int or usage["total_token_units"] < 0:
+            # A malformed/missing aggregate is not proof of model usage.
+            # In particular, bool is an int subclass but not a token total.
+            state = "UNKNOWN"
+        elif unknown:
+            state = "PARTIALLY_OBSERVED"
+        elif usage["total_token_units"] == 0:
+            state = "ZERO_TOKEN_USAGE_OBSERVED"
+        else:
+            state = "USAGE_OBSERVED"
+    return {
+        "state": state,
+        "task_usage_records": count if type(count) is int and count >= 0 else 0,
+        "confirmed_numeric_records": known,
+        "positive_token_units": (
+            usage.get("total_token_units") if type(usage.get("total_token_units")) is int
+            and usage["total_token_units"] > 0 else 0
+        ),
+        "provider_request_receipt": "UNVERIFIED",
+        "served_magpie_route": "UNKNOWN",
+        "attribution_scope": "TASK_STORE_ONLY",
+    }
+
+
 class RunReadModel:
     """Derived listing/detail over TaskStore; read-only by construction."""
 
@@ -522,6 +602,13 @@ class RunReadModel:
         )
         runs = [self._run_summary(task) for task in tasks]
         return {"runs": runs, "total": total, "next_cursor": next_cursor}
+
+    def _landing_projection(self, goal_id):
+        state = self.control_store.landing_progress(goal_id) if goal_id else None
+        if state is None:
+            return None
+        return {key: state[key] for key in ("phase", "review_round", "pr_number", "head_sha",
+                                           "next_attempt_ms", "parking_reason")}
 
     def run_detail(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id, event_limit=MAX_DETAIL_EVENTS)
@@ -605,6 +692,7 @@ class RunReadModel:
         )
         current_activity = projected_events[-1] if projected_events else None
         validation = self._validation(task)
+        usage = self.store.usage_summary(task.id)
         return {
             "task_id": task.id,
             "title": _safe_text(task.title),
@@ -619,9 +707,11 @@ class RunReadModel:
             "goal_id": goal_id,
             "goal_title": _safe_text(goal_title),
             "window_id": window_id,
-            "usage": self.store.usage_summary(task.id),
+            "usage": usage,
+            "usage_evidence": _usage_evidence(usage),
             "budget": budget,
             "publication": publication_projection(publication),
+            "landing": self._landing_projection(goal_id),
             "run_id": _safe_text(getattr(durable_run, "run_id", ""), limit=128),
             "stage": stage,
             "liveness": liveness["state"],

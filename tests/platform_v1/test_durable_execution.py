@@ -4332,3 +4332,24 @@ def test_reconcile_ownerless_preparation_fails_once(tmp_path):
     assert store.get_task(task.id).status == "FAILED"
     assert store.get_task(task.id).failure_classification == "orphaned_preparation"
     assert service.reconcile_expired_runs(now_ms=int(time.time() * 1000), max_age_ms=1000) == ()
+
+
+@pytest.mark.parametrize("publication", ["classification", "terminal"])
+def test_stated_failure_reset_survives_fenced_persistence(tmp_path, monkeypatch, publication):
+    from reverse_agent.platform_v1 import run_store
+    monkeypatch.setattr(run_store, "_utc_now", lambda: "2026-10-19T11:00:00Z")
+    store = _make_store(tmp_path)
+    task = store.create_task(title="stated reset")
+    lease = store._acquire_durable_lease(task_id=task.id, execution_id=task.execution_id,
+                                         lease_owner="offline")
+    common = dict(failure_reset_at="2026-10-19T16:00:00Z", owner=lease.owner, epoch=lease.epoch)
+    if publication == "classification":
+        store._fenced_classify_failure(lease.run_id, task.id,
+            classification="codex_usage_limit", **common)
+    else:
+        store._fenced_terminalize(lease.run_id, task.id, terminal_status="FAILED",
+            validation_command_id="", validation_exit_code=-1, validation_output_digest="",
+            failure_classification="codex_usage_limit", failure_detail="unrelated diagnostics", **common)
+    persisted = store.get_task(task.id)
+    assert persisted.failure_reset_at == "2026-10-19T16:00:00Z"
+    assert persisted.failure_at == "2026-10-19T11:00:00Z"

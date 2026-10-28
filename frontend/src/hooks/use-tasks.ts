@@ -1,4 +1,5 @@
 import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
+import { linkedGoalId } from "@/lib/task-project";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createTask,
@@ -52,6 +53,8 @@ function _activityType(
     VALIDATED: 0,
     WORKSPACE_READY: 0,
     EXECUTOR_RUNNING: 0,
+    EXECUTOR_PROGRESS: 0,
+    EXECUTOR_COMPLETED: 0,
     EXECUTOR_FINISHED: 0,
     LOCAL_VALIDATED: 0,
     COMMITTED: 0,
@@ -245,6 +248,7 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
       (String(source.executor ?? raw.executor_kind ?? "") ||
         undefined) as Task["executor"],
     repository: String(raw.repository ?? ""),
+    goalId: linkedGoalId(raw.goal_id),
     executionId:
       (String(source.executionId ?? source.execution_id ?? raw.execution_id ?? "") ||
         undefined) as Task["executionId"],
@@ -257,7 +261,9 @@ function _toTask(raw: Record<string, unknown> | undefined): Task {
   };
 }
 
-export function useTasks() {
+export const SIDEBAR_TASK_REFRESH_MS = 5_000;
+
+export function useTasks({ watch = false }: { watch?: boolean } = {}) {
   return useQuery<Task[]>({
     queryKey: ["tasks"],
     queryFn: async () => {
@@ -265,6 +271,12 @@ export function useTasks() {
       return (raw as Array<Record<string, unknown>>).map(_toTask);
     },
     staleTime: 1000,
+    // The global sidebar stays mounted while other routes launch Tasks. Keep
+    // its authoritative list current without polling from a hidden tab.
+    refetchInterval: watch ? SIDEBAR_TASK_REFRESH_MS : false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
     retry: 1,
   });
 }

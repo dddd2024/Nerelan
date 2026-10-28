@@ -206,10 +206,15 @@ class TestForbiddenComponentsAbsent:
             import reverse_agent.platform_v1  # noqa: F401
             assert "langfuse" not in sys.modules
 
-    def test_adapter_does_not_import_forbidden_modules(self) -> None:
-        # Fresh import of the adapter package
-        if "reverse_agent.platform_v1" in sys.modules:
-            del sys.modules["reverse_agent.platform_v1"]
+    def test_adapter_does_not_import_forbidden_modules(self, monkeypatch) -> None:
+        # Fresh import of the adapter package. monkeypatch restores the original
+        # package (module table and parent attribute) afterwards; a lingering
+        # fresh copy lacks the submodule attributes that dotted-path patches in
+        # later tests resolve through.
+        import reverse_agent
+        import reverse_agent.platform_v1
+        monkeypatch.setattr(reverse_agent, "platform_v1", reverse_agent.platform_v1)
+        monkeypatch.delitem(sys.modules, "reverse_agent.platform_v1")
         importlib.import_module("reverse_agent.platform_v1")
         forbidden = ["temporal", "litellm", "langfuse", "spec_kit"]
         for mod in forbidden:

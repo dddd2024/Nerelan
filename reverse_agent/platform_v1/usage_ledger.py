@@ -48,8 +48,6 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
         "SELECT id, binding_ref, executor_kind, status FROM tasks WHERE binding_ref <> '' "
         "AND status IN ({}) ORDER BY rowid DESC LIMIT ?".format(",".join("?" * (len(OK_STATUSES) + 1))),
         (*sorted(OK_STATUSES), "FAILED", limit)).fetchall()
-    if not tasks:
-        return []
     ids = [row["id"] for row in tasks]
     marks = ",".join("?" * len(ids))
     observed: dict[str, dict[str, int | None]] = {}
@@ -86,9 +84,36 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
         records.append({
             "task_id": row["id"], "binding_ref": row["binding_ref"], "executor_kind": row["executor_kind"],
             "ok": row["status"] in OK_STATUSES, "tokens": counters, "source": source if counters else None,
-            "models": models,
+            "models": models, "kind": "code", "difficulty": "unknown",
+            "observed_at": meta.get("observed_at"), "turn_count": _int(meta.get("turn_count")),
             "cli_reported_cost_usd": float(cost) if type(cost) in (int, float) and cost >= 0 else None,
         })
+    return records
+
+
+def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
+    """Claim-level measured history without changing the task accounting projection."""
+    records = task_token_records(store, limit=limit)
+    conn = store._conn
+    # Claim snapshots are the durable training boundary, including failed attempts.
+    table = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_budget_reservations'").fetchone()
+    if table:
+        columns = {r["name"] for r in conn.execute("PRAGMA table_info(platform_budget_reservations)")}
+        if "settlement_json" in columns:
+            learned = []
+            for row in conn.execute("SELECT * FROM platform_budget_reservations WHERE state<>'ACTIVE' ORDER BY rowid DESC LIMIT ?", (limit,)):
+                fact = json.loads(row["settlement_json"])
+                estimate = fact.get("estimate", {}).get("estimate", {})
+                if not estimate or not fact.get("tokens") or any(fact["tokens"].get(k) is None for k in ("input", "cache_read", "output")):
+                    continue
+                learned.append({"task_id": row["task_id"], "claim_epoch": row["claim_epoch"],
+                    "binding_ref": row["binding_ref"], "kind": estimate.get("kind", "code"),
+                    "difficulty": estimate.get("difficulty", "unknown"), "ok": False, "measured": True,
+                    "tokens": fact["tokens"], "turn_count": fact["turn_count"],
+                    "observed_at": row["reconciled_at"], "source": "claim_settlement",
+                    "models": [], "cli_reported_cost_usd": None})
+            trained = {r["task_id"] for r in learned}
+            records = [r for r in records if r["task_id"] not in trained] + learned
     return records
 
 
