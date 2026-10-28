@@ -2742,11 +2742,12 @@ class TaskStore:
                     ):
                         cur.execute("ROLLBACK")
                         return False
+                # Look up by key alone: an existing key blocks dispatch even
+                # when the requested digest differs (idempotency conflict).
                 row = cur.execute(
-                    "SELECT state, request_digest FROM durable_external_operations "
-                    "WHERE idempotency_key = ? AND request_digest = ? "
-                    "ORDER BY created_at DESC LIMIT 1",
-                    (idempotency_key, request_digest),
+                    "SELECT state FROM durable_external_operations "
+                    "WHERE idempotency_key = ? LIMIT 1",
+                    (idempotency_key,),
                 ).fetchone()
                 cur.execute("COMMIT")
                 if row is None:
@@ -2799,15 +2800,37 @@ class TaskStore:
                             f"current_owner={run_row['lease_owner']}:"
                             f"current_epoch={run_row['lease_epoch']}"
                         )
-                existing = cur.execute(
+                existing_rows = cur.execute(
                     "SELECT * FROM durable_external_operations "
-                    "WHERE idempotency_key = ? AND request_digest = ? "
-                    "ORDER BY created_at DESC LIMIT 1",
-                    (idempotency_key, request_digest),
-                ).fetchone()
-                if existing is not None:
+                    "WHERE idempotency_key = ? "
+                    "ORDER BY created_at ASC LIMIT 2",
+                    (idempotency_key,),
+                ).fetchall()
+                if len(existing_rows) > 1:
+                    # Historical duplicate rows: fail closed, touch nothing.
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"external_operation_idempotency_ambiguous:{idempotency_key}"
+                    )
+                if existing_rows:
+                    existing = dict(existing_rows[0])
+                    mismatched = [
+                        name for name, requested in (
+                            ("request_digest", request_digest),
+                            ("operation_key", operation_key),
+                            ("run_id", run_id),
+                            ("task_id", task_id),
+                        )
+                        if existing[name] != requested
+                    ]
+                    if mismatched:
+                        cur.execute("ROLLBACK")
+                        raise TaskStoreError(
+                            f"external_operation_idempotency_conflict:"
+                            f"{idempotency_key}:{','.join(mismatched)}"
+                        )
                     cur.execute("COMMIT")
-                    return _row_to_external_operation(dict(existing))
+                    return _row_to_external_operation(existing)
                 now = _utc_now()
                 op_id = f"op-{_short_uuid()}"
                 cur.execute(
@@ -2847,7 +2870,12 @@ class TaskStore:
         """Reconcile an external operation with the result of a dispatch.
 
         Validates run_id + owner + epoch under the same lock as the UPDATE.
+        Only PENDING may transition; terminal rows are immutable.
         """
+        if result_state not in ("success", "failure"):
+            raise TaskStoreError(
+                f"invalid_external_operation_result_state:{result_state}"
+            )
         with self._lock:
             cur = self._conn.cursor()
             try:
@@ -2885,29 +2913,37 @@ class TaskStore:
                 if row is None:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(f"external_operation_not_found:{operation_id}")
-                if run_id:
-                    cur.execute(
-                        "UPDATE durable_external_operations SET "
-                        "external_operation_id = ?, result_state = ?, "
-                        "state = ?, updated_at = ? "
-                        "WHERE operation_id = ? AND run_id = ?",
-                        (
-                            external_operation_id, result_state,
-                            "SUCCESS" if result_state == "success" else "RECONCILED",
-                            _utc_now(), operation_id, run_id,
-                        ),
+                target_state = "SUCCESS" if result_state == "success" else "RECONCILED"
+                if row["state"] != "PENDING":
+                    # Terminal receipts are immutable: only an exact replay of
+                    # the same result and provider ID is accepted, unchanged.
+                    if (
+                        row["state"] == target_state
+                        and row["result_state"] == result_state
+                        and row["external_operation_id"] == external_operation_id
+                    ):
+                        cur.execute("ROLLBACK")
+                        return _row_to_external_operation(dict(row))
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"external_operation_terminal_conflict:{operation_id}:"
+                        f"state={row['state']}:result={row['result_state']} "
+                        f"requested={result_state}"
                     )
-                else:
-                    cur.execute(
-                        "UPDATE durable_external_operations SET "
-                        "external_operation_id = ?, result_state = ?, "
-                        "state = ?, updated_at = ? "
-                        "WHERE operation_id = ?",
-                        (
-                            external_operation_id, result_state,
-                            "SUCCESS" if result_state == "success" else "RECONCILED",
-                            _utc_now(), operation_id,
-                        ),
+                updated_count = cur.execute(
+                    "UPDATE durable_external_operations SET "
+                    "external_operation_id = ?, result_state = ?, "
+                    "state = ?, updated_at = ? "
+                    "WHERE operation_id = ? AND state = 'PENDING'",
+                    (
+                        external_operation_id, result_state, target_state,
+                        _utc_now(), operation_id,
+                    ),
+                ).rowcount
+                if updated_count != 1:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(
+                        f"external_operation_terminal_conflict:{operation_id}"
                     )
                 cur.execute("COMMIT")
                 updated = cur.execute(
