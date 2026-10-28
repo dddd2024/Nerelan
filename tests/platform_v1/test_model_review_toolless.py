@@ -69,7 +69,7 @@ def test_toolless_accept_and_replay(toolless):
     ("malformed", "model_review_invalid_output"), ("duplicate", "model_review_invalid_output"),
     ("reject", "model_review_rejected"), ("tools", "model_review_invalid_output"),
     ("unexpected", "review_not_independent"), ("missing", "review_not_independent"),
-    ("timeout", "timeout")])
+    ("timeout", "model_review_completion_unknown")])
 def test_failed_response_cleans_lease(toolless, monkeypatch, case, reason):
     s = toolless
     message = s["payload"]["choices"][0]["message"]

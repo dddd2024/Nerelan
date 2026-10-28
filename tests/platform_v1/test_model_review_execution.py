@@ -151,7 +151,9 @@ def test_fail_closed_review(review_setup, options, reason):
 
 
 @pytest.mark.parametrize("seam,expected_calls", [
-    ("MODEL_REVIEW_BEFORE_PRE_PLANNER", 1), ("PRE_PLANNER", 1), ("MODEL_REVIEW_BEFORE_CALL", 1), ("MODEL_REVIEW_BEFORE_EVIDENCE", 2),
+    # Post-call crashes before evidence never replay the reviewer; they park as
+    # BLOCKED and are covered in test_model_review_rpc_journal.py.
+    ("MODEL_REVIEW_BEFORE_PRE_PLANNER", 1), ("PRE_PLANNER", 1), ("MODEL_REVIEW_BEFORE_CALL", 1),
     ("MODEL_REVIEW_BEFORE_POST_PLANNER", 1),
     ("MODEL_REVIEW_AFTER_EVIDENCE", 1), ("POST_PLANNER", 1),
     ("POST_CODER", 1), ("POST_REVIEWER", 1), ("POST_VALIDATION", 1),

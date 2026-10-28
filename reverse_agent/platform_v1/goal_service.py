@@ -502,6 +502,8 @@ class GoalService:
             if hold is None:
                 continue
             task = self.store.get_task(link["task_id"])
+            if self._review_intent_hold(task, plan_task):
+                continue
             events = self.store.get_events(task.id)
             if any(event.type == "MODEL_SELECTED" and event.metadata.get("reroute_reason") for event in events):
                 continue
@@ -577,6 +579,57 @@ class GoalService:
         return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings)),
                 "author_executors": tuple(sorted(executors))}
 
+    def _review_intent_hold(self, task: Any, plan_task: PlannedTask | None) -> bool:
+        """True when a review execution's reviewer call may still be outstanding (#1191).
+
+        FAILED does not prove the call settled: if parking BLOCKED itself failed,
+        generic dispatch cleanup may have written FAILED over a PENDING intent.
+        An unresolved or unreadable journal holds automatic replacement; the raw
+        status stays as written, with one typed hold event per distinct reason.
+        If that event cannot be recorded, nothing new is scheduled either.
+        """
+        from . import model_review, artifact_handoff as artifacts
+        review = plan_task is not None and (plan_task.kind == "review" or plan_task.agent_role == "reviewer")
+        if not review:
+            try:
+                review = artifacts.model_review_input(task)
+            except Exception:
+                review = True  # an unreadable contract cannot prove this is not a review
+        if not review:
+            return False
+        try:
+            with self.store._lock:
+                rows = model_review._journal_rows(self.store, model_review.rpc_intent_key(task.execution_id))
+                rows += [dict(row) for row in self.store._conn.execute(
+                    "SELECT * FROM durable_external_operations WHERE task_id = ? AND operation_key = ?",
+                    (task.id, model_review.RPC_OPERATION)).fetchall()]
+            pending = [row for row in rows if row.get("state") not in model_review.SETTLED_STATES]
+            if not pending:
+                return False
+            hold = f"intent_{str(pending[0].get('state')).lower()}:{pending[0].get('operation_id')}"
+            detail = (f"reviewer call {pending[0].get('operation_id')} for {task.execution_id} is journaled "
+                      f"{pending[0].get('state')} and may have been dispatched or completed remotely")
+        except Exception as exc:
+            hold = f"intent_unverifiable:{type(exc).__name__}"
+            detail = (f"reviewer journal for {task.execution_id} could not be read ({type(exc).__name__}); "
+                      "an earlier reviewer call may have been dispatched or completed remotely")
+        description = (f"model_review_retry_held:{hold}: {detail}; task status remains "
+                       f"{task.status}/{task.failure_classification or 'unclassified'} as written; no replacement "
+                       "reviewer execution is scheduled automatically; reconcile manually")
+        try:
+            if not any(event.type == "MODEL_SELECTION_FAILED"
+                       and event.metadata.get("reason") == "model_review_intent_unresolved"
+                       and event.metadata.get("hold") == hold for event in self.store.get_events(task.id)):
+                self.store.add_event(task.id, event_type="MODEL_SELECTION_FAILED",
+                                     title="Review retry held: reviewer call unresolved", description=description,
+                                     metadata={"reason": "model_review_intent_unresolved", "hold": hold,
+                                               "task_status": task.status,
+                                               "failure_classification": task.failure_classification})
+        except Exception as exc:
+            raise TaskStoreError(f"model_review_retry_hold_unrecorded:{task.id}: {type(exc).__name__}; "
+                                 "no replacement scheduled") from exc
+        return True
+
     def _repair_rejected_reviews(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Atomically admit bounded repairs per producer/revision.
 
@@ -614,6 +667,8 @@ class GoalService:
                         feedback = artifacts._load_evidence(producer, "ReviewRepair", producer.execution_id)
                         if (producer.status == "READY_FOR_REVIEW" and feedback is not None
                                 and feedback["review_task_id"] == failed.id):
+                            if self._review_intent_hold(failed, review_plan):
+                                continue
                             if len(history) >= window.max_retries:
                                 self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
@@ -647,6 +702,8 @@ class GoalService:
                     if (failed.status != "FAILED" or failed.failure_classification != "model_review_rejected"
                             or not artifacts.model_review_input(failed)
                             or self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id)):
+                        continue
+                    if self._review_intent_hold(failed, review_plan):
                         continue
                     try:
                         rows = [row for row in failed.evidence_refs if row.get("category") == "ModelReview"]
@@ -735,6 +792,8 @@ class GoalService:
             failed = self.store.get_task(link["task_id"])
             if _explicit_cleanup_uncertainty(failed):
                 continue
+            if self._review_intent_hold(failed, plan_task):
+                continue  # FAILED over an unresolved reviewer call never authorizes a second call
             from .contract_recovery import failed_snapshot, KINDS, FIXUP, record_attempt_disposition
             from .artifact_handoff import _load_evidence
             structured = functional_evidence(failed)
