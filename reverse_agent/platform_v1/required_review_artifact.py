@@ -46,8 +46,7 @@ class _HtmlBlockTracker(HTMLParser):
     out-of-order close is a mismatch. ``in_tag`` reports whether the lexer is
     holding an unfinished tag or comment (a dangling ``&`` charref is not one).
     The stdlib script/style raw-text state (``cdata_elem``) is an active
-    literal context too. ``visible`` optionally collects top-level text data,
-    the only text where a Markdown code span can open.
+    literal context too. Markdown code span content is never fed to it.
     """
 
     def __init__(self) -> None:
@@ -55,7 +54,6 @@ class _HtmlBlockTracker(HTMLParser):
         self.stack: list[str] = []
         self.mismatch = False
         self.stray_comment_close = False
-        self.visible: list[str] | None = None
 
     def handle_data(self, data: str) -> None:
         # Text inside an example block or script/style raw text is inert.
@@ -65,8 +63,6 @@ class _HtmlBlockTracker(HTMLParser):
         # unclosed one.
         if "-->" in data:
             self.stray_comment_close = True
-        if self.visible is not None:
-            self.visible.append(data)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() in ("pre", "code"):
@@ -102,38 +98,60 @@ class _HtmlBlockTracker(HTMLParser):
     def active(self) -> bool:
         return bool(self.stack) or self.in_tag or self.cdata_elem is not None
 
+    @property
+    def active_at_backtick(self) -> bool:
+        """``active`` for a backtick that follows: a lone pending "<" is text."""
+        # "<`" can never start a tag or comment, so it holds no lexer state.
+        return self.active and (bool(self.stack) or self.cdata_elem is not None
+                                or self.rawdata != "<")
 
-def _code_span_end(text: str, lines: list[str], index: int) -> tuple[int, int] | None:
-    """Where a Markdown code span left open in ``text`` closes on a later line.
+    def release_lone_lt(self) -> None:
+        if self.rawdata == "<":
+            self.rawdata = ""
+            self.handle_data("<")
 
-    ``text`` is the live top-level text of line ``index``. A backtick run of
-    width n opens a code span closed only by the next run of exactly n
-    backticks; a backslash-escaped backtick opens nothing. A run with no
-    closer before the paragraph ends (blank line, fence line, comment or
-    pre/script/style block start, or end of input) is literal text, so a stray
-    backtick never hides a later genuine verdict nor a real literal block.
-    Returns the closing (line, column end) for a span crossing a line end.
+
+def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
+                       lines: list[str], index: int) -> tuple[int, int] | None:
+    """Feed ``raw[pos:]`` of line ``index`` to ``html`` in source order, minus code.
+
+    Only text outside Markdown code spans reaches the HTML lexer, so a literal
+    ``<pre>`` or ``<!--`` inside a code span opens nothing. A backtick inside a
+    real tag, comment, pre/code block or script/style raw text is HTML content.
+    A top-level backtick run of width n opens a code span closed only by the
+    next run of exactly n backticks; a backslash-escaped backtick opens nothing.
+    A run with no closer before the paragraph ends (blank line, fence line, or
+    a comment or pre/script/style block start not itself carrying the closer,
+    or end of input) is literal text fed to the lexer, so a stray backtick
+    never hides a later genuine verdict nor a real literal block. Returns the
+    closing (line, column end) for a span crossing a line end.
     """
-    pos = 0
     while True:
-        token = _SPAN_TOKEN.search(text, pos)
+        token = _SPAN_TOKEN.search(raw, pos)
         if token is None:
+            html.feed(raw[pos:])
             return None
+        html.feed(raw[pos:token.start()])
         pos = token.end()
-        if token.group()[0] == "\\":
+        if token.group()[0] == "\\" or html.active_at_backtick:
+            html.feed(token.group())
             continue
         closer = re.compile(r"(?<!`)`{%d}(?!`)" % len(token.group()))
-        same = closer.search(text, pos)
+        same = closer.search(raw, pos)
         if same:
+            html.release_lone_lt()
             pos = same.end()
             continue
         for later in range(index + 1, len(lines)):
-            if (not lines[later].strip(" \t") or _FENCE.match(lines[later])
-                    or _HTML_LITERAL_START.match(lines[later])):
+            if not lines[later].strip(" \t") or _FENCE.match(lines[later]):
                 break
             found = closer.search(lines[later])
             if found:
+                html.release_lone_lt()
                 return later, found.end()
+            if _HTML_LITERAL_START.match(lines[later]):
+                break
+        html.feed(token.group())
 
 
 def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
@@ -148,8 +166,9 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     their true lexical state and a marker line inside any of them is not a
     declaration. Script/style raw text is an HTML literal context as well. A
     Markdown code span opened in live top-level text and closed by an exact
-    matching backtick run on a later line makes every line wholly inside it
-    literal code text, inert to the HTML lexer and never a declaration.
+    matching backtick run makes its content literal code text: every line
+    wholly inside it and the code portions of its opening and closing lines
+    are inert to the HTML lexer, and such lines are never a declaration.
     Unclosed fences/comments/blocks fail closed. The report remains
     model-authored and is NOT a substitute for external acceptance.
     """
@@ -186,22 +205,18 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
             if opened:
                 fence = opened.group(1)
                 continue
-        # Every real tag and comment on the line is tokenized, with the actual
-        # line terminator, so lexical separation and unfinished state persist.
-        # Only top-level text after a code span's closing run can open another.
+        # Every real tag and comment outside code on the line is tokenized, with
+        # the actual line terminator, so lexical separation and unfinished
+        # state persist. The literal code prefix before a span's closing run is
+        # never fed; only outside-code text after it can open another span.
         try:
-            if resume:
-                html.feed(raw[:resume])
-            html.visible = []
-            html.feed(raw[resume:])
+            span = _feed_outside_code(html, raw, resume, lines, index)
         except Exception:
             return None, "review_html_code_mismatched"
-        visible, html.visible = "".join(html.visible), None
         if html.mismatch:
             return None, "review_html_code_mismatched"
         if html.stray_comment_close:
             return None, "review_comment_unclosed"
-        span = _code_span_end(visible, lines, index)
         if not live or html.active:
             continue
         # Do not count block quotes, code indentation, list items or templates.

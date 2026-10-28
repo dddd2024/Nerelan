@@ -418,6 +418,50 @@ def test_html_inside_multiline_code_span_is_inert() -> None:
     assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
 
 
+FAKE = ACCEPT.replace(SHA, "b" * 40)
+
+
+def _html_literal_in_code(tag: str, where: str) -> str:
+    if where == "opening":
+        return f"`{tag}\n{FAKE}\n`\n"
+    return f"`\n{FAKE}\n{tag}`\n"
+
+
+@pytest.mark.parametrize("tag", ["<pre>", "<!--"])
+@pytest.mark.parametrize("where", ["opening", "closing"])
+def test_html_literal_on_code_span_edge_line_does_not_leak(tag: str, where: str) -> None:
+    # Regression: the opening line was fed whole to the HTML lexer, and the
+    # closing line's literal code prefix too, so a code-literal <pre>/<!--
+    # opened a real block that hid the genuine verdict after the span.
+    content = _html_literal_in_code(tag, where) + ACCEPT + "\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("tag", ["<pre>", "<!--"])
+@pytest.mark.parametrize("where", ["opening", "closing"])
+def test_html_literal_on_code_span_edge_line_fake_only_is_not_live(tag: str, where: str) -> None:
+    marker, error = _parse_review_marker(_html_literal_in_code(tag, where))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_html_literal_in_single_line_code_span_is_inert() -> None:
+    content = "\n".join(["Use `<pre>` and ``<!--`` here.", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_real_html_after_closed_code_span_still_opens_block() -> None:
+    content = "\n".join(["`", FAKE, "` <pre>", ACCEPT, "</pre>"])
+    marker, error = _parse_review_marker(content)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+def test_code_span_cannot_close_on_fence_line() -> None:
+    content = "\n".join(["x ```", "```", ACCEPT, "```", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
 def test_code_span_cannot_cross_real_script_block_start() -> None:
     # The <script> line interrupts the paragraph: the backtick is literal and
     # the raw-text block, not a code span, decides that the fake is inert.
