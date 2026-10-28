@@ -1,11 +1,78 @@
 from __future__ import annotations
 
+from html.parser import HTMLParser
+
 import pytest
 
 from reverse_agent.platform_v1.required_review_artifact import _parse_review_marker
 
 SHA = "a" * 40
 ACCEPT = f"Nerelan-Review: ACCEPT {SHA}"
+
+
+@pytest.fixture(autouse=True, params=["native", "batched", "until_close"])
+def feed_mode(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> str:
+    """Run every case on the installed stdlib and on controlled delayed feeds.
+
+    A model only, NOT execution of an actual CPython 3.13.17 runtime: CI
+    supplies that evidence. "batched" queues input after a stalled parse until
+    as much again accumulates (the upstream 3.13.17 feed mitigation); public
+    docs only promise that close() flushes buffered input, so "until_close"
+    withholds every callback until close(). monkeypatch restores both.
+    """
+    if request.param == "native":
+        return request.param
+    original_feed, original_close = HTMLParser.feed, HTMLParser.close
+
+    def deferred_feed(self: HTMLParser, text: str) -> None:
+        chunks = getattr(self, "_probe_chunks", [])
+        queued = getattr(self, "_probe_queued", 0) + len(text)
+        chunks.append(text)
+        self._probe_chunks = chunks  # type: ignore[attr-defined]
+        self._probe_queued = queued  # type: ignore[attr-defined]
+        if request.param == "until_close" or queued < getattr(self, "_probe_threshold", 1):
+            return
+        data = "".join(chunks)
+        chunks.clear()
+        self._probe_queued = 0  # type: ignore[attr-defined]
+        before = len(self.rawdata) + len(data)
+        original_feed(self, data)
+        self._probe_threshold = (  # type: ignore[attr-defined]
+            1 if len(self.rawdata) < before else len(self.rawdata))
+
+    def deferred_close(self: HTMLParser) -> None:
+        chunks = getattr(self, "_probe_chunks", [])
+        if chunks:
+            data = "".join(chunks)
+            chunks.clear()
+            self._probe_queued = 0  # type: ignore[attr-defined]
+            original_feed(self, data)
+        original_close(self)
+
+    monkeypatch.setattr(HTMLParser, "feed", deferred_feed)
+    monkeypatch.setattr(HTMLParser, "close", deferred_close)
+    return request.param
+
+
+def test_feed_model_really_withholds_callbacks_until_close(feed_mode: str) -> None:
+    class Recorder(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=False)
+            self.tags: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            self.tags.append(tag)
+
+    parser = Recorder()
+    for chunk in ['<span title="\n', ACCEPT + "\n", '">\n']:
+        parser.feed(chunk)
+    if feed_mode == "until_close":
+        # The completed tag is still queued: feed gave no callback guarantee.
+        # ("batched" queues it too, but its accounting reads the installed
+        # runtime's buffer, so only this mode is asserted on every runtime.)
+        assert parser.tags == []
+    parser.close()
+    assert parser.tags == ["span"]
 
 
 def test_genuine_live_marker_accepted() -> None:
@@ -566,3 +633,57 @@ def test_self_closing_container_does_not_close_empty(opener: str) -> None:
     tag = opener.strip("</ >")
     content = f"{opener}\n{FAKE}\n</{tag}>\n{ACCEPT}\n"
     assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+# The eight cases that failed on CI's delayed stdlib feed: (lines whose last
+# line closes the lexical context, typed reason once that line is missing).
+DELAYED_FEED_CASES = {
+    "unfinished_tag": (['<span title="', FAKE, '">'], "review_html_code_unclosed"),
+    "comment_after_comment": (["<!-- one --><!-- open", FAKE, "-->"],
+                              "review_comment_unclosed"),
+    "script": (["<script>", FAKE, "</script>"], "review_html_code_unclosed"),
+    "style": (["<style>", FAKE, "</style>"], "review_html_code_unclosed"),
+    "SCRIPT": (["<SCRIPT>", FAKE, "</SCRIPT>"], "review_html_code_unclosed"),
+    "self_closing_script": (["<script/>", FAKE, "</script>"], "review_html_code_unclosed"),
+    "priority": (["<!-- <script> -->", "```html", "<script>", "```", "<pre>", "<script>",
+                  FAKE, "</script>", "</pre>"], "review_html_code_unclosed"),
+    "span_vs_script": (["x `", "<script>", "`", FAKE, "</script>"],
+                       "review_html_code_unclosed"),
+}
+
+
+@pytest.mark.parametrize("case", sorted(DELAYED_FEED_CASES))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_delayed_feed_closed_contexts_keep_typed_reasons(case: str, newline: str) -> None:
+    lines, unclosed = DELAYED_FEED_CASES[case]
+    # Only-fake control: the closed context hides the fake, nothing is live.
+    marker, error = _parse_review_marker(newline.join(lines) + newline)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    # A genuine marker outside the closed context is accepted.
+    content = newline.join([*lines, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    # A genuine marker inside the context is still not live.
+    inside = [ACCEPT if line == FAKE else line for line in lines]
+    marker, error = _parse_review_marker(newline.join(inside))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    # Without its closing line the context fails closed, even with a marker after.
+    marker, error = _parse_review_marker(newline.join([*lines[:-1], ACCEPT]))
+    assert marker is None
+    assert error == unclosed
+
+
+@pytest.mark.parametrize("closer", ["</script>", "</script >", "</SCRIPT\n>",
+                                    '</script x=">">'])
+def test_raw_text_close_tag_split_across_lines_is_recognized(closer: str) -> None:
+    content = "\n".join(["<script>", "</scrip", FAKE, closer, ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_long_unfinished_attribute_stays_inside_tag_across_many_lines() -> None:
+    lines = ['<span title="', *[FAKE] * 200, ACCEPT, '">']
+    marker, error = _parse_review_marker("\n".join(lines))
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    assert _parse_review_marker("\n".join([*lines, ACCEPT])) == (("ACCEPT", SHA), "")

@@ -34,56 +34,158 @@ _REVIEW_OUTCOME = re.compile(
 )
 
 
-class _HtmlBlockTracker(HTMLParser):
-    """Persistent stdlib lexer for real <pre>/<code>/<blockquote>/<q> nesting
-    and comments; quoted text is as inert as example text.
+_RAW_TEXT = ("script", "style")
+_RAW_CLOSE = {name: re.compile(r"</%s(?=[\t\n\r\f />])" % name, re.IGNORECASE | re.ASCII)
+              for name in _RAW_TEXT}
+_TAG_NAME = re.compile(r"[a-zA-Z][^\t\n\r\f />\x00]*")
+# A quote opens an attribute value only right after "="; ">" elsewhere ends.
+_TAG_STOP = re.compile(r"""=[\t\n\r\f ]*(?:(["'])|\Z)|>""")
+_COMMENT_END = re.compile(r"--!?>")
+
+
+def _tag_end(buf: str, pos: int) -> tuple[int | None, int]:
+    """End of the tag whose attributes start at ``pos``, or (None, resume)."""
+    while True:
+        stop = _TAG_STOP.search(buf, pos)
+        if stop is None:
+            return None, len(buf)
+        if stop.group() == ">":
+            return stop.end(), 0
+        if stop.group(1) is None:
+            return None, stop.start()
+        close = buf.find(stop.group(1), stop.end())
+        if close < 0:
+            return None, stop.start()
+        pos = close + 1
+
+
+def _markup(buf: str, i: int, resume: int) -> tuple[int | None, int, str | None, int]:
+    """Delimit, never interpret, the markup token at ``buf[i] == "<"``.
+
+    Returns (end, expected stdlib markup callbacks, raw-text element opened,
+    resume). ``end`` is None while the token is unfinished; ``resume`` is where
+    scanning continues once more input arrives, so pending input is never
+    rescanned from its start.
+    """
+    head = buf[i:i + 4]
+    if head in ("<", "</", "<!", "<!-"):
+        return None, 0, None, i
+    if head == "<!--":
+        found = _COMMENT_END.search(buf, max(i + 2, resume))
+        if found is None:
+            return None, 0, None, max(i + 2, len(buf) - 3)
+        return found.end(), 1, None, 0
+    closing = head[1] == "/"
+    name = _TAG_NAME.match(buf, i + 1 + closing)
+    if name is not None:
+        end, resume = _tag_end(buf, max(name.end(), resume))
+        tag = name.group().lower()
+        return end, 1, tag if tag in _RAW_TEXT and not closing else None, resume
+    if closing and head[2] == ">":
+        return i + 3, 0, None, 0  # "</>" is ignored
+    if closing or head[1] in "!?":
+        end = buf.find(">", max(i + 2, resume))
+        return (None, 0, None, len(buf)) if end < 0 else (end + 1, 1, None, 0)
+    return i + 1, 0, None, 0  # "<" not starting markup is text
+
+
+class _HtmlTokens(HTMLParser):
+    """One stdlib parse of logically complete markup, flushed by close().
+
+    Public ``close`` forces every buffered callback, so the tracker never reads
+    parser buffers nor assumes ``feed`` delivers callbacks synchronously.
+    """
+
+    def __init__(self, tracker: _HtmlBlockTracker) -> None:
+        super().__init__(convert_charrefs=False)
+        self.tracker = tracker
+        self.markup = 0
+
+    def handle_data(self, data: str) -> None:
+        self.tracker.data(data)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.markup += 1
+        self.tracker.start(tag)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # Browsers ignore "/>" on non-void elements: a pre/code/quotation
+        # container stays open until its real close tag, never closed empty,
+        # and on <script>/<style> raw text still begins.
+        self.markup += 1
+        self.tracker.start(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        self.markup += 1
+        self.tracker.end(tag)
+
+    def handle_comment(self, data: str) -> None:
+        self.markup += 1
+
+    def handle_decl(self, decl: str) -> None:
+        self.markup += 1
+
+    def handle_pi(self, data: str) -> None:
+        self.markup += 1
+
+    def unknown_decl(self, data: str) -> None:
+        self.markup += 1
+
+
+class _HtmlBlockTracker:
+    """Persistent lexical state for real <pre>/<code>/<blockquote>/<q> nesting,
+    comments and script/style raw text; quoted text is as inert as examples.
 
     One tracker is fed every non-fenced line together with its original line
     terminator, so incomplete tags, quoted attribute values and comments keep
     their lexical state across line boundaries and a newline still separates
-    ``<pre`` from its attributes. Every real tag and comment on a line is
-    tokenized, including several sharing one line: a comment never hides an
-    adjacent ``<pre>``, and a second unclosed ``<!--`` after a closed one stays
-    pending. Attribute values and comment bodies are token text, never tags. A
-    close tag only closes when it matches the innermost open block, so an
-    out-of-order close is a mismatch. ``in_tag`` reports whether the lexer is
-    holding an unfinished tag or comment (a dangling ``&`` charref is not one).
-    The stdlib script/style raw-text state (``cdata_elem``) is an active
-    literal context too. Markdown code span content is never fed to it.
+    ``<pre`` from its attributes. The tracker owns its pending buffer: it only
+    delimits tokens and hands each logically complete run of input, in source
+    order, to a fresh stdlib parser whose public callbacks decide tag names,
+    nesting and comments. An unfinished tag or comment stays pending here, so
+    the state is current after every ``feed`` whatever the stdlib buffers. A
+    stdlib callback count differing from the delimited tokens is a mismatch.
+    Every real tag and comment on a line is tokenized, including several
+    sharing one line: a comment never hides an adjacent ``<pre>``, and a second
+    unclosed ``<!--`` after a closed one stays pending. Attribute values and
+    comment bodies are token text, never tags. A close tag only closes when it
+    matches the innermost open block, so an out-of-order close is a mismatch.
+    ``in_tag`` reports an unfinished tag or comment (a dangling ``&`` charref
+    is not one). Script/style raw text is never parsed; it is an active
+    literal context until its real close tag. Markdown code span content is
+    never fed to it.
     """
 
     def __init__(self) -> None:
-        super().__init__(convert_charrefs=False)
         self.stack: list[str] = []
         self.mismatch = False
         self.stray_comment_close = False
+        self.raw: str | None = None
+        self.pending = ""
+        self._resume = 0
 
-    def handle_data(self, data: str) -> None:
+    def data(self, data: str) -> None:
         # Text inside an example block or script/style raw text is inert.
-        if self.stack or self.cdata_elem is not None:
+        if self.stack or self.raw is not None:
             return
         # A top-level "-->" with no opening comment is as invalid as an
         # unclosed one.
         if "-->" in data:
             self.stray_comment_close = True
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() in _CONTAINERS:
-            self.stack.append(tag.lower())
-
-    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        # Browsers ignore "/>" on non-void elements: a pre/code/quotation
-        # container stays open until its real close tag, never closed empty.
-        if tag.lower() in _CONTAINERS:
-            self.handle_starttag(tag, attrs)
-            return
-        super().handle_startendtag(tag, attrs)
-        # Likewise on <script>/<style>: raw text still begins.
-        if tag.lower() in ("script", "style") and self.cdata_elem is None:
-            self.set_cdata_mode(tag.lower())
-
-    def handle_endtag(self, tag: str) -> None:
+    def start(self, tag: str) -> None:
         tag = tag.lower()
+        if tag in _CONTAINERS:
+            self.stack.append(tag)
+        elif tag in _RAW_TEXT:
+            self.raw = tag
+
+    def end(self, tag: str) -> None:
+        tag = tag.lower()
+        if self.raw is not None:
+            if tag == self.raw:
+                self.raw = None
+            return
         if tag not in _CONTAINERS:
             return
         if self.stack and self.stack[-1] == tag:
@@ -93,30 +195,89 @@ class _HtmlBlockTracker(HTMLParser):
         # A stray close outside any open context is ignored: it is not a
         # declaration and must not reject a genuine report.
 
+    def feed(self, text: str) -> None:
+        self.pending += text
+        while self.pending:
+            if self.raw is not None:
+                if not self._drain_raw():
+                    return
+            elif not self._drain_markup():
+                return
+
+    def _flush(self, end: int, count: int) -> None:
+        text, self.pending, self._resume = self.pending[:end], self.pending[end:], 0
+        if text:
+            tokens = _HtmlTokens(self)
+            tokens.feed(text)
+            tokens.close()
+            if tokens.markup != count:
+                self.mismatch = True
+
+    def _drain_markup(self) -> bool:
+        """Parse complete input; True once a raw-text element has opened."""
+        buf, pos, count = self.pending, 0, 0
+        while True:
+            lt = buf.find("<", pos)
+            if lt < 0:
+                self._flush(len(buf), count)
+                return False
+            end, callbacks, raw, resume = _markup(buf, lt, self._resume if lt == 0 else 0)
+            if end is None:
+                self._flush(lt, count)
+                self._resume = resume - lt
+                return False
+            pos, count = end, count + callbacks
+            if raw is not None:
+                self._flush(end, count)
+                if self.raw != raw:
+                    self.mismatch = True
+                    return False
+                return True
+
+    def _drain_raw(self) -> bool:
+        """Skip inert raw text; True once its real close tag is parsed."""
+        raw, buf = self.raw or "", self.pending
+        found = _RAW_CLOSE[raw].search(buf) if raw else None
+        if found is None:
+            # Keep only a tail that may begin a close tag split across feeds.
+            self.pending, self._resume = buf[-len(raw) - 2:], 0
+            return False
+        start = found.start()
+        end, _, _, resume = _markup(buf, start, self._resume if start == 0 else 0)
+        self.pending = buf[start:]
+        if end is None:
+            self._resume = resume - start
+            return False
+        self._flush(end - start, 1)
+        if self.raw is not None:
+            self.mismatch = True
+            return False
+        return True
+
     @property
     def in_tag(self) -> bool:
         """True while the lexer holds an unfinished tag/comment, not a charref."""
-        return self.rawdata.startswith("<")
+        return self.raw is None and bool(self.pending)
 
     @property
     def in_comment(self) -> bool:
-        return self.rawdata.startswith("<!--")
+        return self.raw is None and self.pending.startswith("<!--")
 
     @property
     def active(self) -> bool:
-        return bool(self.stack) or self.in_tag or self.cdata_elem is not None
+        return bool(self.stack) or self.in_tag or self.raw is not None
 
     @property
     def active_at_backtick(self) -> bool:
         """``active`` for a backtick that follows: a lone pending "<" is text."""
         # "<`" can never start a tag or comment, so it holds no lexer state.
-        return self.active and (bool(self.stack) or self.cdata_elem is not None
-                                or self.rawdata != "<")
+        return self.active and (bool(self.stack) or self.raw is not None
+                                or self.pending != "<")
 
     def release_lone_lt(self) -> None:
-        if self.rawdata == "<":
-            self.rawdata = ""
-            self.handle_data("<")
+        if self.raw is None and self.pending == "<":
+            self.pending = ""
+            self.data("<")
 
 
 def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
