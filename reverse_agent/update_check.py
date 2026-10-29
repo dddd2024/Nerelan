@@ -20,6 +20,9 @@ _ORIGINS = {
     "git@github.com:dddd2024/Nerelan.git",
 }
 _TIMEOUT = 8
+# Command-scoped override: a configured core.fsmonitor hook or daemon would
+# otherwise run during ``git status``; GIT_OPTIONAL_LOCKS does not stop it.
+_NO_FSMONITOR = ("-c", "core.fsmonitor=false")
 
 
 def classify_revisions(*, installed: str, remote: str, ancestry: str,
@@ -58,7 +61,7 @@ def probe_checkout(repo: str | Path) -> dict[str, object]:
                    GIT_LFS_SKIP_SMUDGE="1", GIT_NO_LAZY_FETCH="1")
         try:
             proc = subprocess.run(
-                ["git", "-C", str(root), *args],
+                ["git", "-C", str(root), *_NO_FSMONITOR, *args],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 stdin=subprocess.DEVNULL, timeout=_TIMEOUT, env=env, check=False)
         except (OSError, subprocess.TimeoutExpired):

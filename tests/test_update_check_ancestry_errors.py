@@ -37,6 +37,14 @@ class _Proc:
         self.stderr = ""
 
 
+def _git_args(cmd) -> list[str]:
+    """Subcommand args after ``git -C <root>`` and the known fsmonitor override."""
+    args = list(cmd[3:])
+    if args[:2] == ["-c", "core.fsmonitor=false"]:
+        args = args[2:]
+    return args
+
+
 def _timeout(cmd) -> subprocess.TimeoutExpired:
     return subprocess.TimeoutExpired(cmd=cmd, timeout=update_check._TIMEOUT)
 
@@ -74,8 +82,8 @@ class GitScript:
         self.calls: list[list[str]] = []
 
     def run(self, cmd, **kwargs):
-        # probe_checkout always invokes ``git -C <root> <args...>``.
-        args = list(cmd[3:])
+        # probe_checkout always invokes ``git -C <root> -c core.fsmonitor=false <args...>``.
+        args = _git_args(cmd)
         self.calls.append(args)
         head = args[0]
         if head == "remote":

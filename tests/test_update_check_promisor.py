@@ -25,6 +25,14 @@ def _git(real_run, checkout: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _git_args(cmd) -> list[str]:
+    """Subcommand args after ``git -C <root>`` and the known fsmonitor override."""
+    args = list(cmd[3:])
+    if args[:2] == ["-c", "core.fsmonitor=false"]:
+        args = args[2:]
+    return args
+
+
 def test_no_lazy_fetch_or_promisor_object_writes(tmp_path):
     real_run = subprocess.run
     source = tmp_path / "local_source"
@@ -65,7 +73,7 @@ def test_no_lazy_fetch_or_promisor_object_writes(tmp_path):
     real_calls = []
 
     def only_mock_remote_probe(cmd, **kwargs):
-        args = cmd[3:]
+        args = _git_args(cmd)
         if args[0] == "ls-remote":
             return subprocess.CompletedProcess(
                 cmd, 0, f"{remote_head}\trefs/heads/main\n", "")
