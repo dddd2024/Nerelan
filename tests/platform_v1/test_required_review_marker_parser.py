@@ -687,3 +687,61 @@ def test_long_unfinished_attribute_stays_inside_tag_across_many_lines() -> None:
     assert marker is None
     assert error == "review_verdict_missing_or_ambiguous"
     assert _parse_review_marker("\n".join([*lines, ACCEPT])) == (("ACCEPT", SHA), "")
+
+
+# Regression from independent REJECT at 93944f56: an unprefixed line lazily
+# continuing a quoted paragraph is quoted text, not a live verdict.
+LAZY_QUOTES = {
+    "lazy": ["> Earlier quoted template:"],
+    "continued": ["> Earlier quoted template:", "> continuing quotation"],
+    "nested": ["> > Outer template:", "> inner"],
+    "indented_prefix": ["   > Earlier quoted template:"],
+    "lazy_text_first": ["> Earlier quoted template:", "still quoted text"],
+    "quoted_list_item": ["> - quoted item"],
+    "code_span": ["> see `multi", "line` span"],
+    "inline_html": ["> quoted <code>inline", "more</code> text"],
+}
+
+
+@pytest.mark.parametrize("case", sorted(LAZY_QUOTES))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_lazy_quote_continuation_marker_is_not_live(case: str, newline: str) -> None:
+    quote = LAZY_QUOTES[case]
+    marker, error = _parse_review_marker(newline.join([*quote, ACCEPT]) + newline)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+    # A lazy quoted fake never counts beside a genuine marker after a blank line.
+    content = newline.join([*quote, FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("separator", [
+    [""], ["   "], ["# Current review"], ["## Current review"], ["---"], ["***"],
+    ["- note"], ["1. note"], ["```", FAKE, "```"], ["<pre>", FAKE, "</pre>"],
+    ["<!-- note -->"],
+])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_terminated_quote_then_outside_marker_accepted(separator: list[str],
+                                                       newline: str) -> None:
+    lines = ["> Earlier quoted template:", "> " + FAKE, *separator, ACCEPT]
+    assert _parse_review_marker(newline.join(lines) + newline) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("quote", [
+    [">"], ["> "], ["> # Quoted heading"], ["> ```", "> " + FAKE, "> ```"],
+    ["> ---"], [">     quoted code"],
+])
+def test_quote_without_open_paragraph_has_no_lazy_continuation(quote: list[str]) -> None:
+    assert _parse_review_marker("\n".join([*quote, ACCEPT])) == (("ACCEPT", SHA), "")
+
+
+def test_ordinary_lists_are_not_quotes() -> None:
+    content = "\n".join(["- point", "* other", "+ more", "1. item", "", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    content = "\n".join(["Summary:", "- point a > b", "", ACCEPT])
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_lazy_quoted_failure_outcome_still_refused() -> None:
+    content = "\n".join(["> Template:", "Outcome: REJECT", "", ACCEPT])
+    assert _parse_review_marker(content) == (None, "review_explicit_failure_outcome")

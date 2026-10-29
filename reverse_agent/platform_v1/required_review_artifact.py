@@ -27,6 +27,12 @@ _HTML_LITERAL_START = re.compile(
     r"^[ ]{0,3}(?:<!--|<(?:script|pre|style|blockquote)(?:[ \t>/]|$))", re.IGNORECASE)
 # Literal example and quotation containers: text inside them is never live.
 _CONTAINERS = ("pre", "code", "blockquote", "q")
+# Markdown block quote markers, and line starts that end a paragraph inside a
+# quote or interrupt its lazy continuation outside one.
+_QUOTE_PREFIX = re.compile(r"[ ]{0,3}>[ ]?")
+_PARAGRAPH_END = re.compile(
+    r"[ ]{0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}|~{3,}|([-*_])(?:[ \t]*\1){2,}[ \t]*$)")
+_LAZY_INTERRUPT = re.compile(r"[ ]{0,3}(?:[-+*]|1[.)])[ \t]+\S")
 _MAX_REPORT_BYTES = 128 * 1024
 _REVIEW_OUTCOME = re.compile(
     r"^(?:Final[ -]?)?(?:Outcome|Decision|Verdict|Review[ -]?Status):\s*"
@@ -324,6 +330,31 @@ def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
         html.feed(token.group())
 
 
+def _quote_paragraph(line: str, quoted: bool) -> bool:
+    """Whether a Markdown block quote paragraph is still open after ``line``.
+
+    An unprefixed line that does not start another block is a lazy
+    continuation of an open quoted paragraph, so it is quoted text too. A blank
+    line, heading, fence, thematic break, list item or HTML literal block start
+    ends the quote; a quoted blank, heading, fence or break line opens no
+    paragraph to continue.
+    """
+    if not line.strip(" \t"):
+        return False
+    prefix = _QUOTE_PREFIX.match(line)
+    if prefix is None:
+        return quoted and not (_PARAGRAPH_END.match(line) or _LAZY_INTERRUPT.match(line)
+                               or _HTML_LITERAL_START.match(line))
+    rest = line
+    while prefix:
+        rest = rest[prefix.end():]
+        prefix = _QUOTE_PREFIX.match(rest)
+    if not rest.strip(" \t") or _PARAGRAPH_END.match(rest):
+        return False
+    # Indented code cannot start a paragraph, only continue one.
+    return quoted or not rest.startswith("    ")
+
+
 def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     """Only a genuine top-level verdict counts, not an example or quoted template.
 
@@ -341,12 +372,15 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     matching backtick run makes its content literal code text: every line
     wholly inside it and the code portions of its opening and closing lines
     are inert to the HTML lexer, and such lines are never a declaration.
+    A Markdown block quote covers its ``>`` lines and every lazy continuation
+    line of its open paragraph, until a blank line or another block start.
     Unclosed fences/comments/blocks fail closed. The report remains
     model-authored and is NOT a substitute for external acceptance.
     """
     markers: list[tuple[str, str]] = []
     fence: str | None = None
     span: tuple[int, int] | None = None
+    quoted = False
     html = _HtmlBlockTracker()
     raws = content.splitlines(keepends=True)
     lines = [(raw.splitlines() or [""])[0] for raw in raws]
@@ -372,6 +406,10 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         # pre/code block, script/style raw text, unfinished tag, open comment
         # or code span; inside those it is inert content.
         live = not resume and not html.active
+        # Block quote state only changes at a live line start or a blank line;
+        # a line inside an inline HTML/code context continues its paragraph.
+        if live or not line.strip(" \t"):
+            quoted = _quote_paragraph(line, quoted)
         if live:
             opened = _FENCE.match(line)
             if opened:
@@ -397,6 +435,9 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         stripped = re.sub(r"^#{1,6}[ ]+", "", line)
         if _REVIEW_OUTCOME.match(stripped):
             return None, "review_explicit_failure_outcome"
+        # A lazy quote continuation line is quoted text, never a declaration.
+        if quoted:
+            continue
         # Match the raw original marker line; never strip, decode or unescape
         # HTML to synthesize a marker that was not literally present.
         match = _REVIEW.fullmatch(line.strip())
