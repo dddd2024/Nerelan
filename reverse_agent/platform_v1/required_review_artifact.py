@@ -340,10 +340,13 @@ def _quoted_lines(parts: list[str]) -> list[bool]:
     as quoted. ``parts`` holds one context-only parser line per original
     ``splitlines`` line, with its original terminator, and each is mapped to
     its parser line by source offset, never rejoined, unquoted or rewritten.
+    The public ``html`` option is off for this context-only input: the host
+    HTML lexer alone owns where HTML scope ends, so a library HTML block can
+    never outlive a real close tag and swallow a later Markdown quote.
     """
     from markdown_it import MarkdownIt
 
-    md = MarkdownIt("commonmark")
+    md = MarkdownIt("commonmark", {"html": False})
     limit = md.options["maxNesting"]
     content = "".join(parts)
     starts = [0, *(found.end() for found in _MD_LINE_BREAK.finditer(content))]

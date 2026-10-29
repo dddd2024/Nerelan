@@ -479,3 +479,33 @@ def test_literal_context_priority_over_markdown_quote_in_full_validation(tmp_pat
         assert command == "required_review_artifact"
         assert code != 0
         assert reason == "review_verdict_missing_or_ambiguous"
+
+
+# Regression from independent REJECT at 11c328ce: a real quote after a closed
+# line-start HTML container is still a quote that hides its lazy marker.
+CLOSED_HTML_SEAMS = [
+    ("<blockquote>\n> literal\n</blockquote>\n", "blockquote"),
+    ("<code>\n> literal\n</code>\n", "code"),
+    ("<q>\n> literal\n</q>\n", "q"),
+    ("<script>\n> literal\n</script\n>\n", "script_split_close"),
+    ("<style>\n> literal\n</style\n>\n", "style_split_close"),
+    ("<pre>\n> literal\n</pre\n>\n", "pre_split_close"),
+]
+
+
+@pytest.mark.parametrize("seam", [seam for seam, _ in CLOSED_HTML_SEAMS],
+                         ids=[name for _, name in CLOSED_HTML_SEAMS])
+@pytest.mark.parametrize("quoted", [True, False], ids=["real_quote", "outside"])
+def test_real_quote_after_closed_line_start_html_in_full_validation(tmp_path, seam, quoted):
+    doc = seam + ("> real quote\n" if quoted else "") + MARKER + "\n"
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(doc.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is (not quoted)
+    command, code, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    if quoted:
+        assert command == "required_review_artifact"
+        assert code != 0
+        assert reason == "review_verdict_missing_or_ambiguous"
+    else:
+        assert command == "git_diff_check" and code == 0

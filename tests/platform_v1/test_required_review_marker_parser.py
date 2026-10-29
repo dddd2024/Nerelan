@@ -954,3 +954,49 @@ def test_markdown_parser_is_a_pinned_runtime_dependency() -> None:
     project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
     assert "markdown-it-py==4.0.0" in project["dependencies"]
     assert version("markdown-it-py") == "4.0.0"
+
+
+# Regression from independent REJECT at 11c328ce: the host HTML lexer closed a
+# line-start HTML container, but the parser's own HTML block outlived the close
+# and swallowed the real quote after it, so its lazy fake passed as genuine.
+CLOSED_HTML_SEAMS = {
+    "blockquote": ["<blockquote>", "> literal", "</blockquote>"],
+    "code": ["<code>", "> literal", "</code>"],
+    "q": ["<q>", "> literal", "</q>"],
+    "script_split_close": ["<script>", "> literal", "</script", ">"],
+    "style_split_close": ["<style>", "> literal", "</style", ">"],
+    "pre_split_close": ["<pre>", "> literal", "</pre", ">"],
+}
+
+
+@pytest.mark.parametrize("case", sorted(CLOSED_HTML_SEAMS))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_real_quote_after_closed_line_start_html_quotes_lazy_marker(
+        case: str, newline: str) -> None:
+    seam = CLOSED_HTML_SEAMS[case]
+    content = newline.join([*seam, "> real quote", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    # The real quote covers a lazy fake; a blank line ends it before the genuine one.
+    content = newline.join([*seam, "> real quote", FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("case", sorted(CLOSED_HTML_SEAMS))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_genuine_marker_after_closed_line_start_html_is_live(
+        case: str, newline: str) -> None:
+    seam = CLOSED_HTML_SEAMS[case]
+    content = newline.join([*seam, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    content = newline.join([*seam, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    # The container itself still hides a marker inside it.
+    content = newline.join([seam[0], seam[1], ACCEPT, *seam[2:]]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+
+
+@pytest.mark.parametrize("case", sorted(CLOSED_HTML_SEAMS))
+def test_unclosed_line_start_html_before_real_quote_fails_closed(case: str) -> None:
+    seam = CLOSED_HTML_SEAMS[case]
+    content = "\n".join([seam[0], seam[1], "> real quote", ACCEPT]) + "\n"
+    assert _parse_review_marker(content)[0] is None
