@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from html.parser import HTMLParser
+from importlib.metadata import version
+from pathlib import Path
+import sys
+import tomllib
 
+from markdown_it import MarkdownIt
 import pytest
 
 from reverse_agent.platform_v1.required_review_artifact import _parse_review_marker
@@ -790,3 +795,101 @@ def test_terminated_quote_paragraph_then_outside_marker_accepted(quote: list[str
     # A quoted template beside the genuine marker is still not a declaration.
     content = newline.join([*quote, ">", "> " + FAKE, "", ACCEPT]) + newline
     assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+# Regression from independent REJECT at af7cd119: a quoted link reference
+# definition is not a paragraph, so the CommonMark quote ends on its line and
+# an immediately following unprefixed marker is outside the quote.
+@pytest.mark.parametrize("quote", [
+    ["> [link]: /example"], ["> > [link]: /example"],
+    ['> [link]: /example "title"'], ["> quote", ">", "> [link]: /example"],
+])
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_quoted_link_definition_then_outside_marker_accepted(quote: list[str],
+                                                             newline: str) -> None:
+    content = newline.join([*quote, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    marker, error = _parse_review_marker(newline.join(quote) + newline)
+    assert marker is None
+    assert error == "review_verdict_missing_or_ambiguous"
+
+
+@pytest.mark.parametrize("quote", [
+    ["> [link]: /example", "> definition followed by text"],
+    ["> [not a definition] text"], ["> [link]:"], ["> > [link] /example"],
+])
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_quoted_link_lookalike_paragraph_keeps_lazy_marker_quoted(quote: list[str],
+                                                                 newline: str) -> None:
+    content = newline.join([*quote, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = newline.join([*quote, FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("depth", [20, 50, 100])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_deeply_nested_quote_bounds(depth: int, newline: str) -> None:
+    quote = "> " * depth
+    # A lazy line after a deep quote and a fake inside it are never live.
+    content = newline.join([quote + "deep template", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = newline.join([quote + FAKE]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    # A blank line ends every level; the genuine marker after it counts.
+    content = newline.join([quote + FAKE, quote + "more", "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("separator", [chr(0x2028), chr(0x85), chr(0x0C)])
+def test_non_commonmark_line_separator_never_splits_a_quoted_line(separator: str) -> None:
+    # CommonMark breaks lines only on CR/LF; an original line after U+2028,
+    # NEL or form feed still lies inside the quoted parser line.
+    content = f"> quote{separator}{ACCEPT}\n"
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = f"> quote{separator}{FAKE}\n\n{ACCEPT}\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+_CAP = 128 * 1024
+
+
+def _near_cap(unit: str, tail: str) -> str:
+    content = unit * ((_CAP - len(tail.encode("utf-8"))) // len(unit.encode("utf-8"))) + tail
+    assert _CAP - len(unit.encode("utf-8")) < len(content.encode("utf-8")) <= _CAP
+    return content
+
+
+@pytest.mark.parametrize("unit", [
+    "> " * 100 + "deep quoted template\n",
+    "> quoted template\n\n",
+    "plain paragraph text\n",
+])
+def test_near_byte_cap_quotes_keep_exact_boundaries(unit: str) -> None:
+    # No timing claim: a report at the read cap still gets the exact verdict.
+    lazy = _near_cap(unit, "> template\n" + ACCEPT + "\n")
+    assert _parse_review_marker(lazy) == (None, "review_verdict_missing_or_ambiguous")
+    outside = _near_cap(unit, "\n" + ACCEPT + "\n")
+    assert _parse_review_marker(outside) == (("ACCEPT", SHA), "")
+
+
+def test_missing_markdown_parser_fails_closed_without_fallback(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(sys.modules, "markdown_it", None)
+    assert _parse_review_marker(ACCEPT + "\n") == (None, "review_markdown_parser_unavailable")
+
+
+def test_markdown_parser_error_fails_closed_without_fallback(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(self: MarkdownIt, src: str, env: object = None) -> list[object]:
+        raise RuntimeError("parser failure")
+
+    monkeypatch.setattr(MarkdownIt, "parse", broken)
+    assert _parse_review_marker(ACCEPT + "\n") == (None, "review_markdown_parse_failed")
+
+
+def test_markdown_parser_is_a_pinned_runtime_dependency() -> None:
+    pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+    assert "markdown-it-py==4.0.0" in project["dependencies"]
+    assert version("markdown-it-py") == "4.0.0"

@@ -6,6 +6,7 @@ No model-authored text can modify this preapproved contract.
 """
 from __future__ import annotations
 
+from bisect import bisect_right
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -27,16 +28,8 @@ _HTML_LITERAL_START = re.compile(
     r"^[ ]{0,3}(?:<!--|<(?:script|pre|style|blockquote)(?:[ \t>/]|$))", re.IGNORECASE)
 # Literal example and quotation containers: text inside them is never live.
 _CONTAINERS = ("pre", "code", "blockquote", "q")
-# Markdown block quote markers, and line starts that end a paragraph inside a
-# quote or interrupt its lazy continuation outside one. A backtick fence whose
-# info string contains a backtick is not a fence but paragraph text.
-_QUOTE_PREFIX = re.compile(r"[ ]{0,3}>[ ]?")
-_PARAGRAPH_END = re.compile(
-    r"[ ]{0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3,}|([-*_])(?:[ \t]*\1){2,}[ \t]*$)")
-# A Setext underline closes an open paragraph of the same quote depth as a
-# heading; lazily, at another depth or with no paragraph open it is only text.
-_SETEXT_UNDERLINE = re.compile(r"[ ]{0,3}(?:=+|-+)[ \t]*$")
-_LAZY_INTERRUPT = re.compile(r"[ ]{0,3}(?:[-+*]|1[.)])[ \t]+\S")
+# The only line breaks of a CommonMark source once markdown-it normalizes them.
+_MD_LINE_BREAK = re.compile(r"\r\n?|\n")
 _MAX_REPORT_BYTES = 128 * 1024
 _REVIEW_OUTCOME = re.compile(
     r"^(?:Final[ -]?)?(?:Outcome|Decision|Verdict|Review[ -]?Status):\s*"
@@ -334,37 +327,42 @@ def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
         html.feed(token.group())
 
 
-def _quote_paragraph(line: str, quoted: int) -> int:
-    """Quote depth of the Markdown block quote paragraph open after ``line``.
+def _quoted_lines(content: str, raws: list[str]) -> list[bool]:
+    """Whether each original line lies inside a CommonMark block quote.
 
-    Zero means no quoted paragraph is open. An unprefixed line that does not
-    start another block is a lazy continuation of an open quoted paragraph, so
-    it is quoted text too. A blank line, heading, fence, thematic break, list
-    item or HTML literal block start ends the quote; a quoted blank, heading,
-    fence or break line opens no paragraph to continue, and a quoted Setext
-    underline at the open paragraph's own depth completes it as a heading.
+    Markdown block structure is owned by markdown-it-py, not reimplemented:
+    one public ``MarkdownIt("commonmark").parse`` per report decides where a
+    quote ends, including lazy continuation lines and the paragraphs, Setext
+    headings, fences and link reference definitions that bound them. Only
+    block token types, nesting levels and source line maps are read; nothing
+    is rendered. The preset's maxNesting bound is kept: the parser leaves the
+    content of a container at that bound unparsed, so its whole range counts
+    as quoted. Original ``splitlines`` lines are mapped to parser lines by
+    source offset, never rejoined, unquoted or rewritten.
     """
-    if not line.strip(" \t"):
-        return 0
-    prefix = _QUOTE_PREFIX.match(line)
-    if prefix is None:
-        if _PARAGRAPH_END.match(line) or _LAZY_INTERRUPT.match(line) \
-                or _HTML_LITERAL_START.match(line):
-            return 0
-        return quoted
-    rest, depth = line, 0
-    while prefix:
-        rest, depth = rest[prefix.end():], depth + 1
-        prefix = _QUOTE_PREFIX.match(rest)
-    if not rest.strip(" \t") or _PARAGRAPH_END.match(rest):
-        return 0
-    if depth == quoted and _SETEXT_UNDERLINE.match(rest):
-        return 0
-    if quoted:
-        # A shallower line lazily continues the deeper paragraph.
-        return max(quoted, depth)
-    # Indented code cannot start a paragraph, only continue one.
-    return 0 if rest.startswith("    ") else depth
+    from markdown_it import MarkdownIt
+
+    md = MarkdownIt("commonmark")
+    limit = md.options["maxNesting"]
+    starts = [0, *(found.end() for found in _MD_LINE_BREAK.finditer(content))]
+    delta = [0] * (len(starts) + 1)
+    for token in md.parse(content):
+        if token.map and (token.type == "blockquote_open"
+                          or (token.nesting == 1 and token.level + 1 >= limit)):
+            begin, end = token.map
+            delta[begin] += 1
+            delta[min(end, len(starts))] -= 1
+    covered, depth = [], 0
+    for step in delta[:-1]:
+        depth += step
+        covered.append(depth > 0)
+    quoted, offset = [], 0
+    for raw in raws:
+        # Every CommonMark break is also a splitlines break, so each original
+        # line lies within exactly one parser line.
+        quoted.append(covered[bisect_right(starts, offset) - 1])
+        offset += len(raw)
+    return quoted
 
 
 def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
@@ -384,18 +382,23 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     matching backtick run makes its content literal code text: every line
     wholly inside it and the code portions of its opening and closing lines
     are inert to the HTML lexer, and such lines are never a declaration.
-    A Markdown block quote covers its ``>`` lines and every lazy continuation
-    line of its open paragraph, until a blank line or another block start.
-    Unclosed fences/comments/blocks fail closed. The report remains
+    Markdown block quote boundaries, lazy continuation lines included, come
+    from the CommonMark parser's line maps; a missing or failing parser fails
+    closed. Unclosed fences/comments/blocks fail closed. The report remains
     model-authored and is NOT a substitute for external acceptance.
     """
     markers: list[tuple[str, str]] = []
     fence: str | None = None
     span: tuple[int, int] | None = None
-    quoted = 0
     html = _HtmlBlockTracker()
     raws = content.splitlines(keepends=True)
     lines = [(raw.splitlines() or [""])[0] for raw in raws]
+    try:
+        quoted = _quoted_lines(content, raws)
+    except ImportError:
+        return None, "review_markdown_parser_unavailable"
+    except Exception:
+        return None, "review_markdown_parse_failed"
     for index, raw in enumerate(raws):
         line = lines[index]
         # A Markdown fence makes every HTML/comment literal inside it inert, so
@@ -418,10 +421,6 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         # pre/code block, script/style raw text, unfinished tag, open comment
         # or code span; inside those it is inert content.
         live = not resume and not html.active
-        # Block quote state only changes at a live line start or a blank line;
-        # a line inside an inline HTML/code context continues its paragraph.
-        if live or not line.strip(" \t"):
-            quoted = _quote_paragraph(line, quoted)
         if live:
             opened = _FENCE.match(line)
             if opened:
@@ -448,7 +447,7 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         if _REVIEW_OUTCOME.match(stripped):
             return None, "review_explicit_failure_outcome"
         # A lazy quote continuation line is quoted text, never a declaration.
-        if quoted:
+        if quoted[index]:
             continue
         # Match the raw original marker line; never strip, decode or unescape
         # HTML to synthesize a marker that was not literally present.
