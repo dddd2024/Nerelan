@@ -1,6 +1,7 @@
 """Real repository/test-process proof for the fixed functional oracle."""
 from pathlib import Path
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -173,6 +174,32 @@ def test_sensitive_parent_environment_is_not_inherited(tmp_path, monkeypatch):
     assert env["CI"] == "true" and env["NPM_CONFIG_OFFLINE"] == "true"
 
 
+def test_standard_programdata_retained_in_child_environment(tmp_path, monkeypatch):
+    program_data = tmp_path / "ProgramData"
+    program_data.mkdir()
+    monkeypatch.setenv("PROGRAMDATA", str(program_data))
+    env = fv._environment(tmp_path)
+    assert env["PROGRAMDATA"] == str(program_data)
+
+
+def test_windows_ssh_version_runs_under_sanitized_child_environment(tmp_path, monkeypatch):
+    if os.name != "nt":
+        pytest.skip("Windows-only native OpenSSH probe")
+    ssh = shutil.which("ssh")
+    if ssh is None:
+        pytest.skip("no real ssh binary installed")
+    program_data = tmp_path / "ProgramData"
+    program_data.mkdir()
+    monkeypatch.setenv("PROGRAMDATA", str(program_data))
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    monkeypatch.setenv("GITHUB_TOKEN", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    result = subprocess.run([ssh, "-V"], env=env, capture_output=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    output = (result.stdout + result.stderr).decode("utf-8", "replace")
+    assert "OpenSSH" in output
+
+
 @pytest.mark.parametrize("test_code", ["# no tests\n", "import pytest\n@pytest.mark.skip(reason='fixture')\ndef test_skipped(): pass\n"])
 def test_no_executed_tests_cannot_verify(implementation, test_code):
     root, *_ = implementation
@@ -257,3 +284,169 @@ def test_targets_limit_pytest_to_the_named_files(tmp_path):
 def test_checks_without_targets_keep_their_frozen_shape():
     assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
         {"profile_id": "python_pytest", "working_directory": "."},)
+
+
+def test_public_hygiene_is_bounded_rule_data_only():
+    from reverse_agent.platform_v1.functional_validation import public_hygiene
+    raw = {"exit_code": 1, "stdout": "PRIVATE SOURCE SENTINEL", "stderr": "PRIVATE STDERR",
+           "diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 25}
+    public = public_hygiene(raw)
+    assert len(public["diagnostics"]) == 20 and public["diagnostics_truncated"]
+    assert "PRIVATE" not in str(public)
+    assert "SENTINEL" not in str(public)
+    assert "src/a.py" in str(public)
+    assert "whitespace" in str(public)
+    assert len(public["observation_digest"]) == 64
+
+
+def test_public_hygiene_whitespace_fallback_when_exit_nonzero_no_diagnostics():
+    from reverse_agent.platform_v1.functional_validation import public_hygiene
+    raw = {"exit_code": 1, "stdout": "some git diff --check", "diagnostics": []}
+    public = public_hygiene(raw)
+    assert public["exit_code"] == 1
+    assert public["diagnostics"] == [{"path": "(patch)", "rule": "whitespace"}]
+
+
+def test_functional_feedback_includes_hygiene_diagnostics():
+    from reverse_agent.platform_v1.functional_validation import functional_feedback
+    result = {"reason": "functional_patch_hygiene_failed", "checks": [],
+              "hygiene_diagnostics": [{"path": "native", "rule": "native_executable"},
+                                      {"path": "a/node_modules/x.js", "rule": "package_payload"}]}
+    feedback = functional_feedback(result)
+    assert "Artifact rule native_executable: native" in feedback
+    assert "Artifact rule package_payload: a/node_modules/x.js" in feedback
+    assert feedback.count("Artifact rule") == 2
+
+
+def test_functional_feedback_truncates_hygiene_diagnostics_to_twenty():
+    from reverse_agent.platform_v1.functional_validation import functional_feedback
+    result = {"reason": "functional_patch_hygiene_failed", "checks": [],
+              "hygiene_diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 30}
+    feedback = functional_feedback(result)
+    assert feedback.count("Artifact rule") == 20
+
+
+def test_preexisting_junction_is_classified_patch_hygiene_not_host_observation(implementation):
+    root, base, store, task_id = implementation
+    index_before = (root / ".git/index").read_bytes()
+    outside = root.parent / "outside-sentinel"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("OUTSIDE SECRET\n", encoding="utf-8")
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    junction = root / "link"
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+                       capture_output=True, check=True)
+    else:
+        junction.symlink_to(outside, target_is_directory=True)
+    try:
+        result = validate(implementation)
+        assert result["passed"] is False
+        assert result["reason"] == "functional_patch_hygiene_failed"
+        assert result["failure_kind"] == "patch_hygiene"
+        feedback = fv.functional_feedback(result)
+        assert "link" in feedback
+        assert any(token in feedback for token in ("reparse", "symlink", "indirection"))
+        assert (root / ".git/index").read_bytes() == index_before
+        assert git(root, "rev-parse", "HEAD") == base
+    finally:
+        if junction.exists() and junction.is_dir() and not junction.is_symlink():
+            junction.rmdir()
+        elif junction.is_symlink():
+            junction.unlink()
+
+
+@pytest.fixture
+def red_phase(implementation):
+    root, base, store, _task_id = implementation
+    goal = SimpleNamespace(id="goal-functional", revision=2, artifact_digest="a" * 64)
+    plan = SimpleNamespace(id="T002", capability="execute_task", validation_checks=(
+        {"profile_id": "python_pytest", "working_directory": ".", "targets": ["test_new.py"],
+         "expected_failures": ["test_new::test_new_behavior"]},))
+    task = store.create_task(title="Deliver the expected failing test first",
+                             repository="owner/sample", executor_kind="opencode")
+    fv.freeze_contract(store, task, goal=goal, plan_task=plan, base_commit=base)
+    yield root, base, store, task.id
+
+
+def test_expected_failures_field_requires_pytest_targets_and_bounded_names():
+    valid = {"profile_id": "python_pytest", "working_directory": ".",
+             "targets": ["test_new.py"], "expected_failures": ["test_new::test_new_behavior"]}
+    assert fv.normalize_checks([valid])[0]["expected_failures"] == ["test_new::test_new_behavior"]
+    # The frozen shape of a plain check is unchanged by the optional field.
+    assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
+        {"profile_id": "python_pytest", "working_directory": "."},)
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": []}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": ["a", "a"]}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        fv.normalize_checks([{**valid, "expected_failures": ["bad\x1bname"]}])
+    with pytest.raises(TaskStoreError, match="functional_expected_failures_invalid"):
+        # An expected-RED contract without explicit targets cannot be judged.
+        fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": ".",
+                              "expected_failures": ["test_new::test_new_behavior"]}])
+
+
+def test_expected_red_phase_accepts_the_failing_first_deliverable(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\ndef test_new_behavior():\n    assert value == 2\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red")
+    assert result["passed"] is True and result["verified"] is True, result
+    assert result["expected_red_phase"] is True
+    check = result["checks"][0]
+    assert check["exit_code"] != 0 and check["expected_red_met"] is True
+    assert check["missing_expected_failures"] == [] and check["unexpected_failures"] == []
+    assert check["expected_failures"] == ["test_new::test_new_behavior"]
+
+
+def test_expected_red_names_the_missing_failure_when_the_test_passes(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    (root / "test_new.py").write_text(
+        "from app import value\ndef test_new_behavior():\n    assert value == 2\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-missing")
+    assert result["passed"] is False
+    assert result["reason"] == "expected_red_missing:test_new::test_new_behavior"
+    assert result["failure_kind"] == "expected_red"
+    assert result["checks"][0]["missing_expected_failures"] == ["test_new::test_new_behavior"]
+
+
+def test_expected_red_rejects_unexpected_failures(red_phase):
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\n"
+        "def test_new_behavior():\n    assert value == 2\n"
+        "def test_neighbor_behavior():\n    assert value == 3\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-unexpected")
+    assert result["passed"] is False
+    assert result["reason"] == "expected_red_unexpected:test_new::test_neighbor_behavior"
+    assert result["failure_kind"] == "expected_red"
+    assert result["checks"][0]["unexpected_failures"] == ["test_new::test_neighbor_behavior"]
+
+
+def test_expected_red_rejects_an_interrupted_run(red_phase):
+    """#1354 review: KeyboardInterrupt still writes the JUnit report with the
+    expected failure, but the tests after the interrupt never ran to a verdict
+    — an interrupted run is not RED evidence."""
+    root, base, store, task_id = red_phase
+    (root / "test_new.py").write_text(
+        "from app import value\n"
+        "import pytest\n"
+        "@pytest.mark.order(1)\n"
+        "def test_new_behavior():\n"
+        "    assert value == 2\n"
+        "@pytest.mark.order(2)\n"
+        "def test_interrupted_neighbor():\n"
+        "    raise KeyboardInterrupt\n", encoding="utf-8")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-red-interrupted")
+    assert result["passed"] is False
+    assert result["failure_kind"] == "expected_red"
+    check = result["checks"][0]
+    assert check["expected_red_met"] is False
+    assert check["exit_code"] != 1  # pytest was interrupted, not merely failing

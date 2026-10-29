@@ -2,6 +2,8 @@ import { Link } from "react-router";
 import type { Task } from "@/types";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { taskProjectName } from "@/lib/task-project";
+import { taskActionCopy, taskBlockerCopy } from "@/lib/task-status-copy";
 import {
   formatRelativeTime,
   permissionModeLabel,
@@ -39,7 +41,10 @@ interface TaskCardProps {
 export function TaskCard({ task }: TaskCardProps) {
   const state = runStateStyle(task.state);
   const risk = riskTierStyle(task.riskTier);
-  const note = task.blocker ?? task.nextAction;
+  // Same product copy as the detail header; the raw code stays in the
+  // tooltip and in the detail page's diagnostics disclosure.
+  const rawNote = task.blocker ?? task.nextAction;
+  const note = task.blocker ? taskBlockerCopy(task.blocker) : task.nextAction ? taskActionCopy(task.nextAction) : undefined;
 
   /*
    * Row shape follows `#448` §7 (high-density / low-noise rows): identity and
@@ -79,6 +84,10 @@ export function TaskCard({ task }: TaskCardProps) {
       </div>
 
       <div className="mt-1 flex items-center gap-2 pl-3.5 text-[11px] text-ra-text-tertiary">
+        <span className="max-w-40 shrink-0 truncate text-ra-text-secondary"
+              data-testid={`task-project-${task.id}`} title={task.repository?.trim() || "未归属"}>
+          项目：{taskProjectName(task.repository)}
+        </span>
         <span className="min-w-0 truncate font-mono text-ra-text-secondary">
           {task.branch}
         </span>
@@ -119,7 +128,7 @@ export function TaskCard({ task }: TaskCardProps) {
       </div>
 
       {note ? (
-        <p className="mt-1 truncate pl-3.5 text-[11px] leading-4 text-ra-text-secondary" title={note}>
+        <p className="mt-1 truncate pl-3.5 text-[11px] leading-4 text-ra-text-secondary" title={rawNote}>
           {note}
         </p>
       ) : null}

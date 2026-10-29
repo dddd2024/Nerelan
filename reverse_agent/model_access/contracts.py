@@ -517,6 +517,7 @@ class ExecutionSnapshot:
     upstream_provider_id: str | None = None
     protocol_family: str | None = None
     executor_provider_id: str | None = None
+    native_endpoint: str = "/chat/completions"
 
 
 @dataclass(frozen=True, slots=True)

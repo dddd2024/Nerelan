@@ -2440,3 +2440,75 @@ def test_runtime_cache_policy_rejects_actual_wrong_optimization_payload(tmp_path
             loader(**kwargs)
         assert correct.read_bytes() == wrong
     _exercise_runtime_cache_policy(tmp_path, monkeypatch, observe)
+
+
+@pytest.mark.parametrize("configured", ["", "   ", " custom-workspaces "])
+def test_agent_planner_workspace_root_matches_task_execution(tmp_path, monkeypatch, configured):
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import agent_planner
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store = SimpleNamespace(db_path=str(tmp_path / "tasks.sqlite3"))
+    host._goal_service = object()
+    captured = {}
+
+    def factory(**kwargs):
+        captured.update(kwargs)
+        return kwargs
+
+    monkeypatch.setenv("REVERSE_AGENT_TASK_WORKSPACE_ROOT", configured)
+    monkeypatch.setattr(agent_planner, "AgentPlanner", factory)
+    host._agent_planner()
+    expected = configured.strip() or str(tmp_path / "task_workspaces")
+    assert captured["workspace_root"] == expected == host._task_workspace_root()
+
+
+def _commit(repo: Path, name: str) -> str:
+    (repo / name).write_text(name, encoding="utf-8")
+    subprocess.run(["git", "add", name], cwd=repo, check=True, capture_output=True)
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", name],
+                   cwd=repo, check=True, capture_output=True)
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def test_authority_is_pinned_to_host_source_not_the_target_checkout(tmp_path, monkeypatch) -> None:
+    """#1322: a campaign moves REPO_DIR's HEAD every round; restarts must keep the identity."""
+    from reverse_agent.platform_v1 import trusted_host
+    target = tmp_path / "research"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=target, check=True, capture_output=True)
+    _commit(target, "a.txt")
+    monkeypatch.delenv("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", raising=False)
+    monkeypatch.delenv("REVERSE_AGENT_PLANNING_SHA", raising=False)
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(target))
+    monkeypatch.setattr(trusted_host, "_host_source_head", lambda: "f" * 40)
+    before = (trusted_host._resolve_trusted_authority_sha(), trusted_host._resolve_trusted_planning_sha())
+    _commit(target, "round-1-merge.txt")  # the loop integrates a round, then the host restarts
+    after = (trusted_host._resolve_trusted_authority_sha(), trusted_host._resolve_trusted_planning_sha())
+    assert before == after == ("f" * 40, "f" * 40)
+
+
+def test_authority_falls_back_to_target_head_only_without_a_source_checkout(tmp_path, monkeypatch) -> None:
+    from reverse_agent.platform_v1 import trusted_host
+    target = tmp_path / "repo"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=target, check=True, capture_output=True)
+    head = _commit(target, "a.txt")
+    monkeypatch.delenv("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", raising=False)
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(target))
+    monkeypatch.setattr(trusted_host, "_host_source_head", lambda: "")
+    assert trusted_host._resolve_trusted_authority_sha() == head
+    monkeypatch.setenv("REVERSE_AGENT_EXECUTION_AUTHORITY_SHA", "explicit")
+    assert trusted_host._resolve_trusted_authority_sha() == "explicit"
+
+
+def test_host_source_head_reads_this_checkout_only(tmp_path, monkeypatch) -> None:
+    from reverse_agent.platform_v1 import trusted_host
+    root = Path(trusted_host.__file__).resolve().parents[2]
+    expected = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root, capture_output=True, text=True)
+    if expected.returncode != 0:
+        pytest.skip("source tree is not a git checkout")
+    assert trusted_host._host_source_head() == expected.stdout.strip()
+    # A repository that merely encloses the package (different top level) is not its source.
+    monkeypatch.setattr(trusted_host, "_git_lines", lambda directory, *args: [str(tmp_path), "e" * 40])
+    assert trusted_host._host_source_head() == ""

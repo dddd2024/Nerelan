@@ -4,6 +4,7 @@ import ast
 import sys
 from pathlib import Path
 
+import reverse_agent.control_plane
 import reverse_agent.platform_v1
 from reverse_agent.platform_v1.repository_preparation import _run_git
 
@@ -26,10 +27,13 @@ def test_run_git_survives_non_utf8_child_output(tmp_path: Path) -> None:
 
 
 def test_text_mode_subprocess_calls_declare_decode_errors() -> None:
-    package_dir = Path(reverse_agent.platform_v1.__file__).parent
+    package_dirs = [
+        Path(reverse_agent.platform_v1.__file__).parent,
+        Path(reverse_agent.control_plane.__file__).parent,
+    ]
     violations: list[str] = []
 
-    for source_file in sorted(package_dir.glob("*.py")):
+    for source_file in sorted(path for package_dir in package_dirs for path in package_dir.glob("*.py")):
         module = ast.parse(source_file.read_text(encoding="utf-8"), filename=str(source_file))
         for node in ast.walk(module):
             if not isinstance(node, ast.Call):
@@ -40,7 +44,7 @@ def test_text_mode_subprocess_calls_declare_decode_errors() -> None:
                 for name in ("text", "universal_newlines")
             )
             if text_mode and "errors" not in keywords:
-                violations.append(f"{source_file.name}:{node.lineno}")
+                violations.append(f"{source_file.parent.name}/{source_file.name}:{node.lineno}")
 
     assert violations == [], (
         "text-mode subprocess calls missing errors= at " + ", ".join(violations)

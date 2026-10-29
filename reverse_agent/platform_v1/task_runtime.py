@@ -24,7 +24,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Literal, Mapping, Protocol, TypedDict
 
 HOST_VALIDATION_CONTRACT = "HostValidationContract"
 
@@ -70,6 +70,13 @@ def task_operation(task: Any) -> str:
 # Result contract
 # ---------------------------------------------------------------------------
 
+class QuotaPauseOutcome(TypedDict):
+    state: Literal["PAUSED", "FAILED"]
+    checkpoint_id: str
+    provenance: Literal["host_salvaged", "cooperative_agent"]
+    agent_acknowledged: bool
+
+
 @dataclass
 class ExecutorResult:
     """Neutral executor result returned by any registered executor."""
@@ -84,6 +91,8 @@ class ExecutorResult:
     execution_id: str = ""
     process_exit_code: int | None = None
     failure_classification: str = ""
+    failure_reset_at: str = ""
+    quota_pause: QuotaPauseOutcome | None = None
 
 
 FixtureExecutorResult = ExecutorResult

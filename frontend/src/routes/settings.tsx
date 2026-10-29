@@ -1,5 +1,7 @@
+import { MagpieSettingsEditor } from "@/components/magpie-settings";
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Settings } from "lucide-react";
+import { Link } from "react-router";
 import { ConnectionBindingEditor, executorManagedAuth, externalSessionStatusLabel } from "@/components/connection-binding-editor";
 import {
   useBindings,
@@ -26,10 +28,26 @@ import { getDefaultModelControlClient } from "@/lib/model-control-client";
 import { ThemeSelector } from "@/components/theme-selector";
 import { AgentTeamEditor } from "@/components/agent-team-editor";
 import { ResourceOverview } from "@/components/resource-overview";
+import { SettingsMigrationStatus } from "@/components/settings-migration-status";
 
 type EditorView = "connection" | "binding";
 
-export function SettingsPage() {
+/* "all" is the legacy single page kept for direct embedding and its tests.
+   The routed subpages narrow it: resources own connections and accounts,
+   models own bindings, and advanced keeps the combined raw editor reachable
+   while the Magpie route migration is incomplete. */
+export type SettingsSection = "all" | "resources" | "models" | "advanced";
+
+const SECTION_HEADINGS: Record<SettingsSection, string> = {
+  all: "连接与绑定",
+  resources: "AI 资源与账号",
+  models: "模型与路由",
+  advanced: "高级配置",
+};
+
+export function SettingsPage({ section = "all" }: { section?: SettingsSection }) {
+  const lockedView: EditorView | null =
+    section === "resources" ? "connection" : section === "models" ? "binding" : null;
   const connectionsQuery = useConnections();
   const connectionsMutation = useUpsertConnection();
   const deleteConnMutation = useDeleteConnection();
@@ -51,7 +69,7 @@ export function SettingsPage() {
     [bindingsQuery.data],
   );
 
-  const [view, setView] = useState<EditorView>("connection");
+  const [view, setView] = useState<EditorView>(lockedView ?? "connection");
   const [selectedConnId, setSelectedConnId] = useState<string | null>(null);
   const [selectedBindId, setSelectedBindId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -309,12 +327,17 @@ export function SettingsPage() {
        * as if it were de-emphasised metadata.
        */}
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
+        {section !== "all" ? (
+          <Link to="/settings" className="self-start text-sm text-ra-text-tertiary hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            ← 返回设置
+          </Link>
+        ) : null}
         <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Settings className="h-5 w-5 text-ra-text-tertiary" />
               <h1 className="text-lg font-medium text-ra-text">
-                连接与绑定
+                {SECTION_HEADINGS[section]}
               </h1>
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-ra-text-secondary">
@@ -325,7 +348,7 @@ export function SettingsPage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <button
+            {lockedView !== "binding" ? <button
               type="button"
               onClick={() => switchView("connection")}
               className={cn(
@@ -338,8 +361,8 @@ export function SettingsPage() {
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               新建连接
-            </button>
-            <button
+            </button> : null}
+            {lockedView !== "connection" ? <button
               type="button"
               onClick={() => switchView("binding")}
               className={cn(
@@ -352,7 +375,7 @@ export function SettingsPage() {
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               新建绑定
-            </button>
+            </button> : null}
           </div>
         </header>
 
@@ -363,6 +386,8 @@ export function SettingsPage() {
           浏览器不会把 API Key 写入 localStorage、sessionStorage 或任务数据。
           绑定只保存执行器、连接和 Model ID 引用，不包含凭据。
         </p>
+
+        <SectionNote section={section} />
 
         {status && (
           <p role="status" className="text-sm text-ra-status-running">
@@ -398,7 +423,7 @@ export function SettingsPage() {
           </div>
         )}
 
-        <ThemeSelector />
+        {section === "all" ? <ThemeSelector /> : null}
 
         <div
           data-testid="settings-model-access-layout"
@@ -408,6 +433,7 @@ export function SettingsPage() {
             data-testid="settings-model-access-index"
             className="flex min-w-0 flex-col gap-1 self-start lg:pr-2"
           >
+            {lockedView !== "binding" ? <>
             <h2 className="px-2 text-xs font-semibold text-ra-text-tertiary">
               连接
             </h2>
@@ -472,7 +498,10 @@ export function SettingsPage() {
               ))
             )}
 
-            <h2 className="mt-3 px-2 text-xs font-semibold text-ra-text-tertiary">
+            </> : null}
+
+            {lockedView !== "connection" ? <>
+            <h2 className={cn("px-2 text-xs font-semibold text-ra-text-tertiary", lockedView === null && "mt-3")}>
               绑定
             </h2>
             {bindingsQuery.isError ? (
@@ -524,6 +553,7 @@ export function SettingsPage() {
                 </button>
               ))
             )}
+            </> : null}
           </aside>
 
           <ConnectionBindingEditor
@@ -552,11 +582,46 @@ export function SettingsPage() {
             onAccountAuthLogout={handleAccountAuthLogout}
           />
         </div>
-        <ResourceOverview />
-        <AgentTeamEditor bindings={bindings} />
+        {section === "resources" || section === "advanced" ? (
+          <SettingsMigrationStatus connections={connections} connectionsFailed={connectionsQuery.isError} />
+        ) : null}
+        {section === "all" || section === "resources" ? <MagpieSettingsEditor /> : null}
+        {section === "all" ? <ResourceOverview /> : null}
+        {section === "all" ? <AgentTeamEditor bindings={bindings} /> : null}
       </div>
     </main>
   );
+}
+
+const NOTE_LINK = "text-ra-accent underline underline-offset-2 hover:text-ra-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent";
+
+function SectionNote({ section }: { section: SettingsSection }) {
+  if (section === "resources") {
+    return (
+      <p data-testid="settings-section-note" className="max-w-3xl text-sm leading-6 text-ra-text-secondary">
+        这里管理本地连接、账号会话和 Magpie。模型绑定在
+        <Link to="/settings/models" className={NOTE_LINK}>模型与路由</Link>
+        中管理。
+      </p>
+    );
+  }
+  if (section === "models") {
+    return (
+      <p data-testid="settings-section-note" className="max-w-3xl text-sm leading-6 text-ra-text-secondary">
+        绑定把执行器映射到某个连接上的 Model ID，是派发时的配置候选；任务实际使用的模型以运行记录为准，不从这里推断。
+        连接和账号登录在<Link to="/settings/resources" className={NOTE_LINK}>AI 资源与账号</Link>中管理。
+      </p>
+    );
+  }
+  if (section === "advanced") {
+    return (
+      <p data-testid="settings-section-note" className="max-w-3xl text-sm leading-6 text-ra-text-secondary">
+        旧版连接与绑定的合并编辑器。Magpie 路由迁移完成前，任务仍按这里的本地连接和绑定派发；
+        打开此页不会删除凭据、移除绑定或停用本地账号；只有点击对应的删除或保存按钮才会修改。
+      </p>
+    );
+  }
+  return null;
 }
 
 function errorMessage(cause: unknown): string {

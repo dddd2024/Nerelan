@@ -11,7 +11,7 @@ import pytest
 from reverse_agent.platform_v1.autonomy import AutonomyService
 from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
-from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel
+from reverse_agent.platform_v1.run_read_model import MAX_DETAIL_EVENTS, RunReadModel, _usage_evidence
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
 
@@ -772,3 +772,219 @@ def test_queue_cancel_control_is_disabled_for_every_non_queue_status(
     control = model.run_detail(task.id)["controls"]["cancel"]
     assert control["availability"] == "UNAVAILABLE"
     assert control["reason_code"] == expected_reason
+
+def test_no_usage_receipt_does_not_claim_model_consumption(read_model) -> None:
+    model, store, control = read_model
+    _, task = _seed_goal_with_task(control, store, "no-usage-evidence")
+    run = model.list_runs()["runs"][0]
+    assert run["usage_evidence"]["state"] == "NO_USAGE_RECEIPT"
+    assert run["usage_evidence"]["confirmed_numeric_records"] == 0
+    assert run["usage_evidence"]["positive_token_units"] == 0
+    assert run["usage_evidence"]["provider_request_receipt"] == "UNVERIFIED"
+    assert run["usage_evidence"]["served_magpie_route"] == "UNKNOWN"
+    assert run["usage_evidence"]["attribution_scope"] == "TASK_STORE_ONLY"
+
+
+def test_unknown_receipt_or_zero_usage_is_not_called_positive_model_usage(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="unknown resource use", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="unknown-receipt-1", execution_id="unknown-exec",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-unknown",
+        status="UNKNOWN",
+    )
+    summary = model.run_detail(task.id)
+    assert summary["usage_evidence"]["state"] == "USAGE_UNKNOWN"
+    assert summary["usage_evidence"]["confirmed_numeric_records"] == 0
+    store.append_usage_observation(
+        task.id, observation_id="zero-receipt-2", execution_id="unknown-exec",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-zero",
+        status="OBSERVED", input_units=0, output_units=0,
+        reasoning_units=0, cache_read_units=0, cache_write_units=0,
+        cost_micro_units=0,
+    )
+    mixed = model.run_detail(task.id)["usage_evidence"]
+    assert mixed["state"] == "PARTIALLY_OBSERVED"
+    assert mixed["confirmed_numeric_records"] == 1
+    assert mixed["positive_token_units"] == 0
+
+
+def test_proven_positive_task_usage_is_not_attributed_to_magpie_by_default(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="observed task", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="observed-task-use", execution_id="exec1",
+        role="coder", model_id="relay/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-observed",
+        status="OBSERVED", input_units=120, output_units=20,
+        reasoning_units=0, cache_read_units=0, cache_write_units=0,
+        cost_micro_units=0,
+    )
+    data = model.run_detail(task.id)["usage_evidence"]
+    assert data["state"] == "USAGE_OBSERVED"
+    assert data["positive_token_units"] == 140
+    assert data["task_usage_records"] == 1
+    assert data["served_magpie_route"] == "UNKNOWN"
+    assert data["provider_request_receipt"] == "UNVERIFIED"
+
+
+def test_partial_native_summary_keeps_measured_counters_without_observed_claim(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="partial native summary", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="partial-native-summary", execution_id="exec-partial",
+        role="coder", model_id="relay/model", provider_id="provider",
+        source_kind="native_summary", source_id="codex-turn-a1b2",
+        status="PARTIAL", input_units=120, output_units=20, cache_read_units=30,
+    )
+    detail = model.run_detail(task.id)
+    usage = detail["usage"]
+    assert usage["status"] == "USAGE_UNKNOWN"
+    assert usage["observation_count"] == 1
+    assert usage["unknown_observation_count"] == 1
+    assert (usage["input_units"], usage["output_units"], usage["cache_read_units"]) == (120, 20, 30)
+    assert (usage["reasoning_units"], usage["cache_write_units"], usage["cost_micro_units"]) == (0, 0, 0)
+    assert usage["total_token_units"] == 170
+    assert usage["per_role"] == [{
+        "role": "coder", "input_units": 120, "output_units": 20,
+        "reasoning_units": 0, "cache_read_units": 30, "cache_write_units": 0,
+        "cost_micro_units": 0, "observation_count": 1,
+        "unknown_observation_count": 1, "provenance_ids": ["partial-native-summary"],
+    }]
+    evidence = detail["usage_evidence"]
+    assert evidence["state"] == "USAGE_UNKNOWN"
+    assert evidence["state"] != "USAGE_OBSERVED"
+    assert evidence["confirmed_numeric_records"] == 0
+    assert evidence["positive_token_units"] == 170
+    assert store.list_usage_observations(task.id)[0].status == "PARTIAL"
+
+
+def test_timeout_step_finish_partial_keeps_counters_and_stays_incomplete(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="timeout partial", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="partial-step-finish", execution_id="exec-timeout",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="step_finish", source_id="msg-timeout",
+        status="PARTIAL", input_units=50, output_units=25, reasoning_units=5,
+    )
+    summary = store.usage_summary(task.id)
+    assert summary["status"] == "USAGE_UNKNOWN"
+    assert summary["observation_count"] == 1
+    assert summary["unknown_observation_count"] == 1
+    assert (summary["input_units"], summary["output_units"], summary["reasoning_units"]) == (50, 25, 5)
+    assert summary["total_token_units"] == 80
+    assert summary["per_role"][0]["unknown_observation_count"] == 1
+    assert summary["per_role"][0]["input_units"] == 50
+    assert summary["per_role"][0]["output_units"] == 25
+    assert store.list_usage_observations(task.id)[0].status == "PARTIAL"
+    assert model.run_detail(task.id)["usage_evidence"]["state"] == "USAGE_UNKNOWN"
+
+
+def test_unknown_only_usage_keeps_zero_counters(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="unknown only", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="unknown-only", execution_id="exec-unknown",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-unknown",
+        status="UNKNOWN",
+    )
+    summary = store.usage_summary(task.id)
+    assert summary["status"] == "USAGE_UNKNOWN"
+    assert summary["observation_count"] == 1
+    assert summary["unknown_observation_count"] == 1
+    assert summary["total_token_units"] == 0
+    assert summary["cost_micro_units"] == 0
+    assert summary["per_role"][0]["input_units"] == 0
+    assert summary["per_role"][0]["unknown_observation_count"] == 1
+    assert model.run_detail(task.id)["usage_evidence"]["positive_token_units"] == 0
+
+
+def test_mixed_observed_partial_unknown_sums_measured_rows_and_keeps_unknown(read_model) -> None:
+    model, store, _ = read_model
+    task = store.create_task(title="mixed usage", executor_kind="opencode")
+    store.append_usage_observation(
+        task.id, observation_id="mixed-1-observed", execution_id="exec-mixed",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="assistant_message", source_id="msg-observed",
+        status="OBSERVED", input_units=100, output_units=20, reasoning_units=0,
+        cache_read_units=0, cache_write_units=0, cost_micro_units=2500,
+    )
+    store.append_usage_observation(
+        task.id, observation_id="mixed-2-partial", execution_id="exec-mixed",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="native_summary", source_id="turn-partial",
+        status="PARTIAL", input_units=60, output_units=30,
+    )
+    store.append_usage_observation(
+        task.id, observation_id="mixed-3-unknown", execution_id="exec-mixed",
+        role="coder", model_id="provider/model", provider_id="provider",
+        source_kind="timeout", source_id="owned-process",
+        status="UNKNOWN",
+    )
+    summary = store.usage_summary(task.id)
+    assert summary["status"] == "USAGE_UNKNOWN"
+    assert summary["observation_count"] == 3
+    assert summary["unknown_observation_count"] == 2
+    assert summary["input_units"] == 160
+    assert summary["output_units"] == 50
+    assert summary["cost_micro_units"] == 2500
+    assert summary["total_token_units"] == 210
+    assert summary["provenance_ids"] == [
+        "mixed-1-observed", "mixed-2-partial", "mixed-3-unknown",
+    ]
+    role = summary["per_role"][0]
+    assert role["observation_count"] == 3
+    assert role["unknown_observation_count"] == 2
+    assert role["input_units"] == 160 and role["output_units"] == 50
+    assert role["cost_micro_units"] == 2500
+    assert role["provenance_ids"] == summary["provenance_ids"]
+    evidence = model.run_detail(task.id)["usage_evidence"]
+    assert evidence["state"] == "PARTIALLY_OBSERVED"
+    assert evidence["task_usage_records"] == 3
+    assert evidence["confirmed_numeric_records"] == 1
+    assert evidence["positive_token_units"] == 210
+
+
+@pytest.mark.parametrize(
+    "token_fields,expected",
+    [
+        ({}, "UNKNOWN"),
+        ({"total_token_units": None}, "UNKNOWN"),
+        ({"total_token_units": "invalid"}, "UNKNOWN"),
+        ({"total_token_units": -1}, "UNKNOWN"),
+        ({"total_token_units": True}, "UNKNOWN"),
+        ({"total_token_units": 0}, "ZERO_TOKEN_USAGE_OBSERVED"),
+        ({"total_token_units": 42}, "USAGE_OBSERVED"),
+    ],
+)
+def test_malformed_token_totals_never_claim_observed_model_usage(
+    token_fields, expected
+) -> None:
+    evidence = _usage_evidence({
+        "observation_count": 1,
+        "unknown_observation_count": 0,
+        **token_fields,
+    })
+    assert evidence["state"] == expected
+    assert evidence["confirmed_numeric_records"] == 1
+    assert evidence["positive_token_units"] == (
+        42 if token_fields.get("total_token_units") == 42 else 0
+    )
+    assert evidence["provider_request_receipt"] == "UNVERIFIED"
+
+
+def test_landing_progress_visible_without_github_state_replica(read_model):
+    model, store, control = read_model
+    goal, task = _seed_goal_with_task(control, store, "landing-progress")
+    state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+        pr_number=1266, head_sha="a" * 40, review_round=2)
+    control.finish_landing_tick(state["identity"], "WAITING", "fresh_current_head_checks_required", 123456)
+    changes = control._conn.total_changes
+    assert model.run_detail(task.id)["landing"] == dict(phase="WAITING", review_round=2,
+        pr_number=1266, head_sha="a" * 40, next_attempt_ms=123456,
+        parking_reason="fresh_current_head_checks_required")
+    assert control._conn.total_changes == changes

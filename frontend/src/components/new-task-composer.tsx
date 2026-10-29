@@ -10,6 +10,7 @@ import type { CreateTaskInput } from "@/hooks/use-tasks";
 import { profileToPolicy } from "@/lib/profile-mapper";
 import type { PolicyContract, PermissionMode } from "@/types";
 import { cn } from "@/lib/cn";
+import { taskCopy } from "@/lib/ui-locale";
 
 export type ExecutorChoice = "opencode" | "codex" | "claude_code" | "deterministic_fixture";
 
@@ -473,7 +474,7 @@ export function NewTaskComposer({
 function permissionModeLabel(mode: PermissionMode): string {
   switch (mode) {
     case "ASK_FOR_APPROVAL":
-      return "请求批准";
+      return taskCopy().askBeforeActing;
     case "CONTROLLER_REVIEW":
       return "主控代审";
     case "OWNER_CONTROL":

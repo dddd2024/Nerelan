@@ -37,11 +37,13 @@ class PublicationController:
         control_store: PlatformControlStore,
         autonomy: AutonomyService,
         runner: CommandRunner | None = None,
+        landing_decisions=None,
     ) -> None:
         self.store = store
         self.control_store = control_store
         self.autonomy = autonomy
         self.runner = runner or self._run
+        self.landing_decisions = landing_decisions
 
     def publish(
         self,
@@ -197,6 +199,90 @@ class PublicationController:
                 failure_classification=type(exc).__name__,
             )
             raise
+
+    def publish_artifact(self, task_id: str, *, window_id: str,
+                         goal_id: str, base_branch: str = "main") -> PublicationRecord:
+        """Publish the retained validated commit, preserving its review identity.
+
+        Legacy worktree publication remains available through publish(). Normal
+        pushes enforce fast-forward ancestry across repairs; never force push.
+        """
+        from . import artifact_handoff as artifacts, functional_validation as functional
+        task = self.store.get_task(task_id)
+        goal = self.control_store.get_goal(goal_id)
+        if task.repository != goal.repository:
+            raise TaskStoreError("publication_goal_repository_mismatch")
+        if not self.autonomy.authorize(window_id=window_id, operation="open_draft_pr",
+                repository=goal.repository, subject_id=goal_id,
+                input_payload={"task_id": task_id, "goal_id": goal_id}):
+            raise TaskStoreError("publication_denied_by_window")
+        if task.status != "READY_FOR_REVIEW":
+            raise TaskStoreError("publication_requires_functional_validation")
+        proof = functional.functional_evidence(task)
+        artifact = artifacts._load_evidence(task, artifacts.ACCEPTED_CATEGORY, task.execution_id)
+        contract = artifacts.load_handoff_contract(task)
+        if (not proof.get("verified") or not artifact or not contract
+                or artifact["goal_id"] != goal_id or artifact["goal_revision"] != goal.revision
+                or artifact["goal_artifact_digest"] != goal.artifact_digest
+                or artifact["result_digest"] != task.validation_output_digest
+                or artifact["tree"] != proof["tree"]):
+            raise TaskStoreError("publication_artifact_unverified")
+        artifacts._current_goal(self.store, task, contract)
+        workspace = artifacts._producer_worktree(self.store, task, proof)
+        artifacts._verify_proof_workspace(task, proof, workspace)
+        if any(artifact.get(key) != value for key, value in {
+                "task_id": task.id, "execution_id": task.execution_id,
+                "repository": task.repository, "plan_task_id": contract["plan_task_id"],
+                "base_commit": proof["base_commit"],
+                "contract_digest": proof["contract_digest"], "source_head": proof["head"],
+                "run_id": proof["run_id"], "lease_epoch": proof["lease_epoch"],
+                "ref": artifacts._retention_ref(task)}.items()):
+            raise TaskStoreError("publication_artifact_unverified")
+        if not re.fullmatch(r"[0-9a-f]{40}", artifact.get("commit", "")):
+            raise TaskStoreError("publication_artifact_unverified")
+        branch = f"nerelan/{self._safe_slug(goal_id)}"
+        if not re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", base_branch) or base_branch == "HEAD":
+            raise TaskStoreError("invalid_publication_base_branch")
+        if self._git(workspace, "rev-parse", artifact["ref"]).stdout.strip() != artifact["commit"]:
+            raise TaskStoreError("publication_retained_head_drift")
+        if self._git(workspace, "rev-parse", artifact["commit"] + "^{tree}").stdout.strip() != artifact["tree"]:
+            raise TaskStoreError("publication_retained_tree_drift")
+        if self._git(workspace, "rev-list", "--parents", "-n", "1", artifact["commit"]).stdout.split() != [artifact["commit"], artifact["source_head"]]:
+            raise TaskStoreError("publication_retained_parent_drift")
+        request = sha256_json([goal_id, goal.revision, artifact, branch, base_branch])
+        existing = self.control_store.get_publication(task_id)
+        if existing and existing.request_digest != request:
+            raise TaskStoreError("publication_request_digest_mismatch")
+        def save(status, pr=None):
+            return self.control_store.upsert_publication(task_id=task_id,
+                repository=goal.repository, base_branch=base_branch, branch=branch,
+                status=status, request_digest=request, commit_sha=artifact["commit"],
+                pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
+        body = "Retained functionally validated artifact. Independent review pending."
+        if self.landing_decisions is not None:
+            import fnmatch
+            paths = self._git(workspace, "diff", "--no-renames", "--name-only", artifact["base_commit"], artifact["commit"]).stdout.splitlines()
+            if not paths:
+                raise TaskStoreError("publication_changed_paths_required")
+            if any(any(part in {".aws", ".ssh", "secrets", "credentials"} for part in p.lower().split("/"))
+                   or p.lower().endswith((".pem", ".key")) for p in paths):
+                raise TaskStoreError("r3_action_specific_owner_authorization_required")
+            r2 = any(any(fnmatch.fnmatchcase(p, pattern) for pattern in (
+                "AGENTS.md", "docs/agents/*", ".github/workflows/*", "reverse_agent/landing_review.py",
+                "requirements*.txt", "pyproject.toml", "frontend/package.json", "frontend/package-lock.json")) for p in paths)
+            decisions = tuple(self.landing_decisions(dict(repository=goal.repository, goal_id=goal_id)))
+            if r2 and not decisions:
+                raise TaskStoreError("r2_trusted_owner_decision_required")
+            body += "\n" + "\n".join(decisions)
+        save("PENDING")
+        self._git(workspace, "push", "origin", artifact["commit"] + ":refs/heads/" + branch)
+        save("PUSHED")
+        pr = self._find_or_create_draft_pr(workspace=workspace, repository=goal.repository,
+            branch=branch, base_branch=base_branch, title="Nerelan validated artifact",
+            body=body)
+        if not pr.get("isDraft") or pr.get("headRefOid") != artifact["commit"]:
+            raise TaskStoreError("publication_pr_head_or_draft_mismatch")
+        return save("COMPLETE", pr)
 
     def _find_or_create_draft_pr(
         self,

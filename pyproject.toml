@@ -7,7 +7,7 @@ name = "reverse-agent"
 version = "0.1.0"
 description = "Reverse-agent governance and control-plane tooling"
 requires-python = ">=3.13"
-dependencies = ["langgraph==1.0.10", "langgraph-checkpoint-sqlite==3.1.0"]
+dependencies = ["langgraph==1.0.10", "langgraph-checkpoint-sqlite==3.1.0", "markdown-it-py==4.0.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<9"]
@@ -15,6 +15,9 @@ test = ["pytest>=8,<9"]
 [tool.setuptools.packages.find]
 include = ["reverse_agent*"]
 exclude = ["tests*", "project_state*", "docs*"]
+
+[tool.setuptools.package-data]
+"reverse_agent.platform_v1" = ["calibration_suite_v1.json"]
 
 [tool.pytest.ini_options]
 markers = ["installed_opencode: requires an installed OpenCode CLI and separately authorized integration execution"]
