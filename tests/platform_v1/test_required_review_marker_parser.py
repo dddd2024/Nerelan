@@ -1000,3 +1000,66 @@ def test_unclosed_line_start_html_before_real_quote_fails_closed(case: str) -> N
     seam = CLOSED_HTML_SEAMS[case]
     content = "\n".join([seam[0], seam[1], "> real quote", ACCEPT]) + "\n"
     assert _parse_review_marker(content)[0] is None
+
+
+# Regression from FAILED candidate 55b26f57: with the parser's HTML rules off,
+# a real line-start HTML block no longer interrupted an earlier quoted
+# paragraph, so the genuine marker after the closed block stayed lazily quoted.
+INTERRUPTING_HTML = {
+    "pre": ["<pre>", FAKE, "</pre>"],
+    "comment": ["<!-- note -->"],
+    "multiline_comment": ["<!--", FAKE, "-->"],
+    "script": ["<script>", FAKE, "</script>"],
+    "style_split_close": ["<style>", FAKE, "</style", ">"],
+    "blockquote": ["<blockquote>", "> " + FAKE, "</blockquote>"],
+    "indented_upper_pre": ["   <PRE class=x>", FAKE, "</PRE>"],
+}
+QUOTES_BEFORE_HTML = {
+    "plain": ["> Earlier quoted template:", "> " + FAKE],
+    "lazy": ["> Earlier quoted template:", "still quoted text"],
+    "nested": ["> > Outer template:", "> " + FAKE],
+    "deep": ["> " * 50 + "deep template"],
+}
+
+
+@pytest.mark.parametrize("case", sorted(INTERRUPTING_HTML))
+@pytest.mark.parametrize("quote", sorted(QUOTES_BEFORE_HTML))
+@pytest.mark.parametrize("newline", ["\n", "\r\n", "\r"])
+def test_line_start_html_block_interrupts_earlier_quote(case: str, quote: str,
+                                                         newline: str) -> None:
+    seam, before = INTERRUPTING_HTML[case], QUOTES_BEFORE_HTML[quote]
+    content = newline.join([*before, *seam, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    # A real quote opened after the closed block still lazily covers the marker.
+    content = newline.join([*before, *seam, "> real quote", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = newline.join([*before, *seam, "> real quote", FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    if len(seam) > 1:
+        # The block itself still hides a marker inside it.
+        content = newline.join([*before, seam[0], ACCEPT, *seam[2:]]) + newline
+        assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+
+
+@pytest.mark.parametrize("seam", [
+    ["Note <pre>", FAKE, "</pre>"], ["<code>", FAKE, "</code>"],
+    ["<q>inline</q> text"], ['<span title="x">inline</span>'],
+    ['<span title="', "> template", '">'], ["`", "> template", "`"],
+])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_inline_html_or_code_span_does_not_interrupt_quote(seam: list[str],
+                                                           newline: str) -> None:
+    content = newline.join(["> quote", *seam, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = newline.join(["> quote", *seam, FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("separator", [chr(0x2028), chr(0x85), chr(0x0C)])
+def test_html_start_after_non_commonmark_separator_never_ends_quote(separator: str) -> None:
+    # "<pre>" after U+2028, NEL or form feed is not at a CommonMark line start:
+    # it stays inside the quoted parser line, so no boundary is synthesized.
+    content = f"> quote{separator}<pre>\n{FAKE}\n</pre>\n{ACCEPT}\n"
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = f"> quote{separator}<pre>\n{FAKE}\n</pre>\n\n{ACCEPT}\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")

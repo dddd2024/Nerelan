@@ -337,9 +337,10 @@ def _quoted_lines(parts: list[str]) -> list[bool]:
     block token types, nesting levels and source line maps are read; nothing
     is rendered. The preset's maxNesting bound is kept: the parser leaves the
     content of a container at that bound unparsed, so its whole range counts
-    as quoted. ``parts`` holds one context-only parser line per original
-    ``splitlines`` line, with its original terminator, and each is mapped to
-    its parser line by source offset, never rejoined, unquoted or rewritten.
+    as quoted. ``parts`` holds one context-only parser chunk per original
+    ``splitlines`` line, ending with that line and its original terminator,
+    and each is mapped to its parser line by the source offset of its last
+    character, never rejoined, unquoted or rewritten.
     The public ``html`` option is off for this context-only input: the host
     HTML lexer alone owns where HTML scope ends, so a library HTML block can
     never outlive a real close tag and swallow a later Markdown quote.
@@ -364,9 +365,10 @@ def _quoted_lines(parts: list[str]) -> list[bool]:
     quoted, offset = [], 0
     for part in parts:
         # Every CommonMark break is also a splitlines break, so each original
-        # line lies within exactly one parser line.
-        quoted.append(covered[bisect_right(starts, offset) - 1])
+        # line lies within exactly one parser line, after any context-only
+        # separator its chunk starts with.
         offset += len(part)
+        quoted.append(covered[bisect_right(starts, offset - 1) - 1])
     return quoted
 
 
@@ -394,8 +396,13 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     HTML tag, attribute, comment, raw text or container, or inside a code
     span, is prefixed with neutral text, so its literal characters never open
     a quote, while the parser still sees every original character, blank line
-    and line break that bounds its own blocks. That input is context only; the
-    original line remains the sole marker authority. Unclosed
+    and line break that bounds its own blocks. A live line starting a real
+    comment or pre/script/style/blockquote block at a CommonMark line start
+    interrupts a paragraph as an HTML block does, so its parser input is
+    preceded by a blank line that ends any lazy quote continuation, while a
+    real quote opened after the literal closes still covers its own lazy
+    lines. That input is context only; the original line remains the sole
+    marker authority. Unclosed
     fences/comments/blocks fail closed. The report remains model-authored and
     is NOT a substitute for external acceptance.
     """
@@ -423,6 +430,12 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         # structure; blank lines stay blank so the parser's own bounds hold.
         if (span is not None or html.active) and line.strip(" \t"):
             parts[index] = "x" + raw
+        elif (index and raws[index - 1].endswith(("\n", "\r"))
+              and _HTML_LITERAL_START.match(line)):
+            # A live real HTML block start at a CommonMark line start
+            # interrupts any open paragraph, so a quote's lazy continuation
+            # ends before it; a context-only blank line carries that boundary.
+            parts[index] = "\r\n" + raw
         resume = 0
         if span is not None:
             # A line wholly inside a multiline code span is literal code text.

@@ -509,3 +509,51 @@ def test_real_quote_after_closed_line_start_html_in_full_validation(tmp_path, se
         assert reason == "review_verdict_missing_or_ambiguous"
     else:
         assert command == "git_diff_check" and code == 0
+
+
+# Regression from FAILED candidate 55b26f57: a real line-start HTML block
+# interrupts an earlier quoted paragraph, so the genuine marker after it is
+# live, while a real quote after the closed block still hides its lazy marker.
+FAKE_MARKER = "Nerelan-Review: ACCEPT " + "b" * 40
+EARLIER_QUOTE = "> Earlier quoted template:\n> " + FAKE_MARKER + "\n"
+# <code> and <q> cannot interrupt a paragraph, so they are not listed here.
+INTERRUPTING_HTML = [
+    ("<pre>\n" + FAKE_MARKER + "\n</pre>\n", "pre"),
+    ("<!-- note -->\n", "comment"),
+    *[(seam, name) for seam, name in CLOSED_HTML_SEAMS if name not in ("code", "q")],
+]
+
+
+@pytest.mark.parametrize("seam", ["<code>\n> literal\n</code>\n", "<q>\n> literal\n</q>\n"],
+                         ids=["code", "q"])
+def test_inline_html_after_earlier_quote_stays_quoted_in_full_validation(tmp_path, seam):
+    doc = EARLIER_QUOTE + seam + MARKER + "\n"
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(doc.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is False
+    command, code, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    assert command == "required_review_artifact"
+    assert code != 0
+    assert reason == "review_verdict_missing_or_ambiguous"
+
+
+@pytest.mark.parametrize("seam", [seam for seam, _ in INTERRUPTING_HTML],
+                         ids=[name for _, name in INTERRUPTING_HTML])
+@pytest.mark.parametrize("quoted", [True, False], ids=["real_quote", "outside"])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_line_start_html_interrupts_earlier_quote_in_full_validation(tmp_path, seam,
+                                                                     quoted, newline):
+    doc = EARLIER_QUOTE + seam + ("> real quote\n" if quoted else "") + MARKER + "\n"
+    doc = doc.replace("\n", newline)
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(doc.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is (not quoted)
+    command, code, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    if quoted:
+        assert command == "required_review_artifact"
+        assert code != 0
+        assert reason == "review_verdict_missing_or_ambiguous"
+    else:
+        assert command == "git_diff_check" and code == 0
