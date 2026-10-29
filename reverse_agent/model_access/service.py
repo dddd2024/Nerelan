@@ -291,6 +291,7 @@ def discover_connection_models(
     if not connection.enabled:
         return _discovery("disabled", "Connection is disabled")
     model_ids: list[str] = []
+    metadata = {}
     if connection.executor_provider_id in NATIVE_MODEL_CATALOG:
         model_ids = list(NATIVE_MODEL_CATALOG[connection.executor_provider_id])
     elif connection.auth_method in {"api_key", "none"}:
@@ -320,6 +321,10 @@ def discover_connection_models(
             value = row.get("id") if isinstance(row, dict) else None
             if isinstance(value, str) and _MODEL_ID_RE.fullmatch(value) and value not in model_ids:
                 model_ids.append(value)
+                from .magpie import parse_models
+                parsed = parse_models({"object": "list", "data": [row]})
+                if parsed:
+                    metadata[value] = parsed[0]
     else:
         return _discovery("unsupported_auth_method", "Listing models is not supported for this connection")
     bound: dict[str, list[dict[str, str]]] = {}
@@ -327,6 +332,7 @@ def discover_connection_models(
         if binding.get("connection_id") == connection_id:
             bound.setdefault(binding.get("model_id", ""), []).append(
                 {"binding_id": binding.get("binding_id", ""), "executor_id": binding.get("executor_id", "")})
+    store.record_model_catalog(connection_id, model_ids, metadata)
     return {**_discovery("discovered", f"{len(model_ids)} models available", ok=True), "models": model_ids,
             "bound": {model_id: bound[model_id] for model_id in model_ids if model_id in bound}}
 
@@ -347,6 +353,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
     token_usage: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
     subscription_quotas: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {})
     quota_guard_log: Callable[[], list[Any]] = staticmethod(lambda: [])
+    claude_reset_status: Callable[[], Mapping[str, Any]] = staticmethod(lambda: {"enabled": False, "provider": "claude-code", "status": "UNKNOWN"})
 
     server_version = "reverse-agent-model-control/1"
 
@@ -405,12 +412,20 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             if segments == ["api", "bindings"]:
                 self._send_json(HTTPStatus.OK, self.store.list_bindings_public())
                 return
+            if segments == ["api", "magpie"]:
+                self._send_json(HTTPStatus.OK, {"settings": self.store.get_magpie(), "runtime": self.store.magpie_status()})
+                return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.get_agent_roster_public())
                 return
+            if segments == ["api", "reset-announcements"]:
+                self._send_json(HTTPStatus.OK, self.claude_reset_status())
+                return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
-                external = _magpie_external if magpie_enabled(os.environ) else None
+                config = self.store.get_magpie()
+                external = ((lambda: fetch_magpie_snapshot(config["base_url"])) if config["enabled"]
+                            else (_magpie_external if magpie_enabled(os.environ) else None))
                 mode = _resource_view_mode(self.path)
                 self._send_json(HTTPStatus.OK, build_resource_view(
                     self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
@@ -451,6 +466,9 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     self.store.get_connection_public(segments[2]),
                 )
+                return
+            if segments == ["api", "magpie"]:
+                self._send_json(HTTPStatus.OK, self.store.put_magpie(self._read_json()))
                 return
             if segments == ["api", "agent-roster"]:
                 self._send_json(HTTPStatus.OK, self.store.put_agent_roster(self._read_json()))
@@ -708,6 +726,7 @@ def _handler_factory(
     token_usage: Callable[[], Mapping[str, Any]] | None = None,
     subscription_quotas: Callable[[], Mapping[str, Any]] | None = None,
     quota_guard_log: Callable[[], list[Any]] | None = None,
+    claude_reset_status: Callable[[], Mapping[str, Any]] | None = None,
 ) -> type[_ModelControlHandler]:
     class ConfiguredHandler(_ModelControlHandler):
         pass
@@ -723,6 +742,7 @@ def _handler_factory(
     ConfiguredHandler.token_usage = staticmethod(token_usage or (lambda: {}))
     ConfiguredHandler.subscription_quotas = staticmethod(subscription_quotas or (lambda: {}))
     ConfiguredHandler.quota_guard_log = staticmethod(quota_guard_log or (lambda: []))
+    ConfiguredHandler.claude_reset_status = staticmethod(claude_reset_status or (lambda: {"provider": "claude-code", "enabled": False, "status": "UNKNOWN"}))
     return ConfiguredHandler
 
 

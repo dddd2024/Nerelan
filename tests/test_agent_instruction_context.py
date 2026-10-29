@@ -78,7 +78,21 @@ def test_governance_v2_change_flow_is_explicit() -> None:
     flow = text.split("## Change flow", 1)[1].split("## Risk tiers", 1)[0]
     assert "never commit to `main` directly" in flow and "**Draft** PR" in flow
     assert "Nerelan-Review: ACCEPT <40-hex head sha>" in flow
-    assert "any push invalidates earlier verdicts" in flow
+    assert "By default a new commit needs a fresh review" in flow
+    assert "Owner decision 2026-10-19" in flow
+    for token in ("first-parent merge-main", "exactly two parents", "origin/main",
+                  "PR diff content and changed paths are identical", "at most 20 steps",
+                  "latest trusted verdict at the earlier head to be ACCEPT",
+                  "newer trusted REJECT", "exact-head precedence", "AGENTS.md",
+                  ".github/workflows/**", "reverse_agent/landing_review.py",
+                  "Owner decision 2026-10-21 (#1310 C)", "other R2 paths",
+                  "cannot qualify", "accepted_carried_over"):
+        assert token in flow
+    # Governance v2.1 (#1310): R1 in-system review, standing windows, park and continue.
+    assert "#1310 A" in text and "R2 still needs a separate session or a human" in text
+    assert "standing renewal" in text and "#1310 D" in text
+    assert "**Park and continue**" in text and "#1310 E" in text
+    assert "any push invalidates earlier verdicts" not in flow
     assert "--merge --match-head-commit" in flow
     assert "Never use the ruleset bypass" in flow
     for check in ("`baseline`", "`state-gate`", "`landing-state-gate`"):

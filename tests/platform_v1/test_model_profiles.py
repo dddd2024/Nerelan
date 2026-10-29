@@ -155,3 +155,83 @@ def test_native_token_counts_come_from_the_completion_event():
                         (f"done-{task.id}", task.id, '{"token_usage": {"input_tokens": 1200, "cached_input_tokens": 900, "output_tokens": 300}}'))
     store._conn.commit()
     assert compute_agent_profiles(store)["sonnet"]["median_ok_tokens"] == 1500
+
+
+def test_MODEL_UNAVAILABLE_classification_is_not_capability_evidence():
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:model_not_supported")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:model_not_found")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:not_allowed")
+    _task(store, "glm", "FAILED", "MODEL_UNAVAILABLE:invalid_api_key")
+    profile = compute_agent_profiles(store)["glm"]
+    assert profile["attempts"] == 1
+    assert profile["ok"] == 1
+    assert profile["failed"] == 0
+    assert profile["failure_kinds"] == {}
+
+
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize(("code", "message", "reason"), [
+    ("invalid_api_key", "Request failed", "invalid_api_key"),
+    ("authentication_error", "Request failed", "authentication_error"),
+    ("not_allowed", "not allowed for user type", "not_allowed_for_user_type"),
+])
+def test_real_error_classification_preserves_entitlement_exclusion(nested, code, message, reason):
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+    payload = {"code": code, "message": message, "statusCode": 403}
+    event = {"type": "error", "error": {"data": payload} if nested else payload}
+    classification = OpenCodeExecutor(model_id="fixture/model")._classify_exit(1, [event])
+    assert classification == "MODEL_UNAVAILABLE:" + reason
+    store = TaskStore(":memory:")
+    try:
+        _task(store, "fixture", "READY_FOR_REVIEW")
+        _task(store, "fixture", "FAILED", classification)
+        profile = compute_agent_profiles(store)["fixture"]
+        assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+        assert profile["success_rate"] == 1.0
+        assert profile["failure_kinds"] == {}
+    finally:
+        store._conn.close()
+
+
+def test_PROVIDER_QUOTA_LIMIT_classification_is_not_capability_evidence():
+    store = TaskStore(":memory:")
+    # The successful attempt and the quota-limited attempt were routed different content
+    # classes, so an attempt-count of one proves only the success was counted.
+    done = _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
+    store._conn.execute("INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "VALUES (?, ?, 'MODEL_SELECTED', '2026-10-13T06:00:01Z', '', '', '', ?)",
+                        (f"sel-{done.id}", done.id, '{"content_class": "docs"}'))
+    limited = _task(store, "glm", "FAILED", "provider_quota_limit", tokens=400)
+    # The attempt was routed a content class and a task trait before it was cut off.
+    store._conn.execute("INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "VALUES (?, ?, 'MODEL_SELECTED', '2026-10-13T06:11:00Z', '', '', '', ?)",
+                        (f"sel-{limited.id}", limited.id, '{"kind": "code", "difficulty": 3, "content_class": "code"}'))
+    store._conn.commit()
+    _task(store, "glm", "FAILED", "provider_quota_limit")  # nothing reported: adds nothing, not a guess
+    profile = compute_agent_profiles(store)["glm"]
+    # Provider capacity is excluded before any content, task-bucket or capability counting.
+    assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+    assert profile["rate_limited"] == 0 and profile["failure_kinds"] == {}
+    assert profile["content_attempts"] == {"docs": {"attempts": 1, "refusals": 0}}
+    assert "task_buckets" not in profile and "overloaded" not in profile
+    assert profile["provider_quota_limited"] == 2
+    assert profile["observed_tokens"] == 400  # the tokens the attempt did spend
+    assert profile["success_rate"] == 1.0
+    store._conn.close()
+
+
+def test_account_quota_and_provider_quota_are_not_interchangeable():
+    from reverse_agent.platform_v1.quota_guard import ACCOUNT_LIMIT, LIMIT_HIT
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
+    _task(store, "glm", "FAILED", "provider_quota_limit", tokens=300)
+    _task(store, "glm", "FAILED", "quota_exhausted")
+    profile = compute_agent_profiles(store)["glm"]
+    # Only the account's own answer counts as a rate limit, and it keeps its own kind.
+    assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (2, 1, 1)
+    assert profile["failure_kinds"] == {"quota_exhausted": 1}
+    assert profile["provider_quota_limited"] == 1
+    assert not ACCOUNT_LIMIT.search("provider_quota_limit") and not LIMIT_HIT.search("provider_quota_limit")
+    store._conn.close()
