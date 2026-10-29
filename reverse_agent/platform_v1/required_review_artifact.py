@@ -327,7 +327,7 @@ def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
         html.feed(token.group())
 
 
-def _quoted_lines(content: str, raws: list[str]) -> list[bool]:
+def _quoted_lines(parts: list[str]) -> list[bool]:
     """Whether each original line lies inside a CommonMark block quote.
 
     Markdown block structure is owned by markdown-it-py, not reimplemented:
@@ -337,13 +337,15 @@ def _quoted_lines(content: str, raws: list[str]) -> list[bool]:
     block token types, nesting levels and source line maps are read; nothing
     is rendered. The preset's maxNesting bound is kept: the parser leaves the
     content of a container at that bound unparsed, so its whole range counts
-    as quoted. Original ``splitlines`` lines are mapped to parser lines by
-    source offset, never rejoined, unquoted or rewritten.
+    as quoted. ``parts`` holds one context-only parser line per original
+    ``splitlines`` line, with its original terminator, and each is mapped to
+    its parser line by source offset, never rejoined, unquoted or rewritten.
     """
     from markdown_it import MarkdownIt
 
     md = MarkdownIt("commonmark")
     limit = md.options["maxNesting"]
+    content = "".join(parts)
     starts = [0, *(found.end() for found in _MD_LINE_BREAK.finditer(content))]
     delta = [0] * (len(starts) + 1)
     for token in md.parse(content):
@@ -357,11 +359,11 @@ def _quoted_lines(content: str, raws: list[str]) -> list[bool]:
         depth += step
         covered.append(depth > 0)
     quoted, offset = [], 0
-    for raw in raws:
+    for part in parts:
         # Every CommonMark break is also a splitlines break, so each original
         # line lies within exactly one parser line.
         quoted.append(covered[bisect_right(starts, offset) - 1])
-        offset += len(raw)
+        offset += len(part)
     return quoted
 
 
@@ -384,21 +386,24 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     are inert to the HTML lexer, and such lines are never a declaration.
     Markdown block quote boundaries, lazy continuation lines included, come
     from the CommonMark parser's line maps; a missing or failing parser fails
-    closed. Unclosed fences/comments/blocks fail closed. The report remains
-    model-authored and is NOT a substitute for external acceptance.
+    closed. The lexical literal contexts keep priority over Markdown block
+    syntax: the parser input of a non-blank line that starts inside a real
+    HTML tag, attribute, comment, raw text or container, or inside a code
+    span, is prefixed with neutral text, so its literal characters never open
+    a quote, while the parser still sees every original character, blank line
+    and line break that bounds its own blocks. That input is context only; the
+    original line remains the sole marker authority. Unclosed
+    fences/comments/blocks fail closed. The report remains model-authored and
+    is NOT a substitute for external acceptance.
     """
-    markers: list[tuple[str, str]] = []
+    candidates: list[tuple[int, tuple[str, str]]] = []
+    error = ""
     fence: str | None = None
     span: tuple[int, int] | None = None
     html = _HtmlBlockTracker()
     raws = content.splitlines(keepends=True)
     lines = [(raw.splitlines() or [""])[0] for raw in raws]
-    try:
-        quoted = _quoted_lines(content, raws)
-    except ImportError:
-        return None, "review_markdown_parser_unavailable"
-    except Exception:
-        return None, "review_markdown_parse_failed"
+    parts = list(raws)
     for index, raw in enumerate(raws):
         line = lines[index]
         # A Markdown fence makes every HTML/comment literal inside it inert, so
@@ -411,6 +416,10 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
                 if not line[opened.end():].strip():
                     fence = None
             continue
+        # A line starting inside a lexical literal cannot open Markdown block
+        # structure; blank lines stay blank so the parser's own bounds hold.
+        if (span is not None or html.active) and line.strip(" \t"):
+            parts[index] = "x" + raw
         resume = 0
         if span is not None:
             # A line wholly inside a multiline code span is literal code text.
@@ -433,11 +442,14 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
         try:
             span = _feed_outside_code(html, raw, resume, lines, index)
         except Exception:
-            return None, "review_html_code_mismatched"
+            error = "review_html_code_mismatched"
+            break
         if html.mismatch:
-            return None, "review_html_code_mismatched"
+            error = "review_html_code_mismatched"
+            break
         if html.stray_comment_close:
-            return None, "review_comment_unclosed"
+            error = "review_comment_unclosed"
+            break
         if not live or html.active:
             continue
         # Do not count block quotes, code indentation, list items or templates.
@@ -445,21 +457,31 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
             continue
         stripped = re.sub(r"^#{1,6}[ ]+", "", line)
         if _REVIEW_OUTCOME.match(stripped):
-            return None, "review_explicit_failure_outcome"
-        # A lazy quote continuation line is quoted text, never a declaration.
-        if quoted[index]:
-            continue
+            error = "review_explicit_failure_outcome"
+            break
         # Match the raw original marker line; never strip, decode or unescape
         # HTML to synthesize a marker that was not literally present.
         match = _REVIEW.fullmatch(line.strip())
         if match:
-            markers.append((match.group(1), match.group(2)))
-    if fence is not None:
-        return None, "review_fence_unclosed"
-    if html.in_comment:
-        return None, "review_comment_unclosed"
-    if html.active:
-        return None, "review_html_code_unclosed"
+            candidates.append((index, (match.group(1), match.group(2))))
+    else:
+        if fence is not None:
+            error = "review_fence_unclosed"
+        elif html.in_comment:
+            error = "review_comment_unclosed"
+        elif html.active:
+            error = "review_html_code_unclosed"
+    # The one parse runs on the whole report, so parser refusal keeps priority.
+    try:
+        quoted = _quoted_lines(parts)
+    except ImportError:
+        return None, "review_markdown_parser_unavailable"
+    except Exception:
+        return None, "review_markdown_parse_failed"
+    if error:
+        return None, error
+    # A lazy quote continuation line is quoted text, never a declaration.
+    markers = [marker for index, marker in candidates if not quoted[index]]
     if len(markers) != 1:
         return None, "review_verdict_missing_or_ambiguous"
     return markers[0], ""

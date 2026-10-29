@@ -851,6 +851,67 @@ def test_non_commonmark_line_separator_never_splits_a_quoted_line(separator: str
     assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
 
 
+# Regression from independent REJECT at 7d31e90c: quote syntax inside a closed
+# lexical literal opened a CommonMark quote that lazily swallowed the genuine
+# marker after the literal. Each case: (opening line, literal lines, closing).
+LITERAL_SEAMS = {
+    "double_attribute": ['<span title="', "> template", '">'],
+    "single_attribute": ["<span title='", "> template", "'>"],
+    "code_span": ["`", "> template", "`"],
+    "double_code_span": ["see ``code", "> template", "end`` done"],
+    "comment": ["Note <!--", "> template", "-->"],
+    "pre": ["Note <pre>", "> template", "</pre>"],
+    "script": ["Note <script>", "> template", "</script>"],
+    "q": ["Note <q>", "> template", "</q>"],
+}
+
+
+@pytest.mark.parametrize("case", sorted(LITERAL_SEAMS))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_quote_syntax_inside_closed_literal_does_not_quote_later_marker(
+        case: str, newline: str) -> None:
+    seam = LITERAL_SEAMS[case]
+    content = newline.join([*seam, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    content = newline.join([*seam, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    # The literal itself still hides a marker inside it.
+    content = newline.join([seam[0], seam[1], ACCEPT, seam[2]]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+
+
+@pytest.mark.parametrize("case", sorted(LITERAL_SEAMS))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_real_quote_after_closed_literal_still_quotes_lazy_marker(
+        case: str, newline: str) -> None:
+    seam = LITERAL_SEAMS[case]
+    content = newline.join([*seam, "> real quote", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    # The real quote covers a lazy fake; a blank line ends it before the genuine one.
+    content = newline.join([*seam, "> real quote", FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_quote_syntax_after_blank_line_inside_literal_stays_literal() -> None:
+    content = "\n".join(['<span title="', "", "> template", '">', ACCEPT]) + "\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    content = "\n".join(['<span title="', "", "> template", '">', "> real", ACCEPT]) + "\n"
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+
+
+def test_plain_closed_attribute_with_quote_character_keeps_marker_live() -> None:
+    content = '<span title="quoted > template">\n' + ACCEPT + "\n"
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+def test_real_quote_containing_literal_keeps_its_lazy_continuation() -> None:
+    # A quote opened before the literal still lazily covers the marker after it.
+    content = "\n".join(['> quoted <span title="', "> template", '">', ACCEPT]) + "\n"
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    content = "\n".join(["> quoted `code", "> template", "end`", ACCEPT]) + "\n"
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+
+
 _CAP = 128 * 1024
 
 

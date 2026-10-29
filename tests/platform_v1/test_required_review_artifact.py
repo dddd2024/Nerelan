@@ -449,3 +449,33 @@ def test_genuine_marker_after_closed_quotation_passes_full_validation(tmp_path, 
         True, "required_review_artifact_present")
     command, code, _, _ = run_task_validation(store, task.id, worktree=workspace)
     assert command == "git_diff_check" and code == 0
+
+
+# Regression from independent REJECT at 7d31e90c: quote syntax inside a closed
+# HTML attribute or code span must not quote the genuine marker after it.
+@pytest.mark.parametrize("doc,expected", [
+    ('<span title="\n> template\n">\n' + MARKER + "\n", True),
+    ("<span title='\n> template\n'>\n" + MARKER + "\n", True),
+    ('<span title="\n> template\n">\n\n' + MARKER + "\n", True),
+    ('<span title="\n> template\n' + MARKER + '\n">\n', False),
+    ('<span title="quoted > template">\n' + MARKER + "\n", True),
+    ('<span title="\n> literal\n">\n> real quote\n' + MARKER + "\n", False),
+    ("Note `\n> template\n`\n" + MARKER + "\n", True),
+    ("Note `\n> literal\n`\n> real quote\n" + MARKER + "\n", False),
+], ids=["closed_double_attribute", "closed_single_attribute",
+        "closed_attribute_blank_termination", "quoted_marker_inside_attribute",
+        "plain_closed_attribute", "real_quote_after_closed_attribute",
+        "closed_code_span", "real_quote_after_closed_code_span"])
+def test_literal_context_priority_over_markdown_quote_in_full_validation(tmp_path, doc,
+                                                                       expected):
+    store, task, workspace, path = setup_case(tmp_path)
+    path.parent.mkdir(parents=True)
+    path.write_bytes(doc.encode("utf-8"))
+    assert validate_required_artifacts(store.get_task(task.id), workspace)[0] is expected
+    command, code, reason, _ = run_task_validation(store, task.id, worktree=workspace)
+    if expected:
+        assert command == "git_diff_check" and code == 0
+    else:
+        assert command == "required_review_artifact"
+        assert code != 0
+        assert reason == "review_verdict_missing_or_ambiguous"
