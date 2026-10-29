@@ -38,9 +38,15 @@ class _Proc:
 
 
 def _git_args(cmd) -> list[str]:
-    """Subcommand args after ``git -C <root>`` and the known fsmonitor override."""
+    """Subcommand args after ``git -C <root>`` and any command-scoped overrides.
+
+    ``probe_checkout`` always prefixes ``-c core.fsmonitor=false`` and, when
+    driver discovery found configured content filters, one ``-c
+    filter.<driver>.<key>=<value>`` pair per driver. Every leading ``-c`` pair
+    is skipped so the git subcommand stays the head of the returned list.
+    """
     args = list(cmd[3:])
-    if args[:2] == ["-c", "core.fsmonitor=false"]:
+    while len(args) >= 2 and args[0] == "-c":
         args = args[2:]
     return args
 
@@ -65,6 +71,8 @@ class GitScript:
         ls_remote_line: str | None = None,
         rev_parse_code: int = 0,
         shallow: bool | None = False,
+        config_code: int = 0,
+        config_names: str = "",
     ) -> None:
         self.origin = origin
         self.installed = installed
@@ -79,6 +87,8 @@ class GitScript:
         self.ls_remote_line = ls_remote_line
         self.rev_parse_code = rev_parse_code
         self.shallow = shallow
+        self.config_code = config_code
+        self.config_names = config_names
         self.calls: list[list[str]] = []
 
     def run(self, cmd, **kwargs):
@@ -93,6 +103,10 @@ class GitScript:
                 return (_Proc(128, "") if self.shallow is None
                         else _Proc(0, str(self.shallow).lower()))
             return _Proc(self.rev_parse_code, self.installed)
+        if head == "config":
+            # Names-only content-filter driver discovery. The baseline fixture
+            # configures no filter, so the probe adds no driver overrides.
+            return _Proc(self.config_code, self.config_names)
         if head == "status":
             return _Proc(0, self.dirty)
         if head == "ls-remote":

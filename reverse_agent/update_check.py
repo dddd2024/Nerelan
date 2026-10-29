@@ -25,6 +25,35 @@ _TIMEOUT = 8
 _NO_FSMONITOR = ("-c", "core.fsmonitor=false")
 
 
+def _content_filter_overrides(names: str) -> list[str]:
+    """Command-scoped ``-c`` overrides that disable every configured filter.
+
+    ``git status`` re-reads a tracked file's content to decide whether it is
+    modified, and that re-read runs the attribute-selected clean/process
+    filter. A filter is an arbitrary configured command, so a read-only
+    observer must never invoke one: doing so can write to other tracked files
+    and contradicts the read-only promise. Git's own configuration precedence
+    is reused instead of a new policy layer -- enumerate names only (a query
+    that itself runs no filter), derive each driver, then blank its clean,
+    smudge and process commands and mark it not required for this command.
+    No user configuration value is read and none is persistently rewritten.
+    """
+    drivers = set()
+    for raw in names.split("\0"):
+        name = raw.strip()
+        if not name:
+            continue
+        # ``filter.<driver>.<key>``; a bare ``filter.`` prefix names no driver.
+        if name.lower().startswith("filter.") and "." in name[7:]:
+            drivers.add(name.rsplit(".", 1)[0])
+    options: list[str] = []
+    for driver in sorted(drivers):
+        for key, value in (("clean", ""), ("smudge", ""), ("process", ""),
+                           ("required", "false")):
+            options.extend(["-c", f"{driver}.{key}={value}"])
+    return options
+
+
 def classify_revisions(*, installed: str, remote: str, ancestry: str,
                        local_modified: bool) -> dict[str, object]:
     """Decide the *source* state, not whether an unverified update can install."""
@@ -55,13 +84,13 @@ def probe_checkout(repo: str | Path) -> dict[str, object]:
     if not root.is_dir():
         return result | {"reason": "missing_checkout"}
 
-    def git(*args: str) -> tuple[int, str]:
+    def git(*args: str, extra: tuple[str, ...] = ()) -> tuple[int, str]:
         env = dict(os.environ)
         env.update(GIT_TERMINAL_PROMPT="0", GIT_OPTIONAL_LOCKS="0",
                    GIT_LFS_SKIP_SMUDGE="1", GIT_NO_LAZY_FETCH="1")
         try:
             proc = subprocess.run(
-                ["git", "-C", str(root), *_NO_FSMONITOR, *args],
+                ["git", "-C", str(root), *_NO_FSMONITOR, *extra, *args],
                 capture_output=True, text=True, encoding="utf-8", errors="replace",
                 stdin=subprocess.DEVNULL, timeout=_TIMEOUT, env=env, check=False)
         except (OSError, subprocess.TimeoutExpired):
@@ -75,7 +104,18 @@ def probe_checkout(repo: str | Path) -> dict[str, object]:
     code, installed = git("rev-parse", "HEAD")
     if code != 0 or not _SHA.fullmatch(installed):
         return result | {"reason": "missing_installed_revision"}
-    code, dirty = git("status", "--porcelain", "-uno")
+    # ``status`` re-reads tracked content to decide whether a file is modified,
+    # and that re-read runs the attribute-selected clean/process filter. A
+    # filter is an arbitrary configured command and can write to other tracked
+    # files, so the read-only promise requires blanking every driver for this
+    # command. Enumerate names only (a query that itself runs no filter) and
+    # fail closed when discovery cannot be completed, rather than observe
+    # through a converter whose behavior is unknown.
+    code, names = git("config", "--null", "--list", "--name-only")
+    if code != 0:
+        return result | {"reason": "filter_discovery_unavailable"}
+    code, dirty = git("status", "--porcelain", "-uno",
+                      extra=tuple(_content_filter_overrides(names)))
     if code != 0:
         return result | {"reason": "local_status_unavailable"}
     modified = bool(dirty)
