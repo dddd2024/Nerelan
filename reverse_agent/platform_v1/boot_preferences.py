@@ -11,10 +11,12 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import stat
 import tempfile
 from typing import Any, Mapping
 
 SCHEMA_VERSION = 1
+MAX_PREFERENCE_BYTES = 4096
 
 
 class BootPreferenceError(ValueError):
@@ -57,9 +59,53 @@ def parse_preferences(data: Any) -> BootPreferences:
     )
 
 
+def _is_redirect(candidate: Path, info: Any) -> bool:
+    if stat.S_ISLNK(info.st_mode):
+        return True
+    if getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        return True
+    is_junction = getattr(candidate, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
 def _validate_location(path: Path) -> None:
-    if path.suffix.lower() != ".json" or path.is_symlink() or path.parent.is_symlink():
+    """Refuse existing symlink/junction/reparse redirects on the lexical path.
+
+    Every existing component of the unresolved absolute path is inspected with
+    lstat; missing components cannot redirect and are skipped. Any other
+    inspection failure is treated as untrusted. This is a deterministic
+    preflight, not a race-proof guard against a concurrent path swap.
+    """
+    if path.suffix.lower() != ".json":
         raise BootPreferenceError("boot_preferences_path_untrusted")
+    try:
+        absolute = path.absolute()
+    except OSError as exc:
+        raise BootPreferenceError("boot_preferences_path_untrusted") from exc
+    for candidate in (absolute, *absolute.parents):
+        try:
+            info = candidate.lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise BootPreferenceError("boot_preferences_path_untrusted") from exc
+        if _is_redirect(candidate, info):
+            raise BootPreferenceError("boot_preferences_path_untrusted")
+
+
+def _read_bounded(target: Path) -> bytes:
+    """Read at most one byte past the cap so overflow is detected, not loaded."""
+    limit = MAX_PREFERENCE_BYTES + 1
+    chunks: list[bytes] = []
+    received = 0
+    with target.open("rb") as fp:
+        while received < limit:
+            chunk = fp.read(limit - received)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            received += len(chunk)
+    return b"".join(chunks)
 
 
 def load_preferences(path: str | Path) -> BootPreferences:
@@ -70,12 +116,12 @@ def load_preferences(path: str | Path) -> BootPreferences:
     target = Path(path)
     _validate_location(target)
     try:
-        payload = target.read_bytes()
+        payload = _read_bounded(target)
     except FileNotFoundError:
         return BootPreferences()
     except OSError as exc:
         raise BootPreferenceError("boot_preferences_read_failed") from exc
-    if len(payload) > 4096:
+    if len(payload) > MAX_PREFERENCE_BYTES:
         raise BootPreferenceError("boot_preferences_oversized")
     try:
         return parse_preferences(json.loads(payload.decode("utf-8-sig")))
