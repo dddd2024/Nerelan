@@ -28,10 +28,14 @@ _HTML_LITERAL_START = re.compile(
 # Literal example and quotation containers: text inside them is never live.
 _CONTAINERS = ("pre", "code", "blockquote", "q")
 # Markdown block quote markers, and line starts that end a paragraph inside a
-# quote or interrupt its lazy continuation outside one.
+# quote or interrupt its lazy continuation outside one. A backtick fence whose
+# info string contains a backtick is not a fence but paragraph text.
 _QUOTE_PREFIX = re.compile(r"[ ]{0,3}>[ ]?")
 _PARAGRAPH_END = re.compile(
-    r"[ ]{0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}|~{3,}|([-*_])(?:[ \t]*\1){2,}[ \t]*$)")
+    r"[ ]{0,3}(?:#{1,6}(?:[ \t]|$)|`{3,}[^`]*$|~{3,}|([-*_])(?:[ \t]*\1){2,}[ \t]*$)")
+# A Setext underline closes an open paragraph of the same quote depth as a
+# heading; lazily, at another depth or with no paragraph open it is only text.
+_SETEXT_UNDERLINE = re.compile(r"[ ]{0,3}(?:=+|-+)[ \t]*$")
 _LAZY_INTERRUPT = re.compile(r"[ ]{0,3}(?:[-+*]|1[.)])[ \t]+\S")
 _MAX_REPORT_BYTES = 128 * 1024
 _REVIEW_OUTCOME = re.compile(
@@ -330,29 +334,37 @@ def _feed_outside_code(html: _HtmlBlockTracker, raw: str, pos: int,
         html.feed(token.group())
 
 
-def _quote_paragraph(line: str, quoted: bool) -> bool:
-    """Whether a Markdown block quote paragraph is still open after ``line``.
+def _quote_paragraph(line: str, quoted: int) -> int:
+    """Quote depth of the Markdown block quote paragraph open after ``line``.
 
-    An unprefixed line that does not start another block is a lazy
-    continuation of an open quoted paragraph, so it is quoted text too. A blank
-    line, heading, fence, thematic break, list item or HTML literal block start
-    ends the quote; a quoted blank, heading, fence or break line opens no
-    paragraph to continue.
+    Zero means no quoted paragraph is open. An unprefixed line that does not
+    start another block is a lazy continuation of an open quoted paragraph, so
+    it is quoted text too. A blank line, heading, fence, thematic break, list
+    item or HTML literal block start ends the quote; a quoted blank, heading,
+    fence or break line opens no paragraph to continue, and a quoted Setext
+    underline at the open paragraph's own depth completes it as a heading.
     """
     if not line.strip(" \t"):
-        return False
+        return 0
     prefix = _QUOTE_PREFIX.match(line)
     if prefix is None:
-        return quoted and not (_PARAGRAPH_END.match(line) or _LAZY_INTERRUPT.match(line)
-                               or _HTML_LITERAL_START.match(line))
-    rest = line
+        if _PARAGRAPH_END.match(line) or _LAZY_INTERRUPT.match(line) \
+                or _HTML_LITERAL_START.match(line):
+            return 0
+        return quoted
+    rest, depth = line, 0
     while prefix:
-        rest = rest[prefix.end():]
+        rest, depth = rest[prefix.end():], depth + 1
         prefix = _QUOTE_PREFIX.match(rest)
     if not rest.strip(" \t") or _PARAGRAPH_END.match(rest):
-        return False
+        return 0
+    if depth == quoted and _SETEXT_UNDERLINE.match(rest):
+        return 0
+    if quoted:
+        # A shallower line lazily continues the deeper paragraph.
+        return max(quoted, depth)
     # Indented code cannot start a paragraph, only continue one.
-    return quoted or not rest.startswith("    ")
+    return 0 if rest.startswith("    ") else depth
 
 
 def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
@@ -380,7 +392,7 @@ def _parse_review_marker(content: str) -> tuple[tuple[str, str] | None, str]:
     markers: list[tuple[str, str]] = []
     fence: str | None = None
     span: tuple[int, int] | None = None
-    quoted = False
+    quoted = 0
     html = _HtmlBlockTracker()
     raws = content.splitlines(keepends=True)
     lines = [(raw.splitlines() or [""])[0] for raw in raws]

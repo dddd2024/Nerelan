@@ -745,3 +745,48 @@ def test_ordinary_lists_are_not_quotes() -> None:
 def test_lazy_quoted_failure_outcome_still_refused() -> None:
     content = "\n".join(["> Template:", "Outcome: REJECT", "", ACCEPT])
     assert _parse_review_marker(content) == (None, "review_explicit_failure_outcome")
+
+
+# Regression from independent REJECT at f3dde86a: an invalid backtick fence
+# (info string containing a backtick) is quoted paragraph text, and a Setext
+# underline only completes a quoted paragraph at its own quote depth.
+STILL_QUOTED = {
+    "invalid_fence_info": ["> ```foo`"],
+    "invalid_fence_info_nested": ["> > ```foo`"],
+    "invalid_fence_info_spaced": ["> ``` foo`bar"],
+    "lazy_after_invalid_fence": ["> quote", "> ```foo`"],
+    "standalone_setext_underline": ["> ==="],
+    "nested_standalone_setext_underline": ["> > ==="],
+    "lazy_setext_underline": ["> quote", "==="],
+    "shallower_setext_underline": ["> > quote", "> ==="],
+    "deeper_setext_underline": ["> quote", "> > ==="],
+    "plain": ["> quote"],
+    "nested_plain": ["> > quote"],
+}
+
+
+@pytest.mark.parametrize("case", sorted(STILL_QUOTED))
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_quoted_paragraph_text_keeps_lazy_marker_quoted(case: str, newline: str) -> None:
+    quote = STILL_QUOTED[case]
+    content = newline.join([*quote, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (None, "review_verdict_missing_or_ambiguous")
+    # A genuine marker after the quote is terminated still counts.
+    content = newline.join([*quote, FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+
+
+@pytest.mark.parametrize("quote", [
+    ["> ```foo`", ""], ["> > ```foo`", ""], ["> ``` foo`bar", ""],
+    ["> quote", "> ==="], ["> quote", "> ---"], ["> quote", "> -"],
+    ["> quote", ">    =  "], ["> > quote", "> > ==="], ["> quote", "> more", "> ==="],
+    ["> ~~~foo"], ["> ~~~foo`bar"], ["> ```foo"], ["> ```"], ["> > ~~~foo"],
+])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_terminated_quote_paragraph_then_outside_marker_accepted(quote: list[str],
+                                                                 newline: str) -> None:
+    content = newline.join([*quote, ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
+    # A quoted template beside the genuine marker is still not a declaration.
+    content = newline.join([*quote, ">", "> " + FAKE, "", ACCEPT]) + newline
+    assert _parse_review_marker(content) == (("ACCEPT", SHA), "")
