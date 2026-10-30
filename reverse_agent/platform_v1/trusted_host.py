@@ -453,10 +453,12 @@ class CombinedTrustedHost:
             native = connection.get("auth_method") == "external_cli_session"
             cost_class = binding_cost_class(binding, connection, owner)
             quota = None if forecast else self._quota_check(binding)
-            provider = connection.get("executor_provider_id", "")
             try:
-                quota_view = (forecast_evidence.get(connection.get("account_ref") or connection["connection_id"], {})
-                              if forecast else self._subscription_quotas().get(provider, {})) if native else {}
+                # Headroom comes from this connection's own account, never the provider summary,
+                # and only while that observation is fresh now (persisted forecast evidence ages too).
+                account = connection.get("account_ref") or connection.get("connection_id")
+                quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
+                              if forecast else self._account_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
                 windows = ()
@@ -841,9 +843,18 @@ class CombinedTrustedHost:
                         raise TaskStoreError("QUOTA_WAIT:review_resume_requires_author_ancestry")
                     try:
                         self.__dict__.pop("_subscription_quota_cache", None)
-                        observations = _account_observations(self._subscription_quotas())
-                        accounts = {q["account_ref"] for q in observations}
-                        fresh_evidence = {account: quota_reservation.observation(account, observations, clock=time.time) for account in accounts}
+                        quotas = self._subscription_quotas()
+                        # Each native connection is forecast only from its own account's evidence.
+                        fresh_evidence = {}
+                        for connection_id in dict.fromkeys(b["connection_id"] for b in self._store.list_bindings_public()):
+                            try:
+                                conn = self._store.get_connection_public(connection_id)
+                            except KeyError:
+                                continue  # a binding without a connection has no account evidence
+                            if conn.get("auth_method") == "external_cli_session":
+                                account = conn.get("account_ref") or conn["connection_id"]
+                                fresh_evidence[account] = quota_reservation.observation(
+                                    account, self._account_quota_candidates(conn, quotas), clock=time.time)
                         decision = self._resolve_task_model(planned, goal=goal, forecast=True,
                                                            quota_evidence=fresh_evidence)
                     except TaskStoreError as exc:
@@ -870,16 +881,7 @@ class CombinedTrustedHost:
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)
-            quotas = self._subscription_quotas()
-            # A Magpie provider summary is never account evidence. A connection without a
-            # recorded account is the machine's own CLI login: only the local CLI
-            # observation describes it, never an external Magpie account.
-            observed = _account_observations(quotas, account)
-            if connection.get("account_ref"):
-                return observed
-            own = quotas.get(_LOCAL_CLI_KEY + provider, quotas.get(provider))
-            local = [dict(own, account_ref=account)] if isinstance(own, Mapping) and not _external_quota(own) else []
-            return local + [q for q in observed if not _external_quota(q)]
+            return self._account_quota_candidates(connection, self._subscription_quotas())
         evidence = quota_reservation.observation(account, read(account), refresh=read)
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
@@ -897,16 +899,43 @@ class CombinedTrustedHost:
                         "until": datetime.fromtimestamp(until, timezone.utc).isoformat().replace("+00:00", "Z")}
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
             need, source = typical_need(records, binding, self._store.list_bindings_public())
-            verdict = check(connection, self._subscription_quotas(), need)
+            verdict = check(connection, {connection.get("executor_provider_id"): self._account_quota(connection)}, need)
             return verdict | {"need_source": source} if verdict else None
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
             return {"decision": "error", "reason": "quota_check_failed"}
 
+    def _account_quota_candidates(self, connection: Mapping[str, Any], quotas: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+        """Observations of this connection's own account.
+
+        A Magpie provider summary is never account evidence. A connection without a
+        recorded account is the machine's own CLI login: only the local CLI
+        observation describes it, never an external Magpie account.
+        """
+        account = connection.get("account_ref") or connection["connection_id"]
+        observed = _account_observations(quotas, account)
+        if connection.get("account_ref"):
+            return observed
+        provider = connection.get("executor_provider_id") or ""
+        own = quotas.get(_LOCAL_CLI_KEY + provider, quotas.get(provider))
+        local = [dict(own, account_ref=account)] if isinstance(own, Mapping) and not _external_quota(own) else []
+        return local + [q for q in observed if not _external_quota(q)]
+
+    def _account_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
+        """The usable observation of this connection's own account, or {} when there is none."""
+        account = connection.get("account_ref") or connection.get("connection_id")
+        candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
+        return _usable_quota(account, candidates)
+
     def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
-        """When a run on this connection last failed for quota, and the account has not reset since."""
+        """When a run on this account last failed for quota, and the account has not reset since."""
         from .quota_guard import ACCOUNT_LIMIT, limit_hit_until
+        # A recorded account is shared by every connection naming it; an unbound login is only itself.
+        account = connection.get("account_ref")
+        connections = {c["connection_id"] for c in self._store.list_connections_public()
+                       if c.get("account_ref") == account} if account else set()
+        connections.add(connection.get("connection_id"))
         bindings = [b["binding_id"] for b in self._store.list_bindings_public()
-                    if b["connection_id"] == connection.get("connection_id")]
+                    if b["connection_id"] in connections]
         if not bindings:
             return None
         now = time.time()
@@ -928,7 +957,8 @@ class CombinedTrustedHost:
             if hit_at > now:
                 continue
             if quota is None:
-                quota = self._subscription_quotas().get(connection.get("executor_provider_id") or "", {})
+                # Only the fresh observation may extend a hold; stale diagnostics never do.
+                quota = self._account_quota(connection)
             stated = None
             try:
                 reset = datetime.fromisoformat(row["failure_reset_at"].replace("Z", "+00:00"))
@@ -1413,6 +1443,20 @@ def _account_observations(quotas: Mapping[str, Any], account: str | None = None)
             and isinstance(q.get("account_ref"), str) and q["account_ref"]
             and (account is None or q["account_ref"] == account)
             and (not _external_quota(q) or key == _MAGPIE_ACCOUNT_KEY + q["account_ref"])]
+
+
+def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Capacity view of an account's observation under the admission freshness contract.
+
+    Stale, undated, future-dated or unknown evidence keeps its uncertainty flags but
+    contributes no windows: unknown capacity, never headroom, confirmed exhaustion or
+    a hold extension.
+    """
+    from . import quota_reservation
+    if not account or not candidates:
+        return {}
+    selected = quota_reservation.observation(account, candidates, clock=time.time)
+    return selected if selected["fresh"] else dict(selected, windows=[])
 
 
 def _utc_now() -> str:
