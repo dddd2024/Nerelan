@@ -841,8 +841,8 @@ class CombinedTrustedHost:
                         raise TaskStoreError("QUOTA_WAIT:review_resume_requires_author_ancestry")
                     try:
                         self.__dict__.pop("_subscription_quota_cache", None)
-                        observations = self._subscription_quotas().values()
-                        accounts = {q.get("account_ref") for q in observations if q.get("account_ref")}
+                        observations = _account_observations(self._subscription_quotas())
+                        accounts = {q["account_ref"] for q in observations}
                         fresh_evidence = {account: quota_reservation.observation(account, observations, clock=time.time) for account in accounts}
                         decision = self._resolve_task_model(planned, goal=goal, forecast=True,
                                                            quota_evidence=fresh_evidence)
@@ -871,14 +871,15 @@ class CombinedTrustedHost:
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)
             quotas = self._subscription_quotas()
-            # A provider summary for another account is never account evidence. A
-            # connection without a recorded account is the machine's own CLI login,
-            # which is exactly what the provider-keyed observation describes.
-            own = quotas.get(provider)
-            if not connection.get("account_ref") and isinstance(own, Mapping):
-                own = dict(own, account_ref=account)
-            return [q for q in (own, *(v for k, v in quotas.items() if k != provider))
-                    if isinstance(q, Mapping) and q.get("account_ref") == account]
+            # A Magpie provider summary is never account evidence. A connection without a
+            # recorded account is the machine's own CLI login: only the local CLI
+            # observation describes it, never an external Magpie account.
+            observed = _account_observations(quotas, account)
+            if connection.get("account_ref"):
+                return observed
+            own = quotas.get(_LOCAL_CLI_KEY + provider, quotas.get(provider))
+            local = [dict(own, account_ref=account)] if isinstance(own, Mapping) and not _external_quota(own) else []
+            return local + [q for q in observed if not _external_quota(q)]
         evidence = quota_reservation.observation(account, read(account), refresh=read)
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
@@ -1027,7 +1028,11 @@ class CombinedTrustedHost:
         return _cached(self, "_token_usage_cache", lambda: binding_token_totals(task_token_records(self._task_store)))
 
     def _subscription_quotas(self) -> dict[str, Any]:
-        """Account windows as the official CLIs last reported them, keyed by native provider."""
+        """Account windows as the official CLIs last reported them, keyed by native provider.
+
+        With Magpie enabled the map also holds the reserved account and local-CLI
+        keys from :meth:`_merge_magpie_quotas`; provider lookups are unchanged.
+        """
         if os.environ.get("REVERSE_AGENT_SUBSCRIPTION_QUOTA") == "0":
             return {}
         from ..model_access.subscription_quota import claude_quota, codex_quota
@@ -1048,7 +1053,7 @@ class CombinedTrustedHost:
     def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
         """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
         from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
-        from ..model_access.subscription_quota import magpie_quota_windows
+        from ..model_access.subscription_quota import magpie_account_quotas, magpie_quota_windows
         if not magpie_enabled(os.environ):
             return local
         try:
@@ -1059,7 +1064,17 @@ class CombinedTrustedHost:
         magpie = magpie_quota_windows(snapshot)
         merged = dict(local)
         for key, quota in magpie.items():
+            if isinstance(local.get(key), Mapping) and not _external_quota(local[key]):
+                merged[_LOCAL_CLI_KEY + key] = local[key]  # the machine-local fallback stays distinct
             merged[key] = quota
+        # Every identified account keeps its own windows; a repeated identity is
+        # conflicting and contributes no account evidence.
+        accounts = snapshot.get("accounts") if isinstance(snapshot, Mapping) else None
+        if isinstance(accounts, list):
+            refs = [a.get("account_ref") for a in accounts if isinstance(a, Mapping)]
+            for ref, quota in magpie_account_quotas(snapshot).items():
+                if refs.count(ref) == 1:
+                    merged[_MAGPIE_ACCOUNT_KEY + ref] = quota
         return merged
 
     def _claude_reset_quota_recheck(self) -> None:
@@ -1381,6 +1396,23 @@ class CombinedTrustedHost:
 
 
 _CACHE_SECONDS = 60.0
+# Reserved keys in the mixed quota map. Provider keys stay the legacy summary;
+# these never equal a provider id, so per-account and displaced local evidence
+# cannot overwrite it or each other.
+_MAGPIE_ACCOUNT_KEY = "magpie-account:"
+_LOCAL_CLI_KEY = "local-cli:"
+
+
+def _external_quota(quota: Mapping[str, Any]) -> bool:
+    return quota.get("source") == "magpie" or quota.get("provenance") == "EXTERNAL_MAGPIE"
+
+
+def _account_observations(quotas: Mapping[str, Any], account: str | None = None) -> list[Mapping[str, Any]]:
+    """Account-attributed observations; Magpie evidence counts only under its own account key."""
+    return [q for key, q in quotas.items() if isinstance(q, Mapping)
+            and isinstance(q.get("account_ref"), str) and q["account_ref"]
+            and (account is None or q["account_ref"] == account)
+            and (not _external_quota(q) or key == _MAGPIE_ACCOUNT_KEY + q["account_ref"])]
 
 
 def _utc_now() -> str:

@@ -508,14 +508,24 @@ def _quota_host(monkeypatch, provider, quotas, account_ref=None):
     return calls
 
 
+def local_codex(now):
+    # Shape produced by subscription_quota.codex_quota from this machine's own CLI session log.
+    return dict(magpie_codex(now), provenance="OFFICIAL_VIA_CLI", source="codex_session_log", account_ref=None)
+
+
 def test_host_adopts_provider_observation_for_its_own_cli_login(monkeypatch):
     import time
     now = time.time()
-    calls = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now), "claude-code": dict(magpie_codex(now), used=99)})
+    calls = _quota_host(monkeypatch, "codex", {"codex": local_codex(now), "claude-code": dict(magpie_codex(now), used=99)})
     [call] = calls
     assert call["account_ref"] == "conn" and call["evidence"]["account_ref"] == "conn"
-    assert call["evidence"]["fresh"]
+    assert call["evidence"]["fresh"] and call["evidence"]["source"] == "codex_session_log"
     assert reservation.admission(call["evidence"], call["need"])["decision"] == "ok"
+    # An external Magpie account summary is never relabeled as the native login.
+    [call] = _quota_host(monkeypatch, "codex", {"codex": magpie_codex(now)})
+    assert call["evidence"]["account_ref"] == "conn" and call["evidence"]["state"] == "UNKNOWN"
+    assert not call["evidence"]["fresh"] and not call["evidence"]["eligible"]
+    assert reservation.admission(call["evidence"], call["need"])["decision"] == "quota_wait"
 
 
 def test_host_keeps_explicit_account_identity_and_skips_quota_less_sessions(monkeypatch):
