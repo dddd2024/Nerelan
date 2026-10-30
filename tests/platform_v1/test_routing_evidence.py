@@ -482,15 +482,71 @@ def test_native_login_unavailable_is_not_runnable(readiness_host, executor):
     assert caught.value.decision['excluded_candidates'][0]['filter'] == 'executor_fitness'
 
 
+_NATIVE_QUOTA_SOURCES = {'codex': 'codex_session_log', 'claude-code': 'claude_rate_limit_event'}
+
+
+def local_cli_quota(provider, windows, **overrides):
+    """Test evidence metadata only: wraps unchanged windows as a fresh machine-local CLI reading."""
+    from datetime import datetime, timezone
+    import time
+    observed_at = datetime.fromtimestamp(time.time(), timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+    return {'state': 'OBSERVED', 'provenance': 'OFFICIAL_VIA_CLI', 'source': _NATIVE_QUOTA_SOURCES[provider],
+            'observed_at': observed_at, 'windows': windows} | overrides
+
+
+def _shifted(seconds):
+    from datetime import datetime, timezone
+    import time
+    return datetime.fromtimestamp(time.time() + seconds, timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
+
+
 @pytest.mark.parametrize('executor,provider', [('codex', 'codex'), ('claude_code', 'claude-code')])
 def test_native_real_quota_guard_excludes_confirmed_exhaustion_even_pin(readiness_host, executor, provider):
     host = readiness_host
     add_ready_account(host, executor)
-    host.test_quotas[provider] = {'windows': [{'window': 'weekly', 'basis': 'official_percent', 'used_percent': 100}]}
+    host.test_quotas[provider] = local_cli_quota(
+        provider, [{'window': 'weekly', 'basis': 'official_percent', 'used_percent': 100}])
     assert host._quota_check(host._store.get_binding_public('native'))['reason'] == 'observed_exhausted'
     with pytest.raises(TaskStoreError) as caught:
         host._resolve_task_model(routing_task(), goal=SimpleNamespace(binding_ref='native'))
     assert caught.value.decision['excluded_candidates'][0]['filter'] == 'quota_exhausted'
+
+
+_NATIVE_NOT_FRESH_EVIDENCE = {
+    'missing_source': lambda: {'source': None, 'provenance': ''},
+    'undated': lambda: {'observed_at': None},
+    'stale': lambda: {'observed_at': _shifted(-700)},
+    'future': lambda: {'observed_at': _shifted(60)},
+    'unknown_state': lambda: {'state': 'UNKNOWN'},
+    'external_magpie_summary': lambda: {'source': 'magpie', 'provenance': 'EXTERNAL_MAGPIE'},
+}
+
+
+@pytest.mark.parametrize('kind', sorted(_NATIVE_NOT_FRESH_EVIDENCE))
+@pytest.mark.parametrize('executor,provider', [('codex', 'codex'), ('claude_code', 'claude-code')])
+def test_native_unfresh_or_foreign_quota_is_not_confirmed_exhaustion(readiness_host, executor, provider, kind):
+    host = readiness_host
+    add_ready_account(host, executor)
+    host.test_quotas[provider] = local_cli_quota(
+        provider, [{'window': 'weekly', 'basis': 'official_percent', 'used_percent': 100}],
+        **_NATIVE_NOT_FRESH_EVIDENCE[kind]())
+    verdict = host._quota_check(host._store.get_binding_public('native'))
+    # Unknown capacity is never confirmed exhaustion; this asserts nothing about admission.
+    assert verdict['reason'] == 'quota_unknown'
+    try:
+        host._resolve_task_model(routing_task(), goal=SimpleNamespace(binding_ref='native'))
+    except TaskStoreError as caught:
+        excluded = caught.decision.get('excluded_candidates') or []
+        assert all(row['filter'] != 'quota_exhausted' for row in excluded)
+
+
+@pytest.mark.parametrize('executor,provider', [('codex', 'codex'), ('claude_code', 'claude-code')])
+def test_native_fresh_full_window_control_is_confirmed_exhaustion(readiness_host, executor, provider):
+    host = readiness_host
+    add_ready_account(host, executor)
+    host.test_quotas[provider] = local_cli_quota(
+        provider, [{'window': 'weekly', 'basis': 'official_percent', 'used_percent': 100}])
+    assert host._quota_check(host._store.get_binding_public('native'))['reason'] == 'observed_exhausted'
 
 
 def add_magpie(host):
