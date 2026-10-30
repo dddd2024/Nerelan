@@ -14,9 +14,12 @@ import pytest
 
 from reverse_agent.model_access import magpie, subscription_quota
 from reverse_agent.model_access.resources import _quota
+from reverse_agent.platform_v1 import model_router, run_store
 from reverse_agent.platform_v1 import quota_reservation as reservation
 from reverse_agent.platform_v1 import trusted_host, usage_ledger
+from reverse_agent.platform_v1.goal_service import PlannedTask
 from reverse_agent.platform_v1.quota_guard import check
+from reverse_agent.platform_v1.run_store import TaskStoreError
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
@@ -267,7 +270,8 @@ def test_legacy_provider_guard_and_presentation_ignore_reserved_keys(monkeypatch
     for need in (None, 0.2):
         assert check(connection, merged, need) == check(connection, legacy, need)
     assert _quota(connection, ("openai", "codex-cli", "codex"), merged) == dict(merged["codex"])
-    assert check(connection, merged, None)["decision"] != "ok"  # A's 95% window still drives the guard
+    # The legacy summary still describes A's 95% window; host consumers no longer read it (below).
+    assert check(connection, merged, None)["decision"] != "ok"
 
 
 def test_resume_observations_only_attribute_account_keyed_magpie_evidence(monkeypatch):
@@ -278,3 +282,267 @@ def test_resume_observations_only_attribute_account_keyed_magpie_evidence(monkey
     assert sorted(q["account_ref"] for q in observations) == ["synthetic-b"]
     evidence = reservation.observation("synthetic-a", observations)
     assert evidence["state"] == "UNKNOWN" and not evidence["eligible"]
+
+
+# Guard, hold, ranking and resume consumers. Account refs are synthetic metadata:
+# nothing here proves persistence or which account a native CLI actually uses.
+
+def _accounts_host(monkeypatch, snapshot, accounts, *, local=None, enabled=True):
+    """Real ``_quota_check``/``_limit_hit_until``/routing over several native connections."""
+    h = _host(monkeypatch, snapshot, local=local, enabled=enabled)
+    connections = {conn: {"connection_id": conn, "executor_provider_id": "codex",
+                          "auth_method": "external_cli_session", "account_ref": ref}
+                   for conn, ref in accounts.items()}
+    bindings = [{"binding_id": "bind-" + conn, "connection_id": conn, "executor_id": "codex",
+                 "model_id": "gpt-6.1-sol", "enabled": True} for conn in connections]
+    h.host._store = SimpleNamespace(list_bindings_public=lambda: bindings,
+                                    list_connections_public=lambda: list(connections.values()),
+                                    get_connection_public=lambda conn: connections[conn],
+                                    list_executors_public=lambda: [],
+                                    get_agent_roster_public=lambda: {"roles": {}})
+    h.host._task_store = run_store.TaskStore(":memory:")
+    monkeypatch.setattr(h.host, "_runnable_bindings", lambda: {b["binding_id"] for b in bindings})
+    h.connections, h.bindings, h.base = connections, {b["binding_id"]: b for b in bindings}, int(time.time())
+    return h
+
+
+def _fail(h, binding, *, reset_in=None, age=0, classification="codex_usage_limit"):
+    tasks = h.host._task_store
+    task = tasks.create_task(title="failure", repository="o/r", executor_kind="codex", binding_ref=binding)
+    reset = _iso(h.base + reset_in) if reset_in is not None else ""
+    tasks.classify_failure(task.id, classification=classification, failure_reset_at=reset)
+    tasks._conn.execute("UPDATE tasks SET failure_at = ?, updated_at = ? WHERE id = ?",
+                        (_iso(h.base - age), _iso(h.base - age), task.id))
+    tasks._conn.commit()
+    return task
+
+
+def _history(h):
+    return [tuple(r) for r in h.host._task_store._conn.execute(
+        "SELECT id, status, failure_classification, failure_reset_at, failure_at, updated_at FROM tasks ORDER BY id")]
+
+
+def _decision(verdict):
+    return verdict["decision"], verdict["reason"]
+
+
+def _route(monkeypatch, h, task=None, **kwargs):
+    """Run the ordinary task-aware router and return the candidate input it built."""
+    for name, value in (("_routing_refresh_quota_for_signal", lambda: {"state": "UNKNOWN"}),
+                        ("_routing_bind_discovered", lambda: None), ("_usage_profiles", lambda: {}),
+                        ("_routing_model_metadata", lambda: {}), ("_routing_paid_allowed", lambda *a: False),
+                        ("_routing_availability_history", lambda: {}),
+                        ("_routing_probe_window_allowed", lambda goal: False),
+                        ("_routing_availability", lambda *a, **k: {"state": "AVAILABLE", "reason": "fixture"})):
+        monkeypatch.setattr(h.host, name, value)
+    seen = []
+
+    def select(candidates, **_):
+        seen.append({c["binding_id"]: c for c in candidates})
+        return {"binding_ref": candidates[0]["binding_id"]}
+    monkeypatch.setattr(model_router, "select_model", select)
+    CombinedTrustedHost._resolve_task_model(h.host, task or PlannedTask("T1", "t", "i", difficulty=3), **kwargs)
+    return seen[-1]
+
+
+@pytest.mark.parametrize("order", [1, -1])
+def test_foreign_exhausted_summary_neither_switches_nor_extends_a_bound_account(monkeypatch, order):
+    # The frozen-8af19684 probe: A=100%, B=20%; B was switched and its 600s hold became A's 3600s.
+    accounts = (_account("synthetic-a", 100.0), _account("synthetic-b", 20.0))[::order]
+    h = _accounts_host(monkeypatch, _snapshot(*accounts), {"conn-a": "synthetic-a", "conn-b": "synthetic-b"})
+    merged = h.host._subscription_quotas()
+    assert merged["codex"]["account_ref"] == "synthetic-a"
+    # The legacy summary itself is unchanged presentation: it still describes A.
+    assert _decision(check(h.connections["conn-b"], merged, None)) == ("switch", "observed_exhausted")
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-b"])) == ("ok", "no_signal")
+    assert h.host._quota_guarded("coder", "codex", "bind-conn-b", {}) == ("codex", "bind-conn-b")
+    assert h.host._quota_guard_entries() == []
+    # Matching confirmed exhaustion still refuses through the real guard.
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-a"])) == ("switch", "observed_exhausted")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:observed_exhausted:no_alternative"):
+        h.host._quota_guarded("coder", "codex", "bind-conn-a", {})
+    _fail(h, "bind-conn-b", reset_in=600)
+    history = _history(h)
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == h.base + 600
+    verdict = h.host._quota_check(h.bindings["bind-conn-b"])
+    assert _decision(verdict) == ("switch", "limit_hit") and verdict["until"] == _iso(h.base + 600)
+    assert h.host._limit_hit_until(h.connections["conn-a"]) is None  # B's failure is not A's hold
+    assert _history(h) == history and h.calls == []
+
+
+def test_bound_account_with_its_own_exhaustion_still_refuses_and_holds_to_its_reset(monkeypatch):
+    h = _accounts_host(monkeypatch, _snapshot(_account("synthetic-a", 20.0), _account("synthetic-b", 100.0)),
+                       {"conn-a": "synthetic-a", "conn-b": "synthetic-b"})
+    assert h.host._subscription_quotas()["codex"]["account_ref"] == "synthetic-b"
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-b"])) == ("switch", "observed_exhausted")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:observed_exhausted:no_alternative"):
+        h.host._quota_guarded("coder", "codex", "bind-conn-b", {})
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-a"])) == ("ok", "no_signal")
+    _fail(h, "bind-conn-b", reset_in=600)
+    # B's own exhausted five-hour window extends B's stated hold, as before.
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == pytest.approx(h.base + 3600, abs=5)
+    assert h.host._limit_hit_until(h.connections["conn-a"]) is None
+
+
+def test_same_account_aliases_share_holds_and_reservation_identity(monkeypatch):
+    h = _accounts_host(monkeypatch, _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 20.0)),
+                       {"conn-b1": "synthetic-b", "conn-b2": "synthetic-b", "conn-a": "synthetic-a"})
+    for binding in ("bind-conn-b1", "bind-conn-b2"):
+        assert _decision(h.host._quota_check(h.bindings[binding])) == ("ok", "no_signal")
+    _fail(h, "bind-conn-b1", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-b1"]) == h.base + 600
+    assert h.host._limit_hit_until(h.connections["conn-b2"]) == h.base + 600
+    assert h.host._limit_hit_until(h.connections["conn-a"]) is None
+    for binding in ("bind-conn-b1", "bind-conn-b2"):
+        h.host._prepare_task_quota(SimpleNamespace(id="t-" + binding, binding_ref=binding, executor_kind="codex",
+                                                   kind="code", difficulty=3))
+    assert [(c["binding_ref"], c["account_ref"], c["evidence"]["account_ref"]) for c in h.calls] == [
+        ("bind-conn-b1", "synthetic-b", "synthetic-b"), ("bind-conn-b2", "synthetic-b", "synthetic-b")]
+    assert [[w["used_percent"] for w in c["evidence"]["windows"]] for c in h.calls] == [[20.0, 30.0]] * 2
+
+
+def _malformed(ref):
+    account = _account(ref, 100.0)
+    account["windows"] = [{"name": "5 hours", "used_percent": "100", "resets_at": "not-a-time"}]
+    return account
+
+
+@pytest.mark.parametrize("snapshot", [
+    {"status": "unavailable", "accounts": [], "reason": "request_failed"},
+    OSError("gateway down"),
+    _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 100.0, state="STALE")),
+    _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 100.0, state="UNKNOWN")),
+    _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 10.0), _account("synthetic-b", 100.0)),
+    _snapshot(_account("synthetic-a", 100.0), _malformed("synthetic-b")),
+], ids=["unavailable", "fetch_error", "stale", "unknown", "conflicting", "malformed"])
+def test_missing_or_untrusted_own_evidence_stays_unknown_and_never_borrows_a_summary(monkeypatch, snapshot):
+    h = _accounts_host(monkeypatch, snapshot, {"conn-b": "synthetic-b"})
+    assert "magpie-account:synthetic-b" not in h.host._subscription_quotas()
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-b"])) == ("ok", "quota_unknown")
+    _fail(h, "bind-conn-b", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == h.base + 600
+    # Unknown account evidence never produces a refusal or a fresh admission.
+    h.host._prepare_task_quota(SimpleNamespace(id="t", binding_ref="bind-conn-b", executor_kind="codex",
+                                               kind="code", difficulty=3))
+    _assert_unknown(h.calls[-1], "synthetic-b")
+
+
+def test_quota_source_failure_is_reported_not_silenced(monkeypatch):
+    h = _accounts_host(monkeypatch, _snapshot(_account("synthetic-b", 20.0)), {"conn-b": "synthetic-b"})
+
+    def unavailable():
+        raise OSError("fixture quota source down")
+    monkeypatch.setattr(h.host, "_subscription_quotas", unavailable)
+    assert h.host._quota_check(h.bindings["bind-conn-b"]) == {"decision": "error", "reason": "quota_check_failed"}
+    _fail(h, "bind-conn-b", reset_in=600)
+    with pytest.raises(OSError, match="fixture quota source down"):
+        h.host._limit_hit_until(h.connections["conn-b"])
+
+
+def test_unbound_native_login_uses_only_its_genuine_local_cli_source(monkeypatch):
+    # A Magpie account whose ref equals the connection id is still not the machine's login.
+    snapshot = _snapshot(_account("synthetic-a", 100.0), _account("conn-c", 100.0))
+    h = _accounts_host(monkeypatch, snapshot, {"conn-c": None}, local=_local_codex(used=40.0))
+    assert h.host._subscription_quotas()["codex"]["source"] == "magpie"
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-c"])) == ("ok", "no_signal")
+    _fail(h, "bind-conn-c", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-c"]) == h.base + 600
+    # The genuine local observation of exhaustion still refuses and extends the hold.
+    exhausted = _accounts_host(monkeypatch, _snapshot(_account("synthetic-a", 20.0)), {"conn-c": None},
+                               local=_local_codex(used=100.0))
+    assert _decision(exhausted.host._quota_check(exhausted.bindings["bind-conn-c"])) == ("switch", "observed_exhausted")
+    _fail(exhausted, "bind-conn-c", reset_in=600)
+    assert exhausted.host._limit_hit_until(exhausted.connections["conn-c"]) == pytest.approx(exhausted.base + 3600, abs=5)
+
+
+def _resets(account, *seconds):
+    # Move each window's reset so a borrowed foreign reset would be distinguishable.
+    for window, offset in zip(account["windows"], seconds):
+        window["resets_at"] = _iso(time.time() + offset)
+    return account
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_unbound_native_login_without_local_source_ignores_foreign_magpie(monkeypatch, enabled):
+    snapshot = _snapshot(_resets(_account("synthetic-a", 100.0), 1800), _resets(_account("conn-c", 100.0), 2400))
+    h = _accounts_host(monkeypatch, snapshot, {"conn-c": None}, enabled=enabled)
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-c"])) == ("ok", "quota_unknown")
+    _fail(h, "bind-conn-c", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-c"]) == h.base + 600
+    # Without a stated reset the fixed hold applies, not a foreign window reset.
+    fallback = _accounts_host(monkeypatch, snapshot, {"conn-c": None}, enabled=enabled)
+    _fail(fallback, "bind-conn-c")
+    assert fallback.host._limit_hit_until(fallback.connections["conn-c"]) == fallback.base + 3600
+
+
+def test_expired_hold_and_seven_day_bound_are_unchanged_by_account_scoping(monkeypatch):
+    snapshot = _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 100.0, weekly=100.0))
+    h = _accounts_host(monkeypatch, snapshot, {"conn-b": "synthetic-b"})
+    _fail(h, "bind-conn-b", reset_in=-1, age=7200)
+    _fail(h, "bind-conn-b", reset_in=6 * 86400, age=2 * 86400)
+    history = _history(h)
+    # Even B's own exhausted windows cannot revive an expired or over-bound stated hold.
+    assert h.host._limit_hit_until(h.connections["conn-b"]) is None
+    # A's exhausted weekly window resets after B's bounded stated reset; it must not extend B.
+    foreign = _resets(_account("synthetic-a", 100.0, weekly=100.0), 3600, 6 * 86400)
+    exact = _accounts_host(monkeypatch, _snapshot(foreign, _account("synthetic-b", 20.0)), {"conn-b": "synthetic-b"})
+    _fail(exact, "bind-conn-b", reset_in=5 * 86400, age=2 * 86400)
+    assert exact.host._limit_hit_until(exact.connections["conn-b"]) == exact.base + 5 * 86400
+    assert _history(h) == history and h.calls == [] and exact.calls == []
+
+
+def test_ordinary_routing_candidates_take_headroom_and_guard_from_their_own_account(monkeypatch):
+    snapshot = _snapshot(_account("synthetic-a", 100.0, weekly=50.0), _account("synthetic-b", 20.0),
+                         _account("conn-c", 100.0))
+    h = _accounts_host(monkeypatch, snapshot, {"conn-a": "synthetic-a", "conn-b": "synthetic-b", "conn-c": None},
+                       local=_local_codex(used=40.0))
+    candidates = _route(monkeypatch, h)
+    view = {b: (_decision(c["quota"]), c["short_headroom"], c["weekly_headroom"], c["quota_headroom"])
+            for b, c in candidates.items()}
+    assert view == {
+        "bind-conn-a": (("switch", "observed_exhausted"), 0.0, 0.5, 0.0),
+        "bind-conn-b": (("ok", "no_signal"), pytest.approx(0.8), pytest.approx(0.7), pytest.approx(0.7)),
+        "bind-conn-c": (("ok", "no_signal"), pytest.approx(0.6), pytest.approx(0.9), pytest.approx(0.6))}
+    assert candidates["bind-conn-b"]["short_resets_at"] == pytest.approx(h.base + 3600, abs=5)
+    # Missing own evidence is unknown headroom, never another account's.
+    bare = _accounts_host(monkeypatch, snapshot, {"conn-c": None, "conn-d": "synthetic-d"})
+    for candidate in _route(monkeypatch, bare).values():
+        assert _decision(candidate["quota"]) == ("ok", "quota_unknown")
+        assert (candidate["short_headroom"], candidate["weekly_headroom"], candidate["quota_headroom"]) == (None,) * 3
+
+
+def test_quota_wait_resume_forecasts_each_connection_from_its_own_account(monkeypatch):
+    snapshot = _snapshot(_account("synthetic-a", 100.0), _account("synthetic-b", 20.0), _account("conn-c", 100.0))
+    h = _accounts_host(monkeypatch, snapshot, {"conn-a": "synthetic-a", "conn-b": "synthetic-b", "conn-c": None},
+                       local=_local_codex(used=40.0))
+    link = {"goal_id": "g", "plan_task_id": "T1", "goal_revision": 1}
+    h.host._task_store = SimpleNamespace(_conn=SimpleNamespace(
+        execute=lambda sql, params: SimpleNamespace(fetchone=lambda: link)))
+    h.host._control_store.get_goal = lambda goal_id: SimpleNamespace(
+        id="g", revision=1, status="RUNNING", orchestration_mode="agent_team", binding_ref="",
+        tasks=[{"id": "T1", "title": "Finish", "instruction": "Finish", "difficulty": 3}])
+    routes = []
+    monkeypatch.setattr(h.host, "_resolve_task_model", lambda planned, **kw: routes.append(kw) or {
+        "binding_ref": "bind-conn-c", "executor_kind": "codex", "underpowered": False})
+    h.host._prepare_task_quota(SimpleNamespace(id="t", status="QUOTA_WAIT", binding_ref="bind-conn-c",
+                                               executor_kind="codex", kind="code", difficulty=3))
+    [route] = routes
+    evidence = route["quota_evidence"]
+    assert route["forecast"] is True and set(evidence) == {"synthetic-a", "synthetic-b", "conn-c"}
+    assert {a: (e["account_ref"], e["source"], [w["used_percent"] for w in e["windows"]])
+            for a, e in evidence.items()} == {
+        "synthetic-a": ("synthetic-a", "magpie", [100.0, 30.0]),
+        "synthetic-b": ("synthetic-b", "magpie", [20.0, 30.0]),
+        "conn-c": ("conn-c", "codex_session_log", [40.0, 10.0])}
+    [call] = h.calls
+    assert (call["account_ref"], call["evidence"]["source"], call["resume_route"]) == ("conn-c", "codex_session_log", None)
+
+    # The forecast router consumes that evidence without any further quota read.
+    def forbidden(*args, **kwargs):
+        pytest.fail("forecast read quota state")
+    monkeypatch.setattr(h.host, "_subscription_quotas", forbidden)
+    monkeypatch.setattr(h.host, "_quota_check", forbidden)
+    candidates = _route(monkeypatch, h, forecast=True, quota_evidence=evidence)
+    assert {b: c["short_headroom"] for b, c in candidates.items()} == {
+        "bind-conn-a": 0.0, "bind-conn-b": pytest.approx(0.8), "bind-conn-c": pytest.approx(0.6)}
+    assert all(c["quota"] is None for c in candidates.values())
