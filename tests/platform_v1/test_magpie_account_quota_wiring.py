@@ -546,3 +546,121 @@ def test_quota_wait_resume_forecasts_each_connection_from_its_own_account(monkey
     assert {b: c["short_headroom"] for b, c in candidates.items()} == {
         "bind-conn-a": 0.0, "bind-conn-b": pytest.approx(0.8), "bind-conn-c": pytest.approx(0.6)}
     assert all(c["quota"] is None for c in candidates.values())
+
+
+# Freshness: capacity consumers use the admission contract (600s), not the
+# Magpie parser's wider FRESH bound (900s). Clocks are controlled.
+
+def _clock(monkeypatch):
+    clock = [float(int(time.time()))]
+    monkeypatch.setattr(time, "time", lambda: clock[0])
+    return clock
+
+
+def _magpie_reading(user, used, *, now, age, reset_in=3600):
+    """One account read ``age`` seconds ago, through the real Magpie parser."""
+    raw = {"provider": "codex", "kind": "subscription", "user": user, "readAt": _iso(now - age),
+           "windows": [{"name": "5 hours", "used": used, "remaining": 100 - used, "resetsAt": _iso(now + reset_in)},
+                       {"name": "7 days", "used": 30, "remaining": 70, "resetsAt": _iso(now + 86400)}]}
+    [account] = magpie.parse_quotas({"object": "list", "data": [raw]}, datetime.fromtimestamp(now, timezone.utc))
+    return account
+
+
+def _headroom(candidate):
+    return (candidate["short_headroom"], candidate["weekly_headroom"], candidate["quota_headroom"],
+            candidate["short_resets_at"])
+
+
+def test_parser_fresh_reading_past_admission_freshness_is_unknown_capacity(monkeypatch):
+    # The external pair: B=100% read 700s ago with a future reset; A is a fresh 20% reading.
+    now = _clock(monkeypatch)[0]
+    a = _magpie_reading("synthetic-a", 20.0, now=now, age=60)
+    b = _magpie_reading("synthetic-b", 100.0, now=now, age=700)
+    assert (a["state"], b["state"]) == ("FRESH", "FRESH")  # the parser permits up to 900s
+    h = _accounts_host(monkeypatch, _snapshot(a, b), {"conn-a": a["account_ref"], "conn-b": b["account_ref"]})
+    ref = b["account_ref"]
+    # The diagnostic observation keeps B's windows and its own timestamp; it is not fresh.
+    candidates = h.host._account_quota_candidates(h.connections["conn-b"], h.host._subscription_quotas())
+    diagnostic = reservation.observation(ref, candidates, clock=time.time)
+    assert (diagnostic["fresh"], diagnostic["eligible"], diagnostic["uncertain"]) == (False, False, True)
+    assert [w["used_percent"] for w in diagnostic["windows"]] == [100.0, 30]
+    usable = h.host._account_quota(h.connections["conn-b"])
+    assert usable["windows"] == [] and usable["observed_at"] == diagnostic["observed_at"] == _iso(now - 700)
+    assert (usable["fresh"], usable["eligible"], usable["eligibility_reason"]) == (False, False, "refresh_required")
+    # Guard: unknown capacity, not confirmed exhaustion and not proof of eligibility.
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-b"])) == ("ok", "quota_unknown")
+    assert h.host._quota_guarded("coder", "codex", "bind-conn-b", {}) == ("codex", "bind-conn-b")
+    assert h.host._quota_guard_entries() == []
+    # Positive control: A's fresh reading remains usable capacity.
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-a"])) == ("ok", "no_signal")
+    routed = _route(monkeypatch, h)
+    assert _headroom(routed["bind-conn-b"]) == (None,) * 4
+    assert _headroom(routed["bind-conn-a"]) == (pytest.approx(0.8), pytest.approx(0.7), pytest.approx(0.7), now + 3600)
+    # Hold: the stated 600s stays 600s; B's stale exhausted window never extends it.
+    _fail(h, "bind-conn-b", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == now + 600
+    verdict = h.host._quota_check(h.bindings["bind-conn-b"])
+    assert _decision(verdict) == ("switch", "limit_hit") and verdict["until"] == _iso(now + 600)
+    assert h.host._limit_hit_until(h.connections["conn-a"]) is None
+    # Admission preparation still reads the original diagnostic and stays fail-closed.
+    h.host._prepare_task_quota(SimpleNamespace(id="t", binding_ref="bind-conn-b", executor_kind="codex",
+                                               kind="code", difficulty=3))
+    [call] = h.calls
+    evidence = call["evidence"]
+    assert (call["account_ref"], evidence["account_ref"], evidence["source"]) == (ref, ref, "magpie")
+    assert [w["used_percent"] for w in evidence["windows"]] == [100.0, 30]
+    assert (evidence["fresh"], evidence["eligible"], evidence["uncertain"]) == (False, False, True)
+    assert evidence["eligibility_reason"] == "refresh_required"
+    assert reservation.admission(evidence, call["need"])["decision"] == "quota_wait"
+
+
+def test_admission_freshness_boundary_governs_guard_hold_and_headroom(monkeypatch):
+    clock = _clock(monkeypatch)
+    now = clock[0]
+    a = _magpie_reading("synthetic-a", 20.0, now=now, age=0)
+    b = _magpie_reading("synthetic-b", 100.0, now=now, age=600, reset_in=1800)
+    h = _accounts_host(monkeypatch, _snapshot(a, b), {"conn-a": a["account_ref"], "conn-b": b["account_ref"]})
+    merged = h.host._subscription_quotas()
+    # Forecast evidence as persisted at ``now``; it ages with the clock like live evidence.
+    evidence = {ref: reservation.observation(ref, trusted_host._account_observations(merged, ref), clock=time.time)
+                for ref in (a["account_ref"], b["account_ref"])}
+    assert all(e["fresh"] for e in evidence.values())
+    _fail(h, "bind-conn-b", reset_in=600)
+    # Exactly 600s old: B's own fresh exhausted window refuses and extends its stated hold.
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == now + 1800
+    blocked = _route(monkeypatch, h)["bind-conn-b"]
+    assert _decision(blocked["quota"]) == ("switch", "limit_hit") and blocked["short_headroom"] == 0.0
+    forecast = _route(monkeypatch, h, forecast=True, quota_evidence=evidence)
+    assert _headroom(forecast["bind-conn-b"]) == (0.0, pytest.approx(0.7), 0.0, now + 1800)
+    # 601s old: the same reading no longer counts as capacity anywhere.
+    clock[0] = now + 1
+    assert h.host._limit_hit_until(h.connections["conn-b"]) == now + 600
+    for candidates in (_route(monkeypatch, h), _route(monkeypatch, h, forecast=True, quota_evidence=evidence)):
+        assert _headroom(candidates["bind-conn-b"]) == (None,) * 4
+        assert candidates["bind-conn-a"]["short_headroom"] == pytest.approx(0.8)  # fresh control
+    # Without a failure the guard sees unknown capacity after the boundary, exhaustion at it.
+    unfailed = _accounts_host(monkeypatch, _snapshot(a, b), {"conn-b": b["account_ref"]})
+    assert _decision(unfailed.host._quota_check(unfailed.bindings["bind-conn-b"])) == ("ok", "quota_unknown")
+    clock[0] = now
+    assert _decision(unfailed.host._quota_check(unfailed.bindings["bind-conn-b"])) == ("switch", "observed_exhausted")
+    with pytest.raises(TaskStoreError, match="quota_exhausted:observed_exhausted:no_alternative"):
+        unfailed.host._quota_guarded("coder", "codex", "bind-conn-b", {})
+
+
+@pytest.mark.parametrize("observed", ["stale", "future", "undated"])
+def test_untrusted_local_cli_exhaustion_neither_refuses_nor_extends_a_hold(monkeypatch, observed):
+    now = _clock(monkeypatch)[0]
+    local = _local_codex(used=100.0, age={"stale": 700, "future": -120, "undated": 0}[observed])
+    if observed == "undated":
+        local["observed_at"] = None
+    h = _accounts_host(monkeypatch, _snapshot(), {"conn-c": None}, local=local)
+    assert _decision(h.host._quota_check(h.bindings["bind-conn-c"])) == ("ok", "quota_unknown")
+    assert _headroom(_route(monkeypatch, h)["bind-conn-c"]) == (None,) * 4
+    _fail(h, "bind-conn-c", reset_in=600)
+    assert h.host._limit_hit_until(h.connections["conn-c"]) == now + 600
+    # Control: the same reading taken now is fresh confirmed exhaustion with its own reset hold.
+    fresh = _accounts_host(monkeypatch, _snapshot(), {"conn-c": None}, local=_local_codex(used=100.0))
+    assert _decision(fresh.host._quota_check(fresh.bindings["bind-conn-c"])) == ("switch", "observed_exhausted")
+    assert _headroom(_route(monkeypatch, fresh)["bind-conn-c"])[0] == 0.0
+    _fail(fresh, "bind-conn-c", reset_in=600)
+    assert fresh.host._limit_hit_until(fresh.connections["conn-c"]) == now + 3600

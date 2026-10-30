@@ -454,8 +454,10 @@ class CombinedTrustedHost:
             cost_class = binding_cost_class(binding, connection, owner)
             quota = None if forecast else self._quota_check(binding)
             try:
-                # Headroom comes from this connection's own account, never the provider summary.
-                quota_view = (forecast_evidence.get(connection.get("account_ref") or connection["connection_id"], {})
+                # Headroom comes from this connection's own account, never the provider summary,
+                # and only while that observation is fresh now (persisted forecast evidence ages too).
+                account = connection.get("account_ref") or connection.get("connection_id")
+                quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
                               if forecast else self._account_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
@@ -919,11 +921,10 @@ class CombinedTrustedHost:
         return local + [q for q in observed if not _external_quota(q)]
 
     def _account_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
-        """The selected observation of this connection's own account, or {} when there is none."""
-        from . import quota_reservation
+        """The usable observation of this connection's own account, or {} when there is none."""
         account = connection.get("account_ref") or connection.get("connection_id")
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
-        return quota_reservation.observation(account, candidates) if candidates else {}
+        return _usable_quota(account, candidates)
 
     def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
         """When a run on this account last failed for quota, and the account has not reset since."""
@@ -956,6 +957,7 @@ class CombinedTrustedHost:
             if hit_at > now:
                 continue
             if quota is None:
+                # Only the fresh observation may extend a hold; stale diagnostics never do.
                 quota = self._account_quota(connection)
             stated = None
             try:
@@ -1441,6 +1443,20 @@ def _account_observations(quotas: Mapping[str, Any], account: str | None = None)
             and isinstance(q.get("account_ref"), str) and q["account_ref"]
             and (account is None or q["account_ref"] == account)
             and (not _external_quota(q) or key == _MAGPIE_ACCOUNT_KEY + q["account_ref"])]
+
+
+def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Capacity view of an account's observation under the admission freshness contract.
+
+    Stale, undated, future-dated or unknown evidence keeps its uncertainty flags but
+    contributes no windows: unknown capacity, never headroom, confirmed exhaustion or
+    a hold extension.
+    """
+    from . import quota_reservation
+    if not account or not candidates:
+        return {}
+    selected = quota_reservation.observation(account, candidates, clock=time.time)
+    return selected if selected["fresh"] else dict(selected, windows=[])
 
 
 def _utc_now() -> str:
