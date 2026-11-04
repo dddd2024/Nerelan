@@ -238,6 +238,54 @@ def test_stated_five_hour_reset_without_magpie(reset_host, monkeypatch):
     assert host._limit_hit_until(connection) == pytest.approx(now + 5 * 3600)
 
 
+def _local_cli(now, windows, **overrides):
+    """Test evidence metadata only: wraps unchanged windows as a fresh attributed local-CLI reading."""
+    return {"state": "OBSERVED", "provenance": "OFFICIAL_VIA_CLI", "source": "codex_session_log",
+            "observed_at": _iso(now), "windows": windows, **overrides}
+
+
+_NOT_FRESH_LOCAL_EVIDENCE = {
+    "missing_source": lambda now: {"source": None, "provenance": ""},
+    "undated": lambda now: {"observed_at": None},
+    "stale": lambda now: {"observed_at": _iso(now - 700)},
+    "future": lambda now: {"observed_at": _iso(now + 60)},
+    "unknown_state": lambda now: {"state": "UNKNOWN"},
+    "external_provider": lambda now: {"source": "magpie", "provenance": "EXTERNAL_MAGPIE"},
+}
+
+
+@pytest.mark.parametrize("kind", sorted(_NOT_FRESH_LOCAL_EVIDENCE) + ["foreign_account"])
+def test_unfresh_or_unattributed_evidence_does_not_extend_stated_hold(reset_host, monkeypatch, kind):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 3600))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: _unfresh_quotas(
+        kind, now, [{"window": "weekly", "used_percent": 100, "resets_at": _iso(now + 5 * 86400)}]))
+    assert host._limit_hit_until(connection) == now + 2 * 3600
+
+
+@pytest.mark.parametrize("kind", sorted(_NOT_FRESH_LOCAL_EVIDENCE) + ["foreign_account"])
+def test_unfresh_or_unattributed_evidence_does_not_replace_fixed_fallback(reset_host, monkeypatch, kind):
+    host, connection, now, fail = reset_host
+    fail("")
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: _unfresh_quotas(
+        kind, now, [{"resets_at": _iso(now + 7200)}]))
+    assert host._limit_hit_until(connection) == now + 3600
+
+
+def _unfresh_quotas(kind, now, windows):
+    if kind == "foreign_account":
+        return {"other-key": _local_cli(now, windows, account_ref="other")}
+    return {"codex": _local_cli(now, windows, **_NOT_FRESH_LOCAL_EVIDENCE[kind](now))}
+
+
+def test_fresh_local_cli_evidence_helper_is_accepted_for_exhausted_window(reset_host, monkeypatch):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 2 * 3600))
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": _local_cli(now, [
+        {"window": "weekly", "used_percent": 100, "resets_at": _iso(now + 5 * 86400)}])})
+    assert host._limit_hit_until(connection) == now + 5 * 86400
+
+
 @pytest.mark.parametrize("hours", [2, 8])
 def test_stated_reset_ignores_quota_windows_without_exhaustion(reset_host, monkeypatch, hours):
     host, connection, now, fail = reset_host
@@ -256,11 +304,11 @@ def test_stated_reset_alone_without_windows(reset_host):
 def test_stated_reset_ignores_non_exhausted_weekly_window(reset_host, monkeypatch):
     host, connection, now, fail = reset_host
     fail(_iso(now + 2 * 3600))
-    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": _local_cli(now, [
         {"window": "five_hour", "used_percent": 100,
          "resets_at": _iso(now + 5 * 3600)},
         {"window": "weekly", "used_percent": 65,
-         "resets_at": _iso(now + 5 * 86400)}]}})
+         "resets_at": _iso(now + 5 * 86400)}])})
     assert host._limit_hit_until(connection) == now + 5 * 3600
 
 
@@ -268,8 +316,8 @@ def test_stated_reset_ignores_non_exhausted_weekly_window(reset_host, monkeypatc
 def test_stated_reset_extended_by_exhausted_weekly_window(reset_host, monkeypatch, exhaustion):
     host, connection, now, fail = reset_host
     fail(_iso(now + 2 * 3600))
-    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
-        {"window": "weekly", **exhaustion, "resets_at": _iso(now + 5 * 86400)}]}})
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": _local_cli(now, [
+        {"window": "weekly", **exhaustion, "resets_at": _iso(now + 5 * 86400)}])})
     assert host._limit_hit_until(connection) == now + 5 * 86400
 
 
@@ -287,16 +335,16 @@ def test_invalid_stated_resets_preserve_fallback(reset_host, monkeypatch, reset)
     reset = {"past": _iso(now - 1), "over": _iso(now + 7 * 86400 + 1)}.get(reset, reset)
     fail(reset)
     assert host._limit_hit_until(connection) == now + 3600
-    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
-        {"resets_at": _iso(now + 7200)}]}})
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": _local_cli(now, [
+        {"resets_at": _iso(now + 7200)}])})
     assert host._limit_hit_until(connection) == now + 7200
 
 
 def test_expired_stated_failure_cannot_renew(reset_host, monkeypatch):
     host, connection, now, fail = reset_host
     fail(_iso(now - 1), age=7200)
-    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": {"windows": [
-        {"resets_at": _iso(now + 7200)}]}})
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {"codex": _local_cli(now, [
+        {"resets_at": _iso(now + 7200)}])})
     assert host._limit_hit_until(connection) is None
 
 
