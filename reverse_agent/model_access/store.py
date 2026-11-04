@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 import errno
 import json
@@ -78,8 +78,11 @@ _CONNECTION_SAFE_FIELDS_V1 = frozenset({
     "api_key_env",
     "credential_ref",
 })
+# ``account_ref`` is optional, non-secret account-identity metadata. It is a
+# schema-v2 addition only; schema v1 never gained it, so v1 documents stay strict.
 _CONNECTION_SAFE_FIELDS_V2 = frozenset({
     "connection_id",
+    "account_ref",
     "anthropic_base_url",
     "name",
     "upstream_provider_id",
@@ -321,6 +324,8 @@ class _StoredConnection:
         }
         if self.connection.anthropic_base_url:
             entry["anthropic_base_url"] = self.connection.anthropic_base_url
+        if self.connection.account_ref is not None:
+            entry["account_ref"] = self.connection.account_ref
         if self.api_key_env:
             entry["api_key_env"] = self.api_key_env
         if self.credential_ref:
@@ -695,6 +700,9 @@ class ModelProfileStore:
         with self._lock:
             self._ensure_connection_binding_ready()
             existing = self._connections.get(connection.connection_id)
+            if existing is not None and "account_ref" not in payload and "accountRef" not in payload:
+                # Omitted by an existing client: keep the saved mapping. Explicit null clears it.
+                connection = replace(connection, account_ref=existing.connection.account_ref)
 
             authority_changed = _authority_fields_changed(existing, connection)
 
