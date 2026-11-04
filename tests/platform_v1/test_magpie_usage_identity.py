@@ -225,3 +225,30 @@ def test_one_shot_local_generator_keeps_its_cost_through_a_conflict():
     report = correlate_task_usage(generate(), rows, sessions=[TASK])
     assert report["local_cross_check"]["cost_micro_units"] == 500
     assert report["attribution_incomplete"] is True
+
+
+@ORDERS
+def test_aggregate_cost_overflow_is_unknown_not_infinite(order):
+    # Each amount is finite; only their sum overflows, so the task cost is UNKNOWN.
+    report = correlate_task_usage([], arranged(order, wire("H1", cost=1e308), wire("H2", cost=1e308)),
+                                  sessions=[TASK])
+    assert report["request_count"] == 2 and report["totals"]["priced_calls"] == 2
+    assert report["totals"]["cost_usd"] is None and report["totals"]["input"] == 2000
+
+
+@ORDERS
+def test_later_finite_row_cannot_resurrect_an_overflowed_cost(order):
+    rows = arranged(order, wire("H1", cost=1e308), wire("H2", cost=1e308), wire("H3", cost=0.5))
+    report = correlate_task_usage([], rows, sessions=[TASK])
+    assert report["request_count"] == 3 and report["totals"]["priced_calls"] == 3
+    assert report["totals"]["cost_usd"] is None
+
+
+def test_explicit_measured_zero_costs_still_sum_to_zero():
+    report = correlate_task_usage([], page(wire("Z1", cost=0.0), wire("Z2", cost=0.0)), sessions=[TASK])
+    assert report["totals"]["cost_usd"] == 0.0 and report["totals"]["priced_calls"] == 2
+
+
+def test_ordinary_finite_cost_sum_is_accurate_after_rounding():
+    report = correlate_task_usage([], page(wire("S1", cost=0.1), wire("S2", cost=0.2)), sessions=[TASK])
+    assert report["totals"]["cost_usd"] == 0.3 and report["totals"]["priced_calls"] == 2

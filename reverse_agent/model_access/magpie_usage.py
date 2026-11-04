@@ -196,7 +196,8 @@ def correlate_task_usage(
     such rids). ``attribution_incomplete`` is set when a conflict could belong to
     ``sessions`` or ``rids``; the window never exonerates it. Then the token and
     cost totals stay None while the unambiguous rows stay listed. Totals are None
-    too when nothing is attributed: no measurement is UNKNOWN, never zero. When at
+    too when nothing is attributed: no measurement is UNKNOWN, never zero. A cost
+    sum that cannot stay finite is UNKNOWN as well, and stays so. When at
     least one row is attributed, Magpie becomes the measured basis and the local
     ledger numbers move to ``local_cross_check`` — the same calls must never be
     summed from both sides. Unattributed rows are counted, never guessed.
@@ -272,7 +273,8 @@ def correlate_task_usage(
         amount = _amount(row.get("cost_usd")) if row.get("priced") is True else None
         if amount is not None:
             if cost is not None:
-                cost = round(cost + amount, 6)
+                # Each amount is finite, but their sum can overflow: validate the sum itself.
+                cost = _amount(round(cost + amount, 6))
             priced += 1
         else:
             unpriced += 1
