@@ -212,3 +212,90 @@ def test_records_are_json_safe_and_finite():
         json.dumps(payload, allow_nan=False)
     assert all(math.isfinite(v) for v in
                update_break_even(runs)["unit_cost_per_task"].values())
+
+
+# --- all-in economics (review follow-up: failed attempts must be priced) --------
+
+def test_all_in_cost_counts_failed_attempts():
+    """A cheap-when-successful but flaky mode must not look cheapest per change."""
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    runs = (
+        [run("single", accepted=False, cost=40.0) for _ in range(3)]
+        + [run("single", accepted=True, cost=40.0)]
+        + [run("agent_team", accepted=True, cost=50.0)]
+    )
+    economy = all_in_economics(runs)
+    single, team = economy["single"], economy["agent_team"]
+    # Accepted-only view would say 40 vs 50; the all-in view says 160 per change.
+    assert single["accepted_cost"] == 40.0
+    assert single["total_cost"] == 160.0
+    assert single["cost_per_accepted_all_in"] == 160.0
+    assert single["failed_cost_share"] == 0.75
+    assert single["attempts_per_accepted"] == 4.0
+    assert team["cost_per_accepted_all_in"] == 50.0
+    assert team["failed_cost_share"] == 0.0
+
+
+def test_all_in_cost_stays_unknown_when_any_attempt_is_unpriced():
+    """An unpriced attempt must not be treated as free in the numerator."""
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    runs = [run("single", accepted=True, cost=10.0), run("single", accepted=False, cost=None)]
+    economy = all_in_economics(runs)["single"]
+    assert economy["all_costs_known"] is False
+    assert economy["total_cost"] is None
+    assert economy["cost_per_accepted_all_in"] is None
+    assert economy["failed_cost_share"] is None
+    assert economy["accepted_runs"] == 1
+
+
+def test_all_in_cost_reports_nothing_without_an_accepted_result():
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    economy = all_in_economics([run("agent_team", accepted=False, cost=5.0)])["agent_team"]
+    assert economy["cost_per_accepted_all_in"] is None
+    assert economy["attempts_per_accepted"] is None
+    assert economy["failed_cost_share"] == 1.0
+
+
+def test_each_cost_basis_is_computed_separately_and_never_blended():
+    """Owner decision 2026-11-04: list price / cash / quota are reported apart."""
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    runs = [
+        {**run("single", accepted=True), "cost_units": 10.0, "cash_cost_usd": 0.0,
+         "quota_opportunity_units": 120.0},
+        {**run("single", accepted=False), "cost_units": 4.0, "cash_cost_usd": 0.0,
+         "quota_opportunity_units": 60.0},
+    ]
+    quota = all_in_economics(runs, basis="quota")["single"]
+    cash = all_in_economics(runs, basis="cash")["single"]
+    listed = all_in_economics(runs, basis="list_price")["single"]
+
+    # A subscription attempt costs no cash but does consume allowance: the quota
+    # basis must show 180 units per accepted change, not 0.
+    assert quota["basis"] == "quota"
+    assert quota["cost_per_accepted_all_in"] == 180.0
+    assert cash["cost_per_accepted_all_in"] == 0.0
+    assert listed["cost_per_accepted_all_in"] == 14.0
+    assert quota["failed_cost_share"] == round(60 / 180, 4)
+
+
+def test_a_basis_missing_from_every_run_is_unknown_not_zero():
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    runs = [run("single", accepted=True)]  # only cost_units is present
+    cash = all_in_economics(runs, basis="cash")["single"]
+    assert cash["unpriced_runs"] == 1
+    assert cash["all_costs_known"] is False
+    assert cash["cost_per_accepted_all_in"] is None
+
+
+def test_unknown_basis_is_rejected():
+    import pytest as _pytest
+
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+
+    with _pytest.raises(ValueError):
+        all_in_economics([run("single")], basis="blended")
