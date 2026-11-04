@@ -262,26 +262,153 @@ def test_explicit_null_clears_mapping_while_omitted_field_preserves_it(tmp_path)
     assert "account_ref" not in cleared_camel
 
 
-def test_authority_change_still_rejects_and_keeps_existing_mapping(tmp_path) -> None:
+@pytest.mark.parametrize(
+    ("overrides", "match"),
+    [
+        ({"base_url": "https://other.example.test/v1"}, "authority-bearing connection field changed"),
+        ({"provider": "deepseek"}, "authority-bearing connection field changed"),
+        ({"anthropic_base_url": "https://relay.example.test/anthropic"}, "authority-bearing connection field changed"),
+        ({"auth_method": "account_login"}, "configured API-key credential would be discarded"),
+    ],
+    ids=["base_url", "provider", "anthropic_base_url", "auth_method"],
+)
+def test_authority_change_still_rejects_and_keeps_existing_mapping(tmp_path, overrides, match) -> None:
     store = ModelProfileStore(state_path=tmp_path / "state.json")
     store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+    before = store.get_connection_public("sense-api")
+
+    # Rejected changes leave the saved mapping, endpoint and credential metadata exactly as they were.
+    with pytest.raises(ValueError, match=match):
+        store.upsert_connection(connection_payload(account_ref="acct-b", **overrides))
+    assert store.get_connection_public("sense-api") == before
+    assert before["account_ref"] == "acct-a"
+    assert before["base_url"] == "https://models.example.test/v1"
+    assert store.resolve_connection_secret("sense-api") == "fake-key-one"
+
+
+def test_rejected_authority_change_leaves_vault_credential_untouched(tmp_path) -> None:
+    vault = FakeVault()
+    store = ModelProfileStore(state_path=tmp_path / "state.json", vault=vault)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-vault-key"))
+    vault.calls.clear()
 
     with pytest.raises(ValueError, match="authority-bearing connection field changed"):
-        store.upsert_connection(connection_payload(
-            base_url="https://other.example.test/v1",
-            account_ref="acct-b",
-        ))
+        store.upsert_connection(connection_payload(base_url="https://other.example.test/v1"))
+
+    # The rejection happens before any vault read, write or delete.
+    assert [call for call in vault.calls if call[0] != "probe"] == []
     current = store.get_connection_public("sense-api")
     assert current["base_url"] == "https://models.example.test/v1"
     assert current["account_ref"] == "acct-a"
+    assert current["credential_configured"] is True
+    assert store.resolve_connection_secret("sense-api") == "fake-vault-key"
 
-    # A replacement credential with the mapping omitted keeps the saved mapping.
+
+def test_authority_change_with_replacement_and_omitted_mapping_clears_to_unbound(tmp_path) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    # A replacement credential proves no identity, so the old account binding is not inherited.
     replaced = store.upsert_connection(connection_payload(
         base_url="https://other.example.test/v1",
         api_key="fake-key-two",
     ))
     assert replaced["base_url"] == "https://other.example.test/v1"
-    assert replaced["account_ref"] == "acct-a"
+    assert "account_ref" not in replaced
+    assert "account_ref" not in json.loads(path.read_text(encoding="utf-8"))["connections"][0]
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+    assert store.resolve_connection_secret("sense-api") == "fake-key-two"
+
+    # Later ordinary edits on the new authority keep it unbound rather than resurrecting acct-a.
+    renamed = store.upsert_connection(connection_payload(base_url="https://other.example.test/v1", name="Renamed"))
+    assert "account_ref" not in renamed
+
+
+@pytest.mark.parametrize("alias", ["account_ref", "accountRef"])
+def test_authority_change_honors_explicit_mapping_on_new_authority(tmp_path, alias) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    replaced = store.upsert_connection(connection_payload(
+        base_url="https://other.example.test/v1",
+        api_key="fake-key-two",
+        **{alias: "acct-new"},
+    ))
+    assert replaced["account_ref"] == "acct-new"
+    assert ModelProfileStore(state_path=path).get_connection_public("sense-api")["account_ref"] == "acct-new"
+
+    # The explicitly confirmed mapping is then an ordinary saved value for name-only edits.
+    renamed = store.upsert_connection(connection_payload(base_url="https://other.example.test/v1", name="Renamed"))
+    assert renamed["account_ref"] == "acct-new"
+
+
+def test_authority_change_with_explicit_null_clears_mapping(tmp_path) -> None:
+    store = ModelProfileStore(state_path=tmp_path / "state.json")
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    cleared = store.upsert_connection(connection_payload(
+        base_url="https://other.example.test/v1",
+        api_key="fake-key-two",
+        account_ref=None,
+    ))
+    assert "account_ref" not in cleared
+    assert cleared["credential_configured"] is True
+
+
+def test_authority_change_with_clear_secret_clears_mapping(tmp_path) -> None:
+    store = ModelProfileStore(state_path=tmp_path / "state.json")
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    cleared = store.upsert_connection(connection_payload(
+        base_url="https://other.example.test/v1",
+        clear_secret=True,
+    ))
+    assert "account_ref" not in cleared
+    assert cleared["credential_configured"] is False
+
+
+def test_auth_method_change_with_clear_secret_clears_mapping(tmp_path) -> None:
+    store = ModelProfileStore(state_path=tmp_path / "state.json")
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    changed = store.upsert_connection(connection_payload(auth_method="account_login", clear_secret=True))
+    assert "account_ref" not in changed
+    assert changed["auth_method"] == "account_login"
+
+
+def test_vault_backed_authority_change_clears_mapping_and_rotates_credential(tmp_path) -> None:
+    vault = FakeVault()
+    store = ModelProfileStore(state_path=tmp_path / "state.json", vault=vault)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-vault-key"))
+
+    replaced = store.upsert_connection(connection_payload(
+        base_url="https://other.example.test/v1",
+        api_key="fake-vault-key-two",
+    ))
+    assert "account_ref" not in replaced
+    assert replaced["credential_configured"] is True
+    assert store.resolve_connection_secret("sense-api") == "fake-vault-key-two"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"base_url": "https://models.example.test/v1/"},
+        {"name": "Renamed"},
+    ],
+    ids=["normalized-base-url", "name-only"],
+)
+def test_omitted_mapping_is_preserved_when_authority_is_unchanged(tmp_path, overrides) -> None:
+    store = ModelProfileStore(state_path=tmp_path / "state.json")
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    # A trailing slash normalizes away, so no authority delta exists and no credential is required.
+    updated = store.upsert_connection(connection_payload(**overrides))
+    assert updated["account_ref"] == "acct-a"
+    assert updated["credential_configured"] is True
+    assert store.resolve_connection_secret("sense-api") == "fake-key-one"
 
 
 def test_mapping_only_edit_leaves_vault_credentials_untouched(tmp_path) -> None:

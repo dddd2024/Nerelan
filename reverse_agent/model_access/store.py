@@ -700,11 +700,17 @@ class ModelProfileStore:
         with self._lock:
             self._ensure_connection_binding_ready()
             existing = self._connections.get(connection.connection_id)
-            if existing is not None and "account_ref" not in payload and "accountRef" not in payload:
-                # Omitted by an existing client: keep the saved mapping. Explicit null clears it.
-                connection = replace(connection, account_ref=existing.connection.account_ref)
-
             authority_changed = _authority_fields_changed(existing, connection)
+            if (
+                existing is not None
+                and not authority_changed
+                and "account_ref" not in payload
+                and "accountRef" not in payload
+            ):
+                # Omitted by an existing client on an unchanged authority: keep the saved
+                # mapping. A changed authority is never inherited (it becomes unbound unless
+                # an explicit mapping is supplied). Explicit null clears it.
+                connection = replace(connection, account_ref=existing.connection.account_ref)
 
             incoming_api_key = _optional_secret(payload, "api_key", "apiKey")
             incoming_api_key_env = _optional_env(payload, "api_key_env", "apiKeyEnv")
