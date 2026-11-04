@@ -72,18 +72,30 @@ After ACCEPT and green checks on the current head H: mark Ready, wait for `landi
 
 Owner decision 2026-10-21 (#1310 D). The Owner may activate a window with `standing_renewal: {"window_hours": h, "renew_until": t}` (1 ≤ h ≤ 168; `renew_until` after the first window's expiry and at most 90 days after activation). The Owner's activation approves the policy once. When the current window of that policy expires **by time**, the host activates a successor with confirmation `STANDING_RENEWAL`, the next policy revision and exactly the same repositories, capabilities, concurrency, task, retry and budget bounds, lasting `min(h, renew_until − now)`; it records a `standing_window_renewal` receipt. RUNNING goals stranded on earlier windows of the same policy are rebound with reason `standing_window_adoption`; goals with in-flight or held work are retried later, never forced. A window that was stopped or blocked never renews; stopping any window of the policy, or revoking the policy, ends renewal immediately. Delegated and trusted-policy windows cannot carry a standing policy.
 
+## Bounded operational grants
+
+An operational grant requires an explicit Owner instruction naming the repository, allowed operations, environment/host and data paths, version or accepted-version rule, expiry, concurrency/retry/cost limits and stop/revocation conditions. Record the exact instruction and bounds in existing execution evidence before use. If the active host cannot represent or enforce them, park the action; this document does not implement a runtime permission mechanism. Within a live grant, repeated covered actions do not need new per-action confirmation.
+
+An explicitly granted same-host recovery may allow restarting an already accepted host against the same TaskStore, with a consistent backup and identity/claim/ledger checks. It does not imply a source upgrade, production deployment, OS registration or reboot. An upgrade needs an explicit version or accepted-version rule in the grant. Unknown external effects and expired executor leases still require journal/fencing evidence; recovery authorization does not make them safe to replay.
+
+This policy creates no grant. Earlier one-PR, one-version and one-use grants retain their original scope and consumption; they never become standing grants retroactively. At expiry, revocation, scope drift, failed preconditions or exhausted limits, park the affected action. Standing window renewal does not renew or widen an operational grant unless the Owner explicitly approved that rule. Any grant associated with a standing policy must expire no later than that policy's existing 90-day horizon.
+
+No grant waives independent review, exact-head checks, matched-head merge, budget or evidence requirements. Ruleset bypass, secret printing/committing, provider calls from CI, shared-history rewriting and destructive user-data operations are excluded from this unattended-run mechanism. Ordinary authenticated client operations do not permit credential extraction/transfer, creation/rotation or scope expansion; those require an explicit covering R3 instruction.
+
 ## Park and continue
 
-Owner decision 2026-10-21 (#1310 E). A failing required check, a REJECT, or unexplained scope or base drift parks the affected item: record the exact reason on its PR or Issue (or as task/landing state) and move on to other eligible goals. Only an R3 action without a fresh Owner instruction, or Owner revocation, stops all work.
+Owner decision 2026-10-21 (#1310 E). A failing required check, a REJECT, or unexplained scope or base drift parks the affected item: record the exact reason on its PR or Issue (or as task/landing state) and move on to other eligible goals. An R3 action without a covering Owner instruction stops work requiring that authority, not other eligible work. Owner revocation stops all work it revokes. Explicit bounded operational grants follow [AGENTS.md](../../AGENTS.md#bounded-operational-grants); an optimization goal does not create one.
 
 ## Delegation record
 
-- 2026-10-11, Owner `dddd2024` in chat: Claude becomes sole developer; Codex no longer participates; Claude may use Nerelan itself for development and acts as supervisor.
+- 2026-10-11, Owner `dddd2024` in chat: Claude becomes sole developer; Codex no longer participates; Claude may use Nerelan itself for development and acts as supervisor. Historical restriction, superseded by the vendor-neutral role below.
 - 2026-10-11, Owner `dddd2024` in chat, choosing between explicit options: "先简化治理再自动合并" (simplify governance first, then merge automatically), and permission to close superseded PRs.
-- Earlier Owner delegation to the Codex controller, recorded under v1, is superseded by the above for development work.
+- Earlier Owner delegation to the Codex controller, recorded under v1, was superseded by the 2026-10-11 decision; it is not a current authority source.
 - 2026-10-21, Owner `dddd2024` in chat: "approve governance changes A, C, D and E as proposed; implement them as one R2 PR citing this decision" (#1310). B, F and G were not approved.
 
-Delegation never covers R3 actions: secrets, tags/releases, deployment, destructive user-data operations, untrusted binaries. Those need a fresh Owner instruction.
+- 2026-11-04, Owner `dddd2024` in chat: after authorizing PR #1374 landing, clarified "我的意思是现在的agent.md已经影响了我们长时间无人运行的目标了". This amendment addresses vendor-locked development, redundant per-PR ceremony and all-work stoppage. The developer role is vendor-neutral; ordinary development authorization continues within its bounds. The bounded operational grant policy requires a separate explicit scoped Owner instruction before any covered R3 action; it creates no standing grant and does not expand the consumed PR #1374 authorization.
+
+Ordinary development delegation does not cover R3. An explicit bounded operational grant may cover only its enumerated actions and bounds under AGENTS.md. No release, deployment, recovery, secret transfer or other R3 authority is inferred from this amendment; no runtime enforcement is claimed. Independent review and all CI/landing gates remain mandatory, including a separate-context R2 review confirming this amendment stays within the cited Owner direction.
 
 ## Worktree guards
 
