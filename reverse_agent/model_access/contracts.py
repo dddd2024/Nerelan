@@ -65,6 +65,24 @@ def _identifier(value: Any, field: str) -> str:
     return normalized
 
 
+def _account_ref(value: Any) -> str | None:
+    """Optional opaque, non-secret account pseudonym (for example a 12-hex digest).
+
+    Absent (``None``) stays absent. A supplied value is never trimmed, case-folded
+    or otherwise normalized, because that would silently change the identity it
+    names. Errors never echo the rejected value.
+    """
+
+    if value is None:
+        return None
+    if type(value) is not str or not _PROFILE_ID.fullmatch(value):
+        raise ValueError(
+            "account_ref must be an opaque identifier of lowercase letters, digits, "
+            "dots, underscores or hyphens, at most 80 characters"
+        )
+    return value
+
+
 def _base_url(value: Any) -> str:
     normalized = _required_text(value, "base_url", maximum=2048).rstrip("/")
     parsed = urlsplit(normalized)
@@ -169,8 +187,10 @@ class Connection:
     protocol_family: str | None = None
     executor_provider_id: str | None = None
     anthropic_base_url: str | None = None
+    account_ref: str | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "account_ref", _account_ref(self.account_ref))
         provider_alias = _provider_alias(self.provider)
         partial_explicit_identity = (
             self.upstream_provider_id is not None
@@ -277,6 +297,7 @@ class Connection:
             executor_provider_id=identity.executor_provider_id,
             anthropic_base_url=_anthropic_base_url(value, auth_method, identity.protocol_family,
                                                    _read(value, "base_url", "baseUrl")),
+            account_ref=_account_ref_alias(value),
         )
 
     def to_public_dict(
@@ -294,7 +315,7 @@ class Connection:
             raise ValueError(
                 f"unsupported external session status: {external_session_status}"
             )
-        return {
+        result = {
             "connection_id": self.connection_id,
             "name": self.name,
             "provider": self.provider,
@@ -309,6 +330,17 @@ class Connection:
             "secret_status": secret_status,
             "external_session_status": external_session_status,
         }
+        # Unbound connections keep the exact field-absent response shape.
+        if self.account_ref is not None:
+            result["account_ref"] = self.account_ref
+        return result
+
+
+def _account_ref_alias(value: Mapping[str, Any]) -> str | None:
+    """Read ``account_ref``/``accountRef``; two different supplied values are rejected."""
+    if "account_ref" in value and "accountRef" in value and value["account_ref"] != value["accountRef"]:
+        raise ValueError("account_ref and accountRef must match when both are supplied")
+    return _account_ref(_read(value, "account_ref", "accountRef"))
 
 
 def _anthropic_base_url(value: Mapping[str, Any], auth_method: str, protocol_family: str | None,
