@@ -865,6 +865,23 @@ class DurableExecutionService:
             self._fail_dispatch(task_id, lease, exc)
             raise
 
+    def _fence_workspace(self, worktree: Any, lease: LeaseHandle, *,
+                         verify_only: bool = False) -> None:
+        """Publish or check the worktree lease token (C3 F1, flag-gated).
+
+        Disabled by default: with ``REVERSE_AGENT_WORKSPACE_FENCE`` unset this is
+        a no-op and behaviour is unchanged. When enabled, a worktree whose token
+        belongs to a superseded ``(owner, epoch)`` refuses to proceed, so a stale
+        executor cannot contribute to the product diff.
+        """
+        from .workspace_fence import WorkspaceFenced, fence_workspace
+
+        try:
+            fence_workspace(Path(worktree), run_id=lease.run_id, owner=lease.owner,
+                            epoch=lease.epoch, verify_only=verify_only)
+        except WorkspaceFenced as exc:
+            raise TaskExecutionError(str(exc)) from exc
+
     def _fail_dispatch(self, task_id: str, lease: LeaseHandle, exc: Exception) -> None:
         """Publish a sanitized dispatch failure while this worker still owns the run."""
         from .binding_resolver import BindingResolutionError
@@ -1114,12 +1131,21 @@ class DurableExecutionService:
             wt_path = ""
             repo_base_sha = ""
 
+        # C3 W1: claim this worktree under the current lease before any checkpoint
+        # or artifact is attributed to it (flag-gated, no-op by default).
+        if wt_path:
+            self._fence_workspace(wt_path, lease)
+
         # PRE_PLANNER: durable run established before any external dispatch.
         self.store._accept_checkpoint(
             lease.run_id, "PRE_PLANNER", "", 1, lease.owner, lease.epoch
         )
         _check_crash_seam("PRE_PLANNER")
 
+        if wt_path and Path(wt_path).exists():
+            # C3 W2: a worktree that lost the lease to a newer epoch must not be
+            # read as this run's product (no adoption here — missing means stolen).
+            self._fence_workspace(wt_path, lease, verify_only=True)
         baseline_product = (
             _collect_product_diff(Path(wt_path))
             if wt_path and Path(wt_path).exists() else ()
@@ -1978,6 +2004,9 @@ class DurableExecutionService:
             lease.owner, lease.epoch,
         )
 
+        # C3 W1: claim the prepared worktree under this lease (flag-gated).
+        self._fence_workspace(prepared.worktree, lease)
+
         # Production filesystem SQLite checkpointer with strict serde.
         import sqlite3 as _sqlite3
         _cp_conn = _sqlite3.connect(
@@ -2012,6 +2041,8 @@ class DurableExecutionService:
             },
             owner=lease.owner, epoch=lease.epoch,
         )
+        # C3 W2: refuse to read a worktree another epoch now owns.
+        self._fence_workspace(prepared.worktree, lease, verify_only=True)
         baseline_product = _collect_product_diff(prepared.worktree)
         self.store._fenced_set_changed_files(
             lease.run_id, task_id, baseline_product,
