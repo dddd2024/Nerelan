@@ -23,6 +23,10 @@ The exact-head verdict logic remains pure (:func:`evaluate_review`). A separate
 evaluator can carry acceptance across at most 20 verified main update merges
 with identical PR diffs, excluding governance and dependency paths. The CLI
 gathers GitHub REST data; carry-over uses only already-fetched local Git objects.
+
+``verdict`` may also read GitHub through the local authenticated ``gh`` client
+(``--auth-source gh``, an explicit local opt-in limited to github.com). It never
+extracts or reads a token on that path. CI ``review`` always requires a token.
 """
 
 from __future__ import annotations
@@ -61,6 +65,15 @@ FORBIDDEN_PATH_PARTS = frozenset({
 FORBIDDEN_SUFFIXES = (".sqlite3", ".sqlite3-wal", ".sqlite3-shm", ".pyc")
 VITE_TIMESTAMP_RE = re.compile(r"\.timestamp-\d+-[0-9a-f]+\.mjs$")
 MAX_ADDED_FILE_BYTES = 5 * 1024 * 1024
+
+# Local ``gh`` opt-in: fixed host, fixed read-only endpoint shapes, bounded calls.
+GH_API_PREFIX = "https://api.github.com/"
+GH_HOSTNAME = "github.com"
+GH_TIMEOUT_SECONDS = 60
+GH_MAX_PAGES = 50
+GH_ENDPOINT_RE = re.compile(
+    r"repos/[A-Za-z0-9_][A-Za-z0-9_.-]*/[A-Za-z0-9_][A-Za-z0-9_.-]*/"
+    r"(?:pulls/[0-9]+(?:/reviews)?|issues/[0-9]+/comments)")
 
 
 @dataclass(frozen=True)
@@ -264,7 +277,91 @@ def run_hygiene(base: str, head: str) -> dict[str, Any]:
             "changed_files": len(added), "passed": not problems, "problems": problems}
 
 
-def _api_get(url: str, token: str) -> Mapping[str, Any]:
+@dataclass(frozen=True)
+class GhCli:
+    """Local opt-in credential source: the authenticated ``gh`` client makes GET requests.
+
+    Carries no token. ``gh`` owns authentication; requests always target github.com.
+    """
+
+
+def _gh_endpoint(url: str) -> str:
+    """Map an https://api.github.com URL to a ``gh api`` endpoint, rejecting anything else."""
+    if not url.startswith(GH_API_PREFIX) or "?" in url:
+        raise ValueError("gh backend supports only https://api.github.com endpoints")
+    return url[len(GH_API_PREFIX):]
+
+
+def _gh_run(endpoint: str, fields: Mapping[str, str]) -> Any:
+    """Run one fixed-shape ``gh api`` GET. Errors never carry gh's stdout or stderr."""
+    if not GH_ENDPOINT_RE.fullmatch(endpoint):
+        raise ValueError("unsupported gh API endpoint")
+    argv = ["gh", "api", "--hostname", GH_HOSTNAME, "--method", "GET", endpoint]
+    for key, value in fields.items():
+        argv += ["-f", f"{key}={value}"]
+    try:
+        result = subprocess.run(argv, shell=False, check=False, capture_output=True,
+                                stdin=subprocess.DEVNULL, timeout=GH_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("gh api timed out") from None
+    except OSError:
+        raise RuntimeError("gh executable is unavailable") from None
+    if result.returncode != 0:
+        raise RuntimeError(f"gh api failed with exit status {result.returncode}")
+    try:
+        return json.loads(result.stdout.decode("utf-8"))
+    except ValueError:  # JSONDecodeError and UnicodeDecodeError both subclass ValueError
+        raise ValueError("gh API returned invalid JSON") from None
+
+
+def _gh_field(item: Mapping[str, Any], key: str, types: tuple[type, ...]) -> None:
+    if key not in item or not isinstance(item[key], types):
+        raise ValueError(f"gh API entry field {key} is missing or has the wrong type")
+
+
+def _gh_entry(item: Any, *, review: bool) -> Mapping[str, Any]:
+    """Require every field the verdict reads, so a partial or re-typed entry fails closed."""
+    if not isinstance(item, dict):
+        raise ValueError("gh API entry is not an object")
+    _gh_field(item, "body", (str, type(None)))
+    _gh_field(item, "author_association", (str,))
+    _gh_field(item, "submitted_at" if review else "created_at", (str, type(None)))
+    _gh_field(item, "user", (dict, type(None)))
+    if isinstance(item["user"], dict):
+        _gh_field(item["user"], "login", (str,))
+    if review:
+        _gh_field(item, "state", (str,))
+    return item
+
+
+def _gh_pull_request(payload: Any) -> Mapping[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("gh API pull request is not an object")
+    head, base = payload.get("head"), payload.get("base")
+    if (not isinstance(head, dict) or not isinstance(head.get("sha"), str)
+            or not isinstance(base, dict) or not isinstance(base.get("ref"), str)
+            or not isinstance(payload.get("draft"), bool)):
+        raise ValueError("gh API pull request is missing or has the wrong type")
+    return payload
+
+
+def _gh_list(endpoint: str) -> list[Mapping[str, Any]]:
+    """Read pages in order until the first empty page; hitting the limit fails, never truncates."""
+    review = endpoint.endswith("/reviews")
+    items: list[Mapping[str, Any]] = []
+    for page in range(1, GH_MAX_PAGES + 1):
+        payload = _gh_run(endpoint, {"per_page": "100", "page": str(page)})
+        if not isinstance(payload, list):
+            raise ValueError("gh API list is not an array")
+        if not payload:
+            return items
+        items.extend(_gh_entry(item, review=review) for item in payload)
+    raise RuntimeError("gh API pagination limit exceeded")
+
+
+def _api_get(url: str, token: str | GhCli) -> Mapping[str, Any]:
+    if isinstance(token, GhCli):
+        return _gh_pull_request(_gh_run(_gh_endpoint(url), {}))
     request = urllib.request.Request(url, headers={
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
@@ -274,7 +371,7 @@ def _api_get(url: str, token: str) -> Mapping[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
-def run_verdict(repository: str, number: int, expected_head: str, token: str,
+def run_verdict(repository: str, number: int, expected_head: str, token: str | GhCli,
                 api_url: str = "https://api.github.com") -> dict[str, Any]:
     """Pre-merge re-check: the PR's live head must equal ``expected_head`` and be accepted."""
     pr = _api_get(f"{api_url.rstrip('/')}/repos/{repository}/pulls/{number}", token)
@@ -290,7 +387,9 @@ def run_verdict(repository: str, number: int, expected_head: str, token: str,
     return {**base, "passed": found.accepted, **found.to_dict()}
 
 
-def _api_get_all(url: str, token: str) -> list[Mapping[str, Any]]:
+def _api_get_all(url: str, token: str | GhCli) -> list[Mapping[str, Any]]:
+    if isinstance(token, GhCli):
+        return _gh_list(_gh_endpoint(url))
     items: list[Mapping[str, Any]] = []
     next_url: str | None = url + ("&" if "?" in url else "?") + "per_page=100"
     while next_url:
@@ -306,7 +405,7 @@ def _api_get_all(url: str, token: str) -> list[Mapping[str, Any]]:
     return items
 
 
-def fetch_review_entries(repository: str, number: int, token: str,
+def fetch_review_entries(repository: str, number: int, token: str | GhCli,
                          api_url: str = "https://api.github.com") -> list[ReviewEntry]:
     base = f"{api_url.rstrip('/')}/repos/{repository}"
     entries = []
@@ -346,11 +445,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     verdict.add_argument("--repository", required=True)
     verdict.add_argument("--pr", type=int, required=True)
     verdict.add_argument("--head", required=True)
+    verdict.add_argument("--auth-source", choices=("token", "gh"), default="token",
+                         help="token: GITHUB_TOKEN/GH_TOKEN (default); gh: local gh client, github.com only")
     args = parser.parse_args(argv)
 
     try:
         if args.command == "hygiene":
             result = run_hygiene(args.base, args.head)
+        elif args.command == "verdict" and args.auth_source == "gh":
+            # Explicit local opt-in: gh authenticates; no token variable is read here.
+            result = run_verdict(args.repository, args.pr, args.head, GhCli())
         elif args.command == "verdict":
             token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN") or ""
             if not token:
