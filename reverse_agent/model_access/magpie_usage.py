@@ -57,6 +57,22 @@ def _flag(value: Any) -> bool:
     return value is True
 
 
+def _known_text(value: Any) -> str | None:
+    """A nonempty identity string, or None when the field is absent or blank."""
+    return value if isinstance(value, str) and value else None
+
+
+def _amount(value: Any) -> float | None:
+    """A finite, nonnegative money amount, or None (bools, NaN, infinity, negatives)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None  # a huge JSON integer literal overflows float conversion
+    return number if math.isfinite(number) and number >= 0 else None
+
+
 def parse_usage_request(row: Any, *, page_secrets: frozenset[str] | set[str] = frozenset()) -> dict[str, Any] | None:
     """Sanitize one usage ledger row; unknown shapes return None.
 
@@ -173,10 +189,16 @@ def correlate_task_usage(
 
     A row is attributed when its session is one of ``sessions`` or its rid is
     one of ``rids``, and its timestamp falls inside the optional window.
-    Rows for a rid already seen collapse to the last one; ``handed_on`` tries
-    are excluded from requests and totals and only counted. When at least one
-    row is attributed, Magpie becomes the measured basis and the local ledger
-    numbers move to ``local_cross_check`` — the same calls must never be
+    Rows sharing a rid collapse to the last one only when they agree on every
+    known session and provider account. ``handed_on`` tries are excluded from
+    requests and totals and only counted. A rid whose known identities conflict
+    is ambiguous: none of its rows is attributed (``identity_conflicts`` counts
+    such rids). ``attribution_incomplete`` is set when a conflict could belong to
+    ``sessions`` or ``rids``; the window never exonerates it. Then the token and
+    cost totals stay None while the unambiguous rows stay listed. Totals are None
+    too when nothing is attributed: no measurement is UNKNOWN, never zero. When at
+    least one row is attributed, Magpie becomes the measured basis and the local
+    ledger numbers move to ``local_cross_check`` — the same calls must never be
     summed from both sides. Unattributed rows are counted, never guessed.
     """
     wanted_sessions = {value for value in sessions if isinstance(value, str) and value}
@@ -184,9 +206,9 @@ def correlate_task_usage(
     # Materialize once: a one-shot generator must not silently lose the cost
     # pass of _local_totals.
     local_rows = list(local_observations)
-    by_rid: dict[str, Mapping[str, Any]] = {}
+    groups: dict[str, list[Mapping[str, Any]]] = {}
     loose: list[Mapping[str, Any]] = []
-    unattributed = handed_on = duplicates = 0
+    unattributed = handed_on = 0
     attributed: list[Mapping[str, Any]] = []
     for row in magpie_rows:
         if not isinstance(row, Mapping):
@@ -197,37 +219,60 @@ def correlate_task_usage(
             handed_on += 1
             continue
         if isinstance(rid, str) and rid:
-            if rid in by_rid:
-                duplicates += 1
-            by_rid[rid] = row
+            groups.setdefault(rid, []).append(row)
         else:
             loose.append(row)
+
+    def requested(session: Any, rid: Any) -> bool:
+        return bool((wanted_sessions and isinstance(session, str) and session in wanted_sessions)
+                    or (wanted_rids and isinstance(rid, str) and rid in wanted_rids))
+
+    # Rows sharing a rid are one request: the last one is the terminal update when
+    # they agree on every KNOWN session and provider account. Disagreeing known
+    # values make the rid ambiguous instead -- none of its rows is attributed and
+    # no winner is picked, whatever order the rows arrived in. A missing field alone
+    # is not a disagreement and is never filled in from another row.
+    by_rid: dict[str, Mapping[str, Any]] = {}
+    duplicates = identity_conflicts = 0
+    attribution_incomplete = False
+    for rid, group in groups.items():
+        sessions_seen = {_known_text(row.get("session")) for row in group} - {None}
+        accounts_seen = {_known_text(row.get("provider_account")) for row in group} - {None}
+        if len(sessions_seen) > 1 or len(accounts_seen) > 1:
+            identity_conflicts += 1
+            unattributed += len(group)
+            # Relevant only when one of its rows could belong to the requested task;
+            # a foreign conflict is counted but never taints the requested rows.
+            if any(requested(row.get("session"), rid) for row in group):
+                attribution_incomplete = True
+            continue
+        duplicates += len(group) - 1
+        by_rid[rid] = group[-1]
     for row in (list(by_rid.values()) + loose):
         session = row.get("session")
         rid = row.get("rid")
         moment = row.get("t_epoch")
-        matched = ((wanted_sessions and isinstance(session, str) and session in wanted_sessions)
-                   or (wanted_rids and isinstance(rid, str) and rid in wanted_rids))
-        if not matched:
+        if not requested(session, rid):
             unattributed += 1
             continue
         if moment is None or (since is not None and moment < since) or (until is not None and moment > until):
             unattributed += 1
             continue
         attributed.append(row)
-    totals = {name: 0 for name in _TOKEN_FIELDS}
+    totals: dict[str, int | None] = {name: 0 for name in _TOKEN_FIELDS}
     cost: float | None = 0.0
     unpriced = priced = 0
     accounts: dict[str, int] = {}
     served: dict[str, int] = {}
     for row in attributed:
         for name in _TOKEN_FIELDS:
-            value = row.get(name)
+            value = _count(row.get(name))
             totals[name] = (totals[name] + value if isinstance(totals[name], int)
-                            and isinstance(value, int) and value >= 0 else None)
-        if row.get("priced") is True and isinstance(row.get("cost_usd"), (int, float)):
+                            and value is not None else None)
+        amount = _amount(row.get("cost_usd")) if row.get("priced") is True else None
+        if amount is not None:
             if cost is not None:
-                cost = round(cost + float(row["cost_usd"]), 6)
+                cost = round(cost + amount, 6)
             priced += 1
         else:
             unpriced += 1
@@ -236,6 +281,11 @@ def correlate_task_usage(
         accounts[account] = accounts.get(account, 0) + 1
         model = row.get("served") or row.get("model") or "unknown"
         served[model] = served.get(model, 0) + 1
+    if not attributed or attribution_incomplete:
+        # UNKNOWN, never zero: no attributed row is no measurement, and a relevant
+        # identity conflict leaves the task's aggregate potentially incomplete.
+        totals = {name: None for name in _TOKEN_FIELDS}
+        cost = None
     local = _local_totals(local_rows)
     basis = "magpie_measured" if attributed else ("local_only" if local["observations"] else "unknown")
     truncated = len(attributed) > _MAX_REQUESTS
@@ -250,6 +300,9 @@ def correlate_task_usage(
         "sessions": sorted(wanted_sessions), "unattributed_rows": unattributed,
         "excluded_handed_on": handed_on, "duplicate_rids_collapsed": duplicates,
         "requests_truncated": truncated,
+        # Additive diagnostics: bounded counts and a flag only, never identity values.
+        "identity_conflicts": identity_conflicts,
+        "attribution_incomplete": attribution_incomplete,
     }
 
 
