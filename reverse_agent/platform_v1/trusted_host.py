@@ -157,6 +157,8 @@ class CombinedTrustedHost:
             roster_resolver=self._resolve_agent_role,
             task_resolver=self._resolve_task_model,
             quota_forecaster=self._goal_quota_fit,
+            account_status_provider=self._goal_account_status_provider,
+            binding_account_resolver=self._binding_account_resolver,
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -188,6 +190,119 @@ class CombinedTrustedHost:
         self.model_control_url = ""
         self.task_api_url = ""
         self.relay_url = ""
+
+    # --- Seam C helpers: account-aware reroute guard data --------------------
+    # Both are passed to GoalService and are best-effort. They are only consulted
+    # when REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1; any failure returns an empty/
+    # None result so the legacy reroute is never blocked.
+    def _goal_account_status_provider(self) -> list:
+        """Perceive AccountStatus for every account with a stored observation."""
+        try:
+            import json
+            from .multi_account import MultiAccountConfig, MultiAccountStatusMonitor
+            rows = self._task_store._conn.execute(
+                "SELECT account_ref, evidence_json FROM platform_quota_observations").fetchall()
+            observations: dict[str, dict] = {}
+            for row in rows:
+                try:
+                    observations[row["account_ref"]] = json.loads(row["evidence_json"])
+                except Exception:
+                    continue
+            if not observations:
+                return []
+            monitor = MultiAccountStatusMonitor(
+                MultiAccountConfig.from_env(),
+                fetch_quotas=lambda _snapshot: observations)
+            return monitor.perceive()
+        except Exception:  # noqa: BLE001 - perception failure must not break reroute
+            return []
+
+    def _binding_account_resolver(self, binding_ref: str) -> "str | None":
+        """Map a candidate binding to its account_ref (or connection_id fallback)."""
+        try:
+            bindings = {b["binding_id"]: b for b in self._store.list_bindings_public()}
+            binding = bindings.get(binding_ref)
+            if not binding:
+                return None
+            connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+            connection = connections.get(binding.get("connection_id"))
+            if not connection:
+                return None
+            return connection.get("account_ref") or connection.get("connection_id")
+        except Exception:  # noqa: BLE001 - mapping failure must not break reroute
+            return None
+
+    def _report_account_feedback_to_brain(self, task: Any, success: bool) -> None:
+        """Seam E: one account-level outcome per finished attempt (flag-gated).
+
+        This is the production feeder for the multi-account self-evolution loop:
+        a success clears the account's quiet time and raises its measured
+        reliability, a failure cools the account down (quarantining it for
+        account-level errors) and lowers that reliability. The cost (list-price
+        USD) and wall time of the attempt are measured from the same normalized
+        token ledger the quota forecast uses, so the scheduler's cost term is
+        real instead of theoretical.
+
+        Entirely best-effort: an unknown binding, an unpriced model or an
+        unavailable brain leaves behaviour unchanged.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return
+        binding_ref = str(getattr(task, "binding_ref", "") or "")
+        if not binding_ref:
+            return
+        account_ref = self._binding_account_resolver(binding_ref)
+        if not account_ref:
+            return
+        from .multi_account.dispatch import record_account_outcome
+        metrics: dict[str, Any] = {"cost_units": None, "wall_seconds": None}
+        try:
+            from .usage_ledger import task_feedback_metrics
+            metrics = task_feedback_metrics(self._task_store, str(getattr(task, "id", "") or ""))
+        except Exception:  # noqa: BLE001 - telemetry is optional
+            pass
+        if success:
+            record_account_outcome(
+                account_ref, ok=True,
+                cost_units=metrics.get("cost_units"),
+                wall_seconds=metrics.get("wall_seconds"))
+            return
+        classification = str(getattr(task, "failure_classification", "") or "").lower()
+        if any(token in classification for token in ("auth", "unauthorized", "rate_limit", "login", "session")):
+            kind = "account_abnormal"
+        elif "quota" in classification or "limit_hit" in classification:
+            kind = "quota_exhausted"
+        else:
+            kind = "task_failed"
+        record_account_outcome(
+            account_ref, ok=False,
+            cost_units=metrics.get("cost_units"),
+            wall_seconds=metrics.get("wall_seconds"),
+            failure_kind=kind)
+
+    def _quota_wait_target(self) -> "str | None":
+        """Provider/account whose blocking ``quota wait`` may replace local polling.
+
+        Opt-in through ``REVERSE_AGENT_MAGPIE_WAIT_TARGET`` (for example
+        ``codex``). Unset — the default — keeps the coordinator polling exactly
+        as before, so enabling this is a deliberate operator action.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return None
+        target = os.environ.get("REVERSE_AGENT_MAGPIE_WAIT_TARGET", "").strip()
+        return target or None
+
+    def _multi_account_idle_wait(self) -> "float | None":
+        """Idle-wait hint for the coordinator: how long until an account is usable.
+
+        Only meaningful while every account is cooling down; ``None`` elsewhere
+        so the coordinator keeps its normal poll interval. Flag-gated and
+        best-effort, like every other multi-account seam.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return None
+        from .multi_account.dispatch import idle_wait_seconds
+        return idle_wait_seconds()
 
     def _native_owner_admit_goal(self, goal_id: str, *, unknown_claims_sha256=None):
         """Trusted native bootstrap only; never register on a transport/router.
@@ -1046,9 +1161,15 @@ class CombinedTrustedHost:
         return _cached(self, "_subscription_quota_cache", read)
 
     def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
-        """Magpie's fresh subscription windows win over the local CLI logs, when enabled."""
+        """Magpie's fresh subscription windows win over the local CLI logs, when enabled.
+
+        Delegates the (additive) merge to
+        :func:`multi_account.status.merge_account_quotas`, which keeps the legacy
+        provider-keyed entries and additionally preserves every observed account
+        under its own ``account_ref`` key — fixing the prior loss of a second
+        real account per provider. The change is additive and never removes a key.
+        """
         from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
-        from ..model_access.subscription_quota import magpie_quota_windows
         if not magpie_enabled(os.environ):
             return local
         try:
@@ -1056,11 +1177,8 @@ class CombinedTrustedHost:
                 os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
         except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
             return local
-        magpie = magpie_quota_windows(snapshot)
-        merged = dict(local)
-        for key, quota in magpie.items():
-            merged[key] = quota
-        return merged
+        from .multi_account.status import merge_account_quotas
+        return merge_account_quotas(local, snapshot)
 
     def _claude_reset_quota_recheck(self) -> None:
         # Read-only official CLI telemetry; never change entitlement/limits.
@@ -1234,6 +1352,9 @@ class CombinedTrustedHost:
                 goal_escalator=self._goal_service.escalate_failed_tasks,
                 quota_rerouter=self._goal_service.reroute_quota_held,
                 quota_preparer=self._prepare_task_quota,
+                account_feedback=self._report_account_feedback_to_brain,
+                idle_wait_hint=self._multi_account_idle_wait,
+                quota_wait_target=self._quota_wait_target(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(

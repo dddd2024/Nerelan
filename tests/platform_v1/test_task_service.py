@@ -478,6 +478,9 @@ def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
     assert status == 200
     assert platform["service"] == "reverse-agent-platform-v2"
     assert platform["coordinator"]["enabled"] is False
+    # Account routing ownership is reported, and defaults to Nerelan (local).
+    assert platform["multi_account"]["owner"] == "local"
+    assert platform["multi_account"]["requested"] in {"local", "magpie", "auto"}
     status, capabilities = _req(base, "GET", "/api/capabilities")
     assert status == 200
     assert capabilities["total"] >= 6
