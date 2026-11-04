@@ -701,16 +701,6 @@ class ModelProfileStore:
             self._ensure_connection_binding_ready()
             existing = self._connections.get(connection.connection_id)
             authority_changed = _authority_fields_changed(existing, connection)
-            if (
-                existing is not None
-                and not authority_changed
-                and "account_ref" not in payload
-                and "accountRef" not in payload
-            ):
-                # Omitted by an existing client on an unchanged authority: keep the saved
-                # mapping. A changed authority is never inherited (it becomes unbound unless
-                # an explicit mapping is supplied). Explicit null clears it.
-                connection = replace(connection, account_ref=existing.connection.account_ref)
 
             incoming_api_key = _optional_secret(payload, "api_key", "apiKey")
             incoming_api_key_env = _optional_env(payload, "api_key_env", "apiKeyEnv")
@@ -719,6 +709,22 @@ class ModelProfileStore:
             clear_secret = payload.get("clear_secret") is True or payload.get(
                 "clearSecret"
             ) is True
+
+            # A replacement, source change or clear proves no account identity, so it is a
+            # credential intent. Empty inputs that are treated as no change are not.
+            credential_intent = bool(incoming_api_key or incoming_api_key_env or clear_secret)
+            if (
+                existing is not None
+                and not authority_changed
+                and not credential_intent
+                and "account_ref" not in payload
+                and "accountRef" not in payload
+            ):
+                # Omitted by an existing client as an ordinary metadata edit on an unchanged
+                # authority: keep the saved mapping. A changed authority or credential intent
+                # is never inherited (it becomes unbound unless an explicit mapping is supplied).
+                # Explicit null clears it.
+                connection = replace(connection, account_ref=existing.connection.account_ref)
 
             existing_api_key = existing.api_key if existing else None
             existing_api_key_env = existing.api_key_env if existing else None

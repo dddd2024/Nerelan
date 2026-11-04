@@ -8,9 +8,11 @@ from typing import Any
 
 import pytest
 
+from reverse_agent.model_access import store as store_module
 from reverse_agent.model_access.contracts import Connection
 from reverse_agent.model_access.service import _handler_factory
 from reverse_agent.model_access.store import ModelProfileStore, StoreError
+from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
 BASE_PUBLIC_KEYS = {
@@ -495,3 +497,155 @@ def test_http_boundary_roundtrips_account_ref_and_reloads(http_service) -> None:
     )
     assert status == 200 and "account_ref" not in cleared
     assert "account_ref" not in ModelProfileStore(state_path=state_path).get_connection_public("sense-api")
+
+
+# ---- identity lifetime: a credential source change never inherits the saved account ----
+
+def _fail_state_write(*_args: Any, **_kwargs: Any) -> None:
+    raise OSError("synthetic state write failure")
+
+
+def _selected_candidates(connection: dict[str, Any], quotas: dict[str, Any]) -> list[Any]:
+    # The real host selector reads no instance state, so it is called without a host.
+    return CombinedTrustedHost._account_quota_candidates(None, connection, quotas)
+
+
+@pytest.mark.parametrize("vault_backed", [False, True], ids=["process-local", "fake-vault"])
+@pytest.mark.parametrize("key_alias", ["api_key", "apiKey"])
+def test_same_endpoint_key_replacement_clears_mapping_and_survives_reopen(
+    tmp_path, vault_backed, key_alias,
+) -> None:
+    path = tmp_path / "state.json"
+    vault = FakeVault() if vault_backed else None
+    store = ModelProfileStore(state_path=path, vault=vault)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    replaced = store.upsert_connection(connection_payload(**{key_alias: "fake-key-two"}))
+    assert "account_ref" not in replaced
+    assert replaced["credential_configured"] is True
+    assert store.resolve_connection_secret("sense-api") == "fake-key-two"
+
+    reopened = ModelProfileStore(state_path=path, vault=vault)
+    assert "account_ref" not in reopened.get_connection_public("sense-api")
+    assert "account_ref" not in json.loads(path.read_text(encoding="utf-8"))["connections"][0]
+    if vault_backed:
+        assert reopened.resolve_connection_secret("sense-api") == "fake-key-two"
+
+
+@pytest.mark.parametrize("env_alias", ["api_key_env", "apiKeyEnv"])
+def test_env_pointer_switch_and_reassertion_clear_mapping(tmp_path, env_alias) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key_env="FAKE_ACCOUNT_A_ENV"))
+
+    switched = store.upsert_connection(connection_payload(**{env_alias: "FAKE_ACCOUNT_B_ENV"}))
+    assert "account_ref" not in switched
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+
+    # Reasserting the same pointer is a credential reassertion, so it also needs an explicit mapping.
+    store.upsert_connection(connection_payload(account_ref="acct-b", api_key_env="FAKE_ACCOUNT_B_ENV"))
+    reasserted = store.upsert_connection(connection_payload(**{env_alias: "FAKE_ACCOUNT_B_ENV"}))
+    assert "account_ref" not in reasserted
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+
+
+@pytest.mark.parametrize("clear_alias", ["clear_secret", "clearSecret"])
+def test_clear_secret_unbinds_and_a_later_key_is_not_bound(tmp_path, clear_alias) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    cleared = store.upsert_connection(connection_payload(**{clear_alias: True}))
+    assert "account_ref" not in cleared
+    assert cleared["credential_configured"] is False
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+
+    later = store.upsert_connection(connection_payload(api_key="fake-key-two"))
+    assert "account_ref" not in later
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+
+
+@pytest.mark.parametrize(
+    "empty_input",
+    [{"api_key": ""}, {"apiKey": None}, {"api_key_env": ""}, {"apiKeyEnv": None},
+     {"clear_secret": False}, {"clearSecret": False}],
+    ids=repr,
+)
+def test_empty_or_false_credential_inputs_keep_mapping_and_credential(tmp_path, empty_input) -> None:
+    store = ModelProfileStore(state_path=tmp_path / "state.json")
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    updated = store.upsert_connection(connection_payload(name="Renamed", **empty_input))
+    assert updated["name"] == "Renamed"
+    assert updated["account_ref"] == "acct-a"
+    assert updated["credential_configured"] is True
+    assert store.resolve_connection_secret("sense-api") == "fake-key-one"
+
+
+def test_name_only_edit_keeps_mapping_and_vault_credential_untouched(tmp_path) -> None:
+    vault = FakeVault()
+    store = ModelProfileStore(state_path=tmp_path / "state.json", vault=vault)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-vault-key"))
+    vault.calls.clear()
+
+    renamed = store.upsert_connection(connection_payload(name="Renamed"))
+
+    assert renamed["account_ref"] == "acct-a"
+    assert [call for call in vault.calls if call[0] != "probe"] == []
+    assert store.resolve_connection_secret("sense-api") == "fake-vault-key"
+
+
+@pytest.mark.parametrize("alias", ["account_ref", "accountRef"])
+def test_credential_replacement_honors_explicit_mapping_and_null(tmp_path, alias) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+
+    confirmed = store.upsert_connection(connection_payload(api_key="fake-key-two", **{alias: "acct-b"}))
+    assert confirmed["account_ref"] == "acct-b"
+    assert ModelProfileStore(state_path=path).get_connection_public("sense-api")["account_ref"] == "acct-b"
+
+    cleared = store.upsert_connection(connection_payload(api_key="fake-key-three", **{alias: None}))
+    assert "account_ref" not in cleared
+    assert "account_ref" not in ModelProfileStore(state_path=path).get_connection_public("sense-api")
+
+
+@pytest.mark.parametrize("vault_backed", [False, True], ids=["process-local", "fake-vault"])
+def test_failed_credential_replacement_keeps_original_mapping_and_credential(
+    tmp_path, monkeypatch, vault_backed,
+) -> None:
+    path = tmp_path / "state.json"
+    vault = FakeVault() if vault_backed else None
+    store = ModelProfileStore(state_path=path, vault=vault)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+    before = store.get_connection_public("sense-api")
+    monkeypatch.setattr(store_module, "_write_atomic", _fail_state_write)
+
+    with pytest.raises(StoreError):
+        store.upsert_connection(connection_payload(api_key="fake-key-two"))
+
+    monkeypatch.undo()
+    assert store.get_connection_public("sense-api") == before
+    assert store.resolve_connection_secret("sense-api") == "fake-key-one"
+    reopened = ModelProfileStore(state_path=path, vault=vault)
+    assert reopened.get_connection_public("sense-api")["account_ref"] == "acct-a"
+    if vault_backed:
+        assert reopened.resolve_connection_secret("sense-api") == "fake-key-one"
+
+
+def test_rotated_connection_no_longer_selects_previous_accounts_observation(tmp_path) -> None:
+    path = tmp_path / "state.json"
+    store = ModelProfileStore(state_path=path)
+    store.upsert_connection(connection_payload(account_ref="acct-a", api_key="fake-key-one"))
+    observation = {"account_ref": "acct-a", "source": "magpie", "state": "OBSERVED",
+                   "windows": [{"window": "weekly", "used_percent": 20}]}
+    quotas = {"magpie-account:acct-a": observation}
+
+    # Positive control: an ordinary rename keeps the confirmed account and selects its own evidence.
+    renamed = store.upsert_connection(connection_payload(name="Renamed"))
+    assert _selected_candidates(renamed, quotas) == [observation]
+
+    rotated = store.upsert_connection(connection_payload(api_key="fake-key-two"))
+    assert _selected_candidates(rotated, quotas) == []
+    reopened = ModelProfileStore(state_path=path).get_connection_public("sense-api")
+    assert _selected_candidates(reopened, quotas) == []
