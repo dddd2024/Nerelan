@@ -430,3 +430,272 @@ def test_carry_preserves_entry_rules(repo: Path, kind: str) -> None:
     else:
         candidate = entry(body + f"\nNerelan-Review: REJECT {accepted}")
     assert not landing_review.evaluate_review_with_carry_over(merges[-1], [candidate]).accepted
+
+
+# --- Explicit local gh opt-in (--auth-source gh). Offline: subprocess.run is faked. ---
+
+GH_REPO = "o/r"
+GH_PR = "repos/o/r/pulls/1"
+GH_COMMENTS = "repos/o/r/issues/1/comments"
+GH_REVIEWS = "repos/o/r/pulls/1/reviews"
+ACCEPT_LINE = f"Nerelan-Review: ACCEPT {HEAD}"
+
+
+def gh_pull(head: str = HEAD, *, draft: bool = False, base: str = "main") -> dict:
+    return {"head": {"sha": head}, "base": {"ref": base}, "draft": draft}
+
+
+def gh_comment(body: str, *, association: str = "OWNER", at: str | None = "2026-10-11T10:00:00Z") -> dict:
+    return {"body": body, "user": {"login": "rev"}, "author_association": association, "created_at": at}
+
+
+def gh_review(body: str, *, state: str = "APPROVED", association: str = "OWNER",
+              at: str | None = "2026-10-11T10:00:00Z") -> dict:
+    return {"body": body, "user": {"login": "rev"}, "author_association": association,
+            "state": state, "submitted_at": at}
+
+
+def gh_routes(*, comments=(), reviews=(), pull=None) -> dict:
+    return {GH_PR: pull or gh_pull(), GH_COMMENTS: [list(comments)], GH_REVIEWS: [list(reviews)]}
+
+
+class FakeGh:
+    """Stands in for ``subprocess.run`` for gh and serves synthetic REST data keyed by endpoint.
+
+    A route is a dict (single object), a list of pages (served by the ``page`` field, empty
+    past the end), or bytes (raw stdout). ``failure`` is raised or returned on every call.
+    """
+
+    def __init__(self, routes: dict, failure=None) -> None:
+        self.routes = routes
+        self.failure = failure
+        self.calls: list[tuple[list[str], dict]] = []
+
+    def __call__(self, argv, **kwargs):
+        if argv[0] != "gh":
+            # Carry-over probes git through the same seam; this offline suite keeps it out and
+            # relies on its existing fail-closed handling of git errors.
+            raise RuntimeError("offline gh test: git not available")
+        self.calls.append((list(argv), kwargs))
+        if isinstance(self.failure, BaseException):
+            raise self.failure
+        if self.failure is not None:
+            return self.failure
+        route = self.routes[argv[6]]
+        if isinstance(route, bytes):
+            return subprocess.CompletedProcess(argv, 0, stdout=route, stderr=b"")
+        if isinstance(route, dict):
+            payload = route
+        else:
+            fields = dict(part.split("=", 1) for part in argv[8::2])
+            page = int(fields.get("page", "1"))
+            payload = route[page - 1] if page <= len(route) else []
+        return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload).encode("utf-8"), stderr=b"")
+
+
+def use_gh(monkeypatch: pytest.MonkeyPatch, routes: dict, failure=None) -> FakeGh:
+    fake = FakeGh(routes, failure)
+    monkeypatch.setattr(subprocess, "run", fake)
+    return fake
+
+
+def gh_verdict(head: str = HEAD) -> dict:
+    return landing_review.run_verdict(GH_REPO, 1, head, landing_review.GhCli())
+
+
+def test_gh_backend_accepts_exact_head_through_shared_evaluator(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = use_gh(monkeypatch, gh_routes(comments=[gh_comment(ACCEPT_LINE)]))
+    result = gh_verdict()
+    assert result["passed"] is True and result["reviewer"] == "rev"
+    assert {argv[6] for argv, _ in fake.calls} == {GH_PR, GH_COMMENTS, GH_REVIEWS}
+
+
+def test_gh_pages_are_all_read_so_a_later_page_reject_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
+    routes = gh_routes()
+    routes[GH_COMMENTS] = [[gh_comment(ACCEPT_LINE, at="2026-10-11T10:00:00Z")],
+                           [gh_comment(f"Nerelan-Review: REJECT {HEAD}", at="2026-10-11T12:00:00Z")]]
+    fake = use_gh(monkeypatch, routes)
+    result = gh_verdict()
+    assert result["passed"] is False and result["reason"] == "latest_review_verdict_rejects_head"
+    # Page 3 is requested and is empty, which is what ends the walk (no silent truncation).
+    assert any("page=3" in argv for argv, _ in fake.calls)
+
+
+@pytest.mark.parametrize(("pull", "expected", "reason"), [
+    (gh_pull(), OTHER, "live_head_differs_from_expected"),
+    (gh_pull(draft=True), HEAD, "draft_pull_request"),
+    (gh_pull(base="dev"), HEAD, "base_is_not_main"),
+])
+def test_gh_backend_keeps_live_head_ready_and_main_guards(
+        monkeypatch: pytest.MonkeyPatch, pull: dict, expected: str, reason: str) -> None:
+    fake = use_gh(monkeypatch, gh_routes(pull=pull, comments=[gh_comment(ACCEPT_LINE)]))
+    result = landing_review.run_verdict(GH_REPO, 1, expected, landing_review.GhCli())
+    assert result["passed"] is False and result["reason"] == reason
+    assert [argv[6] for argv, _ in fake.calls] == [GH_PR]
+
+
+def test_gh_backend_ignores_quoted_fenced_untrusted_pending_and_dismissed(monkeypatch: pytest.MonkeyPatch) -> None:
+    comments = [gh_comment(f"> {ACCEPT_LINE}"), gh_comment(ACCEPT_LINE, association="NONE"),
+                gh_comment(f"```\n{ACCEPT_LINE}\n```")]
+    reviews = [gh_review(ACCEPT_LINE, state="PENDING", at=None), gh_review(ACCEPT_LINE, state="DISMISSED")]
+    use_gh(monkeypatch, gh_routes(comments=comments, reviews=reviews))
+    result = gh_verdict()
+    assert result["passed"] is False and result["reason"] == "no_review_verdict_for_exact_head"
+
+
+@pytest.mark.parametrize(("failure", "message"), [
+    (subprocess.CompletedProcess(["gh"], 1, stdout=b"raw SECRET-OUT", stderr=b"SECRET-ERR token"),
+     "gh api failed with exit status 1"),
+    (subprocess.TimeoutExpired(["gh"], 60), "gh api timed out"),
+    (FileNotFoundError("gh"), "gh executable is unavailable"),
+])
+def test_gh_process_failures_fail_closed_without_raw_output(
+        monkeypatch: pytest.MonkeyPatch, failure, message: str) -> None:
+    use_gh(monkeypatch, gh_routes(comments=[gh_comment(ACCEPT_LINE)]), failure=failure)
+    with pytest.raises(RuntimeError) as info:
+        gh_verdict()
+    assert str(info.value) == message
+
+
+_BAD_PULL = gh_pull()
+del _BAD_PULL["head"]
+_BAD_COMMENT = gh_comment(ACCEPT_LINE)
+del _BAD_COMMENT["author_association"]
+
+
+@pytest.mark.parametrize(("endpoint", "route"), [
+    (GH_PR, b"not json"),
+    (GH_PR, b"[]"),
+    (GH_PR, _BAD_PULL),
+    (GH_COMMENTS, b'[{"body": "Nerelan-Review: ACCEPT'),
+    (GH_COMMENTS, b'{"message": "not a list"}'),
+    (GH_COMMENTS, [[1]]),
+    (GH_COMMENTS, [[_BAD_COMMENT]]),
+    (GH_REVIEWS, [[{**gh_review(ACCEPT_LINE), "state": 3}]]),
+])
+def test_gh_malformed_or_partial_payloads_fail_closed(
+        monkeypatch: pytest.MonkeyPatch, endpoint: str, route) -> None:
+    routes = gh_routes(comments=[gh_comment(ACCEPT_LINE)])
+    routes[endpoint] = route
+    use_gh(monkeypatch, routes)
+    with pytest.raises(ValueError) as info:
+        gh_verdict()
+    assert "Nerelan" not in str(info.value) and "not a list" not in str(info.value)
+
+
+def test_gh_pagination_limit_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(landing_review, "GH_MAX_PAGES", 2)
+    routes = gh_routes()
+    routes[GH_COMMENTS] = [[gh_comment(ACCEPT_LINE)], [gh_comment(ACCEPT_LINE)]]
+    use_gh(monkeypatch, routes)
+    with pytest.raises(RuntimeError, match="pagination limit"):
+        gh_verdict()
+
+
+def test_gh_requests_are_fixed_get_without_shell_env_or_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = use_gh(monkeypatch, gh_routes(comments=[gh_comment(ACCEPT_LINE)]))
+    gh_verdict()
+    assert len(fake.calls) == 4  # pull request, two comment pages (second empty), reviews page
+    for argv, kwargs in fake.calls:
+        assert argv[:6] == ["gh", "api", "--hostname", "github.com", "--method", "GET"]
+        assert "auth" not in argv and "token" not in argv
+        assert all(isinstance(part, str) for part in argv)
+        assert kwargs["shell"] is False
+        assert kwargs["timeout"] == landing_review.GH_TIMEOUT_SECONDS
+        assert "env" not in kwargs
+
+
+@pytest.mark.parametrize("repository", [
+    "bad", "o/r;rm -rf", "../r", "o/..", "o/r/extra", "-o/r", "o/r --hostname evil.example",
+])
+def test_gh_rejects_unsafe_repository_before_spawning(monkeypatch: pytest.MonkeyPatch, repository: str) -> None:
+    fake = use_gh(monkeypatch, {})
+    with pytest.raises(ValueError):
+        landing_review.run_verdict(repository, 1, HEAD, landing_review.GhCli())
+    assert fake.calls == []
+
+
+def test_gh_rejects_non_github_api_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = use_gh(monkeypatch, {})
+    for api_url in ["https://ghe.example/api/v3", "https://api.github.com.evil.example", "https://api.github.com/?x"]:
+        with pytest.raises(ValueError):
+            landing_review.run_verdict(GH_REPO, 1, HEAD, landing_review.GhCli(), api_url=api_url)
+    assert fake.calls == []
+
+
+class SpyEnv(dict):
+    """Records which environment names are looked up, so the test can prove none were read."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.reads: list[str] = []
+
+    def __getitem__(self, key):
+        self.reads.append(key)
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        self.reads.append(key)
+        return super().get(key, default)
+
+    def __contains__(self, key):
+        self.reads.append(key)
+        return super().__contains__(key)
+
+
+def test_explicit_gh_cli_path_reads_no_token_or_host_variables(
+        monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    spy = SpyEnv({"GITHUB_TOKEN": "sentinel-token-value", "GH_TOKEN": "sentinel-token-value",
+                  "GH_HOST": "evil.example"})
+    monkeypatch.setattr(landing_review.os, "environ", spy)
+    fake = use_gh(monkeypatch, gh_routes(comments=[gh_comment(ACCEPT_LINE)]))
+    code = landing_review.main(["verdict", "--repository", GH_REPO, "--pr", "1", "--head", HEAD,
+                                "--auth-source", "gh"])
+    assert code == 0
+    assert not {"GITHUB_TOKEN", "GH_TOKEN", "GH_HOST"} & set(spy.reads)
+    assert "sentinel-token-value" not in capsys.readouterr().out
+    assert all("sentinel-token-value" not in str(argv) for argv, _ in fake.calls)
+
+
+def test_cli_gh_opt_in_prints_verdict_and_exit_code(monkeypatch: pytest.MonkeyPatch,
+                                                    capsys: pytest.CaptureFixture) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    use_gh(monkeypatch, gh_routes(comments=[gh_comment(ACCEPT_LINE)]))
+    code = landing_review.main(["verdict", "--repository", GH_REPO, "--pr", "1", "--head", HEAD,
+                                "--auth-source", "gh"])
+    printed = json.loads(capsys.readouterr().out)
+    assert code == 0 and printed["passed"] is True and printed["reason"] == "accepted"
+
+
+def test_cli_gh_failure_prints_sanitized_reason(monkeypatch: pytest.MonkeyPatch,
+                                                capsys: pytest.CaptureFixture) -> None:
+    failure = subprocess.CompletedProcess(["gh"], 1, stdout=b"SECRET-OUT", stderr=b"SECRET-ERR")
+    use_gh(monkeypatch, {}, failure=failure)
+    code = landing_review.main(["verdict", "--repository", GH_REPO, "--pr", "1", "--head", HEAD,
+                                "--auth-source", "gh"])
+    out = capsys.readouterr().out
+    assert code == 1 and "gh api failed with exit status 1" in out
+    assert "SECRET" not in out
+
+
+def test_default_token_and_ci_review_never_invoke_gh(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("GH_TOKEN", raising=False)
+    fake = use_gh(monkeypatch, {})
+    verdict_args = ["verdict", "--repository", GH_REPO, "--pr", "1", "--head", HEAD]
+    assert landing_review.main(verdict_args) == 1
+    assert landing_review.main([*verdict_args, "--auth-source", "token"]) == 1
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"number": 1}}), encoding="utf-8")
+    assert landing_review.main(["review", "--event-path", str(event), "--repository", GH_REPO]) == 1
+    assert fake.calls == []
+
+
+def test_review_command_does_not_accept_gh_auth_source(tmp_path: Path) -> None:
+    event = tmp_path / "event.json"
+    event.write_text(json.dumps({"pull_request": {"number": 1}}), encoding="utf-8")
+    with pytest.raises(SystemExit) as info:
+        landing_review.main(["review", "--event-path", str(event), "--repository", GH_REPO,
+                             "--auth-source", "gh"])
+    assert info.value.code == 2
