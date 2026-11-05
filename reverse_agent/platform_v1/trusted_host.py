@@ -268,7 +268,14 @@ class CombinedTrustedHost:
                 wall_seconds=metrics.get("wall_seconds"))
             return
         classification = str(getattr(task, "failure_classification", "") or "").lower()
-        if any(token in classification for token in ("auth", "unauthorized", "rate_limit", "login", "session")):
+        # Only finite provider-auth codes justify account-wide isolation. Host
+        # authorization, author identity and local session failures do not.
+        code, _, detail_code = classification.partition(":")
+        provider_auth = code in {"auth_provider_route_failure", "authentication_error",
+            "invalid_api_key", "unauthorized", "api_error_401", "api_error_403"}
+        provider_auth = provider_auth or (code == "model_unavailable" and detail_code in {
+            "authentication_error", "invalid_api_key"})
+        if provider_auth:
             kind = "account_abnormal"
         elif "quota" in classification or "limit_hit" in classification:
             kind = "quota_exhausted"

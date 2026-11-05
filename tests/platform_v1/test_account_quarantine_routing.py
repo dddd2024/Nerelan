@@ -114,3 +114,25 @@ def test_a_pinned_quarantined_binding_is_not_forced_onto_the_bad_account(pool):
     host._store.put_agent_roster({"roles": {"simple": {"binding_id": "cheap", "pin": True}}})
     with pytest.raises(TaskStoreError, match="pinned_model_unavailable"):
         host._resolve_task_model(PlannedTask("T1", "edit", "edit", difficulty=2))
+
+
+@pytest.mark.parametrize("classification", ["server_session_error", "author_identity_unknown",
+    "authorization_scope_denied", "review_session_missing", "server_basic_auth_required"])
+def test_local_session_and_authority_failures_do_not_isolate_a_provider(pool, classification):
+    host, brain, clock, path = pool
+    brain.cooldowns.clear("shared")
+    task = SimpleNamespace(id="fixture", binding_ref="cheap", failure_classification=classification)
+    host._report_account_feedback_to_brain(task, success=False)
+    assert brain.cooldowns.get("shared").tier == "transient"
+    assert host._resolve_task_model(PlannedTask("T1", "edit", "edit", difficulty=2))["binding_ref"] == "cheap"
+
+
+@pytest.mark.parametrize("classification", ["auth_provider_route_failure",
+    "MODEL_UNAVAILABLE:authentication_error", "MODEL_UNAVAILABLE:invalid_api_key", "api_error_401"])
+def test_finite_provider_auth_failure_feedback_is_consumed_by_production_routing(pool, classification):
+    host, brain, clock, path = pool
+    brain.cooldowns.clear("shared")
+    task = SimpleNamespace(id="fixture", binding_ref="cheap", failure_classification=classification)
+    host._report_account_feedback_to_brain(task, success=False)
+    assert brain.cooldowns.get("shared").tier == "quarantine"
+    assert host._resolve_task_model(PlannedTask("T1", "edit", "edit", difficulty=2))["binding_ref"] == "healthy"
