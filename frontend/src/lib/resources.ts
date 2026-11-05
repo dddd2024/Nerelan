@@ -163,6 +163,48 @@ export interface MagpieView {
 /** Display-only view of GET /api/resources. Never selects writes/bindings. */
 export type ResourceViewMode = "legacy" | "hybrid" | "magpie_primary";
 
+/**
+ * How a reported account relates to a route this repository may actually spend.
+ * `route_bound` is provider-level only: one enabled native connection declares the
+ * provider. It never means "this account served this task".
+ */
+export type AccountAttributionStatus =
+  | "route_bound"
+  | "no_route_identity"
+  | "ambiguous_multiple_accounts"
+  | "ambiguous_multiple_routes"
+  | "unobserved"
+  | "unknown";
+
+export interface AccountAttributionEntry {
+  provider: string | null;
+  accountRef: string | null;
+  state: string | null;
+  reason: string | null;
+  observedAt: string | null;
+  status: AccountAttributionStatus;
+  /** The backend's machine reason, kept verbatim for tooltips and e2e assertions. */
+  reasonCode: string | null;
+  routeProvider: string | null;
+  connectionIds: string[];
+}
+
+export interface AccountAttributionSummary {
+  accounts: number;
+  routeBound: number;
+  noRouteIdentity: number;
+  ambiguous: number;
+  unobserved: number;
+  malformed: number;
+}
+
+export interface AccountAttribution {
+  status: string;
+  reason: string | null;
+  accounts: AccountAttributionEntry[];
+  summary: AccountAttributionSummary;
+}
+
 export interface ResourceOverview {
   resources: Resource[];
   usableBindings: number;
@@ -174,6 +216,8 @@ export interface ResourceOverview {
   externalSources?: { magpie: MagpieSnapshot };
   correlation?: Correlation;
   magpieView?: MagpieView;
+  /** Present in hybrid/magpie_primary views; every Magpie account and its route claim. */
+  accountAttribution?: AccountAttribution;
 }
 
 type Raw = Record<string, unknown>;
@@ -376,6 +420,52 @@ function magpieView(value: unknown): MagpieView {
   };
 }
 
+function accountAttributionStatus(value: unknown): AccountAttributionStatus {
+  switch (value) {
+    case "route_bound":
+    case "no_route_identity":
+    case "ambiguous_multiple_accounts":
+    case "ambiguous_multiple_routes":
+    case "unobserved":
+      return value;
+    default:
+      return "unknown";
+  }
+}
+
+function accountAttribution(value: unknown): AccountAttribution | null {
+  if (!value || typeof value !== "object") return null;
+  const raw = asRecord(value);
+  const summary = asRecord(raw.summary);
+  return {
+    status: asString(raw.status) ?? "unavailable",
+    reason: asString(raw.reason),
+    accounts: (Array.isArray(raw.accounts) ? raw.accounts : []).map((item) => {
+      const entry = asRecord(item);
+      const attribution = asRecord(entry.attribution);
+      return {
+        provider: asString(entry.provider),
+        accountRef: asString(entry.account_ref),
+        state: asString(entry.state),
+        reason: asString(entry.reason),
+        observedAt: asString(entry.observed_at),
+        status: accountAttributionStatus(attribution.status),
+        reasonCode: asString(attribution.reason),
+        routeProvider: asString(attribution.route_provider),
+        connectionIds: asStrings(attribution.connection_ids),
+      };
+    }),
+    summary: {
+      accounts: asCount(summary.accounts),
+      routeBound: asCount(summary.route_bound),
+      noRouteIdentity: asCount(summary.no_route_identity),
+      ambiguous: asCount(summary.ambiguous),
+      unobserved: asCount(summary.unobserved),
+      malformed: asCount(summary.malformed),
+    },
+  };
+}
+
 export function normalizeResourceOverview(payload: unknown): ResourceOverview {
   const raw = asRecord(payload);
   const summary = asRecord(raw.summary);
@@ -426,6 +516,7 @@ export function normalizeResourceOverview(payload: unknown): ResourceOverview {
     ...(raw.external_sources ? { externalSources: { magpie: magpieSnapshot(asRecord(raw.external_sources).magpie) } } : {}),
     ...(raw.correlation ? { correlation: correlation(raw.correlation) } : {}),
     ...(raw.magpie_view ? { magpieView: magpieView(raw.magpie_view) } : {}),
+    ...(raw.account_attribution ? { accountAttribution: accountAttribution(raw.account_attribution) ?? undefined } : {}),
   };
 }
 

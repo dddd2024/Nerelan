@@ -4,6 +4,9 @@ import { useResources } from "@/hooks/use-model-access";
 import { cn } from "@/lib/cn";
 import {
   totalTokens,
+  type AccountAttribution,
+  type AccountAttributionEntry,
+  type AccountAttributionStatus,
   type Correlation,
   type EquivalentCost,
   type MagpieAccount,
@@ -33,6 +36,17 @@ const AVAILABILITY_LABELS: Record<string, { text: string; tone: string }> = {
   available: { text: "可用", tone: "text-ra-accent" },
   near_limit: { text: "接近上限", tone: "text-ra-status-warning" },
   limit_reached: { text: "已触顶", tone: "text-ra-status-error" },
+};
+
+// `route_bound` is provider-level: one enabled native connection declares the
+// provider. It is deliberately not worded as "this account is in use".
+const ATTRIBUTION_LABELS: Record<AccountAttributionStatus, { text: string; tone: string }> = {
+  route_bound: { text: "已绑定路由", tone: "text-ra-accent" },
+  no_route_identity: { text: "仅遥测（无路由）", tone: "text-ra-text-tertiary" },
+  ambiguous_multiple_accounts: { text: "归属不明（多账号同厂商）", tone: "text-ra-status-warning" },
+  ambiguous_multiple_routes: { text: "归属不明（多连接同厂商）", tone: "text-ra-status-warning" },
+  unobserved: { text: "未观测", tone: "text-ra-text-tertiary" },
+  unknown: { text: "归属未知", tone: "text-ra-text-tertiary" },
 };
 
 const GUARD_REASONS: Record<string, string> = {
@@ -424,9 +438,13 @@ function MagpieWindowRow({ window, observed }: { window: MagpieAccountWindow; ob
   );
 }
 
-function MagpieAccountRow({ account }: { account: MagpieAccount }) {
+function MagpieAccountRow({ account, attribution }: {
+  account: MagpieAccount;
+  attribution?: AccountAttributionEntry;
+}) {
   const observed = magpieAccountObserved(account);
   const hasCached = account.cachedWindows.length > 0;
+  const badge = attribution ? ATTRIBUTION_LABELS[attribution.status] : null;
   return (
     <div data-testid={`magpie-account-${account.provider ?? "unknown"}`} data-state={account.state}>
       <div className="flex items-baseline justify-between gap-2 text-xs">
@@ -435,6 +453,18 @@ function MagpieAccountRow({ account }: { account: MagpieAccount }) {
         </span>
         <span className="text-ra-text-tertiary">{account.state}</span>
       </div>
+      {badge && attribution && (
+        <p
+          className={cn("text-[11px]", badge.tone)}
+          data-testid="account-attribution"
+          data-attribution={attribution.status}
+          title={attribution.reasonCode ?? undefined}
+        >
+          {badge.text}
+          {attribution.routeProvider ? ` · 路由 ${attribution.routeProvider}` : ""}
+          {attribution.connectionIds.length > 0 ? ` · 连接 ${attribution.connectionIds.join("、")}` : ""}
+        </p>
+      )}
       <p className="text-[11px] text-ra-text-tertiary">
         账号伪名 {account.accountRef ?? "未知"}{account.plan ? ` · 计划 ${account.plan}` : ""}
       </p>
@@ -477,12 +507,32 @@ function MagpieAccountRow({ account }: { account: MagpieAccount }) {
   );
 }
 
-function MagpieAccounts({ accounts }: { accounts: MagpieAccount[] }) {
+function MagpieAccounts({ accounts, attribution }: {
+  accounts: MagpieAccount[];
+  attribution?: AccountAttribution;
+}) {
   if (accounts.length === 0) return null;
+  // Attribution is reported per account_ref; an account without a ref stays
+  // unattributed instead of inheriting another account's verdict.
+  const byRef = new Map<string, AccountAttributionEntry>();
+  for (const entry of attribution?.accounts ?? []) {
+    if (entry.accountRef) byRef.set(entry.accountRef, entry);
+  }
+  const summary = attribution?.summary;
   return (
     <div className="mt-2 flex flex-col gap-2" data-testid="magpie-accounts">
+      {summary && summary.accounts > 0 && (
+        <p className="text-[11px] text-ra-text-tertiary" data-testid="account-attribution-summary">
+          账户 {summary.accounts} · 已绑定路由 {summary.routeBound} · 仅遥测 {summary.noRouteIdentity} ·
+          归属不明 {summary.ambiguous} · 未观测 {summary.unobserved}
+        </p>
+      )}
       {accounts.map((account, index) => (
-        <MagpieAccountRow key={`${account.provider ?? "unknown"}-${index}`} account={account} />
+        <MagpieAccountRow
+          key={`${account.provider ?? "unknown"}-${index}`}
+          account={account}
+          attribution={account.accountRef ? byRef.get(account.accountRef) : undefined}
+        />
       ))}
     </div>
   );
@@ -513,7 +563,11 @@ function MagpieCorrelation({ correlation }: { correlation: Correlation }) {
   );
 }
 
-function MagpiePanel({ data, correlation }: { data: MagpiePanelData; correlation?: Correlation }) {
+function MagpiePanel({ data, correlation, attribution }: {
+  data: MagpiePanelData;
+  correlation?: Correlation;
+  attribution?: AccountAttribution;
+}) {
   const available = data.status === "available" || data.status === "ok" || data.status === "ready";
   return (
     <section
@@ -541,7 +595,7 @@ function MagpiePanel({ data, correlation }: { data: MagpiePanelData; correlation
         <>
           {data.version && <p className="text-[11px] text-ra-text-tertiary">版本 {data.version}</p>}
           <MagpieModels models={data.models} />
-          <MagpieAccounts accounts={data.accounts} />
+          <MagpieAccounts accounts={data.accounts} attribution={attribution} />
           {correlation && <MagpieCorrelation correlation={correlation} />}
         </>
       )}
@@ -604,7 +658,7 @@ export function ResourceOverview() {
         <>
           {panel && magpieFirst && (
             <>
-              <MagpiePanel data={panel} correlation={overview.correlation} />
+              <MagpiePanel data={panel} correlation={overview.correlation} attribution={overview.accountAttribution} />
               <details className="mt-3" data-testid="legacy-fallback">
                 <summary className="cursor-pointer text-xs text-ra-text-secondary">本地记录回退</summary>
                 <LegacyContent overview={overview} />
@@ -614,7 +668,7 @@ export function ResourceOverview() {
           {!(panel && magpieFirst) && (
             <>
               <LegacyContent overview={overview} />
-              {panel && <MagpiePanel data={panel} correlation={overview.correlation} />}
+              {panel && <MagpiePanel data={panel} correlation={overview.correlation} attribution={overview.accountAttribution} />}
             </>
           )}
         </>

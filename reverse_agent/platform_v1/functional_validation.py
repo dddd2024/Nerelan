@@ -453,6 +453,26 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
         result = {"format": kind, **counts, "accepted": complete and counts["passed"] > 0 and counts["failed"] == 0}
     except (OSError, ValueError, ET.ParseError):
         result = {"format": kind, **counts, "accepted": False}
+    # Multi-account self-evolution feedback (E1): record the functional
+    # acceptance verdict so the break-even ledger can learn. Flag-gated and
+    # best-effort, never blocks landing. The richer cost/task_count/tokens/
+    # wall_seconds telemetry is recorded at the goal-finalization seam
+    # (MULTI_ACCOUNT_ORCHESTRATION_SPEC §10.2); until then those fields are
+    # None and such runs simply do not shift the measured break-even.
+    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+        try:
+            from .multi_account.dispatch import record_goal_outcome
+            record_goal_outcome({
+                "mode": None,  # unknown at the validation seam; filled at goal finalization
+                "accepted": bool(result.get("accepted")),
+                "cost_units": None,
+                "task_count": None,
+                "tokens": None,
+                "wall_seconds": None,
+                "size_band": None,
+            })
+        except Exception:  # noqa: BLE001 - learning is best-effort, never blocks landing
+            pass
     # What a retry needs to fix: the failing tests, or the end of the output when none were named.
     if failures:
         result["failures"] = failures

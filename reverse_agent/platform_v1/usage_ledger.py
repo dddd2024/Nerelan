@@ -135,6 +135,69 @@ def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200)
     return None
 
 
+def task_feedback_metrics(store: Any, task_id: str) -> dict[str, float | None]:
+    """List-price cost (USD) and wall time of one task, for per-account feedback.
+
+    The multi-account scheduler ranks accounts by *relative* cost, so this
+    reuses the same normalized counters and list prices as
+    :func:`quota_guard.typical_task_units` instead of inventing a second cost
+    model. It is deliberately one task at a time — it is called once per finished
+    attempt, never in a loop over history.
+
+    Returns ``{"cost_units": None|float, "wall_seconds": None|float,
+    "basis": "list_price"}``. ``cost_units`` is a **list-price estimate**, not
+    money billed: Magpie's ``usage --csv`` carries the real per-request
+    ``cost_usd`` and is the preferred cash source when it is available
+    (see docs/architecture/MAGPIE_CAPABILITY_AUDIT_2026-11-04.md). Unknown prices
+    or missing telemetry yield ``None`` for that field: an unpriced task must not
+    be counted as free.
+    """
+    metrics: dict[str, Any] = {"cost_units": None, "wall_seconds": None,
+                              "basis": "list_price"}
+    if not task_id:
+        return metrics
+    conn = store._conn
+    try:
+        from ..model_access.pricing import equivalent_cost
+        total = None
+        for row in conn.execute(
+                "SELECT model_id, SUM(input_units) AS input, SUM(cache_read_units) AS cache_read, "
+                "SUM(cache_write_units) AS cache_write, SUM(output_units) AS output, "
+                "SUM(reasoning_units) AS reasoning FROM task_usage_observations "
+                "WHERE task_id = ? AND status = 'OBSERVED' GROUP BY model_id", (task_id,)):
+            if row["output"] is None:
+                continue
+            counters = {"input": int(row["input"] or 0), "cache_read": int(row["cache_read"] or 0),
+                        "cache_write": None if row["cache_write"] is None else int(row["cache_write"]),
+                        "output": int(row["output"] or 0)}
+            # Reasoning is billed as output by every provider this ledger covers.
+            counters["output"] += int(row["reasoning"] or 0)
+            usd = equivalent_cost(row["model_id"] or "", counters).get("usd")
+            if usd is not None:
+                total = (total or 0.0) + float(usd)
+        metrics["cost_units"] = None if total is None else round(total, 6)
+    except Exception:  # noqa: BLE001 - feedback must never break a finished task
+        metrics["cost_units"] = None
+    try:
+        row = conn.execute("SELECT created_at, updated_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if row is not None:
+            metrics["wall_seconds"] = _elapsed_seconds(row["created_at"], row["updated_at"])
+    except Exception:  # noqa: BLE001
+        metrics["wall_seconds"] = None
+    return metrics
+
+
+def _elapsed_seconds(start: Any, end: Any) -> float | None:
+    from datetime import datetime
+    try:
+        first = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        last = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    seconds = (last - first).total_seconds()
+    return round(seconds, 3) if seconds >= 0 else None
+
+
 def binding_token_totals(records: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per binding: summed counters, how many tasks reported tokens, and the models seen."""
     totals: dict[str, dict[str, Any]] = {}
