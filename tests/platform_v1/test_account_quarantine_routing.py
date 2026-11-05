@@ -136,3 +136,17 @@ def test_finite_provider_auth_failure_feedback_is_consumed_by_production_routing
     host._report_account_feedback_to_brain(task, success=False)
     assert brain.cooldowns.get("shared").tier == "quarantine"
     assert host._resolve_task_model(PlannedTask("T1", "edit", "edit", difficulty=2))["binding_ref"] == "healthy"
+
+
+def test_host_wait_refusals_cannot_keep_renewing_account_isolation(pool):
+    host, brain, clock, path = pool
+    until = brain.cooldowns.until("shared")
+    attempts = brain.scores.get("shared").attempts
+    clock[0] += 100
+    task = SimpleNamespace(id="fixture", binding_ref="cheap",
+        failure_classification="QUOTA_WAIT:account_quarantined:no_alternative")
+    host._report_account_feedback_to_brain(task, success=False)
+    assert brain.cooldowns.until("shared") == until
+    assert brain.scores.get("shared").attempts == attempts
+    clock[0] = until + 1
+    assert host._resolve_task_model(PlannedTask("T1", "edit", "edit", difficulty=2))["binding_ref"] == "cheap"

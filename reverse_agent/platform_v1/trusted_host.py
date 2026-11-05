@@ -268,6 +268,10 @@ class CombinedTrustedHost:
                 wall_seconds=metrics.get("wall_seconds"))
             return
         classification = str(getattr(task, "failure_classification", "") or "").lower()
+        # Our own quarantine refusal made no provider attempt. Feeding it back
+        # would renew the same quarantine indefinitely on repeated waits.
+        if classification == "quota_wait:account_quarantined:no_alternative":
+            return
         # Only finite provider-auth codes justify account-wide isolation. Host
         # authorization, author identity and local session failures do not.
         code, _, detail_code = classification.partition(":")
