@@ -5,13 +5,16 @@
 > 当前边界以 [交付状态](MULTI_ACCOUNT_DELIVERY_STATUS.md) 为准；C3 未完成验收。
 
 ```text
-STATUS: F3 REPAIR CANDIDATE — 整体 C3 仍未验收
+STATUS: F3 SQLITE REPAIR MERGED (#1381) — 整体 C3 仍未验收
 AUTHORITY: 需独立立项 + 独立评审（风险高于普通 R1）
 OWNER DECISION: 2026-11-04，列为长时间无人值守能力的高优先级任务
 RELATED: MULTI_ACCOUNT_ORCHESTRATION_SPEC.md §7 C3 / §12.3
 ```
 
 ### F3 实现记录（#1380，2026-11-05）
+
+#1381 已经 exact-head 独立 ACCEPT、全部必需门禁和匹配 head 合入，main 为
+`0b5ba18138133aa639a9303fe88c2927044908d5`，完整平台基线为 6459 passed、33 skipped。
 
 真实临时 TaskStore 上的 SQLite 写锁已复现：原心跳遇到一次包装后的存储错误便永久停止。
 当前修复继续复用 `_HeartbeatContext` / TaskStore，不增加队列、运行时、依赖或数据表。

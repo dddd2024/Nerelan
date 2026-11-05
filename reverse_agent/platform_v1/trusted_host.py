@@ -532,7 +532,8 @@ class CombinedTrustedHost:
     def _resolve_task_model(self, task: Any, *, goal: Any = None, failed_binding: str = "",
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
-                            refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                            refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
+                            probe_availability: bool = True) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -636,7 +637,7 @@ class CombinedTrustedHost:
                 can_probe = False
             candidate["availability"] = self._routing_availability(binding, connection, allow_paid=allow_paid,
                 cost_class=cost_class, readonly=forecast,
-                probe_allowed=not forecast and can_probe and self._routing_probe_window_allowed(goal),
+                probe_allowed=probe_availability and not forecast and can_probe and self._routing_probe_window_allowed(goal),
                 history=availability_history.get(binding["binding_id"], ()),
                 runnable=binding["binding_id"] in runnable)
             candidates.append(candidate)

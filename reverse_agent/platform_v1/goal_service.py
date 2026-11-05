@@ -12,6 +12,7 @@ import os
 import re
 import json
 import time
+import math
 import subprocess
 import hashlib
 from pathlib import Path
@@ -32,8 +33,27 @@ from .functional_validation import (
 from .quota_guard import LIMIT_HIT
 from .model_router import task_traits
 from .routing_inputs import requirements
-from .required_review_artifact import normalize_required_artifacts, freeze_required_artifacts
+from .required_review_artifact import normalize_required_artifacts, freeze_required_artifacts, load_required_artifacts
 from .run_read_model import publication_projection
+
+_INITIAL_WAIT = "initial_resource_wait"
+INITIAL_MODEL_RECHECK_SECONDS = 60.0
+
+
+def _initial_resource_wait(decision: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Host-owned opt-in marker, never a general retry of model refusal/failure."""
+    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+        return None
+    if decision.get("reason") not in {"no_runnable_model", "pinned_model_unavailable", "review_not_independent"}:
+        return None
+    if decision.get("temporary_resource_blocked") is not True:
+        return None
+    now = time.time()
+    due = decision.get("retry_at")
+    if type(due) not in (int, float) or not math.isfinite(due) or due <= now:
+        due = now + INITIAL_MODEL_RECHECK_SECONDS
+    return {"version": 1, "kind": "resource",
+            "retry_at": max(now + 1, min(due, now + INITIAL_MODEL_RECHECK_SECONDS))}
 from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
 )
@@ -335,7 +355,7 @@ class GoalService:
                 if spent >= len(goal_admission_snapshots(binding)) or window.tasks_started >= window.max_tasks:
                     raise TaskStoreError("delegated_goal_budget_exhausted")
                 self.control_store.approve_goal(goal_id, expected_revision=goal.revision, policy_ref=window.policy_id)
-                self._launch(goal_id, expected_revision=goal.revision, window_id=window_id)
+                self._launch(goal_id, expected_revision=goal.revision, window_id=window_id, probe_availability=False)
                 self.control_store.append_receipt(
                     window_id=window_id, operation_type="goal_admission", capability="approve_goal",
                     repository=goal.repository, subject_id=goal_id, decision="allowed",
@@ -405,7 +425,8 @@ class GoalService:
         outcome = self.control_store.rebind_goal_to_window(goal_id, window_id=window_id)
         return {**outcome, "goal": self.detail(goal_id)}
 
-    def _launch(self, goal_id: str, *, expected_revision: int, window_id: str) -> GoalRecord:
+    def _launch(self, goal_id: str, *, expected_revision: int, window_id: str,
+                probe_availability: bool = True) -> GoalRecord:
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_not_launchable")
@@ -440,10 +461,15 @@ class GoalService:
                 return resolved[seq]
             item = planned_tasks[seq]
             if goal.orchestration_mode == "agent_team" and self.task_resolver is not None:
+                pending_authors = ()
                 try:
                     ancestry = self._review_ancestry(item, {t.id: t for t in planned_tasks})
                     author_bindings = tuple(resolve(indices[source])[1] for source in ancestry)
                     if ancestry and not all(author_bindings):
+                        missing = [source for source, binding in zip(ancestry, author_bindings) if not binding]
+                        if (os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
+                                and all((decisions[indices[source]] or {}).get(_INITIAL_WAIT) for source in missing)):
+                            pending_authors = ancestry
                         raise TaskStoreError("review_not_independent")
                     # Preserve the chosen identity even if binding configuration
                     # changes while resolving the rest of the plan.
@@ -451,11 +477,23 @@ class GoalService:
                     args = {"author_models": tuple(m for m in author_models if m),
                             "author_bindings": tuple(binding for binding, model in zip(author_bindings, author_models)
                                                      if not model)} if ancestry else {}
-                    decision = self.task_resolver(item, goal=replace(goal, window_id=window_id), **args)
+                    probe = {} if probe_availability else {"probe_availability": False}
+                    decision = dict(self.task_resolver(item, goal=replace(goal, window_id=window_id), **args, **probe))
+                    decision.pop(_INITIAL_WAIT, None)
                 except TaskStoreError as exc:
                     if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable", "review_not_independent"}:
                         raise
-                    decisions[seq] = getattr(exc, "decision", {"reason": str(exc)})
+                    decision = dict(getattr(exc, "decision", {"reason": str(exc)}))
+                    decision.pop("binding_ref", None)
+                    decision.pop(_INITIAL_WAIT, None)
+                    wait = ({"version": 1, "kind": "author", "author_plan_ids": list(pending_authors),
+                             "retry_at": time.time() + INITIAL_MODEL_RECHECK_SECONDS} if pending_authors
+                            else _initial_resource_wait(decision))
+                    if item.validation_command_id:
+                        wait = None  # a fixed host checker is not model-selection work
+                    if wait:
+                        decision[_INITIAL_WAIT] = wait
+                    decisions[seq] = decision
                     resolved[seq] = ("opencode", "", "single")
                     return resolved[seq]
                 resolved[seq] = (decision["executor_kind"], decision["binding_ref"], "single")
@@ -477,16 +515,24 @@ class GoalService:
         functional_base = repository_base(goal.repository) if any(
             kind in {"codex", "claude_code"} for kind, _, _ in routes) or any(
             raw.get("validation_checks") for raw in goal.tasks
-        ) else ""
+        ) or any((decision or {}).get(_INITIAL_WAIT) for decision in decisions.values()) else ""
         for seq, raw in enumerate(goal.tasks):
             plan_task = self._normalize_task(raw, seq=seq)
             executor_kind, binding_ref, orchestration_mode = routes[seq]
+            decision = decisions[seq]
+            if (decision or {}).get(_INITIAL_WAIT):
+                if re.fullmatch(r"[0-9a-f]{40}", functional_base):
+                    decision[_INITIAL_WAIT] = {**decision[_INITIAL_WAIT], "base_commit": functional_base,
+                        "goal_id": goal.id, "goal_revision": goal.revision,
+                        "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan_task.id}
+                else:
+                    decision.pop(_INITIAL_WAIT)
             task = self.store.create_task(
                 title=self._execution_title(goal, plan_task),
                 repository=goal.repository,
                 executor_kind=executor_kind,
                 binding_ref=binding_ref,
-                branch=functional_base if executor_kind in {"codex", "claude_code"} else "",
+                branch=functional_base if executor_kind in {"codex", "claude_code"} or (decision or {}).get(_INITIAL_WAIT) else "",
                 permission_profile="AUTONOMOUS_WINDOW",
                 policy_ref=window.id if plan_task.validation_command_id else window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
@@ -494,6 +540,9 @@ class GoalService:
             )
             if decisions[seq] is not None:
                 if not decisions[seq].get("binding_ref"):
+                    if decision.get(_INITIAL_WAIT):
+                        decision[_INITIAL_WAIT]["task_id"] = task.id
+                        decision[_INITIAL_WAIT]["execution_id"] = task.execution_id
                     self.store.block_model_selection(task.id, decision=decisions[seq])
                 else:
                     self._record_model_selection(task, decisions[seq])
@@ -521,6 +570,231 @@ class GoalService:
         if any(decision is not None and not decision.get("binding_ref") for decision in decisions.values()):
             return self.control_store.refresh_goal_status(goal.id)
         return running
+
+    def _initial_contracts_match(self, task: Any, goal: Any, plan: PlannedTask,
+                                 planned: Mapping[str, PlannedTask], base: str) -> bool:
+        """Validate existing frozen proof against the approved plan; never create it."""
+        try:
+            functional, handoff, required = load_contract(task), load_handoff_contract(task), load_required_artifacts(task)
+            checks = list(normalize_checks(plan.validation_checks))
+            export = any(item.artifact_input == {"plan_task_id": plan.id} for item in planned.values())
+            if (task.repository != goal.repository or bool(checks) != (functional is not None)
+                    or (plan.artifact_input is not None or export) != (handoff is not None)
+                    or bool(plan.required_artifacts) != (required is not None)):
+                return False
+            if functional and (functional["checks"] != checks
+                    or functional["requires_implementation"] != (plan.capability == "execute_task")):
+                return False
+            if handoff and (handoff["version"] != 2 or handoff["artifact_input"] != plan.artifact_input
+                    or handoff["export_required"] != export or handoff["capability"] != plan.capability
+                    or handoff["kind"] != plan.kind or handoff["agent_role"] != plan.agent_role):
+                return False
+            identity = {"task_id": task.id, "goal_id": goal.id, "goal_revision": goal.revision,
+                        "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan.id}
+            for contract in (functional, handoff):
+                if contract and (contract["base_commit"] != base
+                        or any(contract.get(key) != value for key, value in identity.items())):
+                    return False
+            return not required or (required["task_id"] == task.id and required["goal_id"] == goal.id
+                and required["goal_revision"] == goal.revision
+                and required["files"] == list(normalize_required_artifacts(plan.required_artifacts)))
+        except (KeyError, TypeError, ValueError, TaskStoreError):
+            return False
+
+    def _initial_selection_state(self, task: Any, goal: Any, plan: PlannedTask,
+                                 planned: Mapping[str, PlannedTask]) -> tuple[dict, str] | None:
+        """Prove a marked initial task never entered execution; caller holds store lock."""
+        if (plan.validation_command_id or task.status != "BLOCKED" or _INITIAL_WAIT not in task.failure_detail
+                or task.binding_ref or task.workspace or task.model_profile_ref
+                or task.validation_command_id or task.validation_exit_code is not None or task.validation_output_digest
+                or task.repository != goal.repository
+                or task.permission_profile != "AUTONOMOUS_WINDOW"
+                or self.store._has_execution_history_locked(task.id)):
+            return None
+        for table in ("task_usage_observations", "platform_usage_charges", "durable_external_operations",
+                      "task_changed_files", "platform_quota_admissions"):
+            if self.store._conn.execute(f"SELECT 1 FROM {table} WHERE task_id=? LIMIT 1", (task.id,)).fetchone():
+                return None
+        if self.store._conn.execute("SELECT 1 FROM task_events WHERE task_id=? "
+                "AND type NOT IN ('DISCOVERED','MODEL_SELECTION_FAILED') LIMIT 1", (task.id,)).fetchone():
+            return None
+        if any(ref.get("status") != "APPROVED" for ref in task.evidence_refs):
+            return None
+        event = self.store._conn.execute("SELECT id,metadata FROM task_events WHERE task_id=? "
+            "AND type='MODEL_SELECTION_FAILED' ORDER BY seq DESC LIMIT 1", (task.id,)).fetchone()
+        try:
+            decision = json.loads(task.failure_detail)
+            marker = decision[_INITIAL_WAIT]
+            if event is None or json.loads(event["metadata"]) != decision or not isinstance(marker, dict):
+                return None
+            if task.failure_classification != decision.get("reason"):
+                return None
+            identity = {"task_id": task.id, "execution_id": task.execution_id, "goal_id": goal.id, "goal_revision": goal.revision,
+                        "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan.id}
+            if (type(marker.get("version")) is not int or marker["version"] != 1
+                    or type(marker.get("goal_revision")) is not int
+                    or any(marker.get(key) != value for key, value in identity.items())
+                    or marker.get("kind") not in {"resource", "author"}
+                    or type(marker.get("retry_at")) not in (int, float) or not math.isfinite(marker["retry_at"])
+                    or marker.get("base_commit") != task.branch or not re.fullmatch(r"[0-9a-f]{40}", task.branch)):
+                return None
+            if marker["kind"] == "author":
+                ancestry = self._review_ancestry(plan, planned)
+                if (not ancestry or marker.get("author_plan_ids") != list(ancestry)
+                        or decision.get("reason") != "review_not_independent"):
+                    return None
+            elif (decision.get("temporary_resource_blocked") is not True
+                    or decision.get("reason") not in {"no_runnable_model", "pinned_model_unavailable", "review_not_independent"}):
+                return None
+            if not self._initial_contracts_match(task, goal, plan, planned, task.branch):
+                return None
+            return marker, event["id"]
+        except (KeyError, TypeError, ValueError, TaskStoreError):
+            return None
+
+    def _initial_window_live(self, goal: Any, window_id: str) -> bool:
+        with self.store._lock:
+            window = self.control_store.get_window(window_id)
+            active = self.store._conn.execute("SELECT id FROM platform_autonomous_windows WHERE status='ACTIVE' "
+                "AND julianday(starts_at)<=julianday('now') AND julianday(expires_at)>julianday('now') "
+                "ORDER BY created_at DESC LIMIT 1").fetchone()
+            return bool(active and active["id"] == window_id and goal.window_id == window_id
+                and goal.status in {"RUNNING", "BLOCKED"} and goal.repository in window.repositories
+                and window.tasks_started < window.max_tasks)
+
+    def _commit_initial_selection(self, goal: Any, plan: PlannedTask, task_id: str, event_id: str,
+                                  decision: Mapping[str, Any], authors: Mapping[str, Any], autonomy: Any) -> bool:
+        """CAS task, selection evidence and goal aggregation under one write transaction."""
+        with self.store._lock:
+            self.store._conn.execute("BEGIN IMMEDIATE")
+            try:
+                current = self.control_store.get_goal(goal.id)
+                task = self.store.get_task(task_id)
+                links = self.control_store.list_goal_tasks(goal.id)
+                planned = {item.id: item for item in
+                           (self._normalize_task(raw, seq=i) for i, raw in enumerate(current.tasks))}
+                state = self._initial_selection_state(task, current, plan, planned)
+                if (current.revision != goal.revision or current.artifact_digest != goal.artifact_digest
+                        or not self._initial_window_live(current, goal.window_id)
+                        or not any(row["task_id"] == task_id and row["plan_task_id"] == plan.id
+                                   and int(row["goal_revision"]) == current.revision for row in links)
+                        or state is None or state[1] != event_id
+                        or self._review_authors(plan, current, planned, require_frozen=True) != authors):
+                    self.store._conn.execute("ROLLBACK")
+                    return False
+                window = self.control_store.get_window(goal.window_id)
+                if task.policy_ref != window.policy_id or plan.capability not in window.capabilities:
+                    self.store._conn.execute("ROLLBACK")
+                    return False
+                autonomy._check_window_authority(goal.window_id)
+                selected = bool(decision.get("binding_ref"))
+                metadata = dict(decision)
+                metadata.pop(_INITIAL_WAIT, None)
+                if selected:
+                    self.store._update_task_fields(task_id, {"status": "QUEUED",
+                        "binding_ref": decision["binding_ref"], "executor_kind": decision["executor_kind"],
+                        "failure_classification": "", "failure_detail": ""})
+                    from .task_runtime import task_operation
+                    allowed = autonomy.authorize(window_id=goal.window_id, operation=task_operation(self.store.get_task(task_id)),
+                        repository=goal.repository, subject_id=task_id,
+                        input_payload={"source": "initial_model_selection_recovery"})
+                    if not allowed:
+                        self.store._update_task_fields(task_id, {"status": "BLOCKED", "binding_ref": "",
+                            "executor_kind": task.executor_kind})
+                        metadata = {"reason": "initial_selection_authority_denied"}
+                        selected = False
+                else:
+                    wait = _initial_resource_wait(metadata)
+                    if wait:
+                        metadata[_INITIAL_WAIT] = {**state[0], **wait}
+                if not self._initial_window_live(current, goal.window_id):
+                    self.store._conn.execute("ROLLBACK")
+                    return False
+                if selected:
+                    metadata["selection_origin"] = "initial_resource_recovery"
+                    self.store._append_event(task_id=task_id, event_type="MODEL_SELECTED", title="Initial model selected",
+                        description=f"{decision['binding_ref']}: initial resource recovery", metadata=metadata)
+                else:
+                    self.store._update_task_fields(task_id, {"failure_classification": str(metadata["reason"]),
+                        "failure_detail": json.dumps(metadata)})
+                    self.store._append_event(task_id=task_id, event_type="MODEL_SELECTION_FAILED",
+                        title="Initial model selection deferred", description=str(metadata["reason"]), metadata=metadata)
+                self.control_store.refresh_goal_status(goal.id)
+                self.store._conn.execute("COMMIT")
+                return selected
+            except BaseException:
+                self.store._conn.execute("ROLLBACK")
+                raise
+
+    def reconsider_initial_models(self, window_id: str, *, autonomy: Any, limit: int = 25) -> tuple[str, ...]:
+        """Reconsider only marked, never-dispatched initial waits in the existing window."""
+        if (os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1" or self.task_resolver is None
+                or getattr(autonomy, "control_store", None) is not self.control_store):
+            return ()
+        selected, checked, authority_checked = [], 0, False
+        for goal in self.control_store.list_window_goals(window_id):
+            if checked >= limit:
+                break
+            if (goal.orchestration_mode != "agent_team" or goal.status not in {"RUNNING", "BLOCKED"}
+                    or not self._initial_window_live(goal, window_id)):
+                continue
+            planned = {item.id: item for item in
+                       (self._normalize_task(raw, seq=i) for i, raw in enumerate(goal.tasks))}
+            links = {row["plan_task_id"]: row["task_id"] for row in self.control_store.list_goal_tasks(goal.id)
+                     if int(row["goal_revision"]) == goal.revision}
+            visited = set()
+            def reconsider(plan_id):
+                nonlocal checked, authority_checked
+                if plan_id in visited or plan_id not in links or checked >= limit:
+                    return
+                visited.add(plan_id)
+                plan = planned[plan_id]
+                task_id = links[plan_id]
+                with self.store._lock:
+                    state = self._initial_selection_state(self.store.get_task(task_id), goal, plan, planned)
+                if state is None:
+                    return
+                if state[0]["kind"] == "author":
+                    for source in self._review_ancestry(plan, planned):
+                        reconsider(source)
+                elif state[0]["retry_at"] > time.time():
+                    return
+                if checked >= limit:
+                    return
+                try:
+                    with self.store._lock:
+                        authors = self._review_authors(plan, goal, planned, require_frozen=True)
+                except TaskStoreError:
+                    return  # no author identity is guessed from an unbound source
+                if not authority_checked:
+                    autonomy._check_window_authority(window_id)
+                    authority_checked = True
+                checked += 1
+                try:
+                    arguments = {key: value for key, value in authors.items() if key != "_initial_author_snapshot"}
+                    decision = self.task_resolver(plan, goal=goal, probe_availability=False, **arguments)
+                    if (not isinstance(decision, Mapping)
+                            or decision.get("executor_kind") not in {"opencode", "codex", "claude_code"}
+                            or any(not isinstance(decision.get(key), str) or not decision[key]
+                                   or decision[key] != decision[key].strip() for key in ("binding_ref", "model_id", "reason"))):
+                        decision = {"reason": "initial_selection_route_invalid"}
+                except TaskStoreError as exc:
+                    code = str(exc)
+                    detail = getattr(exc, "decision", {})
+                    decision = dict(detail) if isinstance(detail, Mapping) else {}
+                    if code not in {"no_runnable_model", "pinned_model_unavailable", "review_not_independent", "no_willing_model"}:
+                        decision = {"reason": "initial_selection_resolver_error", "error_type": type(exc).__name__}
+                    else:
+                        decision["reason"] = code
+                    decision.pop("binding_ref", None)
+                    decision.pop(_INITIAL_WAIT, None)
+                except Exception as exc:
+                    decision = {"reason": "initial_selection_resolver_error", "error_type": type(exc).__name__}
+                if self._commit_initial_selection(goal, plan, task_id, state[1], decision, authors, autonomy):
+                    selected.append(task_id)
+            for plan_id in planned:
+                reconsider(plan_id)
+        return tuple(selected)
 
     @staticmethod
     def _review_ancestry(task: PlannedTask, planned: Mapping[str, PlannedTask]) -> tuple[str, ...]:
@@ -627,7 +901,8 @@ class GoalService:
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved
 
-    def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask]) -> dict[str, Any]:
+    def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask], *,
+                        require_frozen: bool = False) -> dict[str, Any]:
         """Resolve authors from execution facts, retaining replaced attempts."""
         ancestry = self._review_ancestry(task, planned)
         if not ancestry:
@@ -635,6 +910,7 @@ class GoalService:
         links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
                  if int(row["goal_revision"]) == goal.revision}
         models, bindings, executors = set(), set(), set()
+        snapshot = []
         history = self.control_store.list_task_escalations(goal.id)
         for source in ancestry:
             if source not in links:
@@ -645,7 +921,23 @@ class GoalService:
             for task_id in ids:
                 attempt = self.store.get_task(task_id)
                 executors.add(getattr(attempt, "executor_kind", "") or "")
-                recorded = {row.model_id for row in self.store.list_usage_observations(task_id) if row.model_id}
+                observations = self.store.list_usage_observations(task_id)
+                if require_frozen and (any(row.status != "OBSERVED" for row in observations)
+                        or self.store._conn.execute("SELECT 1 FROM durable_external_operations WHERE task_id=? "
+                            "AND state NOT IN ('SUCCESS','FAILED','RECONCILED') LIMIT 1", (task_id,)).fetchone()):
+                    raise TaskStoreError("review_not_independent")
+                if require_frozen:
+                    if not self._initial_contracts_match(attempt, goal, planned[source], planned, self._approved_base(attempt)):
+                        raise TaskStoreError("review_not_independent")
+                    selected = self.store._conn.execute("SELECT id,metadata FROM task_events "
+                        "WHERE task_id=? AND type='MODEL_SELECTED' ORDER BY seq", (task_id,)).fetchall()
+                    usage = self.store._conn.execute("SELECT id,execution_id,model_id,status FROM task_usage_observations "
+                        "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()
+                    snapshot.append((source, task_id, attempt.execution_id, attempt.executor_kind, attempt.binding_ref,
+                                     tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
+                                     tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
+                                           for ref in attempt.evidence_refs)))
+                recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):
                         if event.type == "MODEL_SELECTED":
@@ -656,12 +948,15 @@ class GoalService:
                                 recorded.add(model)
                 if recorded:
                     models.update(recorded)
-                elif attempt.binding_ref and attempt.status == "QUEUED":
+                elif attempt.binding_ref and attempt.status == "QUEUED" and not require_frozen:
                     bindings.add(attempt.binding_ref)
                 else:
                     raise TaskStoreError("review_not_independent")
-        return {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings)),
-                "author_executors": tuple(sorted(executors))}
+        result = {"author_models": tuple(sorted(models)), "author_bindings": tuple(sorted(bindings)),
+                  "author_executors": tuple(sorted(executors))}
+        if require_frozen:
+            result["_initial_author_snapshot"] = tuple(sorted(snapshot))
+        return result
 
     def _review_intent_hold(self, task: Any, plan_task: PlannedTask | None) -> bool:
         """True when a review execution's reviewer call may still be outstanding (#1191).
