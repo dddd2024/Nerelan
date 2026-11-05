@@ -180,11 +180,26 @@ class MultiAccountStatusMonitor:
         self._config = config
         self._fetch = fetch_quotas if fetch_quotas is not None else pool_account_quotas
         self._clock = clock
+        # Last observation failure, exposed so the caller can alert on a broken
+        # telemetry source instead of silently reading "no accounts".
+        self._last_error: Optional[str] = None
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
 
     def perceive(self, snapshot: Optional[Mapping[str, Any]] = None, *,
                  now: Optional[float] = None) -> list[AccountStatus]:
         now = self._clock() if now is None else now
-        raw = self._fetch(snapshot) or {}
+        self._last_error = None
+        try:
+            raw = self._fetch(snapshot) or {}
+        except Exception as exc:  # noqa: BLE001 - a failed source must not raise into the loop
+            # Returning [] means "nothing observed", which the scheduler already
+            # treats as hold-and-retry. Recording the reason keeps that safe
+            # default diagnosable instead of looking like an empty account pool.
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            return []
         statuses: list[AccountStatus] = []
         for ref, evidence in raw.items():
             if not isinstance(evidence, Mapping):
@@ -281,7 +296,6 @@ class MultiAccountStatusMonitor:
         if not data.get("window"):
             data["window"] = name if isinstance(name, str) and name else "window"
         data["extra"] = unknown
-        return WindowStatus(**data)
         return WindowStatus(**data)
 
     @staticmethod

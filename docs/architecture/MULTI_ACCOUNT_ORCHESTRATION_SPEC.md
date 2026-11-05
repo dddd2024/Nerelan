@@ -643,3 +643,181 @@ python -m reverse_agent.platform_v1.cost_report --last 7d --compare baseline.jso
 [评审回应 §7](MULTI_ACCOUNT_PLAN_REVIEW_RESPONSE.md) 的 P0–P5 取代：
 **P0 事实审计 → P1 统一资源 → P2 可靠性 → P3 经济性 → P4 受控自进化 → P5 长期验收**，
 完成条件一律以"真实账户 / 真实故障 / 可测量收益"表述，而非"模块已实现"。
+
+## 13. v3：成本上限、告警、运行时长与受限自进化（2026-11-05）
+
+本轮不扩功能边界，补齐 §6 可配置项与 §7 验收标准中**尚未闭环的四类能力**：成本限制、
+告警、运行时长、自进化的限幅/审计/回滚。全部改动仍集中在
+`reverse_agent/platform_v1/multi_account/`，不新增第三方依赖（仅标准库 + 既有 pydantic）。
+
+### 13.1 新增模块与职责边界
+
+| 模块 | 职责 | 复用 | 明确不做 |
+|---|---|---|---|
+| `budget.py` | 滚动窗口成本上限：`allow` / `degrade` / `deny` 准入、预留-结算防并发超支、`retry_at` 精确到"哪笔花费滚出窗口" | `usage_ledger.task_feedback_metrics` 的 `cost_units` 口径（列表价 USD），本模块只累加、不定价 | 不做定价、不调额度、不阻塞既有派发（禁用即全量 `allow`） |
+| `alerts.py` | 规则化告警 + `(code, subject)` 去重静默 + 重复计数 + 有界历史；sink 注入 | 感知结果、冷却表、评分板、预算状态 | 不做网络投递（webhook 属宿主扩展点），不做告警升级值班表 |
+| `watchdog.py` | 运行时长/空闲判定：`continue` / `conclude` / `stop`，`remaining_seconds` 供协调器定长休眠 | `MultiAccountConfig` | 不自己取消任务（取消语义留在 `durable_execution`） |
+| `policy.py` | 策略版本链：有界步长调整调度权重、clamp、审计、按版本回滚 | `scoring.failure_profile()`、`MultiAccountConfig` | 不做通用 RL、不改结构性旋钮（重路由次数/冷却/超时） |
+
+`scoring.py` 增补：`AccountScore.failure_kinds` 失败类型直方图、`cost_total/wall_total` 累计量
+（池级趋势用真实"每次尝试均值"，避免账户构成变化导致中位数漂移）、`failure_profile()` 汇总裁剪。
+`scheduler.py` 增补：预算准入前置（`deny` → 带 `retry_at` 的 hold，不计入账户冷却）、
+`degrade` → 同健康度档位内按实测成本排序、`bonus_cap` 对学习型加分的硬截断。
+
+### 13.2 边界：什么被限制，什么不被绕过
+
+| 约束 | 可降级 | 硬约束 |
+|---|---|---|
+| 成本 | 软阈值（`cost_budget_soft_ratio`）→ 转最低成本账户 | 硬上限（`cost_budget_units`）→ 一律等待，不超支 |
+| 额度 | 小任务可用 STALE 账户（`small_task_percent_ceiling`） | 100%/rejected 账户绝不派发 |
+| 账户 | 冷却到期自动恢复 | 隔离期内的账户即使有成功回报也不解除（仅 `clear_quarantine()`） |
+| 策略 | 权重可在 ±`drift` 内调整 | 结构性旋钮、健康度排序优先级、隔离语义不可被自进化修改 |
+| 运行 | `conclude` 停止派发但放行在飞任务 | `stop` 只在超过 `hard_stop_ratio × deadline` 时触发 |
+
+默认值原则不变：预算默认关闭、运行时默认不限、告警默认只入内存（`alert_log_enabled=False`），
+因此**未显式配置的部署行为与 v2.1 逐位一致**。
+
+### 13.3 新增可配置项（环境变量为 `REVERSE_AGENT_MULTI_ACCOUNT_*`）
+
+| 类别 | 键 | 默认 | 说明 |
+|---|---|---|---|
+| 成本 | `cost_budget_enabled` / `_units` / `_window_seconds` | `false` / `0` / `86400` | 启用时必须给正上限，否则启动即失败 |
+| 成本 | `cost_budget_soft_ratio` | `0.8` | 达到该比例转最低成本账户 |
+| 成本 | `cost_budget_default_task_units` | `0` | 无预估时的保守单次预测；0 表示只按已发生花费判定 |
+| 成本 | `cost_budget_include_reservations` | `true` | 在飞预留计入上限，防并发超支 |
+| 告警 | `alerts_enabled` / `alert_quiet_seconds` / `alert_max_history` | `true` / `300` / `120` | 去重窗口与有界历史 |
+| 告警 | `alert_failure_streak_threshold` / `alert_min_success_rate` / `alert_min_samples` | `2` / `0.6` / `3` | 抖动与可靠性阈值 |
+| 告警 | `alert_log_enabled` | `false` | 是否同时写 `reverse_agent.multi_account` 日志 |
+| 运行 | `watchdog_enabled` / `max_run_duration_seconds` / `max_idle_seconds` | `true` / `0` / `0` | 0 = 不限 |
+| 运行 | `watchdog_hard_stop_ratio` | `1.25` | 超期后升级为 `stop` 的倍率 |
+| 策略 | `policy_enabled` / `policy_step_ratio` | `true` / `0.25` | 每周期最大单步变更比例 |
+| 策略 | `policy_max_weight_drift_ratio` / `policy_max_bonus_points` | `0.5` / `12` | 漂移与加分硬限幅 |
+| 策略 | `policy_min_samples` / `policy_target_success_rate` / `policy_audit_max_entries` | `5` / `0.85` / `120` | 评估门槛与审计容量 |
+
+### 13.4 本轮修复的缺陷（由新测试与验收仿真发现）
+
+| # | 现象 | 根因 | 影响 | 修复 |
+|---|---|---|---|---|
+| 7 | 重启后预算窗口、告警去重、策略链、运行时钟**全部丢失** | `SelfEvolutionStore._empty()` 只列旧四段，`_load()` 用它做白名单，新段被静默丢弃 | 每次崩溃即忘记当日花费/隔离/策略版本，长跑必然超支 | `_empty()` 扩为完整段清单，并加回归测试 |
+| 8 | 观测源抛错时 `perceive()` 直接上抛 | fetch 未包裹 | 遥测故障会让感知周期崩溃，或被误读为"无账户" | 捕获后返回空池并记 `last_error`，`observe()` 额外发 `perception_failed` 告警 |
+| 9 | 只上报主机事件时误发 `no_accounts_observed` | `evaluate()` 把"未传状态"与"观测为空"混为一谈 | 每次策略变更都附带一条假告警 | `statuses=None` 表示"本次不评估池"，显式 `[]` 才发空池告警 |
+| 10 | "稳定"规则把已在基线的权重继续下调 | 用 clamp 下界当目标而非基线 | 自进化本身成为漂移源 | 改为"朝基线走一步且不越过基线" |
+| 11 | 池级告警与账户级告警重复 | 两者独立生成 | 全池异常时刷屏，运维开始忽略告警 | 全池判定覆盖同义账户级告警 |
+
+### 13.5 验收结果（可复现）
+
+```bash
+python scripts/multi_account_acceptance.py     # 虚拟时钟 24h，四个场景，输出 reports/multi_account/
+python -m pytest tests/platform_v1/test_multi_account_*.py -q   # 182 passed
+```
+
+关键数字（种子 7，`reports/multi_account/acceptance_latest.md`）：
+
+| 验收标准 | 证据 |
+|---|---|
+| 多账户整合 | 4/4 账户均被实际调度（21/37/23/55 次） |
+| 状态感知 | 全窗口零观测错误 |
+| 异常容错 | 切换 36 次、重试 18 次、等待/降级 361 次，任务 0 丢失 |
+| 成本上限 | 花费 11.983 ≤ 上限 12.0（利用率 99.9%） |
+| 连续运行 | 虚拟 19.19h 后按 `conclude` 收束，遵守运行时长 |
+| 性能 | 每轮控制环 0.28 ms（498 轮真实耗时 0.14 s） |
+| 反馈优化 | 健康池 v0 不变；异常池 v1..v6 有界变更；后半程成本 0.1035 vs 基线 0.1208，重试率 0.00 vs 0.30 |
+| 可审计可回滚 | 6 条审计（含 `changed_keys`），`rollback_policy(n)` / `0` 可回退 |
+
+### 13.6 仍属未闭环
+
+1. ~~**宿主接线**~~ **已闭环（v4）**：协调器主循环现在在 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1`
+   时接上 `start_run` / `run_verdict` / `drain_alerts` / `admit_cost` / `run_progress` 五个接缝
+   （见 §14）。未启用时 `{}` 不注入，行为逐位等价旧循环。
+2. **告警投递**：默认落到宿主的有界内存尾巴（`multi_account_alerts()`）与可选的
+   `alert_log_enabled` 日志行；IM/webhook 需宿主注入 sink（不引入网络依赖）。
+3. **成本口径**：`cost_units` 仍为列表价估算；Magpie `usage --csv` 的现金口径接入后，
+   预算上限可切换到真实账单口径（需 Owner 决策，属口径变更）。
+
+## 14. v4：把 v3 的旋钮真正接到派发路径（2026-11-05）
+
+v3 的实现是**正确但悬空**的：`budget.py` / `watchdog.py` / `alerts.py` 有 182 个测试，
+却没有任何生产调用方 —— `start_run`、`run_verdict`、`drain_alerts`、`admit_cost` 全仓零引用
+（已用 grep 复核）。因此"成本上限""运行时长""告警"在真实运行中的实际效力为零。
+本轮只做接线，不改算法、不扩边界。
+
+### 14.1 接线点（全部可选，未注入即旧行为）
+
+| 接缝 | 协调器位置 | 行为 | 失败时 |
+|---|---|---|---|
+| `run_start` | `_run()` 开跑一次 | 打开本次运行的计时窗口 | `run_start_failed:*`，不阻塞派发 |
+| `run_verdict` | `_run()` 每轮派发**之前** | `conclude`/`stop` → 停止认领并让在飞批次自然排空 | `run_verdict_failed:*` → 视为 `continue`（时钟坏了不能静默结束无人值守运行） |
+| `cost_admission` | `_tick_impl()` 在 `authorize` 之后、`claim_task` **之前** | `deny` → 本轮停止认领；任务保持队列位置，**不认领、不丢弃** | `cost_admission_failed:*` → fail-open 放行 |
+| `alert_source` + `alert_sink` | `_run()` 每轮一次 | 排空告警并投递给宿主 sink | 两侧各自兜底，永不中断循环 |
+| `run_progress` | 每次任务终态 | 计入 idle/已用时判定 | 仅记账，异常不外抛 |
+
+设计约束：
+
+- **conclude ≠ 取消**。`conclude` 只停止"开始新工作"，`_run` 的 `finally` 仍 join 在飞批次，
+  因此有界收束不会截断证据（测试：`test_a_conclude_verdict_lets_work_in_flight_land`）。
+- **cost 只按已发生花费判定**。宿主不携带 per-task token，故 `admit_cost` 以
+  `reserve=False` 调用：未结算的预留会永久占用额度，最终把每一次派发都拒掉——这比"轻微超支"
+  更糟。超出上界不超过在飞并发批次的成本，已在文档与 `.env.example` 中写明。
+  `dispatch.admit_cost` 的 `reserve` 默认值因此由 `True` 改为 `False`。
+- **run_progress 与 account_feedback 解耦**。账户解析失败时旧实现不会心跳，`max_idle_seconds`
+  会把仍在完成工作的运行判成空闲而收束；现在二者独立计数。
+
+### 14.2 可配置面补齐（此前 16/43 可达 → 现 48/50）
+
+v3 的 `_ENV_SCALARS` 只映射了 43 个字段中的 16 个，**自进化限幅**
+（`policy_step_ratio`、`policy_max_weight_drift_ratio`、`policy_min_samples`、
+`policy_target_success_rate`）根本无法从部署面设置，"策略变更可配置"只在 Python 内成立。
+本轮把全部字段纳入映射，仅两个"自有变量"字段除外（`account_routing` →
+`REVERSE_AGENT_ACCOUNT_ROUTING`、`break_even_store_path` → `REVERSE_AGENT_MULTI_ACCOUNT_STORE`）。
+
+三条回归把该属性钉住：
+
+- `test_every_knob_is_reachable_from_the_environment` —— 新增字段若未决定如何配置，测试即失败；
+- `test_the_self_evolution_clamps_are_settable_from_the_environment` —— 限幅可设；
+- `test_the_env_example_documents_every_variable` —— `.env.example` 与实际变量不漂移。
+
+### 14.3 新增可观测项
+
+`coordinator.status()` 追加四个键（未注入时为默认值，旧语义不变）：
+
+| 键 | 含义 |
+|---|---|
+| `run_conclusion` | 运行如何收束：`run_conclude:<reason>` / `run_stop:<reason>`，空 = 仍在跑或未启用 |
+| `last_verdict` | 最近一次裁决原文（含 `remaining_seconds` 等） |
+| `cost_holds` | 因成本上限而未认领的候选次数（"hold 而非 drop" 的证据） |
+| `alerts_delivered` | 已投递告警条数 |
+
+宿主侧另有 `multi_account_alerts(limit)`：有界（200）的最近告警尾巴，供运维面读取。
+
+### 14.4 验收（本轮新增 21 例，包内共 203 例）
+
+```bash
+python -m pytest tests/platform_v1/test_multi_account_host_wiring.py -q   # 15 passed
+python -m pytest tests/platform_v1/test_multi_account_config.py -q        # 21 passed
+```
+
+| 标准 | 覆盖测试 |
+|---|---|
+| 有界运行真的会结束（无需人工 stop） | `test_a_conclude_verdict_ends_the_loop_without_a_stop_request` |
+| 收束不截断在飞工作 | `test_a_conclude_verdict_lets_work_in_flight_land` |
+| 坏时钟不得结束运行 | `test_an_unknown_or_failing_verdict_never_ends_a_run` / `test_a_non_dict_verdict_is_treated_as_continue` |
+| 成本拒绝 = 保留而非丢弃 | `test_a_denied_cost_admission_holds_the_task_without_claiming` |
+| 成本放行不改行为 | `test_an_allowing_cost_admission_changes_nothing` |
+| 预算故障 fail-open | `test_a_broken_cost_seam_fails_open` |
+| 告警只排空一次并送达 | `test_alerts_are_drained_into_the_injected_sink` / `test_the_host_keeps_a_bounded_alert_tail` |
+| 投递失败不中断循环 | `test_a_raising_alert_sink_does_not_lose_the_loop` |
+| 无账户归因也算进展 | `test_an_attempt_counts_as_progress_without_a_resolvable_account` |
+| 未启用时零注入、零行为变化 | `test_the_host_injects_nothing_unless_the_feature_is_enabled` / `test_without_hooks_the_loop_and_its_payload_are_unchanged` |
+| 预留不泄漏 | `test_the_host_cost_seam_never_leaks_a_reservation` |
+
+### 14.5 仍然未闭环（诚实清单）
+
+1. **预算预留式防并发超支未接**：`cost_budget_include_reservations` 在当前宿主路径上无效，
+   因为宿主不携带 token。要闭合需把 token 按 task_id 贯穿 claim→settle 并在全部 abandon 路径
+   release；漏一条路径就会永久锁死预算，故单列改动。
+2. **C3 租约与休眠恢复**：仍未动（[C3 项目](C3_LEASE_RECOVERY_PROJECT.md)），且与 `stop` 语义
+   相邻，必须独立评审。
+3. **真实账户/故障注入长跑**：24h 验收仍是虚拟时钟仿真（§13.5），真实账户下的长跑证据待补。
+4. **全量回归未在本机跑完**：全仓 `pytest` 触发 pytest 内部 `MemoryError`；`tests/platform_v1`
+   单独串跑 43 分钟未收敛（socket/durable 用例）。本轮按改动所在面分组取证：多账户 203、
+   协调器/宿主 227、额度/目标/任务服务 417。全量结论以 CI 的 `baseline`/`state-gate` 为准。

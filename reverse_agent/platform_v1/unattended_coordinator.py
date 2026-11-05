@@ -77,6 +77,12 @@ class UnattendedCoordinator:
         account_feedback: Any | None = None,
         idle_wait_hint: Any | None = None,
         quota_wait_target: str | None = None,
+        run_start: Any | None = None,
+        run_verdict: Any | None = None,
+        run_progress: Any | None = None,
+        alert_source: Any | None = None,
+        alert_sink: Any | None = None,
+        cost_admission: Any | None = None,
         landing_loop=None, publication=None, goals=None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
@@ -95,6 +101,26 @@ class UnattendedCoordinator:
         # Optional provider/account to hand a long idle wait to Magpie's own
         # blocking `quota wait`. None (the default) keeps local polling.
         self.quota_wait_target = quota_wait_target
+        # --- run duration / cost ceiling / alert delivery (all optional) --------
+        # () -> dict; opens the timed window of one run. None = unlimited, which
+        # is the previous behaviour: the loop only stops on an explicit stop().
+        self.run_start = run_start
+        # () -> {"action": "continue"|"conclude"|"stop", ...}; consulted at the
+        # top of every iteration so no new claim is made after a bounded run
+        # ends. In-flight batches still drain through the normal finally block.
+        self.run_verdict = run_verdict
+        # () -> None; records that one attempt finished. Kept separate from
+        # account_feedback because a run makes progress even when the account
+        # cannot be resolved — idle detection must not conclude a working run.
+        self.run_progress = run_progress
+        # () -> list[dict] drained once per iteration; the sink delivers them.
+        # Two callbacks instead of one so the loop never imports the brain and
+        # tests can feed alerts without a store.
+        self.alert_source = alert_source
+        self.alert_sink = alert_sink
+        # (forecast_units|None) -> {"decision": "allow"|"degrade"|"deny", ...};
+        # a deny holds the candidate (never drops it) before it is claimed.
+        self.cost_admission = cost_admission
         self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
@@ -132,6 +158,12 @@ class UnattendedCoordinator:
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
         self._executions = 0
+        # Observable outcomes of the optional governance seams above, surfaced in
+        # status() so an unattended run can be audited without reading the brain.
+        self._last_verdict: dict[str, Any] | None = None
+        self._cost_holds = 0
+        self._alerts_delivered = 0
+        self._run_conclusion = ""
 
     def start(self) -> None:
         with self._lifecycle_lock:
@@ -341,6 +373,12 @@ class UnattendedCoordinator:
             ):
                 continue
             if self._stop.is_set():
+                break
+            # Cost ceiling is checked *before* claiming, so a held task keeps its
+            # queue position and no claim/reservation is burned on work the
+            # ceiling cannot afford. A ceiling is pool-wide, so one denial ends
+            # this tick's claims instead of being re-asked per candidate.
+            if not self._cost_allows_dispatch():
                 break
             try:
                 if task.status == "QUOTA_WAIT" and self.quota_preparer is None:
@@ -679,11 +717,15 @@ class UnattendedCoordinator:
         never disturb the loop, because this is learning, not dispatch.
         """
         if self.account_feedback is None:
+            self._record_run_progress()
             return
         try:
             self.account_feedback(task, success)
         except Exception as exc:  # noqa: BLE001 - feedback must never break the loop
             self._last_error = f"account_feedback_failed:{type(exc).__name__}"
+        # Progress is reported separately: an attempt is progress even when its
+        # account could not be resolved, so idle detection stays truthful.
+        self._record_run_progress()
 
     def _reroute_held(self, task_ids: list[str]) -> None:
         if self.quota_rerouter is None:
@@ -745,6 +787,12 @@ class UnattendedCoordinator:
             "executions": self._executions,
             "last_error": self._last_error,
             "last_batch": dict(self._last_batch),
+            # Bounded-run and cost-seam outcomes: empty/0 means "not injected",
+            # which is the default and keeps the payload's old meaning.
+            "run_conclusion": self._run_conclusion,
+            "last_verdict": dict(self._last_verdict) if self._last_verdict else None,
+            "cost_holds": self._cost_holds,
+            "alerts_delivered": self._alerts_delivered,
             "active_window_id": active.id if active else "",
             # Unfinished work whose window can no longer dispatch; only an explicit rebind moves it.
             "stranded_goals": list(self.control_store.stranded_goals()),
@@ -793,11 +841,111 @@ class UnattendedCoordinator:
             self._last_error = f"quota_wait_{result['reason']}"
         return False
 
+    # --- optional governance seams -------------------------------------------
+    #
+    # Every method below is a no-op when its callback was not injected, so a host
+    # that ignores the multi-account brain runs exactly the previous loop. They
+    # follow the same rule as the rest of this class: a seam failure is recorded
+    # and never interrupts dispatch.
+
+    def _begin_run_window(self) -> None:
+        """Open the timed window of this run (no-op when not injected)."""
+        if self.run_start is None:
+            return
+        try:
+            self.run_start()
+        except Exception as exc:  # noqa: BLE001 - timing must not block dispatch
+            self._last_error = f"run_start_failed:{type(exc).__name__}"
+
+    def _run_should_conclude(self) -> bool:
+        """Ask the watchdog whether this run has reached its bound.
+
+        ``conclude`` stops *starting* work; the finally block in :meth:`_run`
+        still drains in-flight batches, so bounded endings never truncate
+        evidence. An unknown or failing verdict always means "continue": a
+        broken clock must not silently end an unattended run.
+        """
+        if self.run_verdict is None:
+            return False
+        try:
+            verdict = self.run_verdict()
+        except Exception as exc:  # noqa: BLE001 - unknown verdict must not stop the run
+            self._last_error = f"run_verdict_failed:{type(exc).__name__}"
+            return False
+        if not isinstance(verdict, dict):
+            return False
+        self._last_verdict = dict(verdict)
+        action = str(verdict.get("action") or "continue")
+        if action not in {"conclude", "stop"}:
+            return False
+        self._run_conclusion = f"run_{action}:{verdict.get('reason') or 'bounded'}"
+        self._stop.set()
+        return True
+
+    def _deliver_account_alerts(self) -> None:
+        """Drain queued alerts once per iteration and hand them to the sink.
+
+        Draining is separate from delivery: an unattended deployment decides
+        where alerts go (log, webhook, IM) by injecting a sink, and the brain
+        never grows a network dependency.
+        """
+        if self.alert_source is None or self.alert_sink is None:
+            return
+        try:
+            queued = self.alert_source()
+        except Exception as exc:  # noqa: BLE001 - alerting must never break the loop
+            self._last_error = f"alert_source_failed:{type(exc).__name__}"
+            return
+        if not queued:
+            return
+        try:
+            self.alert_sink(queued)
+            self._alerts_delivered += len(queued) if isinstance(queued, (list, tuple)) else 1
+        except Exception as exc:  # noqa: BLE001 - a bad sink must not break the loop
+            self._last_error = f"alert_sink_failed:{type(exc).__name__}"
+
+    def _record_run_progress(self) -> None:
+        """Count one finished attempt toward idle/elapsed detection."""
+        # getattr: purely bookkeeping, so a partially built coordinator (a test
+        # double that only configures account_feedback) stays inert.
+        progress = getattr(self, "run_progress", None)
+        if progress is None:
+            return
+        try:
+            progress()
+        except Exception as exc:  # noqa: BLE001 - progress accounting is best-effort
+            self._last_error = f"run_progress_failed:{type(exc).__name__}"
+
+    def _cost_allows_dispatch(self) -> bool:
+        """Pre-claim cost admission; ``False`` holds without consuming a claim."""
+        if self.cost_admission is None:
+            return True
+        try:
+            decision = self.cost_admission(None)
+        except Exception as exc:  # noqa: BLE001 - a broken ceiling must not stop dispatch
+            self._last_error = f"cost_admission_failed:{type(exc).__name__}"
+            return True
+        if not isinstance(decision, dict):
+            return True
+        if str(decision.get("decision") or "allow") != "deny":
+            return True
+        self._cost_holds += 1
+        reason = str(decision.get("reason") or "cost_budget_exhausted")
+        retry_at = decision.get("retry_at")
+        self._last_error = f"cost_hold:{reason}" if retry_at is None else f"cost_hold:{reason}:until={retry_at}"
+        return False
+
     def _run(self) -> None:
         current = threading.current_thread()
         try:
             reconciled_at = time.monotonic()
+            self._begin_run_window()
             while not self._stop.is_set():
+                # Alerts and the bounded-run verdict are consulted before any
+                # claim, so a concluded run never starts work it cannot finish.
+                self._deliver_account_alerts()
+                if self._run_should_conclude():
+                    break
                 if time.monotonic() - reconciled_at >= self.reconcile_interval:
                     reconciled_at = time.monotonic()
                     try:

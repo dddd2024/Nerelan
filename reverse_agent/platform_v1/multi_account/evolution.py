@@ -55,7 +55,16 @@ class SelfEvolutionStore:
 
     @staticmethod
     def _empty() -> dict[str, Any]:
+        """Every section the document may hold.
+
+        This is the load whitelist as well as the initial shape: a section
+        missing here is *silently dropped on the next restart*, which would
+        reset the cost window, the alert dedupe state, the policy chain and the
+        run clock after every crash — exactly the failure this store exists to
+        prevent.
+        """
         return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {},
+                "budget": {}, "alerts": {}, "policy": {}, "watchdog": {},
                 "updated_at": None}
 
     # --- persistence ----------------------------------------------------------
@@ -70,7 +79,7 @@ class SelfEvolutionStore:
             state = self._empty()
             state.update({key: data[key] for key in state if key in data})
             state["runs"] = list(state["runs"])[-self._config.max_recorded_runs:]
-            for key in ("accounts", "cooldowns"):
+            for key in ("accounts", "cooldowns", "budget", "alerts", "policy", "watchdog"):
                 if not isinstance(state[key], dict):
                     state[key] = {}
             return state

@@ -304,6 +304,70 @@ class CombinedTrustedHost:
         from .multi_account.dispatch import idle_wait_seconds
         return idle_wait_seconds()
 
+    def _multi_account_loop_hooks(self) -> dict[str, Any]:
+        """Coordinator seams for run duration, cost ceiling and alert delivery.
+
+        Returns ``{}`` unless ``REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1``, so a
+        deployment that has not opted in constructs exactly the previous
+        coordinator — no timed window, no cost gate, no alert drain.
+
+        When enabled, the loop gains three behaviours it previously lacked:
+
+        * a *bounded* run: the watchdog opens a window at start and is consulted
+          before every claim, so a run concludes at its wall-clock bound while
+          in-flight work still drains;
+        * a *cost ceiling*: admission runs before a task is claimed, so a held
+          task keeps its queue position instead of being claimed and dropped;
+        * *alert delivery*: queued alerts are drained once per iteration into
+          :meth:`_deliver_account_alerts`, instead of accumulating unseen.
+
+        Every callback degrades to the old behaviour on failure (see
+        ``multi_account/dispatch.py``), so enabling this cannot make dispatch
+        worse than not enabling it.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return {}
+        from .multi_account.dispatch import admit_cost, drain_alerts, run_progress
+        from .multi_account.dispatch import run_verdict, start_run
+
+        return {
+            "run_start": start_run,
+            "run_verdict": run_verdict,
+            "run_progress": run_progress,
+            "alert_source": drain_alerts,
+            "alert_sink": self._deliver_account_alerts,
+            # No reservation: this loop carries no per-task token to settle, and
+            # an unsettled reservation would hold ceiling room forever. The
+            # ceiling therefore bounds *realised* spend plus in-flight work.
+            "cost_admission": lambda forecast=None: admit_cost(forecast, reserve=False),
+        }
+
+    def _deliver_account_alerts(self, alerts: Any) -> None:
+        """Deliver drained alerts to the host's operator surface.
+
+        The default surface is a bounded in-memory tail readable through
+        :meth:`multi_account_alerts`, plus the structured log line the alerts
+        module already emits when ``alert_log_enabled`` is set. A deployment that
+        wants webhook/IM delivery replaces this sink; the brain never grows a
+        network dependency.
+        """
+        try:
+            tail = getattr(self, "_multi_account_alert_tail", None)
+            if tail is None:
+                tail = collections.deque(maxlen=200)
+                self._multi_account_alert_tail = tail
+            for alert in alerts or ():
+                tail.append(alert)
+        except Exception:  # noqa: BLE001 - delivery must never break the loop
+            return
+
+    def multi_account_alerts(self, limit: int = 50) -> list:
+        """Most recent delivered alerts, newest last (empty when not enabled)."""
+        tail = getattr(self, "_multi_account_alert_tail", None)
+        if not tail:
+            return []
+        return list(tail)[-max(1, int(limit)):]
+
     def _native_owner_admit_goal(self, goal_id: str, *, unknown_claims_sha256=None):
         """Trusted native bootstrap only; never register on a transport/router.
 
@@ -1355,6 +1419,7 @@ class CombinedTrustedHost:
                 account_feedback=self._report_account_feedback_to_brain,
                 idle_wait_hint=self._multi_account_idle_wait,
                 quota_wait_target=self._quota_wait_target(),
+                **self._multi_account_loop_hooks(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(

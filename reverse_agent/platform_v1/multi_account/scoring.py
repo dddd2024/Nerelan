@@ -24,7 +24,7 @@ from __future__ import annotations
 import time
 from typing import Any, Callable, Mapping, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .config import MultiAccountConfig
 
@@ -46,8 +46,18 @@ class AccountScore(BaseModel):
     reliability: float = 0.5                  # EWMA success ratio, 0..1
     mean_cost_units: Optional[float] = None    # EWMA cost units per accepted task
     mean_wall_seconds: Optional[float] = None  # EWMA wall clock per accepted task
+    # Cumulative totals. The pool trend needs a true per-attempt average, which
+    # a median of per-account means cannot give: that median moves whenever a
+    # newly-active account joins, even if nothing actually got more expensive.
+    cost_total: float = 0.0
+    cost_samples: int = 0
+    wall_total: float = 0.0
+    wall_samples: int = 0
     consecutive_failures: int = 0
     last_failure_kind: Optional[str] = None
+    # Why this account failed, counted — the input the policy loop steers on.
+    # Counts (not ratios) so a pool-wide profile can be summed unambiguously.
+    failure_kinds: dict[str, int] = Field(default_factory=dict)
     first_seen_at: Optional[float] = None
     updated_at: Optional[float] = None
 
@@ -63,6 +73,7 @@ class AccountScore(BaseModel):
             "reliability": round(self.reliability, 4),
             "mean_cost_units": self.mean_cost_units,
             "mean_wall_seconds": self.mean_wall_seconds,
+            "failure_kinds": dict(self.failure_kinds),
             "updated_at": self.updated_at,
         }
 
@@ -101,12 +112,18 @@ class AccountScoreboard:
             score.consecutive_failures = 0
         else:
             score.consecutive_failures += 1
-            score.last_failure_kind = failure_kind or "unknown"
+            kind = failure_kind or "unknown"
+            score.last_failure_kind = kind
+            score.failure_kinds[kind] = score.failure_kinds.get(kind, 0) + 1
         score.reliability = _ewma(score.reliability, 1.0 if ok else 0.0, alpha)
         if isinstance(cost_units, (int, float)) and cost_units >= 0:
             score.mean_cost_units = _ewma(score.mean_cost_units, float(cost_units), alpha)
+            score.cost_total += float(cost_units)
+            score.cost_samples += 1
         if isinstance(wall_seconds, (int, float)) and wall_seconds >= 0:
             score.mean_wall_seconds = _ewma(score.mean_wall_seconds, float(wall_seconds), alpha)
+            score.wall_total += float(wall_seconds)
+            score.wall_samples += 1
         score.updated_at = now
         self._scores[account_ref] = score
         self.prune(now=now)
@@ -135,10 +152,46 @@ class AccountScoreboard:
         walls = [s.mean_wall_seconds for s in self._scores.values() if s.mean_wall_seconds is not None]
         return _median(costs), _median(walls)
 
+    def failure_profile(self) -> dict[str, Any]:
+        """Pool-wide outcome profile: the single input the policy loop steers on.
+
+        Aggregates *counts* rather than averages of ratios, so one account with
+        three attempts cannot outweigh another with three hundred. ``cost_units``
+        and ``wall_seconds`` are medians across accounts for the same reason the
+        ranking uses a median reference: they describe the pool, not its busiest
+        member.
+        """
+        attempts = sum(s.attempts for s in self._scores.values())
+        successes = sum(s.successes for s in self._scores.values())
+        kinds: dict[str, int] = {}
+        for score in self._scores.values():
+            for kind, count in score.failure_kinds.items():
+                kinds[kind] = kinds.get(kind, 0) + int(count)
+        cost_total = sum(s.cost_total for s in self._scores.values())
+        cost_samples = sum(s.cost_samples for s in self._scores.values())
+        wall_total = sum(s.wall_total for s in self._scores.values())
+        wall_samples = sum(s.wall_samples for s in self._scores.values())
+        return {
+            "attempts": attempts,
+            "successes": successes,
+            "success_rate": round(successes / attempts, 4) if attempts else None,
+            "failure_kinds": kinds,
+            # True per-attempt averages: comparable across a changing pool.
+            "cost_units": round(cost_total / cost_samples, 6) if cost_samples else None,
+            "wall_seconds": round(wall_total / wall_samples, 3) if wall_samples else None,
+            "accounts": len(self._scores),
+        }
+
     def bonus(self, account_ref: str, *,
               cost_reference: Optional[float] = None,
-              latency_reference: Optional[float] = None) -> float:
-        """Headroom-equivalent points this account earns (or loses) from feedback."""
+              latency_reference: Optional[float] = None,
+              cap: Optional[float] = None) -> float:
+        """Headroom-equivalent points this account earns (or loses) from feedback.
+
+        ``cap`` bounds ``|bonus|``; the policy loop uses it to make sure learned
+        preference can never dominate the headroom signal it is only meant to
+        refine (``bonus_cap=0`` therefore means "rank by headroom alone").
+        """
         score = self._scores.get(account_ref)
         if score is None or not score.attempts:
             return 0.0
@@ -149,7 +202,10 @@ class AccountScoreboard:
         if latency_reference and score.mean_wall_seconds is not None:
             points -= config.latency_weight * min(1.0, score.mean_wall_seconds / latency_reference)
         confidence = min(1.0, score.attempts / CONFIDENCE_ATTEMPTS)
-        return points * confidence
+        points *= confidence
+        if cap is not None:
+            points = min(float(cap), max(-float(cap), points))
+        return points
 
     # --- maintenance ----------------------------------------------------------
     def prune(self, *, now: Optional[float] = None) -> int:
