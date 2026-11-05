@@ -57,9 +57,15 @@ def model_identity(model: str) -> str:
 
 
 class ModelSelectionError(ValueError):
-    def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = ()):
+    def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = (), pin: str = ""):
         super().__init__(reason)
         self.decision = {"reason": reason, "excluded_candidates": excluded[:10], "refusals": list(refusals)}
+        resources = [row for row in excluded if row.get("filter") in {"account_quarantined", "quota_exhausted"}
+                     and (not pin or row.get("binding_id") == pin)]
+        if resources:
+            due = [row["retry_at"] for row in resources if type(row.get("retry_at")) in (int, float)
+                   and math.isfinite(row["retry_at"])]
+            self.decision.update(temporary_resource_blocked=True, retry_at=min(due) if due else None)
 
 
 def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, kind: str,
@@ -193,6 +199,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
             if reason == "account_quarantined":
                 exclusion["retry_at"] = quota.get("retry_at")
+            elif reason == "quota_exhausted":
+                from .quota_guard import parse_time
+                exclusion["retry_at"] = parse_time(quota.get("until"))
             excluded.append(exclusion)
             continue
         quota_penalty = int(quota.get("decision") in {"switch", "warn"})
@@ -237,12 +246,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     ranked.sort(key=lambda c: (c["availability_rank"], *c["score"], c["binding_id"]))
     if not ranked:
         error = ModelSelectionError("review_not_independent" if artifact_review else "no_willing_model" if refused_models or "security_simulation" in needs else "no_runnable_model",
-                                    excluded=excluded, refusals=refused_models)
+                                    excluded=excluded, refusals=refused_models, pin=pin)
         error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
         raise error
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
     if pin and pinned is None and not refused_models:
-        raise ModelSelectionError("review_not_independent" if artifact_review else "pinned_model_unavailable", excluded=excluded)
+        raise ModelSelectionError("review_not_independent" if artifact_review else "pinned_model_unavailable", excluded=excluded, pin=pin)
     # Review fitness is a hard boundary before retry preferences. A weaker
     # different model must not displace the only qualifying independent model.
     pool = [c for c in ranked if c["tier"] >= difficulty] if artifact_review else ranked

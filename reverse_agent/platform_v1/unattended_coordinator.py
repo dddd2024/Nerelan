@@ -283,7 +283,8 @@ class UnattendedCoordinator:
         if getattr(self.autonomy, "delegated_mode", False) and "approve_goal" in window.capabilities:
             from .goal_service import GoalService
             try:
-                self.autonomy.admit_goals(GoalService(store=self.store, control_store=self.control_store), window_id=window.id)
+                self.autonomy.admit_goals(self.goals if self.goals is not None else
+                    GoalService(store=self.store, control_store=self.control_store), window_id=window.id)
             except TaskStoreError as exc:
                 self._last_error = str(exc)
                 return 0
@@ -298,6 +299,11 @@ class UnattendedCoordinator:
             free_slots = max(0, window.max_concurrent_tasks - running_slots)
         if free_slots == 0:
             return 0
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" and self.goals is not None:
+            try:
+                self.goals.reconsider_initial_models(window.id, autonomy=self.autonomy)
+            except Exception as exc:
+                self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
         claimed: dict[str, int] = {}
         held: list[str] = []
         recovered = 0

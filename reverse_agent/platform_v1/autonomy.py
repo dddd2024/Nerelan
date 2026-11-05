@@ -441,6 +441,18 @@ class AutonomyService:
             normalized, confirmation=str(payload.get("confirmation", ""))
         )
 
+    def _check_window_authority(self, window_id: str) -> Any:
+        """Reuse the bound-authority check for preparation as well as admission."""
+        if not (self.require_trusted_policy or self.delegated_mode):
+            return None
+        authority = self._authority()
+        stored = self.control_store.window_policy_binding(window_id)
+        if (stored.get("policy_digest_sha256") != authority.binding["policy_digest_sha256"]
+                or stored.get("authority", {}).get("decision_content_sha256") != authority.decision_content_sha256
+                or stored.get("authority", {}).get("delegation_slot_id") != authority.binding["delegation_slot_id"]):
+            raise TaskStoreError("delegated_window_binding_mismatch")
+        return authority
+
     def authorize(
         self,
         *,
@@ -468,12 +480,7 @@ class AutonomyService:
             if operation == "land_reviewed_pr" and (self.require_trusted_policy or self.delegated_mode):
                 raise TaskStoreError("trusted_landing_adapter_not_supported")
             if self.require_trusted_policy or self.delegated_mode:
-                authority = self._authority()
-                stored = self.control_store.window_policy_binding(window_id)
-                if (stored.get("policy_digest_sha256") != authority.binding["policy_digest_sha256"]
-                        or stored.get("authority", {}).get("decision_content_sha256") != authority.decision_content_sha256
-                        or stored.get("authority", {}).get("delegation_slot_id") != authority.binding["delegation_slot_id"]):
-                    raise TaskStoreError("delegated_window_binding_mismatch")
+                authority = self._check_window_authority(window_id)
                 if operation == "approve_goal":
                     if operation not in authority.binding["allowed_operations"]:
                         raise TaskStoreError("delegated_goal_capability_missing")
