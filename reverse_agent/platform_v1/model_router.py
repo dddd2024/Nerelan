@@ -153,6 +153,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
               or "tool_use" in needs and metadata.get("tool_use") is False
               or "chinese" in needs and metadata.get("chinese") is False):
             reason = "modality"
+        elif quota.get("reason") == "account_quarantined":
+            reason = "account_quarantined"
         elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:
             reason = "quota_exhausted"
         elif (candidate.get("cost_class") == "subscription"
@@ -188,7 +190,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         elif refused_models and tier < refusal_tier:
             reason = "refusal_retry_tier"
         if reason:
-            excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason})
+            exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
+            if reason == "account_quarantined":
+                exclusion["retry_at"] = quota.get("retry_at")
+            excluded.append(exclusion)
             continue
         quota_penalty = int(quota.get("decision") in {"switch", "warn"})
         if (candidate["executor_id"] == "codex" and reset["drain"]

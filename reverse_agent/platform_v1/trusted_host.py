@@ -1007,6 +1007,13 @@ class CombinedTrustedHost:
         from .usage_ledger import task_token_records
         try:
             connection = self._store.get_connection_public(binding["connection_id"])
+            if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+                from .multi_account.dispatch import account_quarantine_guard
+                account = connection.get("account_ref") or connection["connection_id"]
+                isolation = account_quarantine_guard(account)
+                if isolation.get("skip"):
+                    return {"decision": "switch", "reason": "account_quarantined",
+                            "window": None, "retry_at": isolation["retry_at"]}
             until = self._limit_hit_until(connection)
             if until is not None:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
@@ -1145,7 +1152,7 @@ class CombinedTrustedHost:
                 if verdict is None or verdict["decision"] in {"ok", "warn"}:
                     self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
                     return candidate["executor_id"], candidate["binding_id"]
-            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS or decision["reason"] in {"predicted_insufficient", "quota_capacity"}:
+            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS or decision["reason"] in {"predicted_insufficient", "quota_capacity", "account_quarantined"}:
                 entry["decision"], entry["reason"] = "refuse", f"{decision['reason']}:no_alternative"
                 self._record_quota_decision(entry)
                 # Do not advertise an exhausted role as an executable route.
