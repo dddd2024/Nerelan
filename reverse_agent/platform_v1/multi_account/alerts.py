@@ -177,13 +177,26 @@ class AlertEngine:
                   if s.health in (AccountHealth.HEALTHY, AccountHealth.DEGRADED)]
         alerts: list[Alert] = []
         suppressed: set[str] = set()
+        unobserved = [s.account_ref for s in statuses
+                      if s.health in (AccountHealth.STALE, AccountHealth.UNKNOWN)]
         if usable:
+            # A usable pool does not page per unobservable account, but a pool
+            # that silently shrinks is a real incident: on a real machine four of
+            # eleven accounts were unobservable while the dashboard showed only
+            # "healthy". Warn once, at the pool level, when a material share is
+            # unobservable — enough to explain capacity that never appears.
+            if len(unobserved) >= 2 and len(unobserved) * 4 >= len(statuses):
+                alerts.append(Alert(
+                    code="perception_partial", severity=AlertSeverity.WARNING,
+                    subject="pool", at=now,
+                    evidence={"unobserved": unobserved, "total": len(statuses),
+                              "usable": len(usable)},
+                    message=(f"{len(unobserved)}/{len(statuses)} 个账户不可观测，"
+                             f"实际可用容量低于池大小")))
             return alerts, frozenset(suppressed)
 
         exhausted = [s.account_ref for s in statuses if s.health is AccountHealth.EXHAUSTED]
         abnormal = [s.account_ref for s in statuses if s.health is AccountHealth.ABNORMAL]
-        unobserved = [s.account_ref for s in statuses
-                      if s.health in (AccountHealth.STALE, AccountHealth.UNKNOWN)]
         if abnormal and len(abnormal) == len(statuses):
             alerts.append(Alert(
                 code="all_accounts_abnormal", severity=AlertSeverity.CRITICAL,

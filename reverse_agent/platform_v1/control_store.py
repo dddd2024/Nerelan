@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import base64
-from typing import Any, Callable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from .run_store import TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
@@ -1808,6 +1808,66 @@ class PlatformControlStore:
             if resume_checkpoint:
                 self._conn.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?",
                                    (json.dumps({"resume_checkpoint": resume_checkpoint, "resume_route": resume_route}), task_id))
+
+    def record_quota_observation(self, account_ref: str, observed_at: str,
+                                 evidence_json: str) -> int:
+        """Persist one account's quota evidence (the multi-account sync seam).
+
+        Until this existed the table was only written as a side effect of task
+        admission, so before the first dispatch it stayed empty and multi-account
+        perception saw no accounts at all — even when Magpie reported them. The
+        write is monotonic on ``observed_at`` exactly like the admission path, so
+        a periodic sync can never roll a newer reading back to an older one.
+
+        Returns the number of rows actually changed, which is ``0`` when the
+        stored reading is already at least as new. ``evidence_json`` must be a
+        JSON object; anything else is rejected here rather than corrupting every
+        later read.
+        """
+        if not isinstance(account_ref, str) or not account_ref:
+            raise ValueError("account_ref_required")
+        if not isinstance(observed_at, str) or not observed_at:
+            raise ValueError("observed_at_required")
+        try:
+            parsed = json.loads(evidence_json)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("evidence_not_json") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("evidence_not_json")
+        with self._lock, self._conn:
+            cursor = self._conn.execute(
+                "INSERT INTO platform_quota_observations VALUES (?,?,?) "
+                "ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, "
+                "evidence_json=excluded.evidence_json "
+                "WHERE excluded.observed_at > platform_quota_observations.observed_at",
+                (account_ref, observed_at, evidence_json))
+            return max(0, int(cursor.rowcount or 0))
+
+    def record_quota_observations(self, rows: Iterable[Mapping[str, Any]]) -> int:
+        """Batch form of :meth:`record_quota_observation`; returns the rows changed.
+
+        A row may carry the evidence as ``evidence_json`` (a string) or as
+        ``evidence`` (a mapping), matching what the perception sync produces.
+        One bad row is skipped instead of aborting the batch, because a single
+        malformed account must not blind the whole pool.
+        """
+        changed = 0
+        for row in rows:
+            if not isinstance(row, Mapping):
+                continue
+            evidence = row.get("evidence_json")
+            if evidence is None and "evidence" in row:
+                try:
+                    evidence = json.dumps(row["evidence"], sort_keys=True, ensure_ascii=False)
+                except (TypeError, ValueError):
+                    continue
+            try:
+                changed += self.record_quota_observation(str(row.get("account_ref") or ""),
+                                                         str(row.get("observed_at") or ""),
+                                                         evidence if isinstance(evidence, str) else "")
+            except ValueError:
+                continue
+        return changed
 
     def claim_task(
         self,

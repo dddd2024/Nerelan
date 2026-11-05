@@ -137,9 +137,11 @@ v3 的 `budget.py` / `watchdog.py` / `alerts.py` / `policy.py` 有 182 例回归
 ### 5.1 回归测试
 
 ```text
-tests/platform_v1/test_multi_account_*.py                    203 passed
-  ├─ test_multi_account_host_wiring.py（本轮新增）             15 passed
-  └─ test_multi_account_config.py（本轮 +6）                    21 passed
+tests/platform_v1/test_multi_account_*.py                    225 passed
+  ├─ test_multi_account_host_wiring.py（本轮新增）             24 passed
+  ├─ test_multi_account_perception_sync.py（agent 产出，监督复跑） 10 passed
+  ├─ test_multi_account_config.py（本轮 +6）                    21 passed
+  └─ test_multi_account_alerts.py（本轮 +3，perception_partial）22 passed
 
 协调器 / 宿主组合（6 文件：trusted_host, unattended_coordinator,
   coordinator_dynamic_refill, coordinator_shutdown, startup_reconcile,
@@ -191,22 +193,59 @@ python scripts/multi_account_acceptance.py     # 种子 7，虚拟时钟 24h，4
 
 ---
 
-## 6. 已知限制与扩展点
+## 6. 真实账户验收（2026-11-05，Owner 授权后新增）
 
-### 6.1 已知限制（诚实清单）
+前五节全部建立在合成账户与虚拟时钟上。在 Owner 授权真实账户后补做了真实验收，
+它推翻了"感知已闭环"的判断，并暴露三个真实缺口：
+
+| # | 真实证据 | 影响 | 修复 |
+|---|---|---|---|
+| R1 | `platform_quota_observations` **0 行**；该表只在 `claim_task` 准入路径内被写 | 首次派发前感知**全盲**：Magpie 报 11 个账户，大脑看到 0 个 | `control_store.record_quota_observation(s)`（`observed_at` 单调）+ `perception_sync.py` + 宿主 `sync_multi_account_observations()` |
+| R2 | 惰性读数 + 600 s 保鲜期；只同步一次则全池老化 | 可用账户数实测从 **7 衰减到 1** | 协调器 `pool_refresh` 接缝，按 reconcile 节奏刷新（60 s 去抖）；网络请求**不进**感知/路由路径 |
+| R3 | 规则只在"全部 STALE/UNKNOWN"时告警 | 4/11 不可用（36%）时完全静默 | 新增 `perception_partial` 告警 |
+
+**真实池**：11 账户 / 11 provider（claude、codex、copilot、minimax-code、
+opencode-zen-free、openrouter、raccoon、trae-cn、workbuddy、workbuddy-ai、zcode）。
+
+**真实调用**（每账户一次最小请求）：
+
+| 账户 | 结果 | 墙钟 | 计费 |
+|---|---|---|---|
+| claude-code | 成功 | 8.2–12.6 s | $0.00228–0.00432（CLI 上报） |
+| codex | 成功 1 / 超时 2 | 22.2 s | 未上报 → `priced=false`，入账不当免费 |
+
+**真实 30 天经济性**：5502 调用 / 194 错误 / 43 重试 / **$58.6993** / 未计价 2338。
+账户错误率 0.857、0.420、0.044、0.031、0.024、0.019、0.003、0.002；全池成功率 0.9647。
+
+**真实验收 11/11 PASS**（`scripts/multi_account_real_acceptance.py --live`，
+报告 `real_acceptance_latest.md`）：整合、感知、调度、容错（对真实 0.857 错误率账户注入故障
+后切换）、真实调用、未知成本、上限（真实花费基线）、告警、自进化双向（健康池不改 / 压力下
+v2 且可回滚）、真实时钟运行上限。探针花费 **$0.00228**。
+
+**"系统改自己"**：`perception_sync.py` + 测试由平台自己的 `claude` 执行器写出（13 轮，
+$0.0182）；它无法自测，由监督者复核并补齐控制库写入、宿主同步、刷新节奏与告警规则。
+
+## 7. 已知限制与扩展点
+
+### 7.1 已知限制（诚实清单）
 
 1. **未合并、未默认启用**。所有能力在 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1` 后生效；未启用时行为逐位等价旧版。
-2. **无真实账户长跑证据**。24h 验收是**虚拟时钟仿真**（真实机器只承担控制环开销）。真实账户、真实故障注入、真实账单口径的长跑仍需 Owner 在场的独立窗口。
-3. **成本口径为列表价估算**。`cost_units` 基于列表价，不是账单；订阅型账户现金成本为 0。切到 Magpie `usage --csv` 现金口径属**口径变更**，需 Owner 决策。
+2. **真实证据仍是单轮，不是长跑**。§6 覆盖 11 个真实账户的单轮感知/调度/容错/调用/成本，
+   但没有数小时无人值守 + 真实故障注入的长跑证据；24h 那轮仍是**虚拟时钟仿真**。
+3. **成本口径为列表价估算**。`cost_units` 基于列表价，不是账单；真实 30 天 $58.6993 是
+   Magpie 的列表价合计。`magpie_usage_ingest` 期望的 CLI 在本机不存在（安装只有 GUI +
+   HTTP `/v1/magpie/usage`），切现金口径属**口径变更**，需 Owner 决策。
 4. **预算不含并发预留**。宿主不携带 per-task token，故上限约束"已发生花费"而非"已发生 + 在飞"；超出上界不超过一个在飞批次的成本。带 token 的预留式防超支需要贯穿 claim→settle 及全部 abandon 路径，漏一条即永久锁死预算，故单列。
 5. **告警默认只到内存尾巴 + 可选日志**。IM/webhook 需替换宿主 sink；`_pending` 不持久化，崩溃前未排空的告警会丢（窗口已缩到一轮循环）。
 6. **C3 租约与休眠恢复未做**。`standby_keepalive_interval_seconds` 尚未接入 `durable_execution` 租约对账（[C3 项目](C3_LEASE_RECOVERY_PROJECT.md)），因会触碰 fencing 语义而单列。
-7. **账户切换行为未实测**。Magpie 的 `accounts switch` / `quota wait` / `provider fallback` 仅确认 CLI 能力存在，未执行（会改动用户登录态/阻塞），故 `auto` 需第二把锁显式确认。
+7. **账户切换行为未实测**。本机 Magpie 是 GUI 版（`0.1.2945`，只有 loopback HTTP，无 CLI），
+   仓库里 `quota wait` / `accounts switch` 的 CLI 前提不成立；`REVERSE_AGENT_MAGPIE_WAIT_TARGET`
+   因此无效。切换仍靠本仓调度，`auto` 归属需第二把锁显式确认。
 8. **全量测试未在本机跑完**。全仓 `pytest` 先触发 pytest 内部 `MemoryError`（源码解析阶段，非用例失败）；
    `tests/platform_v1` 单独串跑 43 分钟未收敛（socket/durable 用例）。故本轮以"改动所在面"分组取证
    （见 §5.1），未以"全量通过"表述；CI 侧需以 `baseline` / `state-gate` 为准。
 
-### 6.2 扩展点
+### 7.2 扩展点
 
 | 方向 | 接入点 | 前置条件 |
 |---|---|---|
@@ -223,9 +262,10 @@ python scripts/multi_account_acceptance.py     # 种子 7，虚拟时钟 24h，4
 ## 复现命令
 
 ```bash
-python -m pytest tests/platform_v1/test_multi_account_*.py -q          # 203 passed
-python -m pytest tests/platform_v1/test_multi_account_host_wiring.py -q # 15 passed
-python scripts/multi_account_acceptance.py                             # 11/11 PASS
+python -m pytest tests/platform_v1/test_multi_account_*.py -q          # 225 passed
+python -m pytest tests/platform_v1/test_multi_account_host_wiring.py -q # 24 passed
+python scripts/multi_account_acceptance.py                             # 11/11 PASS（虚拟时钟 24h）
+python scripts/multi_account_real_acceptance.py --live                 # 11/11 PASS（真实账户）
 python -m reverse_agent.platform_v1.cost_report --doctor --last 7d      # 对照实验自检
 ```
 

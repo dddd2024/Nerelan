@@ -83,6 +83,7 @@ class UnattendedCoordinator:
         alert_source: Any | None = None,
         alert_sink: Any | None = None,
         cost_admission: Any | None = None,
+        pool_refresh: Any | None = None,
         landing_loop=None, publication=None, goals=None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
@@ -121,6 +122,10 @@ class UnattendedCoordinator:
         # (forecast_units|None) -> {"decision": "allow"|"degrade"|"deny", ...};
         # a deny holds the candidate (never drops it) before it is claimed.
         self.cost_admission = cost_admission
+        # () -> Any; refreshes the account pool on the reconcile cadence. Off the
+        # routing path on purpose: perception must never wait on a fetch, but it
+        # must not fossilise either — readings age out.
+        self.pool_refresh = pool_refresh
         self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
@@ -904,6 +909,22 @@ class UnattendedCoordinator:
         except Exception as exc:  # noqa: BLE001 - a bad sink must not break the loop
             self._last_error = f"alert_sink_failed:{type(exc).__name__}"
 
+    def _refresh_pool(self) -> None:
+        """Refresh account perception on the reconcile cadence (no-op if absent).
+
+        A pool that is only read at startup fossilises: provider readings age out
+        and every account turns STALE, which looks identical to "every account is
+        busy". Refreshing here — not on the routing path — keeps perception
+        honest without putting a fetch in front of a claim decision.
+        """
+        refresh = getattr(self, "pool_refresh", None)
+        if refresh is None:
+            return
+        try:
+            refresh()
+        except Exception as exc:  # noqa: BLE001 - a refresh fault must not stop dispatch
+            self._last_error = f"pool_refresh_failed:{type(exc).__name__}"
+
     def _record_run_progress(self) -> None:
         """Count one finished attempt toward idle/elapsed detection."""
         # getattr: purely bookkeeping, so a partially built coordinator (a test
@@ -952,6 +973,7 @@ class UnattendedCoordinator:
                         self.reconcile()
                     except Exception as exc:  # a reconcile fault must not stop dispatch
                         self._last_error = f"reconcile_failed:{type(exc).__name__}"
+                    self._refresh_pool()
                 dispatched = 0
                 try:
                     dispatched = self.tick(background=True)

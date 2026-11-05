@@ -821,3 +821,85 @@ python -m pytest tests/platform_v1/test_multi_account_config.py -q        # 21 p
 4. **全量回归未在本机跑完**：全仓 `pytest` 触发 pytest 内部 `MemoryError`；`tests/platform_v1`
    单独串跑 43 分钟未收敛（socket/durable 用例）。本轮按改动所在面分组取证：多账户 203、
    协调器/宿主 227、额度/目标/任务服务 417。全量结论以 CI 的 `baseline`/`state-gate` 为准。
+
+## 15. 真实账户验收（2026-11-05，Owner 授权）
+
+前几轮的所有证据都来自合成账户与虚拟时钟。本节记录第一次**对真实机器、真实账户**的验收，
+以及它暴露出的三个真实缺口。
+
+环境：Magpie 桌面版 `0.1.2945`（GUI，loopback `127.0.0.1:3425`，**无 CLI**）；
+`claude` 2.1.300 与 `codex` 可调用；`magpie` 不在 PATH（`magpie_usage_ingest` 期望的 CLI 不存在）。
+
+### 15.1 真实池
+
+`fetch_magpie_snapshot()` 返回 **11 个账户 / 11 个 provider**：
+claude、codex、copilot、minimax-code、opencode-zen-free、openrouter、raccoon、trae-cn、
+workbuddy、workbuddy-ai、zcode。真实额度举例：codex 5h 用 0% / 7d 用 43%；
+workbuddy 额外额度用 72.78%；trae-cn 用 37.04%。
+
+### 15.2 发现并修复的三个真实缺口
+
+| # | 缺口（真实证据） | 影响 | 修复 |
+|---|---|---|---|
+| R1 | `platform_quota_observations` 有 **0 行**：该表只在 `claim_task` 的准入路径内被写 | 首次派发前感知**全盲**：Magpie 报 11 个账户，大脑看到 0 个 | 新增 `control_store.record_quota_observation(s)`（按 `observed_at` 单调，不倒退）+ `multi_account/perception_sync.py`（快照→观测行，PII 白名单）+ `trusted_host.sync_multi_account_observations()` |
+| R2 | 只同步一次会**固化**：Magpie 惰性读取，`observation_freshness_seconds` 默认 600 s，读数老化后全池转 STALE | "持续感知"实际只成立几分钟；实测可用账户从 7 衰减到 1 | 协调器新增 `pool_refresh` 接缝，按 **reconcile 节奏**刷新（60 s 去抖），且**不在感知/路由路径上**发网络请求 |
+| R3 | 部分不可观测**完全静默**：规则只在"全部 STALE/UNKNOWN"时告警 | 11 个账户里 4 个不可用（36%）时，运维面只看到"7 个健康" | 新增 `perception_partial`（WARNING，≥2 个且 ≥25% 不可观测，池级去重） |
+
+### 15.3 真实调用与真实成本
+
+每账户一次最小请求（`Reply with exactly: OK`），沙箱只读、180 s 硬超时、超时最多重试 1 次：
+
+| 账户 | 结果 | 墙钟 | 计费 | 口径 |
+|---|---|---|---|---|
+| claude-code | 成功 | 8.2–12.6 s | **$0.00228–0.00432** | CLI 上报 `total_cost_usd`（列表价） |
+| codex | 成功 1 次 / 超时 2 次 | 22.2 s（成功时） | 未上报 | `priced=false`，入账并标记，**不当作免费** |
+
+codex 的超时是环境事实（内部 MCP 握手卡住），不是账户故障；探针按"超时最多重试一次、
+仍失败则如实上报"处理，而不是重试到静默。
+
+真实 30 天经济性（`/v1/magpie/usage`）：**5502 次调用 / 194 次错误 / 43 次重试 /
+成本 $58.6993 / 未计价 2338 次**。按账户错误率：0.857、0.420、0.044、0.031、0.024、
+0.019、0.003、0.002；全池成功率 0.9647。
+
+### 15.4 验收结果（`scripts/multi_account_real_acceptance.py --live`）
+
+`11/11 PASS`，报告：`reports/multi_account/real_acceptance_latest.md`。
+
+| 验收项 | 结果 | 关键证据 |
+|---|---|---|
+| 多账户整合 | PASS | 11 账户 / 11 provider，无按 provider 折叠 |
+| 状态感知 | PASS | 落库 11、读回 11；FRESH 7 / STALE 2 / UNKNOWN 2 |
+| 调度选中真实可用账户 | PASS | `minimax-code`（HEALTHY，headroom 100，`best_headroom`） |
+| 异常容错 | PASS | 对真实错误率最高账户（copilot 0.857）注入故障 → reroute 到另一真实账户 |
+| 真实账户调用 | PASS | claude 12.6 s / $0.00228；codex 超时如实上报 |
+| 未知成本不为免费 | PASS | 1 计价 + 1 未计价，未计价入账 `priced=false` |
+| 成本上限 | PASS | 以真实 30 天花费 $58.6993 为基线，双倍请求被 `cost_budget_exhausted` 拒绝 |
+| 告警 | PASS | 真实池触发 `perception_partial` |
+| 自进化下限 | PASS | 真实成功率 0.9647 > 目标 0.85 → **不改权重**（版本 0） |
+| 自进化生效 | PASS | 真实 0.857 错误率账户重采样 → v2，2 条审计，回滚后回基线 |
+| 运行时长 | PASS | 真实时钟 1.05 s 后 `conclude`（`run_deadline_reached`） |
+
+探针总花费：**$0.002280**（一次 claude 调用）。
+
+### 15.5 "系统改自己"记录
+
+感知落库模块 `multi_account/perception_sync.py` 与其 10 例测试由**本平台自己的账户执行器**
+（`claude -p`，工作区写权限，13 轮，花费 $0.0182）写出。它无法在本环境运行测试（其 shell
+入口直接失败），因此由监督者按 `AGENTS.md` 的兜底条款复核：契约逐条比对、单测实跑
+（10 passed），并补上控制库写入、宿主同步、刷新节奏与告警规则。
+**agent 产出的代码未经其自身验证，一律视为草稿。**
+
+### 15.6 本轮仍未闭环
+
+1. `magpie_usage_ingest` 仍期望 CLI（`magpie usage --csv`），而真实安装只有 GUI + HTTP
+   `/v1/magpie/usage`（含真实 cost/errors/ttft）。**成本口径切换需 Owner 决策**，故未改。
+2. **保鲜期与 provider 读取节奏不匹配（最影响真实可用性）**。Magpie 惰性读取，同一批账户的
+   `observed_at` 可相差 20–30 分钟；`observation_freshness_seconds=600` 意味着大部分时间多数
+   账户被判 STALE。实测同一会话内：14:17 时 HEALTHY 7 / STALE 2，14:29 时 HEALTHY 1 /
+   STALE 8，14:41 时 HEALTHY 0 / STALE 9（告警自动升级为 `perception_stale`）。
+   这不是缺陷而是保鲜语义正确执行，但默认值对惰性 provider 偏严：
+   **建议把 `REVERSE_AGENT_MULTI_ACCOUNT_FRESHNESS` 调到 1800**（贴近 Magpie 重读节奏），
+   或让宿主在同步前触发 Magpie 重读（未验证是否存在该端点，故未接入）。默认值未改，
+   因为改默认等于放宽陈旧保护，属策略决定。
+3. codex CLI 的 MCP 启动偶发挂起（>180 s），未定位；已按超时上报，不影响调度正确性。
+4. 真实长跑（数小时无人值守 + 真实故障）仍未做；本节是**单轮真实验收**，不是长跑证据。

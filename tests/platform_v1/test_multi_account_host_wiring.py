@@ -16,6 +16,7 @@ pins the "not injected" payload shape rather than behaviour alone.
 """
 
 from datetime import datetime, timedelta, timezone
+import json
 import threading
 import time
 
@@ -312,7 +313,8 @@ def test_the_host_injects_nothing_unless_the_feature_is_enabled(monkeypatch):
     monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
     hooks = host._multi_account_loop_hooks()
     assert set(hooks) == {"run_start", "run_verdict", "run_progress",
-                          "alert_source", "alert_sink", "cost_admission"}
+                          "alert_source", "alert_sink", "cost_admission",
+                          "pool_refresh"}
 
 
 def test_the_host_cost_seam_never_leaks_a_reservation(monkeypatch):
@@ -365,3 +367,272 @@ def test_without_hooks_the_loop_and_its_payload_are_unchanged(tmp_path):
     assert coordinator._cost_allows_dispatch() is True
     assert coordinator.tick() == 1
     assert store.get_task(task_id).status == "READY_FOR_REVIEW_FIXTURE"
+
+
+# --- perception before the first dispatch ------------------------------------
+
+def _snapshot(accounts):
+    return {"status": "available", "version": "0.1.2945", "models": [], "accounts": accounts}
+
+
+def _live_account(ref, provider, *, used=10.0):
+    return {"provider": provider, "kind": "subscription", "plan": None,
+            "account_ref": ref, "windows": [{"name": "5 hours", "used_percent": used,
+                                             "remaining_percent": 100.0 - used,
+                                             "resets_at": None, "unlimited": False}],
+            "cached_windows": [], "state": "FRESH", "reason": None,
+            "observed_at": "2026-11-05T13:50:00+00:00",
+            "provenance": "EXTERNAL_MAGPIE", "source_version": "0.1.2945"}
+
+
+def test_the_observation_table_is_writable_before_any_dispatch():
+    """Admission used to be the only writer, so perception was blind until then."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 0
+
+    rows = [{"account_ref": "aaa", "observed_at": "2026-11-05T13:00:00Z",
+             "evidence": {"provider": "claude"}},
+            {"account_ref": "bbb", "observed_at": "2026-11-05T13:00:00Z",
+             "evidence": {"provider": "codex"}}]
+    assert control.record_quota_observations(rows) == 2
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 2
+
+
+def test_an_older_reading_never_overwrites_a_newer_one():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    control.record_quota_observation("aaa", "2026-11-05T13:00:00Z", '{"provider": "new"}')
+    changed = control.record_quota_observation("aaa", "2026-11-05T12:00:00Z",
+                                               '{"provider": "old"}')
+    assert changed == 0, "a periodic sync must not roll a reading backwards"
+    stored = control._conn.execute(
+        "SELECT evidence_json FROM platform_quota_observations WHERE account_ref='aaa'"
+    ).fetchone()[0]
+    assert json.loads(stored)["provider"] == "new"
+
+
+def test_bad_evidence_is_rejected_instead_of_stored():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    for evidence in ("not-json", "[]", ""):
+        try:
+            control.record_quota_observation("aaa", "2026-11-05T13:00:00Z", evidence)
+        except ValueError:
+            continue
+        raise AssertionError(f"{evidence!r} should have been rejected")
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 0
+
+
+def test_the_host_syncs_live_readings_into_perception(monkeypatch):
+    """End to end without a network: snapshot -> store -> the host's own provider."""
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store, host._control_store = store, control
+
+    account = _live_account("ref-claude", "claude")
+    account["user"] = "someone@example.com"       # must never reach the store
+    summary = host.sync_multi_account_observations(fetch=lambda: _snapshot([account]))
+
+    assert summary["written"] == 1
+    assert summary["accounts_visible"] == 1
+    stored = control._conn.execute(
+        "SELECT evidence_json FROM platform_quota_observations").fetchone()[0]
+    assert "someone@example.com" not in stored, "personal data must not be persisted"
+    assert "user" not in json.loads(stored)
+
+    statuses = host._goal_account_status_provider()
+    assert [s.account_ref for s in statuses] == ["ref-claude"]
+    assert statuses[0].provider == "claude"
+
+
+def test_the_host_sync_is_inert_when_disabled(monkeypatch):
+    monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", raising=False)
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    host = object.__new__(CombinedTrustedHost)
+    summary = host.sync_multi_account_observations(fetch=lambda: _snapshot([]))
+    assert summary["enabled"] is False and summary["written"] == 0
+
+
+def test_an_unavailable_magpie_leaves_perception_as_it_was(monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    store = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store, host._control_store = store, PlatformControlStore(store)
+    summary = host.sync_multi_account_observations(
+        fetch=lambda: {"status": "unavailable", "reason": "request_failed",
+                       "accounts": [_live_account("x", "y")]})
+    assert summary["snapshot_status"] == "unavailable"
+    assert summary["written"] == 0
+
+
+# --- perception before the first dispatch ------------------------------------
+
+def _snapshot(accounts):
+    return {"status": "available", "version": "0.1.2945", "models": [], "accounts": accounts}
+
+
+def _live_account(ref, provider, *, used=10.0):
+    return {"provider": provider, "kind": "subscription", "plan": None,
+            "account_ref": ref, "windows": [{"name": "5 hours", "used_percent": used,
+                                             "remaining_percent": 100.0 - used,
+                                             "resets_at": None, "unlimited": False}],
+            "cached_windows": [], "state": "FRESH", "reason": None,
+            "observed_at": "2026-11-05T13:50:00+00:00",
+            "provenance": "EXTERNAL_MAGPIE", "source_version": "0.1.2945"}
+
+
+def test_the_observation_table_is_writable_before_any_dispatch():
+    """Admission used to be the only writer, so perception was blind until then."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 0
+
+    rows = [{"account_ref": "aaa", "observed_at": "2026-11-05T13:00:00Z",
+             "evidence": {"provider": "claude"}},
+            {"account_ref": "bbb", "observed_at": "2026-11-05T13:00:00Z",
+             "evidence": {"provider": "codex"}}]
+    assert control.record_quota_observations(rows) == 2
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 2
+
+
+def test_an_older_reading_never_overwrites_a_newer_one():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    control.record_quota_observation("aaa", "2026-11-05T13:00:00Z", '{"provider": "new"}')
+    changed = control.record_quota_observation("aaa", "2026-11-05T12:00:00Z",
+                                               '{"provider": "old"}')
+    assert changed == 0, "a periodic sync must not roll a reading backwards"
+    stored = control._conn.execute(
+        "SELECT evidence_json FROM platform_quota_observations WHERE account_ref='aaa'"
+    ).fetchone()[0]
+    assert json.loads(stored)["provider"] == "new"
+
+
+def test_bad_evidence_is_rejected_instead_of_stored():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    for evidence in ("not-json", "[]", ""):
+        try:
+            control.record_quota_observation("aaa", "2026-11-05T13:00:00Z", evidence)
+        except ValueError:
+            continue
+        raise AssertionError(f"{evidence!r} should have been rejected")
+    assert control._conn.execute(
+        "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0] == 0
+
+
+def test_the_host_syncs_live_readings_into_perception(monkeypatch):
+    """End to end without a network: snapshot -> store -> the host's own provider."""
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store, host._control_store = store, control
+
+    account = _live_account("ref-claude", "claude")
+    account["user"] = "someone@example.com"       # must never reach the store
+    summary = host.sync_multi_account_observations(fetch=lambda: _snapshot([account]))
+
+    assert summary["written"] == 1
+    assert summary["accounts_visible"] == 1
+    stored = control._conn.execute(
+        "SELECT evidence_json FROM platform_quota_observations").fetchone()[0]
+    assert "someone@example.com" not in stored, "personal data must not be persisted"
+    assert "user" not in json.loads(stored)
+
+    statuses = host._goal_account_status_provider()
+    assert [s.account_ref for s in statuses] == ["ref-claude"]
+    assert statuses[0].provider == "claude"
+
+
+def test_the_host_sync_is_inert_when_disabled(monkeypatch):
+    monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", raising=False)
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    host = object.__new__(CombinedTrustedHost)
+    summary = host.sync_multi_account_observations(fetch=lambda: _snapshot([]))
+    assert summary["enabled"] is False and summary["written"] == 0
+
+
+def test_an_unavailable_magpie_leaves_perception_as_it_was(monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    store = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store, host._control_store = store, PlatformControlStore(store)
+    summary = host.sync_multi_account_observations(
+        fetch=lambda: {"status": "unavailable", "reason": "request_failed",
+                       "accounts": [_live_account("x", "y")]})
+    assert summary["snapshot_status"] == "unavailable"
+    assert summary["written"] == 0
+
+
+def test_an_aged_reading_is_refreshed_not_left_stale(monkeypatch):
+    """One bootstrap is not enough: readings age out and must be re-synced."""
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    host = object.__new__(CombinedTrustedHost)
+    host._task_store, host._control_store = store, control
+    control.record_quota_observation("aaa", "2020-01-01T00:00:00Z", '{"provider": "old"}')
+    assert host._reading_is_fresh("2020-01-01T00:00:00Z") is False
+    calls: list[int] = []
+    host.sync_multi_account_observations = lambda **_: calls.append(1) or {}
+    host._bootstrap_multi_account_observations()
+    assert calls, "an aged table must be refreshed"
+    # A fresh reading suppresses the fetch; the debounce is bypassed here so the
+    # assertion is about freshness, not wall-clock throttling.
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
+    assert host._reading_is_fresh(now_iso) is True
+    control.record_quota_observation("aaa", now_iso, '{"provider": "new"}')
+    host._multi_account_sync_at = 0.0
+    host._bootstrap_multi_account_observations()
+    assert len(calls) == 1, "a fresh table must not be re-fetched"
+
+
+def test_the_pool_is_refreshed_on_the_reconcile_cadence_not_per_claim(tmp_path):
+    """Perception must neither fossilise nor block a claim on a fetch."""
+    store, control, autonomy, _goals, _window = _setup()
+    refreshed: list[int] = []
+    coordinator = _coordinator(tmp_path, store, control, autonomy,
+                               reconcile_interval=0.05,
+                               pool_refresh=lambda: refreshed.append(1))
+    coordinator.start()
+    try:
+        assert _wait_for(lambda: len(refreshed) >= 2, timeout=8)
+    finally:
+        coordinator.stop(timeout=5)
+    # It runs on the reconcile branch, so a burst of claims cannot multiply it.
+    before = len(refreshed)
+    coordinator.tick()
+    assert len(refreshed) == before
+
+
+def test_a_failing_pool_refresh_is_recorded_and_ignored(tmp_path):
+    store, control, autonomy, _goals, _window = _setup()
+
+    def boom():
+        raise RuntimeError("snapshot unreachable")
+
+    coordinator = _coordinator(tmp_path, store, control, autonomy, pool_refresh=boom)
+    coordinator._refresh_pool()
+    assert coordinator._last_error == "pool_refresh_failed:RuntimeError"

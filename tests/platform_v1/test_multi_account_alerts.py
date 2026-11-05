@@ -194,3 +194,38 @@ def test_a_host_event_does_not_fabricate_an_empty_pool_alert():
     alerts = eng.evaluate(events=[{"code": "policy_changed", "severity": "info"}], now=NOW)
     assert codes(alerts) == ["policy_changed"]
     assert codes(eng.evaluate([], now=NOW + 1)) == ["no_accounts_observed"]
+
+
+# --- partial observability ---------------------------------------------------
+
+def test_a_materially_unobservable_pool_warns_once():
+    """Real machine: 4 of 11 accounts unobservable while the rest were healthy.
+
+    The pool-level "everything is stale" rule cannot see that, so capacity that
+    never appears stayed silent. A quarter of the pool missing is worth one line.
+    """
+    statuses = [status("a", AccountHealth.HEALTHY, headroom=90.0),
+                status("b", AccountHealth.HEALTHY, headroom=80.0),
+                status("c", AccountHealth.STALE),
+                status("d", AccountHealth.UNKNOWN)]
+    alerts = engine().evaluate(statuses, now=NOW)
+    assert codes(alerts) == ["perception_partial"]
+    assert alerts[0].severity is AlertSeverity.WARNING
+    assert alerts[0].evidence["usable"] == 2
+    assert alerts[0].evidence["total"] == 4
+
+
+def test_one_stale_account_in_a_large_pool_does_not_page():
+    """Noise floor: a single stale account among many is normal and stays quiet."""
+    statuses = [status(f"ok{index}", AccountHealth.HEALTHY, headroom=80.0)
+                for index in range(9)] + [status("stale", AccountHealth.STALE)]
+    assert codes(engine().evaluate(statuses, now=NOW)) == []
+
+
+def test_the_partial_alert_is_deduplicated_like_every_other():
+    statuses = [status("a", AccountHealth.HEALTHY, headroom=90.0),
+                status("b", AccountHealth.STALE),
+                status("c", AccountHealth.UNKNOWN)]
+    bot = engine()
+    assert codes(bot.evaluate(statuses, now=NOW)) == ["perception_partial"]
+    assert codes(bot.evaluate(statuses, now=NOW + 5)) == []
