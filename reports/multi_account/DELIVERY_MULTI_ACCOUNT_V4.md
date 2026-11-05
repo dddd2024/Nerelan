@@ -211,7 +211,7 @@ opencode-zen-free、openrouter、raccoon、trae-cn、workbuddy、workbuddy-ai、
 
 | 账户 | 结果 | 墙钟 | 计费 |
 |---|---|---|---|
-| claude-code | 成功 | 8.2–12.6 s | $0.00228–0.00432（CLI 上报） |
+| claude-code | 成功 | 8.2–13.8 s | $0.0020–0.0043（CLI 上报） |
 | codex | 成功 1 / 超时 2 | 22.2 s | 未上报 → `priced=false`，入账不当免费 |
 
 **真实 30 天经济性**：5502 调用 / 194 错误 / 43 重试 / **$58.6993** / 未计价 2338。
@@ -220,10 +220,22 @@ opencode-zen-free、openrouter、raccoon、trae-cn、workbuddy、workbuddy-ai、
 **真实验收 11/11 PASS**（`scripts/multi_account_real_acceptance.py --live`，
 报告 `real_acceptance_latest.md`）：整合、感知、调度、容错（对真实 0.857 错误率账户注入故障
 后切换）、真实调用、未知成本、上限（真实花费基线）、告警、自进化双向（健康池不改 / 压力下
-v2 且可回滚）、真实时钟运行上限。探针花费 **$0.00228**。
+v2 且可回滚）、真实时钟运行上限。探针花费 **约 $0.002/次**。
 
 **"系统改自己"**：`perception_sync.py` + 测试由平台自己的 `claude` 执行器写出（13 轮，
 $0.0182）；它无法自测，由监督者复核并补齐控制库写入、宿主同步、刷新节奏与告警规则。
+
+### 6.1 Owner 批准后的两项落地（2026-11-05）
+
+| 批准项 | 落地 | 真实效果 |
+|---|---|---|
+| 保鲜期默认值 | `observation_freshness_seconds` 600 → **1800**，`magpie_max_age_seconds` 900 → **2400**（保持 `freshness < max_age`） | 同一真实池可用账户 **0 → 6**；48–99 分钟的真陈旧读数仍判 STALE，规则未被放宽到失效 |
+| 成本口径改读 HTTP | `read_usage_http()` + `facts_from_http()` + `ingest(source=auto/cli/http)`；`cost_report --source`、`--doctor` 同步 | 无 CLI 也能拿到真实 **5502 调用 / 194 错误 / $58.6993 / 8 个账户**；`--doctor` 现在显示 `magpie_reachable: available` 并明确"逐请求归因仍需 CLI" |
+
+口径诚实性（重要）：HTTP 只有一个合计，没有逐请求行，也没有现金/订阅二分。因此
+`cash_usd` / `quota_value_usd` 保持 0，合计放入 `reported_cost_usd` / `spend_total`，
+并标 `split_unavailable=true`、`basis_provenance="magpie_http_reported_cost"`；
+`failed_cost_share=null`（错误被计数但未被定价）。**不把订阅额度冒充成现金账单。**
 
 ## 7. 已知限制与扩展点
 
@@ -232,9 +244,9 @@ $0.0182）；它无法自测，由监督者复核并补齐控制库写入、宿�
 1. **未合并、未默认启用**。所有能力在 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1` 后生效；未启用时行为逐位等价旧版。
 2. **真实证据仍是单轮，不是长跑**。§6 覆盖 11 个真实账户的单轮感知/调度/容错/调用/成本，
    但没有数小时无人值守 + 真实故障注入的长跑证据；24h 那轮仍是**虚拟时钟仿真**。
-3. **成本口径为列表价估算**。`cost_units` 基于列表价，不是账单；真实 30 天 $58.6993 是
-   Magpie 的列表价合计。`magpie_usage_ingest` 期望的 CLI 在本机不存在（安装只有 GUI +
-   HTTP `/v1/magpie/usage`），切现金口径属**口径变更**，需 Owner 决策。
+3. **成本口径已从"只有列表价"扩到"Magpie 上报合计"**，但仍不是账单：真实 $58.6993 是
+   列表价合计，且 HTTP 视图无法拆分现金/订阅（见 §6.1）。逐请求归因与现金二分仍需 CLI，
+   本机没有。
 4. **预算不含并发预留**。宿主不携带 per-task token，故上限约束"已发生花费"而非"已发生 + 在飞"；超出上界不超过一个在飞批次的成本。带 token 的预留式防超支需要贯穿 claim→settle 及全部 abandon 路径，漏一条即永久锁死预算，故单列。
 5. **告警默认只到内存尾巴 + 可选日志**。IM/webhook 需替换宿主 sink；`_pending` 不持久化，崩溃前未排空的告警会丢（窗口已缩到一轮循环）。
 6. **C3 租约与休眠恢复未做**。`standby_keepalive_interval_seconds` 尚未接入 `durable_execution` 租约对账（[C3 项目](C3_LEASE_RECOVERY_PROJECT.md)），因会触碰 fencing 语义而单列。
@@ -263,10 +275,10 @@ $0.0182）；它无法自测，由监督者复核并补齐控制库写入、宿�
 
 ```bash
 python -m pytest tests/platform_v1/test_multi_account_*.py -q          # 225 passed
-python -m pytest tests/platform_v1/test_multi_account_host_wiring.py -q # 24 passed
+python -m pytest tests/platform_v1/test_magpie_usage_ingest.py -q      # 41 passed, 1 skipped
 python scripts/multi_account_acceptance.py                             # 11/11 PASS（虚拟时钟 24h）
 python scripts/multi_account_real_acceptance.py --live                 # 11/11 PASS（真实账户）
-python -m reverse_agent.platform_v1.cost_report --doctor --last 7d      # 对照实验自检
+python -m reverse_agent.platform_v1.cost_report --doctor --last 30d     # 传输与口径自检
 ```
 
 ## 关联文档

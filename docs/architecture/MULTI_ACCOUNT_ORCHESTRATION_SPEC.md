@@ -868,10 +868,10 @@ codex 的超时是环境事实（内部 MCP 握手卡住），不是账户故障
 | 验收项 | 结果 | 关键证据 |
 |---|---|---|
 | 多账户整合 | PASS | 11 账户 / 11 provider，无按 provider 折叠 |
-| 状态感知 | PASS | 落库 11、读回 11；FRESH 7 / STALE 2 / UNKNOWN 2 |
+| 状态感知 | PASS | 落库 11、读回 11；FRESH 6 / STALE 3 / UNKNOWN 2（修正保鲜期后可用 6，此前为 0） |
 | 调度选中真实可用账户 | PASS | `minimax-code`（HEALTHY，headroom 100，`best_headroom`） |
 | 异常容错 | PASS | 对真实错误率最高账户（copilot 0.857）注入故障 → reroute 到另一真实账户 |
-| 真实账户调用 | PASS | claude 12.6 s / $0.00228；codex 超时如实上报 |
+| 真实账户调用 | PASS | claude 11–14 s / $0.0020–0.0023；codex 超时如实上报 |
 | 未知成本不为免费 | PASS | 1 计价 + 1 未计价，未计价入账 `priced=false` |
 | 成本上限 | PASS | 以真实 30 天花费 $58.6993 为基线，双倍请求被 `cost_budget_exhausted` 拒绝 |
 | 告警 | PASS | 真实池触发 `perception_partial` |
@@ -879,7 +879,7 @@ codex 的超时是环境事实（内部 MCP 握手卡住），不是账户故障
 | 自进化生效 | PASS | 真实 0.857 错误率账户重采样 → v2，2 条审计，回滚后回基线 |
 | 运行时长 | PASS | 真实时钟 1.05 s 后 `conclude`（`run_deadline_reached`） |
 
-探针总花费：**$0.002280**（一次 claude 调用）。
+探针总花费：**约 $0.002/次**（单次 claude 调用，随上下文略有浮动）。
 
 ### 15.5 "系统改自己"记录
 
@@ -891,15 +891,21 @@ codex 的超时是环境事实（内部 MCP 握手卡住），不是账户故障
 
 ### 15.6 本轮仍未闭环
 
-1. `magpie_usage_ingest` 仍期望 CLI（`magpie usage --csv`），而真实安装只有 GUI + HTTP
-   `/v1/magpie/usage`（含真实 cost/errors/ttft）。**成本口径切换需 Owner 决策**，故未改。
-2. **保鲜期与 provider 读取节奏不匹配（最影响真实可用性）**。Magpie 惰性读取，同一批账户的
-   `observed_at` 可相差 20–30 分钟；`observation_freshness_seconds=600` 意味着大部分时间多数
-   账户被判 STALE。实测同一会话内：14:17 时 HEALTHY 7 / STALE 2，14:29 时 HEALTHY 1 /
-   STALE 8，14:41 时 HEALTHY 0 / STALE 9（告警自动升级为 `perception_stale`）。
-   这不是缺陷而是保鲜语义正确执行，但默认值对惰性 provider 偏严：
-   **建议把 `REVERSE_AGENT_MULTI_ACCOUNT_FRESHNESS` 调到 1800**（贴近 Magpie 重读节奏），
-   或让宿主在同步前触发 Magpie 重读（未验证是否存在该端点，故未接入）。默认值未改，
-   因为改默认等于放宽陈旧保护，属策略决定。
+1. ~~`magpie_usage_ingest` 仍期望 CLI~~ **已闭合（Owner 2026-11-05 批准口径变更）**：
+   新增 `read_usage_http()` / `facts_from_http()`，`ingest(source="auto"|"cli"|"http")` 在无 CLI 时
+   自动改读 `/v1/magpie/usage`；`cost_report --source` 与 `--doctor` 同步支持。真实结果：
+   5502 调用 / 194 错误 / **$58.6993** / 8 个账户，`basis_provenance="magpie_http_reported_cost"`。
+   口径诚实性：HTTP 只有**一个合计**，没有逐请求行，也没有现金/订阅二分，因此
+   `cash_usd`/`quota_value_usd` 保持 0，合计放进 `reported_cost_usd`/`spend_total`，并标
+   `split_unavailable=true`；`failed_cost_share=null`（错误被计数但未被定价）。
+   逐请求归因仍需 CLI。
+2. ~~保鲜期与 provider 读取节奏不匹配~~ **已闭合**：默认 `observation_freshness_seconds`
+   600 → **1800**、`magpie_max_age_seconds` 900 → **2400**（保持 `freshness < max_age` 不变量）。
+   实测复核：同一真实池在该默认下 **HEALTHY 6 / STALE 3 / UNKNOWN 2**（可用 6，2600 前是 0）；
+   3 个真正陈旧（48–99 分钟）仍被判 STALE，说明规则没有被放宽到失效。
+   回归：`test_a_lazily_read_account_stays_usable_for_half_an_hour`、
+   `test_a_genuinely_stale_reading_is_still_caught`。
 3. codex CLI 的 MCP 启动偶发挂起（>180 s），未定位；已按超时上报，不影响调度正确性。
 4. 真实长跑（数小时无人值守 + 真实故障）仍未做；本节是**单轮真实验收**，不是长跑证据。
+5. 真实池里仍有 2 个账户长期 UNKNOWN（`zcode`、`opencode-zen-free`：Magpie 从未给出读数）。
+   `perception_partial` 会持续提示；这是上游观测缺失，不是本仓可修的问题。

@@ -10,8 +10,10 @@ from reverse_agent.platform_v1.multi_account.config import MultiAccountConfig
 
 def test_defaults_are_valid():
     cfg = MultiAccountConfig()
-    assert cfg.observation_freshness_seconds == 600
-    assert cfg.magpie_max_age_seconds == 900
+    # 1800 s, not 600: a provider that re-reads lazily leaves readings older than
+    # ten minutes, and treating those as STALE emptied a real eleven-account pool.
+    assert cfg.observation_freshness_seconds == 1800
+    assert cfg.magpie_max_age_seconds == 2400
     assert cfg.reroute_max_attempts == 3
     assert cfg.dead_letter_enabled is True
     assert cfg.enable_self_evolution is True
@@ -184,7 +186,8 @@ def test_the_env_example_documents_every_variable():
     text = (Path(__file__).resolve().parents[2] / ".env.example").read_text(encoding="utf-8")
     documented = set(re.findall(r"^(REVERSE_AGENT_[A-Z0-9_]+)=", text, re.M))
     owned = {"REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "REVERSE_AGENT_MULTI_ACCOUNT_STORE",
-             "REVERSE_AGENT_ACCOUNT_ROUTING"}
+             "REVERSE_AGENT_ACCOUNT_ROUTING", "REVERSE_AGENT_MAGPIE_URL",
+             "REVERSE_AGENT_MAGPIE_EXE"}
     assert not set(_ENV_SCALARS.values()) - documented
     assert not documented - set(_ENV_SCALARS.values()) - owned - {
         "REVERSE_AGENT_OLLYDBG_PATH", "REVERSE_AGENT_SAMPLE_PATH"}

@@ -126,9 +126,14 @@ class MultiAccountConfig(BaseModel):
 
     # --- perception (domain B) -------------------------------------------------
     observation_freshness_seconds: int = Field(
-        600, description="Max age of an account/quota observation before it is treated as STALE.")
+        1800, description=(
+            "Max age of an account/quota observation before it is treated as STALE. "
+            "1800 matches a provider that re-reads lazily: at 600 a real pool decayed "
+            "from 7 usable accounts to 0 within 25 minutes while nothing was wrong."))
     magpie_max_age_seconds: int = Field(
-        900, description="Max age of a Magpie snapshot; older snapshots are ignored.")
+        2400, description=(
+            "Max age of a Magpie snapshot; older snapshots are ignored. Must stay at or "
+            "above observation_freshness_seconds, with margin for a lazy re-read."))
     high_utilization_threshold: float = Field(
         90.0, description="used_percent at/above which a window is DEGRADED (not yet EXHAUSTED).")
     reset_soon_threshold_seconds: float = Field(
