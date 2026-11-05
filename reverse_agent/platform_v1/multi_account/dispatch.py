@@ -154,6 +154,27 @@ def reroute_failed_account(statuses: Iterable[Any], *,
                 "reason": "orchestrator_unavailable", "evidence": {}}
 
 
+def account_quarantine_guard(account_ref: str) -> dict[str, Any]:
+    """Optional account-level veto; task-level quiet time is not global isolation.
+
+    This is a soft routing hint. It cannot authorize dispatch or replace hard
+    admission. Disabled, delegated or unavailable feedback preserves legacy routing.
+    """
+    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+        return {"skip": False}
+    try:
+        from .cooldowns import QUARANTINE
+        brain = get_orchestrator()
+        if brain.routing().get("owner") == "magpie":
+            return {"skip": False}
+        entry = brain.cooldowns.get(account_ref)
+        if entry is not None and entry.tier == QUARANTINE and brain.cooldowns.is_cooling(account_ref):
+            return {"skip": True, "reason": "account_quarantined", "retry_at": entry.until}
+    except Exception:  # noqa: BLE001 - feedback must not replace existing admission
+        pass
+    return {"skip": False}
+
+
 def reroute_guard(statuses: Iterable[Any], account_ref: str) -> dict[str, Any]:
     """Account-aware reroute guard used by ``goal_service._reroute_quota_held``.
 
@@ -170,6 +191,9 @@ def reroute_guard(statuses: Iterable[Any], account_ref: str) -> dict[str, Any]:
             # Magpie owns account switching; a local health verdict must not
             # override it (that would re-implement the upstream decision).
             return {"skip": False, "health": None, "reason": "routing_delegated_to_magpie"}
+        quarantine = account_quarantine_guard(account_ref)
+        if quarantine.get("skip"):
+            return {**quarantine, "health": "ABNORMAL"}
         from .status import AccountHealth
         for status in statuses:
             if getattr(status, "account_ref", None) == account_ref:

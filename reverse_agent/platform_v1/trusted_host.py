@@ -268,7 +268,18 @@ class CombinedTrustedHost:
                 wall_seconds=metrics.get("wall_seconds"))
             return
         classification = str(getattr(task, "failure_classification", "") or "").lower()
-        if any(token in classification for token in ("auth", "unauthorized", "rate_limit", "login", "session")):
+        # Our own quarantine refusal made no provider attempt. Feeding it back
+        # would renew the same quarantine indefinitely on repeated waits.
+        if classification == "quota_wait:account_quarantined:no_alternative":
+            return
+        # Only finite provider-auth codes justify account-wide isolation. Host
+        # authorization, author identity and local session failures do not.
+        code, _, detail_code = classification.partition(":")
+        provider_auth = code in {"auth_provider_route_failure", "authentication_error",
+            "invalid_api_key", "unauthorized", "api_error_401", "api_error_403"}
+        provider_auth = provider_auth or (code == "model_unavailable" and detail_code in {
+            "authentication_error", "invalid_api_key"})
+        if provider_auth:
             kind = "account_abnormal"
         elif "quota" in classification or "limit_hit" in classification:
             kind = "quota_exhausted"
@@ -1007,6 +1018,13 @@ class CombinedTrustedHost:
         from .usage_ledger import task_token_records
         try:
             connection = self._store.get_connection_public(binding["connection_id"])
+            if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+                from .multi_account.dispatch import account_quarantine_guard
+                account = connection.get("account_ref") or connection["connection_id"]
+                isolation = account_quarantine_guard(account)
+                if isolation.get("skip"):
+                    return {"decision": "switch", "reason": "account_quarantined",
+                            "window": None, "retry_at": isolation["retry_at"]}
             until = self._limit_hit_until(connection)
             if until is not None:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
@@ -1145,7 +1163,7 @@ class CombinedTrustedHost:
                 if verdict is None or verdict["decision"] in {"ok", "warn"}:
                     self._record_quota_decision(entry | {"switched_to": candidate["binding_id"]})
                     return candidate["executor_id"], candidate["binding_id"]
-            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS or decision["reason"] in {"predicted_insufficient", "quota_capacity"}:
+            if decision["reason"] in CONFIRMED_EXHAUSTION_REASONS or decision["reason"] in {"predicted_insufficient", "quota_capacity", "account_quarantined"}:
                 entry["decision"], entry["reason"] = "refuse", f"{decision['reason']}:no_alternative"
                 self._record_quota_decision(entry)
                 # Do not advertise an exhausted role as an executable route.
