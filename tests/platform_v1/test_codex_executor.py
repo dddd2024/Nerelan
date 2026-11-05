@@ -374,7 +374,7 @@ def test_shared_executor_preserves_structured_failure_reset(tmp_path, monkeypatc
 
 def _usage_csv(*rows: str) -> str:
     header = ("time,agent,provider,served_model,cost_usd,status,rejected,"
-              "request_id,session,session_account\n")
+              "request_id,session,session_account,provider_key_id\n")
     return header + "".join(rows)
 
 
@@ -403,7 +403,7 @@ def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
                               event_callback=persist)
     assert result.success and len(launched) == 1
 
-    # The run finished; mark it accepted and give it a window far from the usage rows.
+    # Mark execution readiness (not independent acceptance), far from usage rows.
     store._conn.execute(
         "UPDATE tasks SET status='READY_FOR_REVIEW', created_at=?, updated_at=? WHERE id=?",
         ("2026-11-01T09:00:00+00:00", "2026-11-01T09:10:00+00:00", task.id))
@@ -416,7 +416,7 @@ def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
 
     # Requests carrying that session id are attributed even two days away in time.
     rows = parse_usage_csv(_usage_csv(
-        "2026-11-03T22:00:00+00:00,codex,openai,gpt-x,0.2500,200,false,req-1,fixture-thread,\n"))
+        "2026-11-03T22:00:00+00:00,codex,openai,gpt-x,0.2500,200,false,req-1,fixture-thread,,fixture-key\n"))
     correlated = correlate_usage(rows, attempts)
     assert correlated["ambiguous"] == []
     assert correlated["attempts"][task.id]["requests"] == 1
@@ -424,5 +424,13 @@ def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
 
     economy = all_in_economics(economics_runs(correlated), basis="cash")["single"]
     assert economy["accepted_runs"] == 1
-    assert economy["cost_per_accepted_all_in"] == 0.25
-    assert economy["unpriced_runs"] == 0
+    # Exact session identity proves attribution, not export completeness.
+    assert economy["cost_per_accepted_all_in"] is None
+    assert economy["unpriced_runs"] == 1
+
+    # Only this complete fixture can explicitly attest its full export interval.
+    correlated = correlate_usage(rows, attempts, coverage_window=(mine["started_at"],
+                                                                 mine["finished_at"]))
+    complete = all_in_economics(economics_runs(correlated), basis="cash")["single"]
+    assert complete["cost_per_accepted_all_in"] == 0.25
+    assert complete["unpriced_runs"] == 0
