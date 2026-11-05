@@ -29,6 +29,15 @@ _logger = logging.getLogger(__name__)
 
 TaskExecutor = Callable[[str], Any]
 
+# Upper bound on any idle wait: a new goal, claim or receipt must never wait
+# longer than this for the next poll, even if a quota window resets in hours.
+IDLE_WAIT_CAP_SECONDS = 60.0
+# Only delegate a long idle wait to Magpie's own `quota wait`; below this it is
+# cheaper to just poll. The upper bound keeps one delegated wait from outliving
+# a stop request by more than a minute (cancellation polls every 0.2 s).
+QUOTA_WAIT_MIN_SECONDS = 60.0
+QUOTA_WAIT_MAX_SECONDS = 3600.0
+
 
 def _failure_detail(exc: BaseException) -> str:
     """Resume refusals are host-generated codes worth keeping; other text stays out (#1322)."""
@@ -65,6 +74,9 @@ class UnattendedCoordinator:
         goal_escalator: Any | None = None,
         quota_preparer: Any | None = None,
         quota_rerouter: Any | None = None,
+        account_feedback: Any | None = None,
+        idle_wait_hint: Any | None = None,
+        quota_wait_target: str | None = None,
         landing_loop=None, publication=None, goals=None,
     ) -> None:
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
@@ -74,6 +86,15 @@ class UnattendedCoordinator:
         self.quota_preparer = quota_preparer
         # goal_id -> moves; quota-held tasks to an equal-or-higher-tier model (#1313 D).
         self.quota_rerouter = quota_rerouter
+        # (task, success) -> None; per-account feedback for the multi-account brain
+        # (cooldown + measured reliability). Optional and best-effort.
+        self.account_feedback = account_feedback
+        # () -> seconds|None; how long until quota/account capacity plausibly returns.
+        # Only consulted on an idle tick, and always bounded by IDLE_WAIT_CAP_SECONDS.
+        self.idle_wait_hint = idle_wait_hint
+        # Optional provider/account to hand a long idle wait to Magpie's own
+        # blocking `quota wait`. None (the default) keeps local polling.
+        self.quota_wait_target = quota_wait_target
         self.goal_escalator = goal_escalator
         self.store = store
         self.control_store = control_store
@@ -539,6 +560,7 @@ class UnattendedCoordinator:
                     epoch=epoch,
                     result=result,
                 )
+                self._report_account_feedback(final, success=success)
                 return WorkerExecutionResult(
                     worker_id=assignment.worker_id,
                     task_id=task_id,
@@ -652,6 +674,20 @@ class UnattendedCoordinator:
             self._last_error = f"task_unsuccessful:{failed.get('task_id', '')}"
         return completed
 
+    def _report_account_feedback(self, task: Any, *, success: bool) -> None:
+        """Hand one finished attempt to the multi-account brain (best-effort).
+
+        Called once per executed task, after its claim is settled. The callback
+        resolves the account and decides what to record; any failure here must
+        never disturb the loop, because this is learning, not dispatch.
+        """
+        if self.account_feedback is None:
+            return
+        try:
+            self.account_feedback(task, success)
+        except Exception as exc:  # noqa: BLE001 - feedback must never break the loop
+            self._last_error = f"account_feedback_failed:{type(exc).__name__}"
+
     def _reroute_held(self, task_ids: list[str]) -> None:
         if self.quota_rerouter is None:
             return
@@ -718,6 +754,48 @@ class UnattendedCoordinator:
             "workspace_root": self.workspace_root,
         }
 
+    def idle_wait(self, dispatched: int) -> float:
+        """How long to wait before the next poll.
+
+        When the pool knows capacity is gone (every account cooling down or a
+        quota window resetting), polling every second for hours only burns CPU
+        and re-observes the same exhausted accounts. An idle tick may therefore
+        sleep until the hinted moment — never past ``IDLE_WAIT_CAP_SECONDS`` and
+        never when a dispatch just happened or work is already in flight.
+        """
+        if dispatched or self.idle_wait_hint is None:
+            return self.poll_interval
+        with self._lifecycle_lock:
+            if self._active_task_ids or self._dispatch_active:
+                return self.poll_interval
+        try:
+            hint = self.idle_wait_hint()
+        except Exception:  # noqa: BLE001 - a hint must never stall the loop
+            return self.poll_interval
+        if not isinstance(hint, (int, float)) or hint <= 0:
+            return self.poll_interval
+        return max(self.poll_interval, min(float(hint), IDLE_WAIT_CAP_SECONDS))
+
+    def quota_wait(self, wait_seconds: float) -> bool:
+        """Delegate a long idle wait to Magpie; ``True`` when capacity returned.
+
+        Opt-in via ``quota_wait_target``; a no-op otherwise. The wait is bounded
+        and cancellable by ``self._stop``, so shutdown is never delayed by a
+        quota window — the reason this can live in the loop at all.
+        """
+        if not self.quota_wait_target or wait_seconds < QUOTA_WAIT_MIN_SECONDS:
+            return False
+        from .magpie_wait import wait_for_allowance
+
+        budget = int(min(wait_seconds, QUOTA_WAIT_MAX_SECONDS))
+        result = wait_for_allowance(self.quota_wait_target, timeout=f"{budget}s",
+                                    cancel=self._stop)
+        if result.get("available"):
+            return True
+        if result.get("reason") not in (None, "timeout", "allowance_available"):
+            self._last_error = f"quota_wait_{result['reason']}"
+        return False
+
     def _run(self) -> None:
         current = threading.current_thread()
         try:
@@ -729,11 +807,15 @@ class UnattendedCoordinator:
                         self.reconcile()
                     except Exception as exc:  # a reconcile fault must not stop dispatch
                         self._last_error = f"reconcile_failed:{type(exc).__name__}"
+                dispatched = 0
                 try:
-                    self.tick(background=True)
+                    dispatched = self.tick(background=True)
                 except Exception as exc:
                     self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
-                self._stop.wait(self.poll_interval)
+                wait = self.idle_wait(dispatched)
+                if self.quota_wait(wait):
+                    continue  # allowance is back: poll now instead of sleeping
+                self._stop.wait(wait)
         finally:
             # Stop is draining, not cancellation. Retain thread ownership and
             # all original lease/claim semantics until each live batch finishes.

@@ -8,6 +8,7 @@ truth.  Planning is deterministic and editable; it makes no model call.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
+import os
 import re
 import json
 import time
@@ -37,6 +38,65 @@ from .artifact_handoff import (
     freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
 )
 from .task_runtime import HOST_VALIDATION_CONTRACT, ExecutorRuntimeError, load_host_validation_contract
+
+
+def _resolve_orchestration_mode(payload: Mapping[str, Any]) -> str:
+    """Goal-level orchestration mode with opt-in, evidence-gated self-evolution.
+
+    The planner's task_count estimate is not known at goal creation, so this can
+    only ever feed the *measured* break-even branch of
+    :func:`orchestration_selector.select_orchestration`. Until real per-mode
+    evidence exists the recommendation falls back to the default ladder, which we
+    deliberately ignore here so behaviour is byte-for-byte identical to the legacy
+    ``"sequential_team"`` default. An explicit user choice always wins (pin).
+
+    Every step is guarded: with the master switch off, or if the brain raises,
+    this returns the unchanged legacy default. It never blocks goal creation.
+    """
+    explicit = payload.get("orchestration_mode") if "orchestration_mode" in payload else None
+    if explicit:
+        return str(explicit)  # explicit Owner choice wins
+    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+        return "sequential_team"
+    try:
+        from .multi_account.dispatch import recommend_orchestration_mode
+        recommendation = recommend_orchestration_mode({})  # no planner estimate yet
+        mode = recommendation.get("mode")
+        reason = recommendation.get("reason", "")
+        # Only override the legacy default when driven by *measured* evidence
+        # (E1). The default-ladder branch is ignored so nothing changes until
+        # the break-even ledger actually has data.
+        if mode in ("single", "agent_team") and str(reason).startswith("measured_"):
+            return str(mode)
+    except Exception:  # noqa: BLE001 - brain optional; legacy default must hold
+        pass
+    return "sequential_team"
+
+
+def _reroute_guard_skip(goal_service: Any, decision: Mapping[str, Any]) -> tuple[bool, Any]:
+    """Seam C helper: should a quota-hold reroute onto the candidate account be skipped?
+
+    Pure decision lifted out of ``GoalService._reroute_quota_held`` so it can be
+    unit-tested without the full reroute fixture. Returns ``(skip, account_ref)``.
+    It is flag-gated and best-effort: with the switch off, a missing provider or
+    resolver, an unmappable binding, an unknown account, or any guard failure all
+    return ``(False, None)`` so the legacy reroute still happens.
+    """
+    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+        return False, None
+    provider = getattr(goal_service, "account_status_provider", None)
+    resolver = getattr(goal_service, "binding_account_resolver", None)
+    if provider is None or resolver is None:
+        return False, None
+    try:
+        candidate_account = resolver(decision.get("binding_ref"))
+        if candidate_account is None:
+            return False, None
+        from .multi_account.dispatch import reroute_guard
+        verdict = reroute_guard(provider(), candidate_account)
+        return bool(verdict.get("skip")), candidate_account
+    except Exception:  # noqa: BLE001 - the guard must never block the reroute
+        return False, None
 
 
 @dataclass(frozen=True)
@@ -122,7 +182,8 @@ class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
-                 roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3) -> None:
+                 roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3,
+                 account_status_provider: Any | None = None, binding_account_resolver: Any | None = None) -> None:
         if type(max_review_rounds) is not int or max_review_rounds < 1:
             raise TaskStoreError("invalid_review_round_limit")
         self.max_review_rounds = max_review_rounds
@@ -132,6 +193,13 @@ class GoalService:
         self.roster_resolver = roster_resolver
         self.task_resolver = task_resolver
         self.quota_forecaster = quota_forecaster
+        # Seam C (account-aware reroute guard): both are optional. When either is
+        # None the guard is a no-op pass-through, so behaviour is unchanged.
+        # ``account_status_provider`` yields live ``AccountStatus`` for the pool;
+        # ``binding_account_resolver`` maps a candidate ``binding_ref`` to its
+        # ``account_ref`` so the guard can judge whether that account is fit.
+        self.account_status_provider = account_status_provider
+        self.binding_account_resolver = binding_account_resolver
 
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
         """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
@@ -161,7 +229,7 @@ class GoalService:
             repository=repository,
             idempotency_key=idempotency_key,
             executor_kind=str(payload.get("executor_kind", "opencode")),
-            orchestration_mode=str(payload.get("orchestration_mode", "sequential_team")),
+            orchestration_mode=_resolve_orchestration_mode(payload),
             binding_ref=str(payload.get("binding_ref", "")),
             policy_ref=str(payload.get("policy_ref", "")),
             window_id=str(payload.get("window_id", "")),
@@ -534,6 +602,19 @@ class GoalService:
                 continue
             if native and not base:
                 continue  # native executors need an exact launch base; without one, keep waiting
+            # Seam C: account-aware reroute guard. The brain may already have
+            # flagged the candidate account as EXHAUSTED/ABNORMAL; rerouting the
+            # held task onto it would defeat the fault-tolerance purpose. When the
+            # guard says "skip" we leave the task waiting (preserving stability)
+            # instead of sending it to a bad account.
+            skip, candidate_account = _reroute_guard_skip(self, decision)
+            if skip:
+                self.store.add_event(
+                    task.id, event_type="MODEL_SELECTED", title="Model selection skipped",
+                    description=f"{decision.get('binding_ref')}: reroute_guard_skip (unfit account)",
+                    metadata={"reroute_reason": None, "guard": "account_health",
+                              "account_ref": candidate_account, "health": "UNFIT"})
+                continue
             if not self.control_store.reroute_held_task(
                     task.id, expected_binding=task.binding_ref, binding_ref=decision["binding_ref"],
                     executor_kind=decision["executor_kind"], branch=base if native and base else ""):

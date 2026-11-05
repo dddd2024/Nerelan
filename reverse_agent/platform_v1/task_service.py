@@ -1077,7 +1077,34 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "goal_count": len(self.control_store.list_goals()),
             "capability_count": len(self.capability_registry.list()),
             "live_model_calls": bool(getattr(self, "live_enabled", False)),
+            "multi_account": self._multi_account_status(),
         }
+
+    def _multi_account_status(self) -> dict[str, Any]:
+        """Who selects accounts, and whether any are cooling down (read-only).
+
+        Defaults to the legacy ``local`` owner, so a missing or disabled brain
+        never changes what the status endpoint reports.
+        """
+        fallback = {"requested": "local", "owner": "local", "reason": "multi_account_unavailable"}
+        try:
+            from .multi_account.dispatch import account_routing, get_orchestrator
+        except Exception:  # noqa: BLE001
+            return fallback
+        try:
+            routing = account_routing()
+        except Exception:  # noqa: BLE001
+            return fallback
+        view: dict[str, Any] = {
+            key: routing.get(key) for key in
+            ("requested", "owner", "reason", "magpie_enabled", "switching_acknowledged")}
+        try:
+            brain = get_orchestrator()
+            view["cooling_accounts"] = len(brain.cooldowns.active_map(now=brain._clock()))
+            view["tracked_accounts"] = len(brain.account_scores())
+        except Exception:  # noqa: BLE001 - telemetry is optional
+            pass
+        return view
 
     def _task_response(self, task: Any) -> dict[str, Any]:
         events = task.events

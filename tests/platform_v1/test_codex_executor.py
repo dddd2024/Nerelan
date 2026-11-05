@@ -74,6 +74,9 @@ def test_native_subprocess_worktree_progress_and_final_response(repository, tmp_
     assert final["metadata"]["final_text"] == "Readable fixture result"
     assert final["metadata"]["usage_status"] == "unknown"
     assert final["metadata"]["cost_status"] == "unknown"
+    # The agent's own session id is the exact join key to upstream request logs
+    # (Magpie reports the same value), so it must survive into the event.
+    assert final["metadata"]["agent_session_id"] == "fixture-thread"
     assert any(e["type"] == "EXECUTOR_PROGRESS" for e in seen)
 
 
@@ -361,3 +364,73 @@ def test_shared_executor_preserves_structured_failure_reset(tmp_path, monkeypatc
     assert persisted.failure_classification == turn.failure_classification
     reopened._conn.close()
     store._conn.close()
+
+
+# --- end-to-end: executor session id -> task -> attributed cost ------------------
+#
+# Lives here because it needs the real subprocess fixture above. Everything after
+# the executor is the production path: a real TaskStore, the real completion
+# event, then the read-only cost report modules. No model call is made.
+
+def _usage_csv(*rows: str) -> str:
+    header = ("time,agent,provider,served_model,cost_usd,status,rejected,"
+              "request_id,session,session_account,provider_key_id\n")
+    return header + "".join(rows)
+
+
+def test_agent_session_id_drives_exact_cost_attribution(repository, tmp_path):
+    from reverse_agent.platform_v1.magpie_usage_ingest import (
+        attempts_from_store, correlate_usage, economics_runs, parse_usage_csv,
+    )
+    from reverse_agent.platform_v1.orchestration_selector import all_in_economics
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    repo, base = repository
+    store = TaskStore(":memory:")
+    task = store.create_task(title="cost chain", executor_kind="codex",
+                             binding_ref="binding-1", repository="o/r")
+    # A run must produce a product diff, so the fixture edits the tracked file.
+    edit_script = ("from pathlib import Path;Path('fixture.txt').write_text('updated\\n');"
+                   + SUCCESS_SCRIPT)
+    executor, launched = fixture_executor(repo, base, edit_script)
+
+    def persist(task_id, event):
+        store.add_event(task_id, event_type=event["type"], title=event.get("title", ""),
+                        description=event.get("description", ""),
+                        metadata=event.get("metadata") or {})
+
+    result = executor.execute(task.id, store, workspace_root=str(tmp_path / "workspaces"),
+                              event_callback=persist)
+    assert result.success and len(launched) == 1
+
+    # Mark execution readiness (not independent acceptance), far from usage rows.
+    store._conn.execute(
+        "UPDATE tasks SET status='READY_FOR_REVIEW', created_at=?, updated_at=? WHERE id=?",
+        ("2026-11-01T09:00:00+00:00", "2026-11-01T09:10:00+00:00", task.id))
+    store._conn.commit()
+
+    attempts = attempts_from_store(store)
+    mine = next(item for item in attempts if item["task_id"] == task.id)
+    assert mine["agent_session_id"] == "fixture-thread", "executor must publish its session id"
+    assert mine["accepted"] is True
+
+    # Requests carrying that session id are attributed even two days away in time.
+    rows = parse_usage_csv(_usage_csv(
+        "2026-11-03T22:00:00+00:00,codex,openai,gpt-x,0.2500,200,false,req-1,fixture-thread,,fixture-key\n"))
+    correlated = correlate_usage(rows, attempts)
+    assert correlated["ambiguous"] == []
+    assert correlated["attempts"][task.id]["requests"] == 1
+    assert correlated["attempts"][task.id]["cash_cost_usd"] == 0.25
+
+    economy = all_in_economics(economics_runs(correlated), basis="cash")["single"]
+    assert economy["accepted_runs"] == 1
+    # Exact session identity proves attribution, not export completeness.
+    assert economy["cost_per_accepted_all_in"] is None
+    assert economy["unpriced_runs"] == 1
+
+    # Only this complete fixture can explicitly attest its full export interval.
+    correlated = correlate_usage(rows, attempts, coverage_window=(mine["started_at"],
+                                                                 mine["finished_at"]))
+    complete = all_in_economics(economics_runs(correlated), basis="cash")["single"]
+    assert complete["cost_per_accepted_all_in"] == 0.25
+    assert complete["unpriced_runs"] == 0

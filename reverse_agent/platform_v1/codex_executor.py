@@ -418,6 +418,9 @@ class CodexExecutor:
             "description": public_text(turn.final_text), "metadata": {"executor_kind": self.KIND,
                 "final_text": turn.final_text, "usage_status": "observed_tokens" if turn.usage is not None else "unknown",
                 "token_usage": turn.usage, "cost_status": "unknown", "process_exit_code": code,
+                # The agent's own session id is the only key that can join this
+                # attempt to its upstream requests (Magpie reports the same id).
+                **({"agent_session_id": turn.thread_id} if turn.thread_id else {}),
                 **({"models": turn.models} if turn.models else {}),
                 **({"rate_limits": turn.rate_limits} if turn.rate_limits else {}),
                 **({"cli_reported_cost_usd": turn.reported_cost_usd}

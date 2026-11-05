@@ -865,6 +865,22 @@ class DurableExecutionService:
             self._fail_dispatch(task_id, lease, exc)
             raise
 
+    def _fence_workspace(self, worktree: Any, lease: LeaseHandle, *,
+                         verify_only: bool = False) -> None:
+        """Component probe only; production execution does not call this helper.
+
+        Disabled by default: with ``REVERSE_AGENT_WORKSPACE_FENCE`` unset this is
+        a no-op. Post-executor artifact collection and recovery takeover remain
+        deferred until their real execution paths have independent verification.
+        """
+        from .workspace_fence import WorkspaceFenced, fence_workspace
+
+        try:
+            fence_workspace(Path(worktree), run_id=lease.run_id, owner=lease.owner,
+                            epoch=lease.epoch, verify_only=verify_only)
+        except WorkspaceFenced as exc:
+            raise TaskExecutionError(str(exc)) from exc
+
     def _fail_dispatch(self, task_id: str, lease: LeaseHandle, exc: Exception) -> None:
         """Publish a sanitized dispatch failure while this worker still owns the run."""
         from .binding_resolver import BindingResolutionError

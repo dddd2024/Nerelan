@@ -30,6 +30,14 @@ from typing import Any, Iterable, Mapping
 _MODES = frozenset({"single", "agent_team"})
 _MIN_OBSERVATIONS_PER_MODE = 3
 
+# Cost bases are reported separately and never summed: a subscription attempt can
+# have zero cash cost and a real quota cost, so blending would price it at zero.
+COST_BASIS_FIELDS = {
+    "list_price": "cost_units",              # list-price equivalent estimate (USD)
+    "cash": "cash_cost_usd",                 # money actually billed for the attempt
+    "quota": "quota_opportunity_units",      # metered subscription allowance spent
+}
+
 
 def _positive(value: Any) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -128,6 +136,76 @@ def cost_per_accepted_change(runs: Iterable[Mapping[str, Any]]) -> dict[str, Any
         entry["median_wall_seconds_per_accepted"] = (
             round(statistics.median(timed), 3) if accepted and all(v is not None for v in timed) else None)
         result[mode] = entry
+    return result
+
+
+def all_in_economics(runs: Iterable[Mapping[str, Any]], *, basis: str = "list_price") -> dict[str, Any]:
+    """Cost per accepted result counting **every** attempt, plus attempt efficiency.
+
+    :func:`cost_per_accepted_change` divides the accepted runs' cost by the
+    accepted count, so it answers "what does a successful run cost", not "what
+    does a shipped change cost". A mode that fails most of the time but is cheap
+    when it succeeds therefore looks better than it is, and wasted retries,
+    planning and verification spend disappear from the number.
+
+    This is the metric the plan's economic claim must be judged on::
+
+        unit_cost = known cost of all attempts / accepted results
+
+    **Cost basis is explicit, never blended** (Owner decision 2026-11-04):
+
+    ==============  =========================  ======================================
+    ``basis``       run field                  meaning
+    ==============  =========================  ======================================
+    ``list_price``  ``cost_units``             list-price equivalent estimate (USD)
+    ``cash``        ``cash_cost_usd``          money actually billed for this attempt
+    ``quota``       ``quota_opportunity_units``metered allowance spent (subscription)
+    ==============  =========================  ======================================
+
+    A subscription attempt usually has ``cash == 0`` but a real ``quota`` cost, so
+    summing them would understate it to free. Each basis is computed and reported
+    on its own; a run missing that basis makes the basis ``UNKNOWN`` for the mode
+    instead of entering as zero.
+
+    Reported only — it changes no decision. Switching the decision target to a
+    basis needs an Owner decision and an independent review after a controlled
+    comparison, so :func:`update_break_even` keeps its current accepted-run model.
+    """
+    if basis not in COST_BASIS_FIELDS:
+        raise ValueError(f"unsupported cost basis: {basis}")
+    field = COST_BASIS_FIELDS[basis]
+    rows = [dict(row) for row in runs if isinstance(row, Mapping) and _mode(row.get("mode"))]
+    result: dict[str, Any] = {}
+    for mode in sorted(_MODES):
+        mine = [row for row in rows if row["mode"] == mode]
+        accepted = [row for row in mine if row.get("accepted") is True]
+        costs = [_known_number(row.get(field)) for row in mine]
+        all_known = bool(mine) and all(cost is not None for cost in costs)
+        total_cost = round(sum(cost for cost in costs if cost is not None), 6) if all_known else None
+        accepted_cost = (round(sum(cost for cost, row in zip(costs, mine)
+                                   if cost is not None and row.get("accepted") is True), 6)
+                         if all_known else None)
+        failed_cost = (round(total_cost - accepted_cost, 6)
+                       if total_cost is not None and accepted_cost is not None else None)
+        result[mode] = {
+            "basis": basis,
+            "runs": len(mine),
+            "accepted_runs": len(accepted),
+            "unpriced_runs": sum(1 for cost in costs if cost is None),
+            "unknown_usage_runs": sum(1 for row in mine if _tokens_unknown(row.get("tokens"))),
+            "all_costs_known": all_known,
+            "total_cost": total_cost,
+            "accepted_cost": accepted_cost,
+            "failed_cost": failed_cost,
+            "cost_per_accepted_all_in": (
+                round(total_cost / len(accepted), 6)
+                if total_cost is not None and accepted else None),
+            "attempts_per_accepted": (
+                round(len(mine) / len(accepted), 3) if accepted else None),
+            "failed_cost_share": (
+                round(failed_cost / total_cost, 4)
+                if failed_cost is not None and total_cost else None),
+        }
     return result
 
 
