@@ -12,10 +12,31 @@ from reverse_agent.platform_v1.multi_account.status import AccountHealth, Accoun
 
 
 @pytest.fixture(autouse=True)
-def _reset():
+def _reset(monkeypatch, tmp_path):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_STORE", str(tmp_path / "state.json"))
     dispatch.reset_orchestrator()
     yield
     dispatch.reset_orchestrator()
+
+
+def test_enabled_production_factory_restores_account_state(monkeypatch, tmp_path):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    first = dispatch.get_orchestrator()
+    first.cooldowns.record_failure("account", "account_abnormal")
+    first.record_account_outcome("account", ok=False, failure_kind="account_abnormal")
+    first.record_outcome({"mode": "single", "accepted": False})
+    assert (tmp_path / "state.json").is_file()
+    dispatch.reset_orchestrator()
+    second = dispatch.get_orchestrator()
+    assert second.cooldowns.is_cooling("account")
+    assert second.scores.get("account").attempts == 1
+    assert len(second.store.get_runs()) == 1
+
+
+def test_disabled_factory_does_not_create_state_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", raising=False)
+    dispatch.get_orchestrator().cooldowns.record_failure("account", "task_failed")
+    assert not (tmp_path / "state.json").exists()
 
 
 def _status(ref, health, headroom=None):

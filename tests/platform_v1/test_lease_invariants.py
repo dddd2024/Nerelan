@@ -143,7 +143,7 @@ def test_recovery_cannot_run_twice_for_the_same_crash():
     store._validate_durable_lease(lease.run_id, "owner-B", first.epoch)
 
 
-# (The wiring placeholder is gone: `test_execution_path_publishes_and_checks_the_workspace_token`
+# (The wiring placeholder is gone: `test_service_helper_publishes_and_checks_the_workspace_token`
 # below now exercises the real publish/verify path through the service.)
 
 
@@ -267,7 +267,7 @@ def test_the_fence_is_off_unless_explicitly_enabled():
     assert workspace_fence_enabled({"REVERSE_AGENT_WORKSPACE_FENCE": "1"}) is True
 
 
-# --- wiring: the execution path publishes and checks the token -------------------
+# --- component probe: no production execution/recovery coverage ---
 
 def _service(store):
     from reverse_agent.platform_v1.durable_execution import DurableExecutionService
@@ -277,64 +277,10 @@ def _service(store):
                                    planning_sha="test_planning")
 
 
-def test_execution_path_publishes_and_checks_the_workspace_token(tmp_path, monkeypatch):
+def test_service_helper_publishes_and_checks_the_workspace_token(tmp_path, monkeypatch):
     """C3 W1/W2: the run claims its worktree, and a superseded lease is refused.
 
-    Exercised through the service helper the executor path calls, with the flag
-    on; the same helper is a no-op with the flag off (next test).
-    """
-    store = _store()
-    task = _queued_task(store)
-    lease = _acquire(store, task, "owner-A")
-    worktree = tmp_path / "worktree"
-    worktree.mkdir()
-    service = _service(store)
-
-    monkeypatch.setenv("REVERSE_AGENT_WORKSPACE_FENCE", "1")
-    service._fence_workspace(worktree, lease)                       # W1: publish
-    assert read_token(worktree) == LeaseToken(lease.run_id, "owner-A", 1)
-    service._fence_workspace(worktree, lease, verify_only=True)     # W2: verify
-
-    # A newer epoch recovers the run and takes the worktree.
-    _make_recoverable(store, lease.run_id, task_id=task.id)
-    recovered = store._recover_durable_lease(lease.run_id, "owner-B", require_interrupted=True)
-    service._fence_workspace(worktree, recovered)                   # W3: new owner claims
-
-    from reverse_agent.platform_v1.task_execution import TaskExecutionError
-    with pytest.raises(TaskExecutionError) as fenced:
-        service._fence_workspace(worktree, lease, verify_only=True)
-    assert "workspace_fenced" in str(fenced.value)
-    assert read_token(worktree).owner == "owner-B"  # the worktree stayed with the winner
-
-
-def test_fencing_is_a_no_op_when_disabled(tmp_path, monkeypatch):
-    """Default off: no token is written, so behaviour is byte-identical."""
-    monkeypatch.delenv("REVERSE_AGENT_WORKSPACE_FENCE", raising=False)
-    store = _store()
-    task = _queued_task(store)
-    lease = _acquire(store, task, "owner-A")
-    worktree = tmp_path / "worktree"
-    worktree.mkdir()
-
-    _service(store)._fence_workspace(worktree, lease)
-    assert read_token(worktree) is None
-    assert list(worktree.iterdir()) == []
-
-
-# --- wiring: the execution path publishes and checks the token -------------------
-
-def _service(store):
-    from reverse_agent.platform_v1.durable_execution import DurableExecutionService
-    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
-    return DurableExecutionService(store=store, router=ExecutorRouter(),
-                                   execution_authority_sha="test_authority",
-                                   planning_sha="test_planning")
-
-
-def test_execution_path_publishes_and_checks_the_workspace_token(tmp_path, monkeypatch):
-    """C3 W1/W2: the run claims its worktree, and a superseded lease is refused.
-
-    Exercised through the service helper the executor path calls, with the flag
+    Exercised through the component helper, not a production call site, with the flag
     on; the same helper is a no-op with the flag off (next test).
     """
     store = _store()

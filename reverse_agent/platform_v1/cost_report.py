@@ -60,16 +60,19 @@ def _list_price_runs(store: Any, attempts: list[Mapping[str, Any]]) -> list[dict
 
 
 def build_cost_report(store: Any, rows: list[Mapping[str, Any]], *,
-                      limit: int = 200) -> dict[str, Any]:
+                      limit: int = 200,
+                      coverage_window: Optional[tuple[float, float]] = None) -> dict[str, Any]:
     """Everything needed to compare the old and the new metric honestly."""
     attempts = attempts_from_store(store, limit=limit)
-    correlated = correlate_usage(rows, attempts)
+    correlated = correlate_usage(rows, attempts, coverage_window=coverage_window)
     measured = economics_runs(correlated, strict=True)
     listed = _list_price_runs(store, attempts)
     legacy = cost_per_accepted_change(listed)
 
     return {
         "generated_at": time.time(),
+        "decision_ready": False,
+        "acceptance_basis": "task_execution_status_not_independent_review",
         "window": {"attempts": len(attempts), "requests": len(rows)},
         "attribution": correlated["summary"],
         "legacy": {
@@ -87,10 +90,12 @@ def build_cost_report(store: Any, rows: list[Mapping[str, Any]], *,
             for basis in sorted(COST_BASIS_FIELDS)
         },
         "caveats": [
+            "accepted_runs here means task execution readiness, not independent product acceptance; do not promote policies from this report.",
             "list_price is an estimate from the published price list, not a bill.",
             "cash counts pay-as-you-go requests only; a subscription run bills 0 there.",
             "quota is the opportunity value of consumed allowance, priced by Magpie.",
             "An attempt with unattributed or unpriced requests carries null, never 0.",
+            "Without verified export coverage, cash/quota all-in metrics remain unknown; matched rows are lower bounds.",
             "Attribution is time-window + executor based until a shared join key exists.",
         ],
     }
@@ -113,7 +118,7 @@ def run_report(*, last: str = "6h", cache_path: Optional[Path] = None,
     return report
 
 
-SNAPSHOT_VERSION = 1
+SNAPSHOT_VERSION = 2
 
 
 def snapshot_document(report: Mapping[str, Any], *, label: str) -> dict[str, Any]:
@@ -235,6 +240,12 @@ def doctor_report(*, exe_configured: bool, magpie_status: Optional[str],
             "ok": summary.get("overlap") in {"full", "partial"},
             "detail": f"overlap={summary.get('overlap')} "
                       f"({summary.get('overlap_attempts', 0)} attempts in the usage window)",
+        },
+        "complete_cost_evidence": {
+            "ok": bool(summary.get("coverage_complete"))
+                  and summary.get("attributed", 0) > 0
+                  and not summary.get("ambiguous") and not summary.get("unattributed"),
+            "detail": "requires verified export coverage and no unresolved request attribution",
         },
     }
     blockers = [name for name, check in checks.items() if not check["ok"]]

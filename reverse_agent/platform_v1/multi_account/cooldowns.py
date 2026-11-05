@@ -107,9 +107,13 @@ class CooldownRegistry:
         # streak once the account has been quiet for the whole memory window.
         recent = previous is not None and (now - previous.until) <= self._config.cooldown_memory_seconds
         streak = previous.streak + 1 if recent and previous is not None else 1
+        # A late result from another in-flight task must not lift isolation.
+        if previous is not None and previous.tier == QUARANTINE and previous.active_at(now):
+            kind = previous.kind
         tier = QUARANTINE if kind in QUARANTINE_KINDS else TRANSIENT
         delay = self._delay_for(kind, streak)
-        entry = Cooldown(account_ref=account_ref, until=now + delay, kind=kind,
+        until = max(now + delay, previous.until if previous is not None else now)
+        entry = Cooldown(account_ref=account_ref, until=until, kind=kind,
                          streak=streak, tier=tier)
         self._entries[account_ref] = entry
         self._save()
@@ -123,7 +127,8 @@ class CooldownRegistry:
         # A quarantine is never lifted by an ordinary success (we do not dispatch
         # to a quarantined account, so such a success could only be a stale
         # in-flight run); its wall-clock expiry remains the only exit.
-        if entry.tier == QUARANTINE:
+        now = self._clock() if now is None else now
+        if entry.tier == QUARANTINE and entry.active_at(now):
             return
         del self._entries[account_ref]
         self._save()
@@ -158,7 +163,12 @@ class CooldownRegistry:
     def _delay_for(self, kind: str, streak: int) -> float:
         """Exponential backoff with a per-kind floor, capped by config."""
         config = self._config
-        grown = config.failure_backoff_base_seconds * (config.failure_backoff_multiplier ** (streak - 1))
+        grown = config.failure_backoff_base_seconds
+        if grown:
+            try:
+                grown *= config.failure_backoff_multiplier ** (streak - 1)
+            except OverflowError:
+                grown = config.failure_backoff_max_seconds
         floor = (config.abnormal_account_cooldown_seconds if kind in QUARANTINE_KINDS
                  else config.reroute_cooldown_seconds)
         return float(min(config.failure_backoff_max_seconds, max(grown, floor)))

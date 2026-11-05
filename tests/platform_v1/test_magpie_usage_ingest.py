@@ -193,7 +193,7 @@ def _req(request_id: str, *, at: str, provider: str, cost: str,
          account: str = "", status: str = "200", rejected: str = "false") -> dict:
     text = _csv(_row(time=at, agent=provider, provider=provider, served_model="m",
                      cost_usd=cost, status=status, rejected=rejected,
-                     request_id=request_id, session_account=account))
+                     request_id=request_id, session_account=account, provider_key_id="fixture-key"))
     return parse_usage_csv(text)[0]
 
 
@@ -288,7 +288,10 @@ def test_economics_runs_feed_the_all_in_metric_end_to_end():
                          end="2026-11-04T09:30:00+00:00", accepted=True),
                 _attempt("t3", start="2026-11-04T09:40:00+00:00",
                          end="2026-11-04T09:50:00+00:00", accepted=True)]
-    runs = economics_runs(correlate_usage(rows, attempts))
+    # This fixture owns every request in the declared interval. Live exports
+    # need a separate completeness receipt before they may declare coverage.
+    runs = economics_runs(correlate_usage(rows, attempts, coverage_window=(
+        attempts[0]["started_at"], attempts[-1]["finished_at"])))
 
     economy = all_in_economics(runs, basis="cash")["single"]
     assert economy["runs"] == 3 and economy["accepted_runs"] == 2
@@ -333,7 +336,7 @@ def _req_with_session(request_id: str, *, at: str, session: str, cost: str,
                       agent: str = "codex", account: str = "") -> dict:
     text = _csv(_row(time=at, agent=agent, provider="openai", served_model="m",
                      cost_usd=cost, status="200", rejected="false", request_id=request_id,
-                     session=session, session_account=account))
+                     session=session, session_account=account, provider_key_id="fixture-key"))
     return parse_usage_csv(text)[0]
 
 

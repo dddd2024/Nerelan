@@ -1,5 +1,8 @@
 # 多额度账户统一调度与自进化架构规范
 
+> 当前状态以 [交付边界与验收状态](MULTI_ACCOUNT_DELIVERY_STATUS.md) 为准。
+> 下文为历史阶段记录，含已被独立审查否定的闭环/接线声明，不作为验收证据。
+
 ```text
 STATUS: LOCAL IMPLEMENTATION ONLY — NOT MERGED, NOT ENABLED, NOT FIELD-VALIDATED
 AUTHORITY: PLANNING_REFERENCE_ONLY

@@ -34,6 +34,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import os
 import subprocess
 import tempfile
@@ -43,6 +44,7 @@ from typing import Any, Iterable, Mapping, Optional
 # Bounded so a long window cannot exhaust memory; Magpie writes one row per request.
 MAX_ROWS = 20_000
 CACHE_LIMIT = 5_000
+NORMALIZATION_VERSION = 2
 DEFAULT_LAST = "6h"
 DEFAULT_TIMEOUT = 25.0
 
@@ -75,7 +77,7 @@ def _number(value: Any) -> Optional[float]:
         number = float(str(value).strip())
     except (TypeError, ValueError):
         return None
-    return number if number >= 0 else None
+    return number if math.isfinite(number) and number >= 0 else None
 
 
 def _flag(value: Any) -> bool:
@@ -131,8 +133,12 @@ def _normalize(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     if not request_id and not time:
         return None  # a row without identity cannot be de-duplicated
     account = _account_id(raw.get("session_account") or raw.get("provider_account"))
+    billing_class = ("subscription" if str(raw.get("session_account") or "").strip()
+                     else "payg" if str(raw.get("provider_key_id") or "").strip()
+                     else "unknown")
     tokens = {key: int(_number(raw.get(column)) or 0) for key, column in _TOKEN_COLUMNS.items()}
     return {
+        "normalization_version": NORMALIZATION_VERSION,
         "request_id": request_id or f"{time}:{raw.get('served_model') or raw.get('model') or ''}",
         "time": time or None,
         # ``agent`` is the executor name (codex/claude/workbuddy). ``provider`` is
@@ -153,7 +159,7 @@ def _normalize(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         # Magpie's own number, kept verbatim so a classification change is reversible.
         "reported_cost_usd": _number(raw.get("cost_usd")),
         "account_id": account,
-        "billing_class": "subscription" if account else "payg",
+        "billing_class": billing_class,
     }
 
 
@@ -166,7 +172,7 @@ def cost_basis_values(row: Mapping[str, Any]) -> dict[str, Optional[float]]:
     unknown reported cost stays ``None`` in both — not zero.
     """
     reported = row.get("reported_cost_usd")
-    if reported is None:
+    if _number(reported) is None or row.get("billing_class") not in {"subscription", "payg"}:
         return {"cash_cost_usd": None, "quota_opportunity_units": None}
     if row.get("billing_class") == "subscription":
         return {"cash_cost_usd": 0.0, "quota_opportunity_units": float(reported)}
@@ -296,6 +302,10 @@ def read_cache(path: Optional[Path] = None) -> list[dict[str, Any]]:
                 except ValueError:
                     continue
                 if isinstance(item, dict):
+                    # Old normalization guessed subscription from account names.
+                    # Preserve the observation but distrust that classification.
+                    if item.get("normalization_version") != NORMALIZATION_VERSION:
+                        item["billing_class"] = "unknown"
                     rows.append(item)
     except OSError:
         return []
@@ -441,6 +451,7 @@ def _agent_sessions(store: Any, task_ids: list[str]) -> dict[str, str]:
 def correlate_usage(rows: Iterable[Mapping[str, Any]],
                     attempts: Iterable[Mapping[str, Any]], *,
                     slack_seconds: float = ATTRIBUTION_SLACK_SECONDS,
+                    coverage_window: Optional[tuple[float, float]] = None,
                     agents_by_executor: Optional[Mapping[str, Iterable[str]]] = None) -> dict[str, Any]:
     """Attribute each request to at most one attempt, or say why it could not be.
 
@@ -449,6 +460,9 @@ def correlate_usage(rows: Iterable[Mapping[str, Any]],
     its provider agent matches the executor **and** its time falls inside the
     attempt window (plus slack) **and** exactly one attempt qualifies.
     """
+    # A row's timestamp range does not prove export completeness. Only an
+    # independently verified, untruncated export interval can supply coverage.
+    rows = list(rows)
     mapping = {key: {str(a) for a in value} for key, value in
                (agents_by_executor or AGENTS_BY_EXECUTOR).items()}
     windows = []
@@ -463,21 +477,29 @@ def correlate_usage(rows: Iterable[Mapping[str, Any]],
             "status": attempt.get("status"),
             "agent_session_id": attempt.get("agent_session_id"),
             "rows": [],
+            "coverage_complete": bool(coverage_window is not None
+                and coverage_window[0] <= float(attempt["started_at"])
+                and coverage_window[1] >= float(attempt["finished_at"])),
         })
     by_task = {window["task_id"]: window for window in windows}
     unattributed: list[dict[str, Any]] = []
     ambiguous: list[dict[str, Any]] = []
-    by_session = {window["agent_session_id"]: window for window in windows
-                  if window.get("agent_session_id")}
+    by_session: dict[str, list[dict[str, Any]]] = {}
+    for window in windows:
+        if window.get("agent_session_id"):
+            by_session.setdefault(window["agent_session_id"], []).append(window)
     for row in rows:
         at = _epoch(row.get("time"))
         session = str(row.get("session") or "").strip()
-        exact = by_session.get(session) if session else None
-        if exact is not None:
-            # An exact id needs no window and cannot be ambiguous.
-            exact["rows"].append(row)
+        exact = by_session.get(session, []) if session else []
+        if len(exact) > 1:
+            ambiguous.append({"request_id": row.get("request_id"),
+                              "candidates": [window["task_id"] for window in exact]})
             continue
-        agent = str(row.get("agent") or row.get("provider") or "").strip().lower()
+        if exact:
+            exact[0]["rows"].append(row)
+            continue
+        agent = str(row.get("agent") or "").strip().lower()
         if at is None or not agent:
             unattributed.append({"request_id": row.get("request_id"), "reason": "no_time_or_agent"})
             continue
@@ -522,6 +544,7 @@ def correlate_usage(rows: Iterable[Mapping[str, Any]],
         "unattributed": unattributed,
         "ambiguous": ambiguous,
         "summary": {
+            "coverage_complete": bool(windows) and all(w["coverage_complete"] for w in windows),
             "requests": attributed + len(unattributed) + len(ambiguous),
             "attributed": attributed,
             "unattributed": len(unattributed),
@@ -554,7 +577,9 @@ def economics_runs(correlated: Mapping[str, Any], *, strict: bool = True) -> lis
     """
     runs = []
     for task_id, window in sorted(correlated.get("attempts", {}).items()):
-        complete = bool(window.get("requests")) and not window.get("unknown_cost_requests")
+        complete = (bool(window.get("requests")) and not window.get("unknown_cost_requests")
+                    and bool(window.get("coverage_complete"))
+                    and not correlated.get("ambiguous") and not correlated.get("unattributed"))
         cash = window.get("cash_cost_usd", 0.0)
         quota = window.get("quota_opportunity_units", 0.0)
         if strict and not complete:

@@ -26,7 +26,8 @@ class MultiAccountConfig(BaseModel):
     that keep a flapping account from being retried immediately.
     """
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=False)
+    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=False,
+                             allow_inf_nan=False)
 
     # --- perception (domain B) -------------------------------------------------
     observation_freshness_seconds: int = Field(

@@ -14,6 +14,7 @@ call these functions at their seams.
 from __future__ import annotations
 
 import threading
+import os
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
@@ -22,14 +23,17 @@ _LOCK = threading.Lock()
 
 
 def get_orchestrator(store_path: Optional[Path] = None) -> Any:
-    """Lazily-built, process-wide orchestrator (in-memory ledger when no path)."""
+    """Use configured persistence when enabled; disabled callers stay in memory."""
     global _ORCHESTRATOR
     if _ORCHESTRATOR is None:
         with _LOCK:
             if _ORCHESTRATOR is None:
                 from . import MultiAccountConfig, MultiAccountOrchestrator
-                _ORCHESTRATOR = MultiAccountOrchestrator(
-                    MultiAccountConfig.from_env(), store_path=store_path)
+                config = MultiAccountConfig.from_env()
+                path = store_path
+                if path is None and os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+                    path = config.break_even_store_path
+                _ORCHESTRATOR = MultiAccountOrchestrator(config, store_path=path)
     return _ORCHESTRATOR
 
 
