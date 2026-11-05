@@ -33,7 +33,7 @@ from .functional_validation import (
 from .quota_guard import LIMIT_HIT
 from .model_router import task_traits
 from .routing_inputs import requirements
-from .required_review_artifact import normalize_required_artifacts, freeze_required_artifacts
+from .required_review_artifact import normalize_required_artifacts, freeze_required_artifacts, load_required_artifacts
 from .run_read_model import publication_projection
 
 _INITIAL_WAIT = "initial_resource_wait"
@@ -489,6 +489,8 @@ class GoalService:
                     wait = ({"version": 1, "kind": "author", "author_plan_ids": list(pending_authors),
                              "retry_at": time.time() + INITIAL_MODEL_RECHECK_SECONDS} if pending_authors
                             else _initial_resource_wait(decision))
+                    if item.validation_command_id:
+                        wait = None  # a fixed host checker is not model-selection work
                     if wait:
                         decision[_INITIAL_WAIT] = wait
                     decisions[seq] = decision
@@ -569,10 +571,40 @@ class GoalService:
             return self.control_store.refresh_goal_status(goal.id)
         return running
 
+    def _initial_contracts_match(self, task: Any, goal: Any, plan: PlannedTask,
+                                 planned: Mapping[str, PlannedTask], base: str) -> bool:
+        """Validate existing frozen proof against the approved plan; never create it."""
+        try:
+            functional, handoff, required = load_contract(task), load_handoff_contract(task), load_required_artifacts(task)
+            checks = list(normalize_checks(plan.validation_checks))
+            export = any(item.artifact_input == {"plan_task_id": plan.id} for item in planned.values())
+            if (task.repository != goal.repository or bool(checks) != (functional is not None)
+                    or (plan.artifact_input is not None or export) != (handoff is not None)
+                    or bool(plan.required_artifacts) != (required is not None)):
+                return False
+            if functional and (functional["checks"] != checks
+                    or functional["requires_implementation"] != (plan.capability == "execute_task")):
+                return False
+            if handoff and (handoff["version"] != 2 or handoff["artifact_input"] != plan.artifact_input
+                    or handoff["export_required"] != export or handoff["capability"] != plan.capability
+                    or handoff["kind"] != plan.kind or handoff["agent_role"] != plan.agent_role):
+                return False
+            identity = {"task_id": task.id, "goal_id": goal.id, "goal_revision": goal.revision,
+                        "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan.id}
+            for contract in (functional, handoff):
+                if contract and (contract["base_commit"] != base
+                        or any(contract.get(key) != value for key, value in identity.items())):
+                    return False
+            return not required or (required["task_id"] == task.id and required["goal_id"] == goal.id
+                and required["goal_revision"] == goal.revision
+                and required["files"] == list(normalize_required_artifacts(plan.required_artifacts)))
+        except (KeyError, TypeError, ValueError, TaskStoreError):
+            return False
+
     def _initial_selection_state(self, task: Any, goal: Any, plan: PlannedTask,
                                  planned: Mapping[str, PlannedTask]) -> tuple[dict, str] | None:
         """Prove a marked initial task never entered execution; caller holds store lock."""
-        if (task.status != "BLOCKED" or _INITIAL_WAIT not in task.failure_detail
+        if (plan.validation_command_id or task.status != "BLOCKED" or _INITIAL_WAIT not in task.failure_detail
                 or task.binding_ref or task.workspace or task.model_profile_ref
                 or task.validation_command_id or task.validation_exit_code is not None or task.validation_output_digest
                 or task.repository != goal.repository
@@ -614,10 +646,8 @@ class GoalService:
             elif (decision.get("temporary_resource_blocked") is not True
                     or decision.get("reason") not in {"no_runnable_model", "pinned_model_unavailable", "review_not_independent"}):
                 return None
-            for contract in (load_contract(task), load_handoff_contract(task)):
-                if contract and (contract.get("base_commit") != task.branch or any(
-                        contract.get(key) != value for key, value in identity.items() if key != "execution_id")):
-                    return None
+            if not self._initial_contracts_match(task, goal, plan, planned, task.branch):
+                return None
             return marker, event["id"]
         except (KeyError, TypeError, ValueError, TaskStoreError):
             return None
@@ -897,12 +927,16 @@ class GoalService:
                             "AND state NOT IN ('SUCCESS','FAILED','RECONCILED') LIMIT 1", (task_id,)).fetchone()):
                     raise TaskStoreError("review_not_independent")
                 if require_frozen:
+                    if not self._initial_contracts_match(attempt, goal, planned[source], planned, self._approved_base(attempt)):
+                        raise TaskStoreError("review_not_independent")
                     selected = self.store._conn.execute("SELECT id,metadata FROM task_events "
                         "WHERE task_id=? AND type='MODEL_SELECTED' ORDER BY seq", (task_id,)).fetchall()
                     usage = self.store._conn.execute("SELECT id,execution_id,model_id,status FROM task_usage_observations "
                         "WHERE task_id=? ORDER BY id", (task_id,)).fetchall()
                     snapshot.append((source, task_id, attempt.execution_id, attempt.executor_kind, attempt.binding_ref,
-                                     tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage)))
+                                     tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
+                                     tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
+                                           for ref in attempt.evidence_refs)))
                 recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):

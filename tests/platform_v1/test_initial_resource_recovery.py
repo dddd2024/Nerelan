@@ -640,3 +640,107 @@ def test_expiry_after_authorization_still_rolls_back_the_candidate(launch, monke
     assert case.coordinator.tick() == 0
     assert task(case).status == "BLOCKED" and task(case).binding_ref == ""
     assert case.control.get_window(case.window.id).tasks_started == 0
+
+
+@pytest.mark.parametrize("missing", ["functional", "handoff", "export", "required"])
+def test_missing_required_frozen_proof_is_not_regenerated_or_queued(launch, missing):
+    from reverse_agent.platform_v1 import functional_validation, artifact_handoff, required_review_artifact
+    spec = {"path": "review_evidence/review.md", "kind": "review_report", "expected_sha": BASE}
+    case = (launch([dict(id="A", title="author", instruction="write", required_artifacts=[spec])])
+            if missing == "required" else launch([dict(id="A", title="author", instruction="write"),
+                dict(id="R", title="review", instruction="review", kind="review", dependencies=["A"],
+                     artifact_input={"plan_task_id": "A"})]))
+    target = task(case, "R" if missing == "handoff" else "A")
+    category = (functional_validation.CONTRACT_CATEGORY if missing == "functional" else
+                required_review_artifact.CATEGORY if missing == "required" else artifact_handoff.CONTRACT_CATEGORY)
+    case.store._conn.execute("DELETE FROM task_evidence WHERE task_id=? AND category=?", (target.id, category))
+    events = tuple(event.id for event in case.store.get_events(target.id))
+    case.state["available"] = True
+    case.clock[0] += 61
+    case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy)
+    current = case.store.get_task(target.id)
+    assert current.status == "BLOCKED" and current.binding_ref == ""
+    assert tuple(event.id for event in case.store.get_events(target.id)) == events
+    assert not any(ref["category"] == category for ref in current.evidence_refs)
+
+
+@pytest.mark.parametrize("change", ["checks", "implementation", "input", "export", "kind", "required"])
+def test_validly_hashed_contract_semantics_must_still_match_the_approved_plan(launch, change):
+    from reverse_agent.platform_v1 import functional_validation, artifact_handoff, required_review_artifact
+    spec = {"path": "review_evidence/review.md", "kind": "review_report", "expected_sha": BASE}
+    case = (launch([dict(id="A", title="author", instruction="write", required_artifacts=[spec])])
+            if change == "required" else launch([dict(id="A", title="author", instruction="write"),
+                dict(id="R", title="review", instruction="review", kind="review", dependencies=["A"],
+                     artifact_input={"plan_task_id": "A"})]))
+    target = task(case, "R" if change in {"input", "kind"} else "A")
+    category = (functional_validation.CONTRACT_CATEGORY if change in {"checks", "implementation"} else
+                required_review_artifact.CATEGORY if change == "required" else artifact_handoff.CONTRACT_CATEGORY)
+    ref = next(ref for ref in target.evidence_refs if ref["category"] == category)
+    contract = json.loads(ref["detail"])
+    if change == "checks":
+        contract["checks"][0]["working_directory"] = "other"
+    elif change == "implementation":
+        contract["requires_implementation"] = False
+    elif change == "input":
+        contract["artifact_input"] = {"plan_task_id": "other"}
+    elif change == "export":
+        contract["export_required"] = False
+    elif change == "kind":
+        contract["kind"] = "code"
+        contract["validation_mode"] = artifact_handoff._validation_mode("code", contract["agent_role"], contract["capability"])
+    else:
+        contract["files"][0]["path"] = "review_evidence/other.md"
+    digest = (functional_validation.digest(contract) if change in {"checks", "implementation"} else
+              required_review_artifact._digest(contract) if change == "required" else artifact_handoff._digest(contract))
+    case.store._conn.execute("UPDATE task_evidence SET detail=?,value=?,raw_json_digest=? WHERE id=?",
+        (json.dumps(contract), digest, digest, ref["id"]))
+    case.state["available"] = True
+    case.clock[0] += 61
+    case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy)
+    assert case.store.get_task(target.id).status == "BLOCKED"
+
+
+def test_missing_author_contract_cannot_unblock_its_pending_review(launch):
+    from reverse_agent.platform_v1.functional_validation import CONTRACT_CATEGORY
+    case = launch([dict(id="A", title="author", instruction="write"),
+                   dict(id="R", title="review", instruction="review", kind="review", dependencies=["A"],
+                        artifact_input={"plan_task_id": "A"})])
+    case.state["available"] = True
+    case.clock[0] += 61
+    case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy, limit=1)
+    assert task(case, "A").status == "QUEUED" and task(case, "R").status == "BLOCKED"
+    case.store._conn.execute("DELETE FROM task_evidence WHERE task_id=? AND category=?", (task(case, "A").id, CONTRACT_CATEGORY))
+    before = len(case.calls)
+    case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy)
+    assert task(case, "R").status == "BLOCKED" and len(case.calls) == before
+
+
+def test_an_intact_standalone_required_artifact_contract_is_preserved(launch):
+    spec = {"path": "review_evidence/review.md", "kind": "review_report", "expected_sha": BASE}
+    case = launch([dict(id="A", title="author", instruction="write", required_artifacts=[spec])])
+    original = task(case, "A")
+    proof = tuple(original.evidence_refs)
+    case.state["available"] = True
+    case.clock[0] += 61
+    assert case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy) == (original.id,)
+    assert task(case, "A").status == "QUEUED" and tuple(task(case, "A").evidence_refs) == proof
+
+
+def test_author_contract_replacement_during_resolution_is_a_version_change(launch):
+    from reverse_agent.platform_v1 import functional_validation
+    case = launch([dict(id="A", title="author", instruction="write"),
+                   dict(id="R", title="review", instruction="review", kind="review", dependencies=["A"],
+                        artifact_input={"plan_task_id": "A"})])
+    original = case.goals.task_resolver
+    def replaced(plan, **kwargs):
+        choice = original(plan, **kwargs)
+        if plan.id == "R":
+            author = task(case, "A")
+            ref = next(ref for ref in author.evidence_refs if ref["category"] == functional_validation.CONTRACT_CATEGORY)
+            case.store._conn.execute("UPDATE task_evidence SET id='replacement-proof' WHERE id=?", (ref["id"],))
+        return choice
+    case.goals.task_resolver = replaced
+    case.state["available"] = True
+    case.clock[0] += 61
+    case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy)
+    assert task(case, "R").status == "BLOCKED" and task(case, "R").binding_ref == ""
