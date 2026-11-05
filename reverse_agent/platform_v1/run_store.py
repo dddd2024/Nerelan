@@ -1882,7 +1882,7 @@ class TaskStore:
                 cur.execute("BEGIN IMMEDIATE")
                 now_ms = _utc_now_ms()
                 row = cur.execute(
-                    "SELECT lease_owner, lease_epoch FROM durable_runs WHERE run_id = ?",
+                    "SELECT lease_owner, lease_epoch, lease_expiry_ms FROM durable_runs WHERE run_id = ?",
                     (run_id,),
                 ).fetchone()
                 if row is None:
@@ -1895,6 +1895,9 @@ class TaskStore:
                         f"current_owner={row['lease_owner']}:"
                         f"current_epoch={row['lease_epoch']}"
                     )
+                if int(row["lease_expiry_ms"] or 0) <= now_ms:
+                    cur.execute("ROLLBACK")
+                    raise TaskStoreError(f"lease_expired:{run_id}:owner={owner}:epoch={epoch}")
                 cur.execute(
                     "UPDATE durable_runs SET heartbeat_at_ms = ?, "
                     "lease_expiry_ms = ?, updated_at = ? WHERE run_id = ?",
