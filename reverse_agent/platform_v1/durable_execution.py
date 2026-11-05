@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
+import sqlite3
 import subprocess
 import time
 import threading
@@ -83,6 +85,7 @@ EXTERNAL_OP_STATES = frozenset({
 
 LEASE_DEFAULT_EXPIRY_MS = 300_000
 LEASE_HEARTBEAT_WINDOW_MS = 60_000
+HEARTBEAT_STORAGE_MAX_FAILURES = 3
 # ---------------------------------------------------------------------------
 # Exceptions
 # ---------------------------------------------------------------------------
@@ -508,6 +511,9 @@ class _HeartbeatContext:
 
     Runs heartbeat updates at the configured interval while a role is
     executing. Stops automatically when the wrapped callable returns.
+    Wrapped SQLite BUSY/LOCKED errors get at most three consecutive failed
+    calls; stop_reason and a finite warning identify permanent renewal loss.
+    Existing SQLite/RLock waits are not interrupted by the retry stop event.
     Does NOT stop on _CrashSimulated (BaseException), modeling abrupt
     process death where the heartbeat disappears and the lease expires.
     """
@@ -531,9 +537,11 @@ class _HeartbeatContext:
         self._stop_event: Any = None
         self._thread: Any = None
         self._active = False
+        self.stop_reason: str | None = None
 
     def heartbeat_during(self, fn: Callable[[], Any]) -> Any:
         self._stop_event = threading.Event()
+        self.stop_reason = None
         self._active = True
         self._thread = threading.Thread(
             target=self._heartbeat_loop, daemon=True, name="durable-hb"
@@ -545,17 +553,50 @@ class _HeartbeatContext:
             self._stop()
 
     def _heartbeat_loop(self) -> None:
+        failures = 0
+        renewal_deadline = time.monotonic() + self.expiry_ms / 1000.0
         while not self._stop_event.is_set():
+            attempt_at = time.monotonic()
+            if attempt_at >= renewal_deadline:
+                self.stop_reason = "lease_expired"
+                break
             try:
                 self.store._heartbeat_durable_lease(
                     self.run_id, self.owner, self.epoch, self.expiry_ms,
                 )
-            except TaskStoreError:
-                break
+            except TaskStoreError as exc:
+                cause = exc.__cause__
+                error_code = getattr(cause, "sqlite_errorcode", None)
+                transient = (str(exc).startswith("heartbeat_durable_lease_failed:")
+                    and isinstance(cause, sqlite3.OperationalError)
+                    and isinstance(error_code, int)
+                    and error_code & 0xff in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED})
+                if not transient:
+                    code = str(exc).partition(":")[0]
+                    self.stop_reason = code if code in {
+                        "lease_fenced", "lease_expired", "durable_run_not_found"} else "heartbeat_error"
+                    break
+                failures += 1
+                if failures >= HEARTBEAT_STORAGE_MAX_FAILURES:
+                    self.stop_reason = "storage_retry_exhausted"
+                    break
+                remaining = renewal_deadline - time.monotonic()
+                if remaining <= 0:
+                    self.stop_reason = "lease_expired"
+                    break
+                self._stop_event.wait(timeout=min(1.0, self.heartbeat_window_ms / 1000.0 * 0.1, remaining))
+                continue
+            failures = 0
+            # Conservative deadline: SQL may itself have waited for a writer.
+            # The store also checks persisted expiry inside its write transaction.
+            renewal_deadline = attempt_at + self.expiry_ms / 1000.0
             self._stop_event.wait(
                 timeout=self.heartbeat_window_ms / 1000.0 * 0.6
             )
         self._active = False
+        if self.stop_reason is not None:
+            logging.getLogger(__name__).warning("durable_heartbeat_stopped:%s run_id=%s",
+                                               self.stop_reason, self.run_id)
 
     def _stop(self) -> None:
         if self._stop_event is not None:

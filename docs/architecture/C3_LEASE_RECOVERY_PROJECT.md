@@ -5,11 +5,34 @@
 > 当前边界以 [交付状态](MULTI_ACCOUNT_DELIVERY_STATUS.md) 为准；C3 未完成验收。
 
 ```text
-STATUS: PROPOSED — 未实现，未改动任何租约/恢复代码
+STATUS: F3 REPAIR CANDIDATE — 整体 C3 仍未验收
 AUTHORITY: 需独立立项 + 独立评审（风险高于普通 R1）
 OWNER DECISION: 2026-11-04，列为长时间无人值守能力的高优先级任务
 RELATED: MULTI_ACCOUNT_ORCHESTRATION_SPEC.md §7 C3 / §12.3
 ```
+
+### F3 实现记录（#1380，2026-11-05）
+
+真实临时 TaskStore 上的 SQLite 写锁已复现：原心跳遇到一次包装后的存储错误便永久停止。
+当前修复继续复用 `_HeartbeatContext` / TaskStore，不增加队列、运行时、依赖或数据表。
+
+- 仅重试异常因果链中真实 `sqlite3.OperationalError.sqlite_errorcode` 的 BUSY/LOCKED，
+  兼容扩展码；不凭错误文本猜测，不重试 IOERR、FULL、未知错误或 fencing 错误。
+- `HEARTBEAT_STORAGE_MAX_FAILURES=3` 表示最多三次连续失败的存储调用，成功后计数归零。
+  重试间隔为 `min(1秒, heartbeat_window × 0.1)`，通过既有停止事件等待。
+- 每次续租在 `BEGIN IMMEDIATE` 获得写锁之后读取当前时间和持久租约，拒绝已到期或
+  已换主的租约。同一 owner、epoch 也不能续活已过期租约。
+- 心跳循环另以最近成功续期调用开始时刻建立单调时钟上限；不在经历完整租约时长后补发续期。
+  这不等于完整的跨休眠、时钟回拨对账，F1/F4 仍待独立验收。
+- 停止原因通过 `stop_reason` 及标准日志中的有限代码呈现，不输出原始驱动错误或 SQL 内容。
+
+验证入口：`tests/platform_v1/test_heartbeat_storage_recovery.py`。覆盖真实锁恢复、持续锁、
+锁后到期/换主、阻塞中的 BEGIN 后采样时间、取消、扩展错误码、计数复位和单调时钟上限。
+
+**限制**：SQLite 的既有 busy timeout、进程内 RLock 以及正在进行的数据库调用仍可能阻塞。
+三次调用上限与短停止等待不构成严格的端到端取消时限；`_stop()` 的 join 不强制中断 SQL。
+此修复不取消正在执行的模型/子进程，不补全文件系统 fencing，不重放历史 UNKNOWN，
+也不证明生产恢复或 24h 长跑。落地仍须 fresh exact-head 独立审查与全部必需门禁。
 
 ## 1. 要解决的真实风险
 
