@@ -185,6 +185,18 @@ class MultiAccountOrchestrator:
     def account_scores(self) -> dict[str, dict[str, Any]]:
         return self.evolution.account_scores()
 
+    def account_policy_view(self) -> dict[str, Any]:
+        from .policy_lifecycle import effective_weights
+        state = self._account_feedback_store.section("account_policy")
+        return {"enabled": self.config.enable_policy_evolution, "revision": state.get("revision", 0),
+                "effective": effective_weights(state, self.config),
+                "history": state.get("history", []), "last_assessment": state.get("last_assessment")}
+
+    def rollback_account_policy(self, target: int = 0, *, expected_revision: int) -> dict[str, Any]:
+        with self._feedback_lock:
+            return self._account_feedback_store.rollback_account_policy(
+                target=target, expected_revision=expected_revision, now=self._clock())
+
     def recommend_mode(self, size_estimate: Mapping[str, Any], *,
                        pin: Any = None) -> dict[str, Any]:
         return self.evolution.recommend_mode(size_estimate, pin=pin)

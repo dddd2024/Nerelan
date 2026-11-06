@@ -76,6 +76,12 @@ class MultiAccountConfig(BaseModel):
         5.0, description="Max headroom-equivalent points an account loses for being the slowest.")
     max_recorded_runs: int = Field(
         500, description="Bounded ledger size; the oldest goal outcomes are dropped so an unattended run cannot grow forever.")
+    enable_policy_evolution: bool = Field(False, description="Opt in to audited, bounded account-weight evolution.")
+    policy_min_new_attempts: int = Field(30, ge=3, le=10000)
+    policy_step_ratio: float = Field(0.1, gt=0, le=0.25)
+    policy_max_weight_drift_ratio: float = Field(0.25, ge=0, le=1)
+    policy_target_success_rate: float = Field(0.85, gt=0, le=1)
+    policy_audit_limit: int = Field(64, ge=2, le=256)
 
     # --- self-evolution (domain E) ---------------------------------------------
     enable_self_evolution: bool = Field(
@@ -147,6 +153,8 @@ class MultiAccountConfig(BaseModel):
 
     @model_validator(mode="after")
     def _consistent_windows(self) -> "MultiAccountConfig":
+        if self.enable_policy_evolution and self.policy_min_new_attempts > self.max_recorded_runs:
+            raise ValueError("policy_min_new_attempts must fit the retained feedback window")
         if self.observation_freshness_seconds > self.magpie_max_age_seconds:
             raise ValueError(
                 "observation_freshness_seconds must not exceed magpie_max_age_seconds")

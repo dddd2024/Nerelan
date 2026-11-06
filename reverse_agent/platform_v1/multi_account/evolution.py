@@ -85,7 +85,7 @@ class SelfEvolutionStore:
 
     @staticmethod
     def _empty() -> dict[str, Any]:
-        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {}, "account_feedback": {},
+        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {}, "account_feedback": {}, "account_policy": {},
                 "updated_at": None}
 
     # --- persistence ----------------------------------------------------------
@@ -104,7 +104,7 @@ class SelfEvolutionStore:
             if any(not isinstance(row, dict) for row in state["runs"]):
                 raise ValueError("invalid feedback run")
             state["runs"] = state["runs"][-self._config.max_recorded_runs:]
-            for key in ("accounts", "cooldowns", "account_feedback"):
+            for key in ("accounts", "cooldowns", "account_feedback", "account_policy"):
                 if not isinstance(state[key], dict):
                     raise ValueError("invalid feedback section")
             return state
@@ -270,6 +270,15 @@ class SelfEvolutionStore:
                 while len(receipts) > self._config.max_recorded_runs:
                     oldest = min(receipts, key=lambda key: (receipts[key]["recorded_at"], key))
                     del receipts[oldest]
+            from .policy_lifecycle import advance_policy
+            try:
+                candidate["account_policy"] = advance_policy(candidate["account_policy"], self._config,
+                    outcome=normalized, outcome_id=outcome_id, now=now)
+            except (ValueError, TypeError, KeyError):
+                # Invalid optional policy evidence never replaces the last
+                # policy or discards the account's real isolation/feedback.
+                if outcome_id is not None:
+                    receipts[outcome_id]["policy_error"] = "invalid_policy_evidence"
             candidate["updated_at"] = now
             self._state = candidate
             try:
@@ -279,6 +288,24 @@ class SelfEvolutionStore:
                 raise
             return {"view": copy.deepcopy(view), "accounts": copy.deepcopy(candidate["accounts"]),
                     "cooldowns": copy.deepcopy(candidate["cooldowns"]), "replayed": False}
+
+    def rollback_account_policy(self, *, target: int, expected_revision: int, now: float) -> dict[str, Any]:
+        from .policy_lifecycle import rollback_policy
+        with self._lock:
+            self._refresh_unlocked()
+            previous = self._state
+            candidate = copy.deepcopy(previous)
+            policy = rollback_policy(candidate["account_policy"], self._config,
+                target=target, expected_revision=expected_revision, now=now)
+            candidate["account_policy"] = policy
+            candidate["updated_at"] = now
+            self._state = candidate
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._state = previous
+                raise
+            return copy.deepcopy(policy)
 
     def reset(self) -> None:
         """Roll the whole loop back: mode ledger, account feedback, cooldowns."""
