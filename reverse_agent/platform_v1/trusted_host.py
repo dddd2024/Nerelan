@@ -238,10 +238,10 @@ class CombinedTrustedHost:
         This is the production feeder for the multi-account self-evolution loop:
         a success clears the account's quiet time and raises its measured
         reliability, a failure cools the account down (quarantining it for
-        account-level errors) and lowers that reliability. The cost (list-price
-        USD) and wall time of the attempt are measured from the same normalized
-        token ledger the quota forecast uses, so the scheduler's cost term is
-        real instead of theoretical.
+        account-level errors) and lowers that reliability. Completed claims use
+        the frozen reservation's account and exact epoch, not today's binding.
+        Cost is a complete-token list-price estimate, never billed cash. Task
+        lifetime is not fed as attempt latency; unknown latency remains unknown.
 
         Entirely best-effort: an unknown binding, an unpriced model or an
         unavailable brain leaves behaviour unchanged.
@@ -251,9 +251,6 @@ class CombinedTrustedHost:
         binding_ref = str(getattr(task, "binding_ref", "") or "")
         if not binding_ref:
             return
-        account_ref = self._binding_account_resolver(binding_ref)
-        if not account_ref:
-            return
         from .multi_account.dispatch import record_account_outcome
         metrics: dict[str, Any] = {"cost_units": None, "wall_seconds": None}
         try:
@@ -261,11 +258,21 @@ class CombinedTrustedHost:
             metrics = task_feedback_metrics(self._task_store, str(getattr(task, "id", "") or ""))
         except Exception:  # noqa: BLE001 - telemetry is optional
             pass
+        if metrics.get("scope") not in {"task", "claim_attempt"}:
+            return
+        account_ref = (metrics.get("account_ref") if metrics.get("scope") == "claim_attempt"
+                       else self._binding_account_resolver(binding_ref))
+        if not account_ref:
+            return
+        # Task lifetime includes queue/hold/retry time. It is not an attempt's
+        # response latency, so it must not train the latency ranking term.
+        wall_seconds = (metrics.get("wall_seconds")
+                        if metrics.get("wall_time_basis") == "attempt_elapsed" else None)
         if success:
             record_account_outcome(
                 account_ref, ok=True,
                 cost_units=metrics.get("cost_units"),
-                wall_seconds=metrics.get("wall_seconds"))
+                wall_seconds=wall_seconds, outcome_id=metrics.get("outcome_id"))
             return
         classification = str(getattr(task, "failure_classification", "") or "").lower()
         # Our own quarantine refusal made no provider attempt. Feeding it back
@@ -288,8 +295,8 @@ class CombinedTrustedHost:
         record_account_outcome(
             account_ref, ok=False,
             cost_units=metrics.get("cost_units"),
-            wall_seconds=metrics.get("wall_seconds"),
-            failure_kind=kind)
+            wall_seconds=wall_seconds,
+            failure_kind=kind, outcome_id=metrics.get("outcome_id"))
 
     def _quota_wait_target(self) -> "str | None":
         """Provider/account whose blocking ``quota wait`` may replace local polling.
@@ -952,7 +959,7 @@ class CombinedTrustedHost:
             row["actual_observations"] = fact.get("actual_observations", [])
         return quota_reservation.goal_fit(routed, evidence, rows, alternatives=alternatives)
 
-    def _prepare_task_quota(self, task) -> None:
+    def _prepare_task_quota(self, task) -> dict[str, str] | None:
         """Account-bound preparation outside the coordinator's claim transaction."""
         from . import quota_reservation
         from .usage_ledger import estimation_records
@@ -1005,12 +1012,15 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
+        feedback_identity = ({"binding_ref": binding["binding_id"],
+                              "account_ref": connection.get("account_ref") or connection["connection_id"]}
+                             if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)
         if connection.get("auth_method") != "external_cli_session":
-            return
+            return feedback_identity
         from ..model_access.contracts import NATIVE_CLI_PROVIDERS
         provider = connection.get("executor_provider_id")
         if provider not in NATIVE_CLI_PROVIDERS:
-            return  # no account quota windows exist for this session (e.g. a free OpenCode login)
+            return feedback_identity  # identity is useful even when this route has no quota windows
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)

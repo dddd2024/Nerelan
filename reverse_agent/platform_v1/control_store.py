@@ -1816,6 +1816,7 @@ class PlatformControlStore:
         task_id: str,
         owner: str,
         lease_ms: int,
+        feedback_identity: Mapping[str, str] | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         with self._lock:
             return self._claim_task_locked(
@@ -1823,6 +1824,7 @@ class PlatformControlStore:
                 task_id=task_id,
                 owner=owner,
                 lease_ms=lease_ms,
+                feedback_identity=feedback_identity,
             )
 
     def _claim_task_locked(
@@ -1832,6 +1834,7 @@ class PlatformControlStore:
         task_id: str,
         owner: str,
         lease_ms: int,
+        feedback_identity: Mapping[str, str] | None = None,
     ) -> tuple[int, AutonomousWindowRecord]:
         now_ms = _utc_now_ms()
         cur = self._conn.cursor()
@@ -1855,9 +1858,19 @@ class PlatformControlStore:
             ).fetchone()["c"]
             if int(active_count) >= int(window["max_concurrent_tasks"]):
                 raise TaskStoreError("window_wip_limit_reached")
-            task = cur.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+            task = cur.execute("SELECT status, binding_ref FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None:
                 raise TaskStoreError("task_not_claimable")
+            if feedback_identity is not None:
+                from ..model_access.contracts import _account_ref
+                try:
+                    if (not isinstance(feedback_identity, Mapping)
+                            or set(feedback_identity) != {"binding_ref", "account_ref"}
+                            or feedback_identity["binding_ref"] != task["binding_ref"]
+                            or _account_ref(feedback_identity["account_ref"]) is None):
+                        raise ValueError
+                except (ValueError, TypeError):
+                    raise TaskStoreError("invalid_feedback_identity") from None
             completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
             if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 raise TaskStoreError("task_not_claimable")
@@ -1997,6 +2010,14 @@ class PlatformControlStore:
             if quota_input is not None and not completion_recovery:
                 cur.execute("UPDATE platform_budget_reservations SET account_ref=?, binding_ref=?, quota_windows_json=?, quota_state=?, estimate_json=? WHERE task_id=? AND claim_epoch=?",
                     (quota_input["account_ref"], quota_input["binding_ref"], json.dumps({name: value["p80"] for name, value in quota_need["windows"].items()}), quota_verdict["state"], json.dumps(quota_need), task_id, epoch))
+            elif (feedback_identity is not None and not completion_recovery
+                  and active_reservation is None):
+                # Non-native routes have no subscription quota input. Freeze
+                # only feedback metadata; do not invent quota or change its gate.
+                cur.execute("UPDATE platform_budget_reservations SET estimate_json=? "
+                            "WHERE task_id=? AND window_id=? AND claim_epoch=?",
+                            (json.dumps({"feedback_identity": dict(feedback_identity)}),
+                             task_id, window_id, epoch))
             if task["status"] == "QUOTA_WAIT":
                 if route:
                     cur.execute("UPDATE tasks SET executor_kind=?,binding_ref=? WHERE id=?", (route["executor_kind"], route["binding_ref"], task_id))
