@@ -217,6 +217,109 @@ class CombinedTrustedHost:
         except Exception:  # noqa: BLE001 - perception failure must not break reroute
             return []
 
+    def _refresh_multi_account_pool(self) -> dict[str, Any]:
+        """Periodic pool refresh for the coordinator's reconcile cadence.
+
+        Kept off the perception path on purpose: a routing decision must not wait
+        on a snapshot fetch. The 60 s throttle lives in
+        :meth:`_bootstrap_multi_account_observations`, so a slow reconcile loop
+        still refreshes at most once a minute.
+        """
+        self._bootstrap_multi_account_observations()
+        return {"synced": True}
+
+    def _bootstrap_multi_account_observations(self) -> None:
+        """Refresh the observation table from the live Magpie snapshot, throttled.
+
+        The table is otherwise written only during task admission, so before the
+        first dispatch perception returns nothing while Magpie already reports
+        the pool. Two independent reasons to sync: the table is empty, or its
+        newest reading has aged past ``observation_freshness_seconds`` — without
+        the second, a single bootstrap would leave the pool permanently STALE as
+        the readings age. Debounced to one attempt per 60 s because this runs on
+        a reroute path, and entirely best-effort: a refused or slow Magpie leaves
+        perception exactly as it was.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return
+        now = time.monotonic()
+        if now - getattr(self, "_multi_account_sync_at", 0.0) < 60.0:
+            return
+        self._multi_account_sync_at = now
+        try:
+            count, newest = self._task_store._conn.execute(
+                "SELECT COUNT(*), MAX(observed_at) FROM platform_quota_observations"
+            ).fetchone()
+        except Exception:  # noqa: BLE001 - a store fault must not break perception
+            return
+        if count and self._reading_is_fresh(newest):
+            return
+        self.sync_multi_account_observations()
+
+    @staticmethod
+    def _reading_is_fresh(newest: Any) -> bool:
+        """Whether the newest stored reading is inside the freshness budget.
+
+        Magpie writes ISO-8601 with an offset while the sync may fall back to a
+        ``Z`` form, so this parses instead of comparing strings.
+        """
+        if not isinstance(newest, str) or not newest:
+            return False
+        try:
+            from .multi_account import MultiAccountConfig
+            from datetime import datetime, timezone
+            parsed = datetime.fromisoformat(newest.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            budget = float(MultiAccountConfig.from_env().observation_freshness_seconds)
+            return (datetime.now(timezone.utc) - parsed).total_seconds() < budget
+        except Exception:  # noqa: BLE001 - an unreadable timestamp means "refresh"
+            return False
+
+    def sync_multi_account_observations(self, *, fetch: Any = None) -> dict[str, Any]:
+        """Persist live Magpie quota readings as observations (flag-gated).
+
+        Returns a JSON-safe summary: ``{"enabled", "snapshot_status", "written",
+        "failed", "skipped", "states", "accounts_visible"}``. Never raises, never
+        reads a credential, and strips personal data through the snapshot's own
+        allow-list before anything is stored.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return {"enabled": False, "snapshot_status": "disabled", "written": 0,
+                    "failed": 0, "skipped": 0, "states": {}, "accounts_visible": 0}
+        from ..model_access.magpie import fetch_magpie_snapshot
+        from .multi_account.perception_sync import sync_snapshot
+
+        summary: dict[str, Any] = {"enabled": True, "snapshot_status": "unavailable",
+                                   "written": 0, "failed": 0, "skipped": 0, "states": {},
+                                   "accounts_visible": 0}
+        try:
+            snapshot = (fetch or fetch_magpie_snapshot)()
+        except Exception as exc:  # noqa: BLE001 - perception is optional
+            summary["snapshot_status"] = f"error:{type(exc).__name__}"
+            return summary
+        if not isinstance(snapshot, dict):
+            return summary
+        summary["snapshot_status"] = str(snapshot.get("status") or "unknown")
+        if summary["snapshot_status"] != "available":
+            summary["reason"] = snapshot.get("reason")
+            return summary
+        try:
+            result = sync_snapshot(
+                snapshot, write=self._control_store.record_quota_observation)
+        except Exception as exc:  # noqa: BLE001 - a sync fault must not break perception
+            summary["snapshot_status"] = f"sync_error:{type(exc).__name__}"
+            return summary
+        summary.update({key: result.get(key) for key in
+                        ("written", "failed", "skipped", "states", "oldest_observed_at",
+                         "newest_observed_at")})
+        try:
+            summary["accounts_visible"] = self._task_store._conn.execute(
+                "SELECT COUNT(*) FROM platform_quota_observations").fetchone()[0]
+        except Exception:  # noqa: BLE001
+            pass
+        return summary
+
     def _binding_account_resolver(self, binding_ref: str) -> "str | None":
         """Map a candidate binding to its account_ref (or connection_id fallback)."""
         try:
@@ -321,6 +424,93 @@ class CombinedTrustedHost:
             return None
         from .multi_account.dispatch import idle_wait_seconds
         return idle_wait_seconds()
+
+    def _multi_account_loop_hooks(self) -> dict[str, Any]:
+        """Coordinator seams for run duration, cost ceiling and alert delivery.
+
+        Returns ``{}`` unless ``REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1``, so a
+        deployment that has not opted in constructs exactly the previous
+        coordinator — no timed window, no cost gate, no alert drain.
+
+        When enabled, the loop gains three behaviours it previously lacked:
+
+        * a *bounded* run: the watchdog opens a window at start and is consulted
+          before every claim, so a run concludes at its wall-clock bound while
+          in-flight work still drains;
+        * a *cost ceiling*: admission runs before a task is claimed, so a held
+          task keeps its queue position instead of being claimed and dropped;
+        * *alert delivery*: queued alerts are drained once per iteration into
+          :meth:`_deliver_account_alerts`, instead of accumulating unseen.
+
+        Every callback degrades to the old behaviour on failure (see
+        ``multi_account/dispatch.py``), so enabling this cannot make dispatch
+        worse than not enabling it.
+        """
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
+            return {}
+        from .multi_account.dispatch import admit_cost, drain_alerts, run_progress
+        from .multi_account.dispatch import run_verdict, start_run
+
+        return {
+            "run_start": start_run,
+            "run_verdict": run_verdict,
+            "run_progress": run_progress,
+            "alert_source": drain_alerts,
+            "alert_sink": self._deliver_account_alerts,
+            # Pool perception is refreshed on the reconcile cadence, never on the
+            # routing path: readings age out (Magpie re-reads lazily), so a single
+            # startup sync would leave the pool permanently STALE.
+            "pool_refresh": self._refresh_multi_account_pool,
+            # Reservation is opt-in (``cost_budget_reserve_inflight``). When it is
+            # on, each dispatch holds its forecast for a bounded TTL, so the
+            # ceiling counts in-flight work as well as realised spend; when it
+            # is off, the ceiling bounds realised spend only.
+            "cost_admission": lambda forecast=None: admit_cost(
+                forecast, reserve=self._multi_account_reserve_inflight()),
+        }
+
+    def _multi_account_reserve_inflight(self) -> bool:
+        """Whether this host reserves a dispatch's forecast against the ceiling.
+
+        Cached after the first read: the value is a deployment setting, and a
+        claim path should not parse the whole config on every task.
+        """
+        cached = getattr(self, "_reserve_inflight_setting", None)
+        if cached is not None:
+            return bool(cached)
+        try:
+            from .multi_account import MultiAccountConfig
+            setting = bool(MultiAccountConfig.from_env().cost_budget_reserve_inflight)
+        except Exception:  # noqa: BLE001 - an unreadable config keeps the old behaviour
+            setting = False
+        self._reserve_inflight_setting = setting
+        return setting
+
+    def _deliver_account_alerts(self, alerts: Any) -> None:
+        """Deliver drained alerts to the host's operator surface.
+
+        The default surface is a bounded in-memory tail readable through
+        :meth:`multi_account_alerts`, plus the structured log line the alerts
+        module already emits when ``alert_log_enabled`` is set. A deployment that
+        wants webhook/IM delivery replaces this sink; the brain never grows a
+        network dependency.
+        """
+        try:
+            tail = getattr(self, "_multi_account_alert_tail", None)
+            if tail is None:
+                tail = collections.deque(maxlen=200)
+                self._multi_account_alert_tail = tail
+            for alert in alerts or ():
+                tail.append(alert)
+        except Exception:  # noqa: BLE001 - delivery must never break the loop
+            return
+
+    def multi_account_alerts(self, limit: int = 50) -> list:
+        """Most recent delivered alerts, newest last (empty when not enabled)."""
+        tail = getattr(self, "_multi_account_alert_tail", None)
+        if not tail:
+            return []
+        return list(tail)[-max(1, int(limit)):]
 
     def _native_owner_admit_goal(self, goal_id: str, *, unknown_claims_sha256=None):
         """Trusted native bootstrap only; never register on a transport/router.
@@ -1439,6 +1629,7 @@ class CombinedTrustedHost:
                 account_feedback=self._report_account_feedback_to_brain,
                 idle_wait_hint=self._multi_account_idle_wait,
                 quota_wait_target=self._quota_wait_target(),
+                **self._multi_account_loop_hooks(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
             task_handler = _task_handler_factory(

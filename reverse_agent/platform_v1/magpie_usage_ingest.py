@@ -47,6 +47,11 @@ CACHE_LIMIT = 5_000
 NORMALIZATION_VERSION = 2
 DEFAULT_LAST = "6h"
 DEFAULT_TIMEOUT = 25.0
+# The desktop app serves aggregates over loopback HTTP and ships no CLI at all,
+# so the CSV path cannot be the only source. Same origin discipline as every
+# other Magpie read: loopback only, no credential handling.
+DEFAULT_MAGPIE_URL = "http://127.0.0.1:3425"
+LOOPBACK_PREFIXES = ("http://127.0.0.1", "http://localhost", "http://[::1]")
 
 # Columns kept from the CSV. Everything else (keys, caller names, error bodies)
 # is dropped on purpose: it is either PII or not needed for economics.
@@ -236,6 +241,108 @@ def cost_facts(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     return {"totals": totals, "accounts": accounts}
 
 
+def read_usage_http(base_url: Optional[str] = None, *, period: str = "30d",
+                    timeout: float = 5.0, opener: Any = None) -> Optional[dict[str, Any]]:
+    """Fetch Magpie's aggregate usage over loopback HTTP (the app ships no CLI).
+
+    Returns the parsed payload or ``None``. Read-only: it asks the app what it
+    already recorded. Non-loopback URLs are refused outright, and no credential
+    is read — the app accepts the same static loopback header the snapshot
+    client uses.
+    """
+    url = (base_url or os.environ.get("REVERSE_AGENT_MAGPIE_URL")
+           or DEFAULT_MAGPIE_URL).rstrip("/")
+    if not url.startswith(LOOPBACK_PREFIXES):
+        return None
+    from urllib.request import Request
+
+    from ..model_access import http_safe
+    from ..model_access.magpie import MAGPIE_AUTH
+
+    request = Request(f"{url}/v1/magpie/usage?period={period}",
+                      headers={"Authorization": MAGPIE_AUTH}, method="GET")
+    try:
+        with (opener or http_safe.urlopen)(request, timeout=timeout) as response:
+            payload = json.loads(response.read())
+    except Exception:  # noqa: BLE001 - an absent app is a normal outcome
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def facts_from_http(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Aggregate facts from the HTTP view, in the shape :func:`cost_facts` returns.
+
+    The HTTP view is **aggregate-only**: per account it reports calls, errors and
+    one cost total, but not per-request rows and not a cash/subscription split.
+    So this deliberately leaves ``cash_usd`` and ``quota_value_usd`` at zero and
+    puts the reported total in ``reported_cost_usd`` / ``spend_total``, named by
+    ``basis_provenance``. Reading that field as "money billed" would be wrong:
+    most of it is subscription allowance valued at list price.
+
+    ``failed_cost_share`` is ``None`` here for the same reason — the app counts
+    errors but does not price them per request.
+    """
+    if not isinstance(payload, Mapping):
+        payload = {}
+    reported = _as_float(payload.get("cost"))
+    calls = int(_as_float(payload.get("calls")) or 0)
+    errors = int(_as_float(payload.get("errors")) or 0)
+    unpriced = int(_as_float(payload.get("unpriced")) or 0)
+    totals: dict[str, Any] = {
+        "requests": calls, "failed": errors, "unknown_cost": unpriced,
+        "cash_usd": 0.0, "quota_value_usd": 0.0,
+        "failed_cash_usd": 0.0, "failed_quota_value_usd": 0.0,
+        "reported_cost_usd": round(reported, 6),
+        "spend_total": round(reported, 6),
+        "failed_cost_share": None,
+        "split_unavailable": True,
+        "retried": int(_as_float(payload.get("retried")) or 0),
+        "credits": _as_float(payload.get("credits")),
+        "period": payload.get("period"),
+        "since": payload.get("since"),
+        # Latency aggregates the app already computed; kept raw, not re-derived.
+        "timed": int(_as_float(payload.get("timed")) or 0),
+        "ttft_ms_total": _as_float(payload.get("ttft_ms")),
+        "decode_ms_total": _as_float(payload.get("decode_ms")),
+        "decode_out": _as_float(payload.get("decode_out")),
+        "decode_n": _as_float(payload.get("decode_n")),
+        "basis_provenance": "magpie_http_reported_cost",
+    }
+    accounts: dict[str, dict[str, Any]] = {}
+    for entry in payload.get("accounts") or []:
+        if not isinstance(entry, Mapping):
+            continue
+        # Same identity discipline as the CSV path: the app returns a readable
+        # handle (provider@user), which must never reach disk or a report.
+        key = _account_id(entry.get("id") or entry.get("account")) or "unattributed"
+        account_cost = _as_float(entry.get("cost")) or 0.0
+        entry_calls = int(_as_float(entry.get("calls")) or 0)
+        entry_errors = int(_as_float(entry.get("errors")) or 0)
+        accounts[key] = {
+            "account_id": key,
+            "billing_class": None,
+            "requests": entry_calls,
+            "failed": entry_errors,
+            "unknown_cost": int(_as_float(entry.get("unpriced")) or 0),
+            "cash_usd": 0.0, "quota_value_usd": 0.0,
+            "reported_cost_usd": round(account_cost, 6),
+            "spend_total": round(account_cost, 6),
+            "swapped": 0,
+            "retried": int(_as_float(entry.get("retried")) or 0),
+            "providers": [entry["provider"]] if entry.get("provider") else [],
+            "models": [],
+        }
+    return {"totals": totals, "accounts": accounts}
+
+
+def _as_float(value: Any) -> float:
+    """Tolerant numeric read: Magpie omits fields it has no data for."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def default_cache_path() -> Path:
     base = os.environ.get("REVERSE_AGENT_RUNTIME_DIR") or str(Path.cwd() / ".platform_v1_runtime")
     return Path(base) / "magpie_usage_cache.jsonl"
@@ -314,23 +421,46 @@ def read_cache(path: Optional[Path] = None) -> list[dict[str, Any]]:
 
 def ingest(*, last: str = DEFAULT_LAST, timeout: float = DEFAULT_TIMEOUT,
            cache_path: Optional[Path] = None,
-           env: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """One read-only refresh: CLI -> normalize -> cache -> aggregate.
+           env: Mapping[str, str] | None = None,
+           source: str = "auto",
+           base_url: Optional[str] = None,
+           http_fetch: Any = None) -> dict[str, Any]:
+    """One read-only refresh; CSV when a CLI exists, HTTP aggregates otherwise.
 
-    Returns ``{"available": bool, "reason": str|None, "added": int, "rows": int,
-    "facts": {...}}``. Unavailable Magpie is a normal outcome, not an error.
+    ``source`` is ``auto`` (CLI first, then HTTP), ``cli`` (CSV only) or ``http``
+    (aggregates only). The desktop app ships no CLI, so without the HTTP path a
+    real installation reports ``magpie_executable_not_configured`` forever and
+    the cost basis silently stays at the local list-price estimate. The two
+    sources answer different questions: only the CSV has per-request rows, so
+    ``spend_total`` is comparable but ``cash_usd`` / ``quota_value_usd`` and
+    task correlation still require the CLI.
+
+    Returns ``{"available", "reason", "source", "added", "rows", "facts"}``.
+    Unavailable Magpie is a normal outcome, not an error.
     """
-    exe = magpie_executable(env)
-    if exe is None:
-        return {"available": False, "reason": "magpie_executable_not_configured",
-                "added": 0, "rows": 0, "facts": cost_facts([])}
-    rows = read_usage(exe, last=last, timeout=timeout)
-    if not rows:
-        return {"available": False, "reason": "no_usage_rows", "added": 0, "rows": 0,
-                "facts": cost_facts([])}
-    added = merge_into_cache(rows, path=cache_path)
-    return {"available": True, "reason": None, "added": added, "rows": len(rows),
-            "facts": cost_facts(rows), "cache_rows": len(read_cache(cache_path))}
+    chosen = str(source or "auto").lower()
+    if chosen not in {"auto", "cli", "http"}:
+        chosen = "auto"
+    if chosen in {"auto", "cli"}:
+        exe = magpie_executable(env)
+        if exe is not None:
+            rows = read_usage(exe, last=last, timeout=timeout)
+            if rows:
+                added = merge_into_cache(rows, path=cache_path)
+                return {"available": True, "reason": None, "source": "cli",
+                        "added": added, "rows": len(rows), "facts": cost_facts(rows),
+                        "cache_rows": len(read_cache(cache_path))}
+        if chosen == "cli":
+            return {"available": False, "reason": "magpie_executable_not_configured",
+                    "source": "cli", "added": 0, "rows": 0, "facts": cost_facts([])}
+    payload = (http_fetch or read_usage_http)(base_url, period=last, timeout=timeout)
+    if isinstance(payload, Mapping) and payload:
+        return {"available": True, "reason": None, "source": "http", "added": 0,
+                "rows": 0, "facts": facts_from_http(payload),
+                "period": payload.get("period")}
+    reason = "magpie_executable_not_configured" if chosen == "auto" else "magpie_http_unavailable"
+    return {"available": False, "reason": reason, "source": "http", "added": 0,
+            "rows": 0, "facts": cost_facts([])}
 
 
 def main(argv: Optional[list[str]] = None) -> int:

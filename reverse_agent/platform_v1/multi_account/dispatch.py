@@ -69,8 +69,13 @@ def record_account_outcome(account_ref: Optional[str], *, ok: bool,
                            wall_seconds: Optional[float] = None,
                            failure_kind: Optional[str] = None,
                            outcome_id: Optional[str] = None,
+                           budget_token: Optional[str] = None,
+                           task_id: Optional[str] = None,
                            store_path: Optional[Path] = None) -> Optional[dict[str, Any]]:
     """Per-account feedback for the scheduler (reliability / cost / latency).
+
+    Also settles the cost reservation and advances the run watchdog, so one call
+    at the task terminal seam keeps scheduling, cost and duration consistent.
 
     Best-effort by design: an unknown account or an unavailable brain returns
     ``None`` and the caller keeps its existing behaviour.
@@ -80,7 +85,8 @@ def record_account_outcome(account_ref: Optional[str], *, ok: bool,
     try:
         return get_orchestrator(store_path).record_account_outcome(
             account_ref, ok=ok, cost_units=cost_units, wall_seconds=wall_seconds,
-            failure_kind=failure_kind, outcome_id=outcome_id)
+            failure_kind=failure_kind, outcome_id=outcome_id,
+            budget_token=budget_token, task_id=task_id)
     except Exception:  # noqa: BLE001
         return None
 
@@ -219,3 +225,113 @@ def reroute_guard(statuses: Iterable[Any], account_ref: str) -> dict[str, Any]:
         return {"skip": False, "health": None, "reason": "account_unknown"}
     except Exception:  # noqa: BLE001 - never block the reroute on a guard failure
         return {"skip": False, "health": None, "reason": "guard_error"}
+
+
+# --- cost ceiling / alerting / run duration / policy seams (v3) ---------------
+#
+# Same contract as the seams above: a guarded one-liner the host can call at its
+# existing seams. Every function degrades to the *previous* behaviour when the
+# brain is unavailable or raises, so adopting them cannot make dispatch worse.
+
+def observe_pool(snapshot: Optional[Mapping[str, Any]] = None, *,
+                 store_path: Optional[Path] = None) -> dict[str, Any]:
+    """One perception cycle for the resource view / dashboard.
+
+    Returns ``{"accounts", "summary", "budget", "alerts", "run", "routing",
+    "policy"}``. An unavailable brain returns an empty, well-shaped payload so
+    the UI degrades to "no accounts observed" instead of erroring.
+    """
+    try:
+        return get_orchestrator(store_path).observe(snapshot)
+    except Exception:  # noqa: BLE001 - perception must never break the resource view
+        return {"accounts": [], "summary": {"total_accounts": 0, "eligible_accounts": 0},
+                "budget": {"enforced": False}, "alerts": [], "run": {"action": "continue"},
+                "routing": {"owner": "local"}, "policy": {"enabled": False}}
+
+
+def admit_cost(forecast_units: Optional[float] = None, *,
+               account_ref: Optional[str] = None,
+               reserve: Optional[bool] = None,
+               store_path: Optional[Path] = None) -> dict[str, Any]:
+    """Pre-dispatch cost admission; ``deny`` means hold, not drop.
+
+    ``reserve=None`` (the default) follows ``cost_budget_reserve_inflight``:
+    off means the ceiling bounds realised spend plus any explicit reservation;
+    on means each dispatch holds its forecast until it settles or its TTL
+    expires. The TTL is what makes the second mode safe for a loop that carries
+    no per-task token — an unsettled hold frees itself rather than blocking the
+    ceiling forever.
+    """
+    try:
+        brain = get_orchestrator(store_path)
+        if reserve is None:
+            reserve = bool(getattr(brain.config, "cost_budget_reserve_inflight", False))
+        return brain.admit(forecast_units, account_ref=account_ref, reserve=reserve)
+    except Exception:  # noqa: BLE001 - a broken ceiling must not stop dispatch
+        return {"decision": "allow", "enforced": False, "reason": "orchestrator_unavailable",
+                "reservation": None, "retry_at": None}
+
+
+def settle_cost(token: Optional[str], *, cost_units: Optional[float] = None,
+                account_ref: Optional[str] = None, task_id: Optional[str] = None,
+                store_path: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    """Convert a reservation into realised spend at the task terminal seam."""
+    try:
+        return get_orchestrator(store_path).settle(
+            token, cost_units=cost_units, account_ref=account_ref, task_id=task_id)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def drain_alerts(store_path: Optional[Path] = None) -> list[dict[str, Any]]:
+    """Alerts raised since the last drain, JSON-safe (the host delivers them)."""
+    try:
+        return [alert.to_dict() for alert in get_orchestrator(store_path).drain_alerts()]
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def run_verdict(store_path: Optional[Path] = None) -> dict[str, Any]:
+    """``continue`` / ``conclude`` / ``stop`` for the current unattended run."""
+    try:
+        return get_orchestrator(store_path).run_verdict()
+    except Exception:  # noqa: BLE001 - an unknown verdict must not stop the loop
+        return {"action": "continue", "reason": "orchestrator_unavailable"}
+
+
+def start_run(store_path: Optional[Path] = None) -> dict[str, Any]:
+    """Begin the timed window of one unattended run."""
+    try:
+        return get_orchestrator(store_path).start_run()
+    except Exception:  # noqa: BLE001
+        return {"enabled": False, "action": "continue"}
+
+
+def run_progress(store_path: Optional[Path] = None) -> None:
+    """Record that one attempt finished, for idle/elapsed detection.
+
+    Deliberately separate from :func:`record_account_outcome`: an attempt is
+    progress even when its account cannot be resolved, and a run must not be
+    concluded while it is still doing work.
+    """
+    try:
+        get_orchestrator(store_path).heartbeat()
+    except Exception:  # noqa: BLE001 - progress accounting is best-effort
+        return
+
+
+def policy_view(store_path: Optional[Path] = None) -> dict[str, Any]:
+    """Effective scheduling weights, their drift and the current version."""
+    try:
+        return get_orchestrator(store_path).policy_view()
+    except Exception:  # noqa: BLE001
+        return {"version": 0, "enabled": False, "effective": {}, "baseline": {}}
+
+
+def rollback_policy(version: int = 0, *, reason: str = "operator_rollback",
+                    store_path: Optional[Path] = None) -> dict[str, Any]:
+    """Restore an earlier policy version (``0`` = configured baseline)."""
+    try:
+        return get_orchestrator(store_path).rollback_policy(version, reason=reason)
+    except Exception:  # noqa: BLE001
+        return {"changed": False, "reason": "orchestrator_unavailable"}

@@ -85,8 +85,17 @@ class SelfEvolutionStore:
 
     @staticmethod
     def _empty() -> dict[str, Any]:
-        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {}, "account_feedback": {},
-                "updated_at": None}
+        """Every section the document may hold.
+
+        This is the load whitelist as well as the initial shape: a section
+        missing here is *silently dropped on the next restart*, which would
+        reset the cost window, the alert dedupe state, the policy chain and the
+        run clock after every crash — exactly the failure this store exists to
+        prevent.
+        """
+        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {},
+                "account_feedback": {}, "budget": {}, "alerts": {}, "policy": {},
+                "watchdog": {}, "updated_at": None}
 
     # --- persistence ----------------------------------------------------------
     def _load(self) -> dict[str, Any]:
@@ -104,7 +113,8 @@ class SelfEvolutionStore:
             if any(not isinstance(row, dict) for row in state["runs"]):
                 raise ValueError("invalid feedback run")
             state["runs"] = state["runs"][-self._config.max_recorded_runs:]
-            for key in ("accounts", "cooldowns", "account_feedback"):
+            for key in ("accounts", "cooldowns", "account_feedback", "budget", "alerts",
+                        "policy", "watchdog"):
                 if not isinstance(state[key], dict):
                     raise ValueError("invalid feedback section")
             return state

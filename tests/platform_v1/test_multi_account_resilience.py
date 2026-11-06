@@ -190,7 +190,11 @@ def test_state_document_is_one_atomic_json_with_every_section(tmp_path):
                      failed_ref="a", failure_kind="account_abnormal", attempt=1)
 
     document = json.loads(store.read_text(encoding="utf-8"))
-    assert set(document) == {"runs", "break_even", "accounts", "cooldowns", "account_feedback", "updated_at"}
+    # One atomic document, only known sections, no per-feature side files.
+    known = {"runs", "break_even", "accounts", "cooldowns", "account_feedback",
+             "budget", "alerts", "policy", "watchdog", "updated_at"}
+    assert set(document) <= known
+    assert {"runs", "accounts", "cooldowns", "watchdog"} <= set(document)
     assert document["runs"] and document["accounts"]["a"]["attempts"] == 1
 
 

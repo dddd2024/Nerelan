@@ -12,8 +12,8 @@ import os
 import pytest
 
 from reverse_agent.platform_v1.magpie_usage_ingest import (
-    cost_basis_values, cost_facts, ingest, magpie_executable, merge_into_cache,
-    parse_usage_csv, read_cache,
+    cost_basis_values, cost_facts, facts_from_http, ingest, magpie_executable,
+    merge_into_cache, parse_usage_csv, read_cache, read_usage_http,
 )
 
 COLUMNS = ("time", "agent", "requested_model", "provider", "host", "model", "served_model",
@@ -133,7 +133,10 @@ def test_cache_dedupes_overlapping_windows_and_keeps_newest(tmp_path):
 
 
 def test_ingest_without_a_configured_executable_degrades_quietly(tmp_path):
-    result = ingest(cache_path=tmp_path / "usage.jsonl", env={})
+    # CLI only on purpose: with the default ``auto`` a CLI-less machine now falls
+    # back to HTTP aggregates, which is the behaviour this test used to forbid.
+    result = ingest(cache_path=tmp_path / "usage.jsonl", env={}, source="cli",
+                    http_fetch=lambda *a, **k: None)
     assert result["available"] is False
     assert result["reason"] == "magpie_executable_not_configured"
     assert result["facts"]["totals"]["requests"] == 0
@@ -412,3 +415,86 @@ def test_no_usage_rows_reports_no_overlap_not_partial():
     assert summary["overlap"] == "none"
     assert summary["overlap_attempts"] == 0
     assert summary["usage_window"] is None
+
+
+# --- HTTP aggregates (the desktop app ships no CLI) --------------------------
+
+PAYLOAD = {
+    "period": "30d", "since": "2026-10-07T00:00:00-04:00",
+    "calls": 5502, "errors": 194, "retried": 43,
+    "cost": 58.699296910959994, "unpriced": 2338, "credits": 1051.68,
+    "ttft_ms": 30487004, "decode_ms": 20322232, "decode_out": 2171511,
+    "decode_n": 3071, "timed": 5288,
+    "accounts": [
+        {"id": "trae-cn@用户9457765348", "provider": "trae-cn", "account": "用户9457765348",
+         "calls": 1574, "errors": 38, "retried": 5, "cost": 1.7007473793, "unpriced": 1460},
+        {"id": "claude@someone@example.test", "provider": "claude", "calls": 483,
+         "errors": 1, "retried": 0, "cost": 38.1274582, "unpriced": 0},
+    ],
+}
+
+
+def test_http_facts_never_claim_a_cash_split_they_cannot_know():
+    """The HTTP view reports one total; calling it "cash" would be a lie."""
+    facts = facts_from_http(PAYLOAD)
+    totals = facts["totals"]
+    assert totals["requests"] == 5502
+    assert totals["failed"] == 194
+    assert totals["unknown_cost"] == 2338
+    assert totals["cash_usd"] == 0.0 and totals["quota_value_usd"] == 0.0
+    assert totals["reported_cost_usd"] == round(58.699296910959994, 6)
+    assert totals["spend_total"] == totals["reported_cost_usd"]
+    assert totals["split_unavailable"] is True
+    assert totals["failed_cost_share"] is None, "errors are counted, not priced"
+    assert totals["basis_provenance"] == "magpie_http_reported_cost"
+
+
+def test_http_facts_hash_every_account_handle():
+    """The app returns provider@user; the module's identity rule still applies."""
+    facts = facts_from_http(PAYLOAD)
+    assert all(key.startswith("acct_") for key in facts["accounts"])
+    assert not any("@" in key or "用户" in key for key in facts["accounts"])
+    first = facts["accounts"]["acct_" + __import__("hashlib").sha256(
+        "trae-cn@用户9457765348".lower().encode("utf-8")).hexdigest()[:12]]
+    assert first["requests"] == 1574 and first["failed"] == 38
+
+
+def test_http_facts_tolerate_a_thin_payload():
+    facts = facts_from_http({})
+    assert facts["totals"]["requests"] == 0
+    assert facts["totals"]["spend_total"] == 0.0
+    assert facts["accounts"] == {}
+
+
+def test_ingest_prefers_http_when_no_cli_exists():
+    calls: list[str] = []
+
+    def fake_fetch(base_url, *, period, timeout):
+        calls.append(period)
+        return PAYLOAD
+
+    result = ingest(last="30d", env={}, source="auto", http_fetch=fake_fetch)
+    assert result["available"] is True
+    assert result["source"] == "http"
+    assert result["rows"] == 0, "aggregates carry no per-request rows"
+    assert result["facts"]["totals"]["spend_total"] == round(58.699296910959994, 6)
+    assert calls == ["30d"]
+
+
+def test_ingest_cli_only_does_not_fall_back_to_http():
+    result = ingest(env={}, source="cli", http_fetch=lambda *a, **k: PAYLOAD)
+    assert result["available"] is False
+    assert result["reason"] == "magpie_executable_not_configured"
+    assert result["source"] == "cli"
+
+
+def test_ingest_http_only_reports_an_unreachable_app():
+    result = ingest(env={}, source="http", http_fetch=lambda *a, **k: None)
+    assert result["available"] is False
+    assert result["reason"] == "magpie_http_unavailable"
+
+
+def test_read_usage_http_refuses_a_non_loopback_origin():
+    """Same origin discipline as every other Magpie read."""
+    assert read_usage_http("https://example.test") is None
+    assert read_usage_http("http://10.0.0.5:3425") is None

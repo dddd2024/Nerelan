@@ -1102,6 +1102,13 @@ class _TaskHandler(BaseHTTPRequestHandler):
             brain = get_orchestrator()
             view["cooling_accounts"] = len(brain.cooldowns.active_map(now=brain._clock()))
             view["tracked_accounts"] = len(brain.account_scores())
+            # The three answers an operator needs during an unattended run and
+            # cannot derive from "how many accounts are cooling": is money still
+            # flowing, may this run start more work, and did the policy move.
+            view["budget"] = brain.budget_status()
+            view["run"] = brain.run_verdict()
+            view["policy_version"] = brain.policy_view().get("version")
+            view["pending_alerts"] = brain.alerts.pending_count()
         except Exception:  # noqa: BLE001 - telemetry is optional
             pass
         return view

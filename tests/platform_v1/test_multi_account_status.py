@@ -69,10 +69,11 @@ def test_degraded_high_utilization():
 
 
 def test_stale_account():
-    m = make_monitor(lambda _: {"a1": ev("a1", observed_age=1200.0)})
+    # Well past the 1800 s budget: this test is about the rule, not the threshold.
+    m = make_monitor(lambda _: {"a1": ev("a1", observed_age=3600.0)})
     (status,) = m.perceive(None, now=NOW)
     assert status.health is AccountHealth.STALE
-    assert status.freshness_age == 1200.0
+    assert status.freshness_age == 3600.0
 
 
 def test_unknown_account():
@@ -93,7 +94,7 @@ def test_health_summary_counts():
     fetch = lambda _: {
         "a1": ev("a1", used_percent=40.0),
         "a2": ev("a2", used_percent=100.0, status="rejected"),
-        "a3": ev("a3", observed_age=1200.0),
+        "a3": ev("a3", observed_age=3600.0),
     }
     m = make_monitor(fetch)
     summary = m.health_summary(m.perceive(None, now=NOW))
@@ -146,3 +147,32 @@ def test_merge_account_quotas_is_additive_and_keeps_provider_key():
     assert merged["claude-code"] is local["claude-code"]
     # Every account preserved under its own account_ref (the defect fix).
     assert set(a for a in merged if a.startswith("codex-")) == {"codex-a", "codex-b"}
+
+
+# --- freshness budget vs a lazy provider -------------------------------------
+
+def test_a_lazily_read_account_stays_usable_for_half_an_hour():
+    """Real evidence: readings were 20-30 minutes old and the pool emptied.
+
+    Magpie re-reads on demand, not on a timer, so a 600 s budget turned a healthy
+    eleven-account pool into one usable account within half an hour while nothing
+    was wrong. The default now tolerates a lazy re-read.
+    """
+    m = make_monitor(lambda _: {"a1": ev("a1", used_percent=40.0, observed_age=1500.0)})
+    (status,) = m.perceive(None, now=NOW)
+    assert status.health is AccountHealth.HEALTHY, "25 minutes old must still be usable"
+    assert status.headroom_pct == 60.0
+
+
+def test_a_genuinely_stale_reading_is_still_caught():
+    """Raising the budget must not disable the freshness rule."""
+    m = make_monitor(lambda _: {"a1": ev("a1", observed_age=3600.0)})
+    (status,) = m.perceive(None, now=NOW)
+    assert status.health is AccountHealth.STALE
+    assert "stale" in status.anomaly_flags
+
+
+def test_the_freshness_budget_still_fits_inside_the_snapshot_age():
+    """The invariant that keeps two clocks from disagreeing."""
+    cfg = MultiAccountConfig()
+    assert cfg.observation_freshness_seconds < cfg.magpie_max_age_seconds
