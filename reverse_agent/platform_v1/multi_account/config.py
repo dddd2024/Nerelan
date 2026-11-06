@@ -66,6 +66,12 @@ class MultiAccountConfig(BaseModel):
     # --- account-level self-evolution (domain E) -------------------------------
     enable_account_scoring: bool = Field(
         True, description="Learn per-account reliability/cost/latency and use it to order equally-healthy accounts.")
+    enable_feedback_routing: bool = Field(
+        False, description="Opt in to bounded measured-account adjustments in the production task router.")
+    feedback_routing_min_attempts: int = Field(
+        3, ge=3, description="Minimum account attempts before measured routing adjustments may apply.")
+    feedback_routing_max_adjustment: float = Field(
+        0.1, ge=0, le=0.25, description="Maximum absolute adjustment to the existing routing cost score.")
     score_ewma_alpha: float = Field(
         0.25, description="EWMA smoothing for account-level feedback (higher = faster forgetting).")
     reliability_weight: float = Field(

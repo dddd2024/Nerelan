@@ -47,6 +47,8 @@ class AccountScore(BaseModel):
     reliability: float = Field(0.5, ge=0, le=1)
     mean_cost_units: Optional[float] = Field(None, ge=0)
     mean_wall_seconds: Optional[float] = Field(None, ge=0)
+    cost_samples: int = Field(0, ge=0, strict=True)
+    latency_samples: int = Field(0, ge=0, strict=True)
     consecutive_failures: int = Field(0, ge=0, strict=True)
     last_failure_kind: Optional[str] = None
     first_seen_at: Optional[float] = None
@@ -64,6 +66,8 @@ class AccountScore(BaseModel):
             "reliability": round(self.reliability, 4),
             "mean_cost_units": self.mean_cost_units,
             "mean_wall_seconds": self.mean_wall_seconds,
+            "cost_samples": self.cost_samples,
+            "latency_samples": self.latency_samples,
             "updated_at": self.updated_at,
         }
 
@@ -107,6 +111,7 @@ class AccountScoreboard:
             raise ValueError("ok must be a boolean")
         if _measurement(now) is None:
             raise ValueError("feedback time must be finite and non-negative")
+        self.prune(now=now)
         alpha = self._config.score_ewma_alpha
         score = self._scores.get(account_ref) or AccountScore(
             account_ref=account_ref, first_seen_at=now)
@@ -122,8 +127,10 @@ class AccountScoreboard:
         wall = _measurement(wall_seconds)
         if cost is not None:
             score.mean_cost_units = _ewma(score.mean_cost_units, cost, alpha)
+            score.cost_samples += 1
         if wall is not None:
             score.mean_wall_seconds = _ewma(score.mean_wall_seconds, wall, alpha)
+            score.latency_samples += 1
         score.updated_at = now
         self._scores[account_ref] = score
         self.prune(now=now)
@@ -161,10 +168,14 @@ class AccountScoreboard:
             return 0.0
         config = self._config
         points = config.reliability_weight * (score.reliability - 0.5) * 2.0
-        if cost_reference and score.mean_cost_units is not None:
-            points -= config.cost_weight * min(1.0, score.mean_cost_units / cost_reference)
-        if latency_reference and score.mean_wall_seconds is not None:
-            points -= config.latency_weight * min(1.0, score.mean_wall_seconds / latency_reference)
+        if cost_reference is not None and score.mean_cost_units is not None:
+            ratio = (min(1.0, score.mean_cost_units / cost_reference) if cost_reference > 0
+                     else float(score.mean_cost_units > 0))
+            points -= config.cost_weight * ratio
+        if latency_reference is not None and score.mean_wall_seconds is not None:
+            ratio = (min(1.0, score.mean_wall_seconds / latency_reference) if latency_reference > 0
+                     else float(score.mean_wall_seconds > 0))
+            points -= config.latency_weight * ratio
         confidence = min(1.0, score.attempts / CONFIDENCE_ATTEMPTS)
         return points * confidence
 
@@ -220,4 +231,6 @@ def _median(values: list[float]) -> Optional[float]:
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]
-    return (ordered[middle - 1] + ordered[middle]) / 2.0
+    low, high = ordered[middle - 1], ordered[middle]
+    # Avoid overflow when both finite non-negative measurements are large.
+    return low / 2.0 + high / 2.0 if low < 0 < high else low + (high - low) / 2.0

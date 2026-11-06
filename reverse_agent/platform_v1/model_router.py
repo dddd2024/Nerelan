@@ -77,7 +77,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  reset_signal: Mapping[str, Any] | None = None, now: float | None = None,
                  reset_buffer: float = .03, refused_models: Sequence[str] = (),
                  refusal_tier: int = 0, capability_table: Mapping[str, Any] | None = None,
-                 allow_paid: bool = False, quota_buffer: float = .10) -> dict[str, Any]:
+                 allow_paid: bool = False, quota_buffer: float = .10,
+                 account_feedback: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -243,6 +244,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                            availability_rank=int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
                            score=[quota_penalty, adjusted, -(success if success is not None else -1),
                                   speed if speed is not None else float("inf")]))
+    if account_feedback is not None:
+        try:
+            from .multi_account.feedback_policy import apply_routing_feedback
+            apply_routing_feedback(ranked, account_feedback, now=now)
+        except Exception:  # noqa: BLE001 - measured advice cannot replace hard admission
+            pass
     ranked.sort(key=lambda c: (c["availability_rank"], *c["score"], c["binding_id"]))
     if not ranked:
         error = ModelSelectionError("review_not_independent" if artifact_review else "no_willing_model" if refused_models or "security_simulation" in needs else "no_runnable_model",
