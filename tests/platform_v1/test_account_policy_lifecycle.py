@@ -10,7 +10,7 @@ from reverse_agent.platform_v1.multi_account.policy_lifecycle import advance_pol
 
 
 def config(**values):
-    return MultiAccountConfig(enable_policy_evolution=True, policy_min_new_attempts=3, **values)
+    return MultiAccountConfig(**{"enable_policy_evolution": True, "policy_min_new_attempts": 3, **values})
 
 
 def train(brain, start=0, count=3, *, ok=False, cost=None, latency=None, kind="account_abnormal"):
@@ -223,3 +223,34 @@ def test_unconsumed_state_sections_survive_feedback_and_policy_updates(tmp_path)
     train(brain)
     brain.rollback_account_policy(0, expected_revision=1)
     assert json.loads(path.read_text())["future_policy"] == unknown
+
+
+def test_policy_configuration_is_environment_reachable_and_cannot_weaken_bounds(monkeypatch):
+    from pydantic import ValidationError
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_POLICY_EVOLUTION", "true")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_POLICY_MIN_NEW_ATTEMPTS", "7")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_POLICY_MAX_WEIGHT_DRIFT_RATIO", "0.1")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_POLICY_STEP_RATIO", "0.05")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_POLICY_OBSERVATION_MAX_AGE_SECONDS", "60")
+    cfg = MultiAccountConfig.from_env()
+    assert cfg.enable_policy_evolution and cfg.policy_min_new_attempts == 7
+    assert cfg.policy_max_weight_drift_ratio == .1 and cfg.policy_step_ratio == .05
+    assert cfg.policy_observation_max_age_seconds == 60
+    for values in ({"policy_step_ratio": .251}, {"policy_max_weight_drift_ratio": -1},
+                   {"policy_min_new_attempts": 2}, {"max_recorded_runs": 2},
+                   {"policy_audit_limit": 1}, {"policy_observation_max_age_seconds": 0}):
+        with pytest.raises(ValidationError):
+            config(**values)
+
+
+def test_equal_failure_counts_have_stable_rule_priority():
+    cfg = config(policy_min_new_attempts=4)
+    results = []
+    for order in (("timeout", "account_abnormal", "timeout", "account_abnormal"),
+                  ("account_abnormal", "account_abnormal", "timeout", "timeout")):
+        state = {}
+        for index, kind in enumerate(order):
+            state = advance_policy(state, cfg, outcome={"ok": False, "failure_kind": kind},
+                                   outcome_id=str(index), now=1000 + index)
+        results.append(state["effective"])
+    assert results[0] == results[1]

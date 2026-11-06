@@ -21,7 +21,12 @@ FAILURES = frozenset({"account_abnormal", "quota_exhausted", "task_failed", "tim
 
 
 def _number(value: Any) -> bool:
-    return type(value) in (int, float) and math.isfinite(value) and value >= 0
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value) and value >= 0
+    except OverflowError:
+        return False
 
 
 def _baseline(config: MultiAccountConfig) -> dict[str, float]:
@@ -165,7 +170,8 @@ def advance_policy(state: Any, config: MultiAccountConfig, *, outcome: Mapping[s
         return value is not None and reference is not None and value > reference * 1.2
     key, reason = None, "capacity_only" if not quality_rows else "healthy_no_pressure"
     quality_failures = {kind: count for kind, count in failures.items() if kind != "quota_exhausted"}
-    dominant = max(quality_failures, key=quality_failures.get) if quality_failures else None
+    priority = {"account_abnormal": 3, "timeout": 2, "task_failed": 1}
+    dominant = max(quality_failures, key=lambda kind: (quality_failures[kind], priority[kind])) if quality_failures else None
     if dominant == "account_abnormal" and failures[dominant] >= 3:
         key, reason = "reliability_weight", "measured_failure_pressure"
     elif dominant == "timeout" and failures[dominant] >= 3:
