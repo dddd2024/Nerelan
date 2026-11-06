@@ -354,13 +354,13 @@ class UnattendedCoordinator:
             try:
                 if task.status == "QUOTA_WAIT" and self.quota_preparer is None:
                     raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
-                if self.quota_preparer is not None:
-                    self.quota_preparer(task)
+                feedback_identity = self.quota_preparer(task) if self.quota_preparer is not None else None
                 epoch, _ = self.control_store.claim_task(
                     window_id=window.id,
                     task_id=task_id,
                     owner=self.owner,
                     lease_ms=self.claim_lease_ms,
+                    **({"feedback_identity": feedback_identity} if feedback_identity is not None else {}),
                 )
             except TaskStoreError as exc:
                 if str(exc) in {

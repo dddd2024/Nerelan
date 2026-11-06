@@ -182,12 +182,14 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             if claim["status"] != "COMPLETE" or "platform_budget_reservations" not in tables:
                 return metrics
             reservation = conn.execute(
-                "SELECT account_ref, state FROM platform_budget_reservations "
+                "SELECT account_ref, state, estimate_json FROM platform_budget_reservations "
                 "WHERE task_id=? AND window_id=? AND claim_epoch=?",
                 (task_id, claim["window_id"], claim["epoch"])).fetchone()
             if reservation is None or reservation["state"] not in {"RECONCILED", "UNKNOWN", "OVERRUN"}:
                 return metrics
-            metrics.update(scope="claim_attempt", account_ref=reservation["account_ref"] or None,
+            frozen = json.loads(reservation["estimate_json"] or "{}").get("feedback_identity", {})
+            frozen_account = reservation["account_ref"] or frozen.get("account_ref")
+            metrics.update(scope="claim_attempt", account_ref=frozen_account or None,
                            outcome_id=f"{task_id}:{claim['window_id']}:{claim['epoch']}",
                            wall_time_basis="UNKNOWN")
             where = "task_id=? AND window_id=? AND claim_epoch=?"
@@ -197,6 +199,7 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             f"output_units, reasoning_units FROM task_usage_observations WHERE {where}", params).fetchall()
         total = 0.0
         unknown = 0
+        groups: dict[str, dict[str, Any]] = {}
         for row in rows:
             fields = ("input_units", "cache_read_units", "cache_write_units", "output_units", "reasoning_units")
             if row["status"] not in {"OBSERVED", "PARTIAL"} or any(_int(row[key]) is None for key in fields):
@@ -205,9 +208,17 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             counters = {"input": row["input_units"], "cache_read": row["cache_read_units"],
                         "cache_write": row["cache_write_units"],
                         "output": row["output_units"] + row["reasoning_units"]}
-            usd = equivalent_cost(row["model_id"] or "", counters).get("usd")
+            group = groups.setdefault(row["model_id"] or "", {"count": 0,
+                "tokens": {key: 0 for key in counters}})
+            group["count"] += 1
+            for key, value in counters.items():
+                group["tokens"][key] += value
+        # Price after aggregation: the shared price core rounds USD to six
+        # decimals, so rounding every tiny streaming row would erase real cost.
+        for model, group in groups.items():
+            usd = equivalent_cost(model, group["tokens"]).get("usd")
             if type(usd) not in (int, float) or not math.isfinite(usd) or usd < 0:
-                unknown += 1
+                unknown += group["count"]
                 continue
             total += usd
         metrics.update(observation_count=len(rows), unpriced_observations=unknown)

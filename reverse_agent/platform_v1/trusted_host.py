@@ -953,7 +953,7 @@ class CombinedTrustedHost:
             row["actual_observations"] = fact.get("actual_observations", [])
         return quota_reservation.goal_fit(routed, evidence, rows, alternatives=alternatives)
 
-    def _prepare_task_quota(self, task) -> None:
+    def _prepare_task_quota(self, task) -> dict[str, str] | None:
         """Account-bound preparation outside the coordinator's claim transaction."""
         from . import quota_reservation
         from .usage_ledger import estimation_records
@@ -1006,12 +1006,15 @@ class CombinedTrustedHost:
                 raise TaskStoreError("QUOTA_WAIT:binding_unknown")
             return
         connection = self._store.get_connection_public(binding["connection_id"])
+        feedback_identity = ({"binding_ref": binding["binding_id"],
+                              "account_ref": connection.get("account_ref") or connection["connection_id"]}
+                             if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" else None)
         if connection.get("auth_method") != "external_cli_session":
-            return
+            return feedback_identity
         from ..model_access.contracts import NATIVE_CLI_PROVIDERS
         provider = connection.get("executor_provider_id")
         if provider not in NATIVE_CLI_PROVIDERS:
-            return  # no account quota windows exist for this session (e.g. a free OpenCode login)
+            return feedback_identity  # identity is useful even when this route has no quota windows
         account = connection.get("account_ref") or connection["connection_id"]
         def read(_account):
             self.__dict__.pop("_subscription_quota_cache", None)

@@ -6,7 +6,7 @@ import pytest
 
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.multi_account import MultiAccountConfig, MultiAccountOrchestrator, dispatch
-from reverse_agent.platform_v1.run_store import TaskStore
+from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 from reverse_agent.platform_v1.usage_ledger import task_feedback_metrics
 
@@ -207,3 +207,75 @@ def test_unpriced_attempt_in_current_epoch_is_not_hidden_by_old_known_usage(ledg
     result = task_feedback_metrics(store, task.id)
     assert result["cost_units"] is None
     assert result["observation_count"] == result["unpriced_observations"] == 1
+
+
+def test_streaming_rounding_does_not_erase_known_nonzero_cost(ledger):
+    from reverse_agent.model_access.pricing import equivalent_cost
+    store, task = ledger
+    for index in range(100):
+        observation(store, task, str(index), model="gpt-4o-mini", input_units=1, output_units=0)
+    result = task_feedback_metrics(store, task.id)
+    expected = equivalent_cost("gpt-4o-mini", {"input": 100, "output": 0})["usd"]
+    assert result["cost_units"] == expected and expected > 0
+
+
+def test_ordinary_api_admission_freezes_feedback_identity_through_real_coordinator(tmp_path, monkeypatch):
+    from tests.platform_v1.test_model_router import fixture_host
+    from tests.platform_v1.test_unattended_coordinator import _budget_window, _parallel_goal, _ready_fixture
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.task_runtime import ExecutorRouter
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="feedback-api", max_tokens=0, reservation=0)
+    goals = GoalService(store=store, control_store=control)
+    goal = _parallel_goal(goals, window.id, key="feedback-api", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    store._conn.execute("UPDATE tasks SET binding_ref='cheap' WHERE id=?", (task_id,))
+    store._conn.commit()
+    host = fixture_host(monkeypatch, tmp_path)
+    host._task_store, host._control_store = store, control
+    host._store.upsert_connection(dict(connection_id="free-api", name="api", provider="openai-compatible",
+        base_url="https://example.invalid/v1", auth_method="none", enabled=True, account_ref="before"))
+    brain = MultiAccountOrchestrator(store_path=tmp_path / "feedback.json")
+    monkeypatch.setattr(dispatch, "get_orchestrator", lambda *args, **kwargs: brain)
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
+    def execute(task_id):
+        row = store._conn.execute("SELECT epoch FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
+        task = store.get_task(task_id)
+        observation(store, task, "api-attempt", window=window.id, epoch=row["epoch"])
+        host._store.upsert_connection(dict(connection_id="free-api", name="api", provider="openai-compatible",
+            base_url="https://example.invalid/v1", auth_method="none", enabled=True, account_ref="after"))
+        return _ready_fixture(store, task_id)
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+        quota_preparer=host._prepare_task_quota, account_feedback=host._report_account_feedback_to_brain)
+    assert coordinator.tick() == 1
+    assert brain.scores.get("before").attempts == 1 and brain.scores.get("after") is None
+    reservation = store._conn.execute("SELECT account_ref, quota_state, estimate_json FROM "
+                                     "platform_budget_reservations WHERE task_id=?", (task_id,)).fetchone()
+    assert reservation["account_ref"] == ""  # API feedback does not acquire subscription quota authority.
+    assert json.loads(reservation["estimate_json"])["feedback_identity"]["account_ref"] == "before"
+    assert task_feedback_metrics(store, task_id)["account_ref"] == "before"
+    store._conn.close()
+
+
+def test_identity_hint_cannot_change_task_binding_or_relax_existing_budget(ledger):
+    from tests.platform_v1.test_unattended_coordinator import _budget_window
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    store, task = ledger
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="feedback-budget", max_tokens=1, reservation=1)
+    first = store.create_task(title="consume reservation", executor_kind="opencode")
+    control.claim_task(window_id=window.id, task_id=first.id, owner="fixture", lease_ms=1000)
+    for hint, reason in [({"account_ref": "account", "binding_ref": "other"}, "invalid_feedback_identity"),
+                         ({"account_ref": "account", "binding_ref": task.binding_ref}, "window_token_budget_exhausted")]:
+        with pytest.raises(TaskStoreError, match=reason):
+            control.claim_task(window_id=window.id, task_id=task.id, owner="fixture", lease_ms=1000,
+                               feedback_identity=hint)
+    assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
