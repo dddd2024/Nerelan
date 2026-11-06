@@ -206,18 +206,23 @@ def observe_pool(snapshot: Optional[Mapping[str, Any]] = None, *,
 
 
 def admit_cost(forecast_units: Optional[float] = None, *,
-               account_ref: Optional[str] = None, reserve: bool = False,
+               account_ref: Optional[str] = None,
+               reserve: Optional[bool] = None,
                store_path: Optional[Path] = None) -> dict[str, Any]:
     """Pre-dispatch cost admission; ``deny`` means hold, not drop.
 
-    ``reserve`` defaults to ``False`` on purpose: a reservation that is never
-    settled or released holds ceiling room forever, which would eventually deny
-    every dispatch. Only a caller that can carry the returned token to a settle
-    call (keyed by task) should ask for one.
+    ``reserve=None`` (the default) follows ``cost_budget_reserve_inflight``:
+    off means the ceiling bounds realised spend plus any explicit reservation;
+    on means each dispatch holds its forecast until it settles or its TTL
+    expires. The TTL is what makes the second mode safe for a loop that carries
+    no per-task token — an unsettled hold frees itself rather than blocking the
+    ceiling forever.
     """
     try:
-        return get_orchestrator(store_path).admit(forecast_units,
-                                                  account_ref=account_ref, reserve=reserve)
+        brain = get_orchestrator(store_path)
+        if reserve is None:
+            reserve = bool(getattr(brain.config, "cost_budget_reserve_inflight", False))
+        return brain.admit(forecast_units, account_ref=account_ref, reserve=reserve)
     except Exception:  # noqa: BLE001 - a broken ceiling must not stop dispatch
         return {"decision": "allow", "enforced": False, "reason": "orchestrator_unavailable",
                 "reservation": None, "retry_at": None}

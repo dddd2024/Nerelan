@@ -81,6 +81,7 @@ class CostBudgetGovernor:
         self._persist = persist
         self._records: list[SpendRecord] = []
         self._reservations: dict[str, dict[str, Any]] = {}
+        self._expired_reservations = 0
         self.load(state)
 
     # --- configuration --------------------------------------------------------
@@ -96,6 +97,49 @@ class CostBudgetGovernor:
     def window_seconds(self) -> float:
         return float(self._config.cost_budget_window_seconds)
 
+    @property
+    def _ttl_seconds(self) -> float:
+        """Lifetime of an in-flight reservation that nobody settles."""
+        return float(self._config.cost_budget_reservation_ttl_seconds)
+
+    def _expired(self, reservation: Mapping[str, Any], *, now: float) -> bool:
+        expires_at = reservation.get("expires_at")
+        if not isinstance(expires_at, (int, float)):
+            # A legacy/unknown reservation has no expiry recorded: treat it as
+            # live rather than silently forgiving spend the ceiling already saw.
+            return False
+        return now >= float(expires_at)
+
+    def _live_reservations(self, *, now: float) -> dict[str, dict[str, Any]]:
+        return {token: entry for token, entry in self._reservations.items()
+                if not self._expired(entry, now=now)}
+
+    def _sweep_expired(self, *, now: float) -> int:
+        """Drop expired reservations so the persisted document stays bounded."""
+        dead = [token for token, entry in self._reservations.items()
+                if self._expired(entry, now=now)]
+        for token in dead:
+            self._reservations.pop(token, None)
+        if dead:
+            self._expired_reservations += len(dead)
+            self._save()
+        return len(dead)
+
+    def measured_forecast(self, *, now: Optional[float] = None) -> Optional[float]:
+        """Mean settled cost per attempt inside the window, if any is known.
+
+        This is the *measured* basis for reserving in-flight work: an operator
+        who has not configured ``cost_budget_default_task_units`` still gets a
+        forecast grounded in what attempts actually cost, instead of a guess or
+        a zero that reserves nothing.
+        """
+        now = self._clock() if now is None else now
+        horizon = now - self.window_seconds
+        priced = [r.units for r in self._records if r.at > horizon and r.priced and r.units > 0]
+        if not priced:
+            return None
+        return round(sum(priced) / len(priced), 6)
+
     # --- read -----------------------------------------------------------------
     def spent_units(self, *, now: Optional[float] = None) -> float:
         """Settled cost inside the current window."""
@@ -104,14 +148,20 @@ class CostBudgetGovernor:
         return round(sum(r.units for r in self._records if r.at > horizon), 6)
 
     def reserved_units(self, *, now: Optional[float] = None) -> float:
-        """In-flight reservations that still count against the ceiling."""
+        """In-flight reservations that still count against the ceiling.
+
+        An expired reservation stops counting *before* it is swept, so a host
+        that never carries a token still regains its ceiling room automatically
+        instead of being denied forever by a leaked hold.
+        """
         if not self._config.cost_budget_include_reservations:
             return 0.0
         now = self._clock() if now is None else now
         horizon = now - self.window_seconds
         return round(sum(float(r.get("units") or 0.0)
                          for r in self._reservations.values()
-                         if float(r.get("at") or 0.0) > horizon), 6)
+                         if not self._expired(r, now=now)
+                         and float(r.get("at") or 0.0) > horizon), 6)
 
     def committed_units(self, *, now: Optional[float] = None) -> float:
         return round(self.spent_units(now=now) + self.reserved_units(now=now), 6)
@@ -131,7 +181,10 @@ class CostBudgetGovernor:
             "window_seconds": self.window_seconds,
             "soft_ratio": self._config.cost_budget_soft_ratio,
             "utilization": round((spent + reserved) / cap, 4) if self.enabled and cap > 0 else 0.0,
-            "open_reservations": len(self._reservations),
+            "open_reservations": len(self._live_reservations(now=now)),
+            "expired_reservations": self._expired_reservations,
+            "reservation_ttl_seconds": self._ttl_seconds,
+            "measured_forecast_units": self.measured_forecast(now=now),
             "unpriced_attempts": sum(1 for r in self._records if not r.priced),
         }
 
@@ -147,11 +200,12 @@ class CostBudgetGovernor:
         """
         now = self._clock() if now is None else now
         self._prune(now=now)
+        self._sweep_expired(now=now)
         if not self.enabled:
             return {"decision": "allow", "enforced": False, "reason": "budget_disabled",
                     "forecast_units": None, "retry_at": None, "status": self.status(now=now)}
 
-        forecast = self._forecast(forecast_units)
+        forecast = self._forecast(forecast_units, now=now)
         settled = self.spent_units(now=now)
         committed = self.committed_units(now=now)
         cap = self.cap_units
@@ -188,10 +242,16 @@ class CostBudgetGovernor:
 
     def reserve(self, units: float, *, now: Optional[float] = None,
                 account_ref: Optional[str] = None) -> str:
-        """Hold ``units`` against the ceiling until :meth:`settle`/:meth:`release`."""
+        """Hold ``units`` against the ceiling until :meth:`settle`/:meth:`release`.
+
+        The hold carries ``expires_at``. An unattended coordinator usually has
+        no per-task token to settle, so expiry — not a callback — is what keeps
+        the ceiling from being permanently blocked by a forgotten reservation.
+        """
         now = self._clock() if now is None else now
         token = uuid.uuid4().hex
         self._reservations[token] = {"units": max(0.0, float(units)), "at": now,
+                                     "expires_at": now + self._ttl_seconds,
                                      "account_ref": account_ref}
         self._save()
         return token
@@ -239,12 +299,23 @@ class CostBudgetGovernor:
         """Owner override: forget the window (e.g. after raising the ceiling)."""
         self._records.clear()
         self._reservations.clear()
+        self._expired_reservations = 0
         self._save()
 
-    def _forecast(self, forecast_units: Optional[float]) -> float:
+    def _forecast(self, forecast_units: Optional[float], *,
+                  now: Optional[float] = None) -> float:
         if isinstance(forecast_units, (int, float)) and forecast_units >= 0:
             return float(forecast_units)
-        return float(self._config.cost_budget_default_task_units)
+        configured = float(self._config.cost_budget_default_task_units)
+        if configured > 0:
+            return configured
+        if self._config.cost_budget_reserve_inflight:
+            # Reserving needs a non-zero number to be meaningful; fall back to
+            # what attempts actually cost in this window.
+            measured = self.measured_forecast(now=now)
+            if measured is not None:
+                return measured
+        return 0.0
 
     def _retry_at(self, forecast: float, *, now: float) -> Optional[float]:
         """Earliest moment the forecast fits again, or ``None`` if not by waiting.
@@ -310,7 +381,14 @@ class CostBudgetGovernor:
         if isinstance(raw_reserved, Mapping):
             for token, entry in raw_reserved.items():
                 if isinstance(token, str) and isinstance(entry, Mapping):
-                    self._reservations[token] = dict(entry)
+                    restored = dict(entry)
+                    if not isinstance(restored.get("expires_at"), (int, float)):
+                        # State written before reservations had a TTL: give it
+                        # one now instead of letting it hold room forever.
+                        at = restored.get("at")
+                        base = float(at) if isinstance(at, (int, float)) else 0.0
+                        restored["expires_at"] = base + self._ttl_seconds
+                    self._reservations[token] = restored
 
     def _save(self) -> None:
         if self._persist is None:

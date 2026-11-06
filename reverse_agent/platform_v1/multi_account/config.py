@@ -63,6 +63,8 @@ _ENV_SCALARS = {
     "cost_budget_soft_ratio": "REVERSE_AGENT_MULTI_ACCOUNT_COST_BUDGET_SOFT_RATIO",
     "cost_budget_default_task_units": "REVERSE_AGENT_MULTI_ACCOUNT_COST_BUDGET_TASK_UNITS",
     "cost_budget_include_reservations": "REVERSE_AGENT_MULTI_ACCOUNT_COST_BUDGET_RESERVATIONS",
+    "cost_budget_reserve_inflight": "REVERSE_AGENT_MULTI_ACCOUNT_COST_BUDGET_RESERVE_INFLIGHT",
+    "cost_budget_reservation_ttl_seconds": "REVERSE_AGENT_MULTI_ACCOUNT_COST_BUDGET_RESERVATION_TTL",
     # --- alerting -----------------------------------------------------------
     "alerts_enabled": "REVERSE_AGENT_MULTI_ACCOUNT_ALERTS",
     "alert_quiet_seconds": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_QUIET",
@@ -71,6 +73,8 @@ _ENV_SCALARS = {
     "alert_min_success_rate": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_MIN_SUCCESS",
     "alert_min_samples": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_MIN_SAMPLES",
     "alert_log_enabled": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_LOG",
+    "alert_journal_path": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_JOURNAL",
+    "alert_journal_max_bytes": "REVERSE_AGENT_MULTI_ACCOUNT_ALERT_JOURNAL_MAX_BYTES",
     # --- run duration -------------------------------------------------------
     "watchdog_enabled": "REVERSE_AGENT_MULTI_ACCOUNT_WATCHDOG",
     "max_run_duration_seconds": "REVERSE_AGENT_MULTI_ACCOUNT_MAX_RUN_SECONDS",
@@ -215,6 +219,13 @@ class MultiAccountConfig(BaseModel):
                          "0 means 'unknown' and the governor then admits on observed spend alone.")
     cost_budget_include_reservations: bool = Field(
         True, description="Count in-flight reservations against the ceiling so concurrent dispatch cannot overshoot it.")
+    # Opt-in: the coordinator carries no per-task token, so a reservation can
+    # only be released by its own expiry. Off keeps the previous behaviour; on
+    # bounds overshoot to the in-flight window instead of one whole batch.
+    cost_budget_reserve_inflight: bool = Field(
+        False, description="Reserve each dispatch's forecast against the ceiling until it settles or its TTL expires.")
+    cost_budget_reservation_ttl_seconds: float = Field(
+        900.0, description="How long an unsettled in-flight reservation holds ceiling room before it expires.")
 
     # --- alerting (domain D: 日志与告警) ---------------------------------------
     alerts_enabled: bool = Field(
@@ -231,6 +242,10 @@ class MultiAccountConfig(BaseModel):
         3, description="Attempts an account needs before its success ratio may raise an alert.")
     alert_log_enabled: bool = Field(
         False, description="Also write every emitted alert through the 'reverse_agent.multi_account' logger.")
+    alert_journal_path: str = Field(
+        "", description="Append every emitted alert to this local JSONL file (empty = no journal).")
+    alert_journal_max_bytes: int = Field(
+        5_000_000, description="Rotate the alert journal once it reaches this size, so a long run stays bounded on disk.")
 
     # --- run watchdog (domain D: 运行时长) -------------------------------------
     watchdog_enabled: bool = Field(
@@ -261,6 +276,7 @@ class MultiAccountConfig(BaseModel):
     @field_validator("observation_freshness_seconds", "magpie_max_age_seconds",
                     "reroute_max_attempts", "min_observations_per_mode", "max_recorded_runs",
                     "alert_max_history", "alert_failure_streak_threshold", "alert_min_samples",
+                    "alert_journal_max_bytes",
                     "policy_min_samples", "policy_audit_max_entries")
     @classmethod
     def _positive_int(cls, value: int) -> int:
@@ -273,7 +289,8 @@ class MultiAccountConfig(BaseModel):
                     "failure_backoff_base_seconds", "cooldown_memory_seconds",
                     "reliability_weight", "cost_weight", "latency_weight",
                     "cost_budget_units", "cost_budget_window_seconds",
-                    "cost_budget_default_task_units", "alert_quiet_seconds",
+                    "cost_budget_default_task_units", "cost_budget_reservation_ttl_seconds",
+                    "alert_quiet_seconds",
                     "max_run_duration_seconds", "max_idle_seconds",
                     "policy_max_bonus_points")
     @classmethod
@@ -332,6 +349,15 @@ class MultiAccountConfig(BaseModel):
             raise ValueError("must be within 0..100")
         return value
 
+    @field_validator("alert_journal_path")
+    @classmethod
+    def _local_journal_only(cls, value: str) -> str:
+        """The journal is a local file. A URL here would silently add network I/O."""
+        text = str(value).strip()
+        if "://" in text:
+            raise ValueError("alert_journal_path must be a local filesystem path")
+        return text
+
     @model_validator(mode="after")
     def _consistent_windows(self) -> "MultiAccountConfig":
         if self.observation_freshness_seconds > self.magpie_max_age_seconds:
@@ -354,6 +380,12 @@ class MultiAccountConfig(BaseModel):
         if self.policy_target_success_rate < self.alert_min_success_rate:
             raise ValueError(
                 "policy_target_success_rate must be >= alert_min_success_rate")
+        # A reservation that never expires would hold ceiling room forever and
+        # eventually deny every dispatch; refuse that configuration outright.
+        if self.cost_budget_reserve_inflight and self.cost_budget_reservation_ttl_seconds <= 0:
+            raise ValueError(
+                "cost_budget_reservation_ttl_seconds must be positive when "
+                "cost_budget_reserve_inflight is True")
         return self
 
     @classmethod

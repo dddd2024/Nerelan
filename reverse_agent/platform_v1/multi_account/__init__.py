@@ -160,6 +160,9 @@ class MultiAccountOrchestrator:
         self._clock = clock
         self._attempts_since_policy = 0
         self._last_policy_decision: Optional[dict[str, Any]] = None
+        # Latest perception, kept so an idle wait can answer "when does this
+        # pool refill" without re-observing every loop.
+        self._last_statuses: list[AccountStatus] = []
 
     def routing(self) -> dict:
         """Operator view: requested owner, effective owner, and why."""
@@ -168,7 +171,9 @@ class MultiAccountOrchestrator:
     # --- perception (domain B) -------------------------------------------------
     def perceive(self, snapshot: Optional[Mapping[str, Any]] = None,
                  *, now: Optional[float] = None) -> list[AccountStatus]:
-        return self.monitor.perceive(snapshot, now=now)
+        statuses = self.monitor.perceive(snapshot, now=now)
+        self._last_statuses = list(statuses)
+        return statuses
 
     def health_summary(self, statuses: Iterable[AccountStatus]) -> dict[str, Any]:
         return MultiAccountStatusMonitor.health_summary(statuses)
@@ -184,7 +189,7 @@ class MultiAccountOrchestrator:
         object. Every sub-view is JSON-safe (``raw`` evidence stays host-side).
         """
         now = self._clock() if now is None else now
-        statuses = self.monitor.perceive(snapshot, now=now)
+        statuses = self.perceive(snapshot, now=now)
         summary = MultiAccountStatusMonitor.health_summary(statuses)
         host_events = list(events)
         if self.monitor.last_error:
@@ -215,9 +220,11 @@ class MultiAccountOrchestrator:
                small_task: bool = False,
                need: Optional[Mapping[str, Any]] = None,
                reset_task: bool = False) -> dict[str, Any]:
+        observed = list(statuses)
+        self._last_statuses = observed
         if reset_task:
             self.scheduler.reset_for_task()
-        return self.scheduler.select(statuses, small_task=small_task, need=need)
+        return self.scheduler.select(observed, small_task=small_task, need=need)
 
     def on_failure(self, statuses: Iterable[AccountStatus], *,
                    failed_ref: str, failure_kind: str, attempt: int,
@@ -239,15 +246,71 @@ class MultiAccountOrchestrator:
         self.scheduler.on_success(account_ref)
 
     def next_retry_in(self, *, now: Optional[float] = None) -> Optional[float]:
-        """Seconds until the earliest account cooldown expires, or ``None``.
+        """Seconds until capacity plausibly returns, or ``None``.
 
-        This is the unattended coordinator's idle-wait hint: with every account
-        cooling down there is nothing to dispatch, so waiting until the soonest
-        expiry is cheaper and quieter than polling every second.
+        This is the unattended coordinator's idle-wait hint. Three signals are
+        merged, because they are the three ways a pool comes back:
+
+        * an account's cooldown expiring after a failure,
+        * an exhausted account's quota window resetting,
+        * a cost ceiling rolling a spend record out of its window.
+
+        If any account is currently usable the answer is ``None``: sleeping is
+        for an empty pool only, and a stale "wait 40 minutes" hint must never
+        make a working pool idle. A bounded run also caps the hint at its own
+        remaining budget, so the loop re-evaluates before its deadline instead
+        of oversleeping past it.
         """
         now = self._clock() if now is None else now
-        until = self.cooldowns.next_retry_at(now=now)
-        return None if until is None else max(0.0, until - now)
+        if any(self._is_usable(status, now=now) for status in self._last_statuses):
+            return None
+        waits: list[float] = []
+        cooldown_until = self.cooldowns.next_retry_at(now=now)
+        if cooldown_until is not None:
+            waits.append(max(0.0, cooldown_until - now))
+        resets = [status.next_reset_at() for status in self._last_statuses]
+        resets = [reset for reset in resets if reset is not None and reset > now]
+        if resets:
+            waits.append(min(resets) - now)
+        budget_retry = self._budget_retry_at(now=now)
+        if budget_retry is not None:
+            waits.append(max(0.0, budget_retry - now))
+        if not waits:
+            return None
+        hint = min(waits)
+        remaining = self.watchdog.remaining_seconds(now=now)
+        if remaining is not None:
+            hint = min(hint, remaining)
+        return max(0.0, hint)
+
+    def _is_usable(self, status: AccountStatus, *, now: float) -> bool:
+        """Whether this account could take at least a small task right now.
+
+        A healthy account that is cooling down after a failure is *not* usable:
+        that cooldown is precisely what the idle hint is supposed to wait out,
+        and ignoring it would make the hint answer "no wait" while the pool is
+        still blocked.
+        """
+        if self.cooldowns.is_cooling(status.account_ref, now=now):
+            return False
+        if status.health is AccountHealth.HEALTHY:
+            return True
+        if status.health is not AccountHealth.DEGRADED:
+            return False
+        headroom = status.headroom_pct
+        # A DEGRADED account near its ceiling can still run a small task; that
+        # is exactly what ``small_task_percent_ceiling`` encodes.
+        return headroom is None or headroom > self.config.small_task_percent_ceiling
+
+    def _budget_retry_at(self, *, now: float) -> Optional[float]:
+        """When the cost ceiling could admit again, if it is the binding limit."""
+        if not self.budget.enabled:
+            return None
+        decision = self.budget.admit(0.0, now=now)
+        if decision.get("decision") != "deny":
+            return None
+        retry_at = decision.get("retry_at")
+        return float(retry_at) if isinstance(retry_at, (int, float)) else None
 
     # --- cost ceiling (domain C: 成本限制) --------------------------------------
     def admit(self, forecast_units: Optional[float] = None, *,

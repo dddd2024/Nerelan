@@ -443,11 +443,30 @@ class CombinedTrustedHost:
             # routing path: readings age out (Magpie re-reads lazily), so a single
             # startup sync would leave the pool permanently STALE.
             "pool_refresh": self._refresh_multi_account_pool,
-            # No reservation: this loop carries no per-task token to settle, and
-            # an unsettled reservation would hold ceiling room forever. The
-            # ceiling therefore bounds *realised* spend plus in-flight work.
-            "cost_admission": lambda forecast=None: admit_cost(forecast, reserve=False),
+            # Reservation is opt-in (``cost_budget_reserve_inflight``). When it is
+            # on, each dispatch holds its forecast for a bounded TTL, so the
+            # ceiling counts in-flight work as well as realised spend; when it
+            # is off, the ceiling bounds realised spend only.
+            "cost_admission": lambda forecast=None: admit_cost(
+                forecast, reserve=self._multi_account_reserve_inflight()),
         }
+
+    def _multi_account_reserve_inflight(self) -> bool:
+        """Whether this host reserves a dispatch's forecast against the ceiling.
+
+        Cached after the first read: the value is a deployment setting, and a
+        claim path should not parse the whole config on every task.
+        """
+        cached = getattr(self, "_reserve_inflight_setting", None)
+        if cached is not None:
+            return bool(cached)
+        try:
+            from .multi_account import MultiAccountConfig
+            setting = bool(MultiAccountConfig.from_env().cost_budget_reserve_inflight)
+        except Exception:  # noqa: BLE001 - an unreadable config keeps the old behaviour
+            setting = False
+        self._reserve_inflight_setting = setting
+        return setting
 
     def _deliver_account_alerts(self, alerts: Any) -> None:
         """Deliver drained alerts to the host's operator surface.

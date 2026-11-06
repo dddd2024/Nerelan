@@ -21,8 +21,11 @@ Three properties make it safe for an unattended run:
 from __future__ import annotations
 
 import enum
+import json
+import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
 from .config import MultiAccountConfig
@@ -55,6 +58,7 @@ class Alert:
     at: float
     evidence: dict[str, Any] = field(default_factory=dict)
     repeats: int = 1
+    replayed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """JSON-safe shape for the API/dashboard and the alert log."""
@@ -66,6 +70,7 @@ class Alert:
             "at": self.at,
             "evidence": dict(self.evidence),
             "repeats": self.repeats,
+            "replayed": self.replayed,
         }
 
     @property
@@ -99,6 +104,7 @@ class AlertEngine:
         self._clock = clock
         self._sink = sink if sink is not None else (logging_sink if config.alert_log_enabled else None)
         self._persist = persist
+        self._journal_path = Path(config.alert_journal_path).expanduser() if config.alert_journal_path else None
         self._history: list[dict[str, Any]] = []
         self._last_at: dict[str, float] = {}
         self._suppressed: dict[str, int] = {}
@@ -327,6 +333,7 @@ class AlertEngine:
         if overflow > 0:
             del self._history[:overflow]
         self._save()
+        self._journal(emitted)
         if self._sink is not None:
             try:
                 self._sink(emitted)
@@ -345,9 +352,22 @@ class AlertEngine:
         """Alerts emitted since the last :meth:`drain` (not yet acknowledged)."""
         return list(self._pending)
 
+    def pending_count(self) -> int:
+        """Undelivered alert count (bounded by ``alert_max_history``)."""
+        return len(self._pending)
+
     def drain(self) -> list[Alert]:
-        """Return and clear the pending queue (the host's delivery point)."""
+        """Return and clear the pending queue (the host's delivery point).
+
+        Clearing is persisted immediately: a crash *after* delivery must not
+        replay an alert that an operator already saw. The opposite direction —
+        a crash *before* delivery — replays it (see :meth:`load`), because an
+        undelivered alert on an unattended host is exactly the failure this
+        queue exists to prevent.
+        """
         pending, self._pending = self._pending, []
+        if pending:
+            self._save()
         return pending
 
     def history(self) -> list[dict[str, Any]]:
@@ -359,13 +379,18 @@ class AlertEngine:
     # --- persistence ----------------------------------------------------------
     def snapshot(self) -> dict[str, Any]:
         return {"history": list(self._history), "last_at": dict(self._last_at),
-                "suppressed": dict(self._suppressed)}
+                "suppressed": dict(self._suppressed),
+                # Undelivered alerts survive a restart: the alternative is an
+                # incident that happened while nobody was watching and left no
+                # trace once the process died.
+                "pending": [alert.to_dict() for alert in self._pending]}
 
     def load(self, state: Optional[Mapping[str, Any]]) -> None:
         self._history = []
         self._last_at = {}
         self._suppressed = getattr(self, "_suppressed", {})
         self._suppressed = {}
+        self._pending = []
         if not isinstance(state, Mapping):
             return
         history = state.get("history")
@@ -380,6 +405,54 @@ class AlertEngine:
         if isinstance(suppressed, Mapping):
             self._suppressed = {str(k): int(v) for k, v in suppressed.items()
                                 if isinstance(v, int)}
+        pending = state.get("pending")
+        if isinstance(pending, (list, tuple)):
+            self._pending = [alert for alert in
+                             (self._restore_alert(row) for row in pending
+                              if isinstance(row, Mapping))
+                             if alert is not None][-self._config.alert_max_history:]
+
+    @staticmethod
+    def _restore_alert(row: Mapping[str, Any]) -> Optional[Alert]:
+        """Rebuild a queued alert, marking it replayed so a sink can tell."""
+        try:
+            at = row.get("at")
+            repeats = row.get("repeats")
+            return Alert(
+                code=str(row.get("code") or "restored_alert"),
+                severity=AlertSeverity(str(row.get("severity") or "warning")),
+                subject=str(row.get("subject") or "host"),
+                message=str(row.get("message") or ""),
+                at=float(at) if isinstance(at, (int, float)) else 0.0,
+                evidence=dict(row.get("evidence") or {}),
+                repeats=int(repeats) if isinstance(repeats, int) else 1,
+                replayed=True)
+        except (TypeError, ValueError):
+            return None
+
+    def _journal(self, alert: Alert) -> None:
+        """Append one alert to the local JSONL journal, rotating at the cap.
+
+        This is the post-mortem trail: the in-memory queue answers "what needs
+        delivery now", the journal answers "what happened at 03:14 last night"
+        after the process is gone. Rotating at ``alert_journal_max_bytes`` keeps
+        a multi-week run from filling the disk; only one previous generation is
+        kept because the host's sink is the durable record, not this file.
+        """
+        path = self._journal_path
+        if path is None:
+            return
+        try:
+            line = json.dumps(alert.to_dict(), ensure_ascii=False, sort_keys=True) + "\n"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists() and path.stat().st_size + len(line.encode("utf-8")) > \
+                    self._config.alert_journal_max_bytes:
+                os.replace(path, path.with_name(path.name + ".1"))
+            with path.open("a", encoding="utf-8") as handle:
+                handle.write(line)
+        except (OSError, TypeError, ValueError):
+            # A journal fault must never break alerting or dispatch.
+            return
 
     def _save(self) -> None:
         if self._persist is None:

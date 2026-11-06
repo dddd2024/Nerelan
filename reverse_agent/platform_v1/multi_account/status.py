@@ -74,6 +74,18 @@ class AccountStatus(BaseModel):
     windows: list[WindowStatus] = Field(default_factory=list)
     raw: dict[str, Any] = Field(default_factory=dict)
 
+    def next_reset_at(self) -> Optional[float]:
+        """Earliest future window reset, or ``None`` when no window will refill.
+
+        This is the pool's own answer to "when can capacity come back": an
+        exhausted account with no reset time is not worth sleeping for, while
+        one that refills in twenty minutes is.
+        """
+        return min(
+            (w.resets_at for w in self.windows
+             if w.resets_at is not None and not w.reset_passed and not w.unlimited),
+            default=None)
+
     def public_view(self) -> dict[str, Any]:
         """JSON-safe view for ``/api/resources`` and the web client.
 
@@ -89,10 +101,7 @@ class AccountStatus(BaseModel):
             "headroom_pct": self.headroom_pct,
             "anomaly_flags": list(self.anomaly_flags),
             "windows": [w.model_dump(exclude={"extra"}) for w in self.windows],
-            "next_reset_at": min(
-                (w.resets_at for w in self.windows
-                 if w.resets_at is not None and not w.reset_passed and not w.unlimited),
-                default=None),
+            "next_reset_at": self.next_reset_at(),
         }
 
 
