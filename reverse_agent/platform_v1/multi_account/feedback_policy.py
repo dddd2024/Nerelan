@@ -30,13 +30,17 @@ def _number(value: Any) -> bool:
 
 
 def routing_snapshot(config: MultiAccountConfig, accounts: Mapping[str, Any], *,
-                     owner: str, now: float) -> dict[str, Any] | None:
+                     owner: str, now: float, evolution_revision: int | None = None) -> dict[str, Any] | None:
     if not config.enable_feedback_routing or not config.enable_account_scoring or owner != "local":
         return None
     policy = {key: getattr(config, key) for key in POLICY_FIELDS}
     scores = AccountScoreboard(config, state=accounts).scores()
     public = {ref: score.public_view() for ref, score in sorted(scores.items())}
     content = {"schema_version": 1, "policy": policy, "accounts": public, "observed_at": now}
+    if evolution_revision is not None:
+        if type(evolution_revision) is not int or evolution_revision < 0:
+            raise ValueError("invalid_policy_revision")
+        content["evolution_revision"] = evolution_revision
     return {**content, "policy_id": _digest(policy), "snapshot_id": _digest(content)}
 
 
@@ -50,6 +54,11 @@ def apply_routing_feedback(ranked: list[dict[str, Any]], snapshot: Mapping[str, 
     if snapshot.get("schema_version") != 1:
         return
     content = {key: snapshot[key] for key in ("schema_version", "policy", "accounts", "observed_at")}
+    if "evolution_revision" in snapshot:
+        revision = snapshot["evolution_revision"]
+        if type(revision) is not int or revision < 0:
+            return
+        content["evolution_revision"] = revision
     if snapshot.get("snapshot_id") != _digest(content) or snapshot.get("policy_id") != _digest(content["policy"]):
         return
     policy = content["policy"]
@@ -103,6 +112,7 @@ def apply_routing_feedback(ranked: list[dict[str, Any]], snapshot: Mapping[str, 
             cap = config.feedback_routing_max_adjustment
             adjustment = max(-cap, min(cap, points / 100.0))
             evidence = {"policy_id": snapshot["policy_id"], "snapshot_id": snapshot["snapshot_id"],
+                        "evolution_revision": snapshot.get("evolution_revision"),
                         "policy": dict(policy), "account_ref": ref, "sample": peers[ref],
                         "adjustment": adjustment, "cost_comparison": "list_price" if cost_known else "UNKNOWN",
                         "latency_comparison": "attempt_elapsed" if latency_known else "UNKNOWN",

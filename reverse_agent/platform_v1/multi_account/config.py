@@ -88,6 +88,7 @@ class MultiAccountConfig(BaseModel):
     policy_max_weight_drift_ratio: float = Field(0.25, ge=0, le=1)
     policy_target_success_rate: float = Field(0.85, gt=0, le=1)
     policy_audit_limit: int = Field(64, ge=2, le=256)
+    policy_observation_max_age_seconds: float = Field(86400, gt=0, le=30 * 86400)
 
     # --- self-evolution (domain E) ---------------------------------------------
     enable_self_evolution: bool = Field(

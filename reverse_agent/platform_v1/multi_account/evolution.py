@@ -98,7 +98,9 @@ class SelfEvolutionStore:
             if not isinstance(data, dict):
                 raise ValueError("invalid feedback ledger")
             state = self._empty()
-            state.update({key: data[key] for key in state if key in data})
+            # Forward-compatible evidence is retained even when this version
+            # does not consume it. Updating scores must not erase other sections.
+            state.update(data)
             if not isinstance(state["runs"], list):
                 raise ValueError("invalid feedback runs")
             if any(not isinstance(row, dict) for row in state["runs"]):
@@ -143,6 +145,13 @@ class SelfEvolutionStore:
             self._refresh_unlocked()
             value = self._state.get(name)
             return copy.deepcopy(value) if isinstance(value, dict) else {}
+
+    def account_routing_state(self) -> dict[str, Any]:
+        """One read boundary for scores and the policy committed with them."""
+        with self._lock:
+            self._refresh_unlocked()
+            return copy.deepcopy({"accounts": self._state["accounts"],
+                                  "account_policy": self._state["account_policy"]})
 
     def patch(self, name: str, value: Any) -> None:
         """Replace one section and persist, keeping every other section intact."""

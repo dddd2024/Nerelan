@@ -28,11 +28,13 @@ def _baseline(config: MultiAccountConfig) -> dict[str, float]:
     return {key: float(getattr(config, key)) for key in WEIGHTS}
 
 
+def _parameters(config: MultiAccountConfig) -> dict[str, Any]:
+    return {key: getattr(config, key) for key in (*WEIGHTS, "policy_step_ratio", "policy_max_weight_drift_ratio",
+            "policy_min_new_attempts", "policy_target_success_rate", "policy_observation_max_age_seconds")}
+
+
 def _context(config: MultiAccountConfig) -> str:
-    values = {**_baseline(config), "step": config.policy_step_ratio,
-              "drift": config.policy_max_weight_drift_ratio,
-              "samples": config.policy_min_new_attempts, "target": config.policy_target_success_rate}
-    return hashlib.sha256(json.dumps(values, sort_keys=True, allow_nan=False).encode()).hexdigest()
+    return hashlib.sha256(json.dumps(_parameters(config), sort_keys=True, allow_nan=False).encode()).hexdigest()
 
 
 def _bounds(config: MultiAccountConfig, key: str) -> tuple[float, float]:
@@ -65,6 +67,8 @@ def _load(state: Any, config: MultiAccountConfig) -> dict[str, Any]:
             or not isinstance(state.get("effective"), Mapping)):
         raise ValueError("invalid_policy_state")
     result = copy.deepcopy(dict(state))
+    if set(result["effective"]) != set(WEIGHTS) or any(not _number(value) for value in result["effective"].values()):
+        raise ValueError("invalid_policy_weights")
     revisions = [row.get("revision") for row in result["history"] if isinstance(row, Mapping)]
     if (len(revisions) != len(result["history"]) or any(type(v) is not int or not 0 < v <= result["revision"] for v in revisions)
             or revisions != sorted(set(revisions))):
@@ -79,6 +83,7 @@ def _load(state: Any, config: MultiAccountConfig) -> dict[str, Any]:
     for row in result["observations"]:
         if (not isinstance(row, Mapping) or type(row.get("ok")) is not bool
                 or not isinstance(row.get("id"), str)
+                or not _number(row.get("at"))
                 or any(row.get(key) is not None and not _number(row[key]) for key in ("cost", "latency"))):
             raise ValueError("invalid_policy_observation")
     if result["context"] == _context(config):
@@ -92,7 +97,7 @@ def _commit(state: dict[str, Any], config: MultiAccountConfig, *, after: dict[st
     state["revision"] += 1
     state["history"].append({"revision": state["revision"], "kind": kind, "reason": reason,
         "at": now, "context": _context(config), "before": copy.deepcopy(state["effective"]),
-        "after": after, "evidence": copy.deepcopy(dict(evidence))})
+        "after": after, "parameters": _parameters(config), "evidence": copy.deepcopy(dict(evidence))})
     state["history"] = state["history"][-config.policy_audit_limit:]
     state["effective"] = after
 
@@ -138,7 +143,9 @@ def advance_policy(state: Any, config: MultiAccountConfig, *, outcome: Mapping[s
     result = _load(state, config)
     _activate_context(result, config, now=now)
     kind = outcome.get("failure_kind")
-    result["observations"].append({"id": outcome_id, "ok": outcome["ok"],
+    result["observations"] = [row for row in result["observations"]
+                              if now - config.policy_observation_max_age_seconds <= row["at"] <= now]
+    result["observations"].append({"id": outcome_id, "at": now, "ok": outcome["ok"],
         "failure_kind": kind if kind in FAILURES else "task_failed",
         "cost": outcome.get("cost_units") if _number(outcome.get("cost_units")) else None,
         "latency": outcome.get("wall_seconds") if _number(outcome.get("wall_seconds")) else None})
@@ -149,24 +156,31 @@ def advance_policy(state: Any, config: MultiAccountConfig, *, outcome: Mapping[s
     successes = sum(row["ok"] is True for row in rows)
     rate = successes / len(rows)
     failures = Counter(row["failure_kind"] for row in rows if not row["ok"])
+    quality_rows = [row for row in rows if row["ok"] or row["failure_kind"] != "quota_exhausted"]
+    quality_rate = successes / len(quality_rows) if quality_rows else None
     cost = _per_result([row["cost"] for row in rows], successes)
     latency = _per_result([row["latency"] for row in rows], len(rows))
     references = result["references"]
     def pressure(value, reference):
         return value is not None and reference is not None and value > reference * 1.2
-    key, reason = None, "healthy_no_pressure"
-    dominant = max(failures, key=failures.get) if failures else None
-    if rate < config.policy_target_success_rate or dominant == "account_abnormal" and failures[dominant] >= 3:
+    key, reason = None, "capacity_only" if not quality_rows else "healthy_no_pressure"
+    quality_failures = {kind: count for kind, count in failures.items() if kind != "quota_exhausted"}
+    dominant = max(quality_failures, key=quality_failures.get) if quality_failures else None
+    if dominant == "account_abnormal" and failures[dominant] >= 3:
         key, reason = "reliability_weight", "measured_failure_pressure"
     elif dominant == "timeout" and failures[dominant] >= 3:
         key, reason = "latency_weight", "measured_timeout_pressure"
+    elif quality_rate is not None and quality_rate < config.policy_target_success_rate:
+        key, reason = "reliability_weight", "measured_failure_pressure"
     elif pressure(cost, references.get("cost")):
         key, reason = "cost_weight", "measured_cost_per_success_pressure"
     elif pressure(latency, references.get("latency")):
         key, reason = "latency_weight", "measured_attempt_latency_pressure"
     summary = {"attempts": len(rows), "successes": successes, "success_rate": rate,
+               "quality_success_rate_excluding_capacity": quality_rate,
                "failure_kinds": dict(failures), "cost_per_executor_success": cost,
-               "mean_attempt_seconds": latency, "source_ids": [row["id"] for row in rows]}
+               "mean_attempt_seconds": latency, "references": copy.deepcopy(dict(references)),
+               "source_ids": [row["id"] for row in rows], "source_at_range": [rows[0]["at"], rows[-1]["at"]]}
     after = dict(result["effective"])
     if key is not None:
         low, high = _bounds(config, key)
