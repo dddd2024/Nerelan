@@ -135,7 +135,7 @@ def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200)
     return None
 
 
-def task_feedback_metrics(store: Any, task_id: str) -> dict[str, float | None]:
+def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     """List-price cost (USD) and wall time of one task, for per-account feedback.
 
     The multi-account scheduler ranks accounts by *relative* cost, so this
@@ -144,8 +144,13 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, float | None]:
     model. It is deliberately one task at a time — it is called once per finished
     attempt, never in a loop over history.
 
-    Returns ``{"cost_units": None|float, "wall_seconds": None|float,
-    "basis": "list_price"}``. ``cost_units`` is a **list-price estimate**, not
+    A completed coordinator claim restricts usage to its exact window/epoch and
+    returns the account captured by its reservation plus a stable outcome id.
+    One unknown model or missing token counter keeps the whole cost UNKNOWN.
+    Manual task lifetime remains available for reporting, labelled as including
+    waits; it is not an attempt's response latency.
+
+    ``cost_units`` is a **list-price estimate**, not
     money billed: Magpie's ``usage --csv`` carries the real per-request
     ``cost_usd`` and is the preferred cash source when it is available
     (see docs/architecture/MAGPIE_CAPABILITY_AUDIT_2026-11-04.md). Unknown prices
@@ -153,34 +158,66 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, float | None]:
     be counted as free.
     """
     metrics: dict[str, Any] = {"cost_units": None, "wall_seconds": None,
-                              "basis": "list_price"}
+                              "basis": "list_price", "cost_state": "UNKNOWN",
+                              "scope": "unavailable", "outcome_id": None, "account_ref": None,
+                              "wall_time_basis": "task_lifetime_including_waits"}
     if not task_id:
         return metrics
     conn = store._conn
     try:
         from ..model_access.pricing import equivalent_cost
-        total = None
-        for row in conn.execute(
-                "SELECT model_id, SUM(input_units) AS input, SUM(cache_read_units) AS cache_read, "
-                "SUM(cache_write_units) AS cache_write, SUM(output_units) AS output, "
-                "SUM(reasoning_units) AS reasoning FROM task_usage_observations "
-                "WHERE task_id = ? AND status = 'OBSERVED' GROUP BY model_id", (task_id,)):
-            if row["output"] is None:
+        import math
+        tables = {row["name"] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name IN ('platform_coordinator_claims', 'platform_budget_reservations')")}
+        claim = (conn.execute("SELECT window_id, epoch, status FROM platform_coordinator_claims WHERE task_id=?",
+                              (task_id,)).fetchone() if "platform_coordinator_claims" in tables else None)
+        params: tuple = (task_id,)
+        where = "task_id=? AND claim_epoch=0"
+        metrics["scope"] = "task"
+        if claim is not None:
+            metrics["scope"] = "incomplete_claim"
+            # This callback runs after completion. Never substitute another
+            # epoch, a live binding's changed identity, or an unfinished claim.
+            if claim["status"] != "COMPLETE" or "platform_budget_reservations" not in tables:
+                return metrics
+            reservation = conn.execute(
+                "SELECT account_ref, state FROM platform_budget_reservations "
+                "WHERE task_id=? AND window_id=? AND claim_epoch=?",
+                (task_id, claim["window_id"], claim["epoch"])).fetchone()
+            if reservation is None or reservation["state"] not in {"RECONCILED", "UNKNOWN", "OVERRUN"}:
+                return metrics
+            metrics.update(scope="claim_attempt", account_ref=reservation["account_ref"] or None,
+                           outcome_id=f"{task_id}:{claim['window_id']}:{claim['epoch']}",
+                           wall_time_basis="UNKNOWN")
+            where = "task_id=? AND window_id=? AND claim_epoch=?"
+            params = (task_id, claim["window_id"], claim["epoch"])
+        rows = conn.execute(
+            "SELECT model_id, status, input_units, cache_read_units, cache_write_units, "
+            f"output_units, reasoning_units FROM task_usage_observations WHERE {where}", params).fetchall()
+        total = 0.0
+        unknown = 0
+        for row in rows:
+            fields = ("input_units", "cache_read_units", "cache_write_units", "output_units", "reasoning_units")
+            if row["status"] not in {"OBSERVED", "PARTIAL"} or any(_int(row[key]) is None for key in fields):
+                unknown += 1
                 continue
-            counters = {"input": int(row["input"] or 0), "cache_read": int(row["cache_read"] or 0),
-                        "cache_write": None if row["cache_write"] is None else int(row["cache_write"]),
-                        "output": int(row["output"] or 0)}
-            # Reasoning is billed as output by every provider this ledger covers.
-            counters["output"] += int(row["reasoning"] or 0)
+            counters = {"input": row["input_units"], "cache_read": row["cache_read_units"],
+                        "cache_write": row["cache_write_units"],
+                        "output": row["output_units"] + row["reasoning_units"]}
             usd = equivalent_cost(row["model_id"] or "", counters).get("usd")
-            if usd is not None:
-                total = (total or 0.0) + float(usd)
-        metrics["cost_units"] = None if total is None else round(total, 6)
+            if type(usd) not in (int, float) or not math.isfinite(usd) or usd < 0:
+                unknown += 1
+                continue
+            total += usd
+        metrics.update(observation_count=len(rows), unpriced_observations=unknown)
+        if rows and not unknown and math.isfinite(total):
+            metrics.update(cost_units=round(total, 6), cost_state="ESTIMATED_LIST_PRICE")
     except Exception:  # noqa: BLE001 - feedback must never break a finished task
         metrics["cost_units"] = None
     try:
         row = conn.execute("SELECT created_at, updated_at FROM tasks WHERE id = ?", (task_id,)).fetchone()
-        if row is not None:
+        if row is not None and metrics["scope"] == "task":
             metrics["wall_seconds"] = _elapsed_seconds(row["created_at"], row["updated_at"])
     except Exception:  # noqa: BLE001
         metrics["wall_seconds"] = None

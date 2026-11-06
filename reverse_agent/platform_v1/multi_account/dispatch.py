@@ -68,6 +68,7 @@ def record_account_outcome(account_ref: Optional[str], *, ok: bool,
                            cost_units: Optional[float] = None,
                            wall_seconds: Optional[float] = None,
                            failure_kind: Optional[str] = None,
+                           outcome_id: Optional[str] = None,
                            store_path: Optional[Path] = None) -> Optional[dict[str, Any]]:
     """Per-account feedback for the scheduler (reliability / cost / latency).
 
@@ -79,7 +80,7 @@ def record_account_outcome(account_ref: Optional[str], *, ok: bool,
     try:
         return get_orchestrator(store_path).record_account_outcome(
             account_ref, ok=ok, cost_units=cost_units, wall_seconds=wall_seconds,
-            failure_kind=failure_kind)
+            failure_kind=failure_kind, outcome_id=outcome_id)
     except Exception:  # noqa: BLE001
         return None
 

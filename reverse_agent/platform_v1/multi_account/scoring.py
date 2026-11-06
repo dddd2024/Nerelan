@@ -21,10 +21,11 @@ until the account has a few observations, so one lucky run cannot dominate.
 """
 from __future__ import annotations
 
+import math
 import time
 from typing import Any, Callable, Mapping, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .config import MultiAccountConfig
 
@@ -38,15 +39,15 @@ MAX_TRACKED_ACCOUNTS = 200
 class AccountScore(BaseModel):
     """Measured, smoothed behaviour of one account."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
     account_ref: str
-    attempts: int = 0
-    successes: int = 0
-    reliability: float = 0.5                  # EWMA success ratio, 0..1
-    mean_cost_units: Optional[float] = None    # EWMA cost units per accepted task
-    mean_wall_seconds: Optional[float] = None  # EWMA wall clock per accepted task
-    consecutive_failures: int = 0
+    attempts: int = Field(0, ge=0, strict=True)
+    successes: int = Field(0, ge=0, strict=True)
+    reliability: float = Field(0.5, ge=0, le=1)
+    mean_cost_units: Optional[float] = Field(None, ge=0)
+    mean_wall_seconds: Optional[float] = Field(None, ge=0)
+    consecutive_failures: int = Field(0, ge=0, strict=True)
     last_failure_kind: Optional[str] = None
     first_seen_at: Optional[float] = None
     updated_at: Optional[float] = None
@@ -71,6 +72,16 @@ def _ewma(previous: Optional[float], sample: float, alpha: float) -> float:
     return sample if previous is None else (1.0 - alpha) * previous + alpha * sample
 
 
+def _measurement(value: Any) -> Optional[float]:
+    if type(value) not in (int, float):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) and number >= 0 else None
+
+
 class AccountScoreboard:
     """Per-account EWMA store with an optional persistence callback."""
 
@@ -92,6 +103,10 @@ class AccountScoreboard:
                 now: Optional[float] = None) -> AccountScore:
         """Fold one run outcome into the account's smoothed profile."""
         now = self._clock() if now is None else now
+        if type(ok) is not bool:
+            raise ValueError("ok must be a boolean")
+        if _measurement(now) is None:
+            raise ValueError("feedback time must be finite and non-negative")
         alpha = self._config.score_ewma_alpha
         score = self._scores.get(account_ref) or AccountScore(
             account_ref=account_ref, first_seen_at=now)
@@ -103,10 +118,12 @@ class AccountScoreboard:
             score.consecutive_failures += 1
             score.last_failure_kind = failure_kind or "unknown"
         score.reliability = _ewma(score.reliability, 1.0 if ok else 0.0, alpha)
-        if isinstance(cost_units, (int, float)) and cost_units >= 0:
-            score.mean_cost_units = _ewma(score.mean_cost_units, float(cost_units), alpha)
-        if isinstance(wall_seconds, (int, float)) and wall_seconds >= 0:
-            score.mean_wall_seconds = _ewma(score.mean_wall_seconds, float(wall_seconds), alpha)
+        cost = _measurement(cost_units)
+        wall = _measurement(wall_seconds)
+        if cost is not None:
+            score.mean_cost_units = _ewma(score.mean_cost_units, cost, alpha)
+        if wall is not None:
+            score.mean_wall_seconds = _ewma(score.mean_wall_seconds, wall, alpha)
         score.updated_at = now
         self._scores[account_ref] = score
         self.prune(now=now)

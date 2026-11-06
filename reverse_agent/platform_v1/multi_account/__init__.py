@@ -22,6 +22,7 @@ Nothing here holds credentials or spins up a second orchestration spine.
 from __future__ import annotations
 
 import time
+import threading
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional
 
@@ -88,6 +89,8 @@ class MultiAccountOrchestrator:
         self.config = config or MultiAccountConfig.from_env()
         self.store = SelfEvolutionStore(self.config, path=store_path)
         persist = bool(self.config.persist_account_state)
+        self._account_feedback_store = self.store if persist else SelfEvolutionStore(self.config)
+        self._feedback_lock = threading.RLock()
         self.cooldowns = CooldownRegistry(
             self.config, clock=clock,
             state=self.store.section("cooldowns") if persist else None,
@@ -159,6 +162,7 @@ class MultiAccountOrchestrator:
                                cost_units: Optional[float] = None,
                                wall_seconds: Optional[float] = None,
                                failure_kind: Optional[str] = None,
+                               outcome_id: Optional[str] = None,
                                now: Optional[float] = None) -> Optional[dict[str, Any]]:
         """One finished attempt feeds *both* loops.
 
@@ -166,13 +170,17 @@ class MultiAccountOrchestrator:
         account-level errors), a success clears its quiet time. Ranking: the
         reliability/cost/latency EWMA in :mod:`.scoring`.
         """
-        if ok:
-            self.cooldowns.record_success(account_ref, now=now)
-        else:
-            self.cooldowns.record_failure(account_ref, failure_kind or "task_failed", now=now)
-        return self.evolution.record_account_outcome(
-            account_ref, ok=ok, cost_units=cost_units, wall_seconds=wall_seconds,
-            failure_kind=failure_kind, now=now)
+        with self._feedback_lock:
+            if not self.config.persist_account_state:
+                self._account_feedback_store.patch("accounts", self.scores.snapshot())
+                self._account_feedback_store.patch("cooldowns", self.cooldowns.snapshot())
+            result = self._account_feedback_store.record_account_feedback(
+                account_ref, ok=ok, cost_units=cost_units, wall_seconds=wall_seconds,
+                failure_kind=failure_kind, outcome_id=outcome_id,
+                now=self._clock() if now is None else now)
+            self.cooldowns.load(result["cooldowns"])
+            self.scores.load(result["accounts"])
+            return result["view"]
 
     def account_scores(self) -> dict[str, dict[str, Any]]:
         return self.evolution.account_scores()

@@ -85,7 +85,7 @@ class SelfEvolutionStore:
 
     @staticmethod
     def _empty() -> dict[str, Any]:
-        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {},
+        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {}, "account_feedback": {},
                 "updated_at": None}
 
     # --- persistence ----------------------------------------------------------
@@ -104,7 +104,7 @@ class SelfEvolutionStore:
             if any(not isinstance(row, dict) for row in state["runs"]):
                 raise ValueError("invalid feedback run")
             state["runs"] = state["runs"][-self._config.max_recorded_runs:]
-            for key in ("accounts", "cooldowns"):
+            for key in ("accounts", "cooldowns", "account_feedback"):
                 if not isinstance(state[key], dict):
                     raise ValueError("invalid feedback section")
             return state
@@ -217,6 +217,68 @@ class SelfEvolutionStore:
         with self._lock:
             self._refresh_unlocked()
             return copy.deepcopy(self._state.get("runs", []))
+
+    def record_account_feedback(self, account_ref: str, *, ok: bool,
+                                cost_units: Optional[float], wall_seconds: Optional[float],
+                                failure_kind: Optional[str], outcome_id: Optional[str],
+                                now: float) -> dict[str, Any]:
+        """Commit scores, isolation and replay identity in one atomic document.
+
+        The lock covers all same-host instances. A failed replace commits none
+        of the transition; retrying the same terminal receipt cannot double-train.
+        """
+        import hashlib
+        from .cooldowns import CooldownRegistry
+        from .scoring import AccountScoreboard
+        if type(ok) is not bool or _measurement(now) is None:
+            raise ValueError("invalid account feedback")
+        if not isinstance(account_ref, str) or not account_ref or len(account_ref) > 256:
+            raise ValueError("invalid account_ref")
+        if outcome_id is not None and (not isinstance(outcome_id, str)
+                                      or not outcome_id or len(outcome_id) > 256):
+            raise ValueError("invalid outcome_id")
+        normalized = {"account_ref": account_ref, "ok": ok,
+                      "cost_units": _measurement(cost_units), "wall_seconds": _measurement(wall_seconds),
+                      "failure_kind": failure_kind if not ok else None}
+        digest = hashlib.sha256(json.dumps(normalized, sort_keys=True, allow_nan=False).encode()).hexdigest()
+        with self._lock:
+            self._refresh_unlocked()
+            previous = self._state
+            candidate = copy.deepcopy(previous)
+            receipts = candidate["account_feedback"]
+            if outcome_id is not None and outcome_id in receipts:
+                receipt = receipts[outcome_id]
+                if receipt.get("digest") != digest:
+                    raise ValueError("conflicting account outcome_id")
+                return {"view": copy.deepcopy(receipt.get("view")),
+                        "accounts": candidate["accounts"], "cooldowns": candidate["cooldowns"], "replayed": True}
+            cooldowns = CooldownRegistry(self._config, state=candidate["cooldowns"], clock=lambda: now)
+            scores = AccountScoreboard(self._config, state=candidate["accounts"], clock=lambda: now)
+            if ok:
+                cooldowns.record_success(account_ref, now=now)
+            else:
+                cooldowns.record_failure(account_ref, failure_kind or "task_failed", now=now)
+            view = None
+            if self._config.enable_account_scoring:
+                view = scores.observe(account_ref, ok=ok, cost_units=normalized["cost_units"],
+                                      wall_seconds=normalized["wall_seconds"],
+                                      failure_kind=failure_kind, now=now).public_view()
+            candidate["accounts"] = scores.snapshot()
+            candidate["cooldowns"] = cooldowns.snapshot()
+            if outcome_id is not None:
+                receipts[outcome_id] = {"digest": digest, "view": view, "recorded_at": now}
+                while len(receipts) > self._config.max_recorded_runs:
+                    oldest = min(receipts, key=lambda key: (receipts[key]["recorded_at"], key))
+                    del receipts[oldest]
+            candidate["updated_at"] = now
+            self._state = candidate
+            try:
+                self._save_unlocked()
+            except BaseException:
+                self._state = previous
+                raise
+            return {"view": copy.deepcopy(view), "accounts": copy.deepcopy(candidate["accounts"]),
+                    "cooldowns": copy.deepcopy(candidate["cooldowns"]), "replayed": False}
 
     def reset(self) -> None:
         """Roll the whole loop back: mode ledger, account feedback, cooldowns."""
