@@ -27,7 +27,7 @@
 | 5 | 数值健壮性：`10**400` / `NaN` / `inf` 成本不再让准入与结算抛错 | `multi_account/budget.py` | 缺陷修复 |
 | 6 | 运维入口：`status/accounts/budget/policy/audit/alerts/scores/rollback` | `multi_account/cli.py` | 可运维性 |
 | 7 | 感知前置：Magpie 快照 → 观测表（白名单字段、60 秒去抖） | `multi_account/perception_sync.py`、`trusted_host.py` | 接线 |
-| 8 | 新增 12 例跨模块连续性回归（重启/重放/回滚/预算等待/日志有界） | `test_multi_account_continuity.py`、`test_multi_account_budget.py` | 验收 |
+| 8 | 新增 14 例回归：9 例跨模块连续性 + 4 例数值健壮性 + 1 例快照有限性 | `test_multi_account_continuity.py`、`test_multi_account_budget.py`、`test_multi_account_evolution.py` | 验收 |
 | 9 | 合并产生的 3 组同名测试被去重（后者原本静默覆盖前者） | `test_multi_account_resilience.py`、`test_multi_account_host_wiring.py` | 缺陷修复 |
 | 10 | 交付状态文档补记本轮增量 | `docs/architecture/MULTI_ACCOUNT_DELIVERY_STATUS.md` | 文档 |
 
@@ -142,12 +142,15 @@
 
 ### 5.2 回归测试
 
-- 多账户相关：**280 例**（`-k multi_account`），全绿。
-- 跨模块连续性（本轮新增）：**12 例**，覆盖一次重启后成本窗口/告警抑制/策略版本/运行时钟全部恢复、
+- 多账户相关：**282 例**（`-k multi_account`），全绿。
+- 本轮新增 **14 例**。9 例跨模块连续性覆盖：一次重启后成本窗口/告警抑制/策略版本/运行时钟全部恢复、
   重放回执只结算一次、冲突回执被拒绝、上限到期自动可再准入、回滚回到基线且留审计、
-  告警日志有界轮转、到期收束、健康池不误调。
-- 受影响面回归（引用 `multi_account` / `unattended_coordinator` / `trusted_host` / 成本链路的 66 个测试文件）：
-  见 §5.4 的实测记录。
+  告警日志有界轮转、到期收束、健康池不误调；4 例固定极端数值行为（超大整数 / NaN / inf /
+  窗口内外区分）；1 例固定反馈快照在 1e308 量级仍有限且 JSON 可序列化。
+- 受影响面回归（引用 `multi_account` / `unattended_coordinator` / `trusted_host` / 成本链路的 66 个测试
+  文件，共 2184 例）：**2173 passed、11 failed、5 skipped**。11 例失败全部集中在
+  `test_dev_up_contract.py`（依赖本机 PowerShell 宿主的 `dev_up` 脚本），在**未改动**的
+  `origin/main` 上同样为 11 failed / 53 passed，属本机既有环境限制，与本轮改动无关。
 
 ### 5.3 本轮修掉的缺陷（都会在长跑中静默失效）
 
@@ -157,6 +160,8 @@
 | b | NaN 成本让上限比较失真 | NaN 参与比较恒为 False | 同上，NaN/inf 一律拒绝 |
 | c | 合并后 3 组同名测试互相覆盖 | 两侧同名测试并入同一模块 | 去重，保留语义更强的版本 |
 | d | 非法环境值静默回退默认（放宽限制） | `from_env` 吞掉解析错误 | 交回 pydantic 校验，部署**快速失败** |
+| e | 1e308 级成本累加成 `inf`，整份反馈快照被路由器丢弃 | 新增累计总量无上限保护 | 总量在浮点上限前饱和，文档保持有限可比较 |
+| f | 成本视图把"窗口内无花费"显示成"从未花费" | 只报 `spent_units` | 同时报 `records_in_window` / `records_total` |
 
 ### 5.4 本地实测口径与未完成项
 
@@ -196,6 +201,6 @@
 
 ```bash
 python scripts/multi_account_acceptance.py                      # 11/11 验收
-python -m pytest tests/platform_v1 -k multi_account -q          # 280 例
+python -m pytest tests/platform_v1 -k multi_account -q          # 282 例
 python -m reverse_agent.platform_v1.multi_account.cli status     # 运维视图
 ```

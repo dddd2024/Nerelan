@@ -581,8 +581,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     json_path = args.out / f"acceptance_{stamp}.json"
     md_path = args.out / "acceptance_latest.md"
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    md_path.write_text(render_markdown(report), encoding="utf-8")
+    # Fixed newline so the committed evidence is byte-identical across hosts.
+    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2),
+                         encoding="utf-8", newline="\n")
+    md_path.write_text(render_markdown(report), encoding="utf-8", newline="\n")
 
     for run in (mixed_on, healthy_on, unstable_on, unstable_off):
         print(f"{run.label:<14} done={run.tasks_done:<4} dead={run.tasks_dead:<3} "
