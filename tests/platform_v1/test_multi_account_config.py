@@ -51,3 +51,27 @@ def test_validate_assignment_blocks_bad_mutation():
     cfg = MultiAccountConfig()
     with pytest.raises(ValidationError):
         cfg.reroute_max_attempts = 0
+
+
+def test_environment_controls_learning_thresholds_weights_and_backoff(monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_SELF_EVOLUTION", "false")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_MIN_OBSERVATIONS_PER_MODE", "7")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_COST_WEIGHT", "2.5")
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_FAILURE_BACKOFF_MAX_SECONDS", "1200")
+    cfg = MultiAccountConfig.from_env()
+    assert cfg.enable_self_evolution is False
+    assert cfg.min_observations_per_mode == 7
+    assert cfg.cost_weight == 2.5
+    assert cfg.failure_backoff_max_seconds == 1200
+    assert MultiAccountConfig.from_env(cost_weight=0).cost_weight == 0
+
+
+@pytest.mark.parametrize("field,value", [
+    ("ENABLE_SELF_EVOLUTION", "perhaps"), ("MIN_OBSERVATIONS_PER_MODE", "2"),
+    ("MIN_OBSERVATIONS_PER_MODE", "3.5"), ("COST_WEIGHT", "nan"),
+    ("LATENCY_WEIGHT", "inf"), ("FAILURE_BACKOFF_MAX_SECONDS", "-1"),
+])
+def test_invalid_environment_is_rejected(monkeypatch, field, value):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_" + field, value)
+    with pytest.raises(ValidationError):
+        MultiAccountConfig.from_env()

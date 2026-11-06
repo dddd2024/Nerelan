@@ -84,7 +84,7 @@ class MultiAccountConfig(BaseModel):
         Path(".platform_v1_runtime/multi_account_break_even.json"),
         description="Local JSON store for run outcomes and the measured break-even record.")
     min_observations_per_mode: int = Field(
-        3, description="Minimum accepted runs per mode before the default selection may move (mirrors orchestration_selector).")
+        3, ge=3, description="Minimum usable accepted runs per mode and size band; the core floor of three cannot be lowered.")
     calibration_feedback_enabled: bool = Field(
         True, description="Wire measured usage -> cost rate via quota_reservation.delta_calibration.")
 
@@ -165,8 +165,16 @@ class MultiAccountConfig(BaseModel):
         Only scalar knobs are overridable; the break-even store path may be set
         via ``REVERSE_AGENT_MULTI_ACCOUNT_STORE`` to relocate the local ledger.
         """
+        import os
+        for name in cls.model_fields:
+            if name in {"account_routing", "break_even_store_path"} or name in overrides:
+                continue
+            raw = os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_" + name.upper())
+            if raw is not None:
+                # Pydantic parses the declared scalar type and rejects invalid,
+                # non-finite and out-of-range values without guessing a default.
+                overrides[name] = raw
         if "account_routing" not in overrides:
-            import os
             raw_routing = os.environ.get("REVERSE_AGENT_ACCOUNT_ROUTING")
             if raw_routing:
                 overrides["account_routing"] = raw_routing
