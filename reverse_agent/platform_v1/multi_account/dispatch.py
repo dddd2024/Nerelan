@@ -104,6 +104,20 @@ def account_scores(store_path: Optional[Path] = None) -> dict[str, dict[str, Any
         return {}
 
 
+def routing_feedback_snapshot(store_path: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    """Read a frozen policy/sample snapshot; never mutates the feedback ledger."""
+    try:
+        from .feedback_policy import routing_snapshot
+        brain = get_orchestrator(store_path)
+        if not brain.config.enable_feedback_routing or not brain.config.enable_account_scoring:
+            return None
+        state = (brain.store.section("accounts") if brain.config.persist_account_state
+                 else brain.scores.snapshot())
+        return routing_snapshot(brain.config, state, owner=brain.routing()["owner"], now=brain._clock())
+    except Exception:  # noqa: BLE001 - optional advice does not replace hard admission
+        return None
+
+
 def idle_wait_seconds(store_path: Optional[Path] = None) -> Optional[float]:
     """Seconds until the earliest account cooldown expires (coordinator hint).
 
