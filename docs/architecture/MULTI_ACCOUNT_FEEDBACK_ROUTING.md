@@ -4,6 +4,7 @@
 
 本切片从 main `9ae26109` 分支，复用已经存在的账户 EWMA、AccountScoreboard.bonus
 和唯一的 `model_router.select_model`。不增加调度器、运行时、队列、依赖或预算权威。
+已合入 #1386 的主线 `108f53d5`，保留严格反馈校验、尝试归属及不把任务生命周期当时延的修复。
 开发时平台端口未监听，沿用已记录的有界 supervisor fallback；未启动或升级宿主。
 
 原来账户反馈只进入账本和独立 scheduler 组件，实际任务路由没有消费。现在可显式启用
@@ -62,10 +63,10 @@ Nerelan 核心目标与治理门禁不变。本切片是现有决策链的可选
 
 ## 验收结果
 
-当前相关套件 **286 passed、6338 deselected**：
+整合后的相关套件 **310 passed、6338 deselected**：
 
 ```text
-python -m pytest tests/platform_v1 -q -k 'multi_account or feedback_routing_policy or model_router or model_routing_constraints or account_quarantine'
+python -m pytest tests/platform_v1 -q -k 'multi_account or feedback_routing_policy or model_router or model_routing_constraints or account_quarantine or account_feedback_integrity'
 git diff --check
 ```
 
