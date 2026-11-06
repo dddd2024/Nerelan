@@ -16,6 +16,32 @@
 具体合入状态与真实运行验收继续分开记录。
 单测、CLI 帮助和进程级探针均不能替代真实生产验收。
 
+## 本轮增量：成本 / 告警 / 时长 / 策略闭环（候选分支，未合入）
+
+前几轮把账户纳管做到了"能感知、能隔离、能选路"，但四件长跑必需的事仍只有模块、
+没有生产调用方：成本上限、运行时长、告警送达、策略限幅/回滚。本轮增量补齐这四条闭环，
+并把分支与 main 的 73 个提交做过一次显式对账（不覆盖 main 的原子反馈与更严格校验）。
+
+| 新增模块 | 职责 | 与既有实现的关系 |
+|---|---|---|
+| `multi_account/budget.py` | 滚动窗口成本上限，`allow/degrade/deny` + 预留/结算/TTL | 复用 `quota_reservation` 语义，不新增账本 |
+| `multi_account/alerts.py` | 规则化告警、`(code, subject)` 抑制、有界历史、可选 JSONL 日志与轮转 | 复用宿主 sink，不新增消息系统 |
+| `multi_account/watchdog.py` | 单次运行墙钟与空闲预算，`continue/conclude/stop` | 复用既有协调器循环，不新增调度器 |
+| `multi_account/policy.py` | 有界、限幅、可审计、可回滚的调度权重链 | 只调既有权重，不新增决策引擎 |
+| `multi_account/cli.py` | 运维只读视图与回滚入口 | 复用同一 store，不新增服务 |
+| `multi_account/perception_sync.py` | Magpie 快照 → 观测表（仅白名单字段） | 复用 `ControlStore` 写入，不接管凭据 |
+
+对账时保留的 main 侧更强保证（不得回退）：`record_account_feedback` 的单事务原子写入与
+`outcome_id` 重放去重、配置与评分的严格校验、`feedback_policy` 的生产选路开关。
+本轮的预算结算、心跳与策略步进一律挂在该临界区内，重放回执不重复结算、不重复累计样本。
+
+仍未验收的部分与本文件其余部分一致：**未部署、未启用、未在真实账户长跑**。
+本地验证为 provider-free（虚拟时钟 + 单元/接线/连续性回归）；真实账户故障注入、
+宿主休眠恢复与 24h+ 长跑仍需对应环境的操作授权。验收脚本的通过不构成真实成本结论。
+
+详细结构（实现摘要 / 功能边界 / 关键模块 / 可配置项 / 验收结果 / 已知限制）见
+[多账户闭环交付说明](../../reports/multi_account/DELIVERY_MULTI_ACCOUNT_V5.md)。
+
 ## 功能边界与复用
 
 Nerelan 保持 local-first 受控开发平台定位：目标与任务真相、授权、预算、独立验证、

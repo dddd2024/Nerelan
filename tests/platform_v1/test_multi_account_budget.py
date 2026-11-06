@@ -197,3 +197,44 @@ def test_scheduler_without_budget_is_unchanged():
                               config=cfg(), now=NOW)
     assert decision["account_ref"] == "b"
     assert decision["evidence"]["budget"] is None
+
+
+# --- unusable measurements must degrade, never crash --------------------------
+
+def test_an_unrepresentable_cost_is_treated_as_unknown_not_as_a_crash():
+    """Telemetry can hand us a 10**400 int; the ceiling must still answer.
+
+    ``float()`` on it raises ``OverflowError``. Failing here would take down the
+    dispatch path on a bad number, which is strictly worse than charging the
+    reservation and counting the attempt as unpriced.
+    """
+    gov = governor(cfg(cost_budget_units=5.0))
+    admission = gov.admit(2.0, now=NOW, account_ref="a", reserve=True)
+    result = gov.settle(admission["reservation"], actual_units=10 ** 400, now=NOW)
+
+    assert result["charged_units"] == 2.0, "the reservation is charged, not zero"
+    assert result["priced"] is False, "an unusable measurement is not evidence of cost"
+    assert gov.status(now=NOW)["unpriced_attempts"] == 1
+
+
+def test_a_nan_cost_cannot_poison_the_window():
+    gov = governor(cfg(cost_budget_units=5.0))
+    result = gov.settle(None, actual_units=float("nan"), now=NOW)
+    assert result["charged_units"] == 0.0
+    assert gov.spent_units(now=NOW) == 0.0
+    assert gov.admit(1.0, now=NOW)["decision"] == "allow", "comparisons stay ordered"
+
+
+def test_an_unusable_forecast_falls_back_to_the_measured_basis():
+    """An unknown forecast must not park work, and must not pretend to be zero.
+
+    It falls back to the configured default / measured mean, so the decision is
+    still grounded in what attempts actually cost.
+    """
+    gov = governor(cfg(cost_budget_units=5.0, cost_budget_default_task_units=4.0))
+    decision = gov.admit(10 ** 400, now=NOW)
+    # 4.0 against a 5.0 ceiling crosses the 0.8 soft threshold: degraded, not
+    # admitted freely, and never silently treated as a zero-cost attempt.
+    assert decision["forecast_units"] == 4.0
+    assert decision["decision"] == "degrade"
+    assert decision["reason"] == "cost_budget_soft_cap"

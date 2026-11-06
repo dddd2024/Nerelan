@@ -41,6 +41,26 @@ from .config import MultiAccountConfig
 MAX_SPEND_RECORDS = 4000
 
 
+def _finite_units(value: Any) -> Optional[float]:
+    """A usable cost measurement, or ``None`` when the number is unusable.
+
+    Cost units arrive from host telemetry, so they can be huge ints, NaN or
+    infinity. ``float()`` on a 10**400 int raises ``OverflowError`` and a NaN
+    would poison every comparison against the ceiling, so both are rejected here
+    instead of at the call sites: an unusable measurement must degrade to
+    "unknown cost", never crash dispatch or silently disable the limit.
+    """
+    if type(value) not in (int, float):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    return number if number >= 0 else None
+
+
 @dataclass(frozen=True)
 class SpendRecord:
     """One settled attempt's cost, kept only while it is inside the window."""
@@ -250,7 +270,7 @@ class CostBudgetGovernor:
         """
         now = self._clock() if now is None else now
         token = uuid.uuid4().hex
-        self._reservations[token] = {"units": max(0.0, float(units)), "at": now,
+        self._reservations[token] = {"units": _finite_units(units) or 0.0, "at": now,
                                      "expires_at": now + self._ttl_seconds,
                                      "account_ref": account_ref}
         self._save()
@@ -268,12 +288,16 @@ class CostBudgetGovernor:
         """
         now = self._clock() if now is None else now
         reservation = self._reservations.pop(token, None) if token else None
-        if actual_units is not None and actual_units >= 0:
-            charged = float(actual_units)
+        measured = _finite_units(actual_units)
+        if measured is not None:
+            charged = measured
             priced = True
         elif reservation is not None:
             charged = float(reservation.get("units") or 0.0)
-            priced = charged > 0
+            # A hold is a known quantity, so charging it keeps the ceiling
+            # honest; but a *supplied yet unusable* measurement is not evidence
+            # of cost, and the attempt stays visible as unpriced.
+            priced = charged > 0 and actual_units is None
         else:
             charged = 0.0
             priced = False
@@ -304,8 +328,9 @@ class CostBudgetGovernor:
 
     def _forecast(self, forecast_units: Optional[float], *,
                   now: Optional[float] = None) -> float:
-        if isinstance(forecast_units, (int, float)) and forecast_units >= 0:
-            return float(forecast_units)
+        supplied = _finite_units(forecast_units)
+        if supplied is not None:
+            return supplied
         configured = float(self._config.cost_budget_default_task_units)
         if configured > 0:
             return configured
