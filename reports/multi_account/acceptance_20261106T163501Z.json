@@ -1,0 +1,790 @@
+{
+  "generated_at": "2026-11-06T16:35:01+00:00",
+  "seed": 7,
+  "acceptance": {
+    "checks": [
+      {
+        "criterion": "多账户整合",
+        "pass": true,
+        "detail": "4/4 账户被实际调度",
+        "value": [
+          "acct-fast",
+          "acct-cheap",
+          "acct-steady",
+          "acct-backup"
+        ]
+      },
+      {
+        "criterion": "状态感知",
+        "pass": true,
+        "detail": "全窗口零观测错误，每轮均获得账户/额度/成本视图",
+        "value": null
+      },
+      {
+        "criterion": "异常容错-任务不丢失",
+        "pass": true,
+        "detail": "完成 118 + 隔离 0 + 待续 2 = 120",
+        "value": {
+          "lost": 0,
+          "switches": 36,
+          "retries": 18,
+          "holds": 361
+        }
+      },
+      {
+        "criterion": "异常容错-切换/重试/降级生效",
+        "pass": true,
+        "detail": "切换 36 次、重试 18 次、等待/降级 361 次",
+        "value": {
+          "cost_budget_exhausted": 361
+        }
+      },
+      {
+        "criterion": "成本上限不被突破",
+        "pass": true,
+        "detail": "花费 11.983 <= 上限 12.0（利用率 99.9%）",
+        "value": 0.9986
+      },
+      {
+        "criterion": "连续运行-遵守运行时长",
+        "pass": true,
+        "detail": "虚拟运行 19.19h，判定 conclude，待续 2",
+        "value": {
+          "virtual_hours": 19.19
+        }
+      },
+      {
+        "criterion": "性能-控制环开销",
+        "pass": true,
+        "detail": "每轮调度约 0.579 ms（498 轮，真实耗时 0.2883s）",
+        "value": 0.5789
+      },
+      {
+        "criterion": "反馈优化-健康池不误调",
+        "pass": true,
+        "detail": "无容量/质量压力时不改动权重（版本 0）",
+        "value": 0
+      },
+      {
+        "criterion": "反馈优化-异常池驱动变更",
+        "pass": true,
+        "detail": "失败类型/成本反馈驱动 6 次有界变更",
+        "value": [
+          "latency_pressure",
+          "latency_pressure",
+          "unstable_revert",
+          "unstable_revert"
+        ]
+      },
+      {
+        "criterion": "反馈优化-未使结果劣化",
+        "pass": true,
+        "detail": "后半程成本 0.1035 vs 基线 0.1208；重试率 0.0 vs 0.3043",
+        "value": {
+          "tolerance": 1.1
+        }
+      },
+      {
+        "criterion": "可审计可回滚",
+        "pass": true,
+        "detail": "审计 6 条，版本链 v1..v6",
+        "value": [
+          "v1:latency_pressure",
+          "v2:latency_pressure",
+          "v3:unstable_revert",
+          "v4:unstable_revert",
+          "v5:unstable_revert"
+        ]
+      }
+    ],
+    "passed": true,
+    "passed_count": 11,
+    "total": 11
+  },
+  "runs": {
+    "mixed_on": {
+      "label": "mixed_on",
+      "scenario": "mixed",
+      "tasks_total": 120,
+      "tasks_done": 118,
+      "tasks_dead": 0,
+      "tasks_pending": 2,
+      "switches": 36,
+      "holds": 361,
+      "retries": 18,
+      "holds_by_reason": {
+        "cost_budget_exhausted": 361
+      },
+      "spend_units": 11.983,
+      "budget_cap": 12.0,
+      "first_half_cost_per_done": 0.0999,
+      "second_half_cost_per_done": 0.1082,
+      "first_half_retry_rate": 0.1383,
+      "second_half_retry_rate": 0.2083,
+      "attempts_per_account": {
+        "acct-fast": 21,
+        "acct-cheap": 37,
+        "acct-steady": 23,
+        "acct-backup": 55
+      },
+      "alerts": {
+        "account_flapping": 18,
+        "account_unreliable": 4,
+        "policy_changed": 5,
+        "cost_budget_soft_cap": 14
+      },
+      "policy_version": 6,
+      "policy_changes": [
+        {
+          "version": 1,
+          "at": 1767246759.4618149,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 12.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 9.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 12.0,
+              "after": 9.0
+            }
+          },
+          "evolved": 1,
+          "evidence": {
+            "success_rate": 0.8364,
+            "target": 0.85,
+            "samples": 55,
+            "at": 1767246759.4618149
+          }
+        },
+        {
+          "version": 2,
+          "at": 1767248653.0466518,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 9.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 9.0,
+              "after": 6.0
+            }
+          },
+          "evolved": 2,
+          "evidence": {
+            "success_rate": 0.8333,
+            "target": 0.85,
+            "samples": 60,
+            "at": 1767248653.0466518
+          }
+        },
+        {
+          "version": 3,
+          "at": 1767250355.449498,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 3.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 6.0,
+              "after": 3.0
+            }
+          },
+          "evolved": 3,
+          "evidence": {
+            "success_rate": 0.8462,
+            "target": 0.85,
+            "samples": 65,
+            "at": 1767250355.449498
+          }
+        },
+        {
+          "version": 4,
+          "at": 1767252526.705905,
+          "kind": "change",
+          "reason": "stable_restore_bonus",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 3.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 3.0,
+              "after": 6.0
+            }
+          },
+          "evolved": 4,
+          "evidence": {
+            "success_rate": 0.8571,
+            "samples": 70,
+            "at": 1767252526.705905
+          }
+        },
+        {
+          "version": 5,
+          "at": 1767254754.2592776,
+          "kind": "change",
+          "reason": "stable_restore_bonus",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 9.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 6.0,
+              "after": 9.0
+            }
+          },
+          "evolved": 5,
+          "evidence": {
+            "success_rate": 0.8667,
+            "samples": 75,
+            "at": 1767254754.2592776
+          }
+        },
+        {
+          "version": 6,
+          "at": 1767257030.7834697,
+          "kind": "change",
+          "reason": "stable_restore_bonus",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 9.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 12.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 9.0,
+              "after": 12.0
+            }
+          },
+          "evolved": 6,
+          "evidence": {
+            "success_rate": 0.85,
+            "samples": 80,
+            "at": 1767257030.7834697
+          }
+        }
+      ],
+      "policy_effective": {
+        "reliability_weight": 12.0,
+        "cost_weight": 10.0,
+        "latency_weight": 5.0,
+        "bonus_cap": 12.0
+      },
+      "virtual_seconds": 69073.079,
+      "real_seconds": 0.2883,
+      "loop_iterations": 498,
+      "deadline_hit": true,
+      "verdict": "conclude",
+      "details": {
+        "perception_error": null,
+        "budget": {
+          "enforced": true,
+          "cap_units": 12.0,
+          "spent_units": 11.982954,
+          "reserved_units": 0,
+          "remaining_units": 0.017046,
+          "window_seconds": 86400.0,
+          "soft_ratio": 0.75,
+          "utilization": 0.9986,
+          "open_reservations": 0,
+          "expired_reservations": 0,
+          "reservation_ttl_seconds": 900.0,
+          "measured_forecast_units": 0.08811,
+          "unpriced_attempts": 0,
+          "records_in_window": 136,
+          "records_total": 136
+        },
+        "run_status": {
+          "enabled": true,
+          "started_at": 1767225600.0,
+          "elapsed_seconds": 69073.079,
+          "idle_seconds": 10813.41,
+          "attempts": 136,
+          "max_run_duration_seconds": 86400.0,
+          "max_idle_seconds": 10800.0,
+          "remaining_seconds": 17326.920950889587,
+          "concluded_at": null
+        }
+      }
+    },
+    "healthy_on": {
+      "label": "healthy_on",
+      "scenario": "healthy",
+      "tasks_total": 120,
+      "tasks_done": 120,
+      "tasks_dead": 0,
+      "tasks_pending": 0,
+      "switches": 4,
+      "holds": 0,
+      "retries": 2,
+      "holds_by_reason": {},
+      "spend_units": 11.5361,
+      "budget_cap": 48.0,
+      "first_half_cost_per_done": 0.0961,
+      "second_half_cost_per_done": null,
+      "first_half_retry_rate": 0.0167,
+      "second_half_retry_rate": null,
+      "attempts_per_account": {
+        "acct-fast": 49,
+        "acct-cheap": 24,
+        "acct-steady": 23,
+        "acct-backup": 26
+      },
+      "alerts": {
+        "account_flapping": 2,
+        "account_unreliable": 5
+      },
+      "policy_version": 0,
+      "policy_changes": [],
+      "policy_effective": {
+        "reliability_weight": 12.0,
+        "cost_weight": 10.0,
+        "latency_weight": 5.0,
+        "bonus_cap": 12.0
+      },
+      "virtual_seconds": 41435.622,
+      "real_seconds": 0.1048,
+      "loop_iterations": 123,
+      "deadline_hit": false,
+      "verdict": "continue",
+      "details": {
+        "perception_error": null,
+        "budget": {
+          "enforced": true,
+          "cap_units": 48.0,
+          "spent_units": 11.536149,
+          "reserved_units": 0,
+          "remaining_units": 36.463851,
+          "window_seconds": 86400.0,
+          "soft_ratio": 0.75,
+          "utilization": 0.2403,
+          "open_reservations": 0,
+          "expired_reservations": 0,
+          "reservation_ttl_seconds": 900.0,
+          "measured_forecast_units": 0.094559,
+          "unpriced_attempts": 0,
+          "records_in_window": 122,
+          "records_total": 122
+        },
+        "run_status": {
+          "enabled": true,
+          "started_at": 1767225600.0,
+          "elapsed_seconds": 41435.622,
+          "idle_seconds": 0.0,
+          "attempts": 122,
+          "max_run_duration_seconds": 86400.0,
+          "max_idle_seconds": 10800.0,
+          "remaining_seconds": 44964.37807583809,
+          "concluded_at": null
+        }
+      }
+    },
+    "unstable_on": {
+      "label": "unstable_on",
+      "scenario": "unstable",
+      "tasks_total": 120,
+      "tasks_done": 116,
+      "tasks_dead": 1,
+      "tasks_pending": 3,
+      "switches": 53,
+      "holds": 385,
+      "retries": 28,
+      "holds_by_reason": {
+        "all_accounts_exhausted": 24,
+        "cost_budget_exhausted": 361
+      },
+      "spend_units": 11.9586,
+      "budget_cap": 12.0,
+      "first_half_cost_per_done": 0.1013,
+      "second_half_cost_per_done": 0.1035,
+      "first_half_retry_rate": 0.2529,
+      "second_half_retry_rate": 0.0,
+      "attempts_per_account": {
+        "acct-fast": 39,
+        "acct-cheap": 49,
+        "acct-steady": 25,
+        "acct-backup": 31
+      },
+      "alerts": {
+        "account_abnormal": 6,
+        "account_flapping": 22,
+        "policy_changed": 5,
+        "account_exhausted": 8,
+        "task_dead_letter": 1,
+        "account_unreliable": 22,
+        "cost_budget_soft_cap": 10
+      },
+      "policy_version": 6,
+      "policy_changes": [
+        {
+          "version": 1,
+          "at": 1767227761.889305,
+          "kind": "change",
+          "reason": "latency_pressure",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 12.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 6.25,
+            "bonus_cap": 12.0
+          },
+          "changed_keys": {
+            "latency_weight": {
+              "before": 5.0,
+              "after": 6.25
+            }
+          },
+          "evolved": 1,
+          "evidence": {
+            "latency_ratio": 1.2101,
+            "samples": 10,
+            "at": 1767227761.889305
+          }
+        },
+        {
+          "version": 2,
+          "at": 1767230382.6779518,
+          "kind": "change",
+          "reason": "latency_pressure",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 6.25,
+            "bonus_cap": 12.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 7.5,
+            "bonus_cap": 12.0
+          },
+          "changed_keys": {
+            "latency_weight": {
+              "before": 6.25,
+              "after": 7.5
+            }
+          },
+          "evolved": 2,
+          "evidence": {
+            "latency_ratio": 1.3386,
+            "samples": 20,
+            "at": 1767230382.6779518
+          }
+        },
+        {
+          "version": 3,
+          "at": 1767233290.0113795,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 7.5,
+            "bonus_cap": 12.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 6.25,
+            "bonus_cap": 9.0
+          },
+          "changed_keys": {
+            "latency_weight": {
+              "before": 7.5,
+              "after": 6.25
+            },
+            "bonus_cap": {
+              "before": 12.0,
+              "after": 9.0
+            }
+          },
+          "evolved": 3,
+          "evidence": {
+            "success_rate": 0.76,
+            "target": 0.85,
+            "samples": 25,
+            "at": 1767233290.0113795
+          }
+        },
+        {
+          "version": 4,
+          "at": 1767234924.5135655,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 6.25,
+            "bonus_cap": 9.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "changed_keys": {
+            "latency_weight": {
+              "before": 6.25,
+              "after": 5.0
+            },
+            "bonus_cap": {
+              "before": 9.0,
+              "after": 6.0
+            }
+          },
+          "evolved": 4,
+          "evidence": {
+            "success_rate": 0.8,
+            "target": 0.85,
+            "samples": 30,
+            "at": 1767234924.5135655
+          }
+        },
+        {
+          "version": 5,
+          "at": 1767237015.8651564,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 6.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 3.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 6.0,
+              "after": 3.0
+            }
+          },
+          "evolved": 5,
+          "evidence": {
+            "success_rate": 0.8,
+            "target": 0.85,
+            "samples": 35,
+            "at": 1767237015.8651564
+          }
+        },
+        {
+          "version": 6,
+          "at": 1767239227.9551296,
+          "kind": "change",
+          "reason": "unstable_revert",
+          "before": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 3.0
+          },
+          "after": {
+            "reliability_weight": 12.0,
+            "cost_weight": 10.0,
+            "latency_weight": 5.0,
+            "bonus_cap": 0.0
+          },
+          "changed_keys": {
+            "bonus_cap": {
+              "before": 3.0,
+              "after": 0.0
+            }
+          },
+          "evolved": 6,
+          "evidence": {
+            "success_rate": 0.775,
+            "target": 0.85,
+            "samples": 40,
+            "at": 1767239227.9551296
+          }
+        }
+      ],
+      "policy_effective": {
+        "reliability_weight": 12.0,
+        "cost_weight": 10.0,
+        "latency_weight": 5.0,
+        "bonus_cap": 0.0
+      },
+      "virtual_seconds": 62550.935,
+      "real_seconds": 0.3502,
+      "loop_iterations": 530,
+      "deadline_hit": true,
+      "verdict": "conclude",
+      "details": {
+        "perception_error": null,
+        "budget": {
+          "enforced": true,
+          "cap_units": 12.0,
+          "spent_units": 11.958624,
+          "reserved_units": 0,
+          "remaining_units": 0.041376,
+          "window_seconds": 86400.0,
+          "soft_ratio": 0.75,
+          "utilization": 0.9966,
+          "open_reservations": 0,
+          "expired_reservations": 0,
+          "reservation_ttl_seconds": 900.0,
+          "measured_forecast_units": 0.083046,
+          "unpriced_attempts": 0,
+          "records_in_window": 144,
+          "records_total": 144
+        },
+        "run_status": {
+          "enabled": true,
+          "started_at": 1767225600.0,
+          "elapsed_seconds": 62550.935,
+          "idle_seconds": 10821.089,
+          "attempts": 144,
+          "max_run_duration_seconds": 86400.0,
+          "max_idle_seconds": 10800.0,
+          "remaining_seconds": 23849.064972877502,
+          "concluded_at": null
+        }
+      }
+    },
+    "unstable_off": {
+      "label": "unstable_off",
+      "scenario": "unstable",
+      "tasks_total": 120,
+      "tasks_done": 109,
+      "tasks_dead": 2,
+      "tasks_pending": 9,
+      "switches": 73,
+      "holds": 385,
+      "retries": 39,
+      "holds_by_reason": {
+        "all_accounts_exhausted": 24,
+        "cost_budget_exhausted": 361
+      },
+      "spend_units": 11.9145,
+      "budget_cap": 12.0,
+      "first_half_cost_per_done": 0.104,
+      "second_half_cost_per_done": 0.1208,
+      "first_half_retry_rate": 0.2326,
+      "second_half_retry_rate": 0.3043,
+      "attempts_per_account": {
+        "acct-fast": 41,
+        "acct-cheap": 48,
+        "acct-steady": 24,
+        "acct-backup": 35
+      },
+      "alerts": {
+        "account_abnormal": 6,
+        "account_flapping": 32,
+        "account_exhausted": 8,
+        "task_dead_letter": 2,
+        "account_unreliable": 42,
+        "cost_budget_soft_cap": 12
+      },
+      "policy_version": 0,
+      "policy_changes": [],
+      "policy_effective": {
+        "reliability_weight": 12.0,
+        "cost_weight": 10.0,
+        "latency_weight": 5.0,
+        "bonus_cap": 12.0
+      },
+      "virtual_seconds": 65259.658,
+      "real_seconds": 0.3722,
+      "loop_iterations": 534,
+      "deadline_hit": true,
+      "verdict": "conclude",
+      "details": {
+        "perception_error": null,
+        "budget": {
+          "enforced": true,
+          "cap_units": 12.0,
+          "spent_units": 11.91451,
+          "reserved_units": 0,
+          "remaining_units": 0.08549,
+          "window_seconds": 86400.0,
+          "soft_ratio": 0.75,
+          "utilization": 0.9929,
+          "open_reservations": 0,
+          "expired_reservations": 0,
+          "reservation_ttl_seconds": 900.0,
+          "measured_forecast_units": 0.080503,
+          "unpriced_attempts": 0,
+          "records_in_window": 148,
+          "records_total": 148
+        },
+        "run_status": {
+          "enabled": true,
+          "started_at": 1767225600.0,
+          "elapsed_seconds": 65259.658,
+          "idle_seconds": 10807.487,
+          "attempts": 148,
+          "max_run_duration_seconds": 86400.0,
+          "max_idle_seconds": 10800.0,
+          "remaining_seconds": 21140.342061042786,
+          "concluded_at": null
+        }
+      }
+    }
+  }
+}
