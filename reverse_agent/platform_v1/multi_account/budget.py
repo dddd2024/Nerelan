@@ -206,6 +206,13 @@ class CostBudgetGovernor:
             "reservation_ttl_seconds": self._ttl_seconds,
             "measured_forecast_units": self.measured_forecast(now=now),
             "unpriced_attempts": sum(1 for r in self._records if not r.priced),
+            # An operator reading a ledger with a different local config (or a
+            # clock that has moved on) must be able to tell "no spend" from "no
+            # spend *inside this window*". Without these two counters a pruned
+            # window looks identical to an empty one.
+            "records_in_window": sum(1 for r in self._records
+                                     if r.at > now - self.window_seconds),
+            "records_total": len(self._records),
         }
 
     # --- admission ------------------------------------------------------------

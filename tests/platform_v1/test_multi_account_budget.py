@@ -238,3 +238,21 @@ def test_an_unusable_forecast_falls_back_to_the_measured_basis():
     assert decision["forecast_units"] == 4.0
     assert decision["decision"] == "degrade"
     assert decision["reason"] == "cost_budget_soft_cap"
+
+
+def test_an_out_of_window_view_says_so_instead_of_looking_empty():
+    """"Spend is 0" and "nothing was ever recorded" must not look the same.
+
+    An operator inspecting a ledger with a later clock (or a different window)
+    gets ``spent_units == 0``; the record counters are what tell them the spend
+    exists but has aged out of the window.
+    """
+    gov = governor(cfg(cost_budget_units=5.0, cost_budget_window_seconds=600.0))
+    gov.settle(None, actual_units=2.0, now=NOW)
+    fresh = gov.status(now=NOW + 1.0)
+    assert (fresh["spent_units"], fresh["records_in_window"], fresh["records_total"]) == (2.0, 1, 1)
+
+    aged = gov.status(now=NOW + 601.0)
+    assert aged["spent_units"] == 0.0
+    assert aged["records_in_window"] == 0
+    assert aged["records_total"] >= 1, "the record is still held, only out of window"
