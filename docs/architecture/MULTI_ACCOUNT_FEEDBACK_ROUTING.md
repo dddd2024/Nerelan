@@ -62,7 +62,7 @@ Nerelan 核心目标与治理门禁不变。本切片是现有决策链的可选
 
 ## 验收结果
 
-当前相关套件 **282 passed、6338 deselected**：
+当前相关套件 **286 passed、6338 deselected**：
 
 ```text
 python -m pytest tests/platform_v1 -q -k 'multi_account or feedback_routing_policy or model_router or model_routing_constraints or account_quarantine'
@@ -73,6 +73,7 @@ git diff --check
 |---|---|
 | 实际消费 | host 的 `_resolve_task_model` 经过既有模型池，读取反馈后改变同等候选的选择 |
 | 成本与时延 | 完整覆盖的便宜/低时延候选被选择；任一未知成本使整组价格项保持 UNKNOWN |
+| 数值边界 | 零中位数区分零值与正值；极大有限测量的中位数不溢出；算术异常时原评分整体保留 |
 | 状态与样本 | 门槛不足或超过 30 天未更新的反馈不参与；旧历史过期后首个新样本只计一次 |
 | 限幅 | 极大权重也受 0–0.25 的最大调整量约束 |
 | 原硬边界 | pin、可用性、确认额度耗尽及 paid-spend 禁止仍优先 |

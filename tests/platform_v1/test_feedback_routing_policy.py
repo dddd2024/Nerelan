@@ -182,3 +182,40 @@ def test_new_policy_controls_are_validated_and_reachable_from_environment(monkey
                    {"feedback_routing_max_adjustment": -1}, {"feedback_routing_max_adjustment": float("nan")}):
         with pytest.raises(ValidationError):
             MultiAccountConfig(**values)
+
+
+@pytest.mark.parametrize("dimension", ["cost", "latency"])
+def test_zero_median_keeps_known_zero_distinct_from_positive_peers(dimension):
+    cfg = MultiAccountConfig(enable_feedback_routing=True, reliability_weight=0,
+                             latency_weight=0 if dimension == "cost" else 5,
+                             cost_weight=10 if dimension == "cost" else 0)
+    scores = AccountScoreboard(cfg, clock=lambda: NOW)
+    candidates = []
+    for ref, value in (("a", 100), ("b", 0), ("c", 0)):
+        for _ in range(3):
+            scores.observe(ref, ok=True, cost_units=value if dimension == "cost" else 0,
+                           wall_seconds=value if dimension == "latency" else 0)
+        candidates.append(candidate(ref, "flash-lite", account_ref=ref))
+    feedback = routing_snapshot(cfg, scores.snapshot(), owner="local", now=NOW)
+    result = choose(candidates, account_feedback=feedback, now=NOW)
+    assert result["binding_ref"] == "b"
+    evidence = {row["binding_id"]: row["score_breakdown"]["account_feedback"] for row in result["candidates"]}
+    assert evidence["a"]["adjustment"] < 0
+    assert evidence["b"]["adjustment"] == evidence["c"]["adjustment"] == 0
+
+
+def test_finite_extreme_measurements_do_not_overflow_decision_evidence():
+    feedback = snapshot(a_cost=1e308, b_cost=1e308, a_latency=1e308, b_latency=1e308)
+    result = choose(pool(), account_feedback=feedback, now=NOW)
+    for row in result["candidates"]:
+        evidence = row["score_breakdown"]["account_feedback"]
+        assert evidence["cost_reference"] == evidence["latency_reference"] == 1e308
+    json.dumps(result, allow_nan=False)
+
+
+def test_arithmetic_failure_preserves_all_original_scores():
+    feedback = snapshot(a_ok=False, reliability_weight=1.7e308, cost_weight=1.7e308, latency_weight=1.7e308)
+    result = choose(pool(), account_feedback=feedback, now=NOW)
+    assert result["binding_ref"] == "a"
+    assert all("account_feedback" not in row["score_breakdown"] for row in result["candidates"])
+    json.dumps(result, allow_nan=False)

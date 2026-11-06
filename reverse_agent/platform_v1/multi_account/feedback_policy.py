@@ -96,6 +96,10 @@ def apply_routing_feedback(ranked: list[dict[str, Any]], snapshot: Mapping[str, 
                 continue
             points = scores.bonus(ref, cost_reference=cost_reference if cost_known else None,
                                   latency_reference=latency_reference if latency_known else None)
+            if (not math.isfinite(points) or not math.isfinite(item["score"][1])
+                    or cost_known and not _number(cost_reference)
+                    or latency_known and not _number(latency_reference)):
+                return  # Leave every original score intact on arithmetic failure.
             cap = config.feedback_routing_max_adjustment
             adjustment = max(-cap, min(cap, points / 100.0))
             evidence = {"policy_id": snapshot["policy_id"], "snapshot_id": snapshot["snapshot_id"],

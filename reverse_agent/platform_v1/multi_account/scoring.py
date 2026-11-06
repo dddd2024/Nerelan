@@ -151,10 +151,14 @@ class AccountScoreboard:
             return 0.0
         config = self._config
         points = config.reliability_weight * (score.reliability - 0.5) * 2.0
-        if cost_reference and score.mean_cost_units is not None:
-            points -= config.cost_weight * min(1.0, score.mean_cost_units / cost_reference)
-        if latency_reference and score.mean_wall_seconds is not None:
-            points -= config.latency_weight * min(1.0, score.mean_wall_seconds / latency_reference)
+        if cost_reference is not None and score.mean_cost_units is not None:
+            ratio = (min(1.0, score.mean_cost_units / cost_reference) if cost_reference > 0
+                     else float(score.mean_cost_units > 0))
+            points -= config.cost_weight * ratio
+        if latency_reference is not None and score.mean_wall_seconds is not None:
+            ratio = (min(1.0, score.mean_wall_seconds / latency_reference) if latency_reference > 0
+                     else float(score.mean_wall_seconds > 0))
+            points -= config.latency_weight * ratio
         confidence = min(1.0, score.attempts / CONFIDENCE_ATTEMPTS)
         return points * confidence
 
@@ -210,4 +214,6 @@ def _median(values: list[float]) -> Optional[float]:
     middle = len(ordered) // 2
     if len(ordered) % 2:
         return ordered[middle]
-    return (ordered[middle - 1] + ordered[middle]) / 2.0
+    low, high = ordered[middle - 1], ordered[middle]
+    # Avoid overflow when both finite non-negative measurements are large.
+    return low / 2.0 + high / 2.0 if low < 0 < high else low + (high - low) / 2.0
