@@ -609,6 +609,7 @@ class CombinedTrustedHost:
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
+                               "account_ref": connection.get("account_ref") or connection.get("connection_id"),
                                "review_connection": {"auth_method": connection.get("auth_method"),
                                    "protocol_family": connection.get("protocol_family"),
                                    "relay_required": connection.get("auth_method") == "api_key",
@@ -648,6 +649,10 @@ class CombinedTrustedHost:
         tier = failed_tier if failed_tier is not None else (
             capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
                        task.kind, task.difficulty)[0] if failed_binding else 0)
+        feedback = None
+        if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+            from .multi_account.dispatch import routing_feedback_snapshot
+            feedback = routing_feedback_snapshot()
         try:
             decision = select_model(candidates, difficulty=task.difficulty, kind=task.kind, role=role,
                                 profiles=profiles, pin=pin, capability_table=capability_table, allow_paid=allow_paid,
@@ -657,7 +662,8 @@ class CombinedTrustedHost:
                                 refused_models=refused_models, refusal_tier=tier if refused_models else 0,
                                 author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
-                                exploration_draw=1.0 if forecast else random.random())
+                                exploration_draw=1.0 if forecast else random.random(),
+                                account_feedback=feedback)
             decision["context_packet_reservation"] = 16384 + 256
             return decision
         except ValueError as exc:

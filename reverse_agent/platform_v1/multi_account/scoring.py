@@ -46,6 +46,8 @@ class AccountScore(BaseModel):
     reliability: float = 0.5                  # EWMA success ratio, 0..1
     mean_cost_units: Optional[float] = None    # EWMA cost units per accepted task
     mean_wall_seconds: Optional[float] = None  # EWMA wall clock per accepted task
+    cost_samples: int = 0
+    latency_samples: int = 0
     consecutive_failures: int = 0
     last_failure_kind: Optional[str] = None
     first_seen_at: Optional[float] = None
@@ -63,6 +65,8 @@ class AccountScore(BaseModel):
             "reliability": round(self.reliability, 4),
             "mean_cost_units": self.mean_cost_units,
             "mean_wall_seconds": self.mean_wall_seconds,
+            "cost_samples": self.cost_samples,
+            "latency_samples": self.latency_samples,
             "updated_at": self.updated_at,
         }
 
@@ -92,6 +96,7 @@ class AccountScoreboard:
                 now: Optional[float] = None) -> AccountScore:
         """Fold one run outcome into the account's smoothed profile."""
         now = self._clock() if now is None else now
+        self.prune(now=now)
         alpha = self._config.score_ewma_alpha
         score = self._scores.get(account_ref) or AccountScore(
             account_ref=account_ref, first_seen_at=now)
@@ -105,8 +110,10 @@ class AccountScoreboard:
         score.reliability = _ewma(score.reliability, 1.0 if ok else 0.0, alpha)
         if isinstance(cost_units, (int, float)) and cost_units >= 0:
             score.mean_cost_units = _ewma(score.mean_cost_units, float(cost_units), alpha)
+            score.cost_samples += 1
         if isinstance(wall_seconds, (int, float)) and wall_seconds >= 0:
             score.mean_wall_seconds = _ewma(score.mean_wall_seconds, float(wall_seconds), alpha)
+            score.latency_samples += 1
         score.updated_at = now
         self._scores[account_ref] = score
         self.prune(now=now)
