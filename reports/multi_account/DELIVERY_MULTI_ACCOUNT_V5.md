@@ -88,7 +88,7 @@
 | `multi_account/__init__.py` | 487 | 门面：感知/调度/成本/告警/时长/进化组合 | 一个宿主只接触一个对象；反馈走同一把锁 |
 | `multi_account/config.py` | 420 | 唯一配置面，构造即校验 | 非法组合**拒绝启动**，不静默取默认 |
 | `multi_account/status.py` | 340 | 观测归一、健康分类、池化 | 坏观测不拖垮整池；观测故障与空池可区分 |
-| `multi_account/budget.py` | 424 | 滚动窗口成本上限、预留/结算 | 拒绝只"挂起"并给出 `retry_at`；不可用测量降级不崩溃 |
+| `multi_account/budget.py` | 431 | 滚动窗口成本上限、预留/结算 | 拒绝只"挂起"并给出 `retry_at`；不可用测量降级不崩溃 |
 | `multi_account/alerts.py` | 463 | 规则引擎、抑制、有界历史、JSONL 轮转 | 重复事实不重复告警；长跑磁盘有界 |
 | `multi_account/watchdog.py` | 162 | 运行时长与空闲预算 | 到期只停止认领，不中断在飞工作 |
 | `multi_account/policy.py` | 423 | 限幅权重链、审计、回滚 | 单步有界、总漂移有界、回滚本身可审计 |
@@ -148,7 +148,7 @@
   告警日志有界轮转、到期收束、健康池不误调；4 例固定极端数值行为（超大整数 / NaN / inf /
   窗口内外区分）；1 例固定反馈快照在 1e308 量级仍有限且 JSON 可序列化。
 - 受影响面回归（引用 `multi_account` / `unattended_coordinator` / `trusted_host` / 成本链路的 66 个测试
-  文件，共 2184 例）：**2173 passed、11 failed、5 skipped**。11 例失败全部集中在
+  文件，共 2193 例）：**2175 passed、11 failed、5 skipped、2 deselected**。11 例失败全部集中在
   `test_dev_up_contract.py`（依赖本机 PowerShell 宿主的 `dev_up` 脚本），在**未改动**的
   `origin/main` 上同样为 11 failed / 53 passed，属本机既有环境限制，与本轮改动无关。
 
