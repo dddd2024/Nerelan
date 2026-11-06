@@ -68,7 +68,7 @@ Pydantic；本轮只修复反馈证据和配置入口。没有替换运行时、
 ## 验收结果与标准
 
 本轮专项命令：`python -m pytest tests/platform_v1 -q -k 'multi_account or orchestration_selector'`，
-159 passed。完整平台套件、独立审查与 exact-head CI 的最终结果见对应 PR。
+160 passed。完整平台套件、独立审查与 exact-head CI 的最终结果见对应 PR。
 所有测试使用隔离临时状态，不调用真实 provider、不修改历史 TaskStore。
 
 | 验收域 | 验收标准 | 当前证据 |

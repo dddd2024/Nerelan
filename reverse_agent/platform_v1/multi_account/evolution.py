@@ -71,8 +71,8 @@ class SelfEvolutionStore:
     independent host processes must not share this file.
 
     ``runs`` is bounded by ``max_recorded_runs``: an unattended run must not grow
-    the ledger without limit. Old outcomes still influence the break-even through
-    the previous record carried forward by :func:`update_break_even`.
+    the ledger without limit. Recommendations are recomputed only from retained
+    outcomes; pruned samples do not support a future recommendation.
     """
 
     def __init__(self, config: MultiAccountConfig, *,
@@ -166,6 +166,9 @@ class SelfEvolutionStore:
                                       or not outcome_id.strip() or len(outcome_id) > 200):
             raise ValueError("outcome_id must be a non-empty string of at most 200 characters")
         tokens = outcome.get("tokens")
+        band = outcome.get("size_band")
+        if band is not None and (not isinstance(band, str) or len(band) > 80):
+            raise ValueError("size_band must be a string of at most 80 characters")
         cleaned = {
             "mode": outcome.get("mode") if outcome.get("mode") in ("single", "agent_team") else None,
             "accepted": outcome["accepted"],
@@ -174,7 +177,7 @@ class SelfEvolutionStore:
             "tokens": ({role: _measurement(tokens.get(role)) for role in ("planner", "executor", "reviewer")}
                        if isinstance(tokens, Mapping) else None),
             "wall_seconds": _measurement(outcome.get("wall_seconds")),
-            "size_band": outcome.get("size_band")[:80] if isinstance(outcome.get("size_band"), str) else None,
+            "size_band": band,
             "recorded_at": now,
         }
         if outcome_id is not None:

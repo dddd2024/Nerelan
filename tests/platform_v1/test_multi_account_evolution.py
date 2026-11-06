@@ -207,3 +207,16 @@ def test_corrupted_ledger_is_preserved_instead_of_replaced(tmp_path, content):
     with pytest.raises(ValueError, match="unavailable"):
         store.record_run(_run("single"))
     assert path.read_text(encoding="utf-8") == content
+
+
+def test_long_band_identity_is_rejected_without_manufacturing_evidence(tmp_path):
+    path = tmp_path / "feedback.json"
+    store = SelfEvolutionStore(MultiAccountConfig(), path=path)
+    for row in _rich_runs():
+        with pytest.raises(ValueError, match="size_band"):
+            store.record_run({**row, "size_band": "x" * 80 + row["mode"]})
+    assert not path.exists()
+    assert store.get_runs() == []
+    for row in _rich_runs():
+        store.record_run({**row, "size_band": "x" * 79 + ("A" if row["mode"] == "single" else "B")})
+    assert store.get_break_even()["sufficient_evidence"] is False
