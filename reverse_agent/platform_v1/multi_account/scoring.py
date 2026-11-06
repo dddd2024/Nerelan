@@ -28,6 +28,7 @@ outweigh another with three hundred.
 from __future__ import annotations
 
 import math
+import sys
 import time
 from typing import Any, Callable, Mapping, Optional
 
@@ -40,6 +41,17 @@ CONFIDENCE_ATTEMPTS = 3
 # Accounts idle for longer than this are pruned on write, keeping the document bounded.
 PRUNE_HORIZON_SECONDS = 30 * 24 * 3600
 MAX_TRACKED_ACCOUNTS = 200
+# Cumulative totals are exact until they approach the float ceiling; beyond that
+# they saturate. Two accounts reporting 1e308 per attempt would otherwise sum to
+# inf, and an inf in the persisted document makes the whole feedback snapshot
+# unusable (json and every downstream comparison reject it). Saturation happens
+# only at values where "exact" has no meaning left, and keeps the document finite.
+_MAX_TOTAL = sys.float_info.max / 4.0
+
+
+def _accumulate(total: float, value: float) -> float:
+    combined = total + value
+    return combined if combined < _MAX_TOTAL else _MAX_TOTAL
 
 
 class AccountScore(BaseModel):
@@ -145,11 +157,11 @@ class AccountScoreboard:
         wall = _measurement(wall_seconds)
         if cost is not None:
             score.mean_cost_units = _ewma(score.mean_cost_units, cost, alpha)
-            score.cost_total += cost
+            score.cost_total = _accumulate(score.cost_total, cost)
             score.cost_samples += 1
         if wall is not None:
             score.mean_wall_seconds = _ewma(score.mean_wall_seconds, wall, alpha)
-            score.wall_total += wall
+            score.wall_total = _accumulate(score.wall_total, wall)
             score.latency_samples += 1
         score.updated_at = now
         self._scores[account_ref] = score

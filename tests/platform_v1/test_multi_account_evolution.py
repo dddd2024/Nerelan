@@ -220,3 +220,29 @@ def test_long_band_identity_is_rejected_without_manufacturing_evidence(tmp_path)
     for row in _rich_runs():
         store.record_run({**row, "size_band": "x" * 79 + ("A" if row["mode"] == "single" else "B")})
     assert store.get_break_even()["sufficient_evidence"] is False
+
+
+# --- the feedback snapshot must stay a finite, JSON-safe document --------------
+
+def test_extreme_finite_measurements_keep_the_snapshot_finite():
+    """Two accounts at 1e308 must not sum to inf behind the operator's back.
+
+    An ``inf`` anywhere in the persisted document makes the whole feedback
+    snapshot unusable: json rejects it, and the router then silently drops all
+    measured evidence instead of refusing the one absurd number.
+    """
+    import math
+
+    from reverse_agent.platform_v1.multi_account.scoring import AccountScoreboard
+
+    board = AccountScoreboard(MultiAccountConfig(), clock=lambda: 1_790_000_000.0)
+    for _ in range(3):
+        board.observe("a", ok=True, cost_units=1e308, wall_seconds=1e308, now=1_790_000_000.0)
+        board.observe("b", ok=True, cost_units=1e308, wall_seconds=1e308, now=1_790_000_000.0)
+
+    profile = board.failure_profile()
+    assert math.isfinite(profile["cost_units"]) and math.isfinite(profile["wall_seconds"])
+    # The exact per-attempt number is unrecoverable at this scale, but it must
+    # stay a number an operator can read and compare.
+    assert profile["cost_units"] > 1e307
+    json.dumps(board.snapshot(), allow_nan=False)
