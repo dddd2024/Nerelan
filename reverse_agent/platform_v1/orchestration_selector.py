@@ -209,7 +209,8 @@ def all_in_economics(runs: Iterable[Mapping[str, Any]], *, basis: str = "list_pr
     return result
 
 
-def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[str, Any] | None = None) -> dict[str, Any]:
+def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[str, Any] | None = None,
+                      min_observations_per_mode: int = _MIN_OBSERVATIONS_PER_MODE) -> dict[str, Any]:
     """Recompute the measured single/team cross-over from accepted runs.
 
     Uses the linear model from the module docstring: ``S`` = median
@@ -226,6 +227,9 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
     ``team_per_task_not_cheaper``) and the selector maps every estimate to
     single from it, instead of silently falling back to the default.
     """
+    if (type(min_observations_per_mode) is not int
+            or min_observations_per_mode < _MIN_OBSERVATIONS_PER_MODE):
+        raise ValueError("min_observations_per_mode must be an integer >= 3")
     rows = [dict(row) for row in runs
             if isinstance(row, Mapping) and _mode(row.get("mode")) and row.get("accepted") is True]
     usable: dict[str, dict[str, list[tuple[float, float]]]] = {}
@@ -247,7 +251,7 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
         "hint": None,
     }
     enough = (bool(band_counts) and all(
-        min(counts["single"], counts["agent_team"]) >= _MIN_OBSERVATIONS_PER_MODE
+        min(counts["single"], counts["agent_team"]) >= min_observations_per_mode
         for counts in band_counts.values()))
     if not enough:
         record["hint"] = "insufficient_evidence"
