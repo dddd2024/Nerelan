@@ -137,7 +137,16 @@ def _date(value: Any) -> datetime | None:
 def _account() -> dict[str, Any]:
     return dict(provider=None, kind=None, plan=None, account_ref=None, windows=[],
                 cached_windows=[], state="UNKNOWN", reason="invalid_schema", observed_at=None,
-                provenance="EXTERNAL_MAGPIE", source_version=None)
+                provenance="EXTERNAL_MAGPIE", source_version=None, reset_cards=None)
+
+
+def _reset_cards(raw: Any) -> dict[str, Any] | None:
+    """Count and soonest expiry of held Codex rate-limit resets; card ids are dropped."""
+    if not isinstance(raw, dict) or _number(raw.get("count"), 1000) is None:
+        return None
+    expiries = [_date(card.get("until")) for card in raw.get("each") or () if isinstance(card, dict)]
+    soonest = min((date for date in expiries if date), default=None)
+    return {"count": int(raw["count"]), "next_expires_at": soonest.isoformat() if soonest else None}
 
 
 def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> list[dict[str, Any]]:
@@ -158,7 +167,7 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
         provider = _text(raw.get("provider"), secrets)
         user = raw.get("user")
         account.update(provider=provider, kind=raw.get("kind") if raw.get("kind") in ("subscription", "plan", "balance") else None,
-                       plan=_text(raw.get("plan"), secrets))
+                       plan=_text(raw.get("plan"), secrets), reset_cards=_reset_cards(raw.get("resets")))
         if provider:
             identity = json.dumps([provider, user if isinstance(user, str) else None], ensure_ascii=True)
             account["account_ref"] = hashlib.sha256(identity.encode()).hexdigest()[:12]

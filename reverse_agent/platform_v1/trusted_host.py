@@ -249,7 +249,13 @@ class CombinedTrustedHost:
             runtime_status=self._pool_runtime_status,
             brain=get_orchestrator,
             persist_alerts=os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1",
+            weekly_pace=self._weekly_pace_policy,
         )
+
+    def _weekly_pace_policy(self) -> Mapping[str, Any]:
+        """The pacing policy routing applies, for display."""
+        from .routing_inputs import read_overrides, weekly_pace_config
+        return weekly_pace_config(read_overrides(getattr(self._store, "_state_path", None)))
 
     def _binding_account_resolver(self, binding_ref: str) -> "str | None":
         """Map a candidate binding to its account_ref (or connection_id fallback)."""
@@ -582,7 +588,7 @@ class CombinedTrustedHost:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model
-        from .routing_inputs import read_overrides, binding_cost_class
+        from .routing_inputs import read_overrides, binding_cost_class, weekly_pace_config
         from .routing_capabilities import read_capability_table
         try:
             owner = read_overrides(getattr(self._store, "_state_path", None))
@@ -644,11 +650,14 @@ class CombinedTrustedHost:
             def fraction(window: Mapping[str, Any]) -> float | None:
                 capacity = (window.get("capacity_units") or {}).get("low")
                 return need / capacity if type(need) in (int, float) and type(capacity) in (int, float) and capacity > 0 else None
-            try:
-                raw_reset = short_window.get("resets_at")
-                short_reset = float(raw_reset) if type(raw_reset) in (int, float) else datetime.fromisoformat(raw_reset.replace("Z", "+00:00")).timestamp()
-            except (ValueError, TypeError, AttributeError, OverflowError):
-                short_reset = None
+            def reset_time(window: Mapping[str, Any]) -> float | None:
+                raw_reset = window.get("resets_at")
+                try:
+                    return float(raw_reset) if type(raw_reset) in (int, float) else datetime.fromisoformat(
+                        raw_reset.replace("Z", "+00:00")).timestamp()
+                except (ValueError, TypeError, AttributeError, OverflowError):
+                    return None
+            short_reset = reset_time(short_window)
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
@@ -665,6 +674,7 @@ class CombinedTrustedHost:
                                "task_weekly_fraction": fraction(weekly_window), "task_short_fraction": fraction(short_window),
                                "short_headroom": 1 - short_window["used_percent"] / 100 if type(short_window.get("used_percent")) in (int, float) else None,
                                "short_resets_at": short_reset,
+                               "weekly_resets_at": reset_time(weekly_window),
                                "cost_class": cost_class}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -675,7 +685,8 @@ class CombinedTrustedHost:
                     context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                     refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
-                    reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03))
+                    reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
+                    weekly_pace=weekly_pace_config(owner))
                 can_probe = True
             except ValueError:
                 can_probe = False
@@ -706,7 +717,7 @@ class CombinedTrustedHost:
                                 author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=1.0 if forecast else random.random(),
-                                account_feedback=feedback)
+                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner))
             decision["context_packet_reservation"] = 16384 + 256
             return decision
         except ValueError as exc:
