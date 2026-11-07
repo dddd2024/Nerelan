@@ -199,3 +199,37 @@ def test_the_expectation_agrees_with_the_real_engine(probe):
         assert actual, "an empty snapshot must not be silent"
         engine = {alert.code for alert in bot.alerts.evaluate(statuses=pool)}
         assert engine == probe.expected_alert_codes(pool), healths
+
+
+# --- committed evidence must not carry host line endings ---------------------
+
+def test_written_evidence_is_lf_only(probe, tmp_path):
+    """CRLF evidence fails CI: every line then reads as trailing whitespace.
+
+    The simulation script already pinned this; the real-account writer did not,
+    and the first live evidence file failed the exact-range hygiene gate on
+    Windows. Byte-for-byte reproducibility across hosts is the requirement, not
+    a nicety.
+    """
+    payload = {"generated_at": "2026-11-07T00:00:00+00:00", "started_at": None,
+               "live": False, "magpie": {"version": "x", "accounts": 1,
+                                          "providers": ["claude"]},
+               "real_30d": {key: None for key in ("period", "calls", "errors", "retried",
+                                                  "cost", "unpriced", "credits", "ttft_ms",
+                                                  "decode_out", "decode_n")},
+               "checks": [{"key": "k", "title": "标题", "ok": True,
+                           "detail": {"a": 1}, "note": ""}],
+               "probes": [], "result": {"passed": 1, "total": 1, "ok": True},
+               "total_probe_cost_usd": 0.0}
+
+    class Args:
+        out_dir = str(tmp_path)
+
+    probe.write_reports(payload, Args)
+    written = list(tmp_path.iterdir())
+    assert written
+    for path in written:
+        raw = path.read_bytes()
+        assert b"\r\n" not in raw, f"{path.name} was written with host line endings"
+        if path.suffix == ".md":
+            assert raw.endswith(b"\n")

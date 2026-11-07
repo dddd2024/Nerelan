@@ -573,8 +573,11 @@ def write_reports(payload: dict[str, Any], args: argparse.Namespace) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     json_path = out_dir / f"real_acceptance_{stamp}.json"
+    # Fixed newline so the committed evidence is byte-identical across hosts and
+    # passes the hygiene gate: on Windows the default translation turns every
+    # line of CRLF JSON into a "trailing whitespace" error.
     json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, default=str),
-                         encoding="utf-8")
+                         encoding="utf-8", newline="\n")
 
     lines = ["# 真实账户验收报告", "",
              f"生成时间：{payload['generated_at']}　真实调用：{'是' if payload['live'] else '否'}　"
@@ -617,7 +620,7 @@ def write_reports(payload: dict[str, Any], args: argparse.Namespace) -> None:
               "词表分类（`account_abnormal` / `quota_exhausted` / `transient` / "
               "`task_failed`），只有传输类失败允许再打一次，账户级失败直接交给切换。", ""]
     md_path = out_dir / "real_acceptance_latest.md"
-    md_path.write_text("\n".join(lines), encoding="utf-8")
+    md_path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
     print(f"report: {json_path}\nsummary: {md_path}")
 
 

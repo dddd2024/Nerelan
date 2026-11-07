@@ -32,6 +32,7 @@ v5 交付了四条闭环（成本/告警/时长/策略）并做了与 main 的�
 | c | 告警验收在健康池上必然失败，在病池上必然通过 —— 它验的是"今天池坏不坏" | 断言 `bool(codes)` | 由观测到的健康分布推导期望码集，双向断言；另加"手写期望 vs 引擎"漂移测试 |
 | d | 写入失败一次后，内存里留着被拒的分区；下一次任意成功写入把它一起写进磁盘 —— 一次没有任何审计记录的状态变更 | `patch` 先改内存再落盘，无回滚 | 失败即恢复该分区（或删除新建分区）后再抛出 |
 | e | 审计链显示"策略 v7"，重启后实际是 v6，且 `rollback(7)` 找不到该版本 | `_save` 吞异常；`observe` 返回提案 | 先持久化后采纳；失败返回 `persist_failed` 且不推进版本 |
+| f | 证据文件在 Windows 上带 CRLF 落盘，CI 的 exact-range hygiene 把每一行判为行尾空白 → `state-gate` 直接失败 | 真实验收的写文件路径没有像仿真脚本那样固定 `newline="\n"` | 证据多行文本一律以固定换行写出，并加回归断言提交产物必须是 LF |
 
 共同点：**对外报告的状态强于实际落地的状态**。单机长跑里没有人盯着，这类偏差会把
 "看起来在自愈"变成"实际在漂移"。
@@ -133,7 +134,7 @@ v5 交付了四条闭环（成本/告警/时长/策略）并做了与 main 的�
 ### 5.1 真实账户验收（本次新增，证据可复跑）
 
 `python scripts/multi_account_real_acceptance.py --live` → **11/11 PASS**，
-本次真实调用花费 **$0.004321**。
+本次真实调用花费 **$0.001974**（证据 `real_acceptance_20261107T052319Z.json`）。
 
 | 验收标准 | 结果 | 真实证据 |
 |---|---|---|
@@ -141,7 +142,7 @@ v5 交付了四条闭环（成本/告警/时长/策略）并做了与 main 的�
 | 状态感知 | PASS | 真实快照落库后读回 11/11；FRESH 6 / STALE 3 / UNKNOWN 2；健康 HEALTHY 6 / STALE 3 / UNKNOWN 2 |
 | 调度选真实账户 | PASS | 选中 `2826269bbabf`（minimax-code，HEADROOM 100%，理由 `best_headroom`） |
 | 异常容错（真实故障源） | PASS | 失败账户取自**真实 30 天错误率最高者** `7605419d1a61`（copilot，错误率 0.8571），切换至 `2826269bbabf`（minimax-code） |
-| 真实调用（延迟/成本） | PASS | claude-code **8.36 s / $0.0043206**（1 次成功）；codex **19.96 s**，不上报成本 → 记 `priced=false` |
+| 真实调用（延迟/成本） | PASS | claude-code **8.33 s / $0.00197374**（1 次成功，1 次尝试）；codex **18.67 s**，不上报成本 → 记 `priced=false` |
 | 未知成本不入零 | PASS | `spent_units` 只累计已计价部分，未计价调用入账并标记 |
 | 成本上限 | PASS | 真实 30 天花费 **$58.6993**，上限 $59.6993 时 2× 花费被 `deny(cost_budget_exhausted)`，小额仍 `degrade`；30 天未计价调用 2338 次 |
 | 告警与池一致 | PASS | 期望 `perception_partial`（5/11 不可观测）＝实际 `perception_partial`；无预算误报 |
@@ -223,7 +224,7 @@ v5 交付了四条闭环（成本/告警/时长/策略）并做了与 main 的�
 
 ```bash
 python scripts/multi_account_acceptance.py                      # 11/11 仿真验收
-python scripts/multi_account_real_acceptance.py --live          # 11/11 真实账户验收（约 $0.004）
+python scripts/multi_account_real_acceptance.py --live          # 11/11 真实账户验收（约 $0.002）
 python -m pytest tests/platform_v1 -k multi_account -q          # 324 例
 python -m reverse_agent.platform_v1.multi_account.cli status    # 运维视图
 ```
