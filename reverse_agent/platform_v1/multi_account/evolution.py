@@ -155,11 +155,27 @@ class SelfEvolutionStore:
             return copy.deepcopy(value) if isinstance(value, dict) else {}
 
     def patch(self, name: str, value: Any) -> None:
-        """Replace one section and persist, keeping every other section intact."""
+        """Replace one section and persist, keeping every other section intact.
+
+        All-or-nothing on purpose: if the write fails, the in-memory section is
+        restored to its previous value before the error propagates. Leaving the
+        rejected value in memory would let the *next* successful write of any
+        other section silently make it durable, so a section that was reported as
+        failed would reappear after a restart with no audit entry explaining it.
+        """
         with self._lock:
             self._refresh_unlocked()
+            had_previous = name in self._state
+            previous = self._state.get(name)
             self._state[name] = copy.deepcopy(value)
-            self._save_unlocked()
+            try:
+                self._save_unlocked()
+            except BaseException:
+                if had_previous:
+                    self._state[name] = previous
+                else:
+                    self._state.pop(name, None)
+                raise
 
     # --- API ------------------------------------------------------------------
     def record_run(self, outcome: Mapping[str, Any], *,

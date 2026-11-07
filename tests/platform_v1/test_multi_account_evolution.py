@@ -246,3 +246,35 @@ def test_extreme_finite_measurements_keep_the_snapshot_finite():
     # stay a number an operator can read and compare.
     assert profile["cost_units"] > 1e307
     json.dumps(board.snapshot(), allow_nan=False)
+
+
+# --- a refused write must not leave the section dirty ------------------------
+
+def test_a_failed_section_write_is_rolled_back_in_memory(tmp_path, monkeypatch):
+    """The next successful write must not make a rejected section durable.
+
+    ``patch`` mutates the in-memory document before writing it. If the write
+    fails and the mutation stays, any later successful patch of *another*
+    section silently persists the rejected value — a change no audit entry
+    explains and no operator ever approved.
+    """
+    from reverse_agent.platform_v1.multi_account import evolution as evolution_module
+
+    store = SelfEvolutionStore(MultiAccountConfig(), path=tmp_path / "state.json")
+    store.patch("policy", {"version": 1})
+    original = evolution_module.os.replace
+
+    def refuse_replace(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(evolution_module.os, "replace", refuse_replace)
+    with pytest.raises(OSError):
+        store.patch("policy", {"version": 99})
+    monkeypatch.setattr(evolution_module.os, "replace", original)
+    assert store.section("policy") == {"version": 1}
+
+    # A later, unrelated write must persist only its own section.
+    store.patch("cooldowns", {"a": 1})
+    reloaded = SelfEvolutionStore(MultiAccountConfig(), path=tmp_path / "state.json")
+    assert reloaded.section("policy") == {"version": 1}
+    assert reloaded.section("cooldowns") == {"a": 1}

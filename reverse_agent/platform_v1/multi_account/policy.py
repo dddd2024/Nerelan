@@ -124,7 +124,10 @@ class PolicyLedger:
         now = self._clock() if now is None else now
         decision = self.propose(profile, now=now)
         if decision.get("changed"):
-            self._commit(decision, now=now)
+            # Return what actually happened, not what was proposed: if the write
+            # was refused the caller must see ``changed: False`` and the reason,
+            # otherwise a phantom version leaks into run evidence.
+            return self._commit(decision, now=now)
         return decision
 
     def propose(self, profile: Mapping[str, Any], *, now: Optional[float] = None) -> dict[str, Any]:
@@ -235,21 +238,36 @@ class PolicyLedger:
 
     # --- commit / rollback ----------------------------------------------------
     def _commit(self, decision: Mapping[str, Any], *, now: float) -> dict[str, Any]:
-        self._version += 1
-        self._effective = dict(decision["after"])
+        """Append one audited change — but only if it is durably persisted.
+
+        A version that exists in memory and not on disk is worse than no change:
+        the operator reads "policy v7" in the audit trail, the process restarts,
+        and the pool quietly reverts to v6 with no record of why. So the new
+        state is written first and adopted only after the write succeeds; a
+        failed write reports ``persist_failed`` and leaves the ledger untouched.
+        Dispatch is unaffected either way — this bounded optimisation simply
+        declines to advance.
+        """
+        version = self._version + 1
+        effective = dict(decision["after"])
         entry = {
-            "version": self._version, "at": now, "kind": "change",
+            "version": version, "at": now, "kind": "change",
             "reason": decision.get("reason"),
-            "before": dict(decision["before"]), "after": dict(self._effective),
+            "before": dict(decision["before"]), "after": dict(effective),
             # What actually moved, so the trail answers "what changed" without
             # a reader having to diff two full snapshots by eye.
             "changed_keys": dict(decision.get("changed_keys") or {}),
-            "evolved": self._version,
+            "evolved": version,
             "evidence": dict(decision.get("evidence") or {}),
         }
-        self._audit.append(entry)
-        self._trim_audit()
-        self._save()
+        audit = self._next_audit(entry)
+        if not self._persist_state(version, effective, audit):
+            return {**decision, "changed": False, "reason": "persist_failed",
+                    "after": self.effective(), "changed_keys": {},
+                    "version": self._version,
+                    "evidence": {**dict(decision.get("evidence") or {}),
+                                 "rejected": "persist_failed"}}
+        self._version, self._effective, self._audit = version, effective, audit
         return {**decision, "version": self._version, "audit_entry": entry}
 
     def rollback(self, version: int = 0, *, now: Optional[float] = None,
@@ -257,7 +275,9 @@ class PolicyLedger:
         """Restore the policy as it stood at ``version`` (``0`` = baseline).
 
         Rollback is itself an audited change: it appends an entry rather than
-        erasing history, so "who removed what, and when" survives.
+        erasing history, so "who removed what, and when" survives. It is also
+        all-or-nothing: an operator who is told the rollback happened must be
+        able to restart the process and still find the baseline in effect.
         """
         now = self._clock() if now is None else now
         before = self.effective()
@@ -274,14 +294,16 @@ class PolicyLedger:
             return {"changed": False, "reason": "already_at_version",
                     "version": self._version, "requested_version": version,
                     "effective": before}
-        self._version += 1
-        self._effective = target
-        entry = {"version": self._version, "at": now, "kind": "rollback",
+        next_version = self._version + 1
+        entry = {"version": next_version, "at": now, "kind": "rollback",
                  "reason": reason, "before": before, "after": dict(target),
-                 "evolved": self._version, "rolled_back_to": version, "evidence": {}}
-        self._audit.append(entry)
-        self._trim_audit()
-        self._save()
+                 "evolved": next_version, "rolled_back_to": version, "evidence": {}}
+        audit = self._next_audit(entry)
+        if not self._persist_state(next_version, target, audit):
+            return {"changed": False, "reason": "persist_failed", "version": self._version,
+                    "requested_version": version, "effective": before,
+                    "audit_entry": None}
+        self._version, self._effective, self._audit = next_version, target, audit
         return {"changed": True, "reason": reason, "version": self._version,
                 "requested_version": version, "effective": self.effective(),
                 "audit_entry": entry}
@@ -289,11 +311,12 @@ class PolicyLedger:
     def reset(self, *, clear_audit: bool = False, now: Optional[float] = None) -> dict[str, Any]:
         """Return to the configured baseline; optionally forget the audit trail."""
         result = self.rollback(0, now=now, reason="reset")
-        if clear_audit:
-            self._audit.clear()
-            self._version = 0
+        if clear_audit and result.get("reason") != "persist_failed":
+            audit: list[dict[str, Any]] = []
+            if not self._persist_state(0, dict(self._baseline), audit):
+                return result
+            self._audit, self._version = audit, 0
             self._effective = dict(self._baseline)
-            self._save()
             result = {"changed": True, "reason": "reset_and_cleared", "version": 0,
                       "effective": self.effective()}
         return result
@@ -378,7 +401,31 @@ class PolicyLedger:
         if overflow > 0:
             del self._audit[:overflow]
 
+    def _next_audit(self, entry: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """The audit trail as it *would* look with ``entry`` appended, trimmed."""
+        audit = [*self._audit, dict(entry)]
+        overflow = len(audit) - self._config.policy_audit_max_entries
+        return audit[overflow:] if overflow > 0 else audit
+
     # --- persistence ----------------------------------------------------------
+    def _persist_state(self, version: int, effective: Mapping[str, float],
+                       audit: list[dict[str, Any]]) -> bool:
+        """Write the prospective state; ``False`` means the change must not stand.
+
+        Persisting *before* adopting is what keeps the reported version equal to
+        the durable one. With no persister (in-memory runs, tests) there is
+        nothing to fail.
+        """
+        if self._persist is None:
+            return True
+        snapshot = {"version": version, "effective": dict(effective),
+                    "audit": list(audit), "reference": dict(self._reference)}
+        try:
+            self._persist(snapshot)
+        except Exception:  # noqa: BLE001 - a failed write is a "no", not a crash
+            return False
+        return True
+
     def snapshot(self) -> dict[str, Any]:
         return {"version": self._version, "effective": self.effective(),
                 "audit": list(self._audit), "reference": dict(self._reference)}

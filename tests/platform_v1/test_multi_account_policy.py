@@ -202,3 +202,80 @@ def test_bonus_is_clamped_symmetrically():
         scores.observe("a", ok=False, failure_kind="task_failed", now=NOW)
     assert scores.bonus("a", cap=3.0) >= -3.0
     assert scores.bonus("a", cap=3.0) <= 3.0
+
+
+# --- a change that cannot be written must not be reported --------------------
+
+class _FailingPersister:
+    """Persists once, then refuses: the disk went away mid-run."""
+
+    def __init__(self, fail_from: int = 1):
+        self.calls: list[dict] = []
+        self.fail_from = fail_from
+
+    def __call__(self, snapshot):
+        self.calls.append(snapshot)
+        if len(self.calls) >= self.fail_from:
+            raise OSError("disk full")
+
+
+def test_a_failed_write_is_not_reported_as_a_new_version():
+    """The audit trail must never name a version that does not exist on disk."""
+    persist = _FailingPersister(fail_from=1)
+    pol = PolicyLedger(MultiAccountConfig(), clock=lambda: NOW, persist=persist)
+    result = pol.observe(profile(success_rate=0.9, kinds={"account_abnormal": 6}))
+    assert result["changed"] is False
+    assert result["reason"] == "persist_failed"
+    assert pol.version() == 0
+    assert pol.current()["effective"] == pol.current()["baseline"]
+    assert pol.audit() == []
+
+
+def test_a_transient_write_failure_does_not_wedge_the_loop():
+    """One failed write declines that change only; the next cycle may commit."""
+    attempts = {"n": 0}
+
+    def flaky(snapshot):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise OSError("temporary")
+
+    pol = PolicyLedger(MultiAccountConfig(), clock=lambda: NOW, persist=flaky)
+    first = pol.observe(profile(success_rate=0.9, kinds={"account_abnormal": 6}))
+    assert first["reason"] == "persist_failed" and pol.version() == 0
+    second = pol.observe(profile(success_rate=0.9, kinds={"account_abnormal": 6}))
+    assert second["changed"] is True
+    assert pol.version() == 1
+    assert len(pol.audit()) == 1
+
+
+def test_a_refused_rollback_leaves_the_previous_weights_in_force():
+    """Telling an operator "rolled back" and then restarting into v6 is a lie."""
+    path = {}
+
+    def persist(snapshot):
+        if path.get("fail"):
+            raise OSError("read-only filesystem")
+        path["snap"] = json.loads(json.dumps(snapshot))
+
+    pol = PolicyLedger(MultiAccountConfig(), clock=lambda: NOW, persist=persist)
+    assert pol.observe(profile(success_rate=0.9,
+                               kinds={"account_abnormal": 6}))["changed"] is True
+    moved = pol.weights()["reliability_weight"]
+    path["fail"] = True
+    refused = pol.rollback(0)
+    assert refused["changed"] is False
+    assert refused["reason"] == "persist_failed"
+    assert pol.weights()["reliability_weight"] == moved
+    assert pol.version() == 1
+    assert path["snap"]["effective"]["reliability_weight"] == moved
+
+
+def test_the_persisted_snapshot_is_what_a_restart_would_load():
+    snapshots: list[dict] = []
+    pol = PolicyLedger(MultiAccountConfig(), clock=lambda: NOW, persist=snapshots.append)
+    pol.observe(profile(success_rate=0.9, kinds={"account_abnormal": 6}))
+    restored = PolicyLedger(MultiAccountConfig(), clock=lambda: NOW, state=snapshots[-1])
+    assert restored.version() == pol.version()
+    assert restored.weights() == pol.weights()
+    assert [row["version"] for row in restored.audit()] == [1]
