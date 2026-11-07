@@ -8,7 +8,7 @@
 | 项 | 值 |
 |---|---|
 | 进程 | `python -u scripts/multi_account_live_acceptance.py --resumable --soak-minutes 1440 --soak-interval 300 ...` |
-| 启动 | 2026-11-07，系统时钟约 05:26，由 `Install-LongRunAutostart.ps1 -StartNow` 无窗口启动 |
+| 启动 | 2026-11-07 05:31（系统时钟），由 `Install-LongRunAutostart.ps1 -StartNow` 无窗口启动 |
 | 截止 | 2026-11-08 05:31（系统时钟），以 `soak_state.json` 的 `deadline` 为准 |
 | 工作目录 | `F:\nerelan\.claude\worktrees\multi-account-scheduling-evolution-47567e`（Claude 工作区，见第 5 节） |
 | 运行数据 | 上述目录下 `.platform_v1_runtime\soak-24h\` |
