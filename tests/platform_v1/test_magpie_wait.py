@@ -8,6 +8,7 @@ process.
 from __future__ import annotations
 
 import subprocess
+import threading
 
 import pytest
 
@@ -160,7 +161,7 @@ def _coordinator(**attrs):
     from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
     coordinator = object.__new__(UnattendedCoordinator)
     coordinator._last_error = ""
-    coordinator._stop = __import__("threading").Event()
+    coordinator._stop = threading.Event()
     coordinator.quota_wait_target = None
     for key, value in attrs.items():
         setattr(coordinator, key, value)
@@ -174,6 +175,16 @@ def test_coordinator_does_not_delegate_without_a_target(monkeypatch):
     coordinator = _coordinator()
     assert coordinator.quota_wait(600.0) is False
     assert called == []
+
+
+def test_coordinator_does_not_start_a_delegation_after_stop(monkeypatch):
+    def unexpected_wait(*args, **kwargs):
+        pytest.fail("delegated a wait after stop")
+
+    monkeypatch.setattr(magpie_wait, "wait_for_allowance", unexpected_wait)
+    coordinator = _coordinator(quota_wait_target="codex")
+    coordinator._stop.set()
+    assert coordinator.quota_wait(60.0) is False
 
 
 def test_coordinator_delegates_only_long_waits_and_reports_capacity(monkeypatch):
@@ -223,3 +234,61 @@ def test_coordinator_passes_its_stop_event_as_the_cancel_token(monkeypatch):
     coordinator.quota_wait(120.0)
     assert seen["is_stop"] is True  # stop() can interrupt a delegated wait
     assert coordinator._last_error == "quota_wait_cancelled"
+
+
+@pytest.mark.parametrize("spent,available,cancelled,expected_ticks,expected_sleep", [
+    (0, False, False, [0, 60], [60]),
+    (12, False, False, [0, 60], [48]),
+    (60, False, False, [0, 60], []),
+    (75, False, False, [0, 75], []),
+    (12, True, False, [0, 12], []),
+    (12, False, True, [0], []),
+])
+def test_idle_loop_shares_one_wait_budget(
+    monkeypatch, spent, available, cancelled, expected_ticks, expected_sleep,
+):
+    from reverse_agent.platform_v1 import unattended_coordinator
+
+    clock = 0
+    ticks = []
+    sleeps = []
+    coordinator = _coordinator(
+        quota_wait_target="codex", reconcile_interval=1000,
+        _lifecycle_lock=threading.Lock(), _batch_threads=set(),
+        _manual_tick_idle=threading.Event(), _thread=None,
+    )
+    coordinator._manual_tick_idle.set()
+
+    def tick(*, background):
+        ticks.append(clock)
+        if len(ticks) == 2:
+            coordinator._stop.set()
+        return 0
+
+    def delegate(target, *, timeout, cancel):
+        nonlocal clock
+        assert target == "codex" and timeout == "60s"
+        if cancel.is_set():
+            return {"available": False, "reason": "cancelled"}
+        clock += spent
+        if cancelled:
+            cancel.set()
+            return {"available": False, "reason": "cancelled"}
+        return {"available": available, "reason": "allowance_available" if available else "timeout"}
+
+    def sleep(seconds):
+        nonlocal clock
+        if not coordinator._stop.is_set():
+            sleeps.append(seconds)
+            clock += seconds
+        return coordinator._stop.is_set()
+
+    monkeypatch.setattr(magpie_wait, "wait_for_allowance", delegate)
+    monkeypatch.setattr(unattended_coordinator.time, "monotonic", lambda: clock)
+    monkeypatch.setattr(coordinator._stop, "wait", sleep)
+    coordinator.tick = tick
+    coordinator.idle_wait = lambda dispatched: 60
+    coordinator._run()
+
+    assert ticks == expected_ticks
+    assert sleeps == expected_sleep

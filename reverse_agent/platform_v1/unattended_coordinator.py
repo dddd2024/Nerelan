@@ -826,7 +826,7 @@ class UnattendedCoordinator:
         and cancellable by ``self._stop``, so shutdown is never delayed by a
         quota window — the reason this can live in the loop at all.
         """
-        if not self.quota_wait_target or wait_seconds < QUOTA_WAIT_MIN_SECONDS:
+        if self._stop.is_set() or not self.quota_wait_target or wait_seconds < QUOTA_WAIT_MIN_SECONDS:
             return False
         from .magpie_wait import wait_for_allowance
 
@@ -856,9 +856,13 @@ class UnattendedCoordinator:
                 except Exception as exc:
                     self._last_error = f"coordinator_tick_failed:{type(exc).__name__}"
                 wait = self.idle_wait(dispatched)
+                poll_at = time.monotonic() + wait
                 if self.quota_wait(wait):
                     continue  # allowance is back: poll now instead of sleeping
-                self._stop.wait(wait)
+                # Delegation and local polling share the same idle interval.
+                remaining = poll_at - time.monotonic()
+                if remaining > 0:
+                    self._stop.wait(remaining)
         finally:
             # Stop is draining, not cancellation. Retain thread ownership and
             # all original lease/claim semantics until each live batch finishes.
