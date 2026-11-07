@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import logging
+import math
 import os
 from pathlib import Path
 import threading
@@ -106,6 +107,7 @@ class UnattendedCoordinator:
         self.execution_authority_sha = execution_authority_sha
         self.planning_sha = planning_sha
         self.task_executor = task_executor
+        self._attempt_clock = time.monotonic
         self.poll_interval = max(0.1, poll_interval)
         # Startup only sees leases that already expired; a run orphaned by a host
         # restart while its lease was still live expires later and must be found.
@@ -539,6 +541,7 @@ class UnattendedCoordinator:
             with self._lifecycle_lock:
                 self._worker_thread_ids.add(threading.get_ident())
             try:
+                attempt_elapsed = None
                 stored = self.store.get_task(task_id)
                 if stored.status in {"READY_FOR_REVIEW", "FAILED"} and self.control_store.can_complete_host_claim(
                     window_id=window_id, task_id=task_id
@@ -553,7 +556,17 @@ class UnattendedCoordinator:
                         validation_exit_code=int(stored.validation_exit_code),
                         failure_classification=stored.failure_classification, failure_detail=stored.failure_detail)
                 else:
+                    collect_timing = os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
+                    started = self._attempt_timestamp() if collect_timing else None
                     outcome = self._execute_with_claim_renewal(window_id, task_id, epoch)
+                    if collect_timing:
+                        finished = self._attempt_timestamp()
+                        if (started is not None and finished is not None and finished >= started
+                                and math.isfinite(finished - started)):
+                            attempt_elapsed = finished - started
+                        else:
+                            self._last_error = "attempt_timing_unavailable"
+                            _logger.warning("attempt_timing_unavailable task=%s epoch=%s", task_id, epoch)
                 final = self.store.get_task(task_id)
                 success = bool(getattr(outcome, "success", True)) and final.status in {
                     "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
@@ -565,6 +578,7 @@ class UnattendedCoordinator:
                     owner=self.owner,
                     epoch=epoch,
                     result=result,
+                    **({"attempt_elapsed_seconds": attempt_elapsed} if attempt_elapsed is not None else {}),
                 )
                 self._report_account_feedback(final, success=success)
                 return WorkerExecutionResult(
@@ -679,6 +693,13 @@ class UnattendedCoordinator:
             # Never mask an escalation error raised while refreshing this batch's goals.
             self._last_error = f"task_unsuccessful:{failed.get('task_id', '')}"
         return completed
+
+    def _attempt_timestamp(self) -> float | None:
+        try:
+            value = self._attempt_clock()
+            return float(value) if type(value) in (int, float) and math.isfinite(value) else None
+        except Exception:  # noqa: BLE001 - optional timing never prevents execution
+            return None
 
     def _report_account_feedback(self, task: Any, *, success: bool) -> None:
         """Hand one finished attempt to the multi-account brain (best-effort).

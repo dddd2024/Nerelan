@@ -148,7 +148,9 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     returns the account captured by its reservation plus a stable outcome id.
     One unknown model or missing token counter keeps the whole cost UNKNOWN.
     Manual task lifetime remains available for reporting, labelled as including
-    waits; it is not an attempt's response latency.
+    waits; it is not an attempt's response latency. Completed claims may instead
+    expose a monotonic executor interval recorded by the host in their fenced
+    settlement. Missing/recovered intervals stay UNKNOWN, not task age.
 
     ``cost_units`` is a **list-price estimate**, not
     money billed: Magpie's ``usage --csv`` carries the real per-request
@@ -182,7 +184,7 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             if claim["status"] != "COMPLETE" or "platform_budget_reservations" not in tables:
                 return metrics
             reservation = conn.execute(
-                "SELECT account_ref, state, estimate_json FROM platform_budget_reservations "
+                "SELECT account_ref, state, estimate_json, settlement_json FROM platform_budget_reservations "
                 "WHERE task_id=? AND window_id=? AND claim_epoch=?",
                 (task_id, claim["window_id"], claim["epoch"])).fetchone()
             if reservation is None or reservation["state"] not in {"RECONCILED", "UNKNOWN", "OVERRUN"}:
@@ -192,6 +194,9 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             metrics.update(scope="claim_attempt", account_ref=frozen_account or None,
                            outcome_id=f"{task_id}:{claim['window_id']}:{claim['epoch']}",
                            wall_time_basis="UNKNOWN")
+            wall = _settled_attempt_seconds(reservation["settlement_json"])
+            if wall is not None:
+                metrics.update(wall_seconds=wall, wall_time_basis="attempt_elapsed")
             where = "task_id=? AND window_id=? AND claim_epoch=?"
             params = (task_id, claim["window_id"], claim["epoch"])
         rows = conn.execute(
@@ -233,6 +238,20 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         metrics["wall_seconds"] = None
     return metrics
+
+
+def _settled_attempt_seconds(raw: Any) -> float | None:
+    import math
+    try:
+        timing = json.loads(raw or "{}").get("attempt_metrics", {})
+        wall = timing.get("wall_seconds")
+        if (type(timing.get("schema_version")) is int and timing["schema_version"] == 1
+                and timing.get("state") == "OBSERVED" and timing.get("basis") == "executor_attempt_elapsed"
+                and type(wall) in (int, float) and math.isfinite(wall) and wall >= 0):
+            return float(wall)
+    except (ValueError, TypeError, AttributeError, OverflowError):
+        pass
+    return None
 
 
 def _elapsed_seconds(start: Any, end: Any) -> float | None:

@@ -2102,6 +2102,7 @@ class PlatformControlStore:
         owner: str,
         epoch: int,
         result: str,
+        attempt_elapsed_seconds: float | None = None,
     ) -> None:
         with self._lock:
             if self.task_store.get_task(task_id).status == "QUOTA_WAIT":
@@ -2120,6 +2121,7 @@ class PlatformControlStore:
             count_completion=True,
             receipt_reason="coordinator_claim_completed",
             receipt_result=result[:220],
+            attempt_elapsed_seconds=attempt_elapsed_seconds,
         )
 
     def _claim_operation(self, task_id: str) -> str:
@@ -2208,8 +2210,13 @@ class PlatformControlStore:
         persisted_host_recovery: bool = False,
         in_transaction: bool = False,
         quota_usage_before: Sequence[str] | None = None,
+        attempt_elapsed_seconds: float | None = None,
     ) -> str:
-        """Fence a claim and reconcile its reservation exactly once."""
+        """Fence a claim and reconcile its reservation exactly once.
+
+        Optional numeric attempt timing commits with this same settlement and
+        receipt. It cannot create usage, change a budget or bypass the fence.
+        """
 
         if claim_status not in {"COMPLETE", "FAILED"}:
             raise TaskStoreError("invalid_coordinator_claim_terminal")
@@ -2350,6 +2357,17 @@ class PlatformControlStore:
                     usage_unknown=usage_unknown)
                 settlement["limit_cutoff"] = any(word in (task["failure_classification"] + ":" + receipt_result)
                     for word in ("usage_limit", "rate_limit", "budget_exhausted", "usage_budget", "provider_exhaustion"))
+                if attempt_elapsed_seconds is not None:
+                    import math
+                    try:
+                        valid = type(attempt_elapsed_seconds) in (int, float) and math.isfinite(attempt_elapsed_seconds) and attempt_elapsed_seconds >= 0
+                    except OverflowError:
+                        valid = False
+                    # Numeric host telemetry belongs to this fenced settlement,
+                    # not a new usage observation or a separate event/state writer.
+                    settlement["attempt_metrics"] = ({"schema_version": 1, "state": "OBSERVED",
+                        "wall_seconds": float(attempt_elapsed_seconds), "basis": "executor_attempt_elapsed"}
+                        if valid else {"schema_version": 1, "state": "UNKNOWN", "reason": "invalid_host_timing"})
                 cur.execute("UPDATE platform_budget_reservations SET settlement_json=?, quota_state=? "
                             "WHERE task_id=? AND claim_epoch=?",
                             (json.dumps(settlement), settlement["state"], task_id, epoch))
