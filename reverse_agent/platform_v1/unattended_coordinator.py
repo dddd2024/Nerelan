@@ -310,7 +310,7 @@ class UnattendedCoordinator:
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
         for task_id in self.control_store.runnable_tasks(
-            window.id, limit=500
+            window.id, limit=500, respect_attempt_limits=True
         ):
             if len(claimed) >= free_slots:
                 break
@@ -364,11 +364,14 @@ class UnattendedCoordinator:
                 )
             except TaskStoreError as exc:
                 if str(exc) in {
-                    "window_wip_limit_reached", "window_task_budget_exhausted",
-                    "window_retry_budget_exhausted", "window_token_budget_exhausted",
+                    "window_wip_limit_reached", "window_token_budget_exhausted",
                     "window_cost_budget_exhausted",
                 }:
                     break
+                if str(exc) in {"window_task_budget_exhausted", "window_retry_budget_exhausted"}:
+                    # A concurrent claim can exhaust one attempt class after
+                    # selection. The other class still has its own counter.
+                    continue
                 if str(exc) == "task_already_claimed":
                     continue
                 if str(exc).startswith("QUOTA_WAIT"):

@@ -842,6 +842,54 @@ def _budget_window(
     })
 
 
+@pytest.mark.parametrize("exhausted", ["retries", "fresh_tasks"])
+def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "mixed-attempt-budgets", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2 if exhausted == "retries" else 1,
+        "max_retries": 0 if exhausted == "retries" else 1, "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="mixed-attempt-budgets")
+    held_id, eligible_id = (link["task_id"] for link in control.list_goal_tasks(goal.id))
+    interrupted_id = held_id if exhausted == "retries" else eligible_id
+    control.claim_task(window_id=window.id, task_id=interrupted_id, owner="old", lease_ms=60000)
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?",
+                        (interrupted_id,))
+    store.set_state(interrupted_id, "INTERRUPTED")
+    assert control.reconcile_expired_budget_reservations() == (
+        f"budget_reservation_retained:{interrupted_id}",
+    )
+    dispatched = []
+
+    def execute(task_id):
+        dispatched.append(task_id)
+        if store.get_task(task_id).status == "INTERRUPTED":
+            store.transition_to(task_id, "RUNNING_FIXTURE")
+            store.transition_to(task_id, "VALIDATING")
+            store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
+            return SimpleNamespace(success=True)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute)
+    before = store.get_task(held_id).status
+    assert control.runnable_tasks(window.id, limit=1) == (held_id,)
+    assert control.runnable_tasks(window.id, limit=1, respect_attempt_limits=True) == (eligible_id,)
+    assert coordinator.tick() == 1
+    assert dispatched == [eligible_id]
+    assert store.get_task(held_id).status == before
+    assert control.get_window(window.id).retries_used == (1 if exhausted == "fresh_tasks" else 0)
+    assert coordinator.tick() == 0
+
+
 def test_concurrent_claims_cannot_reserve_past_token_budget(tmp_path):
     db_path = str(tmp_path / "concurrent-budget.sqlite3")
     store_a = TaskStore(db_path)
