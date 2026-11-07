@@ -426,7 +426,7 @@ class GoalService:
         return {**outcome, "goal": self.detail(goal_id)}
 
     def _launch(self, goal_id: str, *, expected_revision: int, window_id: str,
-                probe_availability: bool = True) -> GoalRecord:
+                probe_availability: bool = True, _owner_window_admission: bool = False) -> GoalRecord:
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_not_launchable")
@@ -439,6 +439,9 @@ class GoalService:
             raise TaskStoreError("goal_requires_active_window")
         if goal.repository not in window.repositories:
             raise TaskStoreError("goal_repository_outside_window")
+        if self.control_store.is_owner_window(window) and not _owner_window_admission:
+            # The Owner confirmed this window's Goals by name; nothing else is launched into it.
+            raise TaskStoreError("owner_window_goal_not_confirmed")
         planned_tasks = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
         if self.control_store.is_strict_owner_window(window):
             if (goal.orchestration_mode != "single" or len(planned_tasks) != 1
