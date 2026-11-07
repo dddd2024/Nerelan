@@ -309,15 +309,18 @@ class UnattendedCoordinator:
         claimed: dict[str, int] = {}
         held: list[str] = []
         recovered = 0
+        retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
         for task_id in self.control_store.runnable_tasks(
-            window.id, limit=500, respect_attempt_limits=True
+            window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True
         ):
             if len(claimed) >= free_slots:
                 break
             if self._stop.is_set():
                 break
+            if retained_after_denial is not None and task_id not in retained_after_denial:
+                continue
             with self._lifecycle_lock:
                 if task_id in self._active_task_ids:
                     # A live executor may outlast a DB Claim lease while the
@@ -365,14 +368,15 @@ class UnattendedCoordinator:
                     **({"feedback_identity": feedback_identity} if feedback_identity is not None else {}),
                 )
             except TaskStoreError as exc:
-                if str(exc) in {
-                    "window_wip_limit_reached", "window_token_budget_exhausted",
-                    "window_cost_budget_exhausted",
-                }:
+                if str(exc) == "window_wip_limit_reached":
                     break
+                if str(exc) in {"window_token_budget_exhausted", "window_cost_budget_exhausted"}:
+                    # Avoid preparing more unfunded work this tick. Later
+                    # tasks can still use a reservation they already hold.
+                    retained_after_denial = self.control_store.active_reservation_task_ids(window.id)
+                    continue
                 if str(exc) in {"window_task_budget_exhausted", "window_retry_budget_exhausted"}:
-                    # A concurrent claim can exhaust one attempt class after
-                    # selection. The other class still has its own counter.
+                    # The other attempt class still has its own allowance.
                     continue
                 if str(exc) == "task_already_claimed":
                     continue
