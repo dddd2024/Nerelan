@@ -1,0 +1,321 @@
+"""Owner-confirmed autonomous window over exact Goals (Owner decision 2026-11-07).
+
+    python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 \
+        --max-tasks 10 --max-concurrent 1 --max-retries 2 --capability execute_task
+
+Starts the host, prints the exact scope, and activates only after the Owner types
+the one-time code it shows in this terminal. Then it keeps running as the host.
+
+Why it exists: an HTTP request cannot activate a window, by design, and the native
+single-Task path admits one Codex Task for 30 minutes. This admits several Goals for
+hours under the same discipline: persisted truth is read before the prompt and again
+inside the activation transaction, the window, approvals, launches and one receipt
+per Goal commit together or not at all, and the store enforces hard ceilings.
+
+The receipt records the binding pool the Owner was shown. Only these Goals can run
+in the window (launch, rebind and claim refuse others) and a Task may only run on a
+binding from that pool (checked before every executor launch).
+
+What the typed code proves: someone at this terminal read the scope and typed it.
+It does not authenticate the OS user as the repository Owner, and any process that
+can drive this terminal could type it. Agents operating this machine must not.
+"""
+from __future__ import annotations
+
+import argparse
+from collections.abc import Callable, Sequence
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
+import getpass
+import json
+import re
+import secrets
+import sys
+import threading
+import time
+from typing import Any
+
+from .control_store import (
+    OWNER_WINDOW_CAPABILITIES,
+    OWNER_WINDOW_MAX_GOALS,
+    OWNER_WINDOW_MAX_MINUTES,
+    OWNER_WINDOW_MODE,
+    OWNER_WINDOW_RECEIPT,
+    canonical_json,
+    sha256_json,
+)
+from .functional_validation import repository_base
+from .repository_workspace import resolve_repository_workspace
+from .run_store import TaskStoreError
+
+CONFIRM_SECONDS = 300
+MAX_SCOPE_CHARS = 40_000
+_GOAL_ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,255}")
+_EXECUTORS = {"opencode", "codex", "claude_code"}
+_MODES = {"single", "sequential_team", "agent_team"}
+
+
+def _utc(moment: datetime) -> str:
+    return moment.isoformat().replace("+00:00", "Z")
+
+
+class OwnerWindowAdmission:
+    """One typed Owner confirmation -> one atomic window over exactly these Goals."""
+
+    def __init__(self, host: Any) -> None:
+        self._host = host
+        self._instance = secrets.token_hex(16)
+        self._lock = threading.Lock()
+
+    # --- what the Owner is shown ---------------------------------------------
+
+    def _pool(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+        """Bindings a Task may run on, resolved exactly as dispatch resolves them."""
+        host = self._host
+        from .routing_inputs import binding_cost_class, read_overrides, weekly_pace_config
+        owner = read_overrides(getattr(host._store, "_state_path", None))
+        pace = weekly_pace_config(owner)
+        resolver = host._binding_resolver_factory(host.model_control_url)
+        connections = {c["connection_id"]: c for c in host._store.list_connections_public()}
+        pool, shown, skipped = [], [], []
+        for binding in sorted(host._store.list_bindings_public(), key=lambda b: b["binding_id"]):
+            if not binding.get("enabled"):
+                continue
+            connection = connections.get(binding.get("connection_id"), {})
+            cost = binding_cost_class(binding, connection, owner)
+            if cost == "paid_api":
+                skipped.append(f"{binding['binding_id']} (paid API)")
+                continue
+            try:
+                resolution = resolver.resolve(binding["binding_id"], task_executor=binding["executor_id"])
+            except Exception as exc:  # noqa: BLE001 - an unusable binding is simply not offered
+                skipped.append(f"{binding['binding_id']} ({type(exc).__name__})")
+                continue
+            entry = {"binding_ref": resolution.binding_ref, "model_id": resolution.model_id,
+                     "connection_id": resolution.connection_id, "executor_id": resolution.executor_id,
+                     "provider_id": resolution.provider_id, "auth_method": resolution.auth_method,
+                     "base_url": resolution.base_url}
+            pool.append(entry)
+            shown.append({"binding": entry["binding_ref"], "executor": entry["executor_id"],
+                          "model": entry["model_id"], "cost": cost,
+                          "weekly_paced": bool(pace.get("enabled") and entry["executor_id"] in pace.get("executors", ()))})
+        return pool, shown, skipped
+
+    def _scope(self, goal_ids: Sequence[str], envelope: dict[str, Any]) -> dict[str, Any]:
+        """Persisted truth for the prompt and for the in-transaction recheck."""
+        host = self._host
+        control = host._control_store
+        if control._conn.execute(
+                "SELECT 1 FROM platform_coordinator_claims WHERE status = 'ACTIVE' LIMIT 1").fetchone():
+            raise TaskStoreError("owner_window_old_active_claims_hold")
+        goals = [control.get_goal(goal_id) for goal_id in goal_ids]
+        repositories = {goal.repository for goal in goals}
+        if len(repositories) != 1:
+            raise TaskStoreError("owner_window_requires_one_repository")
+        task_count = 0
+        for goal in goals:
+            if (goal.status != "PLANNED" or goal.window_id or not goal.artifact_digest
+                    or goal.executor_kind not in _EXECUTORS or goal.orchestration_mode not in _MODES
+                    or not goal.tasks or control.list_goal_tasks(goal.id)):
+                raise TaskStoreError(f"owner_window_goal_not_admissible:{goal.id}")
+            for task in goal.tasks:
+                if task.get("capability", "execute_task") not in envelope["capabilities"]:
+                    raise TaskStoreError(f"owner_window_capability_missing:{goal.id}")
+            task_count += len(goal.tasks)
+        if task_count > envelope["max_tasks"]:
+            raise TaskStoreError("owner_window_max_tasks_below_planned_tasks")
+        repository = repositories.pop()
+        workspace = resolve_repository_workspace(repository)
+        if workspace.repository != repository:
+            raise TaskStoreError("owner_window_repository_changed")
+        pool, shown, skipped = self._pool()
+        pinned = {goal.binding_ref for goal in goals if goal.binding_ref}
+        if not pinned <= {entry["binding_ref"] for entry in pool}:
+            raise TaskStoreError("owner_window_pinned_binding_outside_pool")
+        return {"goals": [asdict(goal) for goal in goals], "repository": repository,
+                "workspace": str(workspace.repo_dir), "base_sha": repository_base(repository),
+                "envelope": envelope, "approved_pool": pool, "pool_display": shown,
+                "pool_skipped": skipped, "paid_api": "excluded",
+                "host_instance": self._instance, "os_user": getpass.getuser()}
+
+    @staticmethod
+    def render(scope: dict[str, Any], code: str) -> str:
+        """Everything the Owner approves, in full. Too much to show is refused, never cut."""
+        env = scope["envelope"]
+        lines = ["Nerelan: activate an autonomous window over exactly these Goals", "",
+                 f"Repository:     {scope['repository']}",
+                 f"Workspace:      {scope['workspace']}  (base {scope['base_sha'][:12]})",
+                 f"Window:         {env['starts_at']} -> {env['expires_at']}",
+                 f"Limits:         {env['max_tasks']} tasks, {env['max_concurrent_tasks']} at a time, "
+                 f"{env['max_retries']} retries",
+                 f"Capabilities:   {', '.join(env['capabilities'])}",
+                 f"Budget caps:    tokens {env['max_token_units'] or 'none'}, "
+                 f"cost {env['max_cost_micro_units'] or 'none'}",
+                 f"Paid API:       {scope['paid_api']}", "", f"Goals ({len(scope['goals'])}):"]
+        for goal in scope["goals"]:
+            lines += [f"- {goal['id']} rev {goal['revision']}  {goal['executor_kind']}/{goal['orchestration_mode']}"
+                      f"{'  pinned ' + goal['binding_ref'] if goal['binding_ref'] else '  routed'}",
+                      f"  digest {goal['artifact_digest']}",
+                      f"  {goal['title']}", "  objective:"]
+            lines += ["    " + line for line in goal["objective"].splitlines() or [""]]
+            lines += [f"  task {task.get('id')}: {task.get('title')}" for task in goal["tasks"]]
+        lines += ["", "Bindings a Task may run on:"]
+        lines += [f"- {row['binding']}: {row['executor']} {row['model']} ({row['cost']}"
+                  f"{', weekly paced' if row['weekly_paced'] else ''})" for row in scope["pool_display"]]
+        if scope["pool_skipped"]:
+            lines += ["Not offered: " + ", ".join(scope["pool_skipped"])]
+        lines += ["", f"Scope digest: {sha256_json(scope)}",
+                  f"Type {code} to activate. Anything else cancels."]
+        text = "\n".join(lines)
+        if len(text) > MAX_SCOPE_CHARS:
+            raise TaskStoreError("owner_window_scope_too_large")
+        return text
+
+    # --- activation -------------------------------------------------------------
+
+    def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
+              max_retries: int, capabilities: Sequence[str], confirm: Callable[[str, str], bool],
+              max_token_units: int = 0, max_cost_micro_units: int = 0) -> Any:
+        if not self._lock.acquire(blocking=False):
+            raise TaskStoreError("owner_window_admission_in_progress")
+        try:
+            host = self._host
+            goal_ids = tuple(goal_ids)
+            if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
+                    or any(not _GOAL_ID.fullmatch(g) for g in goal_ids)):
+                raise TaskStoreError("owner_window_goals_invalid")
+            if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+                raise TaskStoreError("owner_window_duration_invalid")
+            capabilities = tuple(dict.fromkeys(capabilities))
+            if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
+                raise TaskStoreError("owner_window_capabilities_invalid")
+            # Discovered models bind now, so routing inside the transaction cannot
+            # pick a binding the Owner was never shown.
+            host._routing_bind_discovered()
+            now = datetime.now(timezone.utc)
+            deadline = time.monotonic() + CONFIRM_SECONDS
+            # Times are fixed before the prompt; reading time spends the window.
+            envelope = {"window_id": "owner-" + secrets.token_hex(16),
+                        "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                        "owner_identity": f"os-user:{getpass.getuser()}",
+                        "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
+                        "repositories": [], "capabilities": list(capabilities),
+                        "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
+                        "max_retries": max_retries, "max_token_units": max_token_units,
+                        "max_cost_micro_units": max_cost_micro_units,
+                        "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
+            with host._task_store._lock, host._store._lock:
+                goal = host._control_store.get_goal(goal_ids[0])
+                envelope["repositories"] = [goal.repository]
+                before = canonical_json(self._scope(goal_ids, envelope))
+            code = secrets.token_hex(3).upper()
+            if confirm(self.render(json.loads(before), code), code) is not True:
+                raise TaskStoreError("owner_window_confirmation_refused")
+            if time.monotonic() >= deadline:
+                raise TaskStoreError("owner_window_confirmation_expired")
+            approved = json.loads(before)
+
+            def validate() -> None:
+                if canonical_json(self._scope(goal_ids, envelope)) != before:
+                    raise TaskStoreError("owner_window_scope_changed")
+                if time.monotonic() >= deadline:
+                    raise TaskStoreError("owner_window_confirmation_expired")
+
+            def sql_admit(window_id: str) -> None:
+                validate()  # BEGIN IMMEDIATE is held: reread persisted truth.
+                control = host._control_store
+                marked = control._conn.execute(
+                    "UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
+                    (OWNER_WINDOW_MODE, window_id))
+                if marked.rowcount != 1:
+                    raise TaskStoreError("owner_window_missing")
+                provenance_base = {"host_instance_id": self._instance, "os_user": approved["os_user"],
+                                   "scope_digest": sha256_json(approved), "goals": list(goal_ids),
+                                   "envelope": envelope, "approved_pool": approved["approved_pool"],
+                                   "workspace": approved["workspace"], "base_sha": approved["base_sha"],
+                                   "mechanism": "owner typed a one-time code at the host terminal"}
+                for goal_snapshot in approved["goals"]:
+                    provenance = {**provenance_base, "goal_id": goal_snapshot["id"],
+                                  "goal_revision": goal_snapshot["revision"],
+                                  "artifact_digest": goal_snapshot["artifact_digest"]}
+                    receipt = control.append_receipt(
+                        window_id=window_id, operation_type=OWNER_WINDOW_RECEIPT, capability="execute_task",
+                        repository=approved["repository"], subject_id=goal_snapshot["id"], decision="allowed",
+                        reason="owner_window_exact_scope", input_payload={"goal_id": goal_snapshot["id"]},
+                        result=sha256_json(provenance))
+                    stored = control._conn.execute(
+                        "UPDATE platform_operation_receipts SET evidence_json = ?, confirmation_mode = ? "
+                        "WHERE id = ? AND window_id = ? AND operation_type = ?",
+                        (canonical_json(provenance), OWNER_WINDOW_MODE, receipt.id, window_id, OWNER_WINDOW_RECEIPT))
+                    if stored.rowcount != 1:
+                        raise TaskStoreError("owner_window_receipt_missing")
+                    host._goal_service.approve(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
+                                               policy_ref=envelope["policy_id"])
+                    host._goal_service._launch(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
+                                               window_id=window_id, probe_availability=False,
+                                               _owner_window_admission=True)
+                if time.monotonic() >= deadline:
+                    raise TaskStoreError("owner_window_confirmation_expired")
+
+            with host._task_store._lock, host._store._lock:
+                validate()
+                return host._control_store.activate_window(
+                    envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
+                    _host_expected_goal_ids=goal_ids)
+        finally:
+            self._lock.release()
+
+
+# --- command line ---------------------------------------------------------------
+
+def terminal_confirm(text: str, code: str, *, stdin: Any = None, stdout: Any = None) -> bool:
+    """Show the scope and read the code from an interactive terminal only."""
+    stdin = stdin or sys.stdin
+    stdout = stdout or sys.stdout
+    if not stdin.isatty():
+        stdout.write("Refused: the code must be typed at an interactive terminal.\n")
+        return False
+    stdout.write(text + "\n> ")
+    stdout.flush()
+    answer = stdin.readline().strip()
+    return secrets.compare_digest(answer.upper(), code)
+
+
+def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
+    parser.add_argument("--goal", action="append", required=True, metavar="GOAL_ID")
+    parser.add_argument("--hours", type=float, required=True)
+    parser.add_argument("--max-tasks", type=int, required=True)
+    parser.add_argument("--max-concurrent", type=int, default=1)
+    parser.add_argument("--max-retries", type=int, default=0)
+    parser.add_argument("--capability", action="append", required=True,
+                        choices=sorted(OWNER_WINDOW_CAPABILITIES))
+    parser.add_argument("--max-token-units", type=int, default=0)
+    parser.add_argument("--max-cost-micro-units", type=int, default=0)
+    args = parser.parse_args(argv)
+    if (len(args.goal) > OWNER_WINDOW_MAX_GOALS or len(set(args.goal)) != len(args.goal)
+            or any(not _GOAL_ID.fullmatch(g) for g in args.goal)):
+        parser.error("--goal values must be distinct Goal IDs")
+    if not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+        parser.error("--hours must be above 0 and at most 168")
+    if not 1 <= args.max_tasks <= 100 or not 1 <= args.max_concurrent <= 8 or not 0 <= args.max_retries <= 5:
+        parser.error("limits out of range")
+    if "execute_task" not in args.capability:
+        parser.error("--capability execute_task is required")
+    if args.max_token_units < 0 or args.max_cost_micro_units < 0:
+        parser.error("budget caps must not be negative")
+    return args
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = parse(argv)  # before importing or starting the host
+    from .trusted_host import run_combined_trusted_host
+    run_combined_trusted_host(owner_window={
+        "goal_ids": tuple(args.goal), "hours": args.hours, "max_tasks": args.max_tasks,
+        "max_concurrent": args.max_concurrent, "max_retries": args.max_retries,
+        "capabilities": tuple(args.capability), "max_token_units": args.max_token_units,
+        "max_cost_micro_units": args.max_cost_micro_units, "confirm": terminal_confirm})
+
+
+if __name__ == "__main__":
+    main()

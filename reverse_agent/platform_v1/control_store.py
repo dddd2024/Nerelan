@@ -45,6 +45,14 @@ USAGE_ENFORCEMENT_CLASSES = frozenset(
 PROVIDER_QUOTA_STATES = frozenset({"NOT_CONFIGURED", "OBSERVED", "UNKNOWN"})
 # Tasks a window rebind may move (#1277); terminal tasks keep their original window.
 REBINDABLE_TASK_STATES = frozenset({"QUEUED", "INTERRUPTED", "QUOTA_WAIT"})
+# Owner-confirmed multi-Goal windows (owner_window.py, Owner decision 2026-11-07).
+# Hard ceilings the store enforces whatever the caller asks for.
+OWNER_WINDOW_MODE = "OWNER_WINDOW"
+OWNER_WINDOW_RECEIPT = "owner_window_admission"
+OWNER_WINDOW_MAX_GOALS = 20
+OWNER_WINDOW_MAX_MINUTES = 7 * 24 * 60
+OWNER_WINDOW_CAPABILITIES = frozenset(
+    {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"})
 TERMINAL_TASK_STATES = frozenset(
     {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED", "CANCELLED"}
 )
@@ -1005,11 +1013,29 @@ class PlatformControlStore:
                 and window.max_retries == 0 and len(window.repositories) == 1
                 and window.capabilities == ("execute_task",))
 
+    @staticmethod
+    def is_owner_window(window: AutonomousWindowRecord) -> bool:
+        """A window the Owner confirmed with its exact Goals (owner_window.py)."""
+        return window.confirmation_mode == OWNER_WINDOW_MODE
+
+    def _owner_window_receipt_locked(self, window_id: str, goal_id: str) -> bool:
+        return self._conn.execute(
+            "SELECT 1 FROM platform_operation_receipts WHERE window_id = ? AND subject_id = ? "
+            "AND operation_type = ? AND decision = 'allowed' AND confirmation_mode = ? LIMIT 1",
+            (window_id, goal_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchone() is not None
+
+    def check_owner_window_goal(self, window_id: str, goal_id: str) -> None:
+        """Only Goals the Owner confirmed for this window may run in it."""
+        window = self.get_window(window_id)
+        if self.is_owner_window(window) and not self._owner_window_receipt_locked(window_id, goal_id):
+            raise TaskStoreError("owner_window_goal_not_confirmed")
+
     def check_strict_task_admission(self, window_id: str, task_id: str) -> None:
         """Caller holds the store lock; claims call this inside BEGIN IMMEDIATE.
 
         This binds to the first launched Goal, not an Owner-selected Goal: legacy
-        activation does not carry that identity or a selected executor.
+        activation does not carry that identity or a selected executor. In an
+        Owner window it also requires the Task's Goal to be one the Owner confirmed.
         """
         from .unknown_claim_isolation import refuse_held
         refuse_held(self.task_store, task_id)
@@ -1021,6 +1047,12 @@ class PlatformControlStore:
             # A stopped window's leftover claim is as unknown as an expired one's (#1277).
             raise TaskStoreError("unknown_claim_task_held")
         window = self.get_window(window_id)
+        if self.is_owner_window(window):
+            row = self._conn.execute(
+                "SELECT goal_id FROM platform_goal_task_links WHERE task_id = ?", (task_id,)).fetchone()
+            if row is None or not self._owner_window_receipt_locked(window_id, row["goal_id"]):
+                raise TaskStoreError("owner_window_goal_not_confirmed")
+            return
         if not self.is_strict_owner_window(window):
             return
         goals = self.list_window_goals(window_id)
@@ -1193,6 +1225,10 @@ class PlatformControlStore:
         if self.is_strict_owner_window(window):
             # Strict Owner windows bind exactly one natively admitted Goal.
             raise TaskStoreError("rebind_strict_window_unsupported")
+        if self.is_owner_window(window):
+            # Owner windows run exactly the Goals the Owner confirmed; nothing moves in.
+            # Moving out after expiry stays possible, as for any other window.
+            raise TaskStoreError("rebind_owner_window_unsupported")
         if goal.repository not in window.repositories:
             raise TaskStoreError("rebind_window_repository_mismatch")
         links = self.list_goal_tasks(goal.id)
@@ -1387,6 +1423,7 @@ class PlatformControlStore:
                         _host_sql_admit: Callable[[str], None] | None = None,
                         _host_preserve_claim_windows: bool = False,
                         _host_expected_goal_id: str | None = None,
+                        _host_expected_goal_ids: tuple[str, ...] | None = None,
                         _standing_renewal: bool = False) -> AutonomousWindowRecord:
         """Create the window and optional trusted-host SQL admission in one commit.
 
@@ -1399,16 +1436,44 @@ class PlatformControlStore:
         reject_sensitive_keys(payload)
         if _host_preserve_claim_windows and _host_sql_admit is None:
             raise TaskStoreError("host_atomic_admission_required")
+        owner_window = _host_expected_goal_ids is not None
+        if owner_window:
+            # Owner-confirmed multi-Goal window (owner_window.OwnerWindowAdmission).
+            # Same transaction discipline as the single-Task path; wider, still
+            # hard-bounded envelope. The single-Task path below is unchanged.
+            if (_host_sql_admit is None or _host_expected_goal_id is not None or _trusted_binding is not None
+                    or _host_preserve_claim_windows or not callable(_host_sql_admit)
+                    or not isinstance(_host_expected_goal_ids, tuple)
+                    or not 1 <= len(_host_expected_goal_ids) <= OWNER_WINDOW_MAX_GOALS
+                    or len(set(_host_expected_goal_ids)) != len(_host_expected_goal_ids)
+                    or any(type(g) is not str or not g.strip() for g in _host_expected_goal_ids)):
+                raise TaskStoreError("host_atomic_admission_invalid")
+            capabilities_requested = payload.get("capabilities", ())
+            if (type(payload.get("max_tasks")) is not int or not 1 <= payload["max_tasks"] <= 100
+                    or type(payload.get("max_concurrent_tasks")) is not int
+                    or not 1 <= payload["max_concurrent_tasks"] <= 8
+                    or type(payload.get("max_retries")) is not int or not 0 <= payload["max_retries"] <= 5
+                    or not isinstance(capabilities_requested, (list, tuple))
+                    or "execute_task" not in capabilities_requested
+                    or not set(capabilities_requested) <= OWNER_WINDOW_CAPABILITIES
+                    or len(set(capabilities_requested)) != len(capabilities_requested)
+                    or len(payload.get("repositories", ())) != 1
+                    or payload.get("standing_renewal") is not None
+                    or payload.get("adopt_unfinished_goals")):
+                raise TaskStoreError("host_atomic_window_scope_invalid")
         if _host_sql_admit is not None:
-            if (_trusted_binding is not None or not callable(_host_sql_admit)
+            if not owner_window and (
+                    _trusted_binding is not None or not callable(_host_sql_admit)
                     or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
                 raise TaskStoreError("host_atomic_admission_invalid")
-            if (type(payload.get("max_tasks")) is not int or payload["max_tasks"] != 1
+            if not owner_window and (
+                    type(payload.get("max_tasks")) is not int or payload["max_tasks"] != 1
                     or type(payload.get("max_concurrent_tasks")) is not int or payload["max_concurrent_tasks"] != 1
                     or type(payload.get("max_retries")) is not int or payload["max_retries"] != 0
                     or list(payload.get("capabilities", ())) != ["execute_task"]
                     or len(payload.get("repositories", ())) != 1):
                 raise TaskStoreError("host_atomic_window_scope_invalid")
+            longest = timedelta(minutes=OWNER_WINDOW_MAX_MINUTES if owner_window else 30)
             try:
                 # SQLite julianday must parse the exact same RFC3339 values;
                 # Python also accepts week dates that SQLite treats as NULL.
@@ -1421,7 +1486,7 @@ class PlatformControlStore:
                 clock = datetime.now(timezone.utc)
                 if (starts.tzinfo is None or expires.tzinfo is None
                         or not starts <= clock + timedelta(seconds=5)
-                        or not clock < expires <= clock + timedelta(minutes=30)
+                        or not clock < expires <= clock + longest
                         or not starts < expires):
                     raise ValueError
             except (KeyError, ValueError, TypeError) as exc:
@@ -1582,19 +1647,35 @@ class PlatformControlStore:
                         raise TaskStoreError("host_atomic_admission_committed_early")
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
-                    # The trusted callback must leave exactly one approved
-                    # Goal and one queued task, not a window with no work.
-                    bound = self.list_window_goals(window_id)
-                    if (len(bound) != 1 or bound[0].id != _host_expected_goal_id
-                            or bound[0].status != "RUNNING" or bound[0].executor_kind != "codex"):
-                        raise TaskStoreError("host_atomic_goal_binding_missing")
-                    window = self.get_window(window_id)
-                    if not self.is_strict_owner_window(window):
-                        raise TaskStoreError("host_atomic_window_scope_invalid")
-                    links = self.list_goal_tasks(bound[0].id)
-                    if len(links) != 1 or links[0]["status"] != "QUEUED":
-                        raise TaskStoreError("host_atomic_task_binding_missing")
-                    self.check_strict_task_admission(window_id, links[0]["task_id"])
+                    if owner_window:
+                        # Exactly the confirmed Goals, all launched here, each
+                        # with its receipt; nothing else may be bound.
+                        bound = self.list_window_goals(window_id)
+                        window = self.get_window(window_id)
+                        if (sorted(goal.id for goal in bound) != sorted(_host_expected_goal_ids)
+                                or any(goal.status != "RUNNING" for goal in bound)
+                                or window.confirmation_mode != OWNER_WINDOW_MODE
+                                or self.is_strict_owner_window(window)):
+                            raise TaskStoreError("owner_window_goal_binding_missing")
+                        for goal in bound:
+                            if not self.list_goal_tasks(goal.id):
+                                raise TaskStoreError("owner_window_task_binding_missing")
+                            if not self._owner_window_receipt_locked(window_id, goal.id):
+                                raise TaskStoreError("owner_window_receipt_missing")
+                    else:
+                        # The trusted callback must leave exactly one approved
+                        # Goal and one queued task, not a window with no work.
+                        bound = self.list_window_goals(window_id)
+                        if (len(bound) != 1 or bound[0].id != _host_expected_goal_id
+                                or bound[0].status != "RUNNING" or bound[0].executor_kind != "codex"):
+                            raise TaskStoreError("host_atomic_goal_binding_missing")
+                        window = self.get_window(window_id)
+                        if not self.is_strict_owner_window(window):
+                            raise TaskStoreError("host_atomic_window_scope_invalid")
+                        links = self.list_goal_tasks(bound[0].id)
+                        if len(links) != 1 or links[0]["status"] != "QUEUED":
+                            raise TaskStoreError("host_atomic_task_binding_missing")
+                        self.check_strict_task_admission(window_id, links[0]["task_id"])
                     # A slow final binding check cannot extend the Owner window.
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
