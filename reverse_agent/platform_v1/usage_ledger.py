@@ -249,7 +249,7 @@ def _settled_attempt_seconds(raw: Any) -> float | None:
                 and timing.get("state") == "OBSERVED" and timing.get("basis") == "executor_attempt_elapsed"
                 and type(wall) in (int, float) and math.isfinite(wall) and wall >= 0):
             return float(wall)
-    except (ValueError, TypeError, AttributeError, OverflowError):
+    except (ValueError, TypeError, AttributeError, OverflowError, RecursionError):
         pass
     return None
 

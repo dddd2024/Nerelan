@@ -77,7 +77,8 @@ def test_bad_host_clock_keeps_latency_unknown_and_execution_continues(monkeypatc
         store._conn.close()
 
 
-@pytest.mark.parametrize("timing", ["not-json", "[]", '{"attempt_metrics":{"wall_seconds":true}}',
+@pytest.mark.parametrize("timing", ["not-json", "[]", "[" * 5000 + "0" + "]" * 5000,
+    '{"attempt_metrics":{"wall_seconds":true}}',
     '{"attempt_metrics":{"schema_version":true,"state":"OBSERVED","basis":"executor_attempt_elapsed","wall_seconds":1}}',
     json.dumps({"attempt_metrics": {"schema_version": 1, "state": "OBSERVED", "basis": "executor_attempt_elapsed", "wall_seconds": 10 ** 400}})])
 def test_invalid_timing_never_hides_valid_cost_observations(timing):
