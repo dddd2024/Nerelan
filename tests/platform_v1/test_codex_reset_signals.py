@@ -470,3 +470,93 @@ def test_the_feeds_own_reset_events_count_and_banked_ones_do_not():
                    {"announcement_state": "none"}, {"url": "https://example.com/x"}, {"preview": True}):
         observation = parse_feed(_feed(now, [], [{**event, **change}]), now=now)
         assert routing_signal(observation, now=now)["state"] == "UNKNOWN", change
+
+
+# --- review of 5666878: hedged posts, unrelated replies, mirror times, DST -----
+
+from reverse_agent.model_access.codex_reset_signals import _USZone, announces_today
+
+
+@pytest.mark.parametrize("text", [
+    "What if today is a reset?", "Who said today is a reset?", "If today is a reset, nobody told me.",
+    "today is a reset?", "Rumor: today is the reset. Not true.", "Today is a reset. Just kidding.",
+    "Maybe today is a reset", "Today is not a reset", "I would love it if today is a reset.",
+])
+def test_hedged_questioned_or_retracted_posts_never_announce(text):
+    assert announces_today(text) is False
+    now = _ANNOUNCED + _td(minutes=1)
+    assert routing_signal(parse_feed(_feed(now, [_post(_ANNOUNCED, text)]), now=now), now=now)["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("text", [
+    "Just kidding, today is a reset.", "But today is a reset.", "Today is a reset!",
+    "Day 23/ Much requested plugins. Just kidding, today is a reset. Still much requested though!",
+])
+def test_plain_statements_still_announce(text):
+    assert announces_today(text) is True
+
+
+def test_a_post_the_mirror_marks_as_teasing_never_announces():
+    now = _ANNOUNCED + _td(minutes=1)
+    teasing = _post(_ANNOUNCED, "But today is a reset.", tease_classification={"teasing": True})
+    assert routing_signal(parse_feed(_feed(now, [teasing]), now=now), now=now)["state"] == "UNKNOWN"
+
+
+def test_a_reply_outside_the_announcement_thread_cannot_set_the_time():
+    announcement = _post(_ANNOUNCED, "Just kidding, today is a reset.")
+    unrelated = _post(_ANNOUNCED + _td(minutes=2), "New model lands in 48 hours", reply=True,
+                      in_reply_to_tweet_id="1999999999999999999", conversation_id="1999999999999999999")
+    now = _ANNOUNCED + _td(minutes=5)
+    signal = routing_signal(parse_feed(_feed(now, [announcement, unrelated]), now=now), now=now)
+    assert signal["expected_reset_at"] == "2026-10-28T07:00:00Z"  # Pacific midnight, not +48h
+
+
+def test_a_reply_in_the_thread_sets_the_time():
+    announcement = _post(_ANNOUNCED, "Just kidding, today is a reset.")
+    reply = _post(_ANNOUNCED + _td(minutes=1), "Lands in 2 hours", reply=True,
+                  in_reply_to_tweet_id=announcement["id"], conversation_id=announcement["id"])
+    now = _ANNOUNCED + _td(minutes=5)
+    signal = routing_signal(parse_feed(_feed(now, [announcement, reply]), now=now), now=now)
+    assert signal["expected_reset_at"] == (_ANNOUNCED + _td(minutes=1, hours=2)).isoformat().replace("+00:00", "Z")
+
+
+def _mirror_event(posted, claimed, summary="By midnight PST"):
+    ident = _snowflake(posted)
+    return {"type": "reset", "scope": "global", "reset_kind": None, "preview": False, "confidence": "medium",
+            "announcement_state": "announced", "url": f"https://x.com/thsottiaux/status/{ident}",
+            "announced_at": claimed.isoformat().replace("+00:00", "Z"), "summary": summary}
+
+
+def test_a_mirror_event_uses_the_post_time_not_the_claimed_time():
+    observed_later = _mirror_event(_ANNOUNCED, _ANNOUNCED + _td(hours=4))
+    now = _ANNOUNCED + _td(hours=4, minutes=1)
+    announcement = parse_feed(_feed(now, [], [observed_later]), now=now).announcements[0]
+    assert announcement.announced_at.startswith("2026-10-28T02:42")
+
+
+def test_a_mirror_event_claiming_a_time_before_its_post_is_dropped():
+    impossible = _mirror_event(_ANNOUNCED, _ANNOUNCED - _td(hours=3))
+    now = _ANNOUNCED + _td(minutes=1)
+    assert parse_feed(_feed(now, [], [impossible]), now=now).announcements == ()
+
+
+def test_a_mirror_event_that_is_a_question_is_dropped():
+    question = _mirror_event(_ANNOUNCED, _ANNOUNCED, summary="Reset tonight?")
+    now = _ANNOUNCED + _td(minutes=1)
+    assert parse_feed(_feed(now, [], [question]), now=now).announcements == ()
+
+
+def test_the_fallback_zone_follows_us_daylight_time():
+    pacific = _USZone(-8, "US/Pacific")
+    for when, offset in ((_dt(2026, 10, 28, 7, tzinfo=_tz.utc), -7), (_dt(2026, 12, 1, 8, tzinfo=_tz.utc), -8),
+                         (_dt(2026, 3, 8, 9, 59, tzinfo=_tz.utc), -8), (_dt(2026, 3, 8, 10, tzinfo=_tz.utc), -7),
+                         (_dt(2026, 11, 1, 8, 59, tzinfo=_tz.utc), -7), (_dt(2026, 11, 1, 9, tzinfo=_tz.utc), -8)):
+        assert when.astimezone(pacific).utcoffset() == _td(hours=offset), when
+
+
+def test_midnight_pst_is_right_without_a_tz_database(monkeypatch):
+    from reverse_agent.model_access import codex_reset_signals as module
+    fallback = _USZone(-8, "US/Pacific")
+    monkeypatch.setattr(module, "_PACIFIC", fallback)
+    monkeypatch.setitem(module._ZONES, "pst", fallback)
+    assert stated_time("Lands by midnight PST.", _ANNOUNCED) == _dt(2026, 10, 28, 7, tzinfo=_tz.utc)

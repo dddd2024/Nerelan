@@ -12,7 +12,7 @@ import threading
 import time
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, tzinfo
 from typing import Any, Callable, Sequence
 from urllib.error import HTTPError, URLError
 
@@ -27,8 +27,38 @@ X_EPOCH_MS = 1288834974657
 
 _POST_ID = re.compile(r"[0-9]{10,25}\Z")
 # Tibo's own wording for a same-day global reset ("Just kidding, today is a reset.").
-# A statement, not a question or negation: "is today a reset?" does not match.
 _TODAY_RESET = re.compile(r"\btoday is (?:a|the) (?:global )?reset\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+_HEDGE = re.compile(
+    r"\b(?:if|what|who|whether|why|when|how|maybe|perhaps|rumou?r|imagine|hypothetical(?:ly)?|would|"
+    r"could|should|might|wish|pretend|suppose|unless|not|no|never|wonder)\b", re.IGNORECASE)
+_RETRACTION = re.compile(r"\b(?:just kidding|jk|kidding|not true|not really|nope|psych|lol no)\b", re.IGNORECASE)
+MAX_LEAD_WORDS = 4
+
+
+def announces_today(text: str) -> bool:
+    """A plain statement that today is a reset; questions, hedges and retractions are not.
+
+    The sentence holding the phrase must end with "." or "!" (or the text), have
+    at most four words before the phrase, and carry no hedge such as "if", "what",
+    "rumor" or "not"; no later sentence may retract it ("Just kidding.", "Not true.").
+    Real October posts that pass: "Just kidding, today is a reset." and "But today
+    is a reset." A miss costs only the drain; a false hit spends the week.
+    """
+    sentences = _SENTENCE_END.split(text.strip())
+    for index, sentence in enumerate(sentences):
+        match = _TODAY_RESET.search(sentence)
+        if not match:
+            continue
+        lead = sentence[:match.start()]
+        tail = sentence[match.end():].strip()
+        if (sentence.rstrip().endswith("?") or tail.strip(".! ") or _HEDGE.search(sentence)
+                or len(re.findall(r"[A-Za-z']+", lead)) > MAX_LEAD_WORDS):
+            continue
+        if any(_RETRACTION.search(later) for later in sentences[index + 1:]):
+            continue
+        return True
+    return False
 _RESET = re.compile(r"\breset\b", re.IGNORECASE)
 _DONE = re.compile(
     r"\b(we have reset|we've reset|has been reset|have been reset|"
@@ -77,11 +107,63 @@ class ResetObservation:
 
 # --- times stated in a post, read relative to the post that states them -------
 
+class _USZone(tzinfo):
+    """US daylight time without a tz database (Windows lacks one unless tzdata is installed).
+
+    DST runs from 02:00 local standard time on the second Sunday of March to 02:00
+    local daylight time on the first Sunday of November, as since 2007.
+    """
+
+    def __init__(self, standard_hours: int, name: str) -> None:
+        self._standard = timedelta(hours=standard_hours)
+        self._name = name
+
+    @staticmethod
+    def _sunday(year: int, month: int, nth: int) -> datetime:
+        first = datetime(year, month, 1)
+        return first + timedelta(days=(6 - first.weekday()) % 7 + 7 * (nth - 1))
+
+    def _dst_utc(self, year: int) -> tuple[datetime, datetime]:
+        start = self._sunday(year, 3, 2) + timedelta(hours=2) - self._standard
+        end = self._sunday(year, 11, 1) + timedelta(hours=1) - self._standard
+        return start, end
+
+    def utcoffset(self, moment: datetime | None) -> timedelta:
+        return self._standard + self.dst(moment)
+
+    def dst(self, moment: datetime | None) -> timedelta:
+        if moment is None:
+            return timedelta(0)
+        naive = moment.replace(tzinfo=None)
+        start, end = self._dst_utc(naive.year)
+        as_daylight = start <= naive - self._standard - timedelta(hours=1) < end
+        as_standard = start <= naive - self._standard < end
+        if as_daylight == as_standard:
+            return timedelta(hours=1) if as_daylight else timedelta(0)
+        # The repeated hour in November (or the skipped one in March): PEP 495,
+        # fold=0 is the first occurrence, which is daylight time in November.
+        if as_daylight:
+            return timedelta(0) if moment.fold else timedelta(hours=1)
+        return timedelta(0)
+
+    def fromutc(self, moment: datetime) -> datetime:
+        naive = moment.replace(tzinfo=None)
+        start, end = self._dst_utc(naive.year)
+        daylight = start <= naive < end
+        local = naive + self._standard + (timedelta(hours=1) if daylight else timedelta(0))
+        # The hour after daylight time ends repeats on the wall clock: mark it fold=1.
+        repeated = not daylight and end <= naive < end + timedelta(hours=1)
+        return local.replace(tzinfo=self, fold=int(repeated))
+
+    def tzname(self, moment: datetime | None) -> str:
+        return self._name
+
+
 try:
     from zoneinfo import ZoneInfo
     _PACIFIC, _EASTERN = ZoneInfo("America/Los_Angeles"), ZoneInfo("America/New_York")
-except Exception:  # noqa: BLE001 - no tz database: fixed standard offsets
-    _PACIFIC, _EASTERN = timezone(timedelta(hours=-8)), timezone(timedelta(hours=-5))
+except Exception:  # noqa: BLE001 - no tz database: the same US rules, computed here
+    _PACIFIC, _EASTERN = _USZone(-8, "US/Pacific"), _USZone(-5, "US/Eastern")
 _ZONES = {"pst": _PACIFIC, "pdt": _PACIFIC, "pt": _PACIFIC, "pacific": _PACIFIC,
           "est": _EASTERN, "edt": _EASTERN, "et": _EASTERN, "utc": timezone.utc, "gmt": timezone.utc}
 _ZONE = r"(pst|pdt|pt|pacific|est|edt|et|utc|gmt)"
@@ -131,13 +213,15 @@ _ANNOUNCEMENT_GROUP = timedelta(hours=12)
 
 
 def _site_announcements(events: object, now: datetime,
-                        posts: Sequence[tuple[datetime, str, str, bool, bool]] = ()) -> tuple[Announcement, ...]:
+                        posts: Sequence[tuple[datetime, str, str, bool, frozenset[str]]] = ()
+                        ) -> tuple[Announcement, ...]:
     """The freshest global reset announcement, from the feed's events and Tibo's posts.
 
     Anchors are the feed's own reset events and posts already classified as an
-    announcement. Everything within 12 hours of the newest anchor is the same
-    announcement, and so is a reply posted in that span: the time is often
-    stated there ("Lands by midnight PST.") rather than in the announcement.
+    announcement. Anchors within 12 hours of the newest one are one announcement.
+    A reply joins it only when it replies into an anchor's thread: the time is
+    often stated there ("Lands by midnight PST.") rather than in the announcement.
+    Each post's time is its X Snowflake creation time, never a mirror's claim.
     """
     found: list[tuple[datetime, str, str, str]] = []
     for event in events[:500] if isinstance(events, list) else ():
@@ -148,14 +232,19 @@ def _site_announcements(events: object, now: datetime,
                 or event.get("reset_kind") == "banked" or event.get("preview") is not False
                 or event.get("confidence") not in {"medium", "high"}
                 or event.get("announcement_state") == "none"
-                or not isinstance(url, str) or not isinstance(summary, str) or len(summary) > 8000):
+                or not isinstance(url, str) or not isinstance(summary, str) or len(summary) > 8000
+                or summary.rstrip().endswith("?")):
             continue
         identity = url.rsplit("/", 1)[-1]
         if not _POST_ID.fullmatch(identity) or url != f"https://x.com/thsottiaux/status/{identity}":
             continue
         try:
-            posted = _parse_time(event.get("announced_at"))
-        except (TypeError, ValueError):
+            claimed = _parse_time(event.get("announced_at"))
+            posted = datetime.fromtimestamp(((int(identity) >> 22) + X_EPOCH_MS) / 1000, timezone.utc)
+        except (TypeError, ValueError, OverflowError, OSError):
+            continue
+        # A mirror may record when it noticed a post, never before the post existed.
+        if claimed < posted - MAX_ID_TIME_SKEW:
             continue
         if posted > now + MAX_CLOCK_SKEW or now - posted > MAX_POST_AGE:
             continue
@@ -168,11 +257,12 @@ def _site_announcements(events: object, now: datetime,
     newest = max(posted for posted, *_ in found)
     group = sorted(item for item in found if newest - item[0] <= _ANNOUNCEMENT_GROUP)
     start = group[0][0]
+    anchors = {identity for _, identity, _, _ in group}
     texts = [(posted, text) for posted, _, text, _ in group]
-    texts += [(posted, text) for posted, _, text, _, is_reply in posts
-              if is_reply and start <= posted <= start + _ANNOUNCEMENT_GROUP]
+    texts += [(posted, text) for posted, _, text, _, thread in posts
+              if thread & anchors and start <= posted <= start + _ANNOUNCEMENT_GROUP]
     stated = sorted(t for t in (stated_time(text, posted) for posted, text in texts) if t and t > newest)
-    if not stated and any(_TODAY_RESET.search(text) for _, text in texts):
+    if not stated and any(announces_today(text) for _, text in texts):
         # "today is a reset" with no time: today in Pacific time, where Tibo posts from.
         stated = [_next_at(start, _PACIFIC, 0, 0)]
     expected = stated[0].isoformat().replace("+00:00", "Z") if stated else None
@@ -263,7 +353,9 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
                 kind = "RESET_SCOPE_UNVERIFIED"
             else:
                 kind = "RESET_ANNOUNCEMENT"
-        elif _TODAY_RESET.search(text) and entry.get("is_reply") is not True:
+        elif (announces_today(text) and entry.get("is_reply") is not True
+              and not (isinstance(entry.get("tease_classification"), dict)
+                       and entry["tease_classification"].get("teasing") is True)):
             # The mirror does not flag this wording as an explicit claim, which
             # made every real announcement in October invisible.
             kind = "RESET_ANNOUNCEMENT"
@@ -288,7 +380,14 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
             action="REFRESH_QUOTA" if kind == "RESET_REPORTED_COMPLETE" else "PLAN_ONLY",
         ))
     announcing = {event.event_id for event in events if event.kind == "RESET_ANNOUNCEMENT"}
-    posts = [(when, identity, text, f"tibo-x:{identity}" in announcing, entry.get("is_reply") is True)
+    def thread(entry: dict) -> frozenset[str]:
+        """Posts this one replies into; empty for an original post."""
+        if entry.get("is_reply") is not True:
+            return frozenset()
+        return frozenset(str(entry.get(key)) for key in ("in_reply_to_tweet_id", "conversation_id")
+                         if isinstance(entry.get(key), str) and _POST_ID.fullmatch(entry[key]))
+
+    posts = [(when, identity, text, f"tibo-x:{identity}" in announcing, thread(entry))
              for identity, (entry, text, when) in valid.items()]
     return ResetObservation("FRESH", checked_at, tuple(events),
                             announcements=_site_announcements(payload.get("events"), now, posts))

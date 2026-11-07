@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -103,9 +104,16 @@ class CombinedTrustedHost:
         self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
         if reset_signal_reader is None and os.environ.get("REVERSE_AGENT_CODEX_RESET_WATCH") == "1":
             from ..model_access.codex_reset_signals import CodexResetSignalReader
-            hours = float(os.environ.get("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", "24"))
-            if not 1 <= hours <= 72:
-                raise ValueError("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS must be between 1 and 72")
+            raw = os.environ.get("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", "24")
+            try:
+                hours = float(raw)
+            except ValueError:
+                hours = float("nan")
+            if not 1 <= hours <= 72:  # also false for NaN
+                # A typo must not keep the host down: use the documented default.
+                logging.getLogger(__name__).warning(
+                    "REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS=%r is not 1-72 hours; using 24", raw)
+                hours = 24.0
             reset_signal_reader = CodexResetSignalReader(within=timedelta(hours=hours))
         self._reset_signal_reader = reset_signal_reader
         self._availability_probe = availability_probe

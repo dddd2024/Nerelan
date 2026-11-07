@@ -32,12 +32,13 @@ _PACED_EXECUTOR = {"codex": "codex", "claude-code": "claude_code"}
 
 
 def pace_state(status: AccountStatus, pace: Optional[Mapping[str, Any]], now: float,
-               draining: bool = False) -> Optional[dict[str, Any]]:
+               drain_since: Optional[float] = None) -> Optional[dict[str, Any]]:
     """The weekly pacing line for this account, with the router's rule.
 
     ``held_until`` is an estimate for a typical task: routing uses each task's
     own need, the display the uncalibrated 3 points. An announced Codex reset
-    that routing drains for lifts the hold here too.
+    (``drain_since`` is its announcement time) lifts the hold here too, unless
+    this account's week began after it: then its reset happened, as in routing.
     """
     from ..model_router import WEEK_SECONDS, weekly_pace_hold
     executor = _PACED_EXECUTOR.get(magpie_route_provider(status.provider) or "")
@@ -48,18 +49,20 @@ def pace_state(status: AccountStatus, pace: Optional[Mapping[str, Any]], now: fl
     candidate = {"executor_id": executor, "cost_class": "subscription",
                  "weekly_headroom": 1 - weekly.used_percent / 100, "weekly_resets_at": weekly.resets_at}
     elapsed = min(1., max(0., (now - (weekly.resets_at - WEEK_SECONDS)) / WEEK_SECONDS))
+    draining = (executor == "codex" and drain_since is not None
+                and weekly.resets_at - WEEK_SECONDS <= drain_since)
     return {"used": weekly.used_percent / 100,
             # Same reading as the Magpie panel's "配速 +20%": spend minus elapsed share of the week.
             "deviation": weekly.used_percent / 100 - elapsed,
             "line": min(1 - float(pace.get("reserve", .1)), elapsed + float(pace.get("slack", .1))),
-            "held_until": None if draining and executor == "codex" else weekly_pace_hold(candidate, now=now, pace=pace),
-            "draining": bool(draining and executor == "codex"),
+            "held_until": None if draining else weekly_pace_hold(candidate, now=now, pace=pace),
+            "draining": draining,
             "resets_at": weekly.resets_at}
 
 
 def account_row(status: AccountStatus, *, cooldown: Optional[Mapping[str, Any]],
                 score: Optional[Mapping[str, Any]], now: float,
-                pace: Optional[Mapping[str, Any]] = None, draining: bool = False) -> dict[str, Any]:
+                pace: Optional[Mapping[str, Any]] = None, drain_since: Optional[float] = None) -> dict[str, Any]:
     active = bool(cooldown) and float(cooldown.get("until") or 0) > now
     return {
         **status.public_view(),
@@ -69,7 +72,7 @@ def account_row(status: AccountStatus, *, cooldown: Optional[Mapping[str, Any]],
         "cooldown": dict(cooldown) if active else None,
         "score": dict(score) if score else None,
         "dispatchable": status.health in USABLE and not active,
-        "weekly_pace": pace_state(status, pace, now, draining),
+        "weekly_pace": pace_state(status, pace, now, drain_since),
     }
 
 
@@ -178,7 +181,8 @@ class PoolMonitor:
             return None
         if signal.get("state") not in {"PLAN_ONLY", "REFRESH_QUOTA"}:
             return None
-        return {key: signal.get(key) for key in ("state", "expected_reset_at", "source_url", "assumed")}
+        return {key: signal.get(key) for key in
+                ("state", "expected_reset_at", "source_url", "assumed", "announced_at")}
 
     def _aged_statuses(self, now: float) -> list[AccountStatus]:
         """Last known rows; past the freshness budget they stop claiming health."""
@@ -220,9 +224,12 @@ class PoolMonitor:
         except Exception:  # noqa: BLE001 - a bad Owner file must not blank the view
             pace = None
         codex_reset = self._codex_reset()
-        draining = bool(codex_reset and codex_reset.get("state") == "PLAN_ONLY" and (
-            epoch_seconds(codex_reset.get("expected_reset_at")) or 0) > now)
-        rows = [account_row(status, cooldown=cooldowns.get(status.account_ref), pace=pace, draining=draining,
+        drain_since = None
+        if (codex_reset and codex_reset.get("state") == "PLAN_ONLY"
+                and (epoch_seconds(codex_reset.get("expected_reset_at")) or 0) > now):
+            # Without an announcement time routing cannot tell a renewed week either.
+            drain_since = epoch_seconds(codex_reset.get("announced_at")) or now
+        rows = [account_row(status, cooldown=cooldowns.get(status.account_ref), pace=pace, drain_since=drain_since,
                             score=scores.get(status.account_ref), now=now)
                 for status in statuses]
         rows.sort(key=lambda row: (not row["dispatchable"], -(row["headroom_pct"] or 0), row["account_ref"]))

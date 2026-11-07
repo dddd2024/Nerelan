@@ -282,7 +282,39 @@ class TestReviewFollowUps:
         from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
         status = TestPoolView().status("codex", 74, WEEK_SECONDS * .521)
         assert pace_state(status, PACE, NOW)["held_until"] is not None
-        draining = pace_state(status, PACE, NOW, draining=True)
+        draining = pace_state(status, PACE, NOW, drain_since=NOW)
         assert draining["held_until"] is None and draining["draining"] is True
         claude = TestPoolView().status("claude", 95, WEEK_SECONDS * .9)
-        assert pace_state(claude, PACE, NOW, draining=True)["draining"] is False
+        assert pace_state(claude, PACE, NOW, drain_since=NOW)["draining"] is False
+
+
+class TestRenewalEndsEveryDrainEffect:
+    def test_a_renewed_window_loses_the_drain_cost_and_penalty_too(self):
+        from datetime import datetime, timezone
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(NOW + 3600),
+                  "announced_at": iso(NOW - 3 * 3600)}
+        renewed = paced(.01, .02)  # new week, nearly unused: pacing allows it anyway
+        decision = choose([renewed], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        observation = decision["reset_observations"][0]
+        assert observation["drain"] is False and observation["drain_ended"] == "window_renewed"
+        assert observation["cost_adjustment"] == 0  # no drain discount on the new week
+
+    def test_the_display_does_not_claim_a_drain_for_a_renewed_week(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        fresh = TestPoolView().status("codex", 5, WEEK_SECONDS * .99)  # week began ~1.7h before NOW
+        state = pace_state(fresh, PACE, NOW, drain_since=NOW - 3 * 3600)
+        assert state["draining"] is False
+
+
+class TestHostEnvironment:
+    @pytest.mark.parametrize("raw", ["24h", "nan", "0", "200", ""])
+    def test_a_bad_reset_window_value_does_not_stop_the_host(self, raw, monkeypatch, tmp_path):
+        from reverse_agent.platform_v1.run_store import TaskStore
+        from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+        monkeypatch.setenv("REVERSE_AGENT_CODEX_RESET_WATCH", "1")
+        monkeypatch.setenv("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", raw)
+        store = TaskStore(str(tmp_path / "t.sqlite"))
+        host = CombinedTrustedHost(task_store=store, vault=None)
+        assert host._reset_signal_reader._within.total_seconds() == 24 * 3600
+        store._conn.close()
