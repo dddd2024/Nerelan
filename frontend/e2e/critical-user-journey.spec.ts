@@ -79,5 +79,6 @@ test("completes one provider-free critical user journey end to end", async ({ ap
 
   await navigateFromShell(appPage, "首页");
   await expect(appPage.getByTestId("platform-home")).toBeVisible();
+  await appPage.getByTestId("recent-goals-section").getByRole("button", { name: new RegExp(GOAL_TITLE) }).click();
   await expect(appPage.getByRole("heading", { name: GOAL_TITLE })).toBeVisible();
 });

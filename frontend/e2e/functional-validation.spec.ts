@@ -1,7 +1,7 @@
 import { test, expect, open, settle } from "./fixtures";
 
 test("keeps mock Goal completion unverified and opens its exact Run evidence", async ({ appPage }) => {
-  await open(appPage, "/");
+  await open(appPage, "/?goal=goal-demo-platform");
   await settle(appPage);
   const task = appPage.getByTestId("goal-task-task-demo-1");
   await expect(task.getByText("执行完成，待审查")).toBeVisible();
