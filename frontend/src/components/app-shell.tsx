@@ -33,8 +33,8 @@ function getNavLabel(to: string): string {
 /**
  * OpenHands 1.8.0 root-layout adaptation with an accessible mobile drawer.
  *
- * The desktop surface is intentionally two-part: a quiet sidebar and one
- * rounded primary workspace. The outer canvas is presentation-only and does
+ * The desktop surface is a flat two-part frame, as in common agent workbenches:
+ * a sidebar and an edge-to-edge workspace separated by one hairline. It does
  * not introduce a third application rail or a second navigation state source.
  */
 export function AppShell({ children }: { children: ReactNode }) {
@@ -80,6 +80,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   const openDrawer = useCallback(() => {
     setConversationPanelOpen(false);
     setMobileNavOpen(true);
+  }, []);
+
+  useEffect(() => {
+    const togglePalette = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setConversationPanelOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", togglePalette);
+    return () => window.removeEventListener("keydown", togglePalette);
   }, []);
 
   useEffect(() => {
@@ -161,7 +172,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       data-testid="app-shell"
       className={cn(
         "h-screen flex flex-col md:flex-row bg-ra-base text-ra-text overflow-hidden",
-        "md:gap-2 md:p-2",
       )}
     >
       <Sidebar
@@ -271,7 +281,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             }}
             className="flex items-center justify-center gap-2 px-3 py-2 rounded-md text-ra-text-secondary hover:text-ra-text hover:bg-ra-tertiary text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
           >
-            任务列表
+            搜索
           </button>
         </div>
       </div>
@@ -280,8 +290,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         data-testid="app-shell-workspace"
         data-agent-canvas-source="v1.6.1"
         className={cn(
-          "flex flex-col w-full min-w-0 flex-1 h-full bg-ra-workspace",
-          "md:overflow-hidden md:rounded-[18px] md:border md:border-ra-border/70",
+          "flex flex-col w-full min-w-0 min-h-0 flex-1 h-full bg-ra-workspace",
+          "md:overflow-hidden",
         )}
         inert={mobileNavOpen ? true : undefined}
         aria-hidden={mobileNavOpen ? "true" : undefined}
@@ -305,6 +315,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <ConversationPanel
         open={conversationPanelOpen}
         onClose={handleConversationPanelClose}
+        onNewTask={() => setNewTaskComposerOpen(true)}
       />
     </div>
   );

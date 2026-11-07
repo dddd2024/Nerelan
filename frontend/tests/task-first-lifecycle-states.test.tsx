@@ -182,7 +182,7 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
       task_links: ORIGINAL_LINKS.map((link) => ({ ...link, status: "READY_FOR_REVIEW" })),
     });
 
-    renderWithProviders(<HomePage />);
+    renderWithProviders(<HomePage />, { initialEntries: [`/?goal=${GOAL_ID}`] });
 
     const state = await screen.findByTestId("goal-state-label");
     expect(state).toHaveTextContent("执行完成，待审查");
@@ -208,7 +208,7 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
       ],
     });
 
-    renderWithProviders(<HomePage />);
+    renderWithProviders(<HomePage />, { initialEntries: [`/?goal=${GOAL_ID}`] });
 
     const state = await screen.findByTestId("goal-state-label");
     expect(state).toHaveTextContent("需要处理阻塞");

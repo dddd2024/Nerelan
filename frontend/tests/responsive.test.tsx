@@ -51,13 +51,26 @@ describe("responsive layout", () => {
     );
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
     expect(screen.getByTestId("content")).toBeInTheDocument();
-    expect(screen.getByLabelText("打开任务列表")).toBeInTheDocument();
+    expect(screen.getByLabelText("打开搜索")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-收件箱")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-路线图")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-设置")).toBeInTheDocument();
+  });
+
+  it("opens the command palette with Ctrl+K from anywhere", async () => {
+    renderWithProviders(
+      <AppShell>
+        <div>content</div>
+      </AppShell>,
+    );
+    expect(screen.queryByTestId("conversation-panel")).not.toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
+    });
+    expect(await screen.findByTestId("conversation-panel")).toBeInTheDocument();
   });
 
   it("task inbox renders on desktop", () => {

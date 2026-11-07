@@ -7,6 +7,13 @@ It also incorporates a bounded pinned direct source fork of selected
 presentation/layout files from Agent Canvas v1.6.1, licensed under the MIT
 License. The MIT terms reproduced below apply to both attributions.
 
+## cmdk 1.1.1
+
+**Repository:** https://github.com/pacocoursey/cmdk
+**License:** MIT
+
+Installed as an npm dependency for the command palette, not vendored.
+
 ## Agent Canvas v1.6.1
 
 **Repository:** https://github.com/OpenHands/agent-canvas

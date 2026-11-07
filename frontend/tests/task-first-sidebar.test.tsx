@@ -111,7 +111,7 @@ describe("task-first sidebar IA", () => {
   it("uses the compact width and orders Recent by authoritative updatedAt", () => {
     sidebar(["/tasks/task-newest"]);
 
-    expect(screen.getByTestId("sidebar")).toHaveClass("w-[232px]");
+    expect(screen.getByTestId("sidebar")).toHaveClass("w-[256px]");
     expect(screen.getByTestId("sidebar-section-recent")).toHaveTextContent("最近任务");
     const recent = screen.getAllByTestId(/^sidebar-recent-task-/);
     expect(recent.map((item) => item.textContent)).toEqual([
@@ -136,21 +136,32 @@ describe("task-first sidebar IA", () => {
     expect(alpha).not.toHaveClass("bg-ra-tertiary");
   });
 
-  it("opens Search directly and keeps lower-frequency routes behind More", async () => {
+  it("opens Search directly and keeps every product route one click away", async () => {
     const user = userEvent.setup();
     const { onOpen } = sidebar();
 
     await user.click(screen.getByTestId("toggle-conversation-panel"));
     expect(onOpen).toHaveBeenCalledTimes(1);
 
-    expect(screen.getByTestId("sidebar-more-menu")).not.toBeVisible();
-    await user.click(screen.getByTestId("sidebar-more-toggle"));
-    expect(screen.getByTestId("sidebar-more-menu")).toBeVisible();
+    expect(screen.queryByTestId("sidebar-more-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toHaveAttribute("href", "/tasks");
     expect(screen.getByTestId("sidebar-nav-收件箱")).toHaveAttribute("href", "/inbox");
     expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+  });
+
+  it("remembers the collapsed rail and toggles it with Ctrl+B", async () => {
+    window.localStorage.removeItem("nerelan.sidebar-collapsed.v1");
+    const user = userEvent.setup();
+    sidebar();
+
+    expect(screen.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+    await user.keyboard("{Control>}b{/Control}");
+    expect(screen.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "true");
+    expect(window.localStorage.getItem("nerelan.sidebar-collapsed.v1")).toBe("1");
+    await user.click(screen.getByTestId("sidebar-collapse-toggle"));
+    expect(screen.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
   });
 });
 
@@ -166,6 +177,23 @@ describe("task Search and project filtering", () => {
     expect(screen.queryByTestId("conversation-task-task-newest")).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("conversation-task-task-beta"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers navigation commands and keeps them filterable", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onNewTask = vi.fn();
+    renderWithProviders(<ConversationPanel open={true} onClose={onClose} onNewTask={onNewTask} />);
+
+    expect(screen.getByTestId("palette-command-go-/runs")).toBeInTheDocument();
+    await user.type(screen.getByTestId("task-search-input"), "quota");
+    expect(screen.getByTestId("palette-command-go-/settings/usage")).toBeInTheDocument();
+    expect(screen.queryByTestId("palette-command-go-/runs")).not.toBeInTheDocument();
+
+    await user.clear(screen.getByTestId("task-search-input"));
+    await user.click(screen.getByTestId("palette-command-new-task"));
+    expect(onNewTask).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

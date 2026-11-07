@@ -87,7 +87,7 @@ describe("OpenHands-style workspace shell", () => {
     expect(screen.getByTestId("new-task-button")).toBeInTheDocument();
     expect(screen.getByLabelText("新建任务")).toBeInTheDocument();
     expect(screen.getByTestId("toggle-conversation-panel")).toBeInTheDocument();
-    expect(screen.getByLabelText("打开任务列表")).toBeInTheDocument();
+    expect(screen.getByLabelText("打开搜索")).toBeInTheDocument();
   });
 
   it("sidebar has nav links for home and tasks", () => {
