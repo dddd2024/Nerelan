@@ -217,4 +217,3 @@ def test_the_env_example_documents_every_variable():
     assert not set(_ENV_SCALARS.values()) - documented
     assert not documented - set(_ENV_SCALARS.values()) - owned - {
         "REVERSE_AGENT_OLLYDBG_PATH", "REVERSE_AGENT_SAMPLE_PATH"}
-
