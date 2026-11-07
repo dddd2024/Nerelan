@@ -288,6 +288,8 @@ class CombinedTrustedHost:
             "authentication_error", "invalid_api_key"})
         if provider_auth:
             kind = "account_abnormal"
+        elif code in {"timeout", "executor_timeout", "opencode_timeout", "codex_timeout", "claude_code_timeout"}:
+            kind = "timeout"
         elif "quota" in classification or "limit_hit" in classification:
             kind = "quota_exhausted"
         else:

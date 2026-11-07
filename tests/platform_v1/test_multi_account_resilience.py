@@ -190,7 +190,7 @@ def test_state_document_is_one_atomic_json_with_every_section(tmp_path):
                      failed_ref="a", failure_kind="account_abnormal", attempt=1)
 
     document = json.loads(store.read_text(encoding="utf-8"))
-    assert set(document) == {"runs", "break_even", "accounts", "cooldowns", "account_feedback", "updated_at"}
+    assert set(document) == {"runs", "break_even", "accounts", "cooldowns", "account_feedback", "account_policy", "updated_at"}
     assert document["runs"] and document["accounts"]["a"]["attempts"] == 1
 
 
