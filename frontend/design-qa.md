@@ -22,10 +22,10 @@ Issue #343 bounded re-capture (single permitted snapshot update): the replayed P
 
 Snapshot paths and SHA256 (current working tree, verified by `sha256sum`):
 
-- frontend/e2e/snapshots/desktop-chromium/home-light.png — 9B8DACE44378B9CB034DB1A27E7FFF5EC1AF0DCE41BD3352966D53C10284FAEC
-- frontend/e2e/snapshots/desktop-chromium/home-dark.png — 4911DE16438FDAEE2414C4FB677A647FBC68E18D1885EC86E4BC74F18FC72BE7
-- frontend/e2e/snapshots/desktop-chromium/settings-light.png — 420FCA597ADC0C8D2CC82B1F92D96C5576807E0FB60027A4D8CE26836D016E01
-- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 622CBC4D7676BAEAC3ADCEAB6AA3B77E5413421D74509804C43FF20BCE2F26D7
+- frontend/e2e/snapshots/desktop-chromium/home-light.png — 715FAEF4399CB65F84E112E5EF5BE09E0057B32FA56DC195EE8B09B4C90812F0
+- frontend/e2e/snapshots/desktop-chromium/home-dark.png — A2F32F042BA1802763B85EECECCD933A27EC0D7DD9A2D92B8DB2DD6359A4F946
+- frontend/e2e/snapshots/desktop-chromium/settings-light.png — FFF6D564010963B7C0C5DC0FCF0D026FA57C214E33C9BDB0CCF56A5BBF892038
+- frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 5D4C3BDA5950A64E861EC9771CAFC88E26D150826ADF2531D80DE97DAF300377
 - frontend/e2e/snapshots/mobile-chromium/home-light.png — A663EE23819C0552195BD55184D89480C5FB7311EA73DD2A281728EE0D46C860
 - frontend/e2e/snapshots/mobile-chromium/home-dark.png — 40C522028B8D6E741400C7FBC5A724D87ABC8BE20C1F262BAD8E291B386E323C
 - frontend/e2e/snapshots/mobile-chromium/settings-light.png — B592E4805E778FA71BD0DF83038CD6B51DC95528BE14E9DB499F21A3F55228A2
@@ -40,5 +40,7 @@ Why CI rather than local. A local `--update-snapshots` run did not complete — 
 Rendering changes behind the refresh. Four of the eight — the settings pair on both viewports — additionally reflect two changes in this round: the accent swatch in `theme.ts` now resolves from the `--ra-swatch-*` tokens instead of a hardcoded saturated hex, and `src/index.css` now sets `accent-color: var(--ra-accent)` on native checkbox/radio so those controls follow the product accent instead of the browser default blue. The remaining four reflect the broader re-anchor of the frontend onto current main.
 
 Agent workbench refresh (PR #1397). The shell, the home route and the palette changed, so the six baselines above that changed were re-captured the same way: `*-actual.png` from the `frontend-playwright-results` artifact of workflow run `42352221184`, not a local run. The home baselines now show the composer-first page, because Home no longer selects a goal by itself. The previous values are in git history.
+
+Accounts route (PR #1398). The four desktop baselines were re-captured from run `42355403885` because the sidebar gained the 账户 row and its alert count.
 
 The implementation retains the current product Home/Settings information architecture and does not fabricate unavailable capabilities or states.
