@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from contextlib import nullcontext
 from typing import Any, Callable, Iterable, Mapping, Optional
 
 from ...model_access.subscription_quota import magpie_route_provider
-from .alerts import AlertLedger, evaluate_alerts, jsonl_sink
+from .alerts import AlertLedger, epoch_seconds, evaluate_alerts, jsonl_sink
 from .config import MultiAccountConfig
 from .status import AccountHealth, AccountStatus, MultiAccountStatusMonitor
 
@@ -40,12 +41,23 @@ def account_row(status: AccountStatus, *, cooldown: Optional[Mapping[str, Any]],
     }
 
 
-def _summary(rows: list[dict[str, Any]], statuses: Iterable[AccountStatus]) -> dict[str, Any]:
+def window_renews(control_store: Any, window: Any) -> bool:
+    """Whether a standing policy will succeed this window when it expires."""
+    policy = control_store.standing_window(window.policy_id)
+    if not policy or policy.get("status") != "ACTIVE":
+        return False
+    until, expires = epoch_seconds(policy.get("renew_until")), epoch_seconds(window.expires_at)
+    return until is not None and expires is not None and until > expires
+
+
+def _summary(rows: list[dict[str, Any]], statuses: Iterable[AccountStatus],
+             cooldowns: Mapping[str, Any]) -> dict[str, Any]:
     summary = MultiAccountStatusMonitor.health_summary(statuses)
     return {
         **summary,
         "dispatchable_accounts": sum(1 for row in rows if row["dispatchable"]),
-        "cooling_accounts": sum(1 for row in rows if row["cooldown"]),
+        # From the registry: a cooldown can name a ref no observed account has.
+        "cooling_accounts": len(cooldowns),
     }
 
 
@@ -74,6 +86,9 @@ class PoolMonitor:
         self._view: Optional[dict[str, Any]] = None
         self._view_at = 0.0
         self._progress: Optional[tuple[int, float]] = None
+        self._last_refresh: Optional[float] = None
+        self._last_statuses: list[AccountStatus] = []
+        self._last_feedback: tuple[dict[str, Any], ...] = ({}, {}, {}, {})
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
@@ -90,22 +105,31 @@ class PoolMonitor:
         return "magpie", MultiAccountStatusMonitor(self._config, clock=self._clock).diagnose(snapshot)
 
     def _feedback(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Cooldowns, scores, routing and policy; absent when the brain is unavailable."""
+        """Cooldowns, scores, routing and policy; the last good read if this one fails."""
         try:
             brain = self._brain()
             now = self._clock()
-            cooldowns = {ref: brain.cooldowns.get(ref).to_state() for ref in brain.cooldowns.active_map(now=now)}
-            return cooldowns, brain.account_scores(), brain.routing(), brain.account_policy_view()
+            with getattr(brain, "_feedback_lock", nullcontext()):
+                cooldowns = {ref: brain.cooldowns.get(ref).to_state()
+                             for ref in brain.cooldowns.active_map(now=now)}
+                self._last_feedback = (cooldowns, brain.account_scores(), brain.routing(),
+                                       brain.account_policy_view())
         except Exception:  # noqa: BLE001 - feedback is optional; perception still reports
-            return {}, {}, {}, {}
+            pass
+        return self._last_feedback  # type: ignore[return-value]
 
     def _stalled_seconds(self, coordinator: Mapping[str, Any], now: float) -> Optional[float]:
         """Seconds without a finished tick while the coordinator claims to run."""
         ticks = coordinator.get("ticks")
+        # A long gap between observations means the host slept: nobody was
+        # running, so that time says nothing about the coordinator.
+        slept = (self._last_refresh is not None
+                 and now - self._last_refresh > self._config.alert_interval_seconds * 3)
+        self._last_refresh = now
         if coordinator.get("lifecycle") != "RUNNING" or not isinstance(ticks, int):
             self._progress = None
             return None
-        if self._progress is None or self._progress[0] != ticks:
+        if slept or self._progress is None or self._progress[0] != ticks:
             self._progress = (ticks, now)
         return now - self._progress[1]
 
@@ -113,12 +137,18 @@ class PoolMonitor:
         """Run one observation. Never raises: a monitor must outlive its sources."""
         now = self._clock()
         source, statuses = self._perceive()
+        # One failed read is not news about the accounts: keep the last known
+        # rows, so their alerts neither resolve nor re-raise on a transport blip.
+        if source == "unavailable":
+            statuses = self._last_statuses
+        else:
+            self._last_statuses = statuses
         cooldowns, scores, routing, policy = self._feedback()
         rows = [account_row(status, cooldown=cooldowns.get(status.account_ref),
                             score=scores.get(status.account_ref), now=now)
                 for status in statuses]
         rows.sort(key=lambda row: (not row["dispatchable"], -(row["headroom_pct"] or 0), row["account_ref"]))
-        pool = {"source": source, "accounts": rows}
+        pool = {"source": source, "accounts": rows, "cooldowns": cooldowns}
         try:
             runtime = dict(self._runtime_status())
         except Exception:  # noqa: BLE001
@@ -130,7 +160,7 @@ class PoolMonitor:
             view = {
                 "observed_at": now,
                 "source": source,
-                "summary": _summary(rows, statuses),
+                "summary": _summary(rows, statuses, cooldowns),
                 "accounts": rows,
                 "routing": routing,
                 "policy": policy,

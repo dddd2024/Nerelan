@@ -6,31 +6,38 @@
 
 Rollback is deliberately not an HTTP route: policy authority does not belong to
 the browser. The feedback store serializes writers inside one process only, so
-rollback refuses while a host answers on the task API and asks for it to stop.
+rollback refuses while anything listens on the task API port and asks for the
+host to stop. A host on another port needs ``--task-api``.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
+import socket
 import sys
 from collections import deque
 from typing import Any, Optional, Sequence
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
 
 from . import MultiAccountConfig, MultiAccountOrchestrator
 
-DEFAULT_TASK_API = "http://127.0.0.1:8766"
+
+def _default_task_api() -> str:
+    port = os.environ.get("REVERSE_AGENT_TASK_SERVICE_PORT", "8766")
+    return os.environ.get("REVERSE_AGENT_TASK_API", f"http://127.0.0.1:{port}")
 
 
 def _host_running(base_url: str) -> bool:
-    request = Request(base_url.rstrip("/") + "/api/health", method="GET")
+    """Fails closed: only a refused connection proves that nothing is listening."""
+    parts = urlsplit(base_url)
     try:
-        with urlopen(request, timeout=2) as response:  # noqa: S310 - loopback constant or operator value
-            return 200 <= response.getcode() < 300
-    except (URLError, OSError, ValueError):
+        with socket.create_connection((parts.hostname or "127.0.0.1", parts.port or 80), timeout=5):
+            return True
+    except ConnectionRefusedError:
         return False
+    except (OSError, ValueError):
+        return True
 
 
 def _orchestrator(config: MultiAccountConfig) -> MultiAccountOrchestrator:
@@ -65,7 +72,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rollback = commands.add_parser("rollback", help="create a new policy version from an earlier one")
     rollback.add_argument("--target", type=int, required=True, help="revision to restore; 0 is the Owner baseline")
     rollback.add_argument("--expected-revision", type=int, required=True)
-    rollback.add_argument("--task-api", default=os.environ.get("REVERSE_AGENT_TASK_API", DEFAULT_TASK_API))
+    rollback.add_argument("--task-api", default=_default_task_api())
     args = parser.parse_args(argv)
 
     config = MultiAccountConfig.from_env()

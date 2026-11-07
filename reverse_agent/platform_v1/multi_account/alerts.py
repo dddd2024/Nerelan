@@ -46,7 +46,7 @@ class Alert:
         return self.code, self.subject
 
 
-def _epoch(value: Any) -> Optional[float]:
+def epoch_seconds(value: Any) -> Optional[float]:
     if not isinstance(value, str) or not value:
         return None
     try:
@@ -56,12 +56,8 @@ def _epoch(value: Any) -> Optional[float]:
 
 
 def _pool_alerts(pool: Mapping[str, Any], config: MultiAccountConfig) -> Iterable[Alert]:
-    source = pool.get("source")
-    if source == "unavailable":
+    if pool.get("source") == "unavailable":
         yield Alert("perception_unavailable", WARNING, "pool", "账户状态暂时无法读取")
-        return
-    if source == "none":
-        return
     accounts = pool.get("accounts") or ()
     usable = sum(1 for account in accounts if account.get("dispatchable"))
     if accounts and usable == 0:
@@ -69,13 +65,16 @@ def _pool_alerts(pool: Mapping[str, Any], config: MultiAccountConfig) -> Iterabl
     elif accounts and usable < config.alert_min_usable_accounts:
         yield Alert("pool_capacity_low", WARNING, "pool",
                     f"可派发账户仅 {usable} 个，低于阈值 {config.alert_min_usable_accounts}")
+    names = {account.get("account_ref"): account.get("provider") for account in accounts}
+    # Isolation is a fact of the cooldown registry, not of perception: it must
+    # not vanish when a read fails or when the ref matches no observed account.
+    for ref, cooldown in (pool.get("cooldowns") or {}).items():
+        if cooldown.get("tier") == "quarantine":
+            yield Alert("account_quarantined", WARNING, str(ref),
+                        f"{names.get(ref) or ref} 已隔离：{cooldown.get('kind') or 'unknown'}")
     for account in accounts:
         ref = str(account.get("account_ref") or "")
         name = account.get("provider") or ref
-        cooldown = account.get("cooldown") or {}
-        if cooldown.get("tier") == "quarantine":
-            yield Alert("account_quarantined", WARNING, ref,
-                        f"{name} 已隔离：{cooldown.get('kind') or 'unknown'}")
         if account.get("health") == "ABNORMAL":
             yield Alert("account_abnormal", WARNING, ref, f"{name} 状态异常")
         elif account.get("health") == "EXHAUSTED":
@@ -111,8 +110,8 @@ def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
     if coordinator.get("stranded_goals"):
         yield Alert("goals_stranded", WARNING, "goals",
                     f"{len(coordinator['stranded_goals'])} 个目标的窗口已无法派发")
-    if window and not window.get("standing_renewal"):
-        expires = _epoch(window.get("expires_at"))
+    if window and not runtime.get("window_renews"):
+        expires = epoch_seconds(window.get("expires_at"))
         if expires is not None and 0 <= expires - now < WINDOW_EXPIRY_NOTICE_SECONDS:
             yield Alert("window_expiring", INFO, str(window.get("id") or "window"),
                         "自治窗口将在一小时内到期，且未配置续期")

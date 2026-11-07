@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import threading
 import time
 from datetime import datetime, timezone
@@ -91,8 +92,9 @@ class TestAlertRules:
         assert evaluate_alerts(pool, {}, config(alert_min_usable_accounts=1), now=NOW) == []
 
     def test_account_conditions_name_the_account(self):
-        pool = {"source": "magpie", "accounts": [
-            row("q", dispatchable=False, cooldown={"tier": "quarantine", "kind": "account_abnormal"}),
+        pool = {"source": "magpie", "cooldowns": {"q": {"tier": "quarantine", "kind": "account_abnormal"}},
+                "accounts": [
+            row("q", dispatchable=False),
             row("x", dispatchable=False, health="EXHAUSTED"),
             row("y", dispatchable=False, health="ABNORMAL"),
             row("ok"), row("ok2"),
@@ -101,8 +103,8 @@ class TestAlertRules:
             ("account_quarantined", "q"), ("account_exhausted", "x"), ("account_abnormal", "y")}
 
     def test_transient_cooldown_is_not_reported_as_quarantine(self):
-        pool = {"source": "magpie", "accounts": [
-            row("a", cooldown={"tier": "transient", "kind": "task_failed"}), row("b")]}
+        pool = {"source": "magpie", "accounts": [row("a"), row("b")],
+                "cooldowns": {"a": {"tier": "transient", "kind": "task_failed"}}}
         assert evaluate_alerts(pool, {}, config(), now=NOW) == []
 
     def test_unavailable_perception_warns_without_claiming_the_pool_is_empty(self):
@@ -137,10 +139,12 @@ class TestAlertRules:
             ("admission_hold", "quota_wait"), ("admission_hold", "window_cost_budget_exhausted")}
 
     def test_window_expiry_notice_is_skipped_for_a_renewing_window(self):
+        # The renewal fact comes from the store; test_standing_window.py proves
+        # it on a real window, because window records carry no renewal field.
         soon = time_in(1800)
-        expiring = {"window": {"id": "w", "expires_at": soon}}
+        expiring = {"window": {"id": "w", "expires_at": soon}, "window_renews": False}
         assert codes(evaluate_alerts({"source": "none"}, expiring, config(), now=NOW)) == [("window_expiring", "w")]
-        renewing = {"window": {"id": "w", "expires_at": soon, "standing_renewal": {"renew_until": "x"}}}
+        renewing = {"window": {"id": "w", "expires_at": soon}, "window_renews": True}
         assert evaluate_alerts({"source": "none"}, renewing, config(), now=NOW) == []
 
 
@@ -255,10 +259,15 @@ class TestDiagnosticProjection:
             {"name": "w", "used_percent": 5, "resets_at": "2027-01-15T09:00:00+00:00"}]))
         assert view["a:1"].public_view()["next_reset_at"] == self.NOW + 59 * 60
 
-    def test_an_unidentified_account_is_still_listed(self):
-        account = magpie_account("openrouter", state="STALE")
-        account["account_ref"] = None
-        assert "openrouter:unidentified" in self.statuses(account)
+    def test_unidentified_accounts_stay_distinct(self):
+        first, second = magpie_account("a", state="STALE"), magpie_account("a", state="STALE")
+        first["account_ref"] = second["account_ref"] = None
+        assert set(self.statuses(first, second)) == {"a:unidentified:1", "a:unidentified:2"}
+
+    def test_a_window_past_its_reset_does_not_constrain_the_account(self):
+        view = self.statuses(magpie_account("a", windows=[
+            {"name": "w", "used_percent": 100, "resets_at": "2027-01-15T07:00:00+00:00"}]))
+        assert view["a:1"].health is AccountHealth.HEALTHY
 
     def test_one_malformed_account_does_not_empty_the_pool(self):
         view = self.statuses(magpie_account("a", windows=[{"name": "w", "used_percent": "bad"}]),
@@ -294,6 +303,51 @@ class TestPoolMonitor:
         ]).refresh()
         assert [r["account_ref"] for r in view["accounts"]] == ["high", "low", "stale"]
 
+    def test_a_failed_read_does_not_fake_a_resolution(self, tmp_path):
+        path = tmp_path / "alerts.jsonl"
+        item = Cooldown("a", until=NOW + 600, kind="account_abnormal", streak=1, tier="quarantine")
+        reads = iter([snapshot(magpie_account("codex", ref="a")), {"status": "refused"},
+                      snapshot(magpie_account("codex", ref="a"))])
+        pool = monitor(config=config(alert_log_path=path), persist_alerts=True, fetch_snapshot=lambda: next(reads),
+                       brain=lambda: brain(cooling={"a": item}), clock=lambda: NOW)
+        pool.refresh()
+        degraded = pool.refresh()
+        assert degraded["source"] == "unavailable" and len(degraded["accounts"]) == 1
+        pool.refresh()
+        events = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        quarantine = [e["event"] for e in events if e["code"] == "account_quarantined"]
+        assert quarantine == ["raised"]
+
+    def test_a_cooldown_with_no_observed_account_is_still_reported(self):
+        item = Cooldown("connection-1", until=NOW + 60, kind="account_abnormal", streak=1, tier="quarantine")
+        view = monitor(brain=lambda: brain(cooling={"connection-1": item})).refresh()
+        assert view["summary"]["cooling_accounts"] == 1
+        alert = next(a for a in view["alerts"]["active"] if a["code"] == "account_quarantined")
+        assert alert["subject"] == "connection-1"
+
+    def test_a_failed_brain_read_keeps_the_last_feedback(self):
+        item = Cooldown("a", until=NOW + 60, kind="account_abnormal", streak=1, tier="quarantine")
+        healthy = iter([brain(cooling={"a": item})])
+
+        def flaky():
+            try:
+                return next(healthy)
+            except StopIteration:
+                raise RuntimeError("store busy") from None
+
+        pool = monitor(brain=flaky)
+        pool.refresh()
+        assert "account_quarantined" in [a["code"] for a in pool.refresh()["alerts"]["active"]]
+
+    def test_time_asleep_does_not_count_as_a_stall(self):
+        clock = {"now": NOW}
+        runtime = {"coordinator": {"lifecycle": "RUNNING", "ticks": 5}}
+        pool = monitor(config=config(alert_stall_seconds=60), runtime_status=lambda: runtime,
+                       clock=lambda: clock["now"], stored_statuses=lambda: [])
+        pool.refresh()
+        clock["now"] += 3600
+        assert pool.refresh()["alerts"]["active"] == []
+
     def test_a_failed_snapshot_reports_unavailable_rather_than_an_empty_pool(self):
         def boom():
             raise OSError("http://secret/url")
@@ -321,7 +375,9 @@ class TestPoolMonitor:
         pool = monitor(config=config(alert_stall_seconds=60), runtime_status=lambda: runtime,
                        clock=lambda: clock["now"], stored_statuses=lambda: [])
         pool.refresh()
-        clock["now"] += 61
+        clock["now"] += 30
+        pool.refresh()
+        clock["now"] += 31
         assert [a["code"] for a in pool.refresh()["alerts"]["active"]] == ["coordinator_stalled"]
         runtime["coordinator"]["ticks"] = 6
         assert pool.refresh()["alerts"]["active"] == []
@@ -385,6 +441,25 @@ class TestCli:
     def test_alerts_with_no_log_is_empty(self, env, capsys):
         assert cli.main(["alerts"]) == 0
         assert json.loads(capsys.readouterr().out) == []
+
+    def test_host_check_treats_any_listener_as_running(self):
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            port = listener.getsockname()[1]
+            assert cli._host_running(f"http://127.0.0.1:{port}") is True
+        assert cli._host_running(f"http://127.0.0.1:{port}") is False
+
+    def test_host_check_fails_closed_on_an_ambiguous_error(self, monkeypatch):
+        def timeout(*_args, **_kwargs):
+            raise TimeoutError
+        monkeypatch.setattr(cli.socket, "create_connection", timeout)
+        assert cli._host_running("http://127.0.0.1:8766") is True
+
+    def test_the_default_target_follows_the_configured_port(self, monkeypatch):
+        monkeypatch.delenv("REVERSE_AGENT_TASK_API", raising=False)
+        monkeypatch.setenv("REVERSE_AGENT_TASK_SERVICE_PORT", "9001")
+        assert cli._default_task_api() == "http://127.0.0.1:9001"
 
     def test_rollback_refuses_while_a_host_is_running(self, env, monkeypatch, capsys):
         monkeypatch.setattr(cli, "_host_running", lambda _url: True)

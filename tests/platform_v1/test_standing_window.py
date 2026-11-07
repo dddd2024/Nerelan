@@ -57,6 +57,35 @@ def test_expired_standing_window_renews_with_identical_bounds_and_adopts_goals(t
     assert s.control.renew_standing_window() is None
 
 
+def test_pool_alerts_know_a_real_standing_window_renews():
+    from reverse_agent.platform_v1.autonomy import window_to_dict
+    from reverse_agent.platform_v1.multi_account import MultiAccountConfig
+    from reverse_agent.platform_v1.multi_account.alerts import epoch_seconds, evaluate_alerts
+    from reverse_agent.platform_v1.multi_account.pool_monitor import window_renews
+
+    s = _services()
+    window = s.autonomy.activate(_payload("standing", standing_renewal=_standing()))
+    assert window_renews(s.control, window) is True
+    now = epoch_seconds(window.expires_at) - 1800
+    runtime = {"window": window_to_dict(window), "window_renews": window_renews(s.control, window)}
+    assert evaluate_alerts({"source": "none"}, runtime, MultiAccountConfig(), now=now) == []
+
+    s.control.revoke_standing_window(window.policy_id)
+    runtime["window_renews"] = window_renews(s.control, window)
+    assert [a.code for a in evaluate_alerts({"source": "none"}, runtime, MultiAccountConfig(), now=now)] == [
+        "window_expiring"]
+
+
+def test_pool_alerts_do_not_expect_renewal_past_the_horizon():
+    from reverse_agent.platform_v1.multi_account.pool_monitor import window_renews
+
+    s = _services()
+    window = s.autonomy.activate(_payload("standing", standing_renewal=_standing()))
+    s.store._conn.execute("UPDATE platform_standing_windows SET renew_until = ? WHERE policy_id = ?",
+                          (window.expires_at, window.policy_id))
+    assert window_renews(s.control, window) is False
+
+
 @pytest.mark.parametrize("revocation", ["stop", "revoke"])
 def test_revocation_takes_effect_immediately(revocation):
     s = _services()

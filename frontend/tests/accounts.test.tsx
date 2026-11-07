@@ -102,6 +102,12 @@ describe("Accounts page", () => {
     expect(screen.getByTestId("pool-dispatchable")).toHaveTextContent("—");
   });
 
+  it("labels last-known rows when the source stops answering", async () => {
+    mount(pool({ source: "unavailable" }));
+    expect(await screen.findByText("账户状态暂时无法读取，显示最近一次结果")).toBeInTheDocument();
+    expect(screen.getByTestId("pool-account-codex")).toBeInTheDocument();
+  });
+
   it("does not show an empty pool when the first read fails", async () => {
     vi.spyOn(client, "fetchAccountPool").mockRejectedValue(new Error("down"));
     renderWithProviders(<AccountsPage />);

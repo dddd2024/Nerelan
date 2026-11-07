@@ -233,7 +233,9 @@ class CombinedTrustedHost:
         if window is None:
             return {"coordinator": coordinator, "window": None, "budget": None}
         from .autonomy import window_to_dict
+        from .multi_account.pool_monitor import window_renews
         return {"coordinator": coordinator, "window": window_to_dict(window),
+                "window_renews": window_renews(self._control_store, window),
                 "budget": self._control_store.window_budget_summary(window.id)}
 
     def _build_pool_monitor(self) -> Any:

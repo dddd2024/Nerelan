@@ -3,7 +3,7 @@ import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { PageHeader } from "@/components/page-header";
 import { useAccountPool } from "@/hooks/use-platform";
-import type { AccountHealth, PoolAccount, PoolAlert, PoolBudget, PoolPolicy } from "@/lib/platform-client";
+import type { AccountHealth, AccountPool, PoolAccount, PoolAlert, PoolBudget, PoolPolicy } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
 
 const HEALTH: Record<AccountHealth, { label: string; dot: string; text: string }> = {
@@ -21,6 +21,13 @@ const SOURCE_LABEL: Record<string, string> = {
   unavailable: "账户状态暂时无法读取",
   none: "尚未接入账户",
 };
+
+function sourceLabel(pool: AccountPool) {
+  if (pool.source === "unavailable" && pool.accounts.length > 0) {
+    return "账户状态暂时无法读取，显示最近一次结果";
+  }
+  return SOURCE_LABEL[pool.source] ?? pool.source;
+}
 
 function untilLabel(epochSeconds: number | null | undefined, now: number) {
   if (!epochSeconds) return "—";
@@ -175,7 +182,7 @@ export function AccountsPage() {
         <PageHeader
           title="账户"
           icon={Users}
-          description={pool ? (SOURCE_LABEL[pool.source] ?? pool.source) : "所有额度账户的状态、余量与运行反馈。"}
+          description={pool ? sourceLabel(pool) : "所有额度账户的状态、余量与运行反馈。"}
         />
 
         {query.isPending ? <LoadingState label="正在读取账户状态…" /> : null}

@@ -6,6 +6,7 @@ import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { TasksPage } from "@/routes/tasks";
+import * as platformClient from "@/lib/platform-client";
 
 const taskReadState = vi.hoisted(() => ({
   override: undefined as undefined | {
@@ -150,6 +151,26 @@ describe("task-first sidebar IA", () => {
     expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+  });
+
+  it("never shows a healthy host when the coordinator reports an error", async () => {
+    vi.spyOn(platformClient, "fetchPlatformStatus").mockResolvedValue({
+      service: "x", task_count: 0, goal_count: 0, capability_count: 0, live_model_calls: false,
+      autonomy: { autonomy_enabled: false, active_window: null, mode: "x" },
+      coordinator: { enabled: true, last_error: "boom", active_window_id: "" },
+    });
+    sidebar();
+    const host = await screen.findByTestId("sidebar-host-status");
+    expect(host).toHaveTextContent("协调器需要处理");
+    expect(host).toHaveAttribute("data-tone", "warning");
+    vi.restoreAllMocks();
+  });
+
+  it("reports a host it cannot reach instead of showing nothing", async () => {
+    vi.spyOn(platformClient, "fetchPlatformStatus").mockRejectedValue(new Error("down"));
+    sidebar();
+    expect(await screen.findByTestId("sidebar-host-status")).toHaveTextContent("服务未连接");
+    vi.restoreAllMocks();
   });
 
   it("leaves other chords alone", async () => {

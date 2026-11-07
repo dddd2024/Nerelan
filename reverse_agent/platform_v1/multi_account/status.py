@@ -295,15 +295,22 @@ class MultiAccountStatusMonitor:
         """
         now = self._clock() if now is None else now
         statuses: list[AccountStatus] = []
+        unidentified = 0
         for account in snapshot.get("accounts") or ():
             if not isinstance(account, Mapping):
                 continue
             provider = account.get("provider")
-            ref = account.get("account_ref") or f"{provider or 'unknown'}:unidentified"
+            ref = account.get("account_ref")
+            if not ref:
+                unidentified += 1
+                ref = f"{provider or 'unknown'}:unidentified:{unidentified}"
             try:
-                windows = [{**window, "window": window.get("name"),
-                            "resets_at": _parse_iso(window.get("resets_at"))}
-                           for window in account.get("windows") or () if isinstance(window, Mapping)]
+                windows = []
+                for window in account.get("windows") or ():
+                    if isinstance(window, Mapping):
+                        resets_at = _parse_iso(window.get("resets_at"))
+                        windows.append({**window, "window": window.get("name"), "resets_at": resets_at,
+                                        "reset_passed": resets_at is not None and resets_at <= now})
                 status = self._build_status(str(ref), {
                     "provider": provider, "windows": windows,
                     "observed_at": account.get("observed_at")}, now)

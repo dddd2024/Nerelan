@@ -48,6 +48,10 @@
 告警在每次评估时重新推导，所以重启不会留下陈旧告警。代价是重启后活动告警的起始时间重置，
 并再记录一次 `raised`。
 
+一次读取失败不代表账户有变化：Magpie 读不到时保留最近一次的账户行，反馈存储读不到时保留
+最近一次的隔离和评分，只增加 `perception_unavailable`。隔离告警直接来自隔离注册表，不依赖
+感知结果，所以按 `connection_id` 记录的隔离也会上报。
+
 ### 账户为什么分"参与准入"和"仅观测"
 
 `magpie_quota_windows` 只投影本仓有路由认领的服务（目前是 Codex 和 Claude）。这对硬准入是
@@ -56,7 +60,8 @@
 
 ## 可配置项
 
-环境变量统一为 `REVERSE_AGENT_MULTI_ACCOUNT_` 加字段名大写，无效值由 Pydantic 在启动时拒绝。
+环境变量为 `REVERSE_AGENT_MULTI_ACCOUNT_` 加字段名大写，无效值由 Pydantic 在启动时拒绝。
+例外是 `REVERSE_AGENT_ACCOUNT_ROUTING` 和 `REVERSE_AGENT_MULTI_ACCOUNT_STORE`。
 参数在进程启动时读取，修改后需要重启。
 
 | 类别 | 配置 | 默认 | 说明 |
@@ -71,8 +76,8 @@
 | 运行时长 | 窗口 `expires_at`、`standing_renewal` | 单窗口至多 7 天 | 续期总计至多 90 天 |
 | 监控 | `alert_interval_seconds` | 30 | 5–3600 |
 | 告警阈值 | `alert_min_usable_accounts`、`alert_budget_warn_ratio`、`alert_stall_seconds` | 2、0.2、300 | |
-| 日志 | `alert_log_path`、`alert_log_max_bytes`、`alert_log_backups` | 运行目录、1 MB、3 | 总量有界 |
-| 自进化开关 | `enable_policy_evolution`、`enable_account_scoring` | 关闭 | |
+| 日志 | `alert_log_path`、`alert_log_max_bytes`、`alert_log_backups` | 相对宿主工作目录、1 MB、3 | 总量有界 |
+| 自进化开关 | `enable_policy_evolution`、`enable_account_scoring` | 关闭、开启 | 评分默认记录，只有开启反馈路由才影响选路 |
 | 自进化限幅 | `policy_step_ratio`、`policy_max_weight_drift_ratio`、`policy_min_new_attempts` | 0.1、0.25、30 | 每个评估窗口最多一步 |
 
 推荐的无人值守起步配置，先只观察，确认评分合理后再开启自进化：
@@ -80,7 +85,6 @@
 ```text
 REVERSE_AGENT_MAGPIE=1
 REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1
-REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_ACCOUNT_SCORING=1
 REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_FEEDBACK_ROUTING=1
 ```
 
@@ -119,8 +123,9 @@ python -m reverse_agent.platform_v1.multi_account.cli alerts --limit 20
 python -m reverse_agent.platform_v1.multi_account.cli rollback --target 0 --expected-revision 7
 ```
 
-回滚会创建新版本，不删除历史。反馈存储只在单进程内串行化写入，所以宿主运行时命令会拒绝，
-返回 `host_running`。`--target 0` 回到 Owner 基线，`--expected-revision` 防止基于过期视图回滚。
+回滚会创建新版本，不删除历史。反馈存储只在单进程内串行化写入，所以任务 API 端口有进程监听时
+命令会拒绝，返回 `host_running`；只有连接被拒绝才算宿主已停止。默认端口取
+`REVERSE_AGENT_TASK_SERVICE_PORT`，宿主用其他端口时需要传 `--task-api`。`--target 0` 回到 Owner 基线，`--expected-revision` 防止基于过期视图回滚。
 需要立即止损时，关闭 `enable_policy_evolution` 并重启，路由马上回到配置基线。
 
 ## 验收
@@ -158,6 +163,10 @@ python scripts/multi_account_live_acceptance.py --soak-minutes 15 --evidence out
   成功率的改善。
 - "仅观测"的账户不参与准入，其额度耗尽不会阻止派发，只有 Magpie 自身的失败会反馈回来。
 - 告警没有外发渠道；无人值守时需要有人看日志或账户页。
+- 容量告警把"仅观测"账户也算作可派发，所以 `pool_no_usable_account` 可能在可路由账户
+  都耗尽时保持沉默。
+- `coordinator_error` 会一直保持，直到协调器的 `last_error` 被覆盖，常常要到重启。
+- `coordinator_stalled` 的阈值是固定秒数，耗时很长的合法落地步骤可能触发它。
 - 回滚要停宿主，因为反馈存储没有跨进程锁。
 - 真实宿主的账户页未在真实浏览器中走通：浏览器需要由 Node 代理持有 capability，本次
   只验证了接口返回与 mock 页面渲染。
