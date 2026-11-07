@@ -683,7 +683,8 @@ def test_parallel_batch_isolates_worker_exception_and_claim_finalization(tmp_pat
     assert coordinator.status()["last_batch"]["accepted"] is False
 
 
-def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path):
+def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
     autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
@@ -728,6 +729,7 @@ def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tm
         router=ExecutorRouter(), workspace_root=tmp_path,
         task_executor=resume, owner="new-owner",
     )
+    coordinator._attempt_clock = lambda: pytest.fail("resume sampled fresh-attempt timing")
     assert coordinator.tick() == 1
     assert calls == [task_id]
     claim = control._conn.execute(

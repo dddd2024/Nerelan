@@ -556,7 +556,10 @@ class UnattendedCoordinator:
                         validation_exit_code=int(stored.validation_exit_code),
                         failure_classification=stored.failure_classification, failure_detail=stored.failure_detail)
                 else:
-                    collect_timing = os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
+                    # Resume can reuse checkpoints or only validate, without
+                    # executing the routed account. Only time fresh attempts.
+                    collect_timing = (stored.status == "QUEUED"
+                                      and os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1")
                     started = self._attempt_timestamp() if collect_timing else None
                     outcome = self._execute_with_claim_renewal(window_id, task_id, epoch)
                     if collect_timing:
