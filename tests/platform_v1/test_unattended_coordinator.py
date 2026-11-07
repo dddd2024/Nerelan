@@ -892,6 +892,87 @@ def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted
     assert coordinator.tick() == 0
 
 
+@pytest.mark.parametrize("budget_field,reservation_field", [
+    ("max_token_units", "per_task_token_reservation"),
+    ("max_cost_micro_units", "per_task_cost_reservation"),
+])
+@pytest.mark.parametrize("capacity,read_fails", [(100, False), (120, False), (120, True)])
+def test_budget_pressure_does_not_starve_retained_reservation(
+    tmp_path, monkeypatch, budget_field, reservation_field, capacity, read_fails,
+):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "retained-capacity", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 4, "max_retries": 1,
+        budget_field: capacity, reservation_field: 60,
+        "provider_quota_state": "OBSERVED", "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="retained-capacity", count=4)
+    first, second, third, resumed = (link["task_id"] for link in control.list_goal_tasks(goal.id))
+    original_epoch, _ = control.claim_task(
+        window_id=window.id, task_id=resumed, owner="old", lease_ms=60_000,
+    )
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?",
+                        (resumed,))
+    store.set_state(resumed, "INTERRUPTED")
+    assert control.reconcile_expired_budget_reservations() == (f"budget_reservation_retained:{resumed}",)
+    dispatched = []
+    prepared = []
+
+    def execute(task_id):
+        dispatched.append(task_id)
+        if task_id == resumed:
+            store.transition_to(task_id, "RUNNING_FIXTURE")
+            store.transition_to(task_id, "VALIDATING")
+            store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
+            return SimpleNamespace(success=True)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+        quota_preparer=lambda task: prepared.append(task.id))
+    assert control.runnable_tasks(window.id, limit=1) == (first,)
+    assert control.runnable_tasks(window.id, limit=1, respect_reservation_limits=True) == (
+        (resumed,) if capacity == 100 else (first,)
+    )
+    expected = {resumed} if capacity == 100 else {first, resumed}
+    with monkeypatch.context() as faults:
+        if read_fails:
+            import sqlite3
+
+            def fail_read(window_id):
+                raise sqlite3.OperationalError("fixture reservation lookup failure")
+
+            faults.setattr(control, "active_reservation_task_ids", fail_read)
+            expected = {first}
+        assert coordinator.tick() == len(expected)
+    assert set(dispatched) == expected
+    assert prepared == ([resumed] if capacity == 100 else
+                        [first, second] if read_fails else [first, second, resumed])
+    assert store.get_task(second).status == "QUEUED"
+    if read_fails:
+        assert coordinator.status()["last_error"] == "reservation_candidates_unavailable"
+        assert control.get_window(window.id).tasks_completed == 1
+        assert store.get_task(resumed).status == "INTERRUPTED"
+    for _ in range(3):
+        coordinator.tick()
+    rows = store._conn.execute(
+        "SELECT claim_epoch,state FROM platform_budget_reservations WHERE task_id=?", (resumed,),
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [(original_epoch + 1, "RECONCILED")]
+    assert control.get_window(window.id).retries_used == 1
+    assert sorted(dispatched) == sorted([first, second, third, resumed])
+    assert control.get_window(window.id).tasks_completed == 4
+    assert coordinator.tick() == 0
+
+
 def test_concurrent_claims_cannot_reserve_past_token_budget(tmp_path):
     db_path = str(tmp_path / "concurrent-budget.sqlite3")
     store_a = TaskStore(db_path)

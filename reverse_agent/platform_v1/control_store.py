@@ -1042,10 +1042,26 @@ class PlatformControlStore:
                 or task.orchestration_mode != goal.orchestration_mode):
             raise TaskStoreError("strict_window_task_binding_mismatch")
 
+    def active_reservation_task_ids(self, window_id: str) -> frozenset[str]:
+        """Read the window's retained spend identities for candidate selection."""
+        with self._lock:
+            return frozenset(row["task_id"] for row in self._conn.execute(
+                "SELECT task_id FROM platform_budget_reservations "
+                "WHERE window_id = ? AND state = 'ACTIVE'", (window_id,),
+            ))
+
     def runnable_tasks(
         self, window_id: str, *, limit: int = 100, respect_attempt_limits: bool = False,
+        respect_reservation_limits: bool = False,
     ) -> tuple[str, ...]:
         with self._lock:
+            retained = None
+            if respect_reservation_limits:
+                window = self._conn.execute(
+                    "SELECT * FROM platform_autonomous_windows WHERE id = ?", (window_id,),
+                ).fetchone()
+                if window is not None and self._new_reservation_denial(window):
+                    retained = self.active_reservation_task_ids(window_id)
             # Limit ready tasks, not queue positions. The coordinator can also
             # exclude tasks past their own attempt limit before taking the slice.
             # The claim transaction rechecks both counters before spending.
@@ -1081,6 +1097,8 @@ class PlatformControlStore:
             ).fetchall()
             ready = []
             for row in rows:
+                if retained is not None and row["task_id"] not in retained:
+                    continue
                 try:
                     self.check_strict_task_admission(window_id, row["task_id"])
                 except TaskStoreError:
@@ -1825,6 +1843,30 @@ class PlatformControlStore:
                 self._conn.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?",
                                    (json.dumps({"resume_checkpoint": resume_checkpoint, "resume_route": resume_route}), task_id))
 
+    def _new_reservation_denial(self, window: sqlite3.Row) -> str | None:
+        """Check new spend using the caller's read or claim transaction."""
+        max_tokens = int(window["max_token_units"])
+        max_cost = int(window["max_cost_micro_units"])
+        if not (max_tokens or max_cost):
+            return None
+        reserved = self._conn.execute(
+            "SELECT COALESCE(SUM(reserved_token_units), 0) AS token_units, "
+            "COALESCE(SUM(reserved_cost_micro_units), 0) AS cost_units "
+            "FROM platform_budget_reservations WHERE window_id = ? AND state = 'ACTIVE'",
+            (window["id"],),
+        ).fetchone()
+        if max_tokens > 0 and (
+            int(window["observed_token_units"]) + int(reserved["token_units"])
+            + int(window["per_task_token_reservation"]) > max_tokens
+        ):
+            return "window_token_budget_exhausted"
+        if max_cost > 0 and (
+            int(window["observed_cost_micro_units"]) + int(reserved["cost_units"])
+            + int(window["per_task_cost_reservation"]) > max_cost
+        ):
+            return "window_cost_budget_exhausted"
+        return None
+
     def claim_task(
         self,
         *,
@@ -1969,29 +2011,9 @@ class PlatformControlStore:
             token_reservation = int(window["per_task_token_reservation"])
             cost_reservation = int(window["per_task_cost_reservation"])
             if active_reservation is None:
-                reserved = cur.execute(
-                    "SELECT COALESCE(SUM(reserved_token_units), 0) AS token_units, "
-                    "COALESCE(SUM(reserved_cost_micro_units), 0) AS cost_units "
-                    "FROM platform_budget_reservations "
-                    "WHERE window_id = ? AND state = 'ACTIVE'",
-                    (window_id,),
-                ).fetchone()
-                max_tokens = int(window["max_token_units"])
-                max_cost = int(window["max_cost_micro_units"])
-                if max_tokens > 0 and (
-                    int(window["observed_token_units"])
-                    + int(reserved["token_units"])
-                    + token_reservation
-                    > max_tokens
-                ):
-                    raise TaskStoreError("window_token_budget_exhausted")
-                if max_cost > 0 and (
-                    int(window["observed_cost_micro_units"])
-                    + int(reserved["cost_units"])
-                    + cost_reservation
-                    > max_cost
-                ):
-                    raise TaskStoreError("window_cost_budget_exhausted")
+                denial = self._new_reservation_denial(window)
+                if denial:
+                    raise TaskStoreError(denial)
             if existing is None:
                 cur.execute(
                     "INSERT INTO platform_coordinator_claims VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)",
