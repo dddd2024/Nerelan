@@ -1042,15 +1042,20 @@ class PlatformControlStore:
                 or task.orchestration_mode != goal.orchestration_mode):
             raise TaskStoreError("strict_window_task_binding_mismatch")
 
-    def runnable_tasks(self, window_id: str, *, limit: int = 100) -> tuple[str, ...]:
+    def runnable_tasks(
+        self, window_id: str, *, limit: int = 100, respect_attempt_limits: bool = False,
+    ) -> tuple[str, ...]:
         with self._lock:
-            # Limit ready tasks, not queue positions: waiting dependencies must
-            # not hide runnable work later in this or another Goal.
+            # Limit ready tasks, not queue positions. The coordinator can also
+            # exclude tasks past their own attempt limit before taking the slice.
+            # The claim transaction rechecks both counters before spending.
             rows = self._conn.execute(
-                "SELECT l.task_id, t.status "
+                "SELECT l.task_id, t.status, w.tasks_started < w.max_tasks AS fresh_budget, "
+                "w.retries_used < w.max_retries AS retry_budget "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
+                "LEFT JOIN platform_autonomous_windows w ON w.id = g.window_id "
                 "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT')) "
                 "OR (g.status IN ('RUNNING', 'COMPLETED', 'BLOCKED') AND t.status IN ('READY_FOR_REVIEW', 'FAILED') AND EXISTS ("
                 "SELECT 1 FROM platform_coordinator_claims original_claim "
@@ -1080,7 +1085,18 @@ class PlatformControlStore:
                     self.check_strict_task_admission(window_id, row["task_id"])
                 except TaskStoreError:
                     continue
-                if row["status"] in {"READY_FOR_REVIEW", "FAILED"} and not self.can_complete_host_claim(
+                status = row["status"]
+                if respect_attempt_limits and (
+                    (status == "QUEUED" and not row["fresh_budget"])
+                    or (status == "QUOTA_WAIT" and not row["retry_budget"])
+                ):
+                    continue
+                # An interrupted checker may already have a completed result.
+                # Recovering that checkpoint spends no new attempt.
+                needs_result_recovery = status in {"READY_FOR_REVIEW", "FAILED"} or (
+                    respect_attempt_limits and status == "INTERRUPTED" and not row["retry_budget"]
+                )
+                if needs_result_recovery and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
                     continue
                 ready.append(row["task_id"])
