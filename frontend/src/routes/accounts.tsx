@@ -122,7 +122,9 @@ function AccountRow({ account, now }: { account: PoolAccount; now: number }) {
             title={`与 Magpie 同口径：已用比例减本周已过时间比例。超过配速线 ${Math.round(account.weekly_pace.line * 100)}% 时暂停派发`}
           >
             配速 {signedPercent(account.weekly_pace.deviation)}
-            {account.weekly_pace.held_until ? `，暂停派发，${untilLabel(account.weekly_pace.held_until, now)}恢复` : ""}
+            {account.weekly_pace.draining
+              ? "，已宣布重置，放开使用至 3%"
+              : account.weekly_pace.held_until ? `，暂停派发，预计${untilLabel(account.weekly_pace.held_until, now)}恢复` : ""}
           </span>
         ) : null}
         {account.reset_cards && account.reset_cards.count > 0 ? (
@@ -243,6 +245,17 @@ export function AccountsPage() {
                 value={untilLabel(pool.summary?.earliest_capacity_at, now)}
               />
             </div>
+
+            {pool.codex_reset ? (
+              <p data-testid="pool-codex-reset" className="rounded-lg border border-ra-border bg-ra-light px-3.5 py-2.5 text-sm text-ra-text">
+                {pool.codex_reset.state === "PLAN_ONLY"
+                  ? `Codex 已宣布提前重置：${pool.codex_reset.expected_reset_at ? new Date(pool.codex_reset.expected_reset_at).toLocaleString("zh-CN") : "近期"}前放开使用，保留 3%。`
+                  : "Codex 已报告完成重置，正在重新读取额度。"}
+                {pool.codex_reset.source_url ? (
+                  <a href={pool.codex_reset.source_url} target="_blank" rel="noreferrer" className="ml-2 text-ra-accent hover:underline">公告</a>
+                ) : null}
+              </p>
+            ) : null}
 
             <section aria-label="活动告警" className="rounded-lg border border-ra-border">
               {pool.alerts.active.length > 0 ? (

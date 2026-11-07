@@ -91,6 +91,23 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack))))
 
 
+def _window_renewed_since(candidate: Mapping[str, Any], announced_at: Any) -> bool:
+    """Whether this account's weekly window began after the reset was announced.
+
+    Then the reset has already happened for this account: draining further would
+    spend the new week, so pacing applies again whatever the announcement said.
+    """
+    resets = candidate.get("weekly_resets_at")
+    if not isinstance(announced_at, str) or type(resets) not in (int, float) or not math.isfinite(resets):
+        return False
+    try:
+        from datetime import datetime
+        announced = datetime.fromisoformat(announced_at.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return False
+    return resets - WEEK_SECONDS > announced
+
+
 class ModelSelectionError(ValueError):
     def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = (), pin: str = ""):
         super().__init__(reason)
@@ -165,7 +182,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reset_observations.append({"binding_id": candidate["binding_id"], **reset})
         # A validated announced Codex reset already drains to reset_buffer (Owner rule,
         # #1248/#1281): allowance that the reset will void is not saved for later.
-        pace_hold = None if candidate["executor_id"] == "codex" and reset["drain"] else (
+        pace_hold = None if candidate["executor_id"] == "codex" and reset["drain"] and not (
+            _window_renewed_since(candidate, reset.get("announced_at"))) else (
             weekly_pace_hold(candidate, now=now, pace=weekly_pace))
         reason = ""
         review_transport = ""

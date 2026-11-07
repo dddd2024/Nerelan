@@ -264,7 +264,8 @@ export interface PoolAccount {
   admission_evidence: boolean;
   cooldown: { until: number; kind: string; tier: string; streak: number } | null;
   /** Weekly pacing for Claude and Codex: spend may not run ahead of the week. */
-  weekly_pace?: { used: number; deviation: number; line: number; held_until: number | null; resets_at: number } | null;
+  weekly_pace?: { used: number; deviation: number; line: number; held_until: number | null; resets_at: number;
+                  draining?: boolean } | null;
   /** Held Codex rate-limit resets, as Magpie reports them. */
   reset_cards?: { count: number; next_expires_at: string | null } | null;
   score: {
@@ -312,6 +313,8 @@ export interface AccountPool {
   budget: PoolBudget | null;
   policy: PoolPolicy;
   alerts: { active: PoolAlert[]; recent: PoolAlert[] };
+  /** A current Codex reset announcement, as routing reads it. */
+  codex_reset?: { state: string; expected_reset_at: string | null; source_url: string | null; assumed?: boolean } | null;
 }
 
 export interface StartGoalInput {

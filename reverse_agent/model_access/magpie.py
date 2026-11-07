@@ -144,7 +144,9 @@ def _reset_cards(raw: Any) -> dict[str, Any] | None:
     """Count and soonest expiry of held Codex rate-limit resets; card ids are dropped."""
     if not isinstance(raw, dict) or _number(raw.get("count"), 1000) is None:
         return None
-    expiries = [_date(card.get("until")) for card in raw.get("each") or () if isinstance(card, dict)]
+    each = raw.get("each")
+    expiries = [_date(card.get("until")) for card in (each if isinstance(each, list) else ())
+                if isinstance(card, dict)]
     soonest = min((date for date in expiries if date), default=None)
     return {"count": int(raw["count"]), "next_expires_at": soonest.isoformat() if soonest else None}
 

@@ -67,7 +67,7 @@ describe("Accounts page", () => {
       account({ account_ref: "claude:1", provider: "claude",
                 weekly_pace: { used: 0.69, deviation: -0.29, line: 0.87, held_until: null, resets_at: now + 86400 } }),
     ] }));
-    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +20%，暂停派发，2 小时后恢复");
+    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +20%，暂停派发，预计2 小时后恢复");
     expect(screen.getByTestId("pool-pace-claude")).toHaveTextContent("配速 −29%");
     expect(screen.getByTestId("pool-pace-claude")).not.toHaveTextContent("暂停");
     expect(screen.getByTestId("pool-cards-codex")).toHaveTextContent("重置卡 2 张，最早 3 天后过期");
@@ -121,6 +121,19 @@ describe("Accounts page", () => {
     mount(pool({ source: "unavailable" }));
     expect(await screen.findByText("账户状态暂时无法读取，显示最近一次结果")).toBeInTheDocument();
     expect(screen.getByTestId("pool-account-codex")).toBeInTheDocument();
+  });
+
+  it("says Codex is released while an announced reset drains it", async () => {
+    mount(pool({ accounts: [account({ weekly_pace: { used: 0.74, deviation: 0.26, line: 0.58, held_until: null,
+                                                     resets_at: Date.now() / 1000 + 86400, draining: true } })] }));
+    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +26%，已宣布重置，放开使用至 3%");
+  });
+
+  it("shows a current Codex reset announcement and nothing without one", async () => {
+    mount(pool({ codex_reset: { state: "PLAN_ONLY", expected_reset_at: "2026-11-08T15:00:00Z",
+                                source_url: "https://x.com/thsottiaux/status/1", assumed: true } }));
+    expect(await screen.findByTestId("pool-codex-reset")).toHaveTextContent("Codex 已宣布提前重置");
+    expect(screen.getByRole("link", { name: "公告" })).toHaveAttribute("href", "https://x.com/thsottiaux/status/1");
   });
 
   it("does not show an empty pool when the first read fails", async () => {
