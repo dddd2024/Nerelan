@@ -122,7 +122,8 @@ def hold_system_awake() -> None:
 
 
 def soak(report: Report, capability: str, models: dict[str, str], minutes: float, auth: str,
-         *, interval: float, progress: Path | None) -> None:
+         *, interval: float, progress: Path | None, first_round: int = 0,
+         last_at: float | None = None) -> None:
     """Bounded continuous run: real calls chosen by the production scheduler.
 
     Each round is appended to ``progress`` as it finishes, so a run that dies
@@ -144,7 +145,8 @@ def soak(report: Report, capability: str, models: dict[str, str], minutes: float
     rounds = failures = failovers = held = view_errors = stale_views = round_errors = 0
     tokens = 0
     longest_gap = 0.0
-    last_round = time.time()
+    # On resume the first gap spans the downtime, which is the point of recording it.
+    last_round = last_at if last_at is not None else time.time()
 
     def one_round() -> dict[str, Any]:
         nonlocal failures, failovers, held, tokens
@@ -161,7 +163,7 @@ def soak(report: Report, capability: str, models: dict[str, str], minutes: float
             outcome = real_call(models[provider], auth)
             entry["attempts"] = attempt
             record_account_outcome(chosen, ok=outcome["ok"], wall_seconds=outcome["seconds"],
-                                   outcome_id=f"soak-{rounds}-{attempt}",
+                                   outcome_id=f"soak-{first_round + rounds}-{attempt}",
                                    failure_kind=None if outcome["ok"] else "task_failed")
             if outcome["ok"]:
                 served[provider] = served.get(provider, 0) + 1
@@ -200,13 +202,14 @@ def soak(report: Report, capability: str, models: dict[str, str], minutes: float
             view_errors += 1
             entry["view_error"] = type(exc).__name__
         if progress is not None:
-            entry.update(round=rounds, at=round(now), gap_seconds=round(gap, 1), threads=threading.active_count())
+            entry.update(round=first_round + rounds, at=round(now), gap_seconds=round(gap, 1),
+                         threads=threading.active_count())
             with progress.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
         time.sleep(interval)
     completed = sum(served.values())
     latencies.sort()
-    report.check("real_soak_every_round_served_or_held_without_crashing",
+    report.check("real_soak_segment_every_round_served_or_held",
                  completed + held + round_errors == rounds and round_errors == 0
                  and view_errors == 0 and stale_views == 0,
                  minutes=minutes, interval_seconds=interval, rounds=rounds, served=served, failures=failures,
@@ -217,7 +220,10 @@ def soak(report: Report, capability: str, models: dict[str, str], minutes: float
 
 
 def run(report: Report, runtime: Path, soak_minutes: float = 0, *,
-        soak_interval: float = SOAK_INTERVAL_SECONDS, progress: Path | None = None) -> None:
+        soak_interval: float = SOAK_INTERVAL_SECONDS, progress: Path | None = None,
+        resume: bool = False, first_round: int = 0, last_at: float | None = None) -> None:
+    """Checks then an optional soak. A resumed run skips straight to the soak:
+    re-injecting faults after every restart would contaminate the evidence."""
     from reverse_agent.model_access.magpie import MAGPIE_AUTH, fetch_magpie_snapshot
     from reverse_agent.platform_v1.multi_account.dispatch import (
         account_quarantine_guard,
@@ -231,7 +237,7 @@ def run(report: Report, runtime: Path, soak_minutes: float = 0, *,
 
     snapshot = fetch_magpie_snapshot()
     if not report.check("real_magpie_reachable", snapshot["status"] == "available",
-                        accounts=len(snapshot["accounts"])):
+                        accounts=len(snapshot["accounts"])) and not resume:
         return
 
     host = CombinedTrustedHost(
@@ -253,6 +259,11 @@ def run(report: Report, runtime: Path, soak_minutes: float = 0, *,
             refused = exc.code == 401
         report.check("real_api_refuses_without_capability", refused)
 
+        if resume:
+            # After a boot Magpie may still be starting; the soak counts those rounds as held.
+            soak(report, capability, dict(CANDIDATES), soak_minutes, MAGPIE_AUTH, interval=soak_interval,
+                 progress=progress, first_round=first_round, last_at=last_at)
+            return
         view = get_accounts(capability)
         providers = [row["provider"] for row in view["accounts"]]
         report.check("real_pool_lists_every_magpie_account",
@@ -353,9 +364,97 @@ def run(report: Report, runtime: Path, soak_minutes: float = 0, *,
                      revision=after["revision"], rolled=sorted(rolled))
         if soak_minutes > 0:
             soak(report, capability, dict(usable), soak_minutes, MAGPIE_AUTH,
-                 interval=soak_interval, progress=progress)
+                 interval=soak_interval, progress=progress, first_round=first_round, last_at=last_at)
     finally:
         host.stop()
+
+
+def _read_progress(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue  # a line cut by power loss
+    return rows
+
+
+def summarize_long_run(report: Report, state: dict[str, Any], rows: list[dict[str, Any]]) -> None:
+    """One verdict over every segment, including the time the machine was off."""
+    interval = float(state["interval"])
+    served: dict[str, int] = {}
+    for row in rows:
+        if row.get("served"):
+            served[row["served"]] = served.get(row["served"], 0) + 1
+    held = sum(1 for row in rows if not row.get("served") and not row.get("error"))
+    errors = sum(1 for row in rows if row.get("error"))
+    view_errors = sum(1 for row in rows if row.get("view_error"))
+    gaps = [float(row.get("gap_seconds") or 0) for row in rows]
+    downtime = sum(gap - interval for gap in gaps if gap > interval * 3)
+    planned = float(state["deadline"]) - float(state["started"])
+    finished = time.time() >= float(state["deadline"])
+    segments = state["segments"]
+    report.check("real_long_run_reached_its_deadline_without_errors",
+                 finished and errors == 0 and view_errors == 0 and bool(rows),
+                 planned_hours=round(planned / 3600, 2), rounds=len(rows), served=served, held=held,
+                 round_errors=errors, view_errors=view_errors, starts=len(segments),
+                 downtime_hours=round(downtime / 3600, 2),
+                 covered_share=round(min(1.0, len(rows) * interval / planned), 3) if planned else None,
+                 longest_gap_hours=round(max(gaps, default=0) / 3600, 2))
+    if len(segments) > 1:
+        # Each restart must be followed by at least one recorded round of its own.
+        bounds = [int(segment.get("rounds_before", 0)) for segment in segments] + [len(rows)]
+        resumed = [bounds[i + 1] > bounds[i] for i in range(1, len(segments))]
+        report.check("real_long_run_resumed_after_every_restart", all(resumed),
+                     restarts=len(segments) - 1, rounds_per_start=[bounds[i + 1] - bounds[i]
+                                                                   for i in range(len(segments))])
+
+
+def _already_running() -> bool:
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", TASK_PORT), timeout=3):
+            return True
+    except ConnectionRefusedError:
+        return False
+    except OSError:
+        return True
+
+
+def long_run(args: argparse.Namespace, report: Report) -> int:
+    """A deadline-bound soak that survives shutdowns: rerun the same command to resume."""
+    runtime = args.runtime_dir
+    runtime.mkdir(parents=True, exist_ok=True)
+    state_path, progress = runtime / "soak_state.json", runtime / "soak_progress.jsonl"
+    now = time.time()
+    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else None
+    if state is None:
+        state = {"started": now, "deadline": now + args.soak_minutes * 60,
+                 "interval": args.soak_interval, "segments": []}
+    rows = _read_progress(progress)
+    if now < float(state["deadline"]):
+        if _already_running():
+            print("already_running: another long run holds the task API port", flush=True)
+            return 3
+        state["segments"].append({"started": now, "ended": None, "rounds_before": len(rows)})
+        state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        configure_environment(runtime)
+        try:
+            run(report, runtime, (float(state["deadline"]) - now) / 60, soak_interval=float(state["interval"]),
+                progress=progress, resume=len(state["segments"]) > 1, first_round=len(rows),
+                last_at=float(rows[-1]["at"]) if rows else None)
+        finally:
+            state["segments"][-1]["ended"] = time.time()
+            state_path.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        rows = _read_progress(progress)
+    summarize_long_run(report, state, rows)
+    if time.time() >= float(state["deadline"]):
+        autostart = os.environ.get("NERELAN_LONGRUN_AUTOSTART")
+        if autostart and Path(autostart).exists():
+            Path(autostart).unlink()  # the run is over; do not start again at the next logon
+    return 0
 
 
 def main() -> int:
@@ -367,9 +466,23 @@ def main() -> int:
                         help="seconds between soak rounds; each round spends one real call")
     parser.add_argument("--runtime-dir", type=Path,
                         help="keep the host data, alert log and soak_progress.jsonl here")
+    parser.add_argument("--resumable", action="store_true",
+                        help="keep a deadline in --runtime-dir; rerunning the same command resumes the run")
     args = parser.parse_args()
     report = Report()
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    if args.resumable:
+        if args.runtime_dir is None or args.soak_minutes <= 0:
+            parser.error("--resumable needs --runtime-dir and --soak-minutes")
+        try:
+            code = long_run(args, report)
+        finally:
+            passed = sum(1 for item in report.checks if item["passed"])
+            print(f"{passed}/{len(report.checks)} checks passed", flush=True)
+            if args.evidence:
+                args.evidence.write_text(json.dumps(report.checks, ensure_ascii=False, indent=2),
+                                         encoding="utf-8")
+        return code if code else (0 if report.checks and passed == len(report.checks) else 1)
     try:
         with ExitStack() as stack:
             runtime = args.runtime_dir or Path(stack.enter_context(
