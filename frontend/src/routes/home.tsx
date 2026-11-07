@@ -200,6 +200,7 @@ export function HomePage() {
                   type="button"
                   key={goal.id}
                   onClick={() => setSelectedId(goal.id)}
+                  title={goal.objective}
                   className="flex min-h-9 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 >
                   <span className="min-w-0 flex-1 truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>

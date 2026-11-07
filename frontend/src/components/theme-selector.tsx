@@ -1,7 +1,8 @@
 import { Check, Laptop, Moon, Sun } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ACCENTS,
+  APPEARANCE_CHANGED_EVENT,
   type Accent,
   type Appearance,
   setAppearance,
@@ -28,8 +29,14 @@ const modeDescriptions: Record<ThemeMode, string> = {
 export function ThemeSelector() {
   const [appearance, setAppearanceState] = useState<Appearance>(() => readAppearance());
 
+  useEffect(() => {
+    const sync = (event: Event) => setAppearanceState((event as CustomEvent<Appearance>).detail);
+    window.addEventListener(APPEARANCE_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(APPEARANCE_CHANGED_EVENT, sync);
+  }, []);
+
   function update(next: Partial<Appearance>) {
-    setAppearanceState((current) => setAppearance({ ...current, ...next }));
+    setAppearance({ ...appearance, ...next });
   }
 
   return (

@@ -250,6 +250,66 @@ export interface PlatformStatus {
   live_model_calls: boolean;
 }
 
+export type AccountHealth = "HEALTHY" | "DEGRADED" | "EXHAUSTED" | "ABNORMAL" | "STALE" | "UNKNOWN";
+
+export interface PoolAccount {
+  account_ref: string;
+  provider: string | null;
+  health: AccountHealth;
+  headroom_pct: number | null;
+  next_reset_at: number | null;
+  anomaly_flags: string[];
+  dispatchable: boolean;
+  /** False when no route claims the provider, so its windows never reach admission. */
+  admission_evidence: boolean;
+  cooldown: { until: number; kind: string; tier: string; streak: number } | null;
+  score: {
+    attempts: number;
+    successes: number;
+    reliability: number;
+    mean_cost_units: number | null;
+    mean_wall_seconds: number | null;
+  } | null;
+}
+
+export interface PoolAlert {
+  code: string;
+  severity: "critical" | "warning" | "info";
+  subject: string;
+  detail: string;
+  since: number;
+}
+
+export interface PoolBudget {
+  max_cost_micro_units: number | null;
+  remaining_cost_micro_units: number | null;
+  max_token_units: number | null;
+  remaining_token_units: number | null;
+}
+
+export interface PoolPolicy {
+  enabled?: boolean;
+  revision?: number;
+  effective?: { reliability_weight: number; cost_weight: number; latency_weight: number };
+}
+
+export interface AccountPool {
+  source: string;
+  observed_at?: number;
+  monitoring: boolean;
+  summary: {
+    total_accounts: number;
+    dispatchable_accounts: number;
+    cooling_accounts: number;
+    best_headroom_pct: number | null;
+    earliest_capacity_at: number | null;
+  } | null;
+  accounts: PoolAccount[];
+  budget: PoolBudget | null;
+  policy: PoolPolicy;
+  alerts: { active: PoolAlert[]; recent: PoolAlert[] };
+}
+
 export interface StartGoalInput {
   objective: string;
   repository: string;
@@ -1000,6 +1060,47 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new PlatformClientError(response.status, code);
   }
   return payload;
+}
+
+function mockAccountPool(): AccountPool {
+  const now = Date.now() / 1000;
+  const account = (provider: string, health: AccountHealth, headroom: number | null,
+                   extra: Partial<PoolAccount> = {}): PoolAccount => ({
+    account_ref: `${provider}:demo`, provider, health, headroom_pct: headroom, next_reset_at: now + 7200,
+    anomaly_flags: [], dispatchable: health === "HEALTHY" || health === "DEGRADED",
+    admission_evidence: true, cooldown: null, score: null, ...extra,
+  });
+  const score = (attempts: number, successes: number, seconds: number) => ({
+    attempts, successes, reliability: successes / attempts, mean_cost_units: null, mean_wall_seconds: seconds,
+  });
+  return {
+    source: "magpie", observed_at: now, monitoring: true,
+    summary: { total_accounts: 5, dispatchable_accounts: 2, cooling_accounts: 1, best_headroom_pct: 72, earliest_capacity_at: now + 1800 },
+    accounts: [
+      account("claude", "HEALTHY", 72, { score: score(24, 22, 41.2) }),
+      account("workbuddy", "DEGRADED", 12, { admission_evidence: false }),
+      account("codex", "EXHAUSTED", 0, { next_reset_at: now + 1800, score: score(18, 15, 63.5) }),
+      account("copilot", "HEALTHY", 55, {
+        dispatchable: false, score: score(6, 2, 12.1),
+        cooldown: { until: now + 300, kind: "account_abnormal", tier: "quarantine", streak: 2 },
+      }),
+      account("openrouter", "STALE", null, { admission_evidence: false, next_reset_at: null }),
+    ],
+    budget: { max_cost_micro_units: 5_000_000, remaining_cost_micro_units: 3_250_000, max_token_units: null, remaining_token_units: null },
+    policy: { enabled: true, revision: 3, effective: { reliability_weight: 0.55, cost_weight: 0.3, latency_weight: 0.15 } },
+    alerts: {
+      active: [
+        { code: "account_quarantined", severity: "warning", subject: "copilot:demo", detail: "copilot 已隔离：account_abnormal", since: now - 120 },
+        { code: "account_exhausted", severity: "info", subject: "codex:demo", detail: "codex 额度已用尽", since: now - 900 },
+      ],
+      recent: [],
+    },
+  };
+}
+
+export async function fetchAccountPool(): Promise<AccountPool> {
+  if (isMock()) return mockAccountPool();
+  return request<AccountPool>("/api/platform/accounts");
 }
 
 export async function fetchPlatformStatus(): Promise<PlatformStatus> {

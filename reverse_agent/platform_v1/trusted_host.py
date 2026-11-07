@@ -217,6 +217,38 @@ class CombinedTrustedHost:
         except Exception:  # noqa: BLE001 - perception failure must not break reroute
             return []
 
+    def _pool_snapshot(self) -> "Mapping[str, Any] | None":
+        """Magpie snapshot for the pool view, or ``None`` when Magpie is not in use."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        settings = self._store.get_magpie()
+        if not (settings.get("enabled") or magpie_enabled(os.environ)):
+            return None
+        return fetch_magpie_snapshot(
+            os.environ.get("REVERSE_AGENT_MAGPIE_URL", settings.get("base_url") or "http://127.0.0.1:3425"))
+
+    def _pool_runtime_status(self) -> dict[str, Any]:
+        """Coordinator and active-window facts the alert rules read."""
+        coordinator = self._coordinator.status() if self._coordinator else {}
+        window = self._control_store.active_window()
+        if window is None:
+            return {"coordinator": coordinator, "window": None, "budget": None}
+        from .autonomy import window_to_dict
+        return {"coordinator": coordinator, "window": window_to_dict(window),
+                "budget": self._control_store.window_budget_summary(window.id)}
+
+    def _build_pool_monitor(self) -> Any:
+        from .multi_account import MultiAccountConfig
+        from .multi_account.dispatch import get_orchestrator
+        from .multi_account.pool_monitor import PoolMonitor
+        return PoolMonitor(
+            config=MultiAccountConfig.from_env(),
+            fetch_snapshot=self._pool_snapshot,
+            stored_statuses=self._goal_account_status_provider,
+            runtime_status=self._pool_runtime_status,
+            brain=get_orchestrator,
+            persist_alerts=os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1",
+        )
+
     def _binding_account_resolver(self, binding_ref: str) -> "str | None":
         """Map a candidate binding to its account_ref (or connection_id fallback)."""
         try:
@@ -1443,6 +1475,9 @@ class CombinedTrustedHost:
                 quota_wait_target=self._quota_wait_target(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
+            self._pool_monitor = self._build_pool_monitor()
+            if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+                self._pool_monitor.start()
             task_handler = _task_handler_factory(
                 self._task_store,
                 self._router,
@@ -1463,6 +1498,7 @@ class CombinedTrustedHost:
                 coordinator=self._coordinator,
                 local_client_session=self._local_client_session,
                 magpie_status=self._magpie.status,
+                pool_monitor=self._pool_monitor,
             )
             self._task_server = ThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
@@ -1513,6 +1549,9 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        monitor, self._pool_monitor = getattr(self, "_pool_monitor", None), None
+        if monitor is not None:
+            monitor.stop()
         reclaimer, self._workspace_reclaimer = getattr(self, "_workspace_reclaimer", None), None
         if reclaimer is not None:
             reclaimer.stop()

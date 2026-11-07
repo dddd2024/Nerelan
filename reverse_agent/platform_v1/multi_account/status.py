@@ -284,6 +284,42 @@ class MultiAccountStatusMonitor:
         return WindowStatus(**data)
         return WindowStatus(**data)
 
+    def diagnose(self, snapshot: Mapping[str, Any], *,
+                 now: Optional[float] = None) -> list[AccountStatus]:
+        """Every Magpie account, for operators; never admission evidence.
+
+        :func:`pool_account_quotas` keeps only accounts a route here claims, which
+        is right for admission and hides the rest of the pool. This projection
+        keeps them all so that nobody reads "2 accounts" off an 11-account pool.
+        The STALE/UNKNOWN verdict from Magpie stands: those windows are not re-judged.
+        """
+        now = self._clock() if now is None else now
+        statuses: list[AccountStatus] = []
+        for account in snapshot.get("accounts") or ():
+            if not isinstance(account, Mapping):
+                continue
+            provider = account.get("provider")
+            ref = account.get("account_ref") or f"{provider or 'unknown'}:unidentified"
+            try:
+                windows = [{**window, "window": window.get("name"),
+                            "resets_at": _parse_iso(window.get("resets_at"))}
+                           for window in account.get("windows") or () if isinstance(window, Mapping)]
+                status = self._build_status(str(ref), {
+                    "provider": provider, "windows": windows,
+                    "observed_at": account.get("observed_at")}, now)
+            except Exception:  # noqa: BLE001 - one malformed account must not empty the pool
+                status = AccountStatus(account_ref=str(ref), provider=str(provider or "") or None,
+                                       health=AccountHealth.UNKNOWN, anomaly_flags=["perception_error"])
+            state = account.get("state")
+            if state in {"STALE", "UNKNOWN"}:
+                reason = account.get("reason")
+                status = status.model_copy(update={
+                    "health": AccountHealth[state],
+                    "anomaly_flags": sorted({*status.anomaly_flags, *([str(reason)] if reason else [])}),
+                })
+            statuses.append(status.model_copy(update={"raw": {}}))
+        return statuses
+
     @staticmethod
     def health_summary(statuses: Iterable[AccountStatus]) -> dict[str, Any]:
         """Aggregate view for dashboards and the unattended coordinator.

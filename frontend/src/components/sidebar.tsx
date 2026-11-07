@@ -11,14 +11,16 @@ import {
   Plus,
   Search,
   Settings,
+  Users,
 } from "lucide-react";
 import { useTasks } from "@/hooks/use-tasks";
-import { usePlatformStatus } from "@/hooks/use-platform";
+import { useAccountPool, usePlatformStatus } from "@/hooks/use-platform";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
 import { taskProjectName } from "@/lib/task-project";
 import { runStateStyle } from "@/lib/format";
+import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
 import {
@@ -71,9 +73,17 @@ const PRIMARY_ROUTES = [
   { to: "/inbox", label: "收件箱", icon: Inbox },
   { to: "/roadmap", label: "路线图", icon: Map },
   { to: "/runs", label: "Agent 运行", icon: Bot },
+  { to: "/accounts", label: "账户", icon: Users },
 ] as const;
 
-const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+/** One label for the host state; an error never reads as a healthy green dot. */
+function hostStatus(coordinator: { enabled: boolean; last_error: string } | undefined, failed: boolean) {
+  if (failed) return { tone: "error", label: coordinator ? "状态待刷新" : "服务未连接" } as const;
+  if (coordinator?.last_error) return { tone: "warning", label: "协调器需要处理" } as const;
+  return coordinator?.enabled
+    ? ({ tone: "ok", label: "协调器在线" } as const)
+    : ({ tone: "warning", label: "手动模式" } as const);
+}
 
 function timestamp(value: string) {
   const parsed = Date.parse(value);
@@ -164,6 +174,14 @@ export function Sidebar({
   const navigate = useNavigate();
   const { data: tasks = [], isLoading, isError } = useTasks({ watch: true });
   const platformQuery = usePlatformStatus();
+  const activeAlerts = useAccountPool().data?.alerts.active ?? [];
+  const urgentAlerts = activeAlerts.filter((alert) => alert.severity !== "info").length;
+  const criticalAlert = activeAlerts.some((alert) => alert.severity === "critical");
+  const host = hostStatus(platformQuery.data?.coordinator, platformQuery.isError);
+  const instance = platformQuery.data?.instance;
+  const instanceLabel = instance
+    ? `${instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · ${instance.id}`
+    : "";
 
   useEffect(() => {
     onConversationPanelClose();
@@ -175,7 +193,7 @@ export function Sidebar({
 
   useEffect(() => {
     const toggle = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {
+      if (isPrimaryShortcut(event, "b")) {
         event.preventDefault();
         setCollapsed((value) => !value);
       }
@@ -259,7 +277,7 @@ export function Sidebar({
         active={conversationPanelOpen}
         label={conversationPanelOpen ? "关闭搜索" : "打开搜索"}
         text="搜索"
-        hint={isMac ? "⌘K" : "Ctrl K"}
+        hint={shortcutLabel("K")}
         testId="toggle-conversation-panel"
         icon={<Search className="h-4 w-4" />}
         onClick={
@@ -297,7 +315,19 @@ export function Sidebar({
                     <span className={SIDEBAR_ICON_SLOT_CLASS}>
                       <Icon className="h-4 w-4" />
                     </span>
-                    <span className={sidebarNavLabelClassName(false)}>{item.label}</span>
+                    <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>{item.label}</span>
+                    {item.to === "/accounts" && urgentAlerts > 0 ? (
+                      <span
+                        data-testid="sidebar-alert-count"
+                        aria-label={`${urgentAlerts} 条账户告警`}
+                        className={cn(
+                          "shrink-0 text-[11px] tabular-nums",
+                          criticalAlert ? "text-ra-status-error" : "text-ra-status-warning",
+                        )}
+                      >
+                        {urgentAlerts}
+                      </span>
+                    ) : null}
                   </>
                 )
               }
@@ -405,33 +435,26 @@ export function Sidebar({
 
   const footer = (
     <>
-      {!collapsed && platformQuery.data ? (
+      {!collapsed && (platformQuery.data || platformQuery.isError) ? (
         <div
           data-testid="sidebar-host-status"
+          data-tone={host.tone}
           className="flex min-h-[30px] items-center gap-2 px-2.5 text-[11px] text-ra-text-tertiary"
-          title={platformQuery.data.coordinator.last_error ?? undefined}
+          title={platformQuery.data?.coordinator.last_error || undefined}
         >
           <span
             aria-hidden="true"
             className={cn(
               "h-1.5 w-1.5 shrink-0 rounded-full",
-              platformQuery.isError
-                ? "bg-ra-status-error"
-                : platformQuery.data.coordinator.enabled
-                  ? "bg-ra-status-running"
-                  : "bg-ra-status-warning",
+              host.tone === "error" && "bg-ra-status-error",
+              host.tone === "warning" && "bg-ra-status-warning",
+              host.tone === "ok" && "bg-ra-status-running",
             )}
           />
-          <span className="shrink-0">
-            {platformQuery.isError
-              ? "状态待刷新"
-              : platformQuery.data.coordinator.enabled
-                ? "协调器在线"
-                : "手动模式"}
-          </span>
-          {platformQuery.data.instance && (
-            <span data-testid="sidebar-instance" className="min-w-0 flex-1 truncate text-right">
-              {platformQuery.data.instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · {platformQuery.data.instance.id}
+          <span className="shrink-0">{host.label}</span>
+          {instanceLabel && (
+            <span data-testid="sidebar-instance" title={instanceLabel} className="min-w-0 flex-1 truncate text-right">
+              {instanceLabel}
             </span>
           )}
         </div>

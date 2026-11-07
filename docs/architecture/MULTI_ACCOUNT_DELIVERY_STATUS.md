@@ -19,6 +19,7 @@
 `230c6a85`，提供默认关闭的[策略版本、审计和当前限幅内的回滚](MULTI_ACCOUNT_POLICY_LIFECYCLE.md)。
 三项均经过独立评审、必需 CI 和受控合并。[尝试时延证据](MULTI_ACCOUNT_ATTEMPT_TIMING.md)
 由后续切片单独验证。
+统一账户视图、告警与运维入口见 [多账户运维](MULTI_ACCOUNT_OPERATIONS.md)。
 单测、CLI 帮助和进程级探针均不能替代真实生产验收。
 
 ## 功能边界与复用

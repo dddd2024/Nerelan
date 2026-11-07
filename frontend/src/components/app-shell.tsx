@@ -12,6 +12,7 @@ import { ConversationPanel } from "@/components/conversation-panel";
 import { NewTaskComposer } from "@/components/new-task-composer";
 import { useCreateTask } from "@/hooks/use-tasks";
 import { cn } from "@/lib/cn";
+import { isPrimaryShortcut } from "@/lib/shortcuts";
 
 const DRAWER_ID = "mobile-nav-drawer";
 const DRAWER_LABEL = "导航";
@@ -22,6 +23,7 @@ const SIDEBAR_ITEMS: { to: string; label: string }[] = [
   { to: "/inbox", label: "收件箱" },
   { to: "/roadmap", label: "路线图" },
   { to: "/runs", label: "Agent 运行" },
+  { to: "/accounts", label: "账户" },
   { to: "/settings", label: "设置" },
 ];
 
@@ -84,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const togglePalette = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+      if (isPrimaryShortcut(event, "k")) {
         event.preventDefault();
         setConversationPanelOpen((open) => !open);
       }

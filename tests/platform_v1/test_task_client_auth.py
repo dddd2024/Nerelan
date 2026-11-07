@@ -70,7 +70,8 @@ def request(port, method, path, *, capability=None, origin=None, duplicate=False
     ("POST", "/api/tasks/unknown/execute"), ("POST", "/api/tasks/unknown/publish"),
     ("POST", "/api/tasks"), ("POST", "/api/windows/activate"),
     ("POST", "/api/goals/unknown/launch"), ("POST", "/api/inbox"),
-    ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/goals"),
+    ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/platform/accounts"),
+    ("GET", "/api/goals"),
     ("GET", "/api/windows/policy"),
 ])
 def test_missing_capability_rejected_before_body_lookup_or_dispatch(authenticated_server, method, path):

@@ -28,8 +28,8 @@ Snapshot paths and SHA256 (current working tree, verified by `sha256sum`):
 - frontend/e2e/snapshots/desktop-chromium/settings-dark.png — 622CBC4D7676BAEAC3ADCEAB6AA3B77E5413421D74509804C43FF20BCE2F26D7
 - frontend/e2e/snapshots/mobile-chromium/home-light.png — A663EE23819C0552195BD55184D89480C5FB7311EA73DD2A281728EE0D46C860
 - frontend/e2e/snapshots/mobile-chromium/home-dark.png — 40C522028B8D6E741400C7FBC5A724D87ABC8BE20C1F262BAD8E291B386E323C
-- frontend/e2e/snapshots/mobile-chromium/settings-light.png — 97A34B2177F69F13BF4B88C1C75A9CCE6E057B1EEDA478DC797F7707457C7F91
-- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 9DE1B453F113631907E5B8283537F636E7DCD98FD8C8D47F46F46D82C7F823F7
+- frontend/e2e/snapshots/mobile-chromium/settings-light.png — B592E4805E778FA71BD0DF83038CD6B51DC95528BE14E9DB499F21A3F55228A2
+- frontend/e2e/snapshots/mobile-chromium/settings-dark.png — 10700C839B3F486B88E123B62B0B9BDADC13B0B9086391FF789563E2B641AF94
 
 Provenance of the eight values above. The previously recorded hashes for the same paths (desktop home-light `AA4EB97D…`, home-dark `7827EF30…`, settings-light `D262BB23…`, settings-dark `DB7F60B4…`; mobile home-light `76727CE5…`, home-dark `0AC46E91…`, settings-light `CA0EB688…`, settings-dark `395C49F1…`) were captured before this round re-anchored the frontend onto current main, and no longer matched the rendering produced by this branch. All eight were therefore re-captured, and they are recorded here as the observed render of this branch rather than inherited from the earlier round.
 

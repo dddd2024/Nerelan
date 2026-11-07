@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { useState } from "react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
@@ -149,6 +150,33 @@ describe("task-first sidebar IA", () => {
     expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+  });
+
+  it("leaves other chords alone", async () => {
+    window.localStorage.removeItem("nerelan.sidebar-collapsed.v1");
+    const user = userEvent.setup();
+    sidebar();
+    await user.keyboard("{Control>}{Shift>}b{/Shift}{/Control}");
+    expect(screen.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+  });
+
+  it("restores focus to where the user was when the palette closes", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>open</button>
+          <ConversationPanel open={open} onClose={() => setOpen(false)} />
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    const trigger = screen.getByRole("button", { name: "open" });
+    await user.click(trigger);
+    await waitFor(() => expect(screen.getByTestId("task-search-input")).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("remembers the collapsed rail and toggles it with Ctrl+B", async () => {

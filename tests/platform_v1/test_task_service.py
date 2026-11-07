@@ -471,6 +471,15 @@ def test_create_and_read_task(task_server) -> None:
     assert got["usage"]["status"] == "USAGE_UNKNOWN"
 
 
+def test_platform_accounts_reports_no_source_without_a_monitor(task_server) -> None:
+    base, _server = task_server
+    status, pool = _req(base, "GET", "/api/platform/accounts")
+    assert status == 200
+    assert pool["source"] == "none"
+    assert pool["accounts"] == [] and pool["alerts"]["active"] == []
+    assert pool["monitoring"] is False
+
+
 def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
     base, server = task_server
     _enable_legacy_window_fixture(server)
