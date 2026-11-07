@@ -91,6 +91,23 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack))))
 
 
+def _window_renewed_since(candidate: Mapping[str, Any], announced_at: Any) -> bool:
+    """Whether this account's weekly window began after the reset was announced.
+
+    Then the reset has already happened for this account: draining further would
+    spend the new week, so pacing applies again whatever the announcement said.
+    """
+    resets = candidate.get("weekly_resets_at")
+    if not isinstance(announced_at, str) or type(resets) not in (int, float) or not math.isfinite(resets):
+        return False
+    try:
+        from datetime import datetime
+        announced = datetime.fromisoformat(announced_at.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return False
+    return resets - WEEK_SECONDS > announced
+
+
 class ModelSelectionError(ValueError):
     def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = (), pin: str = ""):
         super().__init__(reason)
@@ -161,6 +178,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         tier_basis = {key: detail[key] for key in ("benchmark", "prior_gap") if key in detail}
         reset = reset_decision(reset_signal, now=now, buffer=reset_buffer,
                                weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
+        if reset["drain"] and _window_renewed_since(candidate, reset.get("announced_at")):
+            # This account's week began after the announcement: its reset has
+            # happened. Every drain effect ends here (pacing, the reserve bypass,
+            # the quota penalty and the cost discount), so the new week is kept.
+            reset = {**reset, "drain": False, "drain_target": None, "drain_ended": "window_renewed"}
         if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
             reset_observations.append({"binding_id": candidate["binding_id"], **reset})
         # A validated announced Codex reset already drains to reset_buffer (Owner rule,

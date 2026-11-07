@@ -18,10 +18,11 @@ credential relay used internally during execution.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -101,6 +102,19 @@ class CombinedTrustedHost:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
         self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
+        if reset_signal_reader is None and os.environ.get("REVERSE_AGENT_CODEX_RESET_WATCH") == "1":
+            from ..model_access.codex_reset_signals import CodexResetSignalReader
+            raw = os.environ.get("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", "24")
+            try:
+                hours = float(raw)
+            except ValueError:
+                hours = float("nan")
+            if not 1 <= hours <= 72:  # also false for NaN
+                # A typo must not keep the host down: use the documented default.
+                logging.getLogger(__name__).warning(
+                    "REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS=%r is not 1-72 hours; using 24", raw)
+                hours = 24.0
+            reset_signal_reader = CodexResetSignalReader(within=timedelta(hours=hours))
         self._reset_signal_reader = reset_signal_reader
         self._availability_probe = availability_probe
         task_store = task_store or _make_task_store(task_db_path)
@@ -250,6 +264,7 @@ class CombinedTrustedHost:
             brain=get_orchestrator,
             persist_alerts=os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1",
             weekly_pace=self._weekly_pace_policy,
+            reset_signal=self._routing_reset_signal,
         )
 
     def _weekly_pace_policy(self) -> Mapping[str, Any]:
