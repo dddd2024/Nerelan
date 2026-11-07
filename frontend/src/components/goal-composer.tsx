@@ -22,7 +22,7 @@ interface GoalComposerDraft extends StartGoalInput {
   confirmed: boolean;
 }
 
-const MAX_TEXTAREA_HEIGHT = 144;
+const MAX_TEXTAREA_HEIGHT = 192;
 const DRAFT_STORAGE_KEY = "nerelan.goal-composer.draft.v1";
 const OPERATION_ID_PATTERN = /^[A-Za-z0-9._:-]{8,160}$/;
 
@@ -254,7 +254,8 @@ export function GoalComposer({
           }}
           onKeyDown={(event) => {
             // IME composition uses Enter to commit a candidate, not to send.
-            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            // Safari reports the committing keydown with isComposing false and keyCode 229.
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
             event.preventDefault();
             if (ready) event.currentTarget.form?.requestSubmit();
           }}

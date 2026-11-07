@@ -15,6 +15,7 @@ import {
   Search,
   Settings,
   Sun,
+  Users,
   X,
 } from "lucide-react";
 import type { Task } from "@/types";
@@ -46,7 +47,8 @@ const ROUTES = [
   { to: "/inbox", label: "收件箱", keywords: "inbox review 审查", icon: Inbox },
   { to: "/roadmap", label: "路线图", keywords: "roadmap", icon: Map },
   { to: "/runs", label: "Agent 运行", keywords: "runs agent", icon: Bot },
-  { to: "/settings/usage", label: "用量与额度", keywords: "usage quota account 账户", icon: Gauge },
+  { to: "/accounts", label: "账户", keywords: "accounts pool quota alerts 告警 额度", icon: Users },
+  { to: "/settings/usage", label: "用量与额度", keywords: "usage quota", icon: Gauge },
   { to: "/settings", label: "设置", keywords: "settings", icon: Settings },
 ] as const;
 
@@ -84,7 +86,12 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
       setQuery("");
       return;
     }
+    // Hand focus back on close: the palette can open in the middle of typing.
+    const previous = document.activeElement;
     queueMicrotask(() => inputRef.current?.focus());
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+    };
   }, [open]);
 
   const normalized = query.trim().toLocaleLowerCase();
@@ -155,13 +162,11 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
         aria-label="命令面板"
         className="flex max-h-[64vh] w-full max-w-[640px] flex-col overflow-hidden rounded-xl border border-ra-border bg-ra-workspace shadow-[var(--ra-shadow-3)]"
       >
-        <Command shouldFilter={false} loop label="命令面板" className="flex min-h-0 flex-1 flex-col">
+        <Command shouldFilter={false} loop label="搜索任务或命令" className="flex min-h-0 flex-1 flex-col">
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-ra-border px-3">
             <Search className="h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />
             <Command.Input
               ref={inputRef}
-              id="task-search"
-              aria-label="搜索任务或命令"
               data-testid="task-search-input"
               value={query}
               onValueChange={setQuery}
@@ -178,7 +183,7 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
             </button>
           </div>
 
-          <Command.List className="min-h-[90px] overflow-y-auto px-1.5 py-1.5 custom-scrollbar">
+          <Command.List label="命令与任务" className="min-h-[90px] overflow-y-auto px-1.5 py-1.5 custom-scrollbar">
             {commands.length > 0 ? (
               <Command.Group heading="命令">
                 {commands.map((command) => {

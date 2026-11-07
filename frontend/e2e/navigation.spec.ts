@@ -6,6 +6,7 @@ const routes = [
   ["/inbox", "inbox-page"],
   ["/roadmap", "roadmap-page"],
   ["/runs", "runs-page"],
+  ["/accounts", "accounts-page"],
   ["/settings", "settings-hub"],
 ] as const;
 
@@ -18,10 +19,12 @@ function routeLabel(path: string) {
         ? "路线图"
         : path === "/runs"
           ? "Agent 运行"
-          : "设置";
+          : path === "/accounts"
+            ? "账户"
+            : "设置";
 }
 
-test("keeps all six product routes reachable through task-first desktop IA", async ({ appPage }) => {
+test("keeps every product route reachable through task-first desktop IA", async ({ appPage }) => {
   await open(appPage, "/");
   await settle(appPage);
   if (await appPage.evaluate(() => window.innerWidth <= 500)) {

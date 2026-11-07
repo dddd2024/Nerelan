@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { screen } from "@testing-library/react";
+import { useState } from "react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
 import { TasksPage } from "@/routes/tasks";
+import * as platformClient from "@/lib/platform-client";
 
 const taskReadState = vi.hoisted(() => ({
   override: undefined as undefined | {
@@ -149,6 +151,53 @@ describe("task-first sidebar IA", () => {
     expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+  });
+
+  it("never shows a healthy host when the coordinator reports an error", async () => {
+    vi.spyOn(platformClient, "fetchPlatformStatus").mockResolvedValue({
+      service: "x", task_count: 0, goal_count: 0, capability_count: 0, live_model_calls: false,
+      autonomy: { autonomy_enabled: false, active_window: null, mode: "x" },
+      coordinator: { enabled: true, last_error: "boom", active_window_id: "" },
+    });
+    sidebar();
+    const host = await screen.findByTestId("sidebar-host-status");
+    expect(host).toHaveTextContent("协调器需要处理");
+    expect(host).toHaveAttribute("data-tone", "warning");
+    vi.restoreAllMocks();
+  });
+
+  it("reports a host it cannot reach instead of showing nothing", async () => {
+    vi.spyOn(platformClient, "fetchPlatformStatus").mockRejectedValue(new Error("down"));
+    sidebar();
+    expect(await screen.findByTestId("sidebar-host-status")).toHaveTextContent("服务未连接");
+    vi.restoreAllMocks();
+  });
+
+  it("leaves other chords alone", async () => {
+    window.localStorage.removeItem("nerelan.sidebar-collapsed.v1");
+    const user = userEvent.setup();
+    sidebar();
+    await user.keyboard("{Control>}{Shift>}b{/Shift}{/Control}");
+    expect(screen.getByTestId("sidebar")).toHaveAttribute("data-collapsed", "false");
+  });
+
+  it("restores focus to where the user was when the palette closes", async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>open</button>
+          <ConversationPanel open={open} onClose={() => setOpen(false)} />
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    renderWithProviders(<Harness />);
+    const trigger = screen.getByRole("button", { name: "open" });
+    await user.click(trigger);
+    await waitFor(() => expect(screen.getByTestId("task-search-input")).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("remembers the collapsed rail and toggles it with Ctrl+B", async () => {

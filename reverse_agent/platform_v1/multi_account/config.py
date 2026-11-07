@@ -108,6 +108,19 @@ class MultiAccountConfig(BaseModel):
                     "'auto' (magpie only when enabled and switching behaviour is acknowledged).")
 
     # --- unattended keepalive (domain D) ---------------------------------------
+    alert_interval_seconds: float = Field(30.0, ge=5, le=3600,
+        description="How often the pool monitor re-reads the pool and re-evaluates alerts.")
+    alert_min_usable_accounts: int = Field(2, ge=0, le=1000,
+        description="Warn when fewer accounts than this can take work.")
+    alert_budget_warn_ratio: float = Field(0.2, ge=0, le=1,
+        description="Warn when a window budget's remaining share drops below this.")
+    alert_stall_seconds: float = Field(300.0, ge=30, le=86400,
+        description="Raise when a running coordinator finishes no tick for this long.")
+    alert_log_path: Path = Field(
+        Path(".platform_v1_runtime/multi_account_alerts.jsonl"),
+        description="JSONL log of alert transitions; written only while the brain is enabled.")
+    alert_log_max_bytes: int = Field(1_000_000, ge=10_000, le=100_000_000)
+    alert_log_backups: int = Field(3, ge=0, le=20)
     standby_keepalive_interval_seconds: float = Field(
         60.0, description="Heartbeat interval so a sleeping/hibernated host still reconciles leases on wake.")
 

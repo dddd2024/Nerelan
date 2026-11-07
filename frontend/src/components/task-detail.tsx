@@ -440,7 +440,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       </div>
 
       <div className="min-w-0">
-        <h1 className="truncate text-[15px] font-semibold leading-6 text-ra-text">
+        <h1 title={displayTitle(displayTask.title)} className="truncate text-[15px] font-semibold leading-6 text-ra-text">
           {displayTitle(displayTask.title)}
         </h1>
         {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (

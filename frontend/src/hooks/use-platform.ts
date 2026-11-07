@@ -3,6 +3,7 @@ import {
   fetchGoal,
   fetchGoals,
   fetchPlatformStatus,
+  fetchAccountPool,
   fetchApprovedPolicyIfConfigured,
 } from "@/lib/platform-client";
 import {
@@ -25,6 +26,17 @@ export function usePlatformStatus() {
     queryFn: fetchPlatformStatus,
     staleTime: 3_000,
     refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+}
+
+export function useAccountPool() {
+  return useQuery({
+    queryKey: ["platform", "accounts"],
+    queryFn: fetchAccountPool,
+    staleTime: 5_000,
+    refetchInterval: 15_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

@@ -373,6 +373,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
             if segments == ["api", "platform", "status"]:
                 self._send_json(HTTPStatus.OK, self._platform_status_response())
                 return
+            if segments == ["api", "platform", "accounts"]:
+                self._send_json(HTTPStatus.OK, self._platform_accounts_response())
+                return
             if segments == ["api", "platform", "doctor"]:
                 from .system_doctor import SystemDoctor
 
@@ -1080,6 +1083,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "multi_account": self._multi_account_status(),
         }
 
+    def _platform_accounts_response(self) -> dict[str, Any]:
+        """Account pool read model. Read-only: nothing here mutates account state."""
+        monitor = getattr(self, "pool_monitor", None)
+        if monitor is None:
+            return {"source": "none", "summary": None, "accounts": [], "routing": {}, "policy": {},
+                    "budget": None, "alerts": {"active": [], "recent": []}, "monitoring": False}
+        return monitor.view()
+
     def _multi_account_status(self) -> dict[str, Any]:
         """Who selects accounts, and whether any are cooling down (read-only).
 
@@ -1316,11 +1327,13 @@ def _handler_factory(
     coordinator: Any | None = None,
     local_client_session: Any | None = None,
     magpie_status: Callable | None = None,
+    pool_monitor: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
     ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
+    ConfiguredHandler.pool_monitor = pool_monitor
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin

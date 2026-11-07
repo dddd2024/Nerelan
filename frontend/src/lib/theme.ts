@@ -1,6 +1,8 @@
 export const APPEARANCE_STORAGE_KEY = "nerelan.appearance";
 export const LEGACY_APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
 
+export const APPEARANCE_CHANGED_EVENT = "nerelan:appearance-changed";
+
 export const THEME_MODES = ["system", "light", "dark"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
@@ -138,6 +140,8 @@ export function setAppearance(
   const normalized = normalizeAppearance(appearance);
   applyAppearance(normalized, root);
   persistAppearance(normalized, storage);
+  // Keeps a mounted selector honest when another surface changes the theme.
+  window.dispatchEvent(new CustomEvent<Appearance>(APPEARANCE_CHANGED_EVENT, { detail: normalized }));
   return normalized;
 }
 
