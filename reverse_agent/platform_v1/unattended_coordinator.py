@@ -7,6 +7,7 @@ import logging
 import math
 import os
 from pathlib import Path
+import sqlite3
 import threading
 import time
 import uuid
@@ -373,7 +374,12 @@ class UnattendedCoordinator:
                 if str(exc) in {"window_token_budget_exhausted", "window_cost_budget_exhausted"}:
                     # Avoid preparing more unfunded work this tick. Later
                     # tasks can still use a reservation they already hold.
-                    retained_after_denial = self.control_store.active_reservation_task_ids(window.id)
+                    try:
+                        retained_after_denial = self.control_store.active_reservation_task_ids(window.id)
+                    except sqlite3.Error:
+                        self._last_error = "reservation_candidates_unavailable"
+                        _logger.warning("reservation_candidates_unavailable window=%s", window.id)
+                        break  # Dispatch the batch already claimed before the read fault.
                     continue
                 if str(exc) in {"window_task_budget_exhausted", "window_retry_budget_exhausted"}:
                     # The other attempt class still has its own allowance.

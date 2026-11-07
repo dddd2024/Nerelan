@@ -896,9 +896,9 @@ def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted
     ("max_token_units", "per_task_token_reservation"),
     ("max_cost_micro_units", "per_task_cost_reservation"),
 ])
-@pytest.mark.parametrize("capacity", [100, 120])
+@pytest.mark.parametrize("capacity,read_fails", [(100, False), (120, False), (120, True)])
 def test_budget_pressure_does_not_starve_retained_reservation(
-    tmp_path, budget_field, reservation_field, capacity,
+    tmp_path, monkeypatch, budget_field, reservation_field, capacity, read_fails,
 ):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
@@ -943,17 +943,31 @@ def test_budget_pressure_does_not_starve_retained_reservation(
         (resumed,) if capacity == 100 else (first,)
     )
     expected = {resumed} if capacity == 100 else {first, resumed}
-    assert coordinator.tick() == len(expected)
+    with monkeypatch.context() as faults:
+        if read_fails:
+            import sqlite3
+
+            def fail_read(window_id):
+                raise sqlite3.OperationalError("fixture reservation lookup failure")
+
+            faults.setattr(control, "active_reservation_task_ids", fail_read)
+            expected = {first}
+        assert coordinator.tick() == len(expected)
     assert set(dispatched) == expected
-    assert prepared == ([resumed] if capacity == 100 else [first, second, resumed])
+    assert prepared == ([resumed] if capacity == 100 else
+                        [first, second] if read_fails else [first, second, resumed])
     assert store.get_task(second).status == "QUEUED"
+    if read_fails:
+        assert coordinator.status()["last_error"] == "reservation_candidates_unavailable"
+        assert control.get_window(window.id).tasks_completed == 1
+        assert store.get_task(resumed).status == "INTERRUPTED"
+    for _ in range(3):
+        coordinator.tick()
     rows = store._conn.execute(
         "SELECT claim_epoch,state FROM platform_budget_reservations WHERE task_id=?", (resumed,),
     ).fetchall()
     assert [tuple(row) for row in rows] == [(original_epoch + 1, "RECONCILED")]
     assert control.get_window(window.id).retries_used == 1
-    for _ in range(3):
-        coordinator.tick()
     assert sorted(dispatched) == sorted([first, second, third, resumed])
     assert control.get_window(window.id).tasks_completed == 4
     assert coordinator.tick() == 0
