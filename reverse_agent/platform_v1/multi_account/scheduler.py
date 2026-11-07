@@ -84,11 +84,12 @@ def _next_capacity_at(statuses: Iterable[AccountStatus],
 def _bonus(status: AccountStatus, *,
            scores: Optional[AccountScoreboard],
            cost_reference: Optional[float],
-           latency_reference: Optional[float]) -> float:
+           latency_reference: Optional[float],
+           cap: Optional[float] = None) -> float:
     if scores is None:
         return 0.0
     return scores.bonus(status.account_ref, cost_reference=cost_reference,
-                        latency_reference=latency_reference)
+                        latency_reference=latency_reference, cap=cap)
 
 
 def _eligible(statuses: list[AccountStatus], *, config: MultiAccountConfig,
@@ -107,8 +108,15 @@ def _eligible(statuses: list[AccountStatus], *, config: MultiAccountConfig,
     return result
 
 
-def _order(eligible: list[AccountStatus], *, scores: Optional[AccountScoreboard]) -> tuple[list[AccountStatus], bool]:
-    """Order by health, then by headroom adjusted by measured feedback."""
+def _order(eligible: list[AccountStatus], *, scores: Optional[AccountScoreboard],
+           bonus_cap: Optional[float] = None,
+           prefer_cost: bool = False) -> tuple[list[AccountStatus], bool]:
+    """Order by health, then by headroom adjusted by measured feedback.
+
+    ``prefer_cost`` is the budget's ``degrade`` instruction: inside each health
+    class, order by measured cost instead of headroom. Health still comes first,
+    so a cost cap can never push work onto a degraded or exhausted account.
+    """
     cost_reference, latency_reference = scores.references() if scores is not None else (None, None)
     ranked: list[tuple[tuple[Any, ...], AccountStatus]] = []
     bonus_applied = False
@@ -117,12 +125,35 @@ def _order(eligible: list[AccountStatus], *, scores: Optional[AccountScoreboard]
                        AccountHealth.STALE: 2}.get(s.health, 3)
         headroom = s.headroom_pct if s.headroom_pct is not None else -1.0
         bonus = _bonus(s, scores=scores, cost_reference=cost_reference,
-                       latency_reference=latency_reference)
+                       latency_reference=latency_reference, cap=bonus_cap)
         bonus_applied = bonus_applied or bool(bonus)
-        ranked.append(((health_rank, -(headroom + bonus), len(s.anomaly_flags),
-                        s.freshness_age or 1e18), s))
+        if prefer_cost:
+            score = scores.get(s.account_ref) if scores is not None else None
+            cost = (score.mean_cost_units if score is not None
+                    and score.mean_cost_units is not None else float("inf"))
+            ranked.append(((health_rank, cost, -(headroom + bonus)), s))
+        else:
+            ranked.append(((health_rank, -(headroom + bonus), len(s.anomaly_flags),
+                            s.freshness_age or 1e18), s))
     ranked.sort(key=lambda item: item[0])
     return [s for _, s in ranked], bonus_applied
+
+
+def _admit(budget: Any, need: Optional[Mapping[str, Any]], *, now: float) -> Optional[dict[str, Any]]:
+    """Ask the cost governor whether this attempt fits; never raise on its account."""
+    if budget is None:
+        return None
+    forecast = None
+    if isinstance(need, Mapping):
+        for key in ("cost_units", "forecast_units", "expected_cost_units"):
+            value = need.get(key)
+            if isinstance(value, (int, float)) and value >= 0:
+                forecast = float(value)
+                break
+    try:
+        return budget.admit(forecast, now=now)
+    except Exception:  # noqa: BLE001 - a cost check must never block dispatch
+        return None
 
 
 def select_account(statuses: Iterable[AccountStatus], *,
@@ -131,14 +162,34 @@ def select_account(statuses: Iterable[AccountStatus], *,
                    need: Optional[Mapping[str, Any]] = None,
                    excluded: Optional[Mapping[str, float]] = None,
                    cooldowns: Optional[CooldownRegistry] = None,
-                   scores: Optional[AccountScoreboard] = None) -> dict[str, Any]:
+                   scores: Optional[AccountScoreboard] = None,
+                   budget: Any = None,
+                   bonus_cap: Optional[float] = None) -> dict[str, Any]:
     """Pick the best account, or decide to hold / dead-letter when none fit.
 
     ``need`` is optional and only used to confirm a ``small_task`` truly is
-    small (its p80 percentage must sit under ``small_task_percent_ceiling``).
+    small (its p80 percentage must sit under ``small_task_percent_ceiling``); it
+    also carries the optional ``cost_units`` forecast for the cost governor.
     ``scores`` is optional: with it, measured reliability/cost/latency re-order
     equally-healthy accounts; without it the decision is pure headroom.
+
+    ``budget`` (a :class:`~.budget.CostBudgetGovernor`) is optional and checked
+    *before* an account is chosen: a ``deny`` holds the task with the moment
+    capacity returns, and a ``degrade`` keeps dispatching but prefers the
+    cheapest account inside the best health class. ``bonus_cap`` is the policy
+    loop's clamp on learned preference.
     """
+    budget_view = _admit(budget, need, now=now)
+    if budget_view is not None and budget_view.get("decision") == "deny":
+        # Cost, not account health, is the binding constraint: hold without
+        # consuming an account's cooldown or marking it unhealthy.
+        return {"decision": "hold", "account_ref": None, "provider": None,
+                "reason": str(budget_view.get("reason") or "cost_budget_exhausted"),
+                "evidence": {"budget": budget_view.get("status"),
+                             "forecast_units": budget_view.get("forecast_units")},
+                "retry_at": budget_view.get("retry_at")}
+    prefer_cost = bool(budget_view is not None and budget_view.get("decision") == "degrade")
+
     observed = _materialize(statuses)
     effective = _effective_excluded(excluded, cooldowns=cooldowns, now=now)
     candidates = _eligible(observed, config=config, now=now, small_task=small_task,
@@ -162,7 +213,8 @@ def select_account(statuses: Iterable[AccountStatus], *,
                              "cooling_down": sorted(s.account_ref for s in cooling)},
                 "retry_at": _next_capacity_at(observed, effective, now=now)}
 
-    ordered, bonus_applied = _order(candidates, scores=scores)
+    ordered, bonus_applied = _order(candidates, scores=scores, bonus_cap=bonus_cap,
+                                    prefer_cost=prefer_cost)
     best = ordered[0]
     cost_reference, latency_reference = _refs(scores)
     if small_task and need is not None:
@@ -173,15 +225,19 @@ def select_account(statuses: Iterable[AccountStatus], *,
                     "evidence": {"p80_percent": p80,
                                  "ceiling": config.small_task_percent_ceiling},
                     "retry_at": None}
+    reason = "best_composite" if bonus_applied else "best_headroom"
+    if prefer_cost:
+        reason = "cheapest_within_budget"
     return {"decision": "use", "account_ref": best.account_ref,
             "provider": best.provider,
-            "reason": "best_composite" if bonus_applied else "best_headroom",
+            "reason": reason,
             "evidence": {"health": best.health.value,
                          "headroom_pct": best.headroom_pct,
                          "anomaly_flags": best.anomaly_flags,
                          "score_bonus": round(_bonus(
                              best, scores=scores, cost_reference=cost_reference,
-                             latency_reference=latency_reference), 2),
+                             latency_reference=latency_reference, cap=bonus_cap), 2),
+                         "budget": budget_view.get("status") if budget_view else None,
                          "alternatives": [s.account_ref for s in ordered[1:4]]},
             "retry_at": None}
 
@@ -196,7 +252,9 @@ def next_after_failure(statuses: Iterable[AccountStatus], *,
                        small_task: bool = False,
                        excluded: Optional[Mapping[str, float]] = None,
                        cooldowns: Optional[CooldownRegistry] = None,
-                       scores: Optional[AccountScoreboard] = None) -> dict[str, Any]:
+                       scores: Optional[AccountScoreboard] = None,
+                       budget: Any = None,
+                       bonus_cap: Optional[float] = None) -> dict[str, Any]:
     """Decide what to do after ``failed_ref`` failed on this attempt.
 
     Returns one of:
@@ -231,7 +289,8 @@ def next_after_failure(statuses: Iterable[AccountStatus], *,
         return {"decision": "hold", "reason": "max_reroutes_exceeded_hold", **terminal}
 
     decision = select_account(observed, config=config, now=now, small_task=small_task,
-                              excluded=effective, cooldowns=cooldowns, scores=scores)
+                              excluded=effective, cooldowns=cooldowns, scores=scores,
+                              budget=budget, bonus_cap=bonus_cap)
     if decision["decision"] == "use":
         return {"decision": "reroute", "next_account_ref": decision["account_ref"],
                 "provider": decision["provider"], "reason": "rerouted_to_next_best",
@@ -257,17 +316,34 @@ class AccountAwareScheduler:
     def __init__(self, config: MultiAccountConfig, *,
                  clock: Any = time.time,
                  cooldowns: Optional[CooldownRegistry] = None,
-                 scores: Optional[AccountScoreboard] = None) -> None:
+                 scores: Optional[AccountScoreboard] = None,
+                 budget: Any = None,
+                 policy: Any = None) -> None:
         self._config = config
         self._clock = clock
         self._cooldowns = cooldowns if cooldowns is not None else CooldownRegistry(
             config, clock=clock)
         self._scores = scores
+        self._budget = budget
+        self._policy = policy
         self._excluded: dict[str, float] = {}
 
     @property
     def cooldowns(self) -> CooldownRegistry:
         return self._cooldowns
+
+    @property
+    def budget(self) -> Any:
+        return self._budget
+
+    def _bonus_cap(self) -> Optional[float]:
+        """Learned-bonus clamp from the policy ledger (``None`` while disabled)."""
+        if self._policy is None:
+            return None
+        try:
+            return self._policy.bonus_cap()
+        except Exception:  # noqa: BLE001 - a policy read must never block scheduling
+            return None
 
     def reset_for_task(self) -> None:
         self._excluded = {}
@@ -284,7 +360,8 @@ class AccountAwareScheduler:
         return select_account(statuses, config=self._config, now=self._clock(),
                               small_task=small_task, need=need,
                               excluded=self._excluded, cooldowns=self._cooldowns,
-                              scores=self._scores)
+                              scores=self._scores, budget=self._budget,
+                              bonus_cap=self._bonus_cap())
 
     def on_failure(self, statuses: Iterable[AccountStatus], *,
                    failed_ref: str, failure_kind: str,
@@ -293,7 +370,8 @@ class AccountAwareScheduler:
                                     failed_ref=failed_ref, failure_kind=failure_kind,
                                     attempt=attempt, now=self._clock(),
                                     small_task=small_task, excluded=self._excluded,
-                                    cooldowns=self._cooldowns, scores=self._scores)
+                                    cooldowns=self._cooldowns, scores=self._scores,
+                                    budget=self._budget, bonus_cap=self._bonus_cap())
         # Persist the exclusion the helper computed so the next select() honours it.
         self._excluded.update(result.get("excluded_state", {}))
         return result

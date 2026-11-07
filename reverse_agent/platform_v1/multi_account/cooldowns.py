@@ -75,6 +75,20 @@ class CooldownRegistry:
     def get(self, account_ref: str) -> Optional[Cooldown]:
         return self._entries.get(account_ref)
 
+    def entries(self) -> dict[str, Cooldown]:
+        """Every tracked entry, active or expired (copied, safe to iterate)."""
+        return dict(self._entries)
+
+    def active_streaks(self, *, now: Optional[float] = None) -> dict[str, tuple[int, str]]:
+        """``{account_ref: (streak, kind)}`` for accounts cooling right now.
+
+        Alert rules consume this shape; nothing else needs to know a cooldown's
+        expiry to decide whether an account is flapping.
+        """
+        now = self._clock() if now is None else now
+        return {ref: (entry.streak, entry.kind)
+                for ref, entry in self._entries.items() if entry.active_at(now)}
+
     def until(self, account_ref: str) -> float:
         entry = self._entries.get(account_ref)
         return entry.until if entry else 0.0

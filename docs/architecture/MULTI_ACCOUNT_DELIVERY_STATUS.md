@@ -16,6 +16,56 @@
 具体合入状态与真实运行验收继续分开记录。
 单测、CLI 帮助和进程级探针均不能替代真实生产验收。
 
+## 本轮增量：成本 / 告警 / 时长 / 策略闭环（候选分支，未合入）
+
+前几轮把账户纳管做到了"能感知、能隔离、能选路"，但四件长跑必需的事仍只有模块、
+没有生产调用方：成本上限、运行时长、告警送达、策略限幅/回滚。本轮增量补齐这四条闭环，
+并把分支与 main 的 73 个提交做过一次显式对账（不覆盖 main 的原子反馈与更严格校验）。
+
+| 新增模块 | 职责 | 与既有实现的关系 |
+|---|---|---|
+| `multi_account/budget.py` | 滚动窗口成本上限，`allow/degrade/deny` + 预留/结算/TTL | 复用 `quota_reservation` 语义，不新增账本 |
+| `multi_account/alerts.py` | 规则化告警、`(code, subject)` 抑制、有界历史、可选 JSONL 日志与轮转 | 复用宿主 sink，不新增消息系统 |
+| `multi_account/watchdog.py` | 单次运行墙钟与空闲预算，`continue/conclude/stop` | 复用既有协调器循环，不新增调度器 |
+| `multi_account/policy.py` | 有界、限幅、可审计、可回滚的调度权重链 | 只调既有权重，不新增决策引擎 |
+| `multi_account/cli.py` | 运维只读视图与回滚入口 | 复用同一 store，不新增服务 |
+| `multi_account/perception_sync.py` | Magpie 快照 → 观测表（仅白名单字段） | 复用 `ControlStore` 写入，不接管凭据 |
+
+对账时保留的 main 侧更强保证（不得回退）：`record_account_feedback` 的单事务原子写入与
+`outcome_id` 重放去重、配置与评分的严格校验、`feedback_policy` 的生产选路开关。
+本轮的预算结算、心跳与策略步进一律挂在该临界区内，重放回执不重复结算、不重复累计样本。
+
+仍未验收的部分与本文件其余部分一致：**未部署、未启用、未在真实账户长跑**。
+本地验证为 provider-free（虚拟时钟 + 单元/接线/连续性回归）；真实账户故障注入、
+宿主休眠恢复与 24h+ 长跑仍需对应环境的操作授权。验收脚本的通过不构成真实成本结论。
+
+## 本轮增量二：真实账户首轮验收 + 两处"报告了但没落地"的缺陷
+
+上表四模块合入候选分支后，本轮把验收口径从"虚拟时钟仿真"推进到**本机真实账户池**
+（Magpie 0.1.3186，11 个账户 / 11 个 provider 在线），并修掉三处会在长跑中静默失效的问题。
+证据见 `reports/multi_account/real_acceptance_latest.md` 与
+`reports/multi_account/DELIVERY_MULTI_ACCOUNT_V6.md`。
+
+| # | 问题 | 根因 | 处置 |
+|---|---|---|---|
+| 1 | 真实 CLI 失败只留 `returncode:1`，无法归因 | 探针未采集诊断，未分类 | 采集 stderr/stdout 尾部并脱敏，按生产同一词表分类为 `account_abnormal`/`quota_exhausted`/`transient`/`task_failed`，并把 `failure_kind` 喂回冷却与进化；只有传输类失败允许再打一次 |
+| 2 | 告警验收依赖"池当时正好不健康" | 断言 `bool(codes)`，池健康时必然失败 | 改为由**真实健康分布推导期望**，健康池不误报、病池不静默，另加"期望与引擎不漂移"的回归 |
+| 3 | 写入失败后内存分区仍为脏值 | `SelfEvolutionStore.patch` 先改内存再落盘，失败不回滚 | 失败即回滚该分区，后续任意写入不会把被拒值"顺带"变持久 |
+| 4 | 策略回滚/步进会报告一个磁盘上不存在的版本 | `PolicyLedger._save` 吞掉异常；`observe` 返回提案而非提交结果 | 先持久化后采纳，写入失败返回 `persist_failed` 且版本/权重/审计不变 |
+
+这三类缺陷的共同点是**对外报告的状态强于实际落地的状态**：审计链说有 v7、磁盘上还是 v6；
+告警"通过"依赖环境巧合。长跑把这些放大成"看起来在自愈、实际在漂移"。
+
+与 PR #1389（Draft，`policy_lifecycle.py`）的边界：本分支 `policy.py` 的策略状态本来就写在
+同一个原子反馈文档的 `policy` 分区（`persist=_persister("policy")`），#1389 批评的"独立可变账本
++ best-effort 持久化"针对的是更早的原型。本轮把"持久化失败要可见"补上后，两者在语义上已对齐；
+**单一运行时权威仍是 `policy.py`**，若 #1389 合入，应以其纯转移函数替换 `PolicyLedger` 的规则
+演算，而不是并存第二套策略引擎。
+
+
+详细结构（实现摘要 / 功能边界 / 关键模块 / 可配置项 / 验收结果 / 已知限制）见
+[多账户闭环交付说明](../../reports/multi_account/DELIVERY_MULTI_ACCOUNT_V5.md)。
+
 ## 功能边界与复用
 
 Nerelan 保持 local-first 受控开发平台定位：目标与任务真相、授权、预算、独立验证、

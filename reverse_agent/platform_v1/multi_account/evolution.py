@@ -85,8 +85,17 @@ class SelfEvolutionStore:
 
     @staticmethod
     def _empty() -> dict[str, Any]:
-        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {}, "account_feedback": {},
-                "updated_at": None}
+        """Every section the document may hold.
+
+        This is the load whitelist as well as the initial shape: a section
+        missing here is *silently dropped on the next restart*, which would
+        reset the cost window, the alert dedupe state, the policy chain and the
+        run clock after every crash — exactly the failure this store exists to
+        prevent.
+        """
+        return {"runs": [], "break_even": None, "accounts": {}, "cooldowns": {},
+                "account_feedback": {}, "budget": {}, "alerts": {}, "policy": {},
+                "watchdog": {}, "updated_at": None}
 
     # --- persistence ----------------------------------------------------------
     def _load(self) -> dict[str, Any]:
@@ -104,7 +113,8 @@ class SelfEvolutionStore:
             if any(not isinstance(row, dict) for row in state["runs"]):
                 raise ValueError("invalid feedback run")
             state["runs"] = state["runs"][-self._config.max_recorded_runs:]
-            for key in ("accounts", "cooldowns", "account_feedback"):
+            for key in ("accounts", "cooldowns", "account_feedback", "budget", "alerts",
+                        "policy", "watchdog"):
                 if not isinstance(state[key], dict):
                     raise ValueError("invalid feedback section")
             return state
@@ -145,11 +155,27 @@ class SelfEvolutionStore:
             return copy.deepcopy(value) if isinstance(value, dict) else {}
 
     def patch(self, name: str, value: Any) -> None:
-        """Replace one section and persist, keeping every other section intact."""
+        """Replace one section and persist, keeping every other section intact.
+
+        All-or-nothing on purpose: if the write fails, the in-memory section is
+        restored to its previous value before the error propagates. Leaving the
+        rejected value in memory would let the *next* successful write of any
+        other section silently make it durable, so a section that was reported as
+        failed would reappear after a restart with no audit entry explaining it.
+        """
         with self._lock:
             self._refresh_unlocked()
+            had_previous = name in self._state
+            previous = self._state.get(name)
             self._state[name] = copy.deepcopy(value)
-            self._save_unlocked()
+            try:
+                self._save_unlocked()
+            except BaseException:
+                if had_previous:
+                    self._state[name] = previous
+                else:
+                    self._state.pop(name, None)
+                raise
 
     # --- API ------------------------------------------------------------------
     def record_run(self, outcome: Mapping[str, Any], *,

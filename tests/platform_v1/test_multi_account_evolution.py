@@ -220,3 +220,61 @@ def test_long_band_identity_is_rejected_without_manufacturing_evidence(tmp_path)
     for row in _rich_runs():
         store.record_run({**row, "size_band": "x" * 79 + ("A" if row["mode"] == "single" else "B")})
     assert store.get_break_even()["sufficient_evidence"] is False
+
+
+# --- the feedback snapshot must stay a finite, JSON-safe document --------------
+
+def test_extreme_finite_measurements_keep_the_snapshot_finite():
+    """Two accounts at 1e308 must not sum to inf behind the operator's back.
+
+    An ``inf`` anywhere in the persisted document makes the whole feedback
+    snapshot unusable: json rejects it, and the router then silently drops all
+    measured evidence instead of refusing the one absurd number.
+    """
+    import math
+
+    from reverse_agent.platform_v1.multi_account.scoring import AccountScoreboard
+
+    board = AccountScoreboard(MultiAccountConfig(), clock=lambda: 1_790_000_000.0)
+    for _ in range(3):
+        board.observe("a", ok=True, cost_units=1e308, wall_seconds=1e308, now=1_790_000_000.0)
+        board.observe("b", ok=True, cost_units=1e308, wall_seconds=1e308, now=1_790_000_000.0)
+
+    profile = board.failure_profile()
+    assert math.isfinite(profile["cost_units"]) and math.isfinite(profile["wall_seconds"])
+    # The exact per-attempt number is unrecoverable at this scale, but it must
+    # stay a number an operator can read and compare.
+    assert profile["cost_units"] > 1e307
+    json.dumps(board.snapshot(), allow_nan=False)
+
+
+# --- a refused write must not leave the section dirty ------------------------
+
+def test_a_failed_section_write_is_rolled_back_in_memory(tmp_path, monkeypatch):
+    """The next successful write must not make a rejected section durable.
+
+    ``patch`` mutates the in-memory document before writing it. If the write
+    fails and the mutation stays, any later successful patch of *another*
+    section silently persists the rejected value — a change no audit entry
+    explains and no operator ever approved.
+    """
+    from reverse_agent.platform_v1.multi_account import evolution as evolution_module
+
+    store = SelfEvolutionStore(MultiAccountConfig(), path=tmp_path / "state.json")
+    store.patch("policy", {"version": 1})
+    original = evolution_module.os.replace
+
+    def refuse_replace(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(evolution_module.os, "replace", refuse_replace)
+    with pytest.raises(OSError):
+        store.patch("policy", {"version": 99})
+    monkeypatch.setattr(evolution_module.os, "replace", original)
+    assert store.section("policy") == {"version": 1}
+
+    # A later, unrelated write must persist only its own section.
+    store.patch("cooldowns", {"a": 1})
+    reloaded = SelfEvolutionStore(MultiAccountConfig(), path=tmp_path / "state.json")
+    assert reloaded.section("policy") == {"version": 1}
+    assert reloaded.section("cooldowns") == {"a": 1}

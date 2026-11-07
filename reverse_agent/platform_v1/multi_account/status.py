@@ -74,6 +74,18 @@ class AccountStatus(BaseModel):
     windows: list[WindowStatus] = Field(default_factory=list)
     raw: dict[str, Any] = Field(default_factory=dict)
 
+    def next_reset_at(self) -> Optional[float]:
+        """Earliest future window reset, or ``None`` when no window will refill.
+
+        This is the pool's own answer to "when can capacity come back": an
+        exhausted account with no reset time is not worth sleeping for, while
+        one that refills in twenty minutes is.
+        """
+        return min(
+            (w.resets_at for w in self.windows
+             if w.resets_at is not None and not w.reset_passed and not w.unlimited),
+            default=None)
+
     def public_view(self) -> dict[str, Any]:
         """JSON-safe view for ``/api/resources`` and the web client.
 
@@ -89,10 +101,7 @@ class AccountStatus(BaseModel):
             "headroom_pct": self.headroom_pct,
             "anomaly_flags": list(self.anomaly_flags),
             "windows": [w.model_dump(exclude={"extra"}) for w in self.windows],
-            "next_reset_at": min(
-                (w.resets_at for w in self.windows
-                 if w.resets_at is not None and not w.reset_passed and not w.unlimited),
-                default=None),
+            "next_reset_at": self.next_reset_at(),
         }
 
 
@@ -180,11 +189,26 @@ class MultiAccountStatusMonitor:
         self._config = config
         self._fetch = fetch_quotas if fetch_quotas is not None else pool_account_quotas
         self._clock = clock
+        # Last observation failure, exposed so the caller can alert on a broken
+        # telemetry source instead of silently reading "no accounts".
+        self._last_error: Optional[str] = None
+
+    @property
+    def last_error(self) -> Optional[str]:
+        return self._last_error
 
     def perceive(self, snapshot: Optional[Mapping[str, Any]] = None, *,
                  now: Optional[float] = None) -> list[AccountStatus]:
         now = self._clock() if now is None else now
-        raw = self._fetch(snapshot) or {}
+        self._last_error = None
+        try:
+            raw = self._fetch(snapshot) or {}
+        except Exception as exc:  # noqa: BLE001 - a failed source must not raise into the loop
+            # Returning [] means "nothing observed", which the scheduler already
+            # treats as hold-and-retry. Recording the reason keeps that safe
+            # default diagnosable instead of looking like an empty account pool.
+            self._last_error = f"{type(exc).__name__}: {exc}"
+            return []
         statuses: list[AccountStatus] = []
         for ref, evidence in raw.items():
             if not isinstance(evidence, Mapping):
@@ -281,7 +305,6 @@ class MultiAccountStatusMonitor:
         if not data.get("window"):
             data["window"] = name if isinstance(name, str) and name else "window"
         data["extra"] = unknown
-        return WindowStatus(**data)
         return WindowStatus(**data)
 
     @staticmethod

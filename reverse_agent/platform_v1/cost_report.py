@@ -102,19 +102,25 @@ def build_cost_report(store: Any, rows: list[Mapping[str, Any]], *,
 
 
 def run_report(*, last: str = "6h", cache_path: Optional[Path] = None,
-               from_cache: bool = False, limit: int = 200) -> dict[str, Any]:
+               from_cache: bool = False, limit: int = 200,
+               source: str = "auto") -> dict[str, Any]:
     """Refresh (or reuse) Magpie usage, then build the report against the live store."""
     from .trusted_host import _make_task_store
 
-    refresh = {"available": True, "reason": None, "added": 0}
+    refresh: dict[str, Any] = {"available": True, "reason": None, "added": 0, "source": "cache"}
     if from_cache:
         rows = read_cache(cache_path)
     else:
-        refresh = ingest(last=last, cache_path=cache_path)
+        refresh = ingest(last=last, cache_path=cache_path, source=source)
         rows = read_cache(cache_path)
     report = build_cost_report(_make_task_store(None), rows, limit=limit)
     report["ingest"] = {"available": refresh.get("available"), "reason": refresh.get("reason"),
-                        "added": refresh.get("added"), "source": "cache" if from_cache else "cli"}
+                        "added": refresh.get("added"),
+                        "source": "cache" if from_cache else refresh.get("source", "cli")}
+    if refresh.get("source") == "http":
+        # No per-request rows, so the correlated report stays empty; the
+        # aggregate facts are attached rather than silently dropped.
+        report["aggregate"] = refresh.get("facts", {}).get("totals")
     return report
 
 
@@ -270,18 +276,19 @@ def doctor_report(*, exe_configured: bool, magpie_status: Optional[str],
 def run_doctor(*, last: str = "6h", limit: int = 200) -> dict[str, Any]:
     """Measure the four inputs the report needs, then explain what is missing."""
     from .magpie_usage_ingest import (
-        attempts_from_store, correlate_usage, magpie_executable, read_usage,
+        attempts_from_store, correlate_usage, magpie_executable, read_usage, read_usage_http,
+        facts_from_http,
     )
     from .trusted_host import _make_task_store
 
     exe = magpie_executable()
-    status: Optional[str] = None
-    if exe is not None:
-        try:
-            from ..model_access.magpie import fetch_magpie_snapshot
-            status = fetch_magpie_snapshot().get("status")
-        except Exception:  # noqa: BLE001 - reachability is one of the checks
-            status = "unavailable"
+    # Reachability is independent of the CLI: the desktop app answers over
+    # loopback even when no executable is configured.
+    try:
+        from ..model_access.magpie import fetch_magpie_snapshot
+        status = fetch_magpie_snapshot().get("status")
+    except Exception:  # noqa: BLE001 - reachability is one of the checks
+        status = "unavailable"
     rows = read_usage(exe, last=last) if exe is not None else []
     store = _make_task_store(None)
     attempts = attempts_from_store(store, limit=limit)
@@ -290,6 +297,16 @@ def run_doctor(*, last: str = "6h", limit: int = 200) -> dict[str, Any]:
                            rows=rows, attempts=attempts, correlated=correlated)
     report["window"] = {"requests": len(rows), "attempts": len(attempts)}
     report["attribution"] = correlated.get("summary")
+
+    # The desktop app has no CLI, so a missing executable is not the same as a
+    # missing dataset: say which transport answered and what it can answer.
+    payload = None if rows else read_usage_http(period=last)
+    report["transport"] = "cli" if rows else ("http" if payload else "none")
+    report["http_aggregate"] = facts_from_http(payload)["totals"] if payload else None
+    if payload and not rows:
+        report["warnings"].append(
+            "只拿到 HTTP 聚合（真实成本/错误/延迟），没有逐请求行："
+            "跨任务归因与现金/订阅二分仍需 CLI（本机未安装）")
     return report
 
 
@@ -299,6 +316,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         description="Compare the accepted-only cost metric with all-in costs per basis (read-only).")
     parser.add_argument("--last", default="6h", help="Magpie usage window such as 2h, 90m, 7d")
     parser.add_argument("--from-cache", action="store_true", help="skip the CLI and reuse the cache")
+    parser.add_argument("--source", choices=("auto", "cli", "http"), default="auto",
+                        help="auto = CLI then HTTP aggregates; the app ships no CLI")
     parser.add_argument("--limit", type=int, default=200, help="how many recent tasks to consider")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--save", type=Path, help="write a labelled snapshot for later comparison")
@@ -319,7 +338,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             print("READY" if doctor["ready"] else f"NOT READY: {', '.join(doctor['blockers'])}")
             print(doctor["next"])
         return 0 if doctor["ready"] else 1
-    report = run_report(last=args.last, from_cache=args.from_cache, limit=args.limit)
+    report = run_report(last=args.last, from_cache=args.from_cache, limit=args.limit,
+                        source=args.source)
     if args.save:
         snapshot(report, label=args.label or "unlabelled", path=args.save)
     if args.compare:
