@@ -11,6 +11,9 @@ import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
 interface GoalComposerProps {
+  /** One-line form for the composer docked under a goal thread. */
+  compact?: boolean;
+  placeholder?: string;
   busy: boolean;
   onSubmit: (input: StartGoalInput) => Promise<void>;
 }
@@ -119,7 +122,12 @@ function resizeObjectiveTextarea(element: HTMLTextAreaElement) {
   }
 }
 
-export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
+export function GoalComposer({
+  busy,
+  onSubmit,
+  compact = false,
+  placeholder = "让 Nerelan 做点什么…",
+}: GoalComposerProps) {
   const [draft, setDraft] = useState<GoalComposerDraft>(readDraft);
   const [optionsOpen, setOptionsOpen] = useState(
     () => draft.objective.trim().length > 0,
@@ -200,7 +208,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
 
   return (
     <form
-      className="rounded-2xl border border-ra-border bg-ra-workspace shadow-[0_2px_8px_-4px_var(--ra-border-strong)] transition-[border-color,box-shadow] focus-within:border-ra-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ra-accent)_12%,transparent)]"
+      className="rounded-2xl border border-ra-border bg-ra-input shadow-[var(--ra-shadow-1)] transition-[border-color] focus-within:border-ra-border-strong"
       onSubmit={async (event) => {
         event.preventDefault();
         if (!ready) return;
@@ -232,17 +240,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         if (textareaRef.current) textareaRef.current.style.height = "auto";
       }}
     >
-      <div className="flex min-h-14 items-end gap-1.5 px-2 py-2.5">
-        <button
-          type="button"
-          aria-label="输入选项"
-          aria-expanded={showOptions}
-          onClick={() => setOptionsOpen((value) => !value)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ra-text-tertiary transition hover:bg-ra-light/60 hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
-        >
-          <Settings2 className="h-4 w-4" aria-hidden="true" />
-        </button>
-
+      <div className="px-2 pt-2">
         <label htmlFor="goal-objective" className="sr-only">
           描述最终目标
         </label>
@@ -254,11 +252,32 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
             editDraft({ objective: event.target.value });
             resizeObjectiveTextarea(event.target);
           }}
-          placeholder="让 Nerelan 做点什么…"
-          rows={1}
-          className="min-h-9 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[15px] leading-5 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
+          onKeyDown={(event) => {
+            // IME composition uses Enter to commit a candidate, not to send.
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            if (ready) event.currentTarget.form?.requestSubmit();
+          }}
+          placeholder={placeholder}
+          rows={compact ? 1 : 2}
+          className="block max-h-48 min-h-9 w-full resize-none overflow-y-auto bg-transparent px-2 py-1.5 text-[15px] leading-6 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
         />
 
+      </div>
+      <div className="flex items-center gap-1.5 px-2 pb-2">
+        <button
+          type="button"
+          aria-label="输入选项"
+          aria-expanded={showOptions}
+          onClick={() => setOptionsOpen((value) => !value)}
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ra-text-tertiary transition hover:bg-ra-light/60 hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+        >
+          <Settings2 className="h-4 w-4" aria-hidden="true" />
+        </button>
+
+        <span className="min-w-0 flex-1 truncate text-xs text-ra-text-tertiary" data-testid="goal-composer-context">
+          {draft.repository}
+        </span>
         <button
           type="submit"
           disabled={!ready}

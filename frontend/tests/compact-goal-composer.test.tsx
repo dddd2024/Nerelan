@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,12 +45,30 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));
   });
 
+  it("sends on Enter, keeps Shift+Enter a newline and leaves IME composition alone", async () => {
+    const onSubmit = vi.fn(async () => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} compact onSubmit={onSubmit} />);
+
+    const objective = screen.getByLabelText("描述最终目标");
+    expect(objective).toHaveAttribute("rows", "1");
+    await user.type(objective, "修复账户切换后的重试预算{Shift>}{Enter}{/Shift}第二行");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(objective).toHaveValue("修复账户切换后的重试预算\n第二行");
+
+    fireEvent.keyDown(objective, { key: "Enter", isComposing: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.type(objective, "{Enter}");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
   it("starts compact and keeps secondary configuration out of the empty idle surface", async () => {
     const user = userEvent.setup();
     renderWithProviders(<GoalComposer busy={false} onSubmit={async () => {}} />);
 
     const objective = screen.getByLabelText("描述最终目标");
-    expect(objective).toHaveAttribute("rows", "1");
+    expect(objective).toHaveAttribute("rows", "2");
     expect(screen.queryByTestId("goal-composer-options")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("执行模式")).not.toBeInTheDocument();
 

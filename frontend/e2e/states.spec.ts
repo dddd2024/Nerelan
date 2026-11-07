@@ -1,7 +1,7 @@
 import { test, expect, open, settle } from "./fixtures";
 
 test("renders only reachable seeded states", async ({ appPage }) => {
-  await open(appPage, "/");
+  await open(appPage, "/?goal=goal-demo-platform");
   await settle(appPage);
   await expect(appPage.getByTestId("goal-state-label")).toContainText("正在执行");
   await open(appPage, "/runs");

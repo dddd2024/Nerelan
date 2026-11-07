@@ -43,8 +43,8 @@ const accentLabels: Record<Accent, string> = {
  * Preview swatch for the accent picker.
  *
  * These must be the colours the chosen accent will actually render, and an
- * accent resolves to a *different* value per theme (e.g. cyan is #7ea7a2 in
- * dark and #456e6a in light). The swatches therefore read the theme-scoped
+ * accent resolves to a *different* value per theme (e.g. cyan is #5ab4c0 in
+ * dark and #0d6a76 in light). The swatches therefore read the theme-scoped
  * `--ra-swatch-*` tokens from `index.css` instead of hardcoding hexes: the old
  * hardcoded set advertised #18c6cf for "青色", a colour no theme ever painted.
  */

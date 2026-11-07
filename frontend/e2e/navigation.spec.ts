@@ -38,7 +38,6 @@ test("keeps all six product routes reachable through task-first desktop IA", asy
     }
   } else {
     for (const [path, testId] of routes.slice(1, -1)) {
-      await appPage.getByTestId("sidebar-more-toggle").click();
       const link = appPage.getByTestId("sidebar-nav-" + routeLabel(path));
       await expect(link).toBeVisible();
       await link.focus();

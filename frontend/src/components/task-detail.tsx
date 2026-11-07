@@ -255,12 +255,109 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const stateDotColor = state.dot;
   const objective = displayObjective(displayTask.title);
 
+  /*
+   * Thread opening: what was asked and where it stands, ahead of the activity
+   * stream, so the header stays one compact row and the conversation pane owns
+   * the reading flow.
+   */
+  const threadSummary = (
+    <section
+      aria-label="任务摘要"
+      data-testid="task-thread-summary"
+      className="mb-4 flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-light px-3.5 py-3"
+    >
+        {objective ? (
+          <details className="group" data-testid="task-objective-disclosure">
+            <summary
+              className={cn(
+                // min-h-6 holds the 24px minimum target: a bare `text-xs`
+                // inline-flex summary computes to a 16px hit box, and both
+                // disclosures in this panel measured 64x16.
+                "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-xs text-ra-text-tertiary",
+                "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                "[&::-webkit-details-marker]:hidden",
+              )}
+            >
+              <ChevronRight
+                className="h-3 w-3 transition-transform group-open:rotate-90"
+                aria-hidden="true"
+              />
+              目标详情
+            </summary>
+            <p className="ra-measure mt-2 whitespace-pre-wrap text-sm leading-5 text-ra-text-secondary">
+              {objective}
+            </p>
+          </details>
+        ) : null}
+      <dl
+        className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs"
+        data-testid="task-level-one-meta"
+      >
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-ra-text-tertiary">下一步：</dt>
+          <dd className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
+              gap, so each pair now carries the same `标签：值` colon the rest of
+              the product uses (阶段：/ 目标：/ 活跃度：). */}
+          <dt className="text-ra-text-tertiary">阻塞项：</dt>
+          <dd className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker)}</dd>
+        </div>
+        <div className="flex items-baseline gap-1.5">
+          <dt className="text-ra-text-tertiary">验证：</dt>
+          <dd className="text-ra-text-secondary">{testStatusLabel(displayTask.testStatus)}</dd>
+        </div>
+      </dl>
+
+      <details className="group text-xs" data-testid="task-diagnostics">
+        <summary
+          className={cn(
+            // Same 24px minimum target as the objective disclosure above.
+            "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-ra-text-tertiary",
+            "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+            "[&::-webkit-details-marker]:hidden",
+          )}
+        >
+          <ChevronRight
+            className="h-3 w-3 transition-transform group-open:rotate-90"
+            aria-hidden="true"
+          />
+          诊断信息
+        </summary>
+        <dl className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
+          <Meta label="执行器" value={displayTask.executor ?? "—"} />
+          <Meta label="授权" value={authorityStatusLabel(displayTask.authorityStatus)} />
+          <Meta
+            label="校验命令"
+            value={
+              displayTask.validationCommandId
+                ? `${displayTask.validationCommandId} · ${validationStatusLabel(displayTask.validationExitCode)}`
+                : "未记录"
+            }
+          />
+          <Meta label="执行 ID" value={displayTask.executionId ?? "—"} />
+          <Meta label="任务 ID" value={displayTask.id} />
+          {displayTask.nextAction && displayTask.nextAction !== taskActionCopy(displayTask.nextAction) ? (
+            <Meta label="原始下一步" value={displayTask.nextAction} />
+          ) : null}
+          {displayTask.blocker && displayTask.blocker !== taskBlockerCopy(displayTask.blocker) ? (
+            <Meta label="原始阻塞原因" value={displayTask.blocker} />
+          ) : null}
+        </dl>
+      </details>
+
+      {displayTask.functionalValidation && <FunctionalValidationView evidence={displayTask.functionalValidation} executor={displayTask.executor} />}
+
+    </section>
+  );
+
   return (
     <main
       data-testid="task-detail"
-      className="flex flex-col h-full gap-3 p-3 md:p-0"
+      className="flex h-full flex-col gap-3 p-3 md:gap-0 md:p-0"
     >
-      <header className="flex flex-col gap-3 md:px-6 md:pt-5 md:pb-2" data-testid="task-detail-header">
+      <header className="flex flex-col gap-1.5 md:border-b md:border-ra-border md:px-5 md:py-2.5" data-testid="task-detail-header">
       <nav aria-label="任务归属" className="flex items-center gap-2 text-xs text-ra-text-tertiary" data-testid="task-project-context">
         <Link to="/tasks" className="hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">任务</Link>
         <span aria-hidden="true">/</span>
@@ -278,11 +375,11 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           </Link>
         ) : <span data-testid="task-goal-unavailable">目标关联未提供</span>}
       </nav>
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
+      <div className="flex flex-col justify-between gap-2 lg:flex-row lg:items-center">
         <div className="flex items-center gap-3 min-w-0">
           <div className="group relative flex-shrink-0">
             <div
-              className={cn("w-4 h-4 rounded-full cursor-pointer", stateDotColor)}
+              className={cn("h-2.5 w-2.5 rounded-full", stateDotColor)}
               aria-label={state.label}
               title={state.label}
             />
@@ -343,7 +440,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       </div>
 
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold leading-6 text-ra-text">
+        <h1 className="truncate text-[15px] font-semibold leading-6 text-ra-text">
           {displayTitle(displayTask.title)}
         </h1>
         {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (
@@ -352,90 +449,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
           </p>
         )}
 
-        {objective ? (
-          <details className="group mt-1.5" data-testid="task-objective-disclosure">
-            <summary
-              className={cn(
-                // min-h-6 holds the 24px minimum target: a bare `text-xs`
-                // inline-flex summary computes to a 16px hit box, and both
-                // disclosures in this panel measured 64x16.
-                "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-xs text-ra-text-tertiary",
-                "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                "[&::-webkit-details-marker]:hidden",
-              )}
-            >
-              <ChevronRight
-                className="h-3 w-3 transition-transform group-open:rotate-90"
-                aria-hidden="true"
-              />
-              目标详情
-            </summary>
-            <p className="ra-measure mt-2 whitespace-pre-wrap text-sm leading-5 text-ra-text-secondary">
-              {objective}
-            </p>
-          </details>
-        ) : null}
       </div>
-
-      <dl
-        className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs"
-        data-testid="task-level-one-meta"
-      >
-        <div className="flex items-baseline gap-1.5">
-          <dt className="text-ra-text-tertiary">下一步：</dt>
-          <dd className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
-        </div>
-        <div className="flex items-baseline gap-1.5">
-          {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
-              gap, so each pair now carries the same `标签：值` colon the rest of
-              the product uses (阶段：/ 目标：/ 活跃度：). */}
-          <dt className="text-ra-text-tertiary">阻塞项：</dt>
-          <dd className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker)}</dd>
-        </div>
-        <div className="flex items-baseline gap-1.5">
-          <dt className="text-ra-text-tertiary">验证：</dt>
-          <dd className="text-ra-text-secondary">{testStatusLabel(displayTask.testStatus)}</dd>
-        </div>
-      </dl>
-
-      <details className="group text-xs" data-testid="task-diagnostics">
-        <summary
-          className={cn(
-            // Same 24px minimum target as the objective disclosure above.
-            "inline-flex min-h-6 cursor-pointer list-none items-center gap-1 text-ra-text-tertiary",
-            "hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-            "[&::-webkit-details-marker]:hidden",
-          )}
-        >
-          <ChevronRight
-            className="h-3 w-3 transition-transform group-open:rotate-90"
-            aria-hidden="true"
-          />
-          诊断信息
-        </summary>
-        <dl className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
-          <Meta label="执行器" value={displayTask.executor ?? "—"} />
-          <Meta label="授权" value={authorityStatusLabel(displayTask.authorityStatus)} />
-          <Meta
-            label="校验命令"
-            value={
-              displayTask.validationCommandId
-                ? `${displayTask.validationCommandId} · ${validationStatusLabel(displayTask.validationExitCode)}`
-                : "未记录"
-            }
-          />
-          <Meta label="执行 ID" value={displayTask.executionId ?? "—"} />
-          <Meta label="任务 ID" value={displayTask.id} />
-          {displayTask.nextAction && displayTask.nextAction !== taskActionCopy(displayTask.nextAction) ? (
-            <Meta label="原始下一步" value={displayTask.nextAction} />
-          ) : null}
-          {displayTask.blocker && displayTask.blocker !== taskBlockerCopy(displayTask.blocker) ? (
-            <Meta label="原始阻塞原因" value={displayTask.blocker} />
-          ) : null}
-        </dl>
-      </details>
-
-      {displayTask.functionalValidation && <FunctionalValidationView evidence={displayTask.functionalValidation} executor={displayTask.executor} />}
 
       {displayTask.draftPr ? (
         <div
@@ -509,7 +523,12 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
               </span>
             </div>
           }
-          primaryPane={<ActivityStream events={displayTask.activity} />}
+          primaryPane={
+            <>
+              {threadSummary}
+              <ActivityStream events={displayTask.activity} />
+            </>
+          }
           resizeHandle={
             <ResizeHandle
               onMouseDown={(event) => {
@@ -573,6 +592,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             data-testid="right-panel-content"
             data-active-pane={mobilePane}
           >
+            {mobilePane === "activity" ? threadSummary : null}
             {renderWorkspacePane(mobilePane, displayTask, policy)}
           </div>
         </div>

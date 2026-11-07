@@ -95,7 +95,7 @@ function Wrapper({
   factory,
 }: { children: ReactNode; initialEntries?: string[]; factory: () => QueryClient }) {
   const client = useState(factory)[0];
-  const initial: MemoryRouterProps = { initialEntries: initialEntries ?? ["/"] };
+  const initial: MemoryRouterProps = { initialEntries: initialEntries ?? [`/?goal=${DEMO_ID}`] };
   return (
     <QueryClientProvider client={client}>
       <MemoryRouter {...initial}>{children}</MemoryRouter>
@@ -171,21 +171,32 @@ describe("Platform V2 Home Workspace V2", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the centered single-column layout: composer, current execution, recent goals", async () => {
-    await homeReady();
-    expect(screen.getByRole("heading", { name: "今天想完成什么？" })).toBeInTheDocument();
+  it("opens on the composer with recent goals and selects no goal by itself", async () => {
+    render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
+    expect(await screen.findByRole("heading", { name: "今天想完成什么？" })).toBeInTheDocument();
     expect(screen.getByLabelText("描述最终目标")).toBeInTheDocument();
-    expect(screen.getByText("执行进度")).toBeInTheDocument();
-    expect(screen.getByText("实现协调与恢复链路")).toBeInTheDocument();
+    expect(screen.queryByTestId("active-goal-header")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("current-execution-section")).not.toBeInTheDocument();
+    const composer = screen.getByTestId("goal-composer-section");
+    const recent = screen.getByTestId("recent-goals-section");
+    expect(composer.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("opens a recent goal as a thread with the composer docked after the transcript", async () => {
+    const user = userEvent.setup();
+    render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
+    await user.click(await screen.findByRole("button", { name: /完善无人值守多 Agent 平台/ }));
+    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
+    expect(screen.getByTestId("goal-thread-objective")).toBeInTheDocument();
     expect(screen.getByTestId("goal-progress-bar")).toBeInTheDocument();
     const composer = screen.getByTestId("goal-composer-section");
     const current = screen.getByTestId("current-execution-section");
-    const recent = screen.getByTestId("recent-goals-section");
-    expect(current.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_PRECEDING).toBe(Node.DOCUMENT_POSITION_PRECEDING);
-    expect(current.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(current.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.queryByTestId("recent-goals-section")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("返回新目标")).toHaveAttribute("href", "/");
   });
 
-  it("removes the permanent right rail, activity-stream placeholder, and keeps recent goals capped at 3", async () => {
+  it("removes the permanent right rail and the activity-stream placeholder", async () => {
     await homeReady();
     const main = screen.getByTestId("platform-home");
     expect(main.querySelector("[class*='grid-cols']")).toBeNull();
@@ -193,9 +204,6 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(main.querySelector('[data-testid="activity-stream-slot"]')).toBeNull();
     expect(screen.queryByText("Multi-agent workspace")).not.toBeInTheDocument();
     expect(screen.queryByText(/能力$/)).not.toBeInTheDocument();
-    const recentSection = screen.getByTestId("recent-goals-section");
-    const recentButtons = recentSection.querySelectorAll("button[type='button']");
-    expect(recentButtons.length).toBeLessThanOrEqual(3);
   });
 
   it("shows authoritative current-execution state from the selected goal detail", async () => {
@@ -444,11 +452,14 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(hasTextInCurrentSection("需要处理阻塞")).toBe(false);
   });
 
-  it("keeps Recent Goals capped at 3 entries even with more goals", async () => {
-    await homeReady();
-    const recentSection = screen.getByTestId("recent-goals-section");
-    const recentButtons = recentSection.querySelectorAll("button[type='button']");
-    expect(recentButtons.length).toBeLessThanOrEqual(3);
+  it("keeps Recent Goals capped at 5 entries even with more goals", async () => {
+    const client = makeClient({ staleTime: 60_000 });
+    client.setQueryData(["goals"], Array.from({ length: 7 }, (_, index) => ({
+      ...RUNNING_GOAL, id: `goal-${index}`, title: `目标 ${index}`,
+    })));
+    render(<HomePage />, { factory: () => client, initialEntries: ["/"] });
+    const recentSection = await screen.findByTestId("recent-goals-section");
+    expect(recentSection.querySelectorAll("button[type='button']")).toHaveLength(5);
   });
 
   it("keeps Recent Goals status badge colors for COMPLETED, RUNNING, and BLOCKED", async () => {
@@ -461,10 +472,9 @@ describe("Platform V2 Home Workspace V2", () => {
     ]);
     c.setQueryData(["goals", "goal-completed"], { ...makeGoal("COMPLETED", [...COMPLETED_LINKS]), id: "goal-completed" });
 
-    render(<HomePage />, { factory: () => c });
-    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
+    render(<HomePage />, { factory: () => c, initialEntries: ["/"] });
 
-    const recentSection = screen.getByTestId("recent-goals-section");
+    const recentSection = await screen.findByTestId("recent-goals-section");
     const badges = recentSection.querySelectorAll("span");
     const classes = Array.from(badges).map((el) => el.className);
     expect(classes.some((cls) => cls.includes("ra-status-running"))).toBe(true);
@@ -489,11 +499,11 @@ describe("Platform V2 Home Workspace V2", () => {
     client.setQueryData(["goals"], [fixture, missing]);
     client.setQueryData(["goals", fixture.id], fixture);
     client.setQueryData(["goals", missing.id], missing);
-    render(<HomePage />, { factory: () => client });
+    render(<HomePage />, { factory: () => client, initialEntries: ["/"] });
     const recent = within(screen.getByTestId("recent-goals-section"));
     const fixtureRow = recent.getByRole("button", { name: /内置夹具目标/ });
     expect(within(fixtureRow).getByText("RUNNING")).toBeVisible();
-    const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("p")?.textContent);
+    const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("span")?.textContent);
 
     const completedFixture: PlatformGoal = {
       ...fixture, status: "COMPLETED",
@@ -505,7 +515,7 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => expect(
       within(recent.getByRole("button", { name: /内置夹具目标/ })).getByText("执行完成，待审查"),
     ).toBeVisible());
-    expect(recent.getAllByRole("button").map((row) => row.querySelector("p")?.textContent)).toEqual(beforeOrder);
+    expect(recent.getAllByRole("button").map((row) => row.querySelector("span")?.textContent)).toEqual(beforeOrder);
     for (const row of recent.getAllByRole("button")) {
       expect(within(row).getByText("执行完成，待审查")).toBeVisible();
       expect(within(row).queryByText(/COMPLETED|功能已验证|结果已验证|交付完成/)).not.toBeInTheDocument();

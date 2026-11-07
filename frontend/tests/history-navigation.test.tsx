@@ -51,7 +51,7 @@ describe("Goal history journey", () => {
   it("finds an older Goal from Home and preserves exact identity on refresh", async () => {
     const user = userEvent.setup();
     const first = mount("/");
-    await screen.findByRole("heading", { name: "History Goal 0" });
+    await screen.findByRole("button", { name: /History Goal 0/ });
     await user.click(screen.getByRole("link", { name: "所有目标" }));
     expect(await screen.findByRole("link", { name: /History Goal 3 / })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /History Goal 150 / })).not.toBeInTheDocument();

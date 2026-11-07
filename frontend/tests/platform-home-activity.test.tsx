@@ -16,7 +16,7 @@ function makeWrapper() {
   });
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/"]}>{children}</MemoryRouter>
+      <MemoryRouter initialEntries={[`/?goal=${GOAL_ID}`]}>{children}</MemoryRouter>
     </QueryClientProvider>
   );
 }

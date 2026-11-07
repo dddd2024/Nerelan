@@ -29,33 +29,30 @@
 }
 
 :root {
-  --ra-base: #171816;
-  --ra-light: #232421;
-  --ra-workspace: #1d1e1c;
-  --ra-sidebar: #1a1b19;
-  --ra-tertiary: #2a2b27;
-  --ra-input: #2d2e2a;
-  --ra-border: #383a35;
-  --ra-border-strong: #51534c;
-  --ra-text: #f4f3ef;
-  --ra-text-secondary: #b7b5ae;
-  /* Lightened from #8f8e88: on `--ra-tertiary` (42,43,39) it measured 4.34:1
-     and on `--ra-input` (45,46,42) 4.16:1, so tertiary metadata such as the
-     task-detail "证据"/"授权" tabs and the settings hint text failed 4.5:1.
-     #979690 is the smallest lightening that reaches 4.61:1 on all six dark
-     surfaces while staying visibly dimmer than --ra-text-secondary. */
-  --ra-text-tertiary: #979690;
-  --ra-text-code: #aaa9a3;
+  --ra-base: #0f1012;
+  --ra-light: #1e2024;
+  --ra-workspace: #17181b;
+  --ra-sidebar: #131417;
+  --ra-tertiary: #25272c;
+  --ra-input: #1e2024;
+  --ra-border: #2c2e34;
+  --ra-border-strong: #454850;
+  --ra-text: #ececee;
+  --ra-text-secondary: #b4b7be;
+  /* Tertiary metadata must clear 4.5:1 on every dark surface, including
+     `--ra-tertiary`; tests/accessibility.test.tsx measures the pairing. */
+  --ra-text-tertiary: #9599a1;
+  --ra-text-code: #b0b3ba;
   --ra-accent: var(--ra-accent-tone-cyan);
   --ra-accent-hover: var(--ra-accent-tone-cyan-hover);
-  --ra-status-running: #9ccf91;
-  --ra-status-starting: #d8b868;
-  --ra-status-stopped: #d7d5cf;
-  --ra-status-success: #9ccf91;
-  --ra-status-warning: #d8b868;
-  --ra-status-error: #e27b6c;
-  --ra-panel-bg: #20211e;
-  --ra-panel-input: #292a26;
+  --ra-status-running: #7dcf96;
+  --ra-status-starting: #dcb860;
+  --ra-status-stopped: #d5d7dc;
+  --ra-status-success: #7dcf96;
+  --ra-status-warning: #dcb860;
+  --ra-status-error: #ec8476;
+  --ra-panel-bg: #1a1b1f;
+  --ra-panel-input: #212328;
 
   /* Accent tones — one definition per accent per theme, shared by the live
      accent, its hover state and the settings picker swatch.
@@ -65,16 +62,16 @@
      never rendered. Both now read the same variable, which makes that drift
      structurally impossible — the light block and the system-dark block below
      only have to restate these ten values. Dark theme values live here. */
-  --ra-accent-tone-cyan: #7ea7a2;
-  --ra-accent-tone-cyan-hover: #98bbb7;
-  --ra-accent-tone-blue: #5597f5;
-  --ra-accent-tone-blue-hover: #68a4ff;
-  --ra-accent-tone-violet: #9e85f3;
-  --ra-accent-tone-violet-hover: #aa95ff;
-  --ra-accent-tone-amber: #d88a19;
+  --ra-accent-tone-cyan: #5ab4c0;
+  --ra-accent-tone-cyan-hover: #74c5d0;
+  --ra-accent-tone-blue: #6ba6f7;
+  --ra-accent-tone-blue-hover: #83b5fa;
+  --ra-accent-tone-violet: #a892f5;
+  --ra-accent-tone-violet-hover: #b7a4f8;
+  --ra-accent-tone-amber: #e0992f;
   --ra-accent-tone-amber-hover: #efa83a;
-  --ra-accent-tone-rose: #e87185;
-  --ra-accent-tone-rose-hover: #f17d90;
+  --ra-accent-tone-rose: #ee8598;
+  --ra-accent-tone-rose-hover: #f397a8;
 
   --ra-swatch-cyan: var(--ra-accent-tone-cyan);
   --ra-swatch-blue: var(--ra-accent-tone-blue);
@@ -145,40 +142,35 @@ html[data-accent="rose"] {
 
 html[data-theme="light"],
 html[data-theme="system"] {
-  --ra-base: #f1eee6;
-  --ra-light: #f7f4ed;
-  --ra-workspace: #fffefa;
-  --ra-sidebar: #ece8de;
-  --ra-tertiary: #ebe7dd;
-  --ra-input: #fffefa;
-  --ra-border: #ddd8cd;
-  --ra-border-strong: #c4beb2;
-  --ra-text: #20211f;
-  --ra-text-secondary: #585a55;
-  --ra-text-tertiary: #66675f;
-  --ra-text-code: #555851;
-  --ra-panel-bg: #fffefa;
-  --ra-panel-input: #f6f2ea;
+  --ra-base: #f3f4f6;
+  --ra-light: #f8f9fa;
+  --ra-workspace: #ffffff;
+  --ra-sidebar: #eff0f3;
+  --ra-tertiary: #e8eaee;
+  --ra-input: #ffffff;
+  --ra-border: #e1e3e8;
+  --ra-border-strong: #c4c8d0;
+  --ra-text: #16171b;
+  --ra-text-secondary: #4b4f57;
+  --ra-text-tertiary: #5c6069;
+  --ra-text-code: #4f535b;
+  --ra-panel-bg: #ffffff;
+  --ra-panel-input: #f4f5f7;
   /* Status hues are foreground-on-light-surface colours, so each must clear
-     4.5:1 against every surface the product actually renders them on:
-     #f1eee6 base, #fffefa workspace, #ece8de sidebar, #ebe7dd tertiary,
-     #f7f4ed light. The earlier values were tuned against base alone and fell
-     to 3.65:1 (accent) and 4.08:1 (success) on `--ra-tertiary`. The variants
-     below are the smallest darkenings that reach >=4.61:1 on all five. */
-  --ra-status-running: #2b734a;
-  --ra-status-starting: #8c5d12;
-  --ra-status-stopped: #65665f;
-  --ra-status-success: #2b734a;
-  --ra-status-warning: #8c5d12;
-  --ra-status-error: #a83c35;
+     4.5:1 against every light surface; tests/accessibility.test.tsx measures
+     all of them, including the darkest one, `--ra-tertiary`. */
+  --ra-status-running: #1f7346;
+  --ra-status-starting: #855a0e;
+  --ra-status-stopped: #5e6169;
+  --ra-status-success: #1f7346;
+  --ra-status-warning: #855a0e;
+  --ra-status-error: #b03a33;
 
-  /* Light-theme accent tones. These are the "smallest darkening that clears
-     4.5:1 on all five light surfaces" counterparts of the dark tones in
-     `:root`; #507f7a only reached 3.65:1 on `--ra-tertiary`, which is exactly
-     where the sidebar and inline chips sit. Because the swatch tokens alias
-     these names, the picker follows the theme automatically. */
-  --ra-accent-tone-cyan: #456e6a;
-  --ra-accent-tone-cyan-hover: #34605c;
+  /* Light-theme accent tones: counterparts of the dark tones in `:root` that
+     clear 4.5:1 on all light surfaces. Because the swatch tokens alias these
+     names, the picker follows the theme automatically. */
+  --ra-accent-tone-cyan: #0d6a76;
+  --ra-accent-tone-cyan-hover: #0a5863;
   --ra-accent-tone-blue: #1d5fbf;
   --ra-accent-tone-blue-hover: #174f9f;
   --ra-accent-tone-violet: #6741b3;
@@ -196,38 +188,38 @@ html[data-theme="system"] {
 
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"] {
-    --ra-base: #171816;
-    --ra-light: #232421;
-    --ra-workspace: #1d1e1c;
-    --ra-sidebar: #1a1b19;
-    --ra-tertiary: #2a2b27;
-    --ra-input: #2d2e2a;
-    --ra-border: #383a35;
-    --ra-border-strong: #51534c;
-    --ra-text: #f4f3ef;
-    --ra-text-secondary: #b7b5ae;
-    --ra-text-tertiary: #979690;
-    --ra-text-code: #aaa9a3;
-    --ra-panel-bg: #20211e;
-    --ra-panel-input: #292a26;
-    --ra-status-running: #9ccf91;
-    --ra-status-starting: #d8b868;
-    --ra-status-stopped: #d7d5cf;
-    --ra-status-success: #9ccf91;
-    --ra-status-warning: #d8b868;
-    --ra-status-error: #e27b6c;
+    --ra-base: #0f1012;
+    --ra-light: #1e2024;
+    --ra-workspace: #17181b;
+    --ra-sidebar: #131417;
+    --ra-tertiary: #25272c;
+    --ra-input: #1e2024;
+    --ra-border: #2c2e34;
+    --ra-border-strong: #454850;
+    --ra-text: #ececee;
+    --ra-text-secondary: #b4b7be;
+    --ra-text-tertiary: #9599a1;
+    --ra-text-code: #b0b3ba;
+    --ra-panel-bg: #1a1b1f;
+    --ra-panel-input: #212328;
+    --ra-status-running: #7dcf96;
+    --ra-status-starting: #dcb860;
+    --ra-status-stopped: #d5d7dc;
+    --ra-status-success: #7dcf96;
+    --ra-status-warning: #dcb860;
+    --ra-status-error: #ec8476;
     /* System+dark must restate the dark accent tones: this block comes after
        the light palette, which already replaced them with the light values. */
-    --ra-accent-tone-cyan: #7ea7a2;
-    --ra-accent-tone-cyan-hover: #98bbb7;
-    --ra-accent-tone-blue: #5597f5;
-    --ra-accent-tone-blue-hover: #68a4ff;
-    --ra-accent-tone-violet: #9e85f3;
-    --ra-accent-tone-violet-hover: #aa95ff;
-    --ra-accent-tone-amber: #d88a19;
+    --ra-accent-tone-cyan: #5ab4c0;
+    --ra-accent-tone-cyan-hover: #74c5d0;
+    --ra-accent-tone-blue: #6ba6f7;
+    --ra-accent-tone-blue-hover: #83b5fa;
+    --ra-accent-tone-violet: #a892f5;
+    --ra-accent-tone-violet-hover: #b7a4f8;
+    --ra-accent-tone-amber: #e0992f;
     --ra-accent-tone-amber-hover: #efa83a;
-    --ra-accent-tone-rose: #e87185;
-    --ra-accent-tone-rose-hover: #f17d90;
+    --ra-accent-tone-rose: #ee8598;
+    --ra-accent-tone-rose-hover: #f397a8;
     /* Must be restated here: this block comes after the light palette and
        would otherwise leave system+dark rendering light-theme shadows. */
     --ra-shadow-1: 0 1px 2px rgb(0 0 0 / 0.45);
@@ -254,8 +246,7 @@ html[data-theme="system"] {
 @media (min-width: 768px) {
   [data-testid="app-shell"] > [data-testid="sidebar"] {
     height: 100%;
-    border-right-color: transparent;
-    background: var(--ra-base);
+    background: var(--ra-sidebar);
   }
 }
 
@@ -283,7 +274,8 @@ body {
   background-color: var(--ra-base);
   color: var(--ra-text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
+    "PingFang SC", "Microsoft YaHei UI", "Noto Sans CJK SC", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -363,6 +355,29 @@ code {
  */
 .ra-measure {
   max-width: var(--ra-measure);
+}
+
+/* Live-state pulse for a running thread; reduced motion is handled below. */
+.ra-pulse {
+  animation: ra-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ra-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* cmdk renders its own structure; only its data attributes need styling. */
+[cmdk-item][data-selected="true"] {
+  background: var(--ra-tertiary);
+  color: var(--ra-text);
+}
+
+[cmdk-group-heading] {
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  color: var(--ra-text-tertiary);
 }
 
 .custom-scrollbar,

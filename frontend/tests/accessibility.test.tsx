@@ -130,41 +130,32 @@ describe("accessibility", () => {
     expect(screen.getByTestId("body")).toBeInTheDocument();
   });
 
+  const LIGHT_SURFACES = ["#f3f4f6", "#ffffff", "#eff0f3", "#e8eaee", "#f8f9fa"];
+  const DARK_SURFACES = ["#0f1012", "#1e2024", "#17181b", "#131417", "#25272c"];
+
   it("keeps tertiary text at WCAG AA contrast on every surface it renders on", () => {
     const css = read("src/index.css");
 
-    expect(css).not.toContain("--ra-text-tertiary: #77786f;");
-    expect(css).toContain("--ra-text-tertiary: #66675f;");
-    // #8f8e88 only reached 4.34:1 on the dark tertiary surface and 4.16:1 on
-    // the dark input surface, where the task-detail tabs and the settings hint
-    // text actually sit.
-    expect(css).not.toContain("--ra-text-tertiary: #8f8e88;");
-    expect(css).toContain("--ra-text-tertiary: #979690;");
-
-    for (const surface of ["#fffefa", "#f1eee6", "#ece8de", "#ebe7dd", "#f7f4ed"]) {
-      expect(contrastRatio("#66675f", surface)).toBeGreaterThanOrEqual(4.5);
+    expect(css).toContain("--ra-text-tertiary: #5c6069;");
+    expect(css).toContain("--ra-text-tertiary: #9599a1;");
+    for (const surface of LIGHT_SURFACES) {
+      expect(contrastRatio("#5c6069", surface)).toBeGreaterThanOrEqual(4.5);
     }
-    for (const surface of ["#171816", "#232421", "#1d1e1c", "#1a1b19", "#2a2b27", "#2d2e2a"]) {
-      expect(contrastRatio("#979690", surface)).toBeGreaterThanOrEqual(4.5);
+    for (const surface of DARK_SURFACES) {
+      expect(contrastRatio("#9599a1", surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 
   it("keeps the light accent and status hues at WCAG AA contrast on every light surface", () => {
     const css = read("src/index.css");
 
-    // The light accents were previously tuned against `--ra-base` only, so
-    // #507f7a measured 3.65:1 and #2f7d50 4.08:1 on `--ra-tertiary`.
-    // Compare against the *declared* tone values, not the raw file text: the
-    // comments above each list deliberately quote the old hexes to explain why
-    // they were replaced.
-    expect(declaredAccentTones(css)).not.toContain("507f7a");
     // The light accent lives in the theme's tone list; `html[data-accent="…"]`
     // only points at it, so the literal must be asserted there.
-    expect(css).toContain("--ra-accent-tone-cyan: #456e6a;");
+    expect(css).toContain("--ra-accent-tone-cyan: #0d6a76;");
 
-    const lightSurfaces = ["#f1eee6", "#fffefa", "#ece8de", "#ebe7dd", "#f7f4ed"];
-    for (const value of ["#456e6a", "#2b734a", "#8c5d12", "#a83c35", "#65665f"]) {
-      for (const surface of lightSurfaces) {
+    for (const value of ["#0d6a76", "#1f7346", "#855a0e", "#b03a33", "#5e6169"]) {
+      expect(css).toContain(value);
+      for (const surface of LIGHT_SURFACES) {
         expect(contrastRatio(value, surface)).toBeGreaterThanOrEqual(4.5);
       }
     }
@@ -174,18 +165,15 @@ describe("accessibility", () => {
     const css = read("src/index.css");
 
     // `text-ra-accent` is used for run state, activity verbs and inline links,
-    // so each accent has to hold up as *text* on all six dark surfaces, not
-    // just as a fill on the workspace. The original seeds were tuned against
-    // the workspace alone: blue measured 4.10:1, violet 3.58:1 and rose
-    // 3.93:1 on `--ra-input`.
+    // so each accent has to hold up as *text* on every dark surface, not just
+    // as a fill on the workspace.
     for (const stale of ["438cf4", "8a6cf1", "e45b72"]) {
       expect(declaredAccentTones(css), `${stale} must not survive as a dark accent`).not.toContain(stale);
     }
 
-    const darkSurfaces = ["#171816", "#232421", "#1d1e1c", "#1a1b19", "#2a2b27", "#2d2e2a"];
-    for (const value of ["#7ea7a2", "#5597f5", "#9e85f3", "#d88a19", "#e87185"]) {
+    for (const value of ["#5ab4c0", "#6ba6f7", "#a892f5", "#e0992f", "#ee8598"]) {
       expect(css, `${value} must be declared as a dark accent tone`).toContain(value);
-      for (const surface of darkSurfaces) {
+      for (const surface of DARK_SURFACES) {
         expect(
           contrastRatio(value, surface),
           `${value} on ${surface}`,
@@ -205,14 +193,5 @@ describe("accessibility", () => {
       "*::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     );
     expect(css).toContain('@import "tailwindcss"');
-  });
-
-  it("keeps light error text at WCAG AA contrast on both light surfaces", () => {
-    const css = read("src/index.css");
-
-    expect(css).not.toContain("--ra-status-error: #b9473f;");
-    expect(css).toContain("--ra-status-error: #a83c35;");
-    expect(contrastRatio("#a83c35", "#fffefa")).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio("#a83c35", "#f1eee6")).toBeGreaterThanOrEqual(4.5);
   });
 });
