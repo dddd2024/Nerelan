@@ -58,6 +58,8 @@ def epoch_seconds(value: Any) -> Optional[float]:
 def _pool_alerts(pool: Mapping[str, Any], config: MultiAccountConfig) -> Iterable[Alert]:
     if pool.get("source") == "unavailable":
         yield Alert("perception_unavailable", WARNING, "pool", "账户状态暂时无法读取")
+    if pool.get("feedback_fresh") is False:
+        yield Alert("feedback_unavailable", WARNING, "pool", "账户反馈暂时无法读取，隔离与评分可能不是最新")
     accounts = pool.get("accounts") or ()
     usable = sum(1 for account in accounts if account.get("dispatchable"))
     if accounts and usable == 0:
@@ -96,6 +98,8 @@ def _budget_alerts(budget: Mapping[str, Any], config: MultiAccountConfig) -> Ite
 
 def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
                     now: float, stalled_seconds: Optional[float]) -> Iterable[Alert]:
+    if runtime.get("stale"):
+        yield Alert("runtime_status_unavailable", WARNING, "coordinator", "运行状态暂时无法读取，显示最近一次结果")
     coordinator = runtime.get("coordinator") or {}
     window = runtime.get("window") or None
     if window and coordinator.get("lifecycle") == "STOPPED":

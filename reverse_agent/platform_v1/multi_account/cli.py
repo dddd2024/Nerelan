@@ -30,7 +30,7 @@ def _default_task_api() -> str:
 
 def _host_running(base_url: str) -> bool:
     """Fails closed: only a refused connection proves that nothing is listening."""
-    parts = urlsplit(base_url)
+    parts = urlsplit(base_url if "://" in base_url else f"http://{base_url}")
     try:
         with socket.create_connection((parts.hostname or "127.0.0.1", parts.port or 80), timeout=5):
             return True

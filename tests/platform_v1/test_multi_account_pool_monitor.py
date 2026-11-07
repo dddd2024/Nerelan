@@ -325,7 +325,34 @@ class TestPoolMonitor:
         alert = next(a for a in view["alerts"]["active"] if a["code"] == "account_quarantined")
         assert alert["subject"] == "connection-1"
 
-    def test_a_failed_brain_read_keeps_the_last_feedback(self):
+    @staticmethod
+    def unreadable_ledger(cooling):
+        """Registry readable, ledger not: the shape of a corrupted store file."""
+        def broken():
+            raise ValueError("corrupt ledger")
+        fake = brain(cooling=cooling)
+        fake.account_scores = broken
+        fake.account_policy_view = broken
+        return fake
+
+    def test_an_unreadable_ledger_still_reports_a_new_quarantine_and_says_so(self):
+        item = Cooldown("a", until=NOW + 60, kind="account_abnormal", streak=1, tier="quarantine")
+        view = monitor(brain=lambda: self.unreadable_ledger({"a": item})).refresh()
+        assert {"account_quarantined", "feedback_unavailable"} <= {a["code"] for a in view["alerts"]["active"]}
+
+    def test_an_unreadable_ledger_does_not_freeze_an_expired_quarantine(self):
+        clock = {"now": NOW}
+        cooling = {"a": Cooldown("a", until=NOW + 60, kind="account_abnormal", streak=1, tier="quarantine")}
+        pool = monitor(brain=lambda: self.unreadable_ledger(cooling), clock=lambda: clock["now"])
+        pool.refresh()
+        cooling.clear()
+        clock["now"] += 61
+        view = pool.refresh()
+        assert "account_quarantined" not in [a["code"] for a in view["alerts"]["active"]]
+        assert view["summary"]["cooling_accounts"] == 0
+
+    def test_a_remembered_quarantine_expires_when_the_brain_is_gone(self):
+        clock = {"now": NOW}
         item = Cooldown("a", until=NOW + 60, kind="account_abnormal", streak=1, tier="quarantine")
         healthy = iter([brain(cooling={"a": item})])
 
@@ -335,9 +362,37 @@ class TestPoolMonitor:
             except StopIteration:
                 raise RuntimeError("store busy") from None
 
-        pool = monitor(brain=flaky)
+        pool = monitor(brain=flaky, clock=lambda: clock["now"])
         pool.refresh()
-        assert "account_quarantined" in [a["code"] for a in pool.refresh()["alerts"]["active"]]
+        codes_ = [a["code"] for a in pool.refresh()["alerts"]["active"]]
+        assert "account_quarantined" in codes_ and "feedback_unavailable" in codes_
+        clock["now"] += 61
+        assert "account_quarantined" not in [a["code"] for a in pool.refresh()["alerts"]["active"]]
+
+    def test_last_known_rows_stop_claiming_health_past_the_freshness_budget(self):
+        clock = {"now": NOW}
+        pool = monitor(clock=lambda: clock["now"])
+        pool._perceive = lambda: ("magpie", [status("a")])
+        pool.refresh()
+        pool._perceive = lambda: ("unavailable", [])
+        assert pool.refresh()["accounts"][0]["health"] == "HEALTHY"
+        clock["now"] += pool._config.observation_freshness_seconds + 1
+        row_ = pool.refresh()["accounts"][0]
+        assert row_["health"] == "STALE" and row_["dispatchable"] is False
+
+    def test_a_failed_runtime_read_keeps_its_alerts_and_says_so(self):
+        runtime = iter([{"coordinator": {"last_error": "boom"}}])
+
+        def flaky():
+            try:
+                return next(runtime)
+            except StopIteration:
+                raise RuntimeError("store closed") from None
+
+        pool = monitor(runtime_status=flaky)
+        pool.refresh()
+        active = {a["code"] for a in pool.refresh()["alerts"]["active"]}
+        assert {"coordinator_error", "runtime_status_unavailable"} <= active
 
     def test_time_asleep_does_not_count_as_a_stall(self):
         clock = {"now": NOW}
@@ -449,6 +504,12 @@ class TestCli:
             port = listener.getsockname()[1]
             assert cli._host_running(f"http://127.0.0.1:{port}") is True
         assert cli._host_running(f"http://127.0.0.1:{port}") is False
+
+    def test_host_check_accepts_a_target_without_a_scheme(self):
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(8)
+            assert cli._host_running(f"127.0.0.1:{listener.getsockname()[1]}") is True
 
     def test_host_check_fails_closed_on_an_ambiguous_error(self, monkeypatch):
         def timeout(*_args, **_kwargs):

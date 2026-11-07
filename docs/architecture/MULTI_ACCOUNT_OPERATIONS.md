@@ -48,9 +48,11 @@
 告警在每次评估时重新推导，所以重启不会留下陈旧告警。代价是重启后活动告警的起始时间重置，
 并再记录一次 `raised`。
 
-一次读取失败不代表账户有变化：Magpie 读不到时保留最近一次的账户行，反馈存储读不到时保留
-最近一次的隔离和评分，只增加 `perception_unavailable`。隔离告警直接来自隔离注册表，不依赖
-感知结果，所以按 `connection_id` 记录的隔离也会上报。
+一次读取失败不代表账户有变化，所以读不到时保留最近一次结果，并用告警说明：Magpie 对应
+`perception_unavailable`，反馈存储对应 `feedback_unavailable`，运行状态对应
+`runtime_status_unavailable`。保留有界限：账户行超过 `observation_freshness_seconds` 后转为
+STALE，不再声称健康。隔离告警来自内存中的隔离注册表，不依赖感知结果和账本文件，所以按
+`connection_id` 记录的隔离也会上报，账本损坏时隔离依然按时到期。
 
 ### 账户为什么分"参与准入"和"仅观测"
 
@@ -99,7 +101,7 @@ REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_FEEDBACK_ROUTING=1
 | `pool_capacity_low` | warning | 可派发账户低于阈值 |
 | `account_quarantined`、`account_abnormal` | warning | 单个账户隔离或异常 |
 | `window_budget_low` | warning | 预算余量低于阈值 |
-| `perception_unavailable` | warning | 读不到账户状态，不等于账户池为空 |
+| `perception_unavailable`、`feedback_unavailable`、`runtime_status_unavailable` | warning | 对应来源读取失败，显示的是最近一次结果 |
 | `coordinator_error`、`admission_hold`、`goals_stranded` | warning | 协调器报告的问题 |
 | `account_exhausted`、`window_expiring` | info | 额度用尽；窗口一小时内到期且未配置续期 |
 

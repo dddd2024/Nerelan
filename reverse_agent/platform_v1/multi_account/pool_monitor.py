@@ -88,7 +88,10 @@ class PoolMonitor:
         self._progress: Optional[tuple[int, float]] = None
         self._last_refresh: Optional[float] = None
         self._last_statuses: list[AccountStatus] = []
-        self._last_feedback: tuple[dict[str, Any], ...] = ({}, {}, {}, {})
+        self._last_statuses_at: Optional[float] = None
+        self._last_cooldowns: dict[str, Any] = {}
+        self._last_ledger: tuple[dict[str, Any], ...] = ({}, {}, {})
+        self._last_runtime: dict[str, Any] = {}
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
@@ -104,19 +107,40 @@ class PoolMonitor:
             return "unavailable", []
         return "magpie", MultiAccountStatusMonitor(self._config, clock=self._clock).diagnose(snapshot)
 
-    def _feedback(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
-        """Cooldowns, scores, routing and policy; the last good read if this one fails."""
+    def _cooldowns(self, now: float) -> tuple[dict[str, Any], bool]:
+        """Active cooldowns from the in-memory registry, independent of the ledger.
+
+        A failed read falls back to the last good one, but expiry still applies:
+        a remembered quarantine must end when its time is up.
+        """
         try:
             brain = self._brain()
-            now = self._clock()
             with getattr(brain, "_feedback_lock", nullcontext()):
-                cooldowns = {ref: brain.cooldowns.get(ref).to_state()
-                             for ref in brain.cooldowns.active_map(now=now)}
-                self._last_feedback = (cooldowns, brain.account_scores(), brain.routing(),
-                                       brain.account_policy_view())
+                self._last_cooldowns = {ref: brain.cooldowns.get(ref).to_state()
+                                        for ref in brain.cooldowns.active_map(now=now)}
+            return self._last_cooldowns, True
         except Exception:  # noqa: BLE001 - feedback is optional; perception still reports
-            pass
-        return self._last_feedback  # type: ignore[return-value]
+            return {ref: item for ref, item in self._last_cooldowns.items()
+                    if float(item.get("until") or 0) > now}, False
+
+    def _ledger_reads(self) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], bool]:
+        """Scores, routing and policy; the last good read if the ledger is unreadable."""
+        try:
+            brain = self._brain()
+            self._last_ledger = (brain.account_scores(), brain.routing(), brain.account_policy_view())
+            fresh = True
+        except Exception:  # noqa: BLE001
+            fresh = False
+        scores, routing, policy = self._last_ledger
+        return scores, routing, policy, fresh
+
+    def _aged_statuses(self, now: float) -> list[AccountStatus]:
+        """Last known rows; past the freshness budget they stop claiming health."""
+        age = now - self._last_statuses_at if self._last_statuses_at is not None else 0.0
+        if age <= self._config.observation_freshness_seconds:
+            return self._last_statuses
+        return [status.model_copy(update={"health": AccountHealth.STALE, "freshness_age": age})
+                for status in self._last_statuses]
 
     def _stalled_seconds(self, coordinator: Mapping[str, Any], now: float) -> Optional[float]:
         """Seconds without a finished tick while the coordinator claims to run."""
@@ -140,19 +164,22 @@ class PoolMonitor:
         # One failed read is not news about the accounts: keep the last known
         # rows, so their alerts neither resolve nor re-raise on a transport blip.
         if source == "unavailable":
-            statuses = self._last_statuses
+            statuses = self._aged_statuses(now)
         else:
-            self._last_statuses = statuses
-        cooldowns, scores, routing, policy = self._feedback()
+            self._last_statuses, self._last_statuses_at = statuses, now
+        cooldowns, cooldowns_fresh = self._cooldowns(now)
+        scores, routing, policy, ledger_fresh = self._ledger_reads()
         rows = [account_row(status, cooldown=cooldowns.get(status.account_ref),
                             score=scores.get(status.account_ref), now=now)
                 for status in statuses]
         rows.sort(key=lambda row: (not row["dispatchable"], -(row["headroom_pct"] or 0), row["account_ref"]))
-        pool = {"source": source, "accounts": rows, "cooldowns": cooldowns}
+        pool = {"source": source, "accounts": rows, "cooldowns": cooldowns,
+                "feedback_fresh": cooldowns_fresh and ledger_fresh}
         try:
             runtime = dict(self._runtime_status())
+            self._last_runtime = runtime
         except Exception:  # noqa: BLE001
-            runtime = {}
+            runtime = {**self._last_runtime, "stale": True}
         with self._lock:
             stalled = self._stalled_seconds(runtime.get("coordinator") or {}, now)
             self._ledger.observe(evaluate_alerts(pool, runtime, self._config, now=now,
