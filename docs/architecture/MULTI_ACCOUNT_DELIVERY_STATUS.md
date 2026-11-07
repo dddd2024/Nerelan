@@ -132,6 +132,12 @@ SQLite/RLock、目录/额度观测等原有调用仍有自身等待边界，未�
 - 快照升至 schema 2，拒绝与旧的不完整成本口径比较。
 - 撤出只在执行前运行的 C3 令牌检查：执行后产物和恢复路径未获保护。
 
+### 无人值守准入告警
+
+`GET /api/platform/status` 的 `coordinator.admission_holds` 展示当前活动窗口最近一次完成的候选扫描所观察到的限额原因。成本、token、首跑和重试原因沿用原准入错误码；额度等待统一呈现为 `quota_wait`。后续扫描未遇到该原因时，状态随扫描结果更新。
+
+宿主通过 `reverse_agent.platform_v1.unattended_coordinator` 的标准 Python logger 输出 `coordinator_admission_hold` 警告。每个协调器对同一活动窗口的每个原因最多记录一次，日志只含窗口 ID 和固定原因码。状态和告警复用现有准入证据，保持预算事务、隔离与恢复边界。
+
 ## 配置与回退
 
 | 配置 | 默认及约束 |

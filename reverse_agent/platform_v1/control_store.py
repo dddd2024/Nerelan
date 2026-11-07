@@ -1052,22 +1052,29 @@ class PlatformControlStore:
 
     def runnable_tasks(
         self, window_id: str, *, limit: int = 100, respect_attempt_limits: bool = False,
-        respect_reservation_limits: bool = False,
+        respect_reservation_limits: bool = False, budget_holds: set[str] | None = None,
     ) -> tuple[str, ...]:
+        """Return candidates and optionally collect the budget reasons filtered during this scan."""
         with self._lock:
             retained = None
+            reservation_denial = None
             if respect_reservation_limits:
                 window = self._conn.execute(
                     "SELECT * FROM platform_autonomous_windows WHERE id = ?", (window_id,),
                 ).fetchone()
-                if window is not None and self._new_reservation_denial(window):
+                if window is not None:
+                    reservation_denial = self._new_reservation_denial(window)
+                if reservation_denial:
                     retained = self.active_reservation_task_ids(window_id)
             # Limit ready tasks, not queue positions. The coordinator can also
             # exclude tasks past their own attempt limit before taking the slice.
             # The claim transaction rechecks both counters before spending.
+            now_ms = _utc_now_ms()
             rows = self._conn.execute(
                 "SELECT l.task_id, t.status, w.tasks_started < w.max_tasks AS fresh_budget, "
-                "w.retries_used < w.max_retries AS retry_budget "
+                "w.retries_used < w.max_retries AS retry_budget, "
+                "EXISTS (SELECT 1 FROM platform_coordinator_claims c WHERE c.task_id = t.id "
+                "AND c.status = 'ACTIVE' AND c.expires_at_ms > ?) AS has_live_claim "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
@@ -1093,21 +1100,29 @@ class PlatformControlStore:
                 "AND predecessor_task.status IN ('READY_FOR_REVIEW', 'READY_FOR_REVIEW_FIXTURE')"
                 ")) "
                 "ORDER BY g.created_at ASC, l.seq ASC",
-                (window_id, _utc_now_ms()),
+                (now_ms, window_id, now_ms),
             ).fetchall()
             ready = []
             for row in rows:
-                if retained is not None and row["task_id"] not in retained:
+                needs_reservation = retained is not None and row["task_id"] not in retained
+                observe_hold = budget_holds is not None and not row["has_live_claim"]
+                if needs_reservation and (not observe_hold or reservation_denial in budget_holds):
                     continue
                 try:
                     self.check_strict_task_admission(window_id, row["task_id"])
                 except TaskStoreError:
                     continue
+                if needs_reservation:
+                    budget_holds.add(reservation_denial)
+                    continue
                 status = row["status"]
-                if respect_attempt_limits and (
-                    (status == "QUEUED" and not row["fresh_budget"])
-                    or (status == "QUOTA_WAIT" and not row["retry_budget"])
-                ):
+                if respect_attempt_limits and status == "QUEUED" and not row["fresh_budget"]:
+                    if observe_hold:
+                        budget_holds.add("window_task_budget_exhausted")
+                    continue
+                if respect_attempt_limits and status == "QUOTA_WAIT" and not row["retry_budget"]:
+                    if observe_hold:
+                        budget_holds.add("window_retry_budget_exhausted")
                     continue
                 # An interrupted checker may already have a completed result.
                 # Recovering that checkpoint spends no new attempt.
@@ -1116,6 +1131,8 @@ class PlatformControlStore:
                 )
                 if needs_result_recovery and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
+                    if observe_hold and status == "INTERRUPTED":
+                        budget_holds.add("window_retry_budget_exhausted")
                     continue
                 ready.append(row["task_id"])
                 if len(ready) >= max(1, min(limit, 500)):
