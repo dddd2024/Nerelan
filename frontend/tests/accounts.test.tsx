@@ -59,6 +59,21 @@ describe("Accounts page", () => {
     expect(within(screen.getByTestId("pool-account-claude")).getByText(/冷却中/)).toBeInTheDocument();
   });
 
+  it("explains a weekly pacing hold and stays quiet when on pace", async () => {
+    const now = Date.now() / 1000;
+    mount(pool({ accounts: [
+      account({ weekly_pace: { used: 0.74, deviation: 0.2, line: 0.58, held_until: now + 7200, resets_at: now + 86400 },
+                reset_cards: { count: 2, next_expires_at: new Date((now + 3 * 86400) * 1000).toISOString() } }),
+      account({ account_ref: "claude:1", provider: "claude",
+                weekly_pace: { used: 0.69, deviation: -0.29, line: 0.87, held_until: null, resets_at: now + 86400 } }),
+    ] }));
+    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +20%，暂停派发，2 小时后恢复");
+    expect(screen.getByTestId("pool-pace-claude")).toHaveTextContent("配速 −29%");
+    expect(screen.getByTestId("pool-pace-claude")).not.toHaveTextContent("暂停");
+    expect(screen.getByTestId("pool-cards-codex")).toHaveTextContent("重置卡 2 张，最早 3 天后过期");
+    expect(screen.queryByTestId("pool-cards-claude")).not.toBeInTheDocument();
+  });
+
   it("reports feedback only when attempts exist", async () => {
     mount(pool({ accounts: [
       account({ score: { attempts: 4, successes: 3, reliability: 0.75, mean_cost_units: null, mean_wall_seconds: 2 } }),

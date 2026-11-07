@@ -29,6 +29,11 @@ function sourceLabel(pool: AccountPool) {
   return SOURCE_LABEL[pool.source] ?? pool.source;
 }
 
+function signedPercent(value: number) {
+  const rounded = Math.round(value * 100);
+  return `${rounded > 0 ? "+" : rounded < 0 ? "−" : "±"}${Math.abs(rounded)}%`;
+}
+
 function untilLabel(epochSeconds: number | null | undefined, now: number) {
   if (!epochSeconds) return "—";
   const minutes = Math.round((epochSeconds * 1000 - now) / 60_000);
@@ -110,6 +115,24 @@ function AccountRow({ account, now }: { account: PoolAccount; now: number }) {
           <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", health.dot)} />
           {health.label}
         </span>
+        {account.weekly_pace ? (
+          <span
+            data-testid={`pool-pace-${account.provider ?? account.account_ref}`}
+            className={cn("block text-[11px]", account.weekly_pace.held_until ? "text-ra-status-warning" : "text-ra-text-tertiary")}
+            title={`与 Magpie 同口径：已用比例减本周已过时间比例。超过配速线 ${Math.round(account.weekly_pace.line * 100)}% 时暂停派发`}
+          >
+            配速 {signedPercent(account.weekly_pace.deviation)}
+            {account.weekly_pace.held_until ? `，暂停派发，${untilLabel(account.weekly_pace.held_until, now)}恢复` : ""}
+          </span>
+        ) : null}
+        {account.reset_cards && account.reset_cards.count > 0 ? (
+          <span data-testid={`pool-cards-${account.provider ?? account.account_ref}`} className="block text-[11px] text-ra-text-tertiary">
+            重置卡 {account.reset_cards.count} 张
+            {account.reset_cards.next_expires_at
+              ? `，最早 ${untilLabel(Date.parse(account.reset_cards.next_expires_at) / 1000, now)}过期`
+              : ""}
+          </span>
+        ) : null}
         {account.cooldown ? (
           <span className="block text-[11px] text-ra-status-warning">
             {account.cooldown.tier === "quarantine" ? "隔离中" : "冷却中"}，{untilLabel(account.cooldown.until, now)}恢复

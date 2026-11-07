@@ -56,11 +56,46 @@ def model_identity(model: str) -> str:
     return identity
 
 
+WEEK_SECONDS = 7 * 86400
+# Weekly need assumed for a task whose account has no calibrated units-per-percent
+# yet: the uncalibrated median in quota_reservation (3 percentage points).
+UNKNOWN_WEEKLY_NEED = .03
+
+
+def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
+                     pace: Mapping[str, Any] | None) -> float | None:
+    """When a paced subscription account may take this task again, or None if it may now.
+
+    A weekly allowance spent ahead of the calendar leaves nothing for the rest of
+    the week. Use may run ahead of elapsed time by ``slack`` and never past
+    ``1 - reserve``. Unknown usage or reset time makes no claim, so the existing
+    quota rules alone decide.
+    """
+    if not pace or not pace.get("enabled", False):
+        return None
+    if candidate.get("executor_id") not in pace.get("executors", ()) or candidate.get("cost_class") != "subscription":
+        return None
+    headroom, resets = candidate.get("weekly_headroom"), candidate.get("weekly_resets_at")
+    if not all(type(v) in (int, float) and math.isfinite(v) for v in (headroom, resets)):
+        return None
+    need = candidate.get("task_weekly_fraction")
+    need = need if type(need) in (int, float) and math.isfinite(need) and need >= 0 else UNKNOWN_WEEKLY_NEED
+    slack, reserve = float(pace.get("slack", .10)), float(pace.get("reserve", .10))
+    start = resets - WEEK_SECONDS
+    elapsed = min(1., max(0., (now - start) / WEEK_SECONDS))
+    demand = (1 - headroom) + need
+    if demand <= min(1 - reserve, elapsed + slack):
+        return None
+    if demand > 1 - reserve:
+        return float(resets)  # only the reset frees it
+    return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack))))
+
+
 class ModelSelectionError(ValueError):
     def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = (), pin: str = ""):
         super().__init__(reason)
         self.decision = {"reason": reason, "excluded_candidates": excluded[:10], "refusals": list(refusals)}
-        resources = [row for row in excluded if row.get("filter") in {"account_quarantined", "quota_exhausted"}
+        resources = [row for row in excluded if row.get("filter") in {"account_quarantined", "quota_exhausted", "weekly_pace"}
                      and (not pin or row.get("binding_id") == pin)]
         if resources:
             due = [row["retry_at"] for row in resources if type(row.get("retry_at")) in (int, float)
@@ -78,7 +113,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  reset_buffer: float = .03, refused_models: Sequence[str] = (),
                  refusal_tier: int = 0, capability_table: Mapping[str, Any] | None = None,
                  allow_paid: bool = False, quota_buffer: float = .10,
-                 account_feedback: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                 account_feedback: Mapping[str, Any] | None = None,
+                 weekly_pace: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -127,6 +163,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                                weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
         if candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription":
             reset_observations.append({"binding_id": candidate["binding_id"], **reset})
+        # A validated announced Codex reset already drains to reset_buffer (Owner rule,
+        # #1248/#1281): allowance that the reset will void is not saved for later.
+        pace_hold = None if candidate["executor_id"] == "codex" and reset["drain"] else (
+            weekly_pace_hold(candidate, now=now, pace=weekly_pace))
         reason = ""
         review_transport = ""
         if artifact_review:
@@ -172,6 +212,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                 for need, headroom in (("task_weekly_fraction", "weekly_headroom"),
                                        ("task_short_fraction", "short_headroom")))):
             reason = "quota_capacity"
+        elif pace_hold is not None:
+            reason = "weekly_pace"
         elif (candidate["executor_id"] == "codex" and candidate.get("cost_class") == "subscription"
               and reset["drain_target"] is not None and candidate.get("weekly_headroom") is not None
               and candidate["weekly_headroom"] <= reset_buffer):
@@ -200,6 +242,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
             if reason == "account_quarantined":
                 exclusion["retry_at"] = quota.get("retry_at")
+            elif reason == "weekly_pace":
+                exclusion["retry_at"] = pace_hold
             elif reason == "quota_exhausted":
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time(quota.get("until"))

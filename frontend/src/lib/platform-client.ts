@@ -263,6 +263,10 @@ export interface PoolAccount {
   /** False when no route claims the provider, so its windows never reach admission. */
   admission_evidence: boolean;
   cooldown: { until: number; kind: string; tier: string; streak: number } | null;
+  /** Weekly pacing for Claude and Codex: spend may not run ahead of the week. */
+  weekly_pace?: { used: number; deviation: number; line: number; held_until: number | null; resets_at: number } | null;
+  /** Held Codex rate-limit resets, as Magpie reports them. */
+  reset_cards?: { count: number; next_expires_at: string | null } | null;
   score: {
     attempts: number;
     successes: number;
@@ -1079,7 +1083,11 @@ function mockAccountPool(): AccountPool {
     accounts: [
       account("claude", "HEALTHY", 72, { score: score(24, 22, 41.2) }),
       account("workbuddy", "DEGRADED", 12, { admission_evidence: false }),
-      account("codex", "EXHAUSTED", 0, { next_reset_at: now + 1800, score: score(18, 15, 63.5) }),
+      account("codex", "HEALTHY", 26, {
+        dispatchable: false, score: score(18, 15, 63.5),
+        weekly_pace: { used: 0.74, deviation: 0.26, line: 0.58, held_until: now + 115200, resets_at: now + 300000 },
+        reset_cards: { count: 2, next_expires_at: new Date((now + 2_000_000) * 1000).toISOString() },
+      }),
       account("copilot", "HEALTHY", 55, {
         dispatchable: false, score: score(6, 2, 12.1),
         cooldown: { until: now + 300, kind: "account_abnormal", tier: "quarantine", streak: 2 },
