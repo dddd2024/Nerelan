@@ -1071,6 +1071,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 "enabled": False,
                 "active_window_id": "",
                 "last_error": "",
+                "admission_holds": [],
                 "mode": "manual_api_only",
             },
             "task_count": self.store.count_tasks(),

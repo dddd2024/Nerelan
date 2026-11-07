@@ -132,6 +132,9 @@ class UnattendedCoordinator:
         self._manual_tick_idle = threading.Event()
         self._manual_tick_idle.set()
         self._last_error = ""
+        self._hold_window = ""
+        self._admission_holds: tuple[str, ...] = ()
+        self._logged_holds: set[str] = set()
         self._last_batch: dict[str, Any] = {}
         self._ticks = 0
         self._executions = 0
@@ -311,10 +314,12 @@ class UnattendedCoordinator:
         held: list[str] = []
         recovered = 0
         retained_after_denial = None
+        admission_holds: set[str] = set()
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
         for task_id in self.control_store.runnable_tasks(
-            window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True
+            window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True,
+            budget_holds=admission_holds,
         ):
             if len(claimed) >= free_slots:
                 break
@@ -372,6 +377,7 @@ class UnattendedCoordinator:
                 if str(exc) == "window_wip_limit_reached":
                     break
                 if str(exc) in {"window_token_budget_exhausted", "window_cost_budget_exhausted"}:
+                    admission_holds.add(str(exc))
                     # Avoid preparing more unfunded work this tick. Later
                     # tasks can still use a reservation they already hold.
                     try:
@@ -382,17 +388,20 @@ class UnattendedCoordinator:
                         break  # Dispatch the batch already claimed before the read fault.
                     continue
                 if str(exc) in {"window_task_budget_exhausted", "window_retry_budget_exhausted"}:
+                    admission_holds.add(str(exc))
                     # The other attempt class still has its own allowance.
                     continue
                 if str(exc) == "task_already_claimed":
                     continue
                 if str(exc).startswith("QUOTA_WAIT"):
                     held.append(task_id)
+                    admission_holds.add("quota_wait")
                 self._last_error = str(exc)
                 continue
             claimed[task_id] = epoch
             if self._stop.is_set():
                 break
+        self._observe_admission_holds(window.id, admission_holds)
         if held:
             # A fully held goal claims nothing, so post-execution escalation never
             # runs for it: offer the held tasks to the rerouter here.
@@ -766,6 +775,20 @@ class UnattendedCoordinator:
                 except Exception as exc:  # noqa: BLE001 - escalation must never break the loop
                     self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
 
+    def _observe_admission_holds(self, window_id: str, holds: set[str]) -> None:
+        with self._lifecycle_lock:
+            if self._hold_window != window_id:
+                self._hold_window = window_id
+                self._logged_holds.clear()
+            self._admission_holds = tuple(sorted(holds))
+            new_holds = holds - self._logged_holds
+            self._logged_holds.update(holds)
+        for reason in sorted(new_holds):
+            try:
+                _logger.warning("coordinator_admission_hold window=%s reason=%s", window_id, reason)
+            except Exception:  # noqa: BLE001 - a log handler cannot strand claimed work
+                pass
+
     def status(self) -> dict[str, Any]:
         active = self.control_store.active_window()
         with self._lifecycle_lock:
@@ -780,6 +803,7 @@ class UnattendedCoordinator:
             accepting_work = lifecycle == "RUNNING"
             inflight_batch = self._dispatch_active
             inflight_task_count = len(self._active_task_ids)
+            holds = self._admission_holds if active and active.id == self._hold_window else ()
         return {
             "enabled": alive,
             "lifecycle": lifecycle,
@@ -790,6 +814,7 @@ class UnattendedCoordinator:
             "ticks": self._ticks,
             "executions": self._executions,
             "last_error": self._last_error,
+            "admission_holds": list(holds),
             "last_batch": dict(self._last_batch),
             "active_window_id": active.id if active else "",
             # Unfinished work whose window can no longer dispatch; only an explicit rebind moves it.
