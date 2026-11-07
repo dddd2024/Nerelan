@@ -14,6 +14,8 @@
 [尝试反馈交付](MULTI_ACCOUNT_ATTEMPT_FEEDBACK.md)，每个切片单独走 exact-head 门禁。
 反馈进入原生产路由器的默认关闭、有界策略见 [反馈选路](MULTI_ACCOUNT_FEEDBACK_ROUTING.md)；
 具体合入状态与真实运行验收继续分开记录。
+有界自进化版本、当前限幅回滚与原子审计的后续实现见
+[策略生命周期](MULTI_ACCOUNT_POLICY_LIFECYCLE.md)，未合入部分不作为 main 能力。
 单测、CLI 帮助和进程级探针均不能替代真实生产验收。
 
 ## 功能边界与复用
