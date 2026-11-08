@@ -200,6 +200,8 @@ class CombinedTrustedHost:
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
+        from .owner_window import OwnerWindowAdmission
+        self._owner_window_admission = OwnerWindowAdmission(self)
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -388,6 +390,10 @@ class CombinedTrustedHost:
         account selection, or executor sandbox policy.
         """
         return self._native_goal_admission.admit(goal_id, unknown_claims_sha256=unknown_claims_sha256)
+
+    def _owner_admit_window(self, **request: Any):
+        """Owner-confirmed window over exact Goals. Terminal entry only; never on a router."""
+        return self._owner_window_admission.admit(request.pop("goal_ids"), **request)
 
     @property
     def store(self) -> ModelProfileStore:
@@ -1814,7 +1820,8 @@ def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) ->
 
 
 def run_combined_trusted_host(*, native_goal_id: str | None = None,
-                              unknown_claims_sha256: str | None = None) -> None:
+                              unknown_claims_sha256: str | None = None,
+                              owner_window: Mapping[str, Any] | None = None) -> None:
     """Run the official lifecycle; native_goal_entry validates explicit CLI requests.
 
     Admission follows successful port ownership and failures use normal cleanup.
@@ -1844,8 +1851,16 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
         claude_code_readiness_probe=(probe_claude_code_readiness
                                      if os.environ.get("REVERSE_AGENT_CLAUDE_CODE_ENABLED") == "1" else None),
     )
+    if owner_window is not None and native_goal_id is not None:
+        raise ValueError("invalid_native_admission_arguments")
     try:
-        if native_goal_id is None:
+        if owner_window is not None:
+            host.start(coordinator_paused=True)
+            window = host._owner_admit_window(**dict(owner_window))
+            print(f"Owner window {window.id} active until {window.expires_at}")
+            if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
+                host._coordinator.start()
+        elif native_goal_id is None:
             host.start()
         else:
             host.start(coordinator_paused=True)

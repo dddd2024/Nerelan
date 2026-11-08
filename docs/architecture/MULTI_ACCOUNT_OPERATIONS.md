@@ -171,6 +171,7 @@ python scripts/multi_account_live_acceptance.py --soak-minutes 15 --evidence out
 | 隔离恢复 | `real_quarantine_expires_and_the_alert_resolves` | 到期恢复，告警自动解除 |
 | 告警留痕 | `real_alert_log_records_both_transitions` | raised 与 resolved 都写入 JSONL |
 | 连续运行 | `real_soak_*` | 15 分钟 15 轮全部由真实账户完成（trae-cn 13、workbuddy-ai 2），接口零错误，p50 1.9 秒、最长 5.54 秒。期间没有真实失败，所以这是稳定性证据，不是容错证据 |
+| 24 小时长跑 | `real_long_run_reached_its_deadline_without_errors`、`real_long_run_resumed_after_every_restart` | 2026-11-07 05:31 至 11-08 05:31，计划 288 轮、实际 145 轮，覆盖率 50.3%：中途关机约 11.9 小时，开机登录后由启动项恢复，轮次接续，到期自动收尾并删除启动项。143 轮由真实账户完成（workbuddy-ai 140、trae-cn 3），2 轮因 Magpie 未启动记为 held，轮次错误与账户视图错误均为 0，p50 1.58 秒、最长 3.48 秒。trae-cn 的 3 轮发生在开头注入故障隔离 workbuddy-ai 期间；隔离解除后调度器重新选中 workbuddy-ai 并一直保持，没有在账户间轮转。期间没有真实失败和切换，`perception_unavailable` 在 Magpie 启动后自动解除，`claude` 额度耗尽告警一直保持到结束 |
 | 反馈优化 | `injected_outcomes_evolve_the_policy_within_bounds` | 版本前进，权重在限幅内变化 |
 | 策略进入路由 | `evolved_policy_reaches_the_production_router_snapshot` | 路由快照带生效版本 |
 | 可回滚 | `policy_rollback_restores_the_baseline_as_a_new_version` | 新版本恢复基线 |
@@ -178,7 +179,10 @@ python scripts/multi_account_live_acceptance.py --soak-minutes 15 --evidence out
 
 ## 已知限制
 
-- 最长真实运行只有 15 分钟。没有 24 小时、72 小时或 7 天的长跑，也没有休眠唤醒或强杀恢复的真实验证。
+- 最长真实运行是一次 24 小时计划、实际覆盖 50.3% 的长跑：真实关机恢复验证了 1 次，强杀恢复只在短运行中验证过；没有 72 小时或 7 天的长跑，也没有满覆盖的 24 小时证据。
+- 长跑期间没有发生真实失败，所以它只证明稳定性和关机恢复，不证明真实故障下的容错。
+- 低成本候选中调度器在 workbuddy-ai 健康时始终选它，长跑没有体现账户间的负载分摊。
+- Magpie 不随登录自启，关机恢复后在它启动前的轮次只能记为 held。
 - 验收的调用是直接发给 Magpie 网关的，没有经过协调器运行一个完整任务。
 - 成本是列表价估算，不是账单现金；验收的调用只记录 Token 数。
 - 反馈优化的有效性只验证了"权重按规则变化并进入路由"，没有在真实任务上对照出成本或

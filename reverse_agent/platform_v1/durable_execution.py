@@ -632,6 +632,46 @@ def executor_timeout_seconds() -> int:
         return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
     return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
 
+def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, policy_ref: str) -> None:
+    """In an Owner window, the binding a Task runs on must be one the Owner was shown.
+
+    Routing picks the binding per Task and may reroute on quota, so the Owner
+    confirms a pool, not one binding. Read-only guard, before any CLI launch.
+    """
+    from .control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    try:
+        with store._lock:
+            window = store._conn.execute(
+                "SELECT id, confirmation_mode FROM platform_autonomous_windows "
+                "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1", (policy_ref,)).fetchone()
+            if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
+                return
+            rows = store._conn.execute(
+                "SELECT r.evidence_json FROM platform_operation_receipts r "
+                "JOIN platform_goal_task_links l ON l.goal_id = r.subject_id "
+                "WHERE l.task_id = ? AND r.window_id = ? AND r.operation_type = ? "
+                "AND r.decision = 'allowed' AND r.confirmation_mode = ?",
+                (task.id, window["id"], OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
+        if len(rows) != 1:
+            raise ValueError("missing_or_ambiguous_receipt")
+        if resolution is None:
+            raise ValueError("no_binding")
+        pool = json.loads(rows[0]["evidence_json"])["approved_pool"]
+        observed = {
+            "binding_ref": resolution.binding_ref,
+            "model_id": resolution.model_id,
+            "connection_id": resolution.connection_id,
+            "executor_id": resolution.executor_id,
+            "provider_id": resolution.provider_id,
+            "auth_method": resolution.auth_method,
+            "base_url": resolution.base_url,
+        }
+        if not isinstance(pool, list) or observed not in pool:
+            raise ValueError("binding_outside_confirmed_pool")
+    except Exception as exc:
+        raise ExecutorRuntimeError("owner_window_binding_outside_confirmed_pool") from exc
+
+
 def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolution: Any) -> None:
     """Enforce the exact nonsecret binding approved in a native Owner receipt.
 
@@ -641,7 +681,10 @@ def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolut
     substitute a different model or connection. Read-only guard, before CLI launch.
     """
     policy_ref = getattr(task, "policy_ref", "")
-    if getattr(task, "executor_kind", "") != "codex" or not policy_ref:
+    if not policy_ref:
+        return
+    _require_owner_window_pool(store, task, resolution, policy_ref)
+    if getattr(task, "executor_kind", "") != "codex":
         return
     try:
         with store._lock:
@@ -2413,11 +2456,17 @@ class DurableExecutionService:
             return {**native, "timeout": timeout}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
+            policy_ref = getattr(task, "policy_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
                 kwargs["binding_resolution"] = self.binding_resolver.resolve(
                     binding_ref, task_executor="opencode"
                 )
+                if policy_ref:
+                    _require_owner_window_pool(self.store, task, kwargs["binding_resolution"], policy_ref)
             else:
+                if policy_ref:
+                    # A default model is no binding at all: never inside an Owner window.
+                    _require_owner_window_pool(self.store, task, None, policy_ref)
                 model_id = (
                     getattr(task, "model_profile_ref", "") or ""
                 ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
