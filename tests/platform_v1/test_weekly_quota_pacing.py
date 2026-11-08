@@ -218,3 +218,135 @@ class TestMagpieReuse:
             "windows": [], "reset_cards": {"count": 1, "next_expires_at": "2026-11-30T20:04:36+00:00"}}]}
         status = MultiAccountStatusMonitor(MultiAccountConfig(), clock=lambda: NOW).diagnose(snapshot)[0]
         assert status.public_view()["reset_cards"]["count"] == 1
+
+
+class TestResetAnnouncementThroughTheHost:
+    """An announced Codex reset reaches routing through the real host path."""
+
+    def route(self, monkeypatch, reader):
+        wiring, h = TestHostWiring.host(monkeypatch, 80.0, 6 * 86400)
+        h.host._reset_signal_reader = reader
+        monkeypatch.setattr(h.host, "_routing_refresh_quota_for_signal", h.host._routing_reset_signal)
+        return wiring, h
+
+    def test_an_announcement_lets_paced_codex_drain(self, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+        expected = (datetime.now(timezone.utc) + timedelta(hours=20)).isoformat().replace("+00:00", "Z")
+        signal = {"state": "PLAN_ONLY", "validated": True, "scope": "global", "kind": "global_reset",
+                  "expected_reset_at": expected}
+        wiring, h = self.route(monkeypatch, lambda: signal)
+        decision = wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=3))
+        assert decision["binding_ref"] == "bind-conn-a"
+
+    def test_without_an_announcement_paced_codex_waits(self, monkeypatch):
+        wiring, h = self.route(monkeypatch, lambda: {"state": "UNKNOWN"})
+        with pytest.raises(wiring.TaskStoreError) as caught:
+            wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=3))
+        assert [row["filter"] for row in caught.value.decision["excluded_candidates"]] == ["weekly_pace"]
+
+
+class TestDrainStopsOnceTheResetHappened:
+    """A drain must never spend the new week the reset just delivered."""
+
+    def signal(self, announced):
+        from datetime import datetime, timezone
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        return {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(NOW + 3600),
+                "announced_at": iso(announced)}
+
+    def test_drains_while_the_window_predates_the_announcement(self):
+        row = paced(.479, .74)  # window began ~3.4 days before NOW
+        decision = choose([row], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=self.signal(NOW - 600))
+        assert decision["binding_ref"] == "sub"
+
+    def test_paces_again_once_a_new_window_began_after_the_announcement(self):
+        fresh_week = paced(.01, .74)  # a window that began ~1.7 hours ago
+        with pytest.raises(ModelSelectionError):
+            choose([fresh_week], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=self.signal(NOW - 3 * 3600))
+
+
+class TestReviewFollowUps:
+    def test_a_malformed_reset_card_list_does_not_drop_the_snapshot(self):
+        from datetime import datetime, timezone
+        from reverse_agent.model_access.magpie import parse_quotas
+        for each in (3, True, "x", None, {"until": "2026-11-30T20:04:36Z"}):
+            payload = {"object": "list", "data": [{
+                "provider": "codex", "kind": "subscription", "plan": "plus", "user": "u",
+                "readAt": "2026-11-07T15:00:00Z",
+                "windows": [{"name": "7 days", "used": 74, "remaining": 26, "resetsAt": "2026-11-11T06:41:43Z"}],
+                "resets": {"count": 2, "each": each}}]}
+            account = parse_quotas(payload, datetime(2026, 11, 7, 15, 1, tzinfo=timezone.utc))[0]
+            assert account["state"] == "FRESH" and account["reset_cards"] == {"count": 2, "next_expires_at": None}
+
+    def test_the_display_lifts_the_hold_while_codex_drains(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        status = TestPoolView().status("codex", 74, WEEK_SECONDS * .521)
+        assert pace_state(status, PACE, NOW)["held_until"] is not None
+        draining = pace_state(status, PACE, NOW, drain_since=NOW)
+        assert draining["held_until"] is None and draining["draining"] is True
+        claude = TestPoolView().status("claude", 95, WEEK_SECONDS * .9)
+        assert pace_state(claude, PACE, NOW, drain_since=NOW)["draining"] is False
+
+
+class TestRenewalEndsEveryDrainEffect:
+    def test_a_renewed_window_loses_the_drain_cost_and_penalty_too(self):
+        from datetime import datetime, timezone
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(NOW + 3600),
+                  "announced_at": iso(NOW - 3 * 3600)}
+        renewed = paced(.01, .02)  # new week, nearly unused: pacing allows it anyway
+        decision = choose([renewed], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        observation = decision["reset_observations"][0]
+        assert observation["drain"] is False and observation["drain_ended"] == "window_renewed"
+        assert observation["cost_adjustment"] == 0  # no drain discount on the new week
+
+    # #1400 review at 241f19e9: most mirror events confirm a reset that already landed.
+    @pytest.mark.parametrize("landed_before_post", [0, 120, 1800, 9000, 23 * 3600])
+    def test_a_confirmation_posted_after_the_reset_never_drains_the_new_week(self, landed_before_post):
+        from datetime import datetime, timezone
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        announced = NOW - 600
+        week_began = announced - landed_before_post
+        renewed = candidate("sub", "gpt-6-sol", "subscription", "codex", weekly_headroom=.99,
+                            task_weekly_fraction=.02, weekly_resets_at=week_began + WEEK_SECONDS)
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(announced + 24 * 3600),
+                  "announced_at": iso(announced)}
+        decision = choose([renewed], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        observation = decision["reset_observations"][0]
+        assert observation["drain"] is False and observation["drain_ended"] == "window_renewed"
+
+    def test_a_week_older_than_the_margin_still_drains(self):
+        from datetime import datetime, timezone
+        from reverse_agent.platform_v1.model_router import RENEWAL_MARGIN_SECONDS
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        announced = NOW - 600
+        older = candidate("sub", "gpt-6-sol", "subscription", "codex", weekly_headroom=.26, task_weekly_fraction=.02,
+                          weekly_resets_at=announced - RENEWAL_MARGIN_SECONDS - 3600 + WEEK_SECONDS)
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(announced + 3600),
+                  "announced_at": iso(announced)}
+        decision = choose([older], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        assert decision["reset_observations"][0]["drain"] is True
+
+    def test_the_display_matches_routing_for_a_confirmation(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        just_reset = TestPoolView().status("codex", 5, WEEK_SECONDS * (1 - 2 * 3600 / WEEK_SECONDS))
+        assert pace_state(just_reset, PACE, NOW, drain_since=NOW - 600)["draining"] is False
+
+    def test_the_display_does_not_claim_a_drain_for_a_renewed_week(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        fresh = TestPoolView().status("codex", 5, WEEK_SECONDS * .99)  # week began ~1.7h before NOW
+        state = pace_state(fresh, PACE, NOW, drain_since=NOW - 3 * 3600)
+        assert state["draining"] is False
+
+
+class TestHostEnvironment:
+    @pytest.mark.parametrize("raw", ["24h", "nan", "0", "200", ""])
+    def test_a_bad_reset_window_value_does_not_stop_the_host(self, raw, monkeypatch, tmp_path):
+        from reverse_agent.platform_v1.run_store import TaskStore
+        from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+        monkeypatch.setenv("REVERSE_AGENT_CODEX_RESET_WATCH", "1")
+        monkeypatch.setenv("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", raw)
+        store = TaskStore(str(tmp_path / "t.sqlite"))
+        host = CombinedTrustedHost(task_store=store, vault=None)
+        assert host._reset_signal_reader._within.total_seconds() == 24 * 3600
+        store._conn.close()
