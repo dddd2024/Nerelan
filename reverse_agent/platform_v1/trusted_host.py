@@ -182,6 +182,7 @@ class CombinedTrustedHost:
         self._trusted_client = None
         self._remote_job_broker = None
         self._research_loop = None
+        self._radar = None
         self._workspace_reclaimer = None
 
         from .native_goal_admission import NativeGoalAdmission
@@ -1544,6 +1545,12 @@ class CombinedTrustedHost:
                 broker=self._remote_job_broker)
             if self._research_loop is not None:
                 self._research_loop.start()
+            # Off unless REVERSE_AGENT_RADAR names a config. Read-only collection,
+            # no model calls; findings become a PLANNED Goal it never launches.
+            from .radar import configured_radar
+            self._radar = configured_radar(goal_service=self._goal_service)
+            if self._radar is not None:
+                self._radar.start()
             # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
             # dirty, unpushed, recent or still-running task workspaces.
             from .workspace_reclaim import configured_reclaimer
@@ -1577,6 +1584,9 @@ class CombinedTrustedHost:
         if self._research_loop is not None:
             self._research_loop.stop()
             self._research_loop = None
+        radar, self._radar = getattr(self, "_radar", None), None
+        if radar is not None:
+            radar.stop()
         if self._remote_job_broker is not None:
             self._remote_job_broker.stop()
             self._remote_job_broker = None
