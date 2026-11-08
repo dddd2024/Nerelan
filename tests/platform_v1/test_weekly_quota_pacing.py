@@ -300,6 +300,38 @@ class TestRenewalEndsEveryDrainEffect:
         assert observation["drain"] is False and observation["drain_ended"] == "window_renewed"
         assert observation["cost_adjustment"] == 0  # no drain discount on the new week
 
+    # #1400 review at 241f19e9: most mirror events confirm a reset that already landed.
+    @pytest.mark.parametrize("landed_before_post", [0, 120, 1800, 9000, 23 * 3600])
+    def test_a_confirmation_posted_after_the_reset_never_drains_the_new_week(self, landed_before_post):
+        from datetime import datetime, timezone
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        announced = NOW - 600
+        week_began = announced - landed_before_post
+        renewed = candidate("sub", "gpt-6-sol", "subscription", "codex", weekly_headroom=.99,
+                            task_weekly_fraction=.02, weekly_resets_at=week_began + WEEK_SECONDS)
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(announced + 24 * 3600),
+                  "announced_at": iso(announced)}
+        decision = choose([renewed], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        observation = decision["reset_observations"][0]
+        assert observation["drain"] is False and observation["drain_ended"] == "window_renewed"
+
+    def test_a_week_older_than_the_margin_still_drains(self):
+        from datetime import datetime, timezone
+        from reverse_agent.platform_v1.model_router import RENEWAL_MARGIN_SECONDS
+        iso = lambda t: datetime.fromtimestamp(t, timezone.utc).isoformat().replace("+00:00", "Z")
+        announced = NOW - 600
+        older = candidate("sub", "gpt-6-sol", "subscription", "codex", weekly_headroom=.26, task_weekly_fraction=.02,
+                          weekly_resets_at=announced - RENEWAL_MARGIN_SECONDS - 3600 + WEEK_SECONDS)
+        signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": iso(announced + 3600),
+                  "announced_at": iso(announced)}
+        decision = choose([older], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+        assert decision["reset_observations"][0]["drain"] is True
+
+    def test_the_display_matches_routing_for_a_confirmation(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        just_reset = TestPoolView().status("codex", 5, WEEK_SECONDS * (1 - 2 * 3600 / WEEK_SECONDS))
+        assert pace_state(just_reset, PACE, NOW, drain_since=NOW - 600)["draining"] is False
+
     def test_the_display_does_not_claim_a_drain_for_a_renewed_week(self):
         from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
         fresh = TestPoolView().status("codex", 5, WEEK_SECONDS * .99)  # week began ~1.7h before NOW

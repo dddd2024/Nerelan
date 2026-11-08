@@ -91,11 +91,19 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack))))
 
 
+# Most mirror reset events confirm a reset that already landed ("the reset has been
+# processed"), posted minutes to hours after it. A week that began this long before
+# the announcement is that reset, not an older one (#1400 review at 241f19e9).
+RENEWAL_MARGIN_SECONDS = 24 * 3600
+
+
 def _window_renewed_since(candidate: Mapping[str, Any], announced_at: Any) -> bool:
-    """Whether this account's weekly window began after the reset was announced.
+    """Whether this account's weekly window began after, or shortly before, the announcement.
 
     Then the reset has already happened for this account: draining further would
     spend the new week, so pacing applies again whatever the announcement said.
+    "Shortly before" covers confirmations posted after the reset landed. A natural
+    renewal in that margin only skips a drain on an almost untouched week.
     """
     resets = candidate.get("weekly_resets_at")
     if not isinstance(announced_at, str) or type(resets) not in (int, float) or not math.isfinite(resets):
@@ -105,7 +113,7 @@ def _window_renewed_since(candidate: Mapping[str, Any], announced_at: Any) -> bo
         announced = datetime.fromisoformat(announced_at.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return False
-    return resets - WEEK_SECONDS > announced
+    return resets - WEEK_SECONDS > announced - RENEWAL_MARGIN_SECONDS
 
 
 class ModelSelectionError(ValueError):
