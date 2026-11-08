@@ -36,12 +36,18 @@ Codex 有时会在周窗口结束前全局重置额度，由 OpenAI 的 Tibo（@
 不携带任何凭据，也不调用模型。识别依据两部分：
 
 - 源站自己的 `events` 分类：`type=reset`、`scope=global`、非 banked、置信度为 medium/high、不是预告，链接是 Tibo 的原帖。
-- Tibo 的帖子：源站标记的明确重置声明，或原帖（不是回复）里 "today is a/the reset" 这一陈述。
-  这句话必须以句号、感叹号或结尾收尾，前面最多四个词，且不含 if、what、who、maybe、rumor、not、would
-  一类词；后面的句子不能撤回（just kidding、not true 等）；源站标记为调侃的帖子不算。
-  所以 "What if today is a reset?"、"If today is a reset, nobody told me."、
-  "Rumor: today is the reset. Not true." 都不算。判断从严：漏掉一次公告只少放开一次，
-  误判一次会花掉一周的额度。banked、预告、范围不明的声明以及摘要为问句的源站事件也不算。
+- Tibo 的原帖（不是回复）里 "today is a/the reset" 这一陈述，按白名单判断：
+  这句话前面只能是空或固定的开头（But、And、So、OK、Alright、Yes、Update、Just kidding），
+  后面只能是一个句号、感叹号或直接结束；之后的句子不能含问号、省略号、否定、玩笑或传闻词
+  （not、no、kidding、April fools、haha、lol、or is it、maybe、heard 等）。之前的句子只是上下文。
+  所以 "I heard today is a reset."、"Today is a reset... NOT"、"Today is a reset. April fools."、
+  "Today is a reset. Or is it" 都不算；"Just kidding, today is a reset." 和
+  "Wonder what happens the remaining seven days. But today is a reset." 算。
+- 源站标记的明确重置声明，只有原帖且全文不含上述问号、否定、玩笑或传闻词时才算；
+  "No reset today" 带着标记也不算。"landing" 回复只有在父帖和回复都满足同样条件时才算。
+  公告线程里回复给出的时间，同样只在回复不含这些词时采用。
+- 源站标记为调侃的帖子不算。判断从严：漏掉一次公告只少放开一次，误判一次会花掉一周的额度。
+  banked、预告、范围不明的声明以及摘要为问句的源站事件也不算。
 
 源站 `effective_at` 字段目前总是空的，所以不依赖它。
 

@@ -29,35 +29,49 @@ _POST_ID = re.compile(r"[0-9]{10,25}\Z")
 # Tibo's own wording for a same-day global reset ("Just kidding, today is a reset.").
 _TODAY_RESET = re.compile(r"\btoday is (?:a|the) (?:global )?reset\b", re.IGNORECASE)
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
-_HEDGE = re.compile(
-    r"\b(?:if|what|who|whether|why|when|how|maybe|perhaps|rumou?r|imagine|hypothetical(?:ly)?|would|"
-    r"could|should|might|wish|pretend|suppose|unless|not|no|never|wonder)\b", re.IGNORECASE)
-_RETRACTION = re.compile(r"\b(?:just kidding|jk|kidding|not true|not really|nope|psych|lol no)\b", re.IGNORECASE)
-MAX_LEAD_WORDS = 4
+# Allowlist, not a hedge list: only these openings may precede the phrase. Real
+# October posts: "Just kidding, today is a reset." and "But today is a reset."
+# Anything else ("I heard", "Some say", "They think") is not Tibo announcing.
+_ALLOWED_LEAD = re.compile(
+    r"(?:(?:but|and|so|ok(?:ay)?|alright|yes|update|just kidding)[,:]?\s+)?\Z", re.IGNORECASE)
+# Any of these in any other sentence of the post voids it: a miss costs only the
+# drain, a false hit spends the week.
+_VOIDING = re.compile(
+    r"\?|\.\.|…|\b(?:not|no|nope|never|nah|jk|kidding|joke|joking|fools?|psych|sike|fake|lies|"
+    r"or is it|ha(?:ha)+|lol|lmao|"
+    r"rofl|if|what|who|whether|maybe|perhaps|rumou?r|would|could|should|might|wish|pretend|suppose|"
+    r"unless|wonder|heard|apparently|allegedly)\b",
+    re.IGNORECASE)
+
+
+def plain_statement(text: str) -> bool:
+    """No question, ellipsis, negation, hedge, hearsay or joke marker anywhere."""
+    return not _VOIDING.search(text)
 
 
 def announces_today(text: str) -> bool:
-    """A plain statement that today is a reset; questions, hedges and retractions are not.
+    """A plain first-hand statement that today is a reset, and nothing that undoes it.
 
-    The sentence holding the phrase must end with "." or "!" (or the text), have
-    at most four words before the phrase, and carry no hedge such as "if", "what",
-    "rumor" or "not"; no later sentence may retract it ("Just kidding.", "Not true.").
+    The phrase's sentence must be exactly an allowed opening ("", "But", "So",
+    "Just kidding,", ...) plus the phrase, closed by one "." or "!" or by the end
+    of the text. Every later sentence must be plain (``plain_statement``), so
+    "Today is a reset... NOT", "Today is a reset. Not.", "... April fools.",
+    "... Haha" and "... Or is it?" are refused, as is "I heard today is a reset."
     Real October posts that pass: "Just kidding, today is a reset." and "But today
     is a reset." A miss costs only the drain; a false hit spends the week.
     """
-    sentences = _SENTENCE_END.split(text.strip())
+    sentences = [part for part in _SENTENCE_END.split(text.strip()) if part]
     for index, sentence in enumerate(sentences):
         match = _TODAY_RESET.search(sentence)
         if not match:
             continue
-        lead = sentence[:match.start()]
-        tail = sentence[match.end():].strip()
-        if (sentence.rstrip().endswith("?") or tail.strip(".! ") or _HEDGE.search(sentence)
-                or len(re.findall(r"[A-Za-z']+", lead)) > MAX_LEAD_WORDS):
+        lead, tail = sentence[:match.start()], sentence[match.end():]
+        if not _ALLOWED_LEAD.match(lead) or tail not in {"", ".", "!"}:
             continue
-        if any(_RETRACTION.search(later) for later in sentences[index + 1:]):
-            continue
-        return True
+        # Earlier sentences are context ("Wonder what happens the remaining seven
+        # days. But today is a reset."); only later ones can undo the statement.
+        if all(plain_statement(later) for later in sentences[index + 1:]):
+            return True
     return False
 _RESET = re.compile(r"\breset\b", re.IGNORECASE)
 _DONE = re.compile(
@@ -259,8 +273,11 @@ def _site_announcements(events: object, now: datetime,
     start = group[0][0]
     anchors = {identity for _, identity, _, _ in group}
     texts = [(posted, text) for posted, _, text, _ in group]
+    # A reply's time counts only when the reply is a plain statement ("Lands by
+    # midnight PST."), never a guess ("maybe by 10am PT?").
     texts += [(posted, text) for posted, _, text, _, thread in posts
-              if thread & anchors and start <= posted <= start + _ANNOUNCEMENT_GROUP]
+              if thread & anchors and start <= posted <= start + _ANNOUNCEMENT_GROUP
+              and plain_statement(text)]
     stated = sorted(t for t in (stated_time(text, posted) for posted, text in texts) if t and t > newest)
     if not stated and any(announces_today(text) for _, text in texts):
         # "today is a reset" with no time: today in Pacific time, where Tibo posts from.
@@ -351,8 +368,11 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
                 kind = "RESET_REPORTED_COMPLETE"
             elif _DONE.search(text):
                 kind = "RESET_SCOPE_UNVERIFIED"
-            else:
+            elif entry.get("is_reply") is not True and plain_statement(text):
                 kind = "RESET_ANNOUNCEMENT"
+            else:
+                # The mirror's flag alone is not enough: "No reset today" carries it too.
+                kind = "POSSIBLE_HINT"
         elif (announces_today(text) and entry.get("is_reply") is not True
               and not (isinstance(entry.get("tease_classification"), dict)
                        and entry["tease_classification"].get("teasing") is True)):
@@ -362,9 +382,12 @@ def parse_feed(payload: object, *, now: datetime | None = None) -> ResetObservat
         elif entry.get("kind") == "signal" and entry.get("reset_verification_candidate") is True:
             parent_id = entry.get("in_reply_to_tweet_id")
             parent = valid.get(parent_id) if isinstance(parent_id, str) else None
+            # Parent and reply must both be plain statements:
+            # "Is today a reset? who knows" / "landing soon? lol" are not.
             if (parent is not None and parent[2] < when
-                    and _RESET.search(parent[1])
-                    and re.search(r"\blanding\b", text, re.I)):
+                    and parent[0].get("is_reply") is not True
+                    and _RESET.search(parent[1]) and plain_statement(parent[1])
+                    and re.search(r"\blanding\b", text, re.I) and plain_statement(text)):
                 kind = "RESET_ANNOUNCEMENT"
         elif isinstance(entry.get("tease_classification"), dict):
             if entry["tease_classification"].get("teasing") is True:

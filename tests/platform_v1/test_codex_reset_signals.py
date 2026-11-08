@@ -459,6 +459,50 @@ def test_questions_and_negations_are_not_announcements(text):
     assert routing_signal(parse_feed(_feed(now, [_post(_ANNOUNCED, text)]), now=now), now=now)["state"] == "UNKNOWN"
 
 
+# #1400 review at 95fa66a6: a hedge list let teases, retractions and hearsay through.
+@pytest.mark.parametrize("text", [
+    "Today is a reset... NOT", "Today is a reset. Not.", "Today is a reset. April fools.",
+    "Today is a reset. Haha", "Today is a reset. Or is it", "Today is a reset. Kidding.",
+    "Today is a reset… not", "today is a reset (not)", "Today is a reset.\nNot really",
+    "I heard today is a reset.", "Some say today is a reset.", "They think today is a reset.",
+    "Nobody believes today is a reset.", "Plot twist: today is a reset.", "Today is a reset for Pro users.",
+])
+def test_teases_retractions_and_hearsay_are_not_announcements(text):
+    now = _ANNOUNCED + _td(minutes=1)
+    assert routing_signal(parse_feed(_feed(now, [_post(_ANNOUNCED, text)]), now=now), now=now)["state"] == "UNKNOWN"
+
+
+@pytest.mark.parametrize("text", ["But today is a reset.", "So today is a reset!", "Just kidding, today is a reset.",
+                                  "Day 21/ Wonder what happens next. But today is a reset."])
+def test_plain_first_hand_announcements_still_count(text):
+    now = _ANNOUNCED + _td(minutes=1)
+    assert routing_signal(parse_feed(_feed(now, [_post(_ANNOUNCED, text)]), now=now), now=now)["state"] == "PLAN_ONLY"
+
+
+@pytest.mark.parametrize("text", ["No reset today", "We will not reset limits", "Is a Codex reset coming? maybe"])
+def test_the_mirrors_explicit_flag_alone_does_not_announce(text):
+    now = _ANNOUNCED + _td(minutes=1)
+    tweets = [_post(_ANNOUNCED, text, explicit_reset_claim=True)]
+    assert routing_signal(parse_feed(_feed(now, tweets), now=now), now=now)["state"] == "UNKNOWN"
+
+
+def test_a_landing_reply_under_a_hedged_parent_does_not_announce():
+    parent = _post(_ANNOUNCED, "Is today a reset? who knows")
+    reply = _post(_ANNOUNCED + _td(minutes=1), "landing soon? lol", reply=True, kind="signal",
+                  reset_verification_candidate=True, in_reply_to_tweet_id=parent["id"])
+    now = _ANNOUNCED + _td(minutes=2)
+    assert routing_signal(parse_feed(_feed(now, [parent, reply]), now=now), now=now)["state"] == "UNKNOWN"
+
+
+def test_a_hedged_reply_time_does_not_set_the_reset_time():
+    announcement = _post(_ANNOUNCED, "Just kidding, today is a reset.")
+    guess = _post(_ANNOUNCED + _td(minutes=1), "maybe in 48 hours?", reply=True,
+                  in_reply_to_tweet_id=announcement["id"])
+    now = _ANNOUNCED + _td(minutes=2)
+    signal = routing_signal(parse_feed(_feed(now, [announcement, guess]), now=now), now=now)
+    assert signal["expected_reset_at"] == "2026-10-28T07:00:00Z"  # Pacific midnight, not +48h
+
+
 def test_the_feeds_own_reset_events_count_and_banked_ones_do_not():
     ident = _snowflake(_ANNOUNCED)
     event = {"type": "reset", "scope": "global", "reset_kind": None, "preview": False, "confidence": "medium",
