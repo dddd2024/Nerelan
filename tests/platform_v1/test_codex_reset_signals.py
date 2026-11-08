@@ -267,6 +267,7 @@ import pytest
 from reverse_agent.model_access.codex_reset_signals import (
     CodexResetSignalReader,
     ResetEvent,
+    Announcement,
     ResetObservation,
     routing_signal,
 )
@@ -281,7 +282,16 @@ def _event(kind, at=_POSTED, action="PLAN_ONLY", ident="1"):
 
 
 def _fresh(*events):
-    return ResetObservation("FRESH", "2026-11-07T12:00:00Z", tuple(events))
+    """A feed whose mirror events classified each RESET_ANNOUNCEMENT as a global reset."""
+    announcements = tuple(Announcement(e.event_id, e.published_at, None, e.source_url)
+                          for e in events if e.kind == "RESET_ANNOUNCEMENT")
+    return ResetObservation("FRESH", "2026-11-07T12:00:00Z", tuple(events), announcements=announcements)
+
+
+def test_our_reading_of_a_post_alone_never_drains():
+    # Owner decision 2026-11-08 (#1400): only the mirror's own events can trigger.
+    text_only = ResetObservation("FRESH", "2026-11-07T12:00:00Z", (_event("RESET_ANNOUNCEMENT"),))
+    assert routing_signal(text_only, now=_POSTED + _td(hours=1))["state"] == "UNKNOWN"
 
 
 def test_an_announcement_is_read_as_a_reset_within_a_day():
@@ -437,19 +447,25 @@ def test_vague_or_impossible_times_are_not_guessed(text):
 def test_the_october_28_thread_drains_until_the_stated_midnight():
     tweets = [_post(_ANNOUNCED, "Day 23/ Much requested plugins. Just kidding, today is a reset."),
               _post(_ANNOUNCED + _td(seconds=45), "Lands by midnight PST.", reply=True)]
-    now = _ANNOUNCED + _td(minutes=5)
-    signal = routing_signal(parse_feed(_feed(now, tweets), now=now), now=now)
+    # The real feed classified the reply at 06:35 UTC; that event is the trigger.
+    events = [_mirror_event(_ANNOUNCED + _td(seconds=45), _dt(2026, 10, 28, 6, 35, 38, tzinfo=_tz.utc),
+                            summary="Lands by midnight PST.")]
+    now = _dt(2026, 10, 28, 6, 36, tzinfo=_tz.utc)
+    assert routing_signal(parse_feed(_feed(now, tweets), now=now), now=now)["state"] == "UNKNOWN"
+    signal = routing_signal(parse_feed(_feed(now, tweets, events), now=now), now=now)
     assert signal["state"] == "PLAN_ONLY" and signal["assumed"] is False
     assert signal["expected_reset_at"] == "2026-10-28T07:00:00Z"
     later = _dt(2026, 10, 28, 7, 5, tzinfo=_tz.utc)
-    assert routing_signal(parse_feed(_feed(later, tweets), now=later), now=later)["state"] == "UNKNOWN"
+    assert routing_signal(parse_feed(_feed(later, tweets, events), now=later), now=later)["state"] == "UNKNOWN"
 
 
 def test_today_without_a_time_ends_at_pacific_midnight_not_a_day_later():
     posted = _dt(2026, 10, 26, 5, 21, tzinfo=_tz.utc)
-    tweets = [_post(posted, "Day 21/ Wonder what happens the remaining seven days. But today is a reset.")]
-    now = posted + _td(minutes=10)
-    signal = routing_signal(parse_feed(_feed(now, tweets), now=now), now=now)
+    text = "Day 21/ Wonder what happens the remaining seven days. But today is a reset."
+    tweets = [_post(posted, text)]
+    events = [_mirror_event(posted, _dt(2026, 10, 26, 6, 8, 46, tzinfo=_tz.utc), summary=text)]
+    now = _dt(2026, 10, 26, 6, 10, tzinfo=_tz.utc)
+    signal = routing_signal(parse_feed(_feed(now, tweets, events), now=now), now=now)
     assert signal["expected_reset_at"] == "2026-10-26T07:00:00Z"
 
 
@@ -474,9 +490,13 @@ def test_teases_retractions_and_hearsay_are_not_announcements(text):
 
 @pytest.mark.parametrize("text", ["But today is a reset.", "So today is a reset!", "Just kidding, today is a reset.",
                                   "Day 21/ Wonder what happens next. But today is a reset."])
-def test_plain_first_hand_announcements_still_count(text):
+def test_plain_first_hand_posts_still_need_the_mirrors_event(text):
+    assert announces_today(text) is True  # still read, for the reset time only
     now = _ANNOUNCED + _td(minutes=1)
-    assert routing_signal(parse_feed(_feed(now, [_post(_ANNOUNCED, text)]), now=now), now=now)["state"] == "PLAN_ONLY"
+    post = _post(_ANNOUNCED, text)
+    assert routing_signal(parse_feed(_feed(now, [post]), now=now), now=now)["state"] == "UNKNOWN"
+    events = [_mirror_event(_ANNOUNCED, _ANNOUNCED, summary=text)]
+    assert routing_signal(parse_feed(_feed(now, [post], events), now=now), now=now)["state"] == "PLAN_ONLY"
 
 
 @pytest.mark.parametrize("text", ["No reset today", "We will not reset limits", "Is a Codex reset coming? maybe"])
@@ -499,7 +519,8 @@ def test_a_hedged_reply_time_does_not_set_the_reset_time():
     guess = _post(_ANNOUNCED + _td(minutes=1), "maybe in 48 hours?", reply=True,
                   in_reply_to_tweet_id=announcement["id"])
     now = _ANNOUNCED + _td(minutes=2)
-    signal = routing_signal(parse_feed(_feed(now, [announcement, guess]), now=now), now=now)
+    events = [_mirror_event(_ANNOUNCED, _ANNOUNCED, summary=announcement["text"])]
+    signal = routing_signal(parse_feed(_feed(now, [announcement, guess], events), now=now), now=now)
     assert signal["expected_reset_at"] == "2026-10-28T07:00:00Z"  # Pacific midnight, not +48h
 
 
@@ -551,7 +572,8 @@ def test_a_reply_outside_the_announcement_thread_cannot_set_the_time():
     unrelated = _post(_ANNOUNCED + _td(minutes=2), "New model lands in 48 hours", reply=True,
                       in_reply_to_tweet_id="1999999999999999999", conversation_id="1999999999999999999")
     now = _ANNOUNCED + _td(minutes=5)
-    signal = routing_signal(parse_feed(_feed(now, [announcement, unrelated]), now=now), now=now)
+    events = [_mirror_event(_ANNOUNCED, _ANNOUNCED, summary=announcement["text"])]
+    signal = routing_signal(parse_feed(_feed(now, [announcement, unrelated], events), now=now), now=now)
     assert signal["expected_reset_at"] == "2026-10-28T07:00:00Z"  # Pacific midnight, not +48h
 
 
@@ -560,7 +582,8 @@ def test_a_reply_in_the_thread_sets_the_time():
     reply = _post(_ANNOUNCED + _td(minutes=1), "Lands in 2 hours", reply=True,
                   in_reply_to_tweet_id=announcement["id"], conversation_id=announcement["id"])
     now = _ANNOUNCED + _td(minutes=5)
-    signal = routing_signal(parse_feed(_feed(now, [announcement, reply]), now=now), now=now)
+    events = [_mirror_event(_ANNOUNCED, _ANNOUNCED, summary=announcement["text"])]
+    signal = routing_signal(parse_feed(_feed(now, [announcement, reply], events), now=now), now=now)
     assert signal["expected_reset_at"] == (_ANNOUNCED + _td(minutes=1, hours=2)).isoformat().replace("+00:00", "Z")
 
 

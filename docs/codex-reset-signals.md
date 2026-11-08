@@ -25,7 +25,7 @@ Codex 有时会在周窗口结束前全局重置额度，由 OpenAI 的 Tibo（@
 2. 只说 `today is a reset`：当天太平洋时间午夜。
 3. 都没有：公告后 24 小时，可用 `REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS`（1–72）调整。
 
-同一次公告：最新公告 12 小时内的公告类帖子和源站重置事件归为同一次。回复只有回复到这些帖子的对话里
+同一次公告：最新源站重置事件 12 小时内的事件归为同一次。回复只有回复到这些帖子的对话里
 才算，其他帖子里的时间不会改变预计重置时间。时间常写在回复里，比如 10-28 那次是先发
 "today is a reset"，一分钟内回复 "Lands by midnight PST."。每条帖子的时间取自它的 X ID（创建时间），
 不采用镜像站声称的时间；声称时间早于帖子创建时间的事件被丢弃。
@@ -33,21 +33,19 @@ Codex 有时会在周窗口结束前全局重置额度，由 OpenAI 的 Tibo（@
 ## 公告来源
 
 公开镜像 `https://codex-reset.com/api/feed`。直接匿名访问 X 返回 403。只读、5 秒截止、256 KiB 上限、拒绝重定向，
-不携带任何凭据，也不调用模型。识别依据两部分：
+不携带任何凭据，也不调用模型。
 
-- 源站自己的 `events` 分类：`type=reset`、`scope=global`、非 banked、置信度为 medium/high、不是预告，链接是 Tibo 的原帖。
-- Tibo 的原帖（不是回复）里 "today is a/the reset" 这一陈述，按白名单判断：
-  这句话前面只能是空或固定的开头（But、And、So、OK、Alright、Yes、Update、Just kidding），
-  后面只能是一个句号、感叹号或直接结束；之后的句子不能含问号、省略号、否定、玩笑或传闻词
-  （not、no、kidding、April fools、haha、lol、or is it、maybe、heard 等）。之前的句子只是上下文。
-  所以 "I heard today is a reset."、"Today is a reset... NOT"、"Today is a reset. April fools."、
-  "Today is a reset. Or is it" 都不算；"Just kidding, today is a reset." 和
-  "Wonder what happens the remaining seven days. But today is a reset." 算。
-- 源站标记的明确重置声明，只有原帖且全文不含上述问号、否定、玩笑或传闻词时才算；
-  "No reset today" 带着标记也不算。"landing" 回复只有在父帖和回复都满足同样条件时才算。
-  公告线程里回复给出的时间，同样只在回复不含这些词时采用。
-- 源站标记为调侃的帖子不算。判断从严：漏掉一次公告只少放开一次，误判一次会花掉一周的额度。
-  banked、预告、范围不明的声明以及摘要为问句的源站事件也不算。
+**只有源站自己的 `events` 分类能触发放开**（Owner 决定，2026-11-08，#1400）：`type=reset`、
+`scope=global`、非 banked、置信度为 medium/high、不是预告、摘要不是问句，链接是 Tibo 的帖子。
+我们对 Tibo 原文的判断只用来推算预计重置时间，从不触发放开。原因：三轮独立评审都找到了能骗过
+文字判断的写法（缩写否定、"Canceled."、表情、范围限定、形近字），用词表无法做到从严。
+代价是放开开始得更晚：按 10 月数据，源站分类比重置早 25–50 分钟，而不是 1.5–4 小时。
+
+推算时间时，Tibo 帖子按从严规则读取：
+- "today is a/the reset" 只在前面为空或固定开头（But、And、So、OK、Alright、Yes、Update、Just kidding）、
+  后面只有一个句号或感叹号、之后的句子不含问号、省略号、否定、玩笑或传闻词时，才得出"当天太平洋午夜"。
+- 公告线程里回复给出的时间，只在回复不含这些词时采用。
+- 源站标记的明确声明或 "landing" 回复只作为账户页的提示，不影响选路。
 
 源站 `effective_at` 字段目前总是空的，所以不依赖它。
 
@@ -63,8 +61,8 @@ Codex 有时会在周窗口结束前全局重置额度，由 OpenAI 的 Tibo（@
 python -m pytest tests/platform_v1/test_codex_reset_signals.py tests/platform_v1/test_weekly_quota_pacing.py -q
 ```
 
-用 2026-11-07 下载的真实数据回放了 10 月的两次重置：10-28 在公告后放开，07:00 UTC（太平洋时间午夜）结束；
-10-26 只说了 "today is a reset"，同样在 07:00 UTC 结束。回放数据不在仓库里，测试用的是按真实帖子结构构造的离线样本。
+2026-11-08 读取的真实源站数据里，10 月两次重置都有源站分类：10-26 在 06:08 UTC，10-28 在 06:35 UTC
+（"Lands by midnight PST."），两次都在 07:00 UTC（太平洋时间午夜）结束。回放数据不在仓库里，测试用的是按真实帖子结构构造的离线样本。
 
 ## 修正记录
 
@@ -72,5 +70,6 @@ python -m pytest tests/platform_v1/test_codex_reset_signals.py tests/platform_v1
 
 - 在 CPython 3.13 上拿不到 socket 就直接放弃，导致真实环境里永远返回 UNKNOWN。现在由外层 5 秒截止保证不阻塞。
 - 只认源站标记的"明确声明"，10 月真实的两次公告都没被标记，因此都会漏掉。
-- 首个修正版本（`5666878`）被独立评审拒绝：问句和假设句也会被当成公告。现在的严格规则见上文。
+- 首个修正版本（`5666878`）被独立评审拒绝：问句和假设句也会被当成公告。之后两版（`95fa66a6`、`9881c954`）
+  继续收紧文字判断，仍被拒绝。最终改为只由源站分类触发，见上文。
 - 没有接入选路，也没有时间，无法支持重置前放开。

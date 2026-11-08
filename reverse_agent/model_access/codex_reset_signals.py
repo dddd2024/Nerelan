@@ -229,10 +229,12 @@ _ANNOUNCEMENT_GROUP = timedelta(hours=12)
 def _site_announcements(events: object, now: datetime,
                         posts: Sequence[tuple[datetime, str, str, bool, frozenset[str]]] = ()
                         ) -> tuple[Announcement, ...]:
-    """The freshest global reset announcement, from the feed's events and Tibo's posts.
+    """The freshest global reset announcement the feed's own events classify.
 
-    Anchors are the feed's own reset events and posts already classified as an
-    announcement. Anchors within 12 hours of the newest one are one announcement.
+    Only the mirror's curated ``events`` can anchor an announcement (Owner
+    decision 2026-11-08, #1400): reading Tibo's free text never converged on
+    fail-closed, so his posts may only supply the reset *time*, never the trigger.
+    Anchors within 12 hours of the newest one are one announcement.
     A reply joins it only when it replies into an anchor's thread: the time is
     often stated there ("Lands by midnight PST.") rather than in the announcement.
     Each post's time is its X Snowflake creation time, never a mirror's claim.
@@ -263,9 +265,6 @@ def _site_announcements(events: object, now: datetime,
         if posted > now + MAX_CLOCK_SKEW or now - posted > MAX_POST_AGE:
             continue
         found.append((posted, identity, summary, url))
-    for posted, identity, text, announces, _ in posts:
-        if announces:
-            found.append((posted, identity, text, f"https://x.com/thsottiaux/status/{identity}"))
     if not found:
         return ()
     newest = max(posted for posted, *_ in found)
@@ -492,12 +491,10 @@ def routing_signal(observation: ResetObservation, *, now: datetime,
                 "reason": observation.reason}
     def posted(event: ResetEvent) -> datetime:
         return _parse_time(event.published_at)
-    # (posted, expected, assumed, id, url) for every announcement either source holds.
-    # parse_feed folds announcing posts into `announcements` together with any
-    # time a reply states; the raw events are only a fallback when it has none.
-    candidates = [] if observation.announcements else [
-        (posted(e), posted(e) + within, True, e.event_id, e.source_url)
-        for e in observation.events if e.kind == "RESET_ANNOUNCEMENT"]
+    # (posted, expected, assumed, id, url) for each announcement the mirror's own
+    # events classify. Our reading of Tibo's posts (`events` kinds such as
+    # RESET_ANNOUNCEMENT) is advisory display only and never starts a drain.
+    candidates = []
     for item in observation.announcements:
         announced_at = _parse_time(item.announced_at)
         stated = _parse_time(item.expected_at) if item.expected_at else None
