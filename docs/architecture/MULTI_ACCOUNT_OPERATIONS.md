@@ -102,6 +102,7 @@ Owner 要求 Claude 和 Codex 的周额度不能提前用完（2026-11-07）。�
 | `executors` | `["codex", "claude_code"]` |
 | `slack` | 0.10 |
 | `reserve` | 0.10 |
+| `require_fresh` | false；为 true 时，额度读数未知或过期的受配速账户被排除（每 15 分钟重查），而不是只受既有额度规则约束 |
 
 复用边界：输入全部来自 Magpie（已用比例与重置时间）。Magpie 面板上的"配速 +20%"没有通过接口或
 `magpie quota --json` 提供，所以账户页用同一定义（已用比例减本周已过时间比例）显示，读数与面板一致。
@@ -128,8 +129,10 @@ Magpie 只在额度用完时才拦截，并可能继续消耗积分，所以提�
 `admission_hold` 读取协调器状态的 `admission_holds` 字段。该字段由 #1396 提供，合入之前
 不会触发这条告警。
 
-投递渠道目前是日志、JSONL 文件和账户页。要接入 IM 或邮件，实现一个接收事件字典的函数
-传给 `AlertLedger` 即可；外发渠道涉及对外发送，需要 Owner 明确配置。
+投递渠道是日志、JSONL 文件和账户页。设置 `REVERSE_AGENT_MULTI_ACCOUNT_ALERT_NOTIFY=toast` 后，
+每条新出现的 warning 或 critical 告警还会在本机弹出一条 Windows 通知（`multi_account/notify.py`），
+只在本机显示，不发网络请求；告警文字通过环境变量传给通知脚本，不进入命令行。要接入 IM 或邮件，
+实现一个接收事件字典的函数并用 `notify.chain` 接到 `AlertLedger`；对外发送需要 Owner 明确配置。
 
 ## 常用操作
 
@@ -188,7 +191,7 @@ python scripts/multi_account_live_acceptance.py --soak-minutes 15 --evidence out
 - 反馈优化的有效性只验证了"权重按规则变化并进入路由"，没有在真实任务上对照出成本或
   成功率的改善。
 - "仅观测"的账户不参与准入，其额度耗尽不会阻止派发，只有 Magpie 自身的失败会反馈回来。
-- 告警没有外发渠道；无人值守时需要有人看日志或账户页。
+- 告警只有本机 Windows 通知，没有 IM、邮件等外发渠道；人不在电脑前时仍需要事后看日志或账户页。
 - 容量告警把"仅观测"账户也算作可派发，所以 `pool_no_usable_account` 可能在可路由账户
   都耗尽时保持沉默。
 - `coordinator_error` 会一直保持，直到协调器的 `last_error` 被覆盖，常常要到重启。

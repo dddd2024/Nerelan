@@ -137,6 +137,22 @@ Codex 重置卡由 Owner 手动使用，Magpie 的自动使用保持关闭（Own
 5. 是否为 Magpie 的 `workbuddy`、`trae-cn` 新增 OpenCode 绑定，作为免费模型之外的补充。
 6. 运行期间安排一次主动关机，以及是否为宿主另装开机自启。
 
+## 9. Owner 决定（2026-11-08）
+
+| 事项 | 决定 | 落实 |
+|---|---|---|
+| #1401、#1400 | 都合入；#1400 改为只由源站事件触发放开 | 已合入 `7e26c48a`、`0e5bc8f6` |
+| Claude 额度数据不是 FRESH | 不用 Claude，包括评审备选 | `weekly_pace.require_fresh: true`（`model_routing_overrides.json`） |
+| 首轮任务 | #1350、#1285、#1336 | Goal 由宿主创建并规划后交 Owner 激活 |
+| 窗口参数 | 只开 Draft PR、并发 1、24 小时不续期、Token 上限 2,000,000、付费 API 关闭 | Owner 窗口命令行参数 |
+| 执行模型 | 免费 SenseNova 模型之外，新增 Magpie 的 `workbuddy`、`trae-cn` OpenCode 绑定 | 激活前加入，否则不在确认时的模型池里 |
+| 开机自启 | Magpie 与宿主都自启 | `scripts/windows/Install-HostAutostart.ps1` |
+
+阶段 0 实测（2026-11-08，经 Magpie 网关各一次最小调用）：`token-sensenova/glm-5.2`、`workbuddy/hy4free`、
+`trae-cn/Doubao-Seed-2.1-Turbo` 成功；`token-sensenova/kimi-k3` 返回 429（限流），需在激活前重试。
+
+告警：设置 `REVERSE_AGENT_MULTI_ACCOUNT_ALERT_NOTIFY=toast`，协调器停止、卡住、无可用账户等告警会在本机弹出通知。
+
 ## 修订记录
 
 - 2026-11-07：初稿；同日更正：改动 A 已由 #1399 实现，改动 B 曾决定不实施。

@@ -54,6 +54,25 @@ class TestHold:
         row[missing] = None
         assert weekly_pace_hold(row, now=NOW, pace=PACE) is None
 
+    @pytest.mark.parametrize("missing", ["weekly_headroom", "weekly_resets_at"])
+    def test_require_fresh_holds_an_account_with_no_fresh_reading(self, missing):
+        # Owner decision 2026-11-08: a stale Claude reading means Claude is not used.
+        row = paced(.5, .1, executor="claude_code", model="sonnet")
+        row[missing] = None
+        strict = {**PACE, "require_fresh": True}
+        assert weekly_pace_hold(row, now=NOW, pace=strict) == NOW + 900
+        with pytest.raises(ModelSelectionError):
+            choose([row], difficulty=4, now=NOW, weekly_pace=strict)
+
+    def test_require_fresh_leaves_free_and_unpaced_bindings_alone(self):
+        strict = {**PACE, "require_fresh": True}
+        for row in (paced(.1, .9, executor="opencode"), paced(.1, .9, cost="free")):
+            row["weekly_headroom"] = None
+            assert weekly_pace_hold(row, now=NOW, pace=strict) is None
+
+    def test_require_fresh_is_off_by_default(self):
+        assert DEFAULT_WEEKLY_PACE["require_fresh"] is False
+
     def test_only_paced_subscription_executors_are_held(self):
         assert weekly_pace_hold(paced(.1, .9, executor="opencode"), now=NOW, pace=PACE) is None
         assert weekly_pace_hold(paced(.1, .9, cost="free"), now=NOW, pace=PACE) is None
@@ -112,13 +131,17 @@ class TestOwnerConfig:
         assert DEFAULT_WEEKLY_PACE["enabled"] is True
         assert set(DEFAULT_WEEKLY_PACE["executors"]) == {"codex", "claude_code"}
 
+    def test_require_fresh_can_be_switched_on(self, tmp_path):
+        data = read_overrides(self.write(tmp_path, {"weekly_pace": {"require_fresh": True}}))
+        assert weekly_pace_config(data)["require_fresh"] is True
+
     def test_overrides_merge_onto_defaults(self, tmp_path):
         data = read_overrides(self.write(tmp_path, {"weekly_pace": {"slack": .2}}))
         assert weekly_pace_config(data) == {**DEFAULT_WEEKLY_PACE, "slack": .2}
 
     @pytest.mark.parametrize("pace", [
         {"slack": .9}, {"reserve": -.1}, {"enabled": "yes"}, {"executors": "codex"},
-        {"executors": [""]}, {"unknown": 1}, [],
+        {"executors": [""]}, {"unknown": 1}, [], {"require_fresh": "yes"}, {"require_fresh": 1},
     ])
     def test_invalid_overrides_are_refused(self, tmp_path, pace):
         with pytest.raises(ValueError, match="invalid_model_routing_overrides"):

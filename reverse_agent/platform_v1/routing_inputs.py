@@ -43,7 +43,10 @@ GATEWAY_COST_CLASSES = {
 # week (Owner requirement 2026-11-07): use may run ahead of elapsed time by
 # `slack` and never past `1 - reserve`. Keyed by executor id.
 DEFAULT_WEEKLY_PACE: dict[str, Any] = {
-    "enabled": True, "executors": ["codex", "claude_code"], "slack": .10, "reserve": .10}
+    "enabled": True, "executors": ["codex", "claude_code"], "slack": .10, "reserve": .10,
+    # True: a paced account whose weekly usage is unknown or stale is held, not
+    # left to the other quota rules (Owner decision 2026-11-08, long-run plan).
+    "require_fresh": False}
 
 
 def weekly_pace_config(owner: Mapping[str, Any]) -> dict[str, Any]:
@@ -231,7 +234,7 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         raise ValueError("invalid_model_routing_overrides")
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
-            or ("enabled" in pace and type(pace["enabled"]) is not bool)
+            or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh"))
             or ("executors" in pace and (not isinstance(pace["executors"], list)
                                          or any(not isinstance(x, str) or not x for x in pace["executors"])))
             or any(key in pace and (type(pace[key]) not in (int, float) or not 0 <= pace[key] <= .5)
