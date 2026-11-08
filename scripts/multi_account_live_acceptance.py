@@ -236,8 +236,11 @@ def run(report: Report, runtime: Path, soak_minutes: float = 0, *,
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
     snapshot = fetch_magpie_snapshot()
-    if not report.check("real_magpie_reachable", snapshot["status"] == "available",
-                        accounts=len(snapshot["accounts"])) and not resume:
+    if resume:
+        # Magpie may still be starting after a boot; the soak holds those rounds instead of failing.
+        print(f"[INFO] magpie_at_resume {json.dumps({'status': snapshot['status']})}", flush=True)
+    elif not report.check("real_magpie_reachable", snapshot["status"] == "available",
+                          accounts=len(snapshot["accounts"])):
         return
 
     host = CombinedTrustedHost(
