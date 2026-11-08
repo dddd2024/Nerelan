@@ -62,6 +62,10 @@ WEEK_SECONDS = 7 * 86400
 UNKNOWN_WEEKLY_NEED = .03
 
 
+# With ``require_fresh``, an account with no fresh weekly reading is re-checked this often.
+UNKNOWN_PACE_RETRY_SECONDS = 900
+
+
 def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
                      pace: Mapping[str, Any] | None) -> float | None:
     """When a paced subscription account may take this task again, or None if it may now.
@@ -69,7 +73,8 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     A weekly allowance spent ahead of the calendar leaves nothing for the rest of
     the week. Use may run ahead of elapsed time by ``slack`` and never past
     ``1 - reserve``. Unknown usage or reset time makes no claim, so the existing
-    quota rules alone decide.
+    quota rules alone decide, unless ``require_fresh`` is set: then the account
+    is held until a fresh reading shows where it stands.
     """
     if not pace or not pace.get("enabled", False):
         return None
@@ -77,7 +82,7 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
         return None
     headroom, resets = candidate.get("weekly_headroom"), candidate.get("weekly_resets_at")
     if not all(type(v) in (int, float) and math.isfinite(v) for v in (headroom, resets)):
-        return None
+        return float(now + UNKNOWN_PACE_RETRY_SECONDS) if pace.get("require_fresh") is True else None
     need = candidate.get("task_weekly_fraction")
     need = need if type(need) in (int, float) and math.isfinite(need) and need >= 0 else UNKNOWN_WEEKLY_NEED
     slack, reserve = float(pace.get("slack", .10)), float(pace.get("reserve", .10))

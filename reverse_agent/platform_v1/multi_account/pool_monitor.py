@@ -118,8 +118,10 @@ class PoolMonitor:
         self._clock = clock
         sink = None
         if persist_alerts:
-            sink = jsonl_sink(config.alert_log_path, max_bytes=config.alert_log_max_bytes,
-                              backups=config.alert_log_backups)
+            from .notify import chain, toast_sink
+            sink = chain(jsonl_sink(config.alert_log_path, max_bytes=config.alert_log_max_bytes,
+                                    backups=config.alert_log_backups),
+                         toast_sink() if config.alert_notify == "toast" else None)
         self._ledger = AlertLedger(sink)
         self._lock = threading.Lock()
         self._view: Optional[dict[str, Any]] = None

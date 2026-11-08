@@ -14,6 +14,7 @@ state.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -119,6 +120,8 @@ class MultiAccountConfig(BaseModel):
     alert_log_path: Path = Field(
         Path(".platform_v1_runtime/multi_account_alerts.jsonl"),
         description="JSONL log of alert transitions; written only while the brain is enabled.")
+    alert_notify: Literal["", "toast"] = Field(
+        "", description="Outbound delivery of raised warning/critical alerts: '' (log only) or 'toast' (Windows).")
     alert_log_max_bytes: int = Field(1_000_000, ge=10_000, le=100_000_000)
     alert_log_backups: int = Field(3, ge=0, le=20)
     standby_keepalive_interval_seconds: float = Field(
