@@ -27,8 +27,32 @@ _logger = logging.getLogger(__name__)
 USABLE = (AccountHealth.HEALTHY, AccountHealth.DEGRADED)
 
 
+# Route provider (as magpie_route_provider names it) -> executor id the pacing policy names.
+_PACED_EXECUTOR = {"codex": "codex", "claude-code": "claude_code"}
+
+
+def pace_state(status: AccountStatus, pace: Optional[Mapping[str, Any]], now: float) -> Optional[dict[str, Any]]:
+    """The weekly pacing line for this account, computed exactly as the router does."""
+    from ..model_router import WEEK_SECONDS, weekly_pace_hold
+    executor = _PACED_EXECUTOR.get(magpie_route_provider(status.provider) or "")
+    weekly = next((w for w in status.windows if w.window in {"7 days", "weekly", "7d", "week"}
+                   and w.used_percent is not None and w.resets_at is not None and not w.reset_passed), None)
+    if not pace or not pace.get("enabled") or executor not in pace.get("executors", ()) or weekly is None:
+        return None
+    candidate = {"executor_id": executor, "cost_class": "subscription",
+                 "weekly_headroom": 1 - weekly.used_percent / 100, "weekly_resets_at": weekly.resets_at}
+    elapsed = min(1., max(0., (now - (weekly.resets_at - WEEK_SECONDS)) / WEEK_SECONDS))
+    return {"used": weekly.used_percent / 100,
+            # Same reading as the Magpie panel's "配速 +20%": spend minus elapsed share of the week.
+            "deviation": weekly.used_percent / 100 - elapsed,
+            "line": min(1 - float(pace.get("reserve", .1)), elapsed + float(pace.get("slack", .1))),
+            "held_until": weekly_pace_hold(candidate, now=now, pace=pace),
+            "resets_at": weekly.resets_at}
+
+
 def account_row(status: AccountStatus, *, cooldown: Optional[Mapping[str, Any]],
-                score: Optional[Mapping[str, Any]], now: float) -> dict[str, Any]:
+                score: Optional[Mapping[str, Any]], now: float,
+                pace: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     active = bool(cooldown) and float(cooldown.get("until") or 0) > now
     return {
         **status.public_view(),
@@ -38,6 +62,7 @@ def account_row(status: AccountStatus, *, cooldown: Optional[Mapping[str, Any]],
         "cooldown": dict(cooldown) if active else None,
         "score": dict(score) if score else None,
         "dispatchable": status.health in USABLE and not active,
+        "weekly_pace": pace_state(status, pace, now),
     }
 
 
@@ -70,8 +95,10 @@ class PoolMonitor:
                  runtime_status: Callable[[], Mapping[str, Any]],
                  brain: Callable[[], Any],
                  persist_alerts: bool = False,
+                 weekly_pace: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
                  clock: Callable[[], float] = time.time) -> None:
         self._config = config
+        self._weekly_pace = weekly_pace
         self._fetch_snapshot = fetch_snapshot
         self._stored_statuses = stored_statuses
         self._runtime_status = runtime_status
@@ -169,7 +196,11 @@ class PoolMonitor:
             self._last_statuses, self._last_statuses_at = statuses, now
         cooldowns, cooldowns_fresh = self._cooldowns(now)
         scores, routing, policy, ledger_fresh = self._ledger_reads()
-        rows = [account_row(status, cooldown=cooldowns.get(status.account_ref),
+        try:
+            pace = self._weekly_pace()
+        except Exception:  # noqa: BLE001 - a bad Owner file must not blank the view
+            pace = None
+        rows = [account_row(status, cooldown=cooldowns.get(status.account_ref), pace=pace,
                             score=scores.get(status.account_ref), now=now)
                 for status in statuses]
         rows.sort(key=lambda row: (not row["dispatchable"], -(row["headroom_pct"] or 0), row["account_ref"]))

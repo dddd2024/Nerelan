@@ -90,6 +90,26 @@ REVERSE_AGENT_MULTI_ACCOUNT_ENABLED=1
 REVERSE_AGENT_MULTI_ACCOUNT_ENABLE_FEEDBACK_ROUTING=1
 ```
 
+## 周额度配速
+
+Owner 要求 Claude 和 Codex 的周额度不能提前用完（2026-11-07）。选路器对这两个订阅账户按时间配速：
+若 `已用比例 + 本任务预计用量 > 本周已过时间比例 + slack`，或超过 `1 - reserve`，该候选被排除，理由
+`weekly_pace`，并带 `retry_at`，由既有的临时资源等待机制到点重查。预计用量未校准时按 3 个百分点计。
+
+| 配置（`model_routing_overrides.json` 的 `weekly_pace`） | 默认 |
+|---|---|
+| `enabled` | true |
+| `executors` | `["codex", "claude_code"]` |
+| `slack` | 0.10 |
+| `reserve` | 0.10 |
+
+复用边界：输入全部来自 Magpie（已用比例与重置时间）。Magpie 面板上的"配速 +20%"没有通过接口或
+`magpie quota --json` 提供，所以账户页用同一定义（已用比例减本周已过时间比例）显示，读数与面板一致。
+Magpie 只在额度用完时才拦截，并可能继续消耗积分，所以提前放慢必须在选路器里做。
+
+已验证的 Codex 提前重置公告会让位于既有 drain 规则（#1248、#1281）。重置实际发生后，Magpie 的新窗口
+会让配速按新的一周重算。Codex 持有的重置卡由 Magpie 管理，账户页只显示数量和最早过期时间。
+
 ## 告警
 
 | 代码 | 级别 | 含义 |
