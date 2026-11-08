@@ -107,7 +107,7 @@ Owner 要求 Claude 和 Codex 的周额度不能提前用完（2026-11-07）。�
 `magpie quota --json` 提供，所以账户页用同一定义（已用比例减本周已过时间比例）显示，读数与面板一致。
 Magpie 只在额度用完时才拦截，并可能继续消耗积分，所以提前放慢必须在选路器里做。
 
-已验证的 Codex 提前重置公告会让位于既有 drain 规则（#1248、#1281）。重置实际发生后，Magpie 的新窗口
+已验证的 Codex 提前重置公告会让位于既有 drain 规则（#1248、#1281），规则与时间推断见 `docs/codex-reset-signals.md`，由 `REVERSE_AGENT_CODEX_RESET_WATCH=1` 启用。重置实际发生后，Magpie 的新窗口
 会让配速按新的一周重算。Codex 持有的重置卡由 Magpie 管理，账户页只显示数量和最早过期时间。
 
 ## 告警
