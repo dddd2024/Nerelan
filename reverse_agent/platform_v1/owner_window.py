@@ -34,7 +34,9 @@ import sys
 import threading
 import time
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
+from .binding_resolver import BindingResolver
 from .control_store import (
     OWNER_WINDOW_CAPABILITIES,
     OWNER_WINDOW_MAX_GOALS,
@@ -59,6 +61,28 @@ def _utc(moment: datetime) -> str:
     return moment.isoformat().replace("+00:00", "Z")
 
 
+def _store_transport(store: Any) -> Callable[[str, float, int], tuple[int, Any]]:
+    """A ``BindingResolver`` transport answering from the persisted public views.
+
+    Mirrors the model-control GET routes for bindings, connections and executors,
+    minus their external-session refresh. A session whose persisted status is not
+    usable is therefore not offered, which only ever narrows the pool.
+    """
+    getters = {"bindings": store.get_binding_public, "connections": store.get_connection_public,
+               "executors": store.get_executor_public}
+
+    def transport(url: str, _timeout: float, _limit: int) -> tuple[int, Any]:
+        segments = [unquote(part) for part in urlsplit(url).path.strip("/").split("/")]
+        if len(segments) != 3 or segments[0] != "api" or segments[1] not in getters:
+            return 404, {"error": "route not found"}
+        try:
+            return 200, getters[segments[1]](segments[2])
+        except KeyError:
+            return 404, {"error": "not found"}
+
+    return transport
+
+
 class OwnerWindowAdmission:
     """One typed Owner confirmation -> one atomic window over exactly these Goals."""
 
@@ -75,7 +99,10 @@ class OwnerWindowAdmission:
         from .routing_inputs import binding_cost_class, read_overrides, weekly_pace_config
         owner = read_overrides(getattr(host._store, "_state_path", None))
         pace = weekly_pace_config(owner)
-        resolver = host._binding_resolver_factory(host.model_control_url)
+        # Same validation and normalization as dispatch, but read from the store in
+        # this process: no HTTP to our own server (its handler needs the store lock we
+        # hold), no session refresh, no quota or login probe inside the transaction.
+        resolver = BindingResolver(transport=_store_transport(host._store))
         connections = {c["connection_id"]: c for c in host._store.list_connections_public()}
         pool, shown, skipped = [], [], []
         for binding in sorted(host._store.list_bindings_public(), key=lambda b: b["binding_id"]):
@@ -192,6 +219,9 @@ class OwnerWindowAdmission:
             # Discovered models bind now, so routing inside the transaction cannot
             # pick a binding the Owner was never shown.
             host._routing_bind_discovered()
+            # The model-control routes refresh OpenCode login sessions on read; the pool
+            # reads the store directly under the lock, so refresh once here, before it.
+            host._refresh_external_session_auth(False, None)
             now = datetime.now(timezone.utc)
             deadline = time.monotonic() + CONFIRM_SECONDS
             # Times are fixed before the prompt; reading time spends the window.

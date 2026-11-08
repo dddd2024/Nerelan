@@ -11,6 +11,7 @@ import pytest
 
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.platform_v1 import goal_service, owner_window
+from reverse_agent.platform_v1.binding_resolver import BindingResolver
 from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
 from reverse_agent.platform_v1.durable_execution import ExecutorRuntimeError, _require_owner_window_pool
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
@@ -19,24 +20,9 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 ALL = ("execute_task", "resume_task", "reconcile_task", "validate_task")
 
 
-def resolution(binding_ref, executor, model, connection, provider, auth, base_url):
-    return SimpleNamespace(binding_ref=binding_ref, executor_id=executor, model_id=model,
-                           connection_id=connection, provider_id=provider, auth_method=auth,
-                           base_url=base_url, relay_required=auth == "api_key")
-
-
-RESOLVED = {
-    "pinned": resolution("pinned", "codex", "gpt-test", "native", "codex", "external_cli_session",
-                         "https://chatgpt.com"),
-    "free": resolution("free", "opencode", "glm-test", "gateway", "magpie", "api_key", "http://127.0.0.1:3425/v1"),
-}
-
-
-class Resolver:
-    def resolve(self, binding_ref, *, task_executor):
-        found = RESOLVED[binding_ref]
-        assert found.executor_id == task_executor
-        return found
+# Filled per test from the real resolver over the fixture store, so the pool the
+# Owner approves and the resolution dispatch checks come from the same code.
+RESOLVED: dict = {}
 
 
 @pytest.fixture
@@ -52,8 +38,16 @@ def setup(tmp_path, monkeypatch):
     models.upsert_binding({"binding_id": "free", "name": "Free", "connection_id": "gateway",
                            "executor_id": "opencode", "model_id": "token-sensenova/glm-test", "enabled": True})
     db = TaskStore(str(tmp_path / "owner.sqlite"))
-    host = CombinedTrustedHost(task_store=db, store=models, vault=None)
-    monkeypatch.setattr(host, "_binding_resolver_factory", lambda _url: Resolver())
+    host = CombinedTrustedHost(task_store=db, store=models, vault=None,
+                               codex_readiness_probe=lambda: "managed_login_ready")
+
+    def no_http(_url):
+        raise AssertionError("the Owner pool must not call the model-control server")
+    monkeypatch.setattr(host, "_binding_resolver_factory", no_http)
+    resolver = BindingResolver(transport=owner_window._store_transport(models))
+    RESOLVED.clear()
+    RESOLVED.update({ref: resolver.resolve(ref, task_executor=executor)
+                     for ref, executor in (("pinned", "codex"), ("free", "opencode"))})
     monkeypatch.setattr(host, "_routing_bind_discovered", lambda: None)
     workspace = SimpleNamespace(repository="owner/repo", repo_dir=tmp_path.resolve())
     for module in (owner_window, goal_service):
@@ -122,6 +116,21 @@ class TestAdmission:
                          "pinned: codex gpt-test", "weekly paced", "Paid API:       excluded",
                          f"Type {code} to activate"):
             assert expected in text
+
+    def test_the_pool_is_read_from_the_store_under_the_lock_without_http(self, setup):
+        # The fixture's resolver factory raises if called; reaching the model-control
+        # server from inside the store lock would wait on that same lock (#1401 B1).
+        b = setup.planned("b", "opencode", "free")
+        window, shown = admit(setup.host, (b.id,))
+        assert window.confirmation_mode == OWNER_WINDOW_MODE
+        assert "free: opencode magpie/token-sensenova/glm-test" in shown[0][0]
+
+    def test_a_binding_the_resolver_rejects_is_not_offered(self, setup):
+        setup.host._store.set_codex_readiness("managed_login_unavailable")
+        a = setup.planned("a", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="owner_window_pinned_binding_outside_pool"):
+            admit(setup.host, (a.id,))
+        untouched(setup, a)
 
     def test_a_refusal_changes_nothing(self, setup):
         a = setup.planned("a", "codex", "pinned")
@@ -272,8 +281,7 @@ class TestDispatchPoolGuard:
 
     def test_a_binding_outside_the_pool_is_refused(self, task):
         setup, stored = task
-        swapped = replace(RESOLVED["free"]) if hasattr(RESOLVED["free"], "__dataclass_fields__") else \
-            SimpleNamespace(**{**vars(RESOLVED["free"]), "model_id": "something-else"})
+        swapped = replace(RESOLVED["free"], model_id="something-else")
         with pytest.raises(ExecutorRuntimeError, match="owner_window_binding_outside_confirmed_pool"):
             _require_owner_window_pool(setup.db, stored, swapped, stored.policy_ref)
 
