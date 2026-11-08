@@ -330,6 +330,73 @@ class TestCommandLine:
         assert owner_window.terminal_confirm("scope", "ABC123", stdin=Tty(typed), stdout=io.StringIO()) is expected
 
 
+class TestRoutePreview:
+    """Every task must launch on a pool binding; the Owner sees which, before confirming."""
+
+    def routed(self, setup, mode="agent_team", key="r"):
+        goals = setup.host._goal_service
+        goal = goals.create({"objective": "Routed work", "repository": "owner/repo", "idempotency_key": key,
+                             "executor_kind": "opencode", "binding_ref": "", "orchestration_mode": mode})
+        return goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+            {"id": "T", "title": "Routed task", "instruction": "Do it"}]).goal
+
+    def route_to(self, monkeypatch, setup, *answers):
+        calls = []
+
+        def route(item, *, goal=None, **kwargs):
+            answer = answers[min(len(calls), len(answers) - 1)]
+            calls.append(kwargs)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        monkeypatch.setattr(setup.host._goal_service, "task_resolver", route)
+        return calls
+
+    FREE = {"executor_kind": "opencode", "binding_ref": "free", "model_id": "token-sensenova/glm-test",
+            "reason": "fixture_route"}
+
+    def test_the_prompt_shows_each_tasks_expected_model(self, setup, monkeypatch):
+        calls = self.route_to(monkeypatch, setup, self.FREE)
+        a, pinned = self.routed(setup), setup.planned("p", "codex", "pinned")
+        _, shown = admit(setup.host, (a.id, pinned.id))
+        text = shown[0][0]
+        assert f"- {a.id} T: free (token-sensenova/glm-test, fixture_route)" in text
+        assert f"- {pinned.id} T0: pinned (gpt-test, pinned)" in text
+        assert calls and all(call.get("probe_availability") is False for call in calls)
+
+    def test_a_routed_single_goal_is_refused_before_the_owner_is_asked(self, setup):
+        # 2026-11-08: such a Goal launched with no binding, its task was refused at
+        # dispatch and the window went BLOCKED.
+        single = self.routed(setup, mode="single")
+        asked = []
+        with pytest.raises(TaskStoreError, match="routed_single_goal_gets_no_binding"):
+            admit(setup.host, (single.id,), confirm=lambda text, code: asked.append(code) or True)
+        assert asked == []
+        untouched(setup, single)
+
+    def test_a_task_routing_cannot_place_is_refused_before_the_owner_is_asked(self, setup, monkeypatch):
+        self.route_to(monkeypatch, setup, TaskStoreError("no_runnable_model"))
+        goal = self.routed(setup)
+        with pytest.raises(TaskStoreError, match="owner_window_task_unroutable:.*no_runnable_model"):
+            admit(setup.host, (goal.id,))
+        untouched(setup, goal)
+
+    def test_a_binding_outside_the_shown_pool_is_refused(self, setup, monkeypatch):
+        self.route_to(monkeypatch, setup, {**self.FREE, "binding_ref": "not-in-pool"})
+        goal = self.routed(setup)
+        with pytest.raises(TaskStoreError, match="not-in-pool_outside_pool"):
+            admit(setup.host, (goal.id,))
+        untouched(setup, goal)
+
+    def test_a_task_left_unbound_inside_the_transaction_rolls_everything_back(self, setup, monkeypatch):
+        # The preview routed fine, then quota moved: launch records no binding.
+        self.route_to(monkeypatch, setup, self.FREE, TaskStoreError("no_runnable_model"))
+        goal = self.routed(setup)
+        with pytest.raises(TaskStoreError, match=f"owner_window_task_unbound:{goal.id}:T"):
+            admit(setup.host, (goal.id,))
+        untouched(setup, goal)
+
+
 class TestRoutedGoals:
     def test_an_agent_team_goal_is_routed_inside_the_transaction(self, setup, monkeypatch):
         seen = []
