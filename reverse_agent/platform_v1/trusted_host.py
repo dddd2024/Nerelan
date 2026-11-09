@@ -652,17 +652,25 @@ class CombinedTrustedHost:
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
         availability_history = self._routing_availability_history()
+        paced_providers = set(weekly_pace_config(owner).get("providers", ()))
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
             cost_class = binding_cost_class(binding, connection, owner)
             quota = None if forecast else self._quota_check(binding)
+            # A gateway model naming a paced upstream ("claude/...") spends that account's
+            # weekly allowance, so it is paced against that account's own windows.
+            namespace = binding["model_id"].split("/", 1)[0] if "/" in binding["model_id"] else ""
+            paced_provider = namespace if not native and namespace in paced_providers else ""
             try:
                 # Headroom comes from this connection's own account, never the provider summary,
                 # and only while that observation is fresh now (persisted forecast evidence ages too).
                 account = connection.get("account_ref") or connection.get("connection_id")
-                quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
-                              if forecast else self._account_quota(connection)) if native else {}
+                if paced_provider:
+                    quota_view = {} if forecast else self._gateway_account_quota(paced_provider)
+                else:
+                    quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
+                                  if forecast else self._account_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
                 windows = ()
@@ -703,6 +711,7 @@ class CombinedTrustedHost:
                                "short_headroom": 1 - short_window["used_percent"] / 100 if type(short_window.get("used_percent")) in (int, float) else None,
                                "short_resets_at": short_reset,
                                "weekly_resets_at": reset_time(weekly_window),
+                               "paced_provider": paced_provider,
                                "cost_class": cost_class}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -1145,6 +1154,18 @@ class CombinedTrustedHost:
         local = [dict(own, account_ref=account)] if isinstance(own, Mapping) and not _external_quota(own) else []
         return local + [q for q in observed if not _external_quota(q)]
 
+    def _gateway_account_quota(self, provider: str) -> dict[str, Any]:
+        """The usable observation of the one Magpie account of ``provider``, or {}.
+
+        No account, or more than one (the gateway may use either), gives no headroom
+        claim; with ``require_fresh`` pacing then holds the model.
+        """
+        quotas = self._subscription_quotas()
+        refs = getattr(self, "_magpie_provider_accounts", {}).get(provider, ())
+        if len(refs) != 1:
+            return {}
+        return _usable_quota(refs[0], _account_observations(quotas, refs[0]))
+
     def _account_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
         """The usable observation of this connection's own account, or {} when there is none."""
         account = connection.get("account_ref") or connection.get("connection_id")
@@ -1334,6 +1355,12 @@ class CombinedTrustedHost:
         accounts = snapshot.get("accounts") if isinstance(snapshot, Mapping) else None
         if isinstance(accounts, list):
             refs = [a.get("account_ref") for a in accounts if isinstance(a, Mapping)]
+            providers: dict[str, list[str]] = {}
+            for item in accounts:
+                if (isinstance(item, Mapping) and isinstance(item.get("provider"), str)
+                        and isinstance(item.get("account_ref"), str) and item["account_ref"]):
+                    providers.setdefault(item["provider"], []).append(item["account_ref"])
+            self._magpie_provider_accounts = providers
             for ref, quota in magpie_account_quotas(snapshot).items():
                 if refs.count(ref) == 1:
                     merged[_MAGPIE_ACCOUNT_KEY + ref] = quota

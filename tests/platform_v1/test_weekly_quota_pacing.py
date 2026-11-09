@@ -373,3 +373,87 @@ class TestHostEnvironment:
         host = CombinedTrustedHost(task_store=store, vault=None)
         assert host._reset_signal_reader._within.total_seconds() == 24 * 3600
         store._conn.close()
+
+
+class TestGatewayAccounts:
+    """A Magpie model naming a paced upstream spends that account's week (2026-11-09)."""
+
+    def test_a_gateway_model_of_a_paced_provider_is_held(self):
+        row = paced(.479, .74, need=.03, executor="opencode", model="claude/claude-sonnet-5-5")
+        assert weekly_pace_hold(row, now=NOW, pace=PACE) is None  # not marked: unpaced, as before
+        row["paced_provider"] = "claude"
+        assert weekly_pace_hold(row, now=NOW, pace=PACE) is not None
+
+    def test_require_fresh_holds_a_gateway_model_with_no_account_reading(self):
+        row = paced(.5, .1, executor="opencode", model="codex/gpt-6.1-sol")
+        row.update(paced_provider="codex", weekly_headroom=None)
+        assert weekly_pace_hold(row, now=NOW, pace={**PACE, "require_fresh": True}) is not None
+
+    def test_other_providers_are_not_paced(self):
+        row = paced(.479, .74, executor="opencode", model="trae-cn/doubao")
+        row["paced_provider"] = "trae-cn"
+        assert weekly_pace_hold(row, now=NOW, pace=PACE) is None
+
+    def test_providers_are_an_owner_knob(self, tmp_path):
+        state = tmp_path / "model_setup_state.json"
+        (tmp_path / "model_routing_overrides.json").write_text(
+            json.dumps({"weekly_pace": {"providers": ["claude"]}}), encoding="utf-8")
+        assert weekly_pace_config(read_overrides(state))["providers"] == ["claude"]
+        (tmp_path / "model_routing_overrides.json").write_text(
+            json.dumps({"weekly_pace": {"providers": "claude"}}), encoding="utf-8")
+        with pytest.raises(ValueError, match="invalid_model_routing_overrides"):
+            read_overrides(state)
+
+    @staticmethod
+    def gateway_host(monkeypatch, accounts, model="claude/claude-sonnet-5-5"):
+        from types import SimpleNamespace
+        from tests.platform_v1 import test_magpie_account_quota_wiring as wiring
+        h = wiring._accounts_host(monkeypatch, wiring._snapshot(*accounts), {})
+        gateway = {"connection_id": "magpie", "auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"}
+        binding = {"binding_id": "magpie-model", "connection_id": "magpie", "executor_id": "opencode",
+                   "model_id": model, "enabled": True}
+        h.host._store = SimpleNamespace(list_bindings_public=lambda: [binding],
+                                        list_connections_public=lambda: [gateway],
+                                        get_connection_public=lambda conn: gateway,
+                                        list_executors_public=lambda: [],
+                                        get_agent_roster_public=lambda: {"roles": {}})
+        monkeypatch.setattr(h.host, "_runnable_bindings", lambda: {"magpie-model"})
+        for name, value in (("_routing_refresh_quota_for_signal", lambda: {"state": "UNKNOWN"}),
+                            ("_routing_bind_discovered", lambda: None), ("_usage_profiles", lambda: {}),
+                            ("_routing_model_metadata", lambda: {}), ("_routing_paid_allowed", lambda *a: False),
+                            ("_routing_availability_history", lambda: {}),
+                            ("_routing_probe_window_allowed", lambda goal: False),
+                            ("_routing_availability", lambda *a, **k: {"state": "AVAILABLE", "reason": "fixture"})):
+            monkeypatch.setattr(h.host, name, value)
+        return wiring, h
+
+    def test_the_host_paces_a_magpie_claude_model_against_the_claude_account(self, monkeypatch):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        claude = w._account("claude-acct", 10.0, weekly=95.0, provider="claude")
+        wiring, h = self.gateway_host(monkeypatch, [claude])
+        with pytest.raises(wiring.TaskStoreError) as caught:
+            wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=3))
+        assert [row["filter"] for row in caught.value.decision["excluded_candidates"]] == ["weekly_pace"]
+
+    def test_the_host_routes_a_magpie_claude_model_with_room(self, monkeypatch):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        claude = w._account("claude-acct", 10.0, weekly=5.0, provider="claude")
+        wiring, h = self.gateway_host(monkeypatch, [claude])
+        real, seen = wiring.model_router.select_model, []
+
+        def spy(candidates, **kwargs):
+            seen.append(candidates)
+            return real(candidates, **kwargs)
+        monkeypatch.setattr(wiring.model_router, "select_model", spy)
+        decision = wiring.CombinedTrustedHost._resolve_task_model(
+            h.host, wiring.PlannedTask("T1", "t", "i", difficulty=2))
+        assert decision["binding_ref"] == "magpie-model"
+        chosen = next(c for c in seen[-1] if c["binding_id"] == "magpie-model")
+        assert chosen["paced_provider"] == "claude" and chosen["weekly_headroom"] == pytest.approx(.95)
+
+    def test_two_accounts_of_one_provider_give_no_headroom_claim(self, monkeypatch):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        accounts = [w._account("claude-a", 10.0, weekly=5.0, provider="claude"),
+                    w._account("claude-b", 10.0, weekly=5.0, provider="claude")]
+        wiring, h = self.gateway_host(monkeypatch, accounts)
+        assert h.host._gateway_account_quota("claude") == {}
