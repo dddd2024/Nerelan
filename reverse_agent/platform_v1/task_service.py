@@ -335,6 +335,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     context_recovery: Any | None = None
     agent_policy: Any | None = None
     owner_window_preflight: Any | None = None
+    owner_window_activate: Any | None = None
     quick_start: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
@@ -764,6 +765,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     raise TaskStoreError("quick_start_request_invalid")
                 self._send_json(HTTPStatus.CREATED, self.quick_start.draft(
                     payload.get("text", ""), payload.get("repository", ""), preset=payload.get("preset", "")))
+                return
+            if segments == ["api", "owner-window", "activate"]:
+                # Owner decision 2026-11-09: Start on the confirmation card activates. The
+                # local client session authenticates; the card digest pins what was shown.
+                if self.owner_window_activate is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_activation_unavailable")
+                payload = self._read_json()
+                card_digest = payload.pop("card_digest", None) if isinstance(payload, dict) else None
+                request = owner_window_request(payload)
+                window = self.owner_window_activate(request.pop("goal_ids"), card_digest=card_digest, **request)
+                self._send_json(HTTPStatus.CREATED, window_to_dict(window))
                 return
             if segments == ["api", "owner-window", "preflight"]:
                 # Read-only report for the confirmation card; it authorizes nothing.
@@ -1364,6 +1377,7 @@ def _handler_factory(
     context_recovery: Any | None = None,
     agent_policy: Any | None = None,
     owner_window_preflight: Callable | None = None,
+    owner_window_activate: Callable | None = None,
     quick_start: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
@@ -1407,6 +1421,9 @@ def _handler_factory(
     ConfiguredHandler.context_recovery = context_recovery
     ConfiguredHandler.agent_policy = agent_policy
     ConfiguredHandler.quick_start = quick_start
+    ConfiguredHandler.owner_window_activate = (
+        _CallableWrapper(owner_window_activate) if owner_window_activate else None
+    )
     ConfiguredHandler.owner_window_preflight = (
         _CallableWrapper(owner_window_preflight) if owner_window_preflight else None
     )
