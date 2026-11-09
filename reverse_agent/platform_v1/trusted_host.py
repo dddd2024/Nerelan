@@ -1527,6 +1527,7 @@ class CombinedTrustedHost:
                 agent_planner=self._agent_planner(),
                 context_recovery=self._context_recovery(),
                 agent_policy=self._agent_policy(),
+                owner_window_preflight=self._owner_window_admission.preflight,
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,

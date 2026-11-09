@@ -243,6 +243,97 @@ class OwnerWindowAdmission:
 
     # --- activation -------------------------------------------------------------
 
+    def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
+                 max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
+                 max_cost_micro_units: int = 0) -> tuple[tuple[str, ...], dict[str, Any]]:
+        """Validate the request and fix the envelope; binds discovered models first."""
+        host = self._host
+        goal_ids = tuple(goal_ids)
+        if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
+                or any(not isinstance(g, str) or not _GOAL_ID.fullmatch(g) for g in goal_ids)):
+            raise TaskStoreError("owner_window_goals_invalid")
+        if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+            raise TaskStoreError("owner_window_duration_invalid")
+        capabilities = tuple(dict.fromkeys(capabilities))
+        if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
+            raise TaskStoreError("owner_window_capabilities_invalid")
+        # Discovered models bind now, so routing inside the transaction cannot
+        # pick a binding the Owner was never shown.
+        host._routing_bind_discovered()
+        # The model-control routes refresh OpenCode login sessions on read; the pool
+        # reads the store directly under the lock, so refresh once here, before it.
+        host._refresh_external_session_auth(False, None)
+        now = datetime.now(timezone.utc)
+        # Times are fixed before the prompt; reading time spends the window.
+        envelope = {"window_id": "owner-" + secrets.token_hex(16),
+                    "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                    "owner_identity": f"os-user:{getpass.getuser()}",
+                    "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
+                    "repositories": [], "capabilities": list(capabilities),
+                    "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
+                    "max_retries": max_retries, "max_token_units": max_token_units,
+                    "max_cost_micro_units": max_cost_micro_units,
+                    "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
+        return goal_ids, envelope
+
+    def preflight(self, goal_ids: Sequence[str], **request: Any) -> dict[str, Any]:
+        """Everything that would refuse activation or block the window, reported, not raised.
+
+        Changes nothing beyond what admission does first anyway (binding discovered
+        models, refreshing login sessions, routing). Authorizes nothing: no window,
+        no approval, no receipt.
+        """
+        checks: list[dict[str, Any]] = []
+
+        def add(check: str, reason: str = "", detail: str = "") -> None:
+            checks.append({"check": check, "ok": not reason, "reason": reason, "detail": detail})
+
+        result: dict[str, Any] = {"ok": False, "checks": checks, "preview": [], "scope": None}
+        try:
+            goal_ids, envelope = self._prepare(goal_ids, **request)
+        except TaskStoreError as exc:
+            add("request", str(exc))
+            return result
+        host = self._host
+        control = host._control_store
+        scope = None
+        with host._task_store._lock, host._store._lock:
+            held = control._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE status = 'ACTIVE'").fetchone()[0]
+            add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
+                f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
+            if held:
+                add("goals", "skipped_while_claims_hold")
+            else:
+                try:
+                    envelope["repositories"] = [control.get_goal(goal_ids[0]).repository]
+                    scope = json.loads(canonical_json(self._scope(goal_ids, envelope)))
+                except TaskStoreError as exc:
+                    add("goals", str(exc))
+        if scope is not None:
+            tasks = sum(len(goal["tasks"]) for goal in scope["goals"])
+            add("goals", "", f"{len(scope['goals'])} goals, {tasks} tasks in {scope['repository']}")
+            add("model_pool", "" if scope["approved_pool"] else "owner_window_pool_empty",
+                f"{len(scope['approved_pool'])} bindings offered, {len(scope['pool_skipped'])} not offered")
+            try:
+                result["preview"] = self._route_preview(scope)
+                add("routing", "", f"{len(result['preview'])} tasks placed")
+            except TaskStoreError as exc:
+                add("routing", str(exc))
+            env = scope["envelope"]
+            result["scope"] = {
+                "repository": scope["repository"], "base_sha": scope["base_sha"],
+                "goals": [{"id": goal["id"], "objective": goal["objective"], "mode": goal["orchestration_mode"],
+                           "tasks": [{"id": task.get("id"), "title": task.get("title")} for task in goal["tasks"]]}
+                          for goal in scope["goals"]],
+                "pool": scope["pool_display"], "pool_skipped": scope["pool_skipped"],
+                "envelope": {key: env[key] for key in (
+                    "starts_at", "expires_at", "capabilities", "max_tasks", "max_concurrent_tasks",
+                    "max_retries", "max_token_units", "max_cost_micro_units")},
+                "paid_api": scope["paid_api"]}
+        result["ok"] = all(check["ok"] for check in checks)
+        return result
+
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[[str, str], bool],
               max_token_units: int = 0, max_cost_micro_units: int = 0) -> Any:
@@ -250,33 +341,11 @@ class OwnerWindowAdmission:
             raise TaskStoreError("owner_window_admission_in_progress")
         try:
             host = self._host
-            goal_ids = tuple(goal_ids)
-            if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
-                    or any(not _GOAL_ID.fullmatch(g) for g in goal_ids)):
-                raise TaskStoreError("owner_window_goals_invalid")
-            if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
-                raise TaskStoreError("owner_window_duration_invalid")
-            capabilities = tuple(dict.fromkeys(capabilities))
-            if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
-                raise TaskStoreError("owner_window_capabilities_invalid")
-            # Discovered models bind now, so routing inside the transaction cannot
-            # pick a binding the Owner was never shown.
-            host._routing_bind_discovered()
-            # The model-control routes refresh OpenCode login sessions on read; the pool
-            # reads the store directly under the lock, so refresh once here, before it.
-            host._refresh_external_session_auth(False, None)
-            now = datetime.now(timezone.utc)
+            goal_ids, envelope = self._prepare(
+                goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
+                max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
+                max_cost_micro_units=max_cost_micro_units)
             deadline = time.monotonic() + CONFIRM_SECONDS
-            # Times are fixed before the prompt; reading time spends the window.
-            envelope = {"window_id": "owner-" + secrets.token_hex(16),
-                        "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
-                        "owner_identity": f"os-user:{getpass.getuser()}",
-                        "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
-                        "repositories": [], "capabilities": list(capabilities),
-                        "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
-                        "max_retries": max_retries, "max_token_units": max_token_units,
-                        "max_cost_micro_units": max_cost_micro_units,
-                        "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_ids[0])
                 envelope["repositories"] = [goal.repository]
