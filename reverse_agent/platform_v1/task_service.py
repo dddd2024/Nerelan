@@ -335,6 +335,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     context_recovery: Any | None = None
     agent_policy: Any | None = None
     owner_window_preflight: Any | None = None
+    quick_start: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
@@ -752,6 +753,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._discard_bounded_request_body()
                     self._send_json(HTTPStatus.OK, self.agent_policy.apply(segments[3]))
                     return
+            if segments == ["api", "quick-start", "draft"]:
+                # Creates and plans Goals only; activation still needs the Owner's confirmation.
+                if self.quick_start is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("quick_start_unavailable")
+                payload = self._read_json()
+                if not isinstance(payload, dict) or not all(
+                        isinstance(payload.get(key, ""), str) for key in ("text", "repository", "preset")):
+                    raise TaskStoreError("quick_start_request_invalid")
+                self._send_json(HTTPStatus.CREATED, self.quick_start.draft(
+                    payload.get("text", ""), payload.get("repository", ""), preset=payload.get("preset", "")))
+                return
             if segments == ["api", "owner-window", "preflight"]:
                 # Read-only report for the confirmation card; it authorizes nothing.
                 if self.owner_window_preflight is None:
@@ -1350,6 +1363,7 @@ def _handler_factory(
     context_recovery: Any | None = None,
     agent_policy: Any | None = None,
     owner_window_preflight: Callable | None = None,
+    quick_start: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
@@ -1391,6 +1405,7 @@ def _handler_factory(
     ConfiguredHandler.agent_planner = agent_planner
     ConfiguredHandler.context_recovery = context_recovery
     ConfiguredHandler.agent_policy = agent_policy
+    ConfiguredHandler.quick_start = quick_start
     ConfiguredHandler.owner_window_preflight = (
         _CallableWrapper(owner_window_preflight) if owner_window_preflight else None
     )
