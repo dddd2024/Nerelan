@@ -277,9 +277,12 @@ class TaskExecutionService:
                 },
             )
         else:
+            # Provider detail follows the trusted executor prefix; its
+            # arbitrary text must not override the typed failure class.
             classification = (
                 "blocked"
                 if "unapproved" in exec_result.get("error", "")
+                and not exec_result.get("error", "").startswith("opencode_nonzero:exit=")
                 else exec_result.get("failure_classification", "failed")
             )
             if classification == "":
