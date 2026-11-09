@@ -241,6 +241,13 @@ def binding(model, connection_id='c'):
     ('glm-5.2', {'executor_provider_id': 'sensetime', 'auth_method': 'api_key'}, 'free'),
     ('plain-model', {'auth_method': 'external_cli_session'}, 'subscription'),
     ('local-model', {'auth_method': 'none'}, 'free'),
+    ('qwen3:8b', {'auth_method': 'none'}, 'free'),
+    # A keyless gateway (Magpie) forwards to upstream accounts: unlisted namespaces are paid.
+    ('openrouter/openai/gpt-6.1-terra-pro', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'none'}, 'paid_api'),
+    ('raccoon/some-model', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'none'}, 'paid_api'),
+    ('openrouter/x/model:free', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'none'}, 'free'),
+    ('trae-cn/Doubao-Seed-2.1-Turbo', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'none'}, 'subscription'),
+    ('token-sensenova/glm-5.2', {'base_url': 'http://127.0.0.1:3425/v1', 'auth_method': 'none'}, 'free'),
     ('api-key-model', {'auth_method': 'api_key'}, 'paid_api'),
 ])
 def test_gateway_cost_class_mapping(model, connection, expected):
