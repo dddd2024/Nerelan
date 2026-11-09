@@ -30,6 +30,7 @@ import threading
 import time
 from typing import Any, Mapping
 
+from ..model_access.exclusive_server import ExclusiveThreadingHTTPServer
 from ..model_access.contracts import NATIVE_CLI_PROVIDERS, ExecutionSnapshot
 from ..model_access.credential_relay import (
     CredentialRelayManager,
@@ -1464,7 +1465,7 @@ class CombinedTrustedHost:
                 quota_guard_log=self._quota_guard_entries,
                 claude_reset_status=self._claude_reset_status,
             )
-            self._model_server = ThreadingHTTPServer(
+            self._model_server = ExclusiveThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
             )
             actual_mc_port = self._model_server.server_address[1]
@@ -1543,7 +1544,7 @@ class CombinedTrustedHost:
                 magpie_status=self._magpie.status,
                 pool_monitor=self._pool_monitor,
             )
-            self._task_server = ThreadingHTTPServer(
+            self._task_server = ExclusiveThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
             )
             self._task_server.daemon_threads = True
