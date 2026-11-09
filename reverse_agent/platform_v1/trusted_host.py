@@ -392,6 +392,12 @@ class CombinedTrustedHost:
         """
         return self._native_goal_admission.admit(goal_id, unknown_claims_sha256=unknown_claims_sha256)
 
+    def _quick_start(self) -> Any:
+        """One sentence -> planned Goals; presets live beside the task store."""
+        from .quick_start import QuickStart
+        state_path = getattr(self._store, "_state_path", None)
+        return QuickStart(self._goal_service, state_dir=Path(state_path).parent if state_path else None)
+
     def _owner_admit_window(self, **request: Any):
         """Owner-confirmed window over exact Goals. Terminal entry only; never on a router."""
         return self._owner_window_admission.admit(request.pop("goal_ids"), **request)
@@ -1527,6 +1533,8 @@ class CombinedTrustedHost:
                 agent_planner=self._agent_planner(),
                 context_recovery=self._context_recovery(),
                 agent_policy=self._agent_policy(),
+                owner_window_preflight=self._owner_window_admission.preflight,
+                quick_start=self._quick_start(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,
