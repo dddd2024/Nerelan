@@ -2510,8 +2510,26 @@ class PlatformControlStore:
                 ]
                 if count_completion:
                     assignments.append("tasks_completed = tasks_completed + 1")
-                if usage_unknown and (token_enforced or cost_enforced
-                                      or window["enforcement_class"] != "POST_RUN_OBSERVED"):
+                # Owner decision 2026-11-08: in an Owner window an attempt with unknown usage
+                # (a timeout, a lost usage report) is charged its whole reservation, or its
+                # partial readings when they say more, and the window goes on. Usage stays
+                # UNKNOWN and the reservation is not released; only a charge that reaches the
+                # Owner's cap stops the window.
+                owner_charge = usage_unknown and window["confirmation_mode"] == OWNER_WINDOW_MODE
+                if owner_charge:
+                    partial_tokens = sum(int(observation[key] or 0) for observation in observations for key in (
+                        "input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units"))
+                    partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
+                    values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
+                    values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
+                    reached = ((token_enforced and int(window["observed_token_units"]) + values[0]
+                                >= int(window["max_token_units"]))
+                               or (cost_enforced and int(window["observed_cost_micro_units"]) + values[1]
+                                   >= int(window["max_cost_micro_units"])))
+                    if reached:
+                        assignments.extend(["status = 'BLOCKED'", "stop_reason = 'usage_unknown_budget_reached'"])
+                elif usage_unknown and (token_enforced or cost_enforced
+                                        or window["enforcement_class"] != "POST_RUN_OBSERVED"):
                     # Unknown usage cannot be checked against a budget, and a hard-admission window
                     # (including zero-budget delegated windows) admits no unexpected model work, so
                     # either stops. Only a POST_RUN_OBSERVED window (no budget; account CLIs never
@@ -2591,8 +2609,9 @@ class PlatformControlStore:
                 "SELECT COALESCE(SUM(reserved_token_units), 0) AS token_units, "
                 "COALESCE(SUM(reserved_cost_micro_units), 0) AS cost_units, "
                 "SUM(CASE WHEN state='ACTIVE' THEN 1 ELSE 0 END) AS reservation_count FROM platform_budget_reservations "
-                "WHERE window_id = ? AND state IN ('ACTIVE', 'UNKNOWN')",
-                (window_id,),
+                "WHERE window_id = ? AND (state = 'ACTIVE' OR (state = 'UNKNOWN' AND ?))",
+                # An Owner window has already charged its UNKNOWN reservations as usage.
+                (window_id, window.confirmation_mode != OWNER_WINDOW_MODE),
             ).fetchone()
         reserved_tokens = int(active["token_units"])
         reserved_cost = int(active["cost_units"])
