@@ -50,8 +50,12 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 
 - 识别 Issue 链接和 `#编号`（只认本仓库），用已登录的 `gh` 读取标题和正文；Issue 必须是 OPEN。没有 Issue 时，
   整句话作为一个目标。
-- 每个 Issue 一个 `agent_team` 目标，不钉死绑定，一个 `implement` 任务，确定性规划，保证启动时按池选路。
+- 每个 Issue 一个 `agent_team` 目标，不钉死绑定，确定性规划，保证启动时按池选路。
   同一句话、同一份 Issue 文本得到同一个目标；已被窗口用过的目标不复用，下一次另建。
+- Issue 正文点名了测试（`tests/....py`，或前端的 `npm test`）时，目标是两个任务：`implement`（带这些功能检查）
+  和 `review`（以实现结果为输入、重跑同样的检查、不改文件）。评审由选路分到与作者不同家族的模型；实现通过检查后，
+  宿主自动把结果开成 Draft PR，评审结论由 landing 流程记录。没有点名测试的 Issue 只有一个 `implement` 任务，
+  不会自动开 PR，成稿结果里 `publishes_draft_pr` 为 false。
 - 根据"试跑 / 一天 / 一周"等字样选预设，默认"一天"，返回对应的窗口参数，供预检和确认使用。
 
 | 预设 | 时长 | 并发 | 重试 | Token 上限 |

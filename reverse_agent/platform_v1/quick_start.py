@@ -42,6 +42,11 @@ _PRESET_KEYS = ("hours", "max_concurrent", "max_retries", "max_token_units")
 _ISSUE_URL = re.compile(r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/issues/(\d{1,7})\b")
 _ISSUE_NUMBER = re.compile(r"(?<![\w/&])#(\d{1,7})\b")
 _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
+# Test files an issue names: the functional checks the implementation must pass and
+# the review reruns. pytest targets are capped like functional_validation's.
+_PYTEST_TARGET = re.compile(r"(?<![\w/.-])(tests/[A-Za-z0-9_./-]+\.py)\b")
+_FRONTEND_TESTS = re.compile(r"npm (?:--prefix frontend )?test|vitest|frontend/tests?/", re.I)
+MAX_TARGETS = 16
 _PRESET_HINTS = (
     ("week", re.compile(r"一周|7\s*天|七天|week", re.I)),
     ("trial", re.compile(r"试跑|试一下|两小时|2\s*小时|trial", re.I)),
@@ -122,6 +127,38 @@ def gh_issue_reader(repository: str, number: int) -> dict[str, Any]:
             "body": str(raw.get("body", "")), "state": str(raw.get("state", "")), "url": str(raw.get("url", ""))}
 
 
+def checks_from_text(text: str) -> list[dict[str, Any]]:
+    """Functional checks an issue names: its pytest files, and the frontend suite if it asks."""
+    targets = list(dict.fromkeys(_PYTEST_TARGET.findall(text or "")))[:MAX_TARGETS]
+    checks: list[dict[str, Any]] = []
+    if targets:
+        checks.append({"profile_id": "python_pytest", "working_directory": ".", "targets": targets})
+    if _FRONTEND_TESTS.search(text or ""):
+        checks.append({"profile_id": "npm_test", "working_directory": "frontend"})
+    return checks
+
+
+def team_tasks(label: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Implement, then an independent review of that result, when there are checks to run.
+
+    The review takes the implementation as its artifact input, so the router gives
+    it a model of another family, the host publishes the validated result as a
+    Draft PR and the landing loop records the review. Without checks there is
+    nothing to hand over or rerun, so the Goal stays one implementation task.
+    """
+    implement = {"id": "implement", "title": f"Implement {label}",
+                 "instruction": "Follow the Goal objective and its scope rules.", "kind": "code", "difficulty": 3}
+    if not checks:
+        return [implement]
+    implement["validation_checks"] = checks
+    review = {"id": "review", "title": f"Review {label}", "kind": "review", "agent_role": "reviewer",
+              "difficulty": 3, "dependencies": ["implement"], "artifact_input": {"plan_task_id": "implement"},
+              "validation_checks": checks,
+              "instruction": ("Review the implementation against the Goal objective: correctness, the "
+                              "tests it names, and the scope rules. Do not modify files.")}
+    return [implement, review]
+
+
 class QuickStart:
     """Creates and plans the Goals one sentence asks for. Creates no window."""
 
@@ -141,7 +178,9 @@ class QuickStart:
             self._text_spec(request["text"])]
         goals = [self._planned(repository, spec) for spec in specs]
         tasks = sum(len(goal.tasks) for goal in goals)
-        return {"goals": [{"id": goal.id, "title": goal.title, "status": goal.status, "tasks": list(goal.tasks)}
+        return {"goals": [{"id": goal.id, "title": goal.title, "status": goal.status, "tasks": list(goal.tasks),
+                           # Only a Goal with a review is published as a Draft PR by the host.
+                           "publishes_draft_pr": any(t.get("kind") == "review" for t in goal.tasks)}
                           for goal in goals],
                 "preset": chosen, "presets": options,
                 "request": window_request(options[chosen], [goal.id for goal in goals], tasks=tasks)}
@@ -154,7 +193,8 @@ class QuickStart:
         title = f"#{number} {issue.get('title', '')}".strip()
         body = str(issue.get("body", ""))[:MAX_ISSUE_BODY_CHARS]
         return {"key": f"issue-{number}", "title": title[:200], "subject": url,
-                "objective": f"Resolve {url}\n\n# {issue.get('title', '')}\n\n{body}".strip()}
+                "objective": f"Resolve {url}\n\n# {issue.get('title', '')}\n\n{body}".strip(),
+                "checks": checks_from_text(body)}
 
     @staticmethod
     def _text_spec(text: str) -> dict[str, str]:
@@ -179,6 +219,4 @@ class QuickStart:
         label = spec["title"].split(" ", 1)[0] if spec["key"].startswith("issue-") else "the request"
         return self._goals.plan(goal.id, expected_revision=goal.revision,
                                 acceptance_criteria=[line.format(subject=spec["subject"]) for line in ACCEPTANCE],
-                                tasks=[{"id": "implement", "title": f"Implement {label}",
-                                        "instruction": "Follow the Goal objective and its scope rules.",
-                                        "kind": "code", "difficulty": 3}]).goal
+                                tasks=team_tasks(label, spec.get("checks") or [])).goal

@@ -146,3 +146,57 @@ def test_the_gh_reader_parses_the_cli_output(monkeypatch):
     monkeypatch.setattr(quick_start.subprocess, "run", lambda args, **kw: seen.append(args) or Done())
     assert quick_start.gh_issue_reader(REPO, 5) == {"number": 5, "title": "T", "body": "B", "state": "OPEN", "url": "u"}
     assert seen[0][:4] == ["gh", "issue", "view", "5"] and "--repo" in seen[0]
+
+
+class TestTeamTemplate:
+    """An issue that names its tests becomes implement + independent review (2026-11-09)."""
+
+    def test_checks_come_from_the_tests_an_issue_names(self):
+        from reverse_agent.platform_v1.quick_start import checks_from_text
+        text = ("Run `python -m pytest -q tests/platform_v1/test_window_report.py tests/platform_v1/test_task_service.py` "
+                "and also tests/platform_v1/test_window_report.py again; see docs/tests/x.py")
+        assert checks_from_text(text) == [{"profile_id": "python_pytest", "working_directory": ".", "targets": [
+            "tests/platform_v1/test_window_report.py", "tests/platform_v1/test_task_service.py"]}]
+        assert checks_from_text("Run `npm test` and `npm run build` in `frontend/`.") == [
+            {"profile_id": "npm_test", "working_directory": "frontend"}]
+        assert checks_from_text("No tests named here.") == []
+
+    def test_an_issue_naming_tests_gets_an_implementation_and_a_review(self, setup):
+        def reader(repository, number):
+            return {"number": number, "title": "Fix it", "state": "OPEN", "url": f"https://github.com/{repository}/issues/{number}",
+                    "body": "Run `python -m pytest -q tests/platform_v1/test_window_report.py`."}
+        result = QuickStart(setup.host._goal_service, issue_reader=reader).draft("fix #5", REPO)
+        goal = setup.host._control_store.get_goal(result["goals"][0]["id"])
+        implement, review = goal.tasks
+        assert (implement["id"], review["id"]) == ("implement", "review")
+        assert review["kind"] == "review" and review["artifact_input"] == {"plan_task_id": "implement"}
+        assert review["dependencies"] == ["implement"]
+        targets = [check.get("targets") for check in implement["validation_checks"]]
+        assert targets == [["tests/platform_v1/test_window_report.py"]]
+        assert review["validation_checks"] == implement["validation_checks"]
+        assert result["goals"][0]["publishes_draft_pr"] is True
+
+    def test_an_issue_without_tests_stays_one_task_and_says_it_will_not_publish(self, setup):
+        reader, _ = issues()
+        result = QuickStart(setup.host._goal_service, issue_reader=reader).draft("fix #1", REPO)
+        assert [task["id"] for task in result["goals"][0]["tasks"]] == ["implement"]
+        assert result["goals"][0]["publishes_draft_pr"] is False
+
+    def test_a_team_goal_passes_preflight_with_an_independent_reviewer(self, setup, monkeypatch):
+        free = {"executor_kind": "opencode", "binding_ref": "free", "model_id": "token-sensenova/glm-test",
+                "reason": "fixture_route"}
+
+        def route(item, *, author_models=(), author_bindings=(), **_):
+            if item.kind == "review" and not (author_models or author_bindings):
+                raise TaskStoreError("review_not_independent")
+            return dict(free)
+        monkeypatch.setattr(setup.host._goal_service, "task_resolver", route)
+
+        def reader(repository, number):
+            return {"number": number, "title": "Fix it", "state": "OPEN", "url": "u",
+                    "body": "Run tests/platform_v1/test_window_report.py"}
+        result = QuickStart(setup.host._goal_service, issue_reader=reader).draft("fix #6 试跑", REPO)
+        request = dict(result["request"])
+        report = setup.host._owner_window_admission.preflight(request.pop("goal_ids"), **request)
+        assert report["ok"] is True, report["checks"]
+        assert len(report["preview"]) == 2
