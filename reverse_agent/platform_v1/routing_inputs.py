@@ -166,7 +166,10 @@ def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any]
         return GATEWAY_COST_CLASSES[namespace]
     if _is_sensenova_gateway(connection):
         return "free"
-    if connection.get("auth_method") == "none":
+    if connection.get("auth_method") == "none" and "/" not in model:
+        # A keyless local model (Ollama-style id). A keyless *gateway* such as Magpie
+        # forwards "upstream/model" ids to accounts that may bill per token, so an
+        # unlisted upstream namespace stays paid until the Owner classifies it.
         return "free"
     return "paid_api"
 

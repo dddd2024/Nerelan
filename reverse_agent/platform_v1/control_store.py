@@ -2315,6 +2315,32 @@ class PlatformControlStore:
             for event in self.task_store.get_events(task_id))
         return executor and validation and host_event and bool(task.validation_output_digest)
 
+    @staticmethod
+    def _task_route_is_free(cur: Any, task_id: str) -> bool:
+        """True only when the routing record says this task's current binding is free.
+
+        Reads the task's latest MODEL_SELECTED decision for its current binding. No
+        record, a pinned binding without one, or any other cost class counts as not
+        free, so the cap is charged.
+        """
+        task = cur.execute("SELECT binding_ref FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        binding = str(task["binding_ref"] or "") if task else ""
+        if not binding:
+            return False
+        for row in cur.execute("SELECT metadata FROM task_events WHERE task_id = ? AND type = 'MODEL_SELECTED' "
+                               "ORDER BY seq DESC", (task_id,)).fetchall():
+            try:
+                decision = json.loads(row["metadata"] or "{}")
+            except ValueError:
+                return False
+            if not isinstance(decision, dict) or decision.get("binding_ref") != binding:
+                continue
+            for candidate in decision.get("candidates") or ():
+                if isinstance(candidate, dict) and candidate.get("binding_id") == binding:
+                    return candidate.get("cost_class") == "free"
+            return False
+        return False
+
     def _finalize_task_claim(
         self,
         *,
@@ -2510,13 +2536,21 @@ class PlatformControlStore:
                 ]
                 if count_completion:
                     assignments.append("tasks_completed = tasks_completed + 1")
+                owner_window = window["confirmation_mode"] == OWNER_WINDOW_MODE
+                # Owner decision 2026-11-09: in an Owner window a free model's usage does not
+                # count toward the Owner's token or cost cap (only Claude and Codex are paid).
+                # The observation and the reservation state stay as recorded; only the window
+                # charge is zero, so neither an overrun nor unknown usage stops the window.
+                free_route = owner_window and self._task_route_is_free(cur, task_id)
                 # Owner decision 2026-11-08: in an Owner window an attempt with unknown usage
                 # (a timeout, a lost usage report) is charged its whole reservation, or its
                 # partial readings when they say more, and the window goes on. Usage stays
                 # UNKNOWN and the reservation is not released; only a charge that reaches the
                 # Owner's cap stops the window.
-                owner_charge = usage_unknown and window["confirmation_mode"] == OWNER_WINDOW_MODE
-                if owner_charge:
+                owner_charge = usage_unknown and owner_window
+                if free_route:
+                    values[0] = values[1] = 0
+                elif owner_charge:
                     partial_tokens = sum(int(observation[key] or 0) for observation in observations for key in (
                         "input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units"))
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
@@ -2537,6 +2571,14 @@ class PlatformControlStore:
                     assignments.extend(
                         ["status = 'BLOCKED'", "stop_reason = 'usage_unknown'", "enforcement_class = 'USAGE_UNKNOWN'"]
                     )
+                elif overrun and owner_window:
+                    # Owner decision 2026-11-09: an Owner window charges what the attempt
+                    # actually used and goes on; it stops only when the total reaches a cap.
+                    if ((token_enforced and int(window["observed_token_units"]) + values[0]
+                         >= int(window["max_token_units"]))
+                            or (cost_enforced and int(window["observed_cost_micro_units"]) + values[1]
+                                >= int(window["max_cost_micro_units"]))):
+                        assignments.extend(["status = 'BLOCKED'", "stop_reason = 'usage_budget_reached'"])
                 elif overrun:
                     assignments.extend(
                         ["status = 'BLOCKED'", "stop_reason = 'usage_reservation_overrun'"]

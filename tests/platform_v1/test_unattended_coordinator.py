@@ -1277,6 +1277,81 @@ def test_a_charge_that_reaches_the_cap_stops_the_owner_window():
     assert stopped.observed_token_units == 1_050_000
 
 
+def _owner_window_attempt(max_tokens, reservation, units, *, status="OBSERVED", cost_class=None, already=0):
+    """An Owner window whose one attempt reported ``units`` tokens; optionally routed with a cost class."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="owner-attempt", max_tokens=max_tokens, reservation=reservation)
+    task = store.create_task(title="attempt", executor_kind="opencode", binding_ref="coding-glm")
+    if cost_class is not None:
+        store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected", description="routed",
+                        metadata={"binding_ref": "coding-glm", "reason": "cheapest_qualifying",
+                                  "candidates": [{"binding_id": "coding-glm", "cost_class": cost_class},
+                                                 {"binding_id": "other", "cost_class": "subscription"}]})
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', "
+                          "enforcement_class='HARD_ADMISSION_ENFORCED', observed_token_units=? WHERE id=?",
+                          (already, window.id))
+    control._conn.commit()
+    store.append_usage_observation(task.id, observation_id="usage-1", execution_id="exec-1",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status=status, input_units=units, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    row = control._conn.execute(
+        "SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+    return control, window, row
+
+
+def test_an_owner_window_overrun_is_charged_in_full_and_the_window_continues():
+    # Owner decision 2026-11-09: 936k tokens against a 0 reservation stopped batch 1.
+    control, window, reservation = _owner_window_attempt(20_000_000, 100_000, 936_532)
+    after = control.get_window(window.id)
+    assert (after.status, after.stop_reason or "") == ("ACTIVE", "")
+    assert after.observed_token_units == 936_532
+    assert reservation["state"] == "OVERRUN"  # recorded truthfully
+
+
+def test_an_owner_window_overrun_that_reaches_the_cap_stops_it():
+    control, window, _ = _owner_window_attempt(1_000_000, 100_000, 300_000, already=800_000)
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_budget_reached")
+
+
+def test_other_windows_still_stop_on_an_overrun():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="plain", max_tokens=20_000_000, reservation=100_000)
+    task = store.create_task(title="attempt", executor_kind="opencode", binding_ref="coding-glm")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    store.append_usage_observation(task.id, observation_id="usage-1", execution_id="exec-1",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status="OBSERVED", input_units=936_532, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_reservation_overrun")
+
+
+@pytest.mark.parametrize("status", ["OBSERVED", "PARTIAL"])
+def test_a_free_model_does_not_count_toward_the_owner_window_cap(status):
+    # Owner decision 2026-11-09: only Claude and Codex are paid; free usage is not charged.
+    control, window, reservation = _owner_window_attempt(1_000_000, 100_000, 5_000_000, status=status,
+                                                         cost_class="free", already=900_000)
+    after = control.get_window(window.id)
+    assert (after.status, after.stop_reason or "") == ("ACTIVE", "")
+    assert after.observed_token_units == 900_000
+    assert reservation["state"] in ("OVERRUN", "UNKNOWN")  # the observation itself is kept
+
+
+@pytest.mark.parametrize("cost_class", [None, "subscription", "paid_api"])
+def test_a_route_not_recorded_as_free_is_charged(cost_class):
+    control, window, _ = _owner_window_attempt(20_000_000, 100_000, 300_000, cost_class=cost_class)
+    assert control.get_window(window.id).observed_token_units == 300_000
+
+
 @pytest.mark.parametrize("mutation", ["owner", "epoch", "window", "status", "expired", "gone"])
 def test_renew_claim_is_fenced(monkeypatch, mutation):
     from reverse_agent.platform_v1 import control_store as cs
