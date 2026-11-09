@@ -470,6 +470,19 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     return
                 self._send_json(HTTPStatus.OK, summary)
                 return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "windows"]
+                and segments[3] == "report"
+            ):
+                from .window_report import build_report
+                try:
+                    report = build_report(self.control_store, self.store, segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "window not found"})
+                    return
+                self._send_json(HTTPStatus.OK, report)
+                return
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
                 return
