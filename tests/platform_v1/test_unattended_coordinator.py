@@ -1229,6 +1229,54 @@ def test_unknown_usage_still_stops_a_zero_budget_hard_admission_window():
     assert (stopped.status, stopped.stop_reason, stopped.enforcement_class) == ("BLOCKED", "usage_unknown", "USAGE_UNKNOWN")
 
 
+def _owner_window_with_unknown_attempt(max_tokens, reservation, partial_units, *, already=0):
+    """An Owner window whose one attempt ended with partial (unknown) usage, e.g. a timeout."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="owner-unknown", max_tokens=max_tokens, reservation=reservation)
+    task = store.create_task(title="timed out", executor_kind="opencode", binding_ref="coding-glm")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    # Marked after the claim: Owner-window claim admission (receipts) is tested in test_owner_window;
+    # this exercises only the settlement of an unknown-usage attempt.
+    control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', "
+                          "enforcement_class='HARD_ADMISSION_ENFORCED', observed_token_units=? WHERE id=?",
+                          (already, window.id))
+    control._conn.commit()
+    store.append_usage_observation(task.id, observation_id="usage-partial", execution_id="exec-partial",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status="PARTIAL", input_units=partial_units, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    reservation_row = control._conn.execute(
+        "SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+    return control, window, reservation_row
+
+
+def test_unknown_usage_in_an_owner_window_charges_the_reservation_and_continues():
+    # Owner decision 2026-11-08: a timed-out attempt no longer stops the whole Owner window.
+    control, window, reservation = _owner_window_with_unknown_attempt(2_000_000, 200_000, 70_000)
+    after = control.get_window(window.id)
+    assert after.status == "ACTIVE" and after.stop_reason in ("", None)
+    assert after.observed_token_units == 200_000  # the whole reservation, not the 70k partial reading
+    assert after.unknown_observation_count == 1
+    assert (reservation["state"], reservation["observed_token_units"]) == ("UNKNOWN", None)  # not released
+    summary = control.window_budget_summary(window.id)
+    assert summary["remaining_token_units"] == 1_800_000  # charged once, not twice
+
+
+def test_partial_usage_above_the_reservation_is_charged_in_full():
+    control, window, _ = _owner_window_with_unknown_attempt(2_000_000, 200_000, 350_000)
+    assert control.get_window(window.id).observed_token_units == 350_000
+
+
+def test_a_charge_that_reaches_the_cap_stops_the_owner_window():
+    control, window, _ = _owner_window_with_unknown_attempt(1_000_000, 200_000, 10, already=850_000)
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_unknown_budget_reached")
+    assert stopped.observed_token_units == 1_050_000
+
+
 @pytest.mark.parametrize("mutation", ["owner", "epoch", "window", "status", "expired", "gone"])
 def test_renew_claim_is_fenced(monkeypatch, mutation):
     from reverse_agent.platform_v1 import control_store as cs
