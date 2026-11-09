@@ -1327,6 +1327,7 @@ def owner_window_request(payload: Any) -> dict[str, Any]:
     if (not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
             or not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities)
             or isinstance(hours, bool) or not isinstance(hours, (int, float))
+            or not -1e6 < hours < 1e6  # a huge integer must not overflow float() into a 500
             or any(isinstance(payload.get(key, 0), bool) or not isinstance(payload.get(key, 0), int)
                    for key in integers)
             or any(key not in payload for key in integers[:3])
