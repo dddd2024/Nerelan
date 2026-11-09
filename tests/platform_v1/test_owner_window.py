@@ -177,8 +177,8 @@ class TestAdmission:
         ({"capabilities": ("resume_task",)}, "owner_window_capabilities_invalid"),
         ({"capabilities": ("execute_task", "land_reviewed_pr")}, "owner_window_capabilities_invalid"),
         ({"max_tasks": 1}, "owner_window_max_tasks_below_planned_tasks"),
-        ({"max_concurrent": 9}, "host_atomic_window_scope_invalid"),
-        ({"max_retries": 6}, "host_atomic_window_scope_invalid"),
+        ({"max_concurrent": 9}, "owner_window_limits_invalid"),
+        ({"max_retries": 6}, "owner_window_limits_invalid"),
     ])
     def test_envelope_limits(self, setup, overrides, error):
         a = setup.planned("a", "opencode", "free", tasks=2)
@@ -508,8 +508,8 @@ class TestPreflight:
         untouched(setup, goal)
 
     def test_a_goal_that_is_not_admissible_is_reported(self, setup):
-        a = setup.planned("a", "codex", "pinned")
-        report = setup.host._owner_window_admission.preflight([a.id], **{**REQUEST, "max_tasks": 0})
+        a = setup.planned("a", "codex", "pinned", tasks=2)
+        report = setup.host._owner_window_admission.preflight([a.id], **{**REQUEST, "max_tasks": 1})
         assert report["ok"] is False
         assert self.by_check(report)["goals"]["reason"] == "owner_window_max_tasks_below_planned_tasks"
 
@@ -517,7 +517,8 @@ class TestPreflight:
         report = setup.host._owner_window_admission.preflight(["goal-missing"], **REQUEST)
         assert report["ok"] is False and self.by_check(report)["goals"]["reason"] == "goal_not_found:goal-missing"
 
-    @pytest.mark.parametrize("change", [{"hours": 0}, {"capabilities": ["resume_task"]}])
+    @pytest.mark.parametrize("change", [{"hours": 0}, {"capabilities": ["resume_task"]}, {"max_concurrent": 50},
+                                        {"max_retries": 6}, {"max_tasks": 101}, {"max_token_units": -1}])
     def test_an_invalid_request_is_reported_first(self, setup, change):
         a = setup.planned("a", "codex", "pinned")
         report = setup.host._owner_window_admission.preflight([a.id], **{**REQUEST, **change})
@@ -543,6 +544,8 @@ class TestOwnerWindowRequest:
         {"goal_ids": ["g1"], "hours": 2, "max_tasks": 3, "max_concurrent": 1, "max_retries": -1,
          "capabilities": ["execute_task"]},
         {"goal_ids": ["g1"], "hours": 2, "max_tasks": "3", "max_concurrent": 1, "max_retries": 1,
+         "capabilities": ["execute_task"]},
+        {"goal_ids": ["g1"], "hours": 10 ** 400, "max_tasks": 3, "max_concurrent": 1, "max_retries": 1,
          "capabilities": ["execute_task"]},
     ])
     def test_a_malformed_body_is_refused(self, body):
