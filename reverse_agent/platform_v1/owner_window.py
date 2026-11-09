@@ -166,7 +166,7 @@ class OwnerWindowAdmission:
                 "host_instance": self._instance, "os_user": getpass.getuser()}
 
     @staticmethod
-    def render(scope: dict[str, Any], code: str) -> str:
+    def render(scope: dict[str, Any], code: str, preview: Sequence[str] = ()) -> str:
         """Everything the Owner approves, in full. Too much to show is refused, never cut."""
         env = scope["envelope"]
         lines = ["Nerelan: activate an autonomous window over exactly these Goals", "",
@@ -191,12 +191,55 @@ class OwnerWindowAdmission:
                   f"{', weekly paced' if row['weekly_paced'] else ''})" for row in scope["pool_display"]]
         if scope["pool_skipped"]:
             lines += ["Not offered: " + ", ".join(scope["pool_skipped"])]
+        if preview:
+            lines += ["", "Expected model per task (routing may still change it within the pool above):", *preview]
         lines += ["", f"Scope digest: {sha256_json(scope)}",
                   f"Type {code} to activate. Anything else cancels."]
         text = "\n".join(lines)
         if len(text) > MAX_SCOPE_CHARS:
             raise TaskStoreError("owner_window_scope_too_large")
         return text
+
+    def _route_preview(self, scope: dict[str, Any]) -> list[str]:
+        """The binding each task is expected to launch on; refuses a scope where any has none.
+
+        Uses the same routing as launch (``GoalService._route_tasks``), with availability
+        probes off, so reviews are routed with their authors' identity. Routing creates
+        nothing, but like launch it may refresh quota and bind newly discovered models.
+        A routed ``single``/``sequential_team`` Goal gets no binding at launch, so an Owner
+        window cannot run it.
+        """
+        goals = self._host._goal_service
+        pool = {entry["binding_ref"]: entry for entry in scope["approved_pool"]}
+        lines, problems = [], []
+        for snapshot in scope["goals"]:
+            if not snapshot["binding_ref"] and (snapshot["orchestration_mode"] != "agent_team"
+                                                or goals.task_resolver is None):
+                problems.append(f"{snapshot['id']}:routed_{snapshot['orchestration_mode']}_goal_gets_no_binding"
+                                f"_use_agent_team_or_pin_a_binding")
+                continue
+            goal = self._host._control_store.get_goal(snapshot["id"])
+            planned = tuple(goals._normalize_task(raw, seq=seq) for seq, raw in enumerate(snapshot["tasks"]))
+            try:
+                routes, decisions = goals._route_tasks(goal, planned, window_id="", probe_availability=False)
+            except TaskStoreError as exc:
+                problems.append(f"{snapshot['id']}:{exc}")
+                continue
+            for seq, item in enumerate(planned):
+                binding = routes[seq][1]
+                decision = decisions.get(seq) or {}
+                if not binding:
+                    problems.append(f"{snapshot['id']}:{item.id}:{decision.get('reason') or 'no_binding'}")
+                    continue
+                if binding not in pool:
+                    problems.append(f"{snapshot['id']}:{item.id}:{binding}_outside_pool")
+                    continue
+                model = decision.get("model_id") or pool[binding].get("model_id", "?")
+                why = decision.get("reason", "routed") if decisions.get(seq) is not None else "pinned"
+                lines.append(f"- {snapshot['id']} {item.id}: {binding} ({model}, {why})")
+        if problems:
+            raise TaskStoreError("owner_window_task_unroutable:" + "; ".join(problems)[:2000])
+        return lines
 
     # --- activation -------------------------------------------------------------
 
@@ -238,8 +281,11 @@ class OwnerWindowAdmission:
                 goal = host._control_store.get_goal(goal_ids[0])
                 envelope["repositories"] = [goal.repository]
                 before = canonical_json(self._scope(goal_ids, envelope))
+            # Outside the locks: routing may refresh quota. A task that would launch with no
+            # binding is refused at dispatch, so it is refused here, before the Owner is asked.
+            preview = self._route_preview(json.loads(before))
             code = secrets.token_hex(3).upper()
-            if confirm(self.render(json.loads(before), code), code) is not True:
+            if confirm(self.render(json.loads(before), code, preview), code) is not True:
                 raise TaskStoreError("owner_window_confirmation_refused")
             if time.monotonic() >= deadline:
                 raise TaskStoreError("owner_window_confirmation_expired")
@@ -284,6 +330,12 @@ class OwnerWindowAdmission:
                     host._goal_service._launch(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
                                                window_id=window_id, probe_availability=False,
                                                _owner_window_admission=True)
+                    # Routing inside the transaction can still come back empty (quota moved since
+                    # the preview); an unbound task would fail at dispatch and block the window.
+                    for link in control.list_goal_tasks(goal_snapshot["id"]):
+                        if not host._task_store.get_task(link["task_id"]).binding_ref:
+                            raise TaskStoreError(
+                                f"owner_window_task_unbound:{goal_snapshot['id']}:{link['plan_task_id']}")
                 if time.monotonic() >= deadline:
                     raise TaskStoreError("owner_window_confirmation_expired")
 
