@@ -10,21 +10,30 @@ Owner 要求：本阶段目标是"一句话启动"（`ONE_STEP_START_PLAN.md`）
 | 1 | Owner 窗口激活前逐任务预选路（修复 #1407 的 REJECT：预选路与启动共用 `GoalService._route_tasks`） | 已完成，未推送 | 本地分支 `claude/one-step-route-preview`（基于 #1407） |
 | 2 | 激活前预检 `OwnerWindowAdmission.preflight` + `POST /api/owner-window/preflight` | 已完成，未推送 | `claude/one-step-preflight`（叠在 1 上） |
 | 3–4 后端 | 一句话成稿 `POST /api/quick-start/draft` + 三个预设 | 已完成，未推送 | `claude/one-step-quick-start`（叠在 2 上） |
-| 5 | 原生对话框确认多目标 Owner 窗口 + `POST /api/owner-window/activate` | 代码草稿，缺测试和文档 | `claude/one-step-native-dialog`（WIP 提交） |
+| 5 | `POST /api/owner-window/activate`：界面点"开始"即激活；原生对话框、终端确认码改为可选严格模式 | 原生对话框部分有代码草稿；按第二项决定改写 | `claude/one-step-native-dialog`（WIP 提交） |
 | 3–4 前端、6、7、8 | 见第 3 节 | 未开始 | 交给 Nerelan |
 
 验证：步骤 1–4 的相关测试 116 个通过（`test_owner_window.py`、`test_quick_start.py`、`test_native_owner_dialog.py`），
 `test_goal_service.py`、`test_host_atomic_window.py`、`test_native_goal_admission.py`、`test_task_service.py`、
 `test_trusted_host*.py` 通过；全量 `tests/platform_v1` 尚未跑完。
 
-Owner 决定（2026-11-09）：确认方式 A+B，对话框由宿主渲染关键边界；预设按方案第 4 节；交互模式默认
-OpenCode + `token-sensenova/glm-5.2`。
+Owner 决定（2026-11-09，会话中）：
+
+1. 预设按方案第 4 节；交互模式默认 OpenCode + `token-sensenova/glm-5.2`。
+2. **不再默认严防同机其他 Agent**，严格防护改为可选附加项（取代当天上午"原生对话框 A+B 为默认"的决定）：
+   - 默认：确认卡片上点"开始"即激活窗口。请求带上卡片显示的范围摘要（目标、修订、产物摘要、仓库、
+     窗口参数、模型池），宿主重新计算，不一致就拒绝；激活仍走同一套原子事务和每目标一条回执，回执记录
+     确认方式为界面。
+   - 可选严格模式（设置里打开）：宿主原生对话框（上午的 A+B 方案）或终端确认码。
+   - 不变的边界：窗口有期限、Token 与成本上限、只开 Draft PR、付费 API 关闭、数据库硬上限、执行前模型池核对。
+3. **Agent 可以在 Owner 于对话中明确要求时代为激活窗口**，只用预设边界，并在对话里报告窗口 ID 和范围；
+   不自行发起。
 
 ## 2. 分工原则
 
 - **Nerelan 做**：边界清楚、改动集中、有明确测试的 R1 任务。执行器是免费模型（OpenCode + glm-5.2 等），
   每次尝试 600 秒，所以每个 Issue 只做一件事，写清要改的文件、接口形状和测试。
-- **监督者做**：推送并落地已完成的步骤 1–4；步骤 5（扩大授权范围，按 R2 同等审查）；评审 Nerelan 的 Draft PR
+- **监督者做**：推送并落地已完成的步骤 1–4；步骤 5（改变授权方式，按 R2 同等审查）；评审 Nerelan 的 Draft PR
   并按 `AGENTS.md` 落地。Nerelan 只开 Draft PR，不合入。
 - 理由：步骤 1–4 已写好并测试过，重做浪费额度；步骤 5 改变"谁能证明是 Owner"，不适合交给免费模型首次实现。
 
@@ -84,10 +93,12 @@ OpenCode + `token-sensenova/glm-5.2`。
 
 ### 第三批（依赖步骤 5 落地）
 
-**N8 前端："开始"走宿主原生对话框**
-- 点"开始"调用 `POST /api/owner-window/activate`，请求期间显示"请在弹出的系统对话框中确认（60 秒内）"；
-  成功跳到任务页并显示窗口；拒绝或超时显示 N2 的说明，并保留终端命令作为备用。
-- 测试：等待、成功、拒绝、超时四种状态。
+**N8 前端："开始"直接激活**
+- 点"开始"调用 `POST /api/owner-window/activate`，请求体是预检用的同一组参数加预检返回的 `scope_digest`；
+  成功跳到任务页并显示窗口；范围已变化（`owner_window_scope_changed`）时自动重新预检并提示再确认。
+- 严格模式打开时，请求期间显示"请在弹出的系统对话框中确认（60 秒内）"。
+- 设置页加"启动确认方式"：界面（默认）/ 原生对话框 / 终端确认码。
+- 测试：成功、范围变化、严格模式等待、拒绝四种状态。
 
 ## 4. 执行步骤
 
@@ -97,7 +108,7 @@ OpenCode + `token-sensenova/glm-5.2`。
 | 2 | 监督者 | 按第 3 节在 GitHub 建 Issue N1–N8（第二、三批先建，标明依赖） | 是：在仓库里发布 Issue |
 | 3 | 监督者 | `F:\nerelan-run` 更新到新的 `main`，重启宿主 | 是：动正在运行的宿主 |
 | 4 | 监督者 | 用 `QuickStart.draft` 为第一批 N1–N5 建目标（`agent_team`、试跑或一天预设），先跑预检，结果全部通过；把目标 ID 和参数写进 `Activate-LongRun.ps1` | 否 |
-| 5 | Owner | 运行 `Activate-LongRun.ps1`，在终端输入确认码 | 是（只能本人） |
+| 5 | Owner 或监督者 | 运行 `Activate-LongRun.ps1` 输入确认码；或 Owner 在对话里要求后由监督者代为激活（步骤 5 落地后走接口） | 是：一句话要求即可 |
 | 6 | Nerelan | 逐个完成第一批，开 Draft PR | — |
 | 7 | 监督者 | 评审并落地第一批；失败的写清原因回到 Issue，下一窗口重试 | 否 |
 | 8 | 监督者 | 同时完成步骤 5（补测试、文档，R2 同等审查后落地） | 否（Owner 已决定） |
@@ -110,5 +121,5 @@ OpenCode + `token-sensenova/glm-5.2`。
 
 - 免费模型可能做不完前端卡片这类较大的任务：N6 失败两次就拆成"展示"和"预设编辑"两个 Issue。
 - Nerelan 的任务在同一个窗口里并发 1，没有跨目标依赖排序，所以按批次建窗口，不把有依赖的放进同一批。
-- 首个窗口仍要用终端确认码；这正是本阶段要消除的步骤，在 N8 和步骤 5 落地前无法避免。
+- 步骤 5 落地前，激活仍要走终端确认码（当前宿主只有这条路径）；Owner 可以在对话里要求监督者代为输入。
 - 步骤 1–4 还没有独立评审；如果评审要求修改，第一批的目标要等它们落地后再建。
