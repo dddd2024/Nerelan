@@ -166,7 +166,7 @@ class OwnerWindowAdmission:
                 "host_instance": self._instance, "os_user": getpass.getuser()}
 
     @staticmethod
-    def render(scope: dict[str, Any], code: str) -> str:
+    def render(scope: dict[str, Any], code: str, preview: Sequence[str] = ()) -> str:
         """Everything the Owner approves, in full. Too much to show is refused, never cut."""
         env = scope["envelope"]
         lines = ["Nerelan: activate an autonomous window over exactly these Goals", "",
@@ -191,6 +191,8 @@ class OwnerWindowAdmission:
                   f"{', weekly paced' if row['weekly_paced'] else ''})" for row in scope["pool_display"]]
         if scope["pool_skipped"]:
             lines += ["Not offered: " + ", ".join(scope["pool_skipped"])]
+        if preview:
+            lines += ["", "Expected model per task (routing may still change it within the pool above):", *preview]
         lines += ["", f"Scope digest: {sha256_json(scope)}",
                   f"Type {code} to activate. Anything else cancels."]
         text = "\n".join(lines)
@@ -198,7 +200,145 @@ class OwnerWindowAdmission:
             raise TaskStoreError("owner_window_scope_too_large")
         return text
 
+    def _route_preview(self, scope: dict[str, Any]) -> list[str]:
+        """The binding each task is expected to launch on; refuses a scope where any has none.
+
+        Uses the same routing as launch (``GoalService._route_tasks``), with availability
+        probes off, so reviews are routed with their authors' identity. Routing creates
+        nothing, but like launch it may refresh quota and bind newly discovered models.
+        A routed ``single``/``sequential_team`` Goal gets no binding at launch, so an Owner
+        window cannot run it.
+        """
+        goals = self._host._goal_service
+        pool = {entry["binding_ref"]: entry for entry in scope["approved_pool"]}
+        lines, problems = [], []
+        for snapshot in scope["goals"]:
+            if not snapshot["binding_ref"] and (snapshot["orchestration_mode"] != "agent_team"
+                                                or goals.task_resolver is None):
+                problems.append(f"{snapshot['id']}:routed_{snapshot['orchestration_mode']}_goal_gets_no_binding"
+                                f"_use_agent_team_or_pin_a_binding")
+                continue
+            goal = self._host._control_store.get_goal(snapshot["id"])
+            planned = tuple(goals._normalize_task(raw, seq=seq) for seq, raw in enumerate(snapshot["tasks"]))
+            try:
+                routes, decisions = goals._route_tasks(goal, planned, window_id="", probe_availability=False)
+            except TaskStoreError as exc:
+                problems.append(f"{snapshot['id']}:{exc}")
+                continue
+            for seq, item in enumerate(planned):
+                binding = routes[seq][1]
+                decision = decisions.get(seq) or {}
+                if not binding:
+                    problems.append(f"{snapshot['id']}:{item.id}:{decision.get('reason') or 'no_binding'}")
+                    continue
+                if binding not in pool:
+                    problems.append(f"{snapshot['id']}:{item.id}:{binding}_outside_pool")
+                    continue
+                model = decision.get("model_id") or pool[binding].get("model_id", "?")
+                why = decision.get("reason", "routed") if decisions.get(seq) is not None else "pinned"
+                lines.append(f"- {snapshot['id']} {item.id}: {binding} ({model}, {why})")
+        if problems:
+            raise TaskStoreError("owner_window_task_unroutable:" + "; ".join(problems)[:2000])
+        return lines
+
     # --- activation -------------------------------------------------------------
+
+    def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
+                 max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
+                 max_cost_micro_units: int = 0) -> tuple[tuple[str, ...], dict[str, Any]]:
+        """Validate the request and fix the envelope; binds discovered models first."""
+        host = self._host
+        goal_ids = tuple(goal_ids)
+        if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
+                or any(not isinstance(g, str) or not _GOAL_ID.fullmatch(g) for g in goal_ids)):
+            raise TaskStoreError("owner_window_goals_invalid")
+        if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+            raise TaskStoreError("owner_window_duration_invalid")
+        # Same ranges as the command line, so a preflight never reports ok for a request
+        # that activation would refuse.
+        if not 1 <= max_tasks <= 100 or not 1 <= max_concurrent <= 8 or not 0 <= max_retries <= 5:
+            raise TaskStoreError("owner_window_limits_invalid")
+        if max_token_units < 0 or max_cost_micro_units < 0:
+            raise TaskStoreError("owner_window_budget_invalid")
+        capabilities = tuple(dict.fromkeys(capabilities))
+        if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
+            raise TaskStoreError("owner_window_capabilities_invalid")
+        # Discovered models bind now, so routing inside the transaction cannot
+        # pick a binding the Owner was never shown.
+        host._routing_bind_discovered()
+        # The model-control routes refresh OpenCode login sessions on read; the pool
+        # reads the store directly under the lock, so refresh once here, before it.
+        host._refresh_external_session_auth(False, None)
+        now = datetime.now(timezone.utc)
+        # Times are fixed before the prompt; reading time spends the window.
+        envelope = {"window_id": "owner-" + secrets.token_hex(16),
+                    "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                    "owner_identity": f"os-user:{getpass.getuser()}",
+                    "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
+                    "repositories": [], "capabilities": list(capabilities),
+                    "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
+                    "max_retries": max_retries, "max_token_units": max_token_units,
+                    "max_cost_micro_units": max_cost_micro_units,
+                    "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
+        return goal_ids, envelope
+
+    def preflight(self, goal_ids: Sequence[str], **request: Any) -> dict[str, Any]:
+        """Everything that would refuse activation or block the window, reported, not raised.
+
+        Changes nothing beyond what admission does first anyway (binding discovered
+        models, refreshing login sessions, routing). Authorizes nothing: no window,
+        no approval, no receipt.
+        """
+        checks: list[dict[str, Any]] = []
+
+        def add(check: str, reason: str = "", detail: str = "") -> None:
+            checks.append({"check": check, "ok": not reason, "reason": reason, "detail": detail})
+
+        result: dict[str, Any] = {"ok": False, "checks": checks, "preview": [], "scope": None}
+        try:
+            goal_ids, envelope = self._prepare(goal_ids, **request)
+        except TaskStoreError as exc:
+            add("request", str(exc))
+            return result
+        host = self._host
+        control = host._control_store
+        scope = None
+        with host._task_store._lock, host._store._lock:
+            held = control._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE status = 'ACTIVE'").fetchone()[0]
+            add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
+                f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
+            if held:
+                add("goals", "skipped_while_claims_hold")
+            else:
+                try:
+                    envelope["repositories"] = [control.get_goal(goal_ids[0]).repository]
+                    scope = json.loads(canonical_json(self._scope(goal_ids, envelope)))
+                except TaskStoreError as exc:
+                    add("goals", str(exc))
+        if scope is not None:
+            tasks = sum(len(goal["tasks"]) for goal in scope["goals"])
+            add("goals", "", f"{len(scope['goals'])} goals, {tasks} tasks in {scope['repository']}")
+            add("model_pool", "" if scope["approved_pool"] else "owner_window_pool_empty",
+                f"{len(scope['approved_pool'])} bindings offered, {len(scope['pool_skipped'])} not offered")
+            try:
+                result["preview"] = self._route_preview(scope)
+                add("routing", "", f"{len(result['preview'])} tasks placed")
+            except TaskStoreError as exc:
+                add("routing", str(exc))
+            env = scope["envelope"]
+            result["scope"] = {
+                "repository": scope["repository"], "base_sha": scope["base_sha"],
+                "goals": [{"id": goal["id"], "objective": goal["objective"], "mode": goal["orchestration_mode"],
+                           "tasks": [{"id": task.get("id"), "title": task.get("title")} for task in goal["tasks"]]}
+                          for goal in scope["goals"]],
+                "pool": scope["pool_display"], "pool_skipped": scope["pool_skipped"],
+                "envelope": {key: env[key] for key in (
+                    "starts_at", "expires_at", "capabilities", "max_tasks", "max_concurrent_tasks",
+                    "max_retries", "max_token_units", "max_cost_micro_units")},
+                "paid_api": scope["paid_api"]}
+        result["ok"] = all(check["ok"] for check in checks)
+        return result
 
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[[str, str], bool],
@@ -207,39 +347,20 @@ class OwnerWindowAdmission:
             raise TaskStoreError("owner_window_admission_in_progress")
         try:
             host = self._host
-            goal_ids = tuple(goal_ids)
-            if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
-                    or any(not _GOAL_ID.fullmatch(g) for g in goal_ids)):
-                raise TaskStoreError("owner_window_goals_invalid")
-            if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
-                raise TaskStoreError("owner_window_duration_invalid")
-            capabilities = tuple(dict.fromkeys(capabilities))
-            if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
-                raise TaskStoreError("owner_window_capabilities_invalid")
-            # Discovered models bind now, so routing inside the transaction cannot
-            # pick a binding the Owner was never shown.
-            host._routing_bind_discovered()
-            # The model-control routes refresh OpenCode login sessions on read; the pool
-            # reads the store directly under the lock, so refresh once here, before it.
-            host._refresh_external_session_auth(False, None)
-            now = datetime.now(timezone.utc)
+            goal_ids, envelope = self._prepare(
+                goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
+                max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
+                max_cost_micro_units=max_cost_micro_units)
             deadline = time.monotonic() + CONFIRM_SECONDS
-            # Times are fixed before the prompt; reading time spends the window.
-            envelope = {"window_id": "owner-" + secrets.token_hex(16),
-                        "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
-                        "owner_identity": f"os-user:{getpass.getuser()}",
-                        "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
-                        "repositories": [], "capabilities": list(capabilities),
-                        "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
-                        "max_retries": max_retries, "max_token_units": max_token_units,
-                        "max_cost_micro_units": max_cost_micro_units,
-                        "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_ids[0])
                 envelope["repositories"] = [goal.repository]
                 before = canonical_json(self._scope(goal_ids, envelope))
+            # Outside the locks: routing may refresh quota. A task that would launch with no
+            # binding is refused at dispatch, so it is refused here, before the Owner is asked.
+            preview = self._route_preview(json.loads(before))
             code = secrets.token_hex(3).upper()
-            if confirm(self.render(json.loads(before), code), code) is not True:
+            if confirm(self.render(json.loads(before), code, preview), code) is not True:
                 raise TaskStoreError("owner_window_confirmation_refused")
             if time.monotonic() >= deadline:
                 raise TaskStoreError("owner_window_confirmation_expired")
@@ -284,6 +405,12 @@ class OwnerWindowAdmission:
                     host._goal_service._launch(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
                                                window_id=window_id, probe_availability=False,
                                                _owner_window_admission=True)
+                    # Routing inside the transaction can still come back empty (quota moved since
+                    # the preview); an unbound task would fail at dispatch and block the window.
+                    for link in control.list_goal_tasks(goal_snapshot["id"]):
+                        if not host._task_store.get_task(link["task_id"]).binding_ref:
+                            raise TaskStoreError(
+                                f"owner_window_task_unbound:{goal_snapshot['id']}:{link['plan_task_id']}")
                 if time.monotonic() >= deadline:
                     raise TaskStoreError("owner_window_confirmation_expired")
 
