@@ -453,60 +453,8 @@ class GoalService:
             if item.validation_command_id and (goal.orchestration_mode not in {"single", "agent_team"} or item.artifact_input
                                                or item.validation_checks):
                 raise TaskStoreError("host_validation_requires_standalone_single_task")
-        # Resolve every task before creating any. Artifact authors are resolved first
-        # so review independence also holds for plans saved in any order.
-        decisions: dict[int, Any] = {}
-        resolved: dict[int, tuple[str, str, str]] = {}
-        indices = {item.id: i for i, item in enumerate(planned_tasks)}
-
-        def resolve(seq: int) -> tuple[str, str, str]:
-            if seq in resolved:
-                return resolved[seq]
-            item = planned_tasks[seq]
-            if goal.orchestration_mode == "agent_team" and self.task_resolver is not None:
-                pending_authors = ()
-                try:
-                    ancestry = self._review_ancestry(item, {t.id: t for t in planned_tasks})
-                    author_bindings = tuple(resolve(indices[source])[1] for source in ancestry)
-                    if ancestry and not all(author_bindings):
-                        missing = [source for source, binding in zip(ancestry, author_bindings) if not binding]
-                        if (os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
-                                and all((decisions[indices[source]] or {}).get(_INITIAL_WAIT) for source in missing)):
-                            pending_authors = ancestry
-                        raise TaskStoreError("review_not_independent")
-                    # Preserve the chosen identity even if binding configuration
-                    # changes while resolving the rest of the plan.
-                    author_models = tuple(decisions[indices[source]].get("model_id", "") for source in ancestry)
-                    args = {"author_models": tuple(m for m in author_models if m),
-                            "author_bindings": tuple(binding for binding, model in zip(author_bindings, author_models)
-                                                     if not model)} if ancestry else {}
-                    probe = {} if probe_availability else {"probe_availability": False}
-                    decision = dict(self.task_resolver(item, goal=replace(goal, window_id=window_id), **args, **probe))
-                    decision.pop(_INITIAL_WAIT, None)
-                except TaskStoreError as exc:
-                    if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable", "review_not_independent"}:
-                        raise
-                    decision = dict(getattr(exc, "decision", {"reason": str(exc)}))
-                    decision.pop("binding_ref", None)
-                    decision.pop(_INITIAL_WAIT, None)
-                    wait = ({"version": 1, "kind": "author", "author_plan_ids": list(pending_authors),
-                             "retry_at": time.time() + INITIAL_MODEL_RECHECK_SECONDS} if pending_authors
-                            else _initial_resource_wait(decision))
-                    if item.validation_command_id:
-                        wait = None  # a fixed host checker is not model-selection work
-                    if wait:
-                        decision[_INITIAL_WAIT] = wait
-                    decisions[seq] = decision
-                    resolved[seq] = ("opencode", "", "single")
-                    return resolved[seq]
-                resolved[seq] = (decision["executor_kind"], decision["binding_ref"], "single")
-                decisions[seq] = decision
-            else:
-                resolved[seq] = self._task_route(goal, item)
-                decisions[seq] = None
-            return resolved[seq]
-
-        routes = [resolve(seq) for seq in range(len(planned_tasks))]
+        routes, decisions = self._route_tasks(goal, planned_tasks, window_id=window_id,
+                                              probe_availability=probe_availability)
         if any(kind in {"opencode", "codex", "claude_code"} for kind, _, _ in routes):
             try:
                 resolve_repository_workspace(goal.repository)
@@ -798,6 +746,70 @@ class GoalService:
             for plan_id in planned:
                 reconsider(plan_id)
         return tuple(selected)
+
+    def _route_tasks(self, goal: GoalRecord, planned_tasks: Sequence[PlannedTask], *, window_id: str,
+                     probe_availability: bool = True) -> tuple[list[tuple[str, str, str]], dict[int, Any]]:
+        """Route every planned task the way launch does, creating nothing.
+
+        Returns ``(executor_kind, binding_ref, orchestration_mode)`` per task and the
+        resolver decision per task (``None`` when the Goal is not routed). A task the
+        resolver could not place gets an empty binding and its decision says why.
+        Shared by launch and the Owner window preview so the two cannot drift.
+        """
+        # Resolve every task before creating any. Artifact authors are resolved first
+        # so review independence also holds for plans saved in any order.
+        decisions: dict[int, Any] = {}
+        resolved: dict[int, tuple[str, str, str]] = {}
+        indices = {item.id: i for i, item in enumerate(planned_tasks)}
+
+        def resolve(seq: int) -> tuple[str, str, str]:
+            if seq in resolved:
+                return resolved[seq]
+            item = planned_tasks[seq]
+            if goal.orchestration_mode == "agent_team" and self.task_resolver is not None:
+                pending_authors = ()
+                try:
+                    ancestry = self._review_ancestry(item, {t.id: t for t in planned_tasks})
+                    author_bindings = tuple(resolve(indices[source])[1] for source in ancestry)
+                    if ancestry and not all(author_bindings):
+                        missing = [source for source, binding in zip(ancestry, author_bindings) if not binding]
+                        if (os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
+                                and all((decisions[indices[source]] or {}).get(_INITIAL_WAIT) for source in missing)):
+                            pending_authors = ancestry
+                        raise TaskStoreError("review_not_independent")
+                    # Preserve the chosen identity even if binding configuration
+                    # changes while resolving the rest of the plan.
+                    author_models = tuple(decisions[indices[source]].get("model_id", "") for source in ancestry)
+                    args = {"author_models": tuple(m for m in author_models if m),
+                            "author_bindings": tuple(binding for binding, model in zip(author_bindings, author_models)
+                                                     if not model)} if ancestry else {}
+                    probe = {} if probe_availability else {"probe_availability": False}
+                    decision = dict(self.task_resolver(item, goal=replace(goal, window_id=window_id), **args, **probe))
+                    decision.pop(_INITIAL_WAIT, None)
+                except TaskStoreError as exc:
+                    if str(exc) not in {"no_willing_model", "no_runnable_model", "pinned_model_unavailable", "review_not_independent"}:
+                        raise
+                    decision = dict(getattr(exc, "decision", {"reason": str(exc)}))
+                    decision.pop("binding_ref", None)
+                    decision.pop(_INITIAL_WAIT, None)
+                    wait = ({"version": 1, "kind": "author", "author_plan_ids": list(pending_authors),
+                             "retry_at": time.time() + INITIAL_MODEL_RECHECK_SECONDS} if pending_authors
+                            else _initial_resource_wait(decision))
+                    if item.validation_command_id:
+                        wait = None  # a fixed host checker is not model-selection work
+                    if wait:
+                        decision[_INITIAL_WAIT] = wait
+                    decisions[seq] = decision
+                    resolved[seq] = ("opencode", "", "single")
+                    return resolved[seq]
+                resolved[seq] = (decision["executor_kind"], decision["binding_ref"], "single")
+                decisions[seq] = decision
+            else:
+                resolved[seq] = self._task_route(goal, item)
+                decisions[seq] = None
+            return resolved[seq]
+
+        return [resolve(seq) for seq in range(len(planned_tasks))], decisions
 
     @staticmethod
     def _review_ancestry(task: PlannedTask, planned: Mapping[str, PlannedTask]) -> tuple[str, ...]:
