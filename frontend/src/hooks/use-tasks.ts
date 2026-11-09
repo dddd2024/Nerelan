@@ -301,7 +301,7 @@ export function useCreateTask() {
       const isOpencode = input.executorKind === "opencode" || input.executorKind === "codex" || input.executorKind === "claude_code";
       const payload: Record<string, unknown> = {
         title: input.title,
-        executor_kind: input.executorKind ?? "deterministic_fixture",
+        executor_kind: input.executorKind ?? "opencode",
         model_profile_ref: isOpencode ? "" : (input.modelProfileId ?? ""),
         binding_ref: isOpencode ? (input.bindingRef ?? "") : "",
         permission_profile: input.permissionProfile ?? "ASK_FOR_APPROVAL",
