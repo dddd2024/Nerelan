@@ -10,8 +10,12 @@
 
   Optional -EnvFile is an Owner-written JSON object of REVERSE_AGENT_* settings applied to
   the host's environment (for example REVERSE_AGENT_MULTI_ACCOUNT_ENABLED). Names that look
-  like credentials are refused; secrets stay in the vault. Output goes to
-  %LOCALAPPDATA%\Nerelan\autostart.log.
+  like credentials are refused; secrets stay in the vault. When -EnvFile is omitted, the
+  script reads run.env.json from the task database directory (REVERSE_AGENT_TASK_DB_DIR, or
+  the default host-owned store under %LOCALAPPDATA%\Nerelan\platform-v1) if present, so a
+  reboot needs no hand-written environment file in a separate folder. An explicit -EnvFile
+  keeps priority. Path values are normalized to forward slashes; a backslash path crashed
+  host startup once. Output goes to %LOCALAPPDATA%\Nerelan\autostart.log.
 #>
 param(
   [string]$RepoDir = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
@@ -49,20 +53,34 @@ try {
     Log "magpie not found at $MagpiePath; starting the host without it"
   }
 
+  if (-not $EnvFile) {
+    $taskDbDir = $env:REVERSE_AGENT_TASK_DB_DIR
+    if ([string]::IsNullOrWhiteSpace($taskDbDir)) {
+      $taskDbDir = Join-Path $env:LOCALAPPDATA "Nerelan\platform-v1"
+    }
+    $candidate = Join-Path $taskDbDir "run.env.json"
+    if (Test-Path -LiteralPath $candidate) { $EnvFile = $candidate }
+  }
   if ($EnvFile) {
     $settings = Get-Content -LiteralPath $EnvFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    $applied = 0
     foreach ($property in $settings.PSObject.Properties) {
       $name = [string]$property.Name
       if ($name -notmatch '^REVERSE_AGENT_[A-Z0-9_]+$' -or $name -match 'KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL') {
         throw "refusing environment name from ${EnvFile}: $name"
       }
-      [Environment]::SetEnvironmentVariable($name, [string]$property.Value, "Process")
+      $value = [string]$property.Value
+      if ($name -like '*_DIR' -or $name -like '*_PATH' -or $name -like '*_EXE' -or $name -like '*_FILE') {
+        $value = $value -replace '\\', '/'
+      }
+      [Environment]::SetEnvironmentVariable($name, $value, "Process")
+      $applied++
     }
-    Log "applied $(@($settings.PSObject.Properties).Count) settings from $EnvFile"
+    Log "applied $applied settings from $EnvFile"
   }
 
   $devUp = Join-Path $RepoDir "dev-up.ps1"
-  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $devUp, "-RepoDir", $RepoDir)
+  $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$devUp`"", "-RepoDir", "`"$RepoDir`"")
   if ($NoBrowser) { $arguments += "-NoBrowser" }
   $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $logDir "autostart-devup.log") `

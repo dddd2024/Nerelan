@@ -65,3 +65,20 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 - 模型池是确认那一刻的快照。之后新增的绑定不在池里，被选中时执行前会被拒绝。
 - 选路失败的任务会以"无绑定、等待重查"进入窗口；重查前派发会被执行前核对拒绝。
 - 每个窗口只覆盖一个仓库，因为宿主只能映射一个本地仓库（`REVERSE_AGENT_REPO_DIR`）。
+
+## 开机恢复
+
+Owner 窗口和目标都写在任务数据库里，重启后宿主自动恢复，无需重新激活。运行时需要的环境变量
+（例如 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED`、`REVERSE_AGENT_MAGPIE_EXE`）跟随窗口保存在
+任务数据库目录下的 `run.env.json`，开机自启脚本 `scripts/windows/Start-NerelanAtLogon.ps1`
+在没有显式 `-EnvFile` 时自动读取它：
+
+- 优先读 `REVERSE_AGENT_TASK_DB_DIR` 指向的目录；未设置时用默认宿主目录
+  `%LOCALAPPDATA%\Nerelan\platform-v1`。
+- 只应用 `REVERSE_AGENT_*` 键；名称含 `KEY`/`TOKEN`/`SECRET`/`PASSWORD`/`CREDENTIAL` 的键
+  会被拒绝，密钥仍留在密钥库。
+- 路径值统一转为正斜杠（反斜杠路径曾导致宿主启动失败）。
+- 显式 `-EnvFile` 仍优先，适用于需要临时覆盖的场合。
+
+用 `scripts/windows/Install-HostAutostart.ps1` 安装开机启动项即可；它会把宿主注册到当前用户的
+启动文件夹，登录后自动启动 Magpie 与宿主。
