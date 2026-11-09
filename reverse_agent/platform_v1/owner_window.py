@@ -254,6 +254,12 @@ class OwnerWindowAdmission:
             raise TaskStoreError("owner_window_goals_invalid")
         if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
             raise TaskStoreError("owner_window_duration_invalid")
+        # Same ranges as the command line, so a preflight never reports ok for a request
+        # that activation would refuse.
+        if not 1 <= max_tasks <= 100 or not 1 <= max_concurrent <= 8 or not 0 <= max_retries <= 5:
+            raise TaskStoreError("owner_window_limits_invalid")
+        if max_token_units < 0 or max_cost_micro_units < 0:
+            raise TaskStoreError("owner_window_budget_invalid")
         capabilities = tuple(dict.fromkeys(capabilities))
         if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
             raise TaskStoreError("owner_window_capabilities_invalid")
