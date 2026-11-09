@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from ipaddress import ip_address
 import json
 import os
@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import Request
 
+from .exclusive_server import ExclusiveThreadingHTTPServer
 from .account_auth import AccountAuthManager
 from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
@@ -798,7 +799,7 @@ def run_model_control_service(
         "REVERSE_AGENT_MODEL_CONTROL_ORIGIN", "http://localhost:5173"
     )
     live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
-    server = ThreadingHTTPServer(
+    server = ExclusiveThreadingHTTPServer(
         (bind_host, bind_port),
         _handler_factory(
             store or store_from_environment(),

@@ -280,6 +280,10 @@ class OwnerWindowAdmission:
                     "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
                     "max_retries": max_retries, "max_token_units": max_token_units,
                     "max_cost_micro_units": max_cost_micro_units,
+                    # Without a reservation every use of a capped window was an overrun
+                    # (2026-11-09). Reserve an even share of each cap per task.
+                    "per_task_token_reservation": max_token_units // max(max_tasks, 1),
+                    "per_task_cost_reservation": max_cost_micro_units // max(max_tasks, 1),
                     "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
         return goal_ids, envelope
 

@@ -108,6 +108,12 @@ class TestAdmission:
         assert {entry["binding_ref"] for entry in evidence["approved_pool"]} == {"pinned", "free"}
         assert evidence["goals"] == [a.id, b.id]
 
+    def test_each_task_reserves_an_even_share_of_the_caps(self, setup):
+        # 2026-11-09: a capped window reserved 0 per task, so any use stopped it as an overrun.
+        a = setup.planned("a", "codex", "pinned")
+        window, _ = admit(setup.host, (a.id,), max_token_units=2_000_000, max_cost_micro_units=900)
+        assert (window.per_task_token_reservation, window.per_task_cost_reservation) == (200_000, 90)
+
     def test_the_prompt_shows_the_whole_scope_and_the_code(self, setup):
         a = setup.planned("a", "codex", "pinned")
         _, shown = admit(setup.host, (a.id,))
