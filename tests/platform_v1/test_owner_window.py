@@ -444,3 +444,111 @@ class TestRoutedGoals:
         task = setup.db.get_task(setup.host._control_store.list_goal_tasks(goal.id)[0]["task_id"])
         assert task.binding_ref == "free"
         _require_owner_window_pool(setup.db, task, RESOLVED["free"], task.policy_ref)
+
+
+REQUEST = dict(hours=24, max_tasks=10, max_concurrent=1, max_retries=2, capabilities=list(ALL))
+
+
+class TestPreflight:
+    """What would refuse activation, reported before anyone is asked; it authorizes nothing."""
+
+    def by_check(self, report):
+        return {check["check"]: check for check in report["checks"]}
+
+    def test_a_clean_scope_reports_ok_with_the_expected_models_and_changes_nothing(self, setup):
+        a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "opencode", "free", tasks=2)
+        report = setup.host._owner_window_admission.preflight([a.id, b.id], **REQUEST)
+        assert report["ok"] is True
+        assert [check["check"] for check in report["checks"]] == [
+            "leftover_claims", "goals", "model_pool", "routing"]
+        assert f"- {a.id} T0: pinned (gpt-test, pinned)" in report["preview"]
+        assert f"- {b.id} T1: free ({RESOLVED['free'].model_id}, pinned)" in report["preview"]
+        scope = report["scope"]
+        assert scope["repository"] == "owner/repo" and scope["paid_api"] == "excluded"
+        assert [goal["id"] for goal in scope["goals"]] == [a.id, b.id]
+        assert scope["goals"][1]["tasks"] == [{"id": "T0", "title": "Task 0 of b"}, {"id": "T1", "title": "Task 1 of b"}]
+        assert (scope["envelope"]["max_tasks"], scope["envelope"]["max_retries"]) == (10, 2)
+        assert {entry["binding"] for entry in scope["pool"]} == {"pinned", "free"}
+        json.dumps(report)  # the HTTP route sends it as is
+        untouched(setup, a, b)
+
+    def test_leftover_claims_are_named_and_the_goal_check_waits_for_them(self, setup, monkeypatch):
+        a = setup.planned("a", "codex", "pinned")
+        real = setup.db._conn
+
+        class Claims:
+            def execute(self, sql, *args):
+                if "platform_coordinator_claims" in sql:
+                    return SimpleNamespace(fetchone=lambda: (3,))
+                return real.execute(sql, *args)
+        monkeypatch.setattr(setup.host._control_store, "_conn", Claims())
+        checks = self.by_check(setup.host._owner_window_admission.preflight([a.id], **REQUEST))
+        assert (checks["leftover_claims"]["ok"], checks["leftover_claims"]["reason"]) == (
+            False, "owner_window_old_active_claims_hold")
+        assert "3 active coordinator claims" in checks["leftover_claims"]["detail"]
+        assert checks["goals"]["reason"] == "skipped_while_claims_hold"
+        assert "routing" not in checks
+
+    def test_a_routed_single_goal_fails_routing_with_its_reason(self, setup):
+        goals = setup.host._goal_service
+        goal = goals.create({"objective": "Routed", "repository": "owner/repo", "idempotency_key": "s",
+                             "executor_kind": "opencode", "binding_ref": "", "orchestration_mode": "single"})
+        goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+            {"id": "T", "title": "Routed task", "instruction": "Do it"}]).goal
+        report = setup.host._owner_window_admission.preflight([goal.id], **REQUEST)
+        routing = self.by_check(report)["routing"]
+        assert report["ok"] is False and routing["ok"] is False
+        assert "routed_single_goal_gets_no_binding" in routing["reason"]
+        untouched(setup, goal)
+
+    def test_a_goal_that_is_not_admissible_is_reported(self, setup):
+        a = setup.planned("a", "codex", "pinned")
+        report = setup.host._owner_window_admission.preflight([a.id], **{**REQUEST, "max_tasks": 0})
+        assert report["ok"] is False
+        assert self.by_check(report)["goals"]["reason"] == "owner_window_max_tasks_below_planned_tasks"
+
+    def test_an_unknown_goal_is_reported_not_raised(self, setup):
+        report = setup.host._owner_window_admission.preflight(["goal-missing"], **REQUEST)
+        assert report["ok"] is False and self.by_check(report)["goals"]["reason"] == "goal_not_found:goal-missing"
+
+    @pytest.mark.parametrize("change", [{"hours": 0}, {"capabilities": ["resume_task"]}])
+    def test_an_invalid_request_is_reported_first(self, setup, change):
+        a = setup.planned("a", "codex", "pinned")
+        report = setup.host._owner_window_admission.preflight([a.id], **{**REQUEST, **change})
+        assert [check["check"] for check in report["checks"]] == ["request"]
+        assert report["ok"] is False and report["scope"] is None
+
+
+class TestOwnerWindowRequest:
+    def test_a_well_formed_body_is_normalized(self):
+        from reverse_agent.platform_v1.task_service import owner_window_request
+        body = {"goal_ids": ["g1"], "hours": 2, "max_tasks": 3, "max_concurrent": 1, "max_retries": 1,
+                "capabilities": ["execute_task"], "max_token_units": 300000}
+        assert owner_window_request(body) == {
+            "goal_ids": ["g1"], "hours": 2.0, "capabilities": ["execute_task"], "max_tasks": 3,
+            "max_concurrent": 1, "max_retries": 1, "max_token_units": 300000, "max_cost_micro_units": 0}
+
+    @pytest.mark.parametrize("body", [
+        [], {"goal_ids": "g1", "hours": 2, "max_tasks": 3, "max_concurrent": 1, "max_retries": 1,
+             "capabilities": ["execute_task"]},
+        {"goal_ids": ["g1"], "hours": True, "max_tasks": 3, "max_concurrent": 1, "max_retries": 1,
+         "capabilities": ["execute_task"]},
+        {"goal_ids": ["g1"], "hours": 2, "max_concurrent": 1, "max_retries": 1, "capabilities": ["execute_task"]},
+        {"goal_ids": ["g1"], "hours": 2, "max_tasks": 3, "max_concurrent": 1, "max_retries": -1,
+         "capabilities": ["execute_task"]},
+        {"goal_ids": ["g1"], "hours": 2, "max_tasks": "3", "max_concurrent": 1, "max_retries": 1,
+         "capabilities": ["execute_task"]},
+    ])
+    def test_a_malformed_body_is_refused(self, body):
+        from reverse_agent.platform_v1.task_service import owner_window_request
+        with pytest.raises(TaskStoreError, match="owner_window_request_invalid"):
+            owner_window_request(body)
+
+    def test_the_host_wires_the_preflight_into_the_task_api_and_nothing_that_activates(self):
+        import inspect
+        from reverse_agent.platform_v1 import task_service, trusted_host
+        assert "owner_window_preflight=self._owner_window_admission.preflight" in inspect.getsource(trusted_host)
+        handler = inspect.getsource(task_service._TaskHandler)
+        route = handler[handler.index('["api", "owner-window", "preflight"]'):]
+        route = route[:route.index('if segments == ["api", "windows", "activate"]')]
+        assert "admit" not in route and "activate" not in route

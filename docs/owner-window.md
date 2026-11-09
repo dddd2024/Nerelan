@@ -27,6 +27,23 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 范围太大显示不下时直接拒绝，不截断。确认码必须在交互式终端输入，管道输入会被拒绝。确认有效期 5 分钟，
 窗口时间从打印范围之前开始计算。
 
+### 激活前预检
+
+宿主运行时，`POST /api/owner-window/preflight` 接受与命令行相同的参数（`goal_ids`、`hours`、`max_tasks`、
+`max_concurrent`、`max_retries`、`capabilities`、`max_token_units`、`max_cost_micro_units`），逐项报告会让激活
+被拒或让窗口启动后立即 BLOCKED 的原因，而不是遇到第一个就停：
+
+| 检查 | 内容 |
+|---|---|
+| `request` | 参数本身：目标数量、时长、能力 |
+| `leftover_claims` | 是否有遗留的 ACTIVE 协调器认领；有则先对账或隔离 |
+| `goals` | 目标是否可激活：`PLANNED`、未绑定窗口、同一仓库、任务数不超上限、钉死绑定在模型池内 |
+| `model_pool` | 提供给窗口的模型池，以及未提供的绑定及原因（付费 API、不可用） |
+| `routing` | 每个任务按启动时的同一套选路能否落到池内绑定（含周配速、额度、评审独立性） |
+
+报告同时给出每个任务的预计模型和范围摘要，供确认卡片显示。预检不创建窗口、不批准目标、不写回执，
+不能代替确认；它做的副作用与激活前相同（绑定新发现的模型、刷新登录会话、选路时刷新额度）。
+
 ## 保证
 
 激活在一个 SQLite `BEGIN IMMEDIATE` 事务里完成，沿用单任务原生准入的约束：

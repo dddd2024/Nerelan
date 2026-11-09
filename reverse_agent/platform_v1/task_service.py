@@ -334,6 +334,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     agent_planner: Any | None = None
     context_recovery: Any | None = None
     agent_policy: Any | None = None
+    owner_window_preflight: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
@@ -751,6 +752,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._discard_bounded_request_body()
                     self._send_json(HTTPStatus.OK, self.agent_policy.apply(segments[3]))
                     return
+            if segments == ["api", "owner-window", "preflight"]:
+                # Read-only report for the confirmation card; it authorizes nothing.
+                if self.owner_window_preflight is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_preflight_unavailable")
+                request = owner_window_request(self._read_json())
+                self._send_json(HTTPStatus.OK, self.owner_window_preflight(request.pop("goal_ids"), **request))
+                return
             if segments == ["api", "windows", "activate"]:
                 # Native session possession authenticates the client, not a human
                 # selection. No host-native Goal confirmation channel exists yet.
@@ -1295,6 +1304,25 @@ class _TaskHandler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
 
 
+def owner_window_request(payload: Any) -> dict[str, Any]:
+    """Shape-check an Owner window request body; the admission validates the values."""
+    if not isinstance(payload, dict):
+        raise TaskStoreError("owner_window_request_invalid")
+    goal_ids, capabilities = payload.get("goal_ids"), payload.get("capabilities")
+    hours = payload.get("hours")
+    integers = ("max_tasks", "max_concurrent", "max_retries", "max_token_units", "max_cost_micro_units")
+    if (not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
+            or not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities)
+            or isinstance(hours, bool) or not isinstance(hours, (int, float))
+            or any(isinstance(payload.get(key, 0), bool) or not isinstance(payload.get(key, 0), int)
+                   for key in integers)
+            or any(key not in payload for key in integers[:3])
+            or any(payload.get(key, 0) < 0 for key in integers)):
+        raise TaskStoreError("owner_window_request_invalid")
+    return {"goal_ids": goal_ids, "hours": float(hours), "capabilities": capabilities,
+            **{key: int(payload.get(key, 0)) for key in integers}}
+
+
 class _CallableWrapper:
     """Non-descriptor wrapper so callable class attributes are not converted
     to bound methods when accessed from handler instances.
@@ -1321,6 +1349,7 @@ def _handler_factory(
     agent_planner: Any | None = None,
     context_recovery: Any | None = None,
     agent_policy: Any | None = None,
+    owner_window_preflight: Callable | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
@@ -1362,6 +1391,9 @@ def _handler_factory(
     ConfiguredHandler.agent_planner = agent_planner
     ConfiguredHandler.context_recovery = context_recovery
     ConfiguredHandler.agent_policy = agent_policy
+    ConfiguredHandler.owner_window_preflight = (
+        _CallableWrapper(owner_window_preflight) if owner_window_preflight else None
+    )
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
     )
