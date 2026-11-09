@@ -397,6 +397,31 @@ class TestRoutePreview:
         untouched(setup, goal)
 
 
+    def test_a_review_task_is_routed_with_its_authors_identity(self, setup, monkeypatch):
+        # A review needs its author's model; the real resolver refuses one routed without it.
+        seen = []
+
+        def route(item, *, goal=None, author_models=(), author_bindings=(), **kwargs):
+            if (item.kind == "review" or item.agent_role == "reviewer") and item.artifact_input:
+                if not author_models and not author_bindings:
+                    raise TaskStoreError("review_not_independent")
+            seen.append((item.id, tuple(author_models), kwargs.get("probe_availability")))
+            return dict(self.FREE)
+        monkeypatch.setattr(setup.host._goal_service, "task_resolver", route)
+        goals = setup.host._goal_service
+        checks = [{"profile_id": "python_pytest", "working_directory": "."}]
+        goal = goals.create({"objective": "Reviewed work", "repository": "owner/repo", "idempotency_key": "rv",
+                             "executor_kind": "opencode", "binding_ref": "", "orchestration_mode": "agent_team"})
+        goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+            {"id": "T001", "title": "Code", "instruction": "Do it", "validation_checks": checks},
+            {"id": "T002", "title": "Review", "instruction": "Review it", "kind": "review", "agent_role": "reviewer",
+             "dependencies": ["T001"], "artifact_input": {"plan_task_id": "T001"}, "validation_checks": checks},
+        ]).goal
+        _, shown = admit(setup.host, (goal.id,))
+        assert f"- {goal.id} T002: free (token-sensenova/glm-test, fixture_route)" in shown[0][0]
+        preview = seen[:2]  # the preview routes before the transaction launch routes again
+        assert preview == [("T001", (), False), ("T002", ("token-sensenova/glm-test",), False)]
+
 class TestRoutedGoals:
     def test_an_agent_team_goal_is_routed_inside_the_transaction(self, setup, monkeypatch):
         seen = []

@@ -203,37 +203,40 @@ class OwnerWindowAdmission:
     def _route_preview(self, scope: dict[str, Any]) -> list[str]:
         """The binding each task is expected to launch on; refuses a scope where any has none.
 
-        Pinned Goals keep their binding. Routed ``agent_team`` Goals are routed now, with
-        availability probes off, exactly as launch routes them. Other routed modes get no
-        binding at launch, so an Owner window cannot run them.
+        Uses the same routing as launch (``GoalService._route_tasks``), with availability
+        probes off, so reviews are routed with their authors' identity. Routing creates
+        nothing, but like launch it may refresh quota and bind newly discovered models.
+        A routed ``single``/``sequential_team`` Goal gets no binding at launch, so an Owner
+        window cannot run it.
         """
         goals = self._host._goal_service
         pool = {entry["binding_ref"]: entry for entry in scope["approved_pool"]}
         lines, problems = [], []
         for snapshot in scope["goals"]:
-            if snapshot["binding_ref"]:
-                entry = pool.get(snapshot["binding_ref"], {})
-                lines += [f"- {snapshot['id']} {task.get('id')}: {snapshot['binding_ref']} "
-                          f"({entry.get('model_id', '?')}, pinned)" for task in snapshot["tasks"]]
-                continue
-            if snapshot["orchestration_mode"] != "agent_team" or goals.task_resolver is None:
+            if not snapshot["binding_ref"] and (snapshot["orchestration_mode"] != "agent_team"
+                                                or goals.task_resolver is None):
                 problems.append(f"{snapshot['id']}:routed_{snapshot['orchestration_mode']}_goal_gets_no_binding"
                                 f"_use_agent_team_or_pin_a_binding")
                 continue
             goal = self._host._control_store.get_goal(snapshot["id"])
-            for seq, raw in enumerate(snapshot["tasks"]):
-                item = goals._normalize_task(raw, seq=seq)
-                try:
-                    decision = goals.task_resolver(item, goal=goal, probe_availability=False)
-                except TaskStoreError as exc:
-                    problems.append(f"{snapshot['id']}:{item.id}:{exc}")
+            planned = tuple(goals._normalize_task(raw, seq=seq) for seq, raw in enumerate(snapshot["tasks"]))
+            try:
+                routes, decisions = goals._route_tasks(goal, planned, window_id="", probe_availability=False)
+            except TaskStoreError as exc:
+                problems.append(f"{snapshot['id']}:{exc}")
+                continue
+            for seq, item in enumerate(planned):
+                binding = routes[seq][1]
+                decision = decisions.get(seq) or {}
+                if not binding:
+                    problems.append(f"{snapshot['id']}:{item.id}:{decision.get('reason') or 'no_binding'}")
                     continue
-                binding = str(decision.get("binding_ref") or "")
                 if binding not in pool:
-                    problems.append(f"{snapshot['id']}:{item.id}:{binding or 'no_binding'}_outside_pool")
+                    problems.append(f"{snapshot['id']}:{item.id}:{binding}_outside_pool")
                     continue
-                lines.append(f"- {snapshot['id']} {item.id}: {binding} ({decision.get('model_id', '?')}, "
-                             f"{decision.get('reason', 'routed')})")
+                model = decision.get("model_id") or pool[binding].get("model_id", "?")
+                why = decision.get("reason", "routed") if decisions.get(seq) is not None else "pinned"
+                lines.append(f"- {snapshot['id']} {item.id}: {binding} ({model}, {why})")
         if problems:
             raise TaskStoreError("owner_window_task_unroutable:" + "; ".join(problems)[:2000])
         return lines
