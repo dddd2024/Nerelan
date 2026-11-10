@@ -47,8 +47,8 @@ Owner 已在 2026-11-10 的会话中同意第 6 节的 D1–D5，并补充了第
 | P3 | 多 Agent 在生产里基本没用上 | 第一批全部是单个 `implement` 任务、并发 1、同一个免费模型；规划器只能用 Claude/Codex；单 vs 多的收益（#1267）没有数据 | "多 Agent"目前是机制，不是效果 |
 | P4 | 自我进化没有闭环 | `multi_account/evolution.py` 是一个有界的数值账本：更新盈亏点和成本率，记录每个账户的成功反馈、冷却和策略回滚；第一批窗口运行时宿主还没采用基准快照，能力档全是先验（快照已于 2026-11-09 采用）；没有教训/技能库；#1305 未做 | 同样的失败会重复，改进依赖人 |
 | P5 | 结果质量未达标且成本高 | 假成功 #1427、池外升级 #1428；每个任务约 300 万 token、600 秒超时 | 不能放手，监督成本高 |
-| P6 | 遗留代码和状态 | `project_gate.py` 单文件 3.9 万行、`compare_aware_search.py` 2.9 万行；逆向相关代码约 8 万行（`olly_scripts`、`ida_scripts`、`strategies`、`probes`、`transforms`、`profiles` 约 4 万行，加上包顶层的 `local_reverse*`、`user_solve*`、`sample*`、`harness*` 等模块约 4 万行）；`project_state/` 1970 个跟踪文件；`tools/` 里有 `.exe`；根目录有 `how origingit remote show origin` 等误提交文件 | 每个执行器都要读更大的仓库，CI 更慢，新 Agent 容易被旧概念误导 |
-| P7 | 文档与现实不一致 | README 仍把 Path A/B 写成授权模型，而 `AGENTS.md` 已把它列为遗留；`CURRENT_ARCHITECTURE_BASELINE.md` 停在 8 月（写着"没有多 Agent"）；`docs/roadmap` 和 `docs/architecture` 合计 50 多份、约 1.4 万行，多数已过期 | 没有一份文档能回答"现在做到哪、下一步是什么" |
+| P6 | 遗留代码和状态 | `project_gate.py` 单文件 3.9 万行、`compare_aware_search.py` 2.9 万行；逆向相关代码合计约 6.8 万行（`olly_scripts`、`ida_scripts`、`strategies`、`probes`、`transforms`、`profiles` 六个子目录约 4 万行，其中已含前述 `compare_aware_search.py`；加上包顶层的 `local_reverse*`、`user_solve*`、`sample*`、`harness*`、`corpus*` 等模块约 2.8 万行）；`project_state/` 1970 个跟踪文件；`tools/` 里有 `.exe`；根目录有 `how origingit remote show origin` 等误提交文件 | 每个执行器都要读更大的仓库，CI 更慢，新 Agent 容易被旧概念误导 |
+| P7 | 文档与现实不一致 | README 仍把 Path A/B 写成授权模型，而 `AGENTS.md` 已把它列为遗留；`CURRENT_ARCHITECTURE_BASELINE.md` 停在 8 月（写着"没有多 Agent"）；`docs/roadmap` 和 `docs/architecture` 合计 57 份、约 1.5 万行，多数已过期 | 没有一份文档能回答"现在做到哪、下一步是什么" |
 | P8 | 积压 | 开放 Issue 131 个，其中 9 月建的规划类约 23 个（标题为 Planning 的 12 个，Product 的 11 个）；19 个开放 PR 里有 9 个 Draft 自 10 月 16–19 日没动过 | 优先级不清，Nerelan 自己选不出该做什么 |
 | P9 | 安全项按 Owner 决定排在最后 | #384（回环 + Origin 即执行权）、#447、#388、沙箱与隐私规划 | 对写代码可以接受；一旦接入桌面/浏览器控制，必须先补 |
 | P10 | 平台绑定 | 启动、自启、端口独占都是 Windows + PowerShell；宿主是标准库 `http.server` | 短期无碍；做常驻助手时要整理成一个服务 |
@@ -143,12 +143,15 @@ Draft PR 变成代码包的发布方式之一（#814 是入口）。
 ## 7. 工作方式（Owner 决定，2026-11-10）
 
 - **分工**：不重要或不难的任务交给 Nerelan 或监督者的子代理；监督者只做需要自己判断的部分
-  （方案设计、评审结论的最终判断、R2 改动、落地）。交回的结果照常核对。
+  （方案设计、对交回结果的核对、R2 改动、落地）。监督者不为自己写的改动提供独立评审结论。
 - **激活窗口**：给 Nerelan 派任务而没有激活的窗口时，监督者可以直接激活，不必先问；只用预设边界
   （试跑 / 一天 / 一周，只开 Draft PR），事后在对话里报告窗口 ID 和范围。这取代 2026-11-09
   "只有 Owner 在对话里要求时才代为激活"的约定。更新或重启运行宿主仍要先问 Owner。
 - **模型范围**：Magpie 里配置的模型都可以用，没有任何一个设置了自动付费，不必因费用排除。
   这包括 2026-11-09 排除的 `claude/*`、`codex/*`、`copilot/*` 和计费不明的命名空间。
-  额度配速和积分过期仍然影响选路，但不涉及费用。
+  额度配速和积分过期仍然影响选路，但不涉及费用。窗口的 token 上限和执行前的模型池核对照旧；
+  这条决定不扩大花费上限，也不引入 Magpie 之外的付费 API。
+- **与旧文档的关系**：`ONE_STEP_START_NERELAN_RUN.md` 第 1 节第 3 项的"不自行发起"和 `docs/owner-window.md`
+  里对本机 agent 的同类约定，以本节为准；这两份文档随下一次修改同步。
 
 这些决定不改变 `AGENTS.md`：独立评审、CI、匹配头合并和风险分级照旧。
