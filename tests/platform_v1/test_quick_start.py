@@ -171,6 +171,8 @@ class TestTeamTemplate:
         assert (implement["id"], review["id"]) == ("implement", "review")
         assert review["kind"] == "review" and review["artifact_input"] == {"plan_task_id": "implement"}
         assert review["dependencies"] == ["implement"]
+        # Owner decision 2026-11-10 (D4): the reviewer must be one capability tier above the author's task.
+        assert (implement["difficulty"], review["difficulty"]) == (3, 4)
         targets = [check.get("targets") for check in implement["validation_checks"]]
         assert targets == [["tests/platform_v1/test_window_report.py"]]
         assert review["validation_checks"] == implement["validation_checks"]

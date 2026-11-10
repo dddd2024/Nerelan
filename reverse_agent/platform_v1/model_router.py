@@ -215,7 +215,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                     model_review_transport.validate_connection(SimpleNamespace(executor_id=candidate["executor_id"],
                         auth_method=connection.get("auth_method"),
                         relay_required=connection.get("relay_required"),
-                        native_endpoint=connection.get("native_endpoint")), candidate.get("review_lease_provider"))
+                        native_endpoint=connection.get("native_endpoint"),
+                        base_url=connection.get("base_url")), candidate.get("review_lease_provider"))
                     review_transport = "toolless"
                 except TaskStoreError:
                     reason = "review_transport_unsupported"

@@ -111,6 +111,84 @@ def test_unsupported_connection(changes):
         transport.review("prompt", resolution, lambda r: pytest.fail("lease acquired"))
 
 
+def gateway(**changes):
+    values = dict(executor_id="opencode", auth_method="none", relay_required=False,
+                  native_endpoint="/chat/completions", base_url="http://127.0.0.1:3425/v1",
+                  provider_id="magpie", model_id="magpie/claude/claude-sonnet-5-5")
+    values.update(changes)
+    return SimpleNamespace(**values)
+
+
+def test_a_keyless_loopback_gateway_is_a_review_transport_without_a_lease():
+    transport.validate_connection(gateway(), None)
+    assert transport.keyless_gateway(gateway(base_url="http://localhost:3425/v1"))
+    assert transport.keyless_gateway(gateway(base_url="http://[::1]:3425/v1"))
+
+
+@pytest.mark.parametrize("changes", [
+    {"base_url": "https://127.0.0.1:3425/v1"}, {"base_url": "http://example.com:3425/v1"},
+    {"base_url": "http://127.0.0.1.example.com:80/v1"}, {"base_url": "http://user:pw@127.0.0.1:3425/v1"},
+    {"base_url": "http://127.0.0.1/v1"}, {"base_url": "http://127.0.0.1:3425/v1?x=1"},
+    {"base_url": "http://127.0.0.1:99999/v1"}, {"base_url": ""}, {"base_url": None},
+    {"relay_required": True}, {"native_endpoint": "/responses"}, {"executor_id": "claude_code"},
+    {"auth_method": "external_cli_session"}])
+def test_other_keyless_or_remote_connections_stay_unsupported(changes):
+    resolution = gateway(**changes)
+    assert not transport.keyless_gateway(resolution)
+    with pytest.raises(TaskStoreError, match="model_review_connection_unsupported"):
+        transport.review("prompt", resolution, None)
+
+
+def gateway_reply(**changes):
+    payload = {"id": "request-1", "model": "claude/claude-sonnet-5-5", "choices": [{
+        "finish_reason": "stop", "message": {"role": "assistant", "content": ACCEPT}}]}
+    payload.update(changes)
+    return payload
+
+
+def test_gateway_review_sends_the_gateways_own_model_id_and_no_credential(monkeypatch):
+    seen = {}
+    def post(base_url, body, headers):
+        seen.update(base_url=base_url, body=body, headers=headers)
+        return gateway_reply()
+    monkeypatch.setattr(transport, "_post", post)
+    reply = transport.review("prompt", gateway(), lambda r: pytest.fail("lease acquired"))
+    assert seen["base_url"] == "http://127.0.0.1:3425/v1" and seen["headers"] == {}
+    assert seen["body"] == {"model": "claude/claude-sonnet-5-5", "stream": False, "max_tokens": 8192,
+                            "messages": [{"role": "user", "content": "prompt"}]}
+    assert reply["actual_models"] == ["magpie/claude/claude-sonnet-5-5"] and reply["request_id"] == "request-1"
+
+
+@pytest.mark.parametrize("changes,reason", [
+    ({"model": "claude/claude-opus-5-5"}, "review_not_independent"),
+    ({"model": ""}, "review_not_independent"),
+    ({"id": ""}, "model_review_invalid_output"),
+    ({"choices": []}, "model_review_invalid_output")])
+def test_gateway_answers_are_checked_like_relay_answers(monkeypatch, changes, reason):
+    monkeypatch.setattr(transport, "_post", lambda *args: gateway_reply(**changes))
+    with pytest.raises(TaskStoreError, match=reason):
+        transport.review("prompt", gateway(), None)
+
+
+def test_a_gateway_review_runs_end_to_end_without_a_lease(toolless, monkeypatch):
+    s = toolless
+    from test_functional_execution import LocalBinding
+    relay = LocalBinding.resolve
+    def resolve(self, ref, *, task_executor):
+        return replace(relay(self, ref, task_executor=task_executor), auth_method="none",
+                       relay_required=False, base_url="http://127.0.0.1:3425/v1")
+    monkeypatch.setattr(LocalBinding, "resolve", resolve)
+    bodies = []
+    def post(base_url, body, headers):
+        bodies.append((base_url, headers, body["model"]))
+        return {**s["payload"], "model": "test"}
+    monkeypatch.setattr(transport, "_post", post)
+    s["service"].lease_provider = lambda r: pytest.fail("lease acquired")
+    result = run(s)
+    assert result.success, result
+    assert bodies == [("http://127.0.0.1:3425/v1", {}, "test")] and not s["calls"] and not s["released"]
+
+
 def test_multibyte_exact_boundary(monkeypatch):
     monkeypatch.setattr(model_review, "MAX_DIFF_BYTES", 4)
     monkeypatch.setattr(model_review.subprocess, "run", lambda *a, **k:

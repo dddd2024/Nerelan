@@ -1,8 +1,17 @@
-"""Single-request tool-less review over an execution-scoped host relay lease.
+"""Single-request tool-less review.
+
+Two transports, one request shape and one set of answer checks:
+
+- an API-key connection goes through an execution-scoped host relay lease, so the
+  key never leaves the host;
+- a keyless gateway on this machine (a loopback ``http`` base URL with
+  ``auth_method: none``, such as Magpie) is called directly: there is no credential
+  to lease, and its accounts stay inside the gateway.
 
 This module accepts only prompt text and connection identity, never a workspace.
 """
 import json
+from urllib.parse import urlsplit
 from urllib.request import Request
 from urllib.error import URLError
 
@@ -15,7 +24,30 @@ TIMEOUT_SECONDS = 60
 MAX_RESPONSE_BYTES = 512 * 1024
 
 
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def keyless_gateway(resolution):
+    """True for a keyless OpenCode connection whose base URL is plain http on this machine."""
+    if (resolution.executor_id != "opencode" or resolution.auth_method != "none"
+            or getattr(resolution, "relay_required", False)
+            or getattr(resolution, "native_endpoint", "") != "/chat/completions"):
+        return False
+    base_url = getattr(resolution, "base_url", "")
+    if not isinstance(base_url, str) or not base_url:
+        return False
+    try:
+        parsed = urlsplit(base_url)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (parsed.scheme == "http" and parsed.hostname in _LOOPBACK_HOSTS and port is not None
+            and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment)
+
+
 def validate_connection(resolution, lease_provider):
+    if keyless_gateway(resolution):
+        return
     if (resolution.executor_id != "opencode" or resolution.auth_method != "api_key"
             or not resolution.relay_required
             or getattr(resolution, "native_endpoint", "") != "/chat/completions"
@@ -24,9 +56,18 @@ def validate_connection(resolution, lease_provider):
 
 
 def chat(lease, body):
-    request = Request(lease.relay_url.rstrip("/") + "/chat/completions",
+    return _post(lease.relay_url, body, {"Authorization": "Bearer " + lease.lease_id})
+
+
+def gateway_chat(base_url, body):
+    """One request to a keyless loopback gateway; no credential is sent."""
+    return _post(base_url, body, {})
+
+
+def _post(base_url, body, headers):
+    request = Request(base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Authorization": "Bearer " + lease.lease_id, "Content-Type": "application/json"})
+        headers={**headers, "Content-Type": "application/json"})
     with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
@@ -45,16 +86,26 @@ def review(prompt, resolution, lease_provider):
     validate_connection(resolution, lease_provider)
     lease = None
     try:
-        lease = lease_provider(resolution)
-        lease.bind_execution_deadline(TIMEOUT_SECONDS)
-        prefix = "reverse-agent-relay/"
-        if not lease.model_id.startswith(prefix):
-            raise TaskStoreError("review_not_independent")
-        model = lease.model_id[len(prefix):]
-        if _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
-            raise TaskStoreError("review_not_independent")
-        payload = chat(lease, {"model": model, "messages": [{"role": "user", "content": prompt}],
-            "stream": False, "max_tokens": 8192})
+        if keyless_gateway(resolution):
+            # The binding's model id is the gateway's own id under the connection's provider prefix.
+            prefix = resolution.provider_id + "/"
+            model = (resolution.model_id[len(prefix):] if resolution.model_id.startswith(prefix)
+                     else resolution.model_id)
+            if not model or _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
+                raise TaskStoreError("review_not_independent")
+            payload = gateway_chat(resolution.base_url, {"model": model, "stream": False, "max_tokens": 8192,
+                "messages": [{"role": "user", "content": prompt}]})
+        else:
+            lease = lease_provider(resolution)
+            lease.bind_execution_deadline(TIMEOUT_SECONDS)
+            prefix = "reverse-agent-relay/"
+            if not lease.model_id.startswith(prefix):
+                raise TaskStoreError("review_not_independent")
+            model = lease.model_id[len(prefix):]
+            if _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
+                raise TaskStoreError("review_not_independent")
+            payload = chat(lease, {"model": model, "messages": [{"role": "user", "content": prompt}],
+                "stream": False, "max_tokens": 8192})
         if not isinstance(payload, dict):
             raise TaskStoreError("model_review_invalid_output")
         actual = payload.get("model")

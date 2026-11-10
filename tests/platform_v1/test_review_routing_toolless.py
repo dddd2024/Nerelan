@@ -53,6 +53,36 @@ def test_unsupported_cheaper_transport_and_misleading_provider(changes):
     assert choose([bad, good])["binding_ref"] == "bad"
 
 
+def keyless(ref, model, base_url="http://127.0.0.1:3425/v1"):
+    row = candidate(ref, model)
+    row["review_connection"] = {"auth_method": "none", "relay_required": False,
+                                "native_endpoint": "/chat/completions", "base_url": base_url}
+    row["review_lease_provider"] = None
+    return row
+
+
+def test_a_keyless_loopback_gateway_model_can_be_the_reviewer():
+    """Seen 2026-11-10: every gateway binding was excluded, leaving two reviewers for 183 bindings."""
+    result = choose([keyless("gateway", "claude/claude-sonnet-4-6")], kind="review",
+                    author_models=["author"], author_executors=["opencode"])
+    assert result["binding_ref"] == "gateway" and result["excluded_candidates"] == []
+
+
+@pytest.mark.parametrize("base_url", ["https://gateway.example/v1", "http://10.0.0.5:3425/v1", None])
+def test_a_keyless_connection_that_is_not_a_loopback_gateway_cannot_review(base_url):
+    with pytest.raises(ModelSelectionError, match="review_not_independent") as error:
+        choose([keyless("remote", "claude/claude-sonnet-4-6", base_url)], kind="review",
+               author_models=["author"], author_executors=["opencode"])
+    assert error.value.decision["excluded_candidates"][0]["filter"] == "review_transport_unsupported"
+
+
+def test_a_gateway_reviewer_of_the_authors_family_is_still_refused():
+    with pytest.raises(ModelSelectionError, match="review_not_independent") as error:
+        choose([keyless("gateway", "copilot/kimi-k3")], kind="review",
+               author_models=["kimi-k3"], author_executors=["opencode"])
+    assert error.value.decision["excluded_candidates"][0]["filter"] == "reviewer_is_author"
+
+
 @pytest.mark.parametrize("executor,lease", [("claude_code", lambda r: None), ("opencode", None)])
 def test_no_eligible_transport(executor, lease):
     row = candidate("bad", "independent", executor=executor)

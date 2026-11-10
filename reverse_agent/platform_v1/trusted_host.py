@@ -704,6 +704,7 @@ class CombinedTrustedHost:
                                "review_connection": {"auth_method": connection.get("auth_method"),
                                    "protocol_family": connection.get("protocol_family"),
                                    "relay_required": connection.get("auth_method") == "api_key",
+                                   "base_url": connection.get("base_url"),
                                    "native_endpoint": binding.get("native_endpoint", "")},
                                "review_lease_provider": review_lease_provider,
                                "metadata": metadata.get(binding["model_id"], {}),

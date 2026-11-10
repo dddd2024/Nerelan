@@ -159,3 +159,20 @@ required ancestry fails closed. Pins and underpowered fallback cannot override
 this exclusion. Without an independent reviewer meeting the required tier,
 selection fails with `review_not_independent` and persists `MODEL_SELECTION_FAILED`
 as blocked evidence. Review tasks without `artifact_input` retain ordinary routing.
+
+A non-Codex artifact review is one tool-less chat request, and a binding can be the
+reviewer only if its connection supports that request in one of two ways:
+
+- an API-key OpenCode connection, through an execution-scoped host relay lease;
+- a keyless gateway on this machine: an OpenCode connection with `auth_method: none`
+  whose base URL is plain `http` on a loopback host with an explicit port (Magpie).
+  The host calls it directly and sends no credential. The answer is checked the same
+  way: the gateway must echo the requested model, one `stop` choice, no tool calls.
+
+Any other connection is excluded from review with `review_transport_unsupported`.
+Until 2026-11-10 only the first form existed, so no gateway model could review; on the
+run host that left two reviewers among 183 bindings and reviews failed with
+`review_not_independent` whenever the author shared their family.
+
+The quick-start team template asks for a reviewer one capability tier above the
+implement task (review difficulty 4, implement 3; Owner decision 2026-11-10, D4).
