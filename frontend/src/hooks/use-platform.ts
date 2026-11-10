@@ -5,6 +5,10 @@ import {
   fetchPlatformStatus,
   fetchAccountPool,
   fetchApprovedPolicyIfConfigured,
+  draftQuickStart,
+  preflightOwnerWindow,
+  type QuickStartDraftInput,
+  type OwnerWindowPreflightRequest,
 } from "@/lib/platform-client";
 import {
   startGoal,
@@ -78,6 +82,18 @@ export function useStartGoal() {
 
 export function useCreateGoalDraft() {
   return useGoalSubmission(createGoalDraft);
+}
+
+export function useDraftQuickStart() {
+  return useMutation({
+    mutationFn: (input: QuickStartDraftInput) => draftQuickStart(input),
+  });
+}
+
+export function usePreflightOwnerWindow() {
+  return useMutation({
+    mutationFn: (request: OwnerWindowPreflightRequest) => preflightOwnerWindow(request),
+  });
 }
 
 function useGoalSubmission(submit: typeof startGoal) {
