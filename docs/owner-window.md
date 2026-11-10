@@ -70,6 +70,21 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 
 成稿只创建并规划目标，不批准、不启动、不激活。
 
+### 确认卡片激活（默认）
+
+Owner 决定（2026-11-09）：确认卡片上的"开始"就是 Owner 的确认。`POST /api/owner-window/activate`
+接受与预检相同的参数，外加预检返回的 `card_digest`：
+
+- 请求仍需本机客户端会话（由启动器发放），渲染端之外的进程拿不到。
+- `card_digest` 覆盖卡片显示的全部内容：每个目标的修订和产物摘要、仓库和基线、时长与各项上限、能力、
+  模型池；不含每次请求不同的窗口编号和时钟时间。宿主在询问前按当前持久化数据重算，不一致就拒绝
+  （`owner_window_scope_changed`），卡片应重新预检后再确认。
+- 之后与终端路径完全相同：事务内再读一次并逐字节比对，窗口、批准、启动和每个目标一条回执一起提交，
+  回执记录确认方式为"owner pressed Start on the Nerelan confirmation card"。
+- 严格模式：任务库旁的 `owner_window_settings.json` 写 `{"confirmation": "terminal"}` 后，卡片不能激活
+  （`owner_window_terminal_confirmation_required`），只能用终端确认码。预检结果的 `confirmation` 字段
+  告诉界面当前模式。
+
 ## 保证
 
 激活在一个 SQLite `BEGIN IMMEDIATE` 事务里完成，沿用单任务原生准入的约束：
@@ -103,8 +118,9 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 ## 局限
 
 - 确认码证明的是有人在这个终端读了范围并输入了它，不能证明这个人就是仓库 Owner。能操控这个终端的
-  任何进程都能输入它；在本机运行的 Agent 约定不得这样做。原生对话框同样防不住同一用户下的自动化，
-  所以两者实际强度相近。
+  任何进程都能输入它。原生对话框同样防不住同一用户下的自动化，所以两者实际强度相近。
+- Owner 决定（2026-11-09）：系统不再默认严防同机其他 Agent。默认由确认卡片的"开始"激活（见下节），
+  终端确认码是可选的严格模式；Agent 只在 Owner 于对话中明确要求时代为激活，且只用预设边界。
 - 模型池是确认那一刻的快照。之后新增的绑定不在池里，被选中时执行前会被拒绝。
 - 激活前逐任务预先选路，并在确认界面列出每个任务预计使用的模型。钉死绑定的目标沿用其绑定；路由的
   `agent_team` 目标在关闭可用性探测的前提下选路；路由的 `single`、`sequential_team` 目标在启动时

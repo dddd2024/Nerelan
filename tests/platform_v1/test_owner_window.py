@@ -561,3 +561,81 @@ class TestOwnerWindowRequest:
         route = handler[handler.index('["api", "owner-window", "preflight"]'):]
         route = route[:route.index('if segments == ["api", "windows", "activate"]')]
         assert "admit" not in route and "activate" not in route
+
+
+class TestCardActivation:
+    """Owner decision 2026-11-09: Start on the confirmation card activates the window."""
+
+    REQ = dict(hours=24, max_tasks=10, max_concurrent=1, max_retries=2, capabilities=list(ALL))
+
+    def card(self, setup, *goals):
+        report = setup.host._owner_window_admission.preflight([g.id for g in goals], **self.REQ)
+        assert report["ok"] is True and report["confirmation"] == "ui"
+        return report["card_digest"]
+
+    def test_start_on_the_card_activates_with_one_receipt_per_goal(self, setup):
+        a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "opencode", "free")
+        digest = self.card(setup, a, b)
+        window = setup.host._owner_window_admission.admit_from_card([a.id, b.id], card_digest=digest, **self.REQ)
+        assert window.confirmation_mode == OWNER_WINDOW_MODE and window.status == "ACTIVE"
+        rows = setup.db._conn.execute("SELECT evidence_json FROM platform_operation_receipts WHERE operation_type = ?",
+                                      (OWNER_WINDOW_RECEIPT,)).fetchall()
+        assert len(rows) == 2
+        assert {json.loads(r["evidence_json"])["mechanism"] for r in rows} == {
+            "owner pressed Start on the Nerelan confirmation card"}
+
+    def test_the_card_digest_is_stable_across_requests(self, setup):
+        a = setup.planned("a", "codex", "pinned")
+        assert self.card(setup, a) == self.card(setup, a)
+
+    @pytest.mark.parametrize("change", [{"max_retries": 1}, {"hours": 12}, {"max_tasks": 9}])
+    def test_a_request_unlike_the_card_is_refused(self, setup, change):
+        a = setup.planned("a", "codex", "pinned")
+        digest = self.card(setup, a)
+        with pytest.raises(TaskStoreError, match="owner_window_scope_changed"):
+            setup.host._owner_window_admission.admit_from_card([a.id], card_digest=digest, **{**self.REQ, **change})
+        untouched(setup, a)
+
+    def test_a_goal_replanned_after_the_card_is_refused(self, setup):
+        a = setup.planned("a", "codex", "pinned")
+        digest = self.card(setup, a)
+        goals = setup.host._goal_service
+        replanned = goals.plan(a.id, expected_revision=a.revision, tasks=[
+            {"id": "T0", "title": "Different", "instruction": "Other work"}]).goal
+        with pytest.raises(TaskStoreError, match="owner_window_scope_changed"):
+            setup.host._owner_window_admission.admit_from_card([a.id], card_digest=digest, **self.REQ)
+        untouched(setup, replanned)
+
+    @pytest.mark.parametrize("digest", ["", "x" * 64, None, "A" * 64])
+    def test_a_malformed_digest_is_refused(self, setup, digest):
+        a = setup.planned("a", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="owner_window_card_digest_invalid"):
+            setup.host._owner_window_admission.admit_from_card([a.id], card_digest=digest, **self.REQ)
+        untouched(setup, a)
+
+    def test_strict_terminal_mode_refuses_the_card(self, setup, tmp_path, monkeypatch):
+        state = tmp_path / "model_setup_state.json"
+        (tmp_path / "owner_window_settings.json").write_text(json.dumps({"confirmation": "terminal"}), encoding="utf-8")
+        monkeypatch.setattr(setup.host._store, "_state_path", state, raising=False)
+        a = setup.planned("a", "codex", "pinned")
+        report = setup.host._owner_window_admission.preflight([a.id], **self.REQ)
+        assert report["confirmation"] == "terminal"
+        with pytest.raises(TaskStoreError, match="owner_window_terminal_confirmation_required"):
+            setup.host._owner_window_admission.admit_from_card([a.id], card_digest=report["card_digest"], **self.REQ)
+        untouched(setup, a)
+
+    @pytest.mark.parametrize("content", ['{"confirmation": "anything"}', "not json", "[]"])
+    def test_bad_settings_are_refused(self, setup, tmp_path, monkeypatch, content):
+        (tmp_path / "owner_window_settings.json").write_text(content, encoding="utf-8")
+        monkeypatch.setattr(setup.host._store, "_state_path", tmp_path / "model_setup_state.json", raising=False)
+        with pytest.raises(TaskStoreError, match="owner_window_settings_invalid"):
+            setup.host._owner_window_admission.confirmation_mode()
+
+    def test_the_task_api_route_passes_the_card_digest(self):
+        import inspect
+        from reverse_agent.platform_v1 import task_service, trusted_host
+        assert "owner_window_activate=self._owner_window_admission.admit_from_card" in inspect.getsource(trusted_host)
+        handler = inspect.getsource(task_service._TaskHandler)
+        route = handler[handler.index('["api", "owner-window", "activate"]'):]
+        route = route[:route.index('["api", "owner-window", "preflight"]')]
+        assert 'payload.pop("card_digest"' in route and "card_digest=card_digest" in route

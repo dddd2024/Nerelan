@@ -1562,6 +1562,7 @@ class CombinedTrustedHost:
                 context_recovery=self._context_recovery(),
                 agent_policy=self._agent_policy(),
                 owner_window_preflight=self._owner_window_admission.preflight,
+                owner_window_activate=self._owner_window_admission.admit_from_card,
                 quick_start=self._quick_start(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,

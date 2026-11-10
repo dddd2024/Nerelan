@@ -23,10 +23,11 @@ can drive this terminal could type it. Agents operating this machine must not.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 import getpass
+from pathlib import Path
 import json
 import re
 import secrets
@@ -286,6 +287,61 @@ class OwnerWindowAdmission:
                     "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
         return goal_ids, envelope
 
+    @staticmethod
+    def card_digest(scope: Mapping[str, Any]) -> str:
+        """What the confirmation card shows, without per-request identities and times.
+
+        Goals at their revisions and artifact digests, repository and base, every
+        bound, the model pool. A request activates only if this is unchanged since
+        the card was drawn (Owner decision 2026-11-09: the card's Start is the
+        confirmation).
+        """
+        raw = scope["envelope"]
+        envelope = {key: value for key, value in raw.items()
+                    if key not in {"window_id", "policy_id", "starts_at", "expires_at", "owner_identity"}}
+        # The window's length is a bound the card shows; its clock times are per request.
+        envelope["duration_seconds"] = round((
+            datetime.fromisoformat(raw["expires_at"].replace("Z", "+00:00"))
+            - datetime.fromisoformat(raw["starts_at"].replace("Z", "+00:00"))).total_seconds())
+        return sha256_json({**{key: value for key, value in scope.items()
+                               if key not in {"envelope", "host_instance", "os_user"}}, "envelope": envelope})
+
+    def confirmation_mode(self) -> str:
+        """``ui`` (default) or ``terminal``, from the Owner's owner_window_settings.json."""
+        state_path = getattr(self._host._store, "_state_path", None)
+        if not state_path:
+            return "ui"
+        try:
+            data = json.loads(Path(state_path).with_name("owner_window_settings.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return "ui"
+        except (OSError, ValueError) as exc:
+            raise TaskStoreError("owner_window_settings_invalid") from exc
+        mode = data.get("confirmation", "ui") if isinstance(data, dict) else None
+        if mode not in {"ui", "terminal"}:
+            raise TaskStoreError("owner_window_settings_invalid")
+        return mode
+
+    def admit_from_card(self, goal_ids: Sequence[str], *, card_digest: str, **request: Any) -> Any:
+        """Activation from the confirmation card's Start (Owner decision 2026-11-09).
+
+        The local client session authenticates the caller; the Start click is the
+        Owner's confirmation. The card's digest must match the scope read now, and
+        everything else is the terminal path: persisted truth reread inside the
+        transaction, one atomic commit, one receipt per Goal. With the Owner's
+        strict mode (``terminal``) the card cannot activate.
+        """
+        if self.confirmation_mode() != "ui":
+            raise TaskStoreError("owner_window_terminal_confirmation_required")
+        if not isinstance(card_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", card_digest):
+            raise TaskStoreError("owner_window_card_digest_invalid")
+
+        def confirm(_text: str, _code: str, *, scope: Mapping[str, Any]) -> bool:
+            if self.card_digest(scope) != card_digest:
+                raise TaskStoreError("owner_window_scope_changed")
+            return True
+        return self.admit(goal_ids, **request, confirm=confirm, surface="ui")
+
     def preflight(self, goal_ids: Sequence[str], **request: Any) -> dict[str, Any]:
         """Everything that would refuse activation or block the window, reported, not raised.
 
@@ -341,12 +397,16 @@ class OwnerWindowAdmission:
                     "starts_at", "expires_at", "capabilities", "max_tasks", "max_concurrent_tasks",
                     "max_retries", "max_token_units", "max_cost_micro_units")},
                 "paid_api": scope["paid_api"]}
+            result["card_digest"] = self.card_digest(scope)
+            result["confirmation"] = self.confirmation_mode()
         result["ok"] = all(check["ok"] for check in checks)
         return result
 
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[[str, str], bool],
-              max_token_units: int = 0, max_cost_micro_units: int = 0) -> Any:
+              max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal") -> Any:
+        if surface not in {"terminal", "ui"}:
+            raise TaskStoreError("owner_window_surface_invalid")
         if not self._lock.acquire(blocking=False):
             raise TaskStoreError("owner_window_admission_in_progress")
         try:
@@ -364,7 +424,9 @@ class OwnerWindowAdmission:
             # binding is refused at dispatch, so it is refused here, before the Owner is asked.
             preview = self._route_preview(json.loads(before))
             code = secrets.token_hex(3).upper()
-            if confirm(self.render(json.loads(before), code, preview), code) is not True:
+            confirmed = (confirm("", code, scope=json.loads(before)) if surface == "ui"
+                         else confirm(self.render(json.loads(before), code, preview), code))
+            if confirmed is not True:
                 raise TaskStoreError("owner_window_confirmation_refused")
             if time.monotonic() >= deadline:
                 raise TaskStoreError("owner_window_confirmation_expired")
@@ -388,7 +450,9 @@ class OwnerWindowAdmission:
                                    "scope_digest": sha256_json(approved), "goals": list(goal_ids),
                                    "envelope": envelope, "approved_pool": approved["approved_pool"],
                                    "workspace": approved["workspace"], "base_sha": approved["base_sha"],
-                                   "mechanism": "owner typed a one-time code at the host terminal"}
+                                   "mechanism": ("owner pressed Start on the Nerelan confirmation card"
+                                                 if surface == "ui" else
+                                                 "owner typed a one-time code at the host terminal")}
                 for goal_snapshot in approved["goals"]:
                     provenance = {**provenance_base, "goal_id": goal_snapshot["id"],
                                   "goal_revision": goal_snapshot["revision"],
