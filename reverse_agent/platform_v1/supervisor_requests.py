@@ -18,9 +18,12 @@ it, so a request runs at most once.
 What it is and is not:
 
 - Off unless the Owner's ``owner_window_settings.json`` says
-  ``"supervisor_activation": true``. Strict ``terminal`` confirmation also refuses it.
+  ``"supervisor_activation": true``. The host reads that when it starts: turning it
+  on needs a host restart, turning it off works at once. Strict ``terminal``
+  confirmation refuses activation.
 - Bounds are never in the request. A request names a preset; the host computes the
-  window from it, so a supervisor gets the trial/day/week bounds or nothing.
+  window from it, so a supervisor gets the trial/day/week bounds (as the Owner's
+  ``owner_window_presets.json`` may have changed them) or nothing.
 - Activation runs the same admission as the confirmation card: the digest of the
   preflight must match the scope read now, one atomic commit, one receipt per Goal.
   The receipt records that a supervisor asked, and who it said it was.
@@ -50,6 +53,7 @@ POLL_SECONDS = 3.0
 MAX_REQUEST_BYTES = 64 * 1024
 MAX_REQUESTS_PER_POLL = 20
 KEPT_RESULTS = 50
+TAKEN_GRACE_SECONDS = 900.0
 _ID = re.compile(r"[a-z0-9]{8,32}")
 _REQUEST, _RESULT = ".request.json", ".result.json"
 _FIELDS = {
@@ -61,8 +65,15 @@ _FIELDS = {
 
 def _write_atomic(path: Path, document: Any) -> None:
     temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
-    temporary.write_text(json.dumps(document, ensure_ascii=False, sort_keys=True), encoding="utf-8")
-    os.replace(temporary, path)
+    try:
+        temporary.write_text(json.dumps(document, ensure_ascii=False, sort_keys=True), encoding="utf-8")
+        os.replace(temporary, path)
+    except OSError:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+        raise
 
 
 class SupervisorRequests:
@@ -71,28 +82,46 @@ class SupervisorRequests:
     def __init__(self, host: Any, *, poll_seconds: float = POLL_SECONDS) -> None:
         self._host = host
         self._poll_seconds = poll_seconds
-        self._stop = threading.Event()
+        self._stop: threading.Event | None = None
         self._thread: threading.Thread | None = None
+        self._enabled_at_start: bool | None = None
 
     def directory(self) -> Path | None:
         state_path = getattr(self._host._store, "_state_path", None)
         return Path(state_path).parent / DIRECTORY if state_path else None
 
+    def _latched(self) -> bool:
+        """The Owner's switch as it was when this watcher first looked (host start).
+
+        A task running later as the same OS user cannot turn the feature on by
+        editing the settings file; the live check in the admission can still turn it off.
+        """
+        if self._enabled_at_start is None:
+            try:
+                self._enabled_at_start = self._host._owner_window_admission.supervisor_enabled()
+            except TaskStoreError:
+                self._enabled_at_start = False
+        return self._enabled_at_start
+
     def start(self) -> None:
         if self._thread is not None or self.directory() is None:
             return
-        self._stop.clear()
-        self._thread = threading.Thread(target=self._run, name="supervisor-requests", daemon=True)
+        self._latched()
+        # One event per thread: a thread that outlived stop() can never be revived by a later start().
+        self._stop = stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, args=(stop,), name="supervisor-requests", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
-        self._stop.set()
+        stop, self._stop = self._stop, None
         thread, self._thread = self._thread, None
+        if stop is not None:
+            stop.set()
         if thread is not None:
             thread.join(timeout=5)
 
-    def _run(self) -> None:
-        while not self._stop.wait(self._poll_seconds):
+    def _run(self, stop: threading.Event) -> None:
+        while not stop.wait(self._poll_seconds):
             try:
                 self.poll_once()
             except Exception:  # noqa: BLE001 - the watcher must outlive one bad poll
@@ -103,8 +132,10 @@ class SupervisorRequests:
         directory = self.directory()
         if directory is None or not directory.is_dir():
             return 0
-        answered = 0
-        for path in sorted(directory.glob(f"*{_REQUEST}"))[:MAX_REQUESTS_PER_POLL]:
+        answered = taken = 0
+        for path in sorted(directory.glob(f"*{_REQUEST}")):
+            if taken >= MAX_REQUESTS_PER_POLL:
+                break
             name = path.name[:-len(_REQUEST)]
             try:
                 if path.is_symlink() or not path.is_file():
@@ -113,32 +144,51 @@ class SupervisorRequests:
                 path.unlink()  # before acting: a request runs at most once
             except OSError:
                 continue
+            taken += 1
             if not _ID.fullmatch(name):
                 continue
-            _write_atomic(directory / f"{name}{_RESULT}", self._answer(raw))
-            answered += 1
+            answer = self._answer(raw)
+            try:
+                _write_atomic(directory / f"{name}{_RESULT}", answer)
+                answered += 1
+            except OSError:
+                # The action may already have happened (a window may be active): say so in the log.
+                LOG.exception("supervisor request %s: result not written; outcome ok=%s action=%s",
+                              name, answer.get("ok"), answer.get("action"))
         if answered:
-            results = sorted(directory.glob(f"*{_RESULT}"), key=lambda item: item.stat().st_mtime)
-            for stale in results[:-KEPT_RESULTS]:
-                try:
-                    stale.unlink()
-                except OSError:
-                    pass
+            self._prune(directory)
         return answered
+
+    @staticmethod
+    def _prune(directory: Path) -> None:
+        dated = []
+        for item in directory.glob(f"*{_RESULT}"):
+            try:
+                dated.append((item.stat().st_mtime, item))
+            except OSError:
+                continue
+        for _, stale in sorted(dated, key=lambda pair: pair[0])[:-KEPT_RESULTS]:
+            try:
+                stale.unlink()
+            except OSError:
+                pass
 
     def _answer(self, raw: bytes | None) -> dict[str, Any]:
         action = ""
         try:
             if raw is None:
                 raise TaskStoreError("supervisor_request_too_large")
-            payload = json.loads(raw.decode("utf-8"))
+            try:
+                payload = json.loads(raw.decode("utf-8-sig"))
+            except (ValueError, UnicodeDecodeError) as exc:
+                raise TaskStoreError("supervisor_request_invalid") from exc
             if not isinstance(payload, dict) or payload.get("action") not in _FIELDS:
                 raise TaskStoreError("supervisor_request_invalid")
             action = payload["action"]
             if set(payload) - _FIELDS[action]:
                 raise TaskStoreError("supervisor_request_invalid")
             admission = self._host._owner_window_admission
-            if not admission.supervisor_enabled():
+            if not self._latched() or not admission.supervisor_enabled():
                 raise TaskStoreError("owner_window_supervisor_activation_disabled")
             if action == "draft":
                 text, repository, preset = (payload.get(key, "") for key in ("text", "repository", "preset"))
@@ -155,33 +205,62 @@ class SupervisorRequests:
             return {"ok": True, "action": action, "result": result}
         except TaskStoreError as exc:
             return {"ok": False, "action": action, "error": str(exc)}
-        except (ValueError, UnicodeDecodeError):
-            return {"ok": False, "action": action, "error": "supervisor_request_invalid"}
         except Exception:  # noqa: BLE001 - reported as a fixed code, details in the host log
-            LOG.exception("supervisor request failed")
+            LOG.exception("supervisor request failed (action=%s)", action)
             return {"ok": False, "action": action, "error": "supervisor_request_failed"}
 
 
 def submit(state_dir: str | Path, payload: dict[str, Any], *, wait_seconds: float = 300.0,
-           poll_seconds: float = 1.0) -> dict[str, Any]:
-    """Write one request beside the task store and wait for the host's answer."""
-    directory = Path(state_dir) / DIRECTORY
-    directory.mkdir(parents=True, exist_ok=True)
+           poll_seconds: float = 1.0, taken_grace_seconds: float = TAKEN_GRACE_SECONDS) -> dict[str, Any]:
+    """Write one request beside the task store and wait for the host's answer.
+
+    If nothing answers in time the request is withdrawn. If the host has already
+    taken it, it may still act: this keeps waiting for a bounded grace period and,
+    failing that, says the outcome is pending and where the result will appear,
+    never that nothing happened.
+    """
+    root = Path(state_dir)
+    if not root.is_dir():
+        return {"ok": False, "action": payload.get("action", ""), "error": "supervisor_state_dir_missing"}
+    directory = root / DIRECTORY
+    directory.mkdir(exist_ok=True)
     name = secrets.token_hex(8)
     request, result = directory / f"{name}{_REQUEST}", directory / f"{name}{_RESULT}"
     _write_atomic(request, payload)
-    deadline = time.monotonic() + wait_seconds
-    while time.monotonic() < deadline:
-        if result.is_file():
-            return json.loads(result.read_text(encoding="utf-8"))
-        time.sleep(poll_seconds)
+
+    def answer() -> dict[str, Any] | None:
+        try:
+            return {**json.loads(result.read_text(encoding="utf-8")), "request_id": name}
+        except (OSError, ValueError):
+            return None
+
+    def wait(seconds: float) -> dict[str, Any] | None:
+        deadline = time.monotonic() + seconds
+        while True:
+            found = answer()
+            if found is not None or time.monotonic() >= deadline:
+                return found
+            time.sleep(poll_seconds)
+
+    found = wait(wait_seconds)
+    if found is not None:
+        return found
     try:
-        request.unlink()  # unanswered: withdraw it so it cannot run later unobserved
+        request.unlink()
+        withdrawn = True
+    except FileNotFoundError:
+        withdrawn = False  # the host took it and may be acting on it now
     except OSError:
-        pass
-    if result.is_file():
-        return json.loads(result.read_text(encoding="utf-8"))
-    return {"ok": False, "action": payload.get("action", ""), "error": "supervisor_request_unanswered"}
+        if request.exists():  # still waiting and we could not remove it: it may run later
+            return {"ok": False, "action": payload.get("action", ""), "request_id": name,
+                    "error": "supervisor_request_not_withdrawn", "request_path": str(request)}
+        withdrawn = False
+    if withdrawn:
+        return answer() or {"ok": False, "action": payload.get("action", ""), "request_id": name,
+                            "error": "supervisor_request_unanswered"}
+    return wait(taken_grace_seconds) or {
+        "ok": False, "action": payload.get("action", ""), "request_id": name,
+        "error": "supervisor_request_taken_result_pending", "result_path": str(result)}
 
 
 def main(argv: list[str] | None = None) -> int:

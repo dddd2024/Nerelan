@@ -381,10 +381,13 @@ class OwnerWindowAdmission:
         """
         if self.confirmation_mode() != "ui" or not self.supervisor_enabled():
             raise TaskStoreError("owner_window_supervisor_activation_disabled")
+        if not isinstance(requested_by, str):
+            raise TaskStoreError("owner_window_request_invalid")
+        # A self-reported label for the receipt: printable text only, bounded.
+        label = "".join(char for char in requested_by if char.isprintable())[:200]
         confirm = self._digest_confirm(card_digest)
         request = self.supervisor_request(goal_ids, preset)
-        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor",
-                          requested_by=str(requested_by or "")[:200])
+        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor", requested_by=label)
 
     def admit_from_card(self, goal_ids: Sequence[str], *, card_digest: str, **request: Any) -> Any:
         """Activation from the confirmation card's Start (Owner decision 2026-11-09).

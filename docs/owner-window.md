@@ -101,15 +101,23 @@ python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库�
 ```
 
 - 默认关闭。Owner 在任务库旁的 `owner_window_settings.json` 写 `{"supervisor_activation": true}` 才生效；
-  关闭时请求会得到 `owner_window_supervisor_activation_disabled`，什么都不做。严格模式
-  （`"confirmation": "terminal"`）下同样拒绝。设置文件格式不对时按关闭处理并报错。
+  关闭时请求会得到 `owner_window_supervisor_activation_disabled`，什么都不做。
+- 宿主在启动时读取这个开关：打开后要重启宿主才生效，关闭则立即生效。这样宿主运行期间，以同一用户运行的
+  任务改写设置文件也打不开它。
+- 严格模式（`"confirmation": "terminal"`）下拒绝激活；起草和预检不授权任何事，仍然可用。
+- 设置文件格式不对（包括 `supervisor_activation` 不是布尔值）时，监督者请求和确认卡片都被拒绝
+  （`owner_window_settings_invalid`），直到 Owner 改好。
 - 请求里不能写边界。请求只给出预设名（试跑 / 一天 / 一周）、目标和预检摘要，时长、并发、重试、任务数和
   Token 上限由宿主按预设计算；带了其他字段的请求被拒绝（`supervisor_request_invalid`）。
+  预设的数值可以被 Owner 的 `owner_window_presets.json` 改写，所以"预设边界"指的是这个文件当前的内容；
+  它和设置文件都能被同一用户下的进程改写，数据库的硬上限仍然适用，回执里记录实际使用的边界。
 - 激活走与确认卡片相同的准入：摘要与当前范围不一致就拒绝，窗口、批准、启动和每个目标一条回执一起
   提交。回执的确认方式记为"supervisor request file under the Owner's standing delegation; preset
   bounds only"，并记下请求方自报的名字（`requested_by`）。
-- 宿主先删除请求文件再处理，所以一个请求最多执行一次；结果写到同目录的 `<编号>.result.json`。命令行等不到
-  结果时会撤回自己的请求。
+- 宿主先删除请求文件再处理，所以一个请求最多执行一次；结果写到同目录的 `<编号>.result.json`。
+- 命令行等不到结果时会撤回自己的请求（`supervisor_request_unanswered`）。如果宿主已经取走了请求，它可能
+  仍在执行：命令行会继续等一段时间，仍没有结果就报 `supervisor_request_taken_result_pending` 并给出结果
+  文件的路径，不会把它说成没有发生。每个回答都带 `request_id`。
 - 它不验证身份：以同一系统用户运行的任何进程都能写这个文件。打开这个设置就是接受这一点。
 - 只有协调器在运行的宿主才处理请求（`REVERSE_AGENT_AUTONOMOUS=1`）。
 

@@ -195,7 +195,8 @@ class TestRequestFiles:
 
     def test_submit_withdraws_an_unanswered_request(self, state):
         answer = supervisor_requests.submit(state.parent, {"action": "preflight"}, wait_seconds=0.2, poll_seconds=0.05)
-        assert answer == {"ok": False, "action": "preflight", "error": "supervisor_request_unanswered"}
+        assert answer == {"ok": False, "action": "preflight", "error": "supervisor_request_unanswered",
+                          "request_id": answer["request_id"]}
         assert list((state.parent / DIRECTORY).glob("*.request.json")) == []
 
     def test_the_host_starts_the_watcher_with_the_coordinator_and_stops_it(self):
@@ -206,3 +207,146 @@ class TestRequestFiles:
         assert "self._supervisor_requests.start()" in start[:300]
         assert "self._supervisor_requests.stop()" in inspect.getsource(
             trusted_host.CombinedTrustedHost._cleanup_runtime_resources)
+
+
+class TestReviewFindings:
+    """Cases from the independent review of 5eda6a6b."""
+
+    put = TestRequestFiles.put
+    result = TestRequestFiles.result
+
+    def test_a_request_the_host_took_is_never_reported_as_unanswered(self, state):
+        """B1: the host takes the file, the wait runs out, then the host answers."""
+        import threading
+        import time
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+
+        def slow_host():
+            while not list(directory.glob("*.request.json")):
+                time.sleep(0.01)
+            request = next(directory.glob("*.request.json"))
+            request.unlink()
+            time.sleep(0.6)
+            name = request.name[:-len(".request.json")]
+            (directory / f"{name}.result.json").write_text(
+                json.dumps({"ok": True, "action": "activate", "result": {"status": "ACTIVE"}}), encoding="utf-8")
+        thread = threading.Thread(target=slow_host)
+        thread.start()
+        answer = supervisor_requests.submit(state.parent, {"action": "activate"}, wait_seconds=0.2,
+                                            poll_seconds=0.05, taken_grace_seconds=5)
+        thread.join()
+        assert answer["ok"] is True and answer["result"] == {"status": "ACTIVE"} and answer["request_id"]
+
+    def test_a_taken_request_with_no_answer_is_reported_as_pending_with_its_result_path(self, state):
+        import threading
+        import time
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+
+        def host_takes_and_stalls():
+            while not list(directory.glob("*.request.json")):
+                time.sleep(0.01)
+            next(directory.glob("*.request.json")).unlink()
+        thread = threading.Thread(target=host_takes_and_stalls)
+        thread.start()
+        answer = supervisor_requests.submit(state.parent, {"action": "activate"}, wait_seconds=0.2,
+                                            poll_seconds=0.05, taken_grace_seconds=0.2)
+        thread.join()
+        assert answer["ok"] is False and answer["error"] == "supervisor_request_taken_result_pending"
+        assert answer["result_path"].endswith(f"{answer['request_id']}.result.json")
+
+    def test_a_missing_state_directory_is_not_created(self, tmp_path):
+        answer = supervisor_requests.submit(tmp_path / "typo", {"action": "preflight"}, wait_seconds=0.1)
+        assert answer["error"] == "supervisor_state_dir_missing" and not (tmp_path / "typo").exists()
+
+    def test_the_switch_is_read_at_start_and_cannot_be_turned_on_later(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        card = digest(setup, "day", a)
+        state.unlink()
+        watcher = SupervisorRequests(setup.host)
+        watcher.start()
+        watcher.stop()
+        state.write_text(json.dumps({"supervisor_activation": True}), encoding="utf-8")
+        self.put(state, "hhhhhhhh", {"action": "activate", "preset": "day", "goal_ids": [a.id], "card_digest": card})
+        assert watcher.poll_once() == 1
+        assert self.result(state, "hhhhhhhh")["error"] == "owner_window_supervisor_activation_disabled"
+        untouched(setup, a)
+
+    def test_turning_the_switch_off_works_at_once(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        card = digest(setup, "day", a)
+        watcher = SupervisorRequests(setup.host)
+        assert watcher.poll_once() == 0 and watcher._latched() is True
+        state.write_text(json.dumps({"supervisor_activation": False}), encoding="utf-8")
+        self.put(state, "iiiiiiii", {"action": "activate", "preset": "day", "goal_ids": [a.id], "card_digest": card})
+        assert watcher.poll_once() == 1
+        assert self.result(state, "iiiiiiii")["error"] == "owner_window_supervisor_activation_disabled"
+        untouched(setup, a)
+
+    def test_a_disabled_draft_creates_no_goal(self, setup, state):  # noqa: F811
+        state.unlink()
+        before = setup.db._conn.execute("SELECT COUNT(*) FROM platform_goals").fetchone()[0]
+        self.put(state, "jjjjjjjj", {"action": "draft", "text": "do x", "repository": "owner/repo"})
+        assert SupervisorRequests(setup.host).poll_once() == 1
+        assert setup.db._conn.execute("SELECT COUNT(*) FROM platform_goals").fetchone()[0] == before
+
+    def test_a_request_with_a_byte_order_mark_is_read(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+        (directory / "kkkkkkkk.request.json").write_bytes(
+            b"\xef\xbb\xbf" + json.dumps({"action": "preflight", "preset": "day", "goal_ids": [a.id]}).encode())
+        assert SupervisorRequests(setup.host).poll_once() == 1
+        assert self.result(state, "kkkkkkkk")["ok"] is True
+
+    @pytest.mark.parametrize("label", [5, {"a": 1}, ["x"], None])
+    def test_a_non_string_requester_is_refused(self, setup, state, label):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="owner_window_request_invalid"):
+            setup.host._owner_window_admission.admit_from_supervisor(
+                [a.id], preset="day", card_digest=digest(setup, "day", a), requested_by=label)
+        untouched(setup, a)
+
+    def test_the_requester_label_keeps_printable_text_only(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        setup.host._owner_window_admission.admit_from_supervisor(
+            [a.id], preset="day", card_digest=digest(setup, "day", a), requested_by="cla\x00ude\n" + "x" * 300)
+        row = setup.db._conn.execute("SELECT evidence_json FROM platform_operation_receipts WHERE operation_type = ?",
+                                     (OWNER_WINDOW_RECEIPT,)).fetchone()
+        label = json.loads(row["evidence_json"])["requested_by"]
+        assert label.startswith("claude") and len(label) == 200 and label.isprintable()
+
+    def test_a_result_that_cannot_be_written_does_not_stop_the_other_requests(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+        (directory / "aaaaaaa1.result.json").mkdir()  # the first answer cannot replace a directory
+        for name in ("aaaaaaa1", "aaaaaaa2"):
+            self.put(state, name, {"action": "preflight", "preset": "day", "goal_ids": [a.id]})
+        assert SupervisorRequests(setup.host).poll_once() == 1
+        assert self.result(state, "aaaaaaa2")["ok"] is True
+        assert list(directory.glob("*.tmp")) == []
+
+    def test_entries_that_cannot_be_taken_do_not_starve_the_queue(self, setup, state, monkeypatch):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+        monkeypatch.setattr(supervisor_requests, "MAX_REQUESTS_PER_POLL", 1)
+        (directory / "00000000.request.json").mkdir()  # sorts first, is not a file
+        self.put(state, "zzzzzzzz", {"action": "preflight", "preset": "day", "goal_ids": [a.id]})
+        assert SupervisorRequests(setup.host).poll_once() == 1
+
+    def test_the_watcher_thread_starts_stops_and_restarts(self, setup, state):  # noqa: F811
+        import threading
+        watcher = SupervisorRequests(setup.host, poll_seconds=0.05)
+        watcher.start()
+        first = watcher._thread
+        watcher.start()
+        assert watcher._thread is first and first.is_alive()
+        watcher.stop()
+        assert not first.is_alive()
+        watcher.start()
+        assert watcher._thread is not first and watcher._thread.is_alive()
+        watcher.stop()
+        assert not [t for t in threading.enumerate() if t.name == "supervisor-requests"]
