@@ -113,3 +113,30 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
   不会出现启动后立即失败、窗口 BLOCKED 的情况（2026-11-08 首次长跑遇到过）。
 - 确认界面显示的是预计模型；事务内的选路仍可能在模型池内换成另一个绑定。
 - 每个窗口只覆盖一个仓库，因为宿主只能映射一个本地仓库（`REVERSE_AGENT_REPO_DIR`）。
+
+## 开机恢复
+
+Owner 窗口和目标都写在任务数据库里，重启后宿主自动恢复，无需重新激活。运行时需要的环境变量
+（例如 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED`、`REVERSE_AGENT_MAGPIE_EXE`）不会自动保存：
+Owner 需要在任务数据库目录下自己创建一次 `run.env.json`，例如
+
+```json
+{
+  "REVERSE_AGENT_MULTI_ACCOUNT_ENABLED": "1",
+  "REVERSE_AGENT_MAGPIE_EXE": "C:/Tools/magpie/magpie.exe"
+}
+```
+
+开机自启脚本 `scripts/windows/Start-NerelanAtLogon.ps1` 在没有显式 `-EnvFile` 时读取它：
+
+- 优先读 `REVERSE_AGENT_TASK_DB_DIR` 指向的目录；未设置时用默认宿主目录
+  `%LOCALAPPDATA%\Nerelan\platform-v1`。
+- 只应用 `REVERSE_AGENT_*` 键；名称含 `KEY`/`TOKEN`/`SECRET`/`PASSWORD`/`CREDENTIAL` 的键
+  会被拒绝，密钥仍留在密钥库。
+- 路径值统一转为正斜杠（反斜杠路径曾导致宿主启动失败）。
+- 显式 `-EnvFile` 仍优先，适用于需要临时覆盖的场合。
+
+创建好 `run.env.json` 后，用 `scripts/windows/Install-HostAutostart.ps1` 安装开机启动项；它会把
+宿主注册到当前用户的启动文件夹，登录后自动启动 Magpie 与宿主。注意：如果任务数据库目录只在
+`run.env.json` 里指定，登录时脚本找不到这个文件；这种情况下请把 `REVERSE_AGENT_TASK_DB_DIR`
+设为用户环境变量，或安装时传入 `-EnvFile`。
