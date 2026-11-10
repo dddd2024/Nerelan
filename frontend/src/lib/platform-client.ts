@@ -1430,6 +1430,89 @@ export async function fetchRun(taskId: string): Promise<PlatformAgentRunDetail> 
   return request<PlatformAgentRunDetail>(`/api/runs/${encodeURIComponent(taskId)}`);
 }
 
+export interface QuickStartDraftInput {
+  text: string;
+  repository: string;
+  preset?: string;
+}
+
+export interface QuickStartDraftGoal {
+  id: string;
+  title: string;
+  status: string;
+  tasks: Array<Record<string, unknown>>;
+  publishes_draft_pr: boolean;
+}
+
+export interface QuickStartWindowRequest {
+  goal_ids: string[];
+  hours: number;
+  max_tasks: number;
+  max_concurrent: number;
+  max_retries: number;
+  capabilities: string[];
+  max_token_units: number;
+  max_cost_micro_units: number;
+}
+
+export interface QuickStartDraftResult {
+  goals: QuickStartDraftGoal[];
+  preset: string;
+  presets: Record<string, Record<string, number>>;
+  request: QuickStartWindowRequest;
+}
+
+export async function draftQuickStart({ text, repository, preset = "" }: QuickStartDraftInput): Promise<QuickStartDraftResult> {
+  return request<QuickStartDraftResult>("/api/quick-start/draft", {
+    method: "POST",
+    body: JSON.stringify({ text, repository, preset }),
+  });
+}
+
+export interface OwnerWindowPreflightCheck {
+  check: string;
+  ok: boolean;
+  reason: string;
+  detail: string;
+}
+
+export interface OwnerWindowPreflightScope {
+  repository: string;
+  base_sha: string;
+  goals: Array<{ id: string; objective: string; mode: string; tasks: Array<{ id: string | null; title: string | null }> }>;
+  pool: unknown;
+  pool_skipped: unknown;
+  envelope: Record<string, unknown>;
+  paid_api: unknown;
+}
+
+export interface OwnerWindowPreflightResult {
+  ok: boolean;
+  checks: OwnerWindowPreflightCheck[];
+  preview: string[];
+  scope: OwnerWindowPreflightScope | null;
+  card_digest?: string;
+  confirmation?: string;
+}
+
+export interface OwnerWindowPreflightRequest {
+  goal_ids: string[];
+  hours: number;
+  max_tasks: number;
+  max_concurrent: number;
+  max_retries: number;
+  capabilities: string[];
+  max_token_units?: number;
+  max_cost_micro_units?: number;
+}
+
+export async function preflightOwnerWindow(preflightRequest: OwnerWindowPreflightRequest): Promise<OwnerWindowPreflightResult> {
+  return request<OwnerWindowPreflightResult>("/api/owner-window/preflight", {
+    method: "POST",
+    body: JSON.stringify(preflightRequest),
+  });
+}
+
 export async function cancelRun(taskId: string): Promise<PlatformRunCancelResult> {
   if (isMock()) {
     const run = mockRuns.find((entry) => entry.task_id === taskId);
