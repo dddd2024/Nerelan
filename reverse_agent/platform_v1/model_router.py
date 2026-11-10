@@ -78,7 +78,9 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     """
     if not pace or not pace.get("enabled", False):
         return None
-    if candidate.get("executor_id") not in pace.get("executors", ()) or candidate.get("cost_class") != "subscription":
+    paced = (candidate.get("executor_id") in pace.get("executors", ())
+             or candidate.get("paced_provider") in pace.get("providers", ()))
+    if not paced or candidate.get("cost_class") != "subscription":
         return None
     headroom, resets = candidate.get("weekly_headroom"), candidate.get("weekly_resets_at")
     if not all(type(v) in (int, float) and math.isfinite(v) for v in (headroom, resets)):
