@@ -85,6 +85,42 @@ Owner 决定（2026-11-09）：确认卡片上的"开始"就是 Owner 的确认�
   （`owner_window_terminal_confirmation_required`），只能用终端确认码。预检结果的 `confirmation` 字段
   告诉界面当前模式。
 
+### 监督者请求（可选，默认关闭）
+
+Owner 决定（2026-11-10）：监督 Nerelan 的 Agent 可以在预设边界内代为激活窗口，不必先问。它拿不到
+启动器发放的客户端会话，也不该伪造终端，所以由正在运行的宿主读取任务库旁 `supervisor_requests/`
+目录里的请求文件来完成：
+
+```text
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> draft \
+    --text "#1411 #1412" --repository owner/repo --preset day
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> preflight \
+    --preset day --goal <目标> --goal <目标>
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> activate \
+    --preset day --goal <目标> --goal <目标> --card-digest <预检返回的摘要>
+```
+
+- 默认关闭。Owner 在任务库旁的 `owner_window_settings.json` 写 `{"supervisor_activation": true}` 才生效；
+  关闭时请求会得到 `owner_window_supervisor_activation_disabled`，什么都不做。
+- 宿主在启动时读取这个开关：打开后要重启宿主才生效，关闭则立即生效。这样宿主运行期间，以同一用户运行的
+  任务改写设置文件也打不开它。
+- 严格模式（`"confirmation": "terminal"`）下拒绝激活；起草和预检不授权任何事，仍然可用。
+- 设置文件格式不对（包括 `supervisor_activation` 不是布尔值）时，监督者请求和确认卡片都被拒绝
+  （`owner_window_settings_invalid`），直到 Owner 改好。
+- 请求里不能写边界。请求只给出预设名（试跑 / 一天 / 一周）、目标和预检摘要，时长、并发、重试、任务数和
+  Token 上限由宿主按预设计算；带了其他字段的请求被拒绝（`supervisor_request_invalid`）。
+  预设的数值可以被 Owner 的 `owner_window_presets.json` 改写，所以"预设边界"指的是这个文件当前的内容；
+  它和设置文件都能被同一用户下的进程改写，数据库的硬上限仍然适用，回执里记录实际使用的边界。
+- 激活走与确认卡片相同的准入：摘要与当前范围不一致就拒绝，窗口、批准、启动和每个目标一条回执一起
+  提交。回执的确认方式记为"supervisor request file under the Owner's standing delegation; preset
+  bounds only"，并记下请求方自报的名字（`requested_by`）。
+- 宿主先删除请求文件再处理，所以一个请求最多执行一次；结果写到同目录的 `<编号>.result.json`。
+- 命令行等不到结果时会撤回自己的请求（`supervisor_request_unanswered`）。如果宿主已经取走了请求，它可能
+  仍在执行：命令行会继续等一段时间，仍没有结果就报 `supervisor_request_taken_result_pending` 并给出结果
+  文件的路径，不会把它说成没有发生。每个回答都带 `request_id`。
+- 它不验证身份：以同一系统用户运行的任何进程都能写这个文件。打开这个设置就是接受这一点。
+- 只有协调器在运行的宿主才处理请求（`REVERSE_AGENT_AUTONOMOUS=1`）。
+
 ## 保证
 
 激活在一个 SQLite `BEGIN IMMEDIATE` 事务里完成，沿用单任务原生准入的约束：
@@ -119,8 +155,9 @@ Owner 决定（2026-11-09）：确认卡片上的"开始"就是 Owner 的确认�
 
 - 确认码证明的是有人在这个终端读了范围并输入了它，不能证明这个人就是仓库 Owner。能操控这个终端的
   任何进程都能输入它。原生对话框同样防不住同一用户下的自动化，所以两者实际强度相近。
-- Owner 决定（2026-11-09）：系统不再默认严防同机其他 Agent。默认由确认卡片的"开始"激活（见下节），
-  终端确认码是可选的严格模式；Agent 只在 Owner 于对话中明确要求时代为激活，且只用预设边界。
+- Owner 决定（2026-11-09）：系统不再默认严防同机其他 Agent。默认由确认卡片的"开始"激活（见上文"确认卡片激活"），
+  终端确认码是可选的严格模式。Owner 决定（2026-11-10）：监督 Nerelan 的 Agent 可以不先询问就代为激活，
+  只用预设边界，事后向 Owner 报告窗口编号和范围；途径是上文的"监督者请求"，需要 Owner 先打开设置。
 - 模型池是确认那一刻的快照。之后新增的绑定不在池里，被选中时执行前会被拒绝。
 - 激活前逐任务预先选路，并在确认界面列出每个任务预计使用的模型。钉死绑定的目标沿用其绑定；路由的
   `agent_team` 目标在关闭可用性探测的前提下选路；路由的 `single`、`sequential_team` 目标在启动时

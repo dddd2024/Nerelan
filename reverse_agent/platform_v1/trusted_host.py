@@ -204,6 +204,8 @@ class CombinedTrustedHost:
         self._native_goal_admission = NativeGoalAdmission(self)
         from .owner_window import OwnerWindowAdmission
         self._owner_window_admission = OwnerWindowAdmission(self)
+        from .supervisor_requests import SupervisorRequests
+        self._supervisor_requests = SupervisorRequests(self)
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -1588,6 +1590,8 @@ class CombinedTrustedHost:
                 self._started_servers.append(server)
             if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
+                # Answers nothing unless the Owner's settings turn supervisor activation on.
+                self._supervisor_requests.start()
             self._remote_job_broker = configured_broker()
             if self._remote_job_broker is not None:
                 self._remote_job_broker.start()
@@ -1627,6 +1631,7 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        self._supervisor_requests.stop()
         monitor, self._pool_monitor = getattr(self, "_pool_monitor", None), None
         if monitor is not None:
             monitor.stop()
