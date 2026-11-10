@@ -6,8 +6,7 @@
 Starts the host, prints the exact scope, and activates only after the Owner types
 the one-time code it shows in this terminal. Then it keeps running as the host.
 
-Why it exists: an HTTP request cannot activate a window, by design, and the native
-single-Task path admits one Codex Task for 30 minutes. This admits several Goals for
+Why it exists: the native single-Task path admits one Codex Task for 30 minutes. This admits several Goals for
 hours under the same discipline: persisted truth is read before the prompt and again
 inside the activation transaction, the window, approvals, launches and one receipt
 per Goal commit together or not at all, and the store enforces hard ceilings.
@@ -18,7 +17,12 @@ binding from that pool (checked before every executor launch).
 
 What the typed code proves: someone at this terminal read the scope and typed it.
 It does not authenticate the OS user as the repository Owner, and any process that
-can drive this terminal could type it. Agents operating this machine must not.
+can drive this terminal could type it.
+
+Other surfaces run the same admission: the confirmation card's Start (Owner decision
+2026-11-09) and, when the Owner turns it on, a supervisor request served by the
+running host with preset bounds only (Owner decision 2026-11-10, see
+:mod:`supervisor_requests`).
 """
 from __future__ import annotations
 
@@ -56,6 +60,11 @@ MAX_SCOPE_CHARS = 40_000
 _GOAL_ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,255}")
 _EXECUTORS = {"opencode", "codex", "claude_code"}
 _MODES = {"single", "sequential_team", "agent_team"}
+_MECHANISMS = {
+    "terminal": "owner typed a one-time code at the host terminal",
+    "ui": "owner pressed Start on the Nerelan confirmation card",
+    "supervisor": "supervisor request file under the Owner's standing delegation; preset bounds only",
+}
 
 
 def _utc(moment: datetime) -> str:
@@ -306,21 +315,76 @@ class OwnerWindowAdmission:
         return sha256_json({**{key: value for key, value in scope.items()
                                if key not in {"envelope", "host_instance", "os_user"}}, "envelope": envelope})
 
-    def confirmation_mode(self) -> str:
-        """``ui`` (default) or ``terminal``, from the Owner's owner_window_settings.json."""
+    def _state_dir(self) -> Path | None:
         state_path = getattr(self._host._store, "_state_path", None)
-        if not state_path:
-            return "ui"
+        return Path(state_path).parent if state_path else None
+
+    def _settings(self) -> dict[str, Any]:
+        """The Owner's owner_window_settings.json beside the task store; absent means defaults."""
+        state_dir = self._state_dir()
+        if state_dir is None:
+            return {}
         try:
-            data = json.loads(Path(state_path).with_name("owner_window_settings.json").read_text(encoding="utf-8"))
+            data = json.loads((state_dir / "owner_window_settings.json").read_text(encoding="utf-8"))
         except FileNotFoundError:
-            return "ui"
+            return {}
         except (OSError, ValueError) as exc:
             raise TaskStoreError("owner_window_settings_invalid") from exc
-        mode = data.get("confirmation", "ui") if isinstance(data, dict) else None
-        if mode not in {"ui", "terminal"}:
+        if (not isinstance(data, dict) or data.get("confirmation", "ui") not in {"ui", "terminal"}
+                or not isinstance(data.get("supervisor_activation", False), bool)):
             raise TaskStoreError("owner_window_settings_invalid")
-        return mode
+        return data
+
+    def confirmation_mode(self) -> str:
+        """``ui`` (default) or ``terminal``, from the Owner's owner_window_settings.json."""
+        return self._settings().get("confirmation", "ui")
+
+    def supervisor_enabled(self) -> bool:
+        """Off unless the Owner's settings say ``"supervisor_activation": true``."""
+        return self._settings().get("supervisor_activation", False) is True
+
+    def _digest_confirm(self, card_digest: Any) -> Callable[..., bool]:
+        if not isinstance(card_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", card_digest):
+            raise TaskStoreError("owner_window_card_digest_invalid")
+
+        def confirm(_text: str, _code: str, *, scope: Mapping[str, Any]) -> bool:
+            if self.card_digest(scope) != card_digest:
+                raise TaskStoreError("owner_window_scope_changed")
+            return True
+        return confirm
+
+    def supervisor_request(self, goal_ids: Any, preset: Any) -> dict[str, Any]:
+        """The window request a preset gives for these Goals; a supervisor cannot ask for another."""
+        from .quick_start import presets, window_request
+        options = presets(self._state_dir())
+        if not isinstance(preset, str) or preset not in options:
+            raise TaskStoreError("owner_window_preset_invalid")
+        if (not isinstance(goal_ids, (list, tuple)) or not goal_ids
+                or not all(isinstance(goal_id, str) and _GOAL_ID.fullmatch(goal_id) for goal_id in goal_ids)):
+            raise TaskStoreError("owner_window_request_invalid")
+        host = self._host
+        with host._task_store._lock, host._store._lock:
+            tasks = sum(len(host._control_store.get_goal(goal_id).tasks) for goal_id in goal_ids)
+        request = window_request(options[preset], list(goal_ids), tasks=tasks)
+        del request["goal_ids"]
+        return request
+
+    def admit_from_supervisor(self, goal_ids: Any, *, preset: Any, card_digest: Any,
+                              requested_by: Any = "") -> Any:
+        """Activation a supervising agent asks the running host for (Owner decision 2026-11-10).
+
+        Off unless the Owner's settings turn it on, and never in strict ``terminal``
+        mode. The bounds are a preset's, computed here; the request names only the
+        preset, the Goals and the digest of the preflight it read. Everything else is
+        the card path: scope reread, one atomic commit, one receipt per Goal, and the
+        receipt says a supervisor asked.
+        """
+        if self.confirmation_mode() != "ui" or not self.supervisor_enabled():
+            raise TaskStoreError("owner_window_supervisor_activation_disabled")
+        confirm = self._digest_confirm(card_digest)
+        request = self.supervisor_request(goal_ids, preset)
+        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor",
+                          requested_by=str(requested_by or "")[:200])
 
     def admit_from_card(self, goal_ids: Sequence[str], *, card_digest: str, **request: Any) -> Any:
         """Activation from the confirmation card's Start (Owner decision 2026-11-09).
@@ -333,14 +397,7 @@ class OwnerWindowAdmission:
         """
         if self.confirmation_mode() != "ui":
             raise TaskStoreError("owner_window_terminal_confirmation_required")
-        if not isinstance(card_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", card_digest):
-            raise TaskStoreError("owner_window_card_digest_invalid")
-
-        def confirm(_text: str, _code: str, *, scope: Mapping[str, Any]) -> bool:
-            if self.card_digest(scope) != card_digest:
-                raise TaskStoreError("owner_window_scope_changed")
-            return True
-        return self.admit(goal_ids, **request, confirm=confirm, surface="ui")
+        return self.admit(goal_ids, **request, confirm=self._digest_confirm(card_digest), surface="ui")
 
     def preflight(self, goal_ids: Sequence[str], **request: Any) -> dict[str, Any]:
         """Everything that would refuse activation or block the window, reported, not raised.
@@ -403,9 +460,10 @@ class OwnerWindowAdmission:
         return result
 
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
-              max_retries: int, capabilities: Sequence[str], confirm: Callable[[str, str], bool],
-              max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal") -> Any:
-        if surface not in {"terminal", "ui"}:
+              max_retries: int, capabilities: Sequence[str], confirm: Callable[..., bool],
+              max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal",
+              requested_by: str = "") -> Any:
+        if surface not in _MECHANISMS:
             raise TaskStoreError("owner_window_surface_invalid")
         if not self._lock.acquire(blocking=False):
             raise TaskStoreError("owner_window_admission_in_progress")
@@ -424,7 +482,7 @@ class OwnerWindowAdmission:
             # binding is refused at dispatch, so it is refused here, before the Owner is asked.
             preview = self._route_preview(json.loads(before))
             code = secrets.token_hex(3).upper()
-            confirmed = (confirm("", code, scope=json.loads(before)) if surface == "ui"
+            confirmed = (confirm("", code, scope=json.loads(before)) if surface != "terminal"
                          else confirm(self.render(json.loads(before), code, preview), code))
             if confirmed is not True:
                 raise TaskStoreError("owner_window_confirmation_refused")
@@ -450,9 +508,9 @@ class OwnerWindowAdmission:
                                    "scope_digest": sha256_json(approved), "goals": list(goal_ids),
                                    "envelope": envelope, "approved_pool": approved["approved_pool"],
                                    "workspace": approved["workspace"], "base_sha": approved["base_sha"],
-                                   "mechanism": ("owner pressed Start on the Nerelan confirmation card"
-                                                 if surface == "ui" else
-                                                 "owner typed a one-time code at the host terminal")}
+                                   "mechanism": _MECHANISMS[surface]}
+                if surface == "supervisor":
+                    provenance_base["requested_by"] = requested_by
                 for goal_snapshot in approved["goals"]:
                     provenance = {**provenance_base, "goal_id": goal_snapshot["id"],
                                   "goal_revision": goal_snapshot["revision"],
