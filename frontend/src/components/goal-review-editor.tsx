@@ -55,7 +55,9 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
     && criteria.split("\n").some((line) => line.trim());
   const currentConfigurationReady = goal.executor_kind === "deterministic_fixture"
     || (!bindingsQuery.isError && !repositoriesQuery.isError
-      && bindings.some((binding) => binding.bindingId === goal.binding_ref)
+      // An unpinned Agent team routes each task by role, as configurationValid already allows.
+      && ((goal.orchestration_mode === "agent_team" && !goal.binding_ref)
+        || bindings.some((binding) => binding.bindingId === goal.binding_ref))
       && repositories.some((repository) => repository.full_name === goal.repository));
 
   useEffect(() => { onEditingChange(mode !== null); }, [mode, onEditingChange]);

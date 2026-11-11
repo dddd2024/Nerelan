@@ -24,6 +24,7 @@ import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
 import { displayObjective, displayTitle } from "@/lib/display-title";
 import { taskActionCopy, taskBlockerCopy, taskReviewNotice } from "@/lib/task-status-copy";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { taskProjectHref, taskProjectName } from "@/lib/task-project";
 import {
   authorityStatusLabel,
@@ -295,14 +296,14 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       >
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">下一步：</dt>
-          <dd className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
+          <dd title={displayTask.nextAction} className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
               gap, so each pair now carries the same `标签：值` colon the rest of
               the product uses (阶段：/ 目标：/ 活跃度：). */}
           <dt className="text-ra-text-tertiary">阻塞项：</dt>
-          <dd className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker)}</dd>
+          <dd title={displayTask.blocker || displayTask.failureClassification} className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker || displayTask.failureClassification)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">验证：</dt>
@@ -381,7 +382,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             <div
               className={cn("h-2.5 w-2.5 rounded-full", stateDotColor)}
               aria-label={state.label}
-              title={state.label}
+              title={runtimeTitle(displayTask.state)}
             />
           </div>
           <div className="flex items-center gap-2 min-w-0">
@@ -410,7 +411,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
 
         <div className="flex items-center gap-2 flex-wrap">
           <Badge className={cn(state.badge)} dot={state.dot}>
-            {state.label}
+            <span title={runtimeTitle(displayTask.state)}>{state.label}</span>
           </Badge>
           <Badge className={cn(risk.badge)} dot={risk.dot}>
             {risk.label}
