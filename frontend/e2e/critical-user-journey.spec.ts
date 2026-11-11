@@ -76,7 +76,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await queued.getByTestId(`run-cancel-${QUEUED_TASK_ID}`).click();
   await expect(queued.getByTestId(`run-cancel-confirm-${QUEUED_TASK_ID}`)).toBeVisible();
   await queued.getByRole("button", { name: "确认取消" }).click();
-  await expect(queued.getByTestId(`run-state-${QUEUED_TASK_ID}`)).toContainText("CANCELLED");
+  await expect(queued.getByTestId(`run-state-${QUEUED_TASK_ID}`)).toContainText("已取消");
 
   await navigateFromShell(appPage, "首页");
   await expect(appPage.getByTestId("platform-home")).toBeVisible();
