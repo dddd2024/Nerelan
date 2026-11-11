@@ -14,7 +14,7 @@ Nerelan is a local-first, governed multi-Agent development platform. Give it a f
    Sign in to GitHub CLI with `gh auth login`. Use a repository where you have permission to push a task branch and open a PR.
 2. **Start Nerelan.** Run `.\dev-up.ps1`. It opens the authenticated Nerelan client. For a desktop icon, run `.\create_desktop_shortcut.ps1` once, then double-click **Nerelan**. The desktop launcher can install missing frontend packages with `npm ci`; `dev-up.ps1` does not install packages. Startup does not call a model.
 3. **Connect a model.** In settings, open **AI 资源与账号** (`/settings/resources`) and choose **新建连接**. Enter your provider, Base URL and authentication details, then save. Under **模型与路由** (`/settings/models`), choose **新建绑定** and save an enabled binding with executor `opencode`, that connection and a Model ID your provider supports. A connection alone is not a binding. Codex and Claude Code account sessions are managed by their own CLIs; sign in through the CLI first if using either tool.
-4. **Give the first goal.** On the home page, enter a small request, such as “Fix a typo in README.md and run git diff --check.” Open **输入选项**, check **仓库** (`owner/name`), and select the matching **执行模式** and **模型绑定**. The repository must match the local source checkout. By default this is the launcher checkout; to work on another local checkout, start with `.\dev-up.ps1 -SourceDir C:\path\to\repo`. Click **创建并审阅目标**. This saves a draft; it does not start work.
+4. **Give the first goal.** On the home page, enter a small request, such as "Fix a typo in README.md and run git diff --check." Enter the **仓库** (`owner/name`) — the composer picks an **执行模式** and **模型绑定** automatically, both under the 高级 toggle and normally untouched. The repository must match the local source checkout. By default this is the launcher checkout; to work on another local checkout, start with `.\dev-up.ps1 -SourceDir C:\path\to\repo`. Click **创建并审阅目标**. This saves a draft; it does not start work.
 5. **Review and run.** In **审批与继续**, click **生成计划**, inspect the plan, then click **批准当前计划**. Select the autonomy duration, check **确认启动当前计划**, and click **启动运行**. These are manual steps. The coordinator needs an active owner-confirmed window before it executes tasks.
 6. **Review the result and open a Draft PR.** Follow the goal's progress and open its task details to inspect changed files, checks and evidence. For a validated task with changed files, click **发布草稿 PR**. This needs an active window for the same repository with `open_draft_pr` permission and working GitHub access. The task page then shows a **Draft PR #…** link to GitHub. Publication is a manual step on this path; execution finishing does not mean the change has been independently accepted or merged.
 7. **Stop the local stack.** Run `.\dev-down.ps1` from the launcher checkout. It stops only the recorded process trees from that launch. Closing the client window alone does not shut down the stack. Task history remains available after a restart.
@@ -25,7 +25,7 @@ Nerelan is a local-first, governed multi-Agent development platform. Give it a f
 - Python 3.13+ and the repository's Python packages.
 - Node.js 22.22.0+ with npm and the locked frontend packages.
 - Git and GitHub CLI (`gh`); GitHub authentication and repository write access for Draft PR publication.
-- One agent command-line tool: OpenCode, Codex CLI or Claude Code CLI. **The launcher currently requires OpenCode; support for starting with only Codex CLI or Claude Code CLI is in progress.** Keep `opencode` on `PATH` even when selecting another executor.
+- One agent command-line tool: OpenCode, Codex CLI or Claude Code CLI. `dev-up.ps1` starts when any one of these is installed. Keep `opencode` on `PATH` even when selecting another executor.
 - At least one usable model connection and binding, or an authenticated agent CLI session with a matching binding.
 
 ### If something goes wrong
@@ -91,7 +91,7 @@ The loopback Task API exposes:
 - `/api/tasks` for execution truth, events, changed files, validation, and evidence;
 - `/api/tasks/{id}/publish` for idempotent allowlisted Draft-PR publication.
 
-Provider-free tests cover the entire control path. Real model/API probes are separate R3 operations and are never part of ordinary startup or CI.
+Provider-free tests cover the entire control path. The coordinator's routing pool verifier checks unverified model bindings in the background while an active owner-confirmed window runs; set `"availability_probes": false` in `model_routing_overrides.json` or `REVERSE_AGENT_ROUTING_PROBES=0` to turn it off. Real model probes never happen during startup or CI without a covering active window.
 
 ### Authority model
 
