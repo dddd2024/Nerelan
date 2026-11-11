@@ -8,8 +8,11 @@ import errno
 import json
 import os
 import re
+import shutil
+import subprocess
+import sys
 from threading import RLock
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 import tempfile
 
 from .contracts import (
@@ -182,6 +185,57 @@ def _sanitize_agent_policy(policy: Mapping[str, Any]) -> dict[str, Any]:
 
 
 STANDIN_ROLES = ("simple", "coder", "complex")
+
+
+def _detect_opencode_cli() -> bool:
+    """Return True if the OpenCode CLI is available on PATH.
+
+    This mirrors ``dev-up.ps1``'s Find-Executable for the opencode entry:
+    the simple ``opencode`` command (``opencode`` on POSIX, ``opencode.exe``
+    on Windows). We use ``shutil.which`` for platform-agnostic lookup and
+    verify the candidate is a real file.
+    """
+    name = "opencode.exe" if os.name == "nt" else "opencode"
+    path = shutil.which(name)
+    if path and os.path.isfile(path):
+        return True
+    # The package may also install a .cmd shim on Windows.
+    if os.name == "nt":
+        for suffix in (".cmd", ".bat"):
+            alt = shutil.which("opencode" + suffix)
+            if alt and os.path.isfile(alt):
+                return True
+    return False
+
+
+def _detect_codex_cli() -> bool:
+    """Return True if the Codex CLI is available on PATH."""
+    name = "codex.exe" if os.name == "nt" else "codex"
+    path = shutil.which(name)
+    return bool(path and os.path.isfile(path))
+
+
+def _detect_claude_code_cli() -> bool:
+    """Return True if the Claude Code CLI (``claude``) is available on PATH."""
+    name = "claude.exe" if os.name == "nt" else "claude"
+    path = shutil.which(name)
+    return bool(path and os.path.isfile(path))
+
+
+def _cli_executable_candidates(executor_id: str) -> tuple[str, ...]:
+    """Return candidate executable names for a given executor id (platform-aware)."""
+    win = os.name == "nt"
+    raw = {
+        "opencode": ("opencode",),
+        "codex": ("codex",),
+        "claude_code": ("claude",),
+    }
+    base = raw.get(executor_id, ())
+    if win:
+        return tuple(name + ".exe" for name in base) + tuple(base) + tuple(
+            name + ".cmd" for name in base
+        ) + tuple(name + ".bat" for name in base)
+    return tuple(base)
 
 
 def _sanitize_standins(raw: Mapping[str, Any]) -> dict[str, list[str]]:
@@ -406,22 +460,24 @@ class ModelProfileStore:
         self.magpie_status = lambda: {"status": "MAGPIE_DISABLED", "reason": "", "last_probe_at": None, "model_count": 0}
         self._profiles: dict[str, _StoredProfile] = {}
         self._connections: dict[str, _StoredConnection] = {}
+        self._cli_detectors: dict[str, Callable[[], bool]] = {}
         self._executors = {
             "opencode": ExecutorDescriptor(
                 executor_id="opencode",
                 name="OpenCode",
-                operational=True,
+                operational=False,
                 capabilities=("model_selection", "workspace_execution"),
+                readiness_status="cli_unavailable",
             ),
             "codex": ExecutorDescriptor(
                 executor_id="codex", name="Codex", operational=False,
                 capabilities=("model_selection", "workspace_execution", "single_mode"),
-                readiness_status="not_probed",
+                readiness_status="cli_unavailable",
             ),
             "claude_code": ExecutorDescriptor(
                 executor_id="claude_code", name="Claude Code", operational=False,
                 capabilities=("model_selection", "workspace_execution", "single_mode"),
-                readiness_status="not_probed",
+                readiness_status="cli_unavailable",
             ),
         }
         self._bindings: dict[str, Binding] = {}
@@ -433,6 +489,7 @@ class ModelProfileStore:
         self._agent_standins: dict[str, list[str]] = {}
         self._lock = RLock()
         self._connection_binding_poison: StoreError | None = None
+        self.refresh_cli_availability()
 
         if self._state_path is not None:
             self._load_from_disk()
@@ -996,6 +1053,88 @@ class ModelProfileStore:
             for stored in self._connections.values():
                 if stored.connection.executor_provider_id == provider:
                     stored.external_session_status = "available" if status == "managed_login_ready" else "missing"
+
+    def refresh_cli_availability(self) -> None:
+        """Re-detect installed agent CLIs and update executor operational state.
+
+        Mirrors ``dev-up.ps1`` detection rules: opencode, codex, claude (for
+        Claude Code). Detection uses ``shutil.which`` (cross-platform) so the
+        same rule applies on Windows, Linux, and macOS. A CLI that resolves
+        to an executable path is treated as installed and the executor is
+        marked operational. A CLI that does not resolve is not installed and
+        the executor becomes non-operational.
+
+        This only marks the CLI as found. Native-code executors still need the
+        later managed-login readiness probe (``set_native_readiness``) to
+        confirm authentication status.
+        """
+        detectors = self._cli_detectors or {
+            "opencode": _detect_opencode_cli,
+            "codex": _detect_codex_cli,
+            "claude_code": _detect_claude_code_cli,
+        }
+        with self._lock:
+            for executor_id, detector in detectors.items():
+                installed = False
+                try:
+                    installed = bool(detector())
+                except Exception:
+                    installed = False
+                current = self._executors[executor_id]
+                if current.readiness_status in {
+                    "managed_login_ready",
+                    "managed_login_unavailable",
+                    "not_probed",
+                    "cli_incompatible",
+                    "probe_output_invalid",
+                }:
+                    if installed and not current.operational:
+                        # Native probe already ran but CLI is still there --
+                        # keep the probe verdict. We only mark unavailable
+                        # when the CLI disappears.
+                        continue
+                    if not installed:
+                        self._executors[executor_id] = ExecutorDescriptor(
+                            executor_id=executor_id, name=current.name,
+                            operational=False, capabilities=current.capabilities,
+                            readiness_status="cli_unavailable",
+                        )
+                        provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR.get(executor_id)
+                        if provider is not None:
+                            for stored in self._connections.values():
+                                if stored.connection.executor_provider_id == provider:
+                                    stored.external_session_status = "missing"
+                        continue
+                    continue
+                if installed:
+                    self._executors[executor_id] = ExecutorDescriptor(
+                        executor_id=executor_id, name=current.name,
+                        operational=True, capabilities=current.capabilities,
+                        readiness_status="",
+                    )
+                    provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR.get(executor_id)
+                    if provider is not None:
+                        for stored in self._connections.values():
+                            if stored.connection.executor_provider_id == provider:
+                                stored.external_session_status = "available"
+                else:
+                    self._executors[executor_id] = ExecutorDescriptor(
+                        executor_id=executor_id, name=current.name,
+                        operational=False, capabilities=current.capabilities,
+                        readiness_status="cli_unavailable",
+                    )
+                    provider = NATIVE_CLI_PROVIDER_FOR_EXECUTOR.get(executor_id)
+                    if provider is not None:
+                        for stored in self._connections.values():
+                            if stored.connection.executor_provider_id == provider:
+                                stored.external_session_status = "missing"
+
+    def install_cli_detectors(
+        self,
+        detectors: Mapping[str, Callable[[], bool]],
+    ) -> None:
+        """Override CLI detection functions (for testing only)."""
+        self._cli_detectors = dict(detectors)
 
     def get_executor_public(self, executor_id: str) -> dict[str, Any]:
         with self._lock:
