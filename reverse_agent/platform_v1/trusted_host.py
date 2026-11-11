@@ -1919,6 +1919,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
             print(f"Owner window {window.id} active until {window.expires_at}")
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         elif native_goal_id is None:
             host.start()
         else:
@@ -1928,6 +1929,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
                 if unknown_claims_sha256 is not None else {}))
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(

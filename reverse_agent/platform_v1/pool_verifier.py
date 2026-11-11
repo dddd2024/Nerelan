@@ -13,6 +13,10 @@ selections, escalations and windows use them. It never runs without an active
 window that permits model calls, never touches native Owner accounts, and
 never probes a paid API unless the window allows paid use.
 
+Each binding is tried at most once per day by this thread, whatever the
+answer: a binding that keeps answering 429 must not be asked again every few
+minutes, nor hold up the bindings behind it.
+
 Off switches: `"availability_probes": false` in model_routing_overrides.json,
 or `REVERSE_AGENT_ROUTING_PROBES=0`.
 """
@@ -21,11 +25,13 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from types import SimpleNamespace
 from typing import Any
 
 LOG = logging.getLogger(__name__)
 POLL_SECONDS = 60.0
+RETRY_SECONDS = 86400.0
 _COST_RANK = {"free": 0, "subscription": 1, "paid_api": 2}
 
 
@@ -35,6 +41,8 @@ class PoolVerifier:
         self._poll_seconds = poll_seconds
         self._stop: threading.Event | None = None
         self._thread: threading.Thread | None = None
+        # When this thread last tried each binding; a failed or inconclusive try is not repeated.
+        self._tried: dict[str, float] = {}
 
     def start(self) -> None:
         if self._thread is not None:
@@ -59,13 +67,14 @@ class PoolVerifier:
             except Exception:  # noqa: BLE001 - verification is advisory and must not stop the host
                 LOG.exception("routing pool verification failed")
 
-    def verify_once(self) -> str | None:
+    def verify_once(self, *, now: float | None = None) -> str | None:
         """Verify at most one unproven binding; returns its id, or None if nothing was checked."""
         from .model_availability import native_owner_account
         from .model_router import capability
         from .routing_inputs import binding_cost_class, read_overrides
 
         host = self._host
+        now = time.time() if now is None else now
         if os.environ.get("REVERSE_AGENT_ROUTING_PROBES") == "0":
             return None
         try:
@@ -91,6 +100,7 @@ class PoolVerifier:
             connection = connections.get(binding["connection_id"])
             if (connection is None or not binding.get("enabled", True) or not connection.get("enabled", True)
                     or binding_id not in runnable or native_owner_account(binding, connection)
+                    or now - self._tried.get(binding_id, float("-inf")) < RETRY_SECONDS
                     or (owner.get("bindings", {}).get(binding_id) or {}).get("exclude") is True):
                 continue
             cost_class = binding_cost_class(binding, connection, owner)
@@ -106,10 +116,10 @@ class PoolVerifier:
             return None
         _, _, binding_id, binding, connection = min(pending, key=lambda item: item[:3])
         cache = host._availability_cache
+        if now < cache.next_probe:
+            return None  # the one-per-minute limit shared with selection-time probes
         probe = getattr(host, "_availability_probe", None) or host._probe_routing_binding
-        # The cache enforces the one-per-minute limit shared with selection-time probes.
-        result = cache.check(binding, connection, probe=probe, allow_probe=True)
-        if result.get("reason") == "unverified":
-            return None
+        self._tried[binding_id] = now
+        result = cache.check(binding, connection, probe=probe, allow_probe=True, now=now)
         LOG.info("routing pool verification: %s is %s (%s)", binding_id, result.get("state"), result.get("reason"))
         return binding_id

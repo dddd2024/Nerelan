@@ -140,3 +140,36 @@ def test_the_thread_waits_one_interval_before_its_first_check(tmp_path):
     verifier.start()
     verifier.stop()
     assert host.probed == []
+
+
+def test_a_binding_that_keeps_failing_is_tried_once_and_does_not_hold_up_the_rest(tmp_path):
+    """Review of #1447: a 429 expires from the cache after five minutes and must not be re-probed."""
+    bindings = [_binding(f"free-{i}", "free/a" if i < 3 else "free/b") for i in range(6)]
+    host = _Host(tmp_path, bindings, overrides=_OVERRIDES)
+    for i in range(3):
+        host.answers[f"free-{i}"] = {"ok": False, "error": "429 rate limit"}
+    # The real cache rule: the availability reading comes from the cache at the simulated time.
+    clock = {"now": 1_000_000.0}
+    host._routing_availability = lambda binding, connection, **kw: host._availability_cache.check(
+        binding, connection, now=clock["now"])
+    verifier = PoolVerifier(host)
+    for _ in range(180):  # three hours of one-minute polls
+        verifier.verify_once(now=clock["now"])
+        clock["now"] += 60
+    assert sorted(host.probed) == [f"free-{i}" for i in range(6)]
+    # After a day a still-unknown binding may be tried again.
+    clock["now"] += 86400
+    assert verifier.verify_once(now=clock["now"]) in {"free-0", "free-1", "free-2"}
+
+
+def test_an_unreadable_cache_entry_is_not_returned_forever(tmp_path):
+    bindings = [_binding("a-free", "free/a"), _binding("b-free", "free/b")]
+    host = _Host(tmp_path, bindings, overrides=_OVERRIDES)
+    connection = {"connection_id": "gateway", "auth_method": "none", "enabled": True}
+    # A reading dated in the future (clock stepped back) is reported as unknown and cannot be probed.
+    host._availability_cache.remember(bindings[0], connection, {"state": "AVAILABLE", "reason": "verified_request",
+                                                               "observed_at": 9e12, "expires_at": 9e12 + 1})
+    verifier = PoolVerifier(host)
+    assert verifier.verify_once() == "a-free" and host.probed == []
+    host._availability_cache.next_probe = 0
+    assert verifier.verify_once() == "b-free" and host.probed == ["b-free"]
