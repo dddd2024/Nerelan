@@ -23,6 +23,35 @@ def _payload(**overrides):
     return payload
 
 
+def test_status_progress_is_window_scoped_and_stopped_window_is_retained():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    assert service.status()["last_progress_at"] is None
+    assert service.status()["latest_window"] is None
+    window = service.activate(_payload())
+    assert service.status()["last_progress_at"] is None
+    task = store.create_task(title="progress", executor_kind="deterministic_fixture")
+    control.claim_task(window_id=window.id, task_id=task.id, owner="test", lease_ms=60000)
+    # Events from before the claim and unrelated tasks must not refresh progress.
+    store._conn.execute("UPDATE task_events SET timestamp='2000-01-01T00:00:00Z' WHERE task_id=?", (task.id,))
+    assert service.status()["last_progress_at"] is None
+    event = store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="progress")
+    unrelated = store.create_task(title="unrelated", executor_kind="deterministic_fixture")
+    store._conn.execute("UPDATE task_events SET timestamp='2099-01-01T00:00:00Z' WHERE task_id=?", (unrelated.id,))
+    # Status reads one indexed event query, without hydrating any task or goal.
+    statements = []
+    store._conn.set_trace_callback(statements.append)
+    assert service.status()["last_progress_at"] == event.timestamp
+    store._conn.set_trace_callback(None)
+    assert len([sql for sql in statements if "JOIN task_events" in sql]) == 1
+    control.stop_window(window.id)
+    stopped = service.status()
+    assert stopped["active_window"] is None
+    assert stopped["latest_window"]["stop_reason"] == "owner_stopped"
+    assert stopped["last_progress_at"] == event.timestamp
+
+
 def _canonical_checker_policy():
     now = datetime.now(timezone.utc)
     caps = {name: 0 for name in ("maxPrsOpened", "maxMergesToMain", "maxReleasesCreated", "maxDeploysToEnvironment")}

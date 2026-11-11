@@ -501,6 +501,8 @@ class PlatformControlStore:
                 if column not in receipt_columns:
                     self._conn.execute(f"ALTER TABLE platform_operation_receipts ADD COLUMN {column} {definition}")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_claim_window ON platform_coordinator_claims(window_id, task_id)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_event_task_time ON task_events(task_id, timestamp)")
 
     # Goal records -----------------------------------------------------
 
@@ -1719,6 +1721,17 @@ class PlatformControlStore:
                 (max(1, min(limit, 500)),),
             ).fetchall()
             return tuple(self._row_to_window(row) for row in rows)
+
+    def window_last_progress_at(self, window_id: str) -> str | None:
+        """Read the newest task event in this window without loading task records."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT e.timestamp FROM platform_coordinator_claims c "
+                "JOIN task_events e ON e.task_id = c.task_id "
+                "WHERE c.window_id = ? AND julianday(e.timestamp) >= julianday(c.created_at) "
+                "ORDER BY julianday(e.timestamp) DESC LIMIT 1", (window_id,),
+            ).fetchone()
+            return row["timestamp"] if row else None
 
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
         current = now or _utc_now_precise()

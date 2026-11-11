@@ -162,6 +162,9 @@ export interface PlatformWindow {
   policy_digest_sha256?: string;
   status: string;
   expires_at: string;
+  starts_at?: string;
+  updated_at?: string;
+  stop_reason?: string;
   repositories: string[];
   capabilities: string[];
   max_tasks: number;
@@ -236,10 +239,15 @@ export interface PlatformStatus {
   autonomy: {
     autonomy_enabled: boolean;
     active_window: PlatformWindow | null;
+    latest_window?: PlatformWindow | null;
+    last_progress_at?: string | null;
     mode: string;
   };
   coordinator: {
     enabled: boolean;
+    lifecycle?: string;
+    accepting_work?: boolean;
+    stranded_goals?: { goal_id: string; title?: string; window_id?: string; window_status?: string }[];
     executions?: number;
     last_error: string;
     active_window_id: string;

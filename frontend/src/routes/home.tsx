@@ -7,6 +7,7 @@ import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { UnattendedStatus } from "@/components/unattended-status";
 import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import { goalStatusLabel } from "@/lib/goal-status-label";
@@ -163,9 +164,10 @@ export function HomePage() {
     return (
       <main
         data-testid="platform-home"
-        className="flex min-h-full flex-col justify-center bg-ra-workspace px-4 py-10 sm:px-8"
+        className="flex min-h-full flex-col bg-ra-workspace"
       >
-        <div className="mx-auto w-full max-w-[720px]">
+        {platform && <UnattendedStatus status={platform} />}
+        <div className="mx-auto my-auto w-full max-w-[784px] px-4 py-10 sm:px-8">
           <header className="mb-5 text-center">
             <NerelanMark className="mx-auto mb-4 h-8 w-8 text-ra-text-tertiary" />
             <h1 className="text-2xl font-medium tracking-[-0.02em] text-ra-text">
@@ -231,6 +233,7 @@ export function HomePage() {
       data-testid="platform-home"
       className="flex h-full min-h-0 flex-col bg-ra-workspace"
     >
+      {platform && <UnattendedStatus status={platform} />}
       <header
         data-testid="active-goal-header"
         className="flex shrink-0 items-center gap-3 border-b border-ra-border px-4 py-2.5 sm:px-5"
