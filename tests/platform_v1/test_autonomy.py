@@ -23,6 +23,63 @@ def _payload(**overrides):
     return payload
 
 
+def test_status_progress_is_window_scoped_and_stopped_window_is_retained():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    assert service.status()["last_progress_at"] is None
+    assert service.status()["latest_window"] is None
+    window = service.activate(_payload())
+    assert service.status()["last_progress_at"] is None
+    task = store.create_task(title="progress", executor_kind="deterministic_fixture")
+    control.claim_task(window_id=window.id, task_id=task.id, owner="test", lease_ms=60000)
+    # Events from before the claim and unrelated tasks must not refresh progress.
+    store._conn.execute("UPDATE task_events SET timestamp='2000-01-01T00:00:00Z' WHERE task_id=?", (task.id,))
+    assert service.status()["last_progress_at"] is None
+    event = store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="progress")
+    unrelated = store.create_task(title="unrelated", executor_kind="deterministic_fixture")
+    store._conn.execute("UPDATE task_events SET timestamp='2099-01-01T00:00:00Z' WHERE task_id=?", (unrelated.id,))
+    # Status reads one indexed event query, without hydrating any task or goal.
+    statements = []
+    store._conn.set_trace_callback(statements.append)
+    assert service.status()["last_progress_at"] == event.timestamp
+    store._conn.set_trace_callback(None)
+    assert len([sql for sql in statements if "JOIN task_events" in sql]) == 1
+    control.stop_window(window.id)
+    stopped = service.status()
+    assert stopped["active_window"] is None
+    assert stopped["latest_window"]["stop_reason"] == "owner_stopped"
+    assert stopped["last_progress_at"] == event.timestamp
+
+
+def test_status_counts_unfinished_tasks_of_the_active_window_only():
+    from reverse_agent.platform_v1.goal_service import GoalService
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    assert service.status()["unfinished_tasks"] == 0
+    goal = goals.create({"objective": "Count waiting work", "idempotency_key": "unfinished",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "T1", "title": "one", "instruction": "one"},
+        {"id": "T2", "title": "two", "instruction": "two"}])
+    goals.approve(goal.id, expected_revision=1)
+    window = service.activate(_payload())
+    # A window with task budget left but no goal has nothing waiting.
+    assert service.status()["unfinished_tasks"] == 0
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    tasks = [link["task_id"] for link in control.list_goal_tasks(goal.id)]
+    assert service.status()["unfinished_tasks"] == 2
+    store.set_state(tasks[0], "RUNNING")
+    assert service.status()["unfinished_tasks"] == 2
+    store.set_state(tasks[0], "READY_FOR_REVIEW")
+    store.set_state(tasks[1], "FAILED")
+    assert service.status()["unfinished_tasks"] == 0
+    control.stop_window(window.id)
+    assert service.status()["unfinished_tasks"] == 0
+
+
 def _canonical_checker_policy():
     now = datetime.now(timezone.utc)
     caps = {name: 0 for name in ("maxPrsOpened", "maxMergesToMain", "maxReleasesCreated", "maxDeploysToEnvironment")}

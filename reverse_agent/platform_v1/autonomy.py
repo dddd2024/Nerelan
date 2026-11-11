@@ -537,9 +537,15 @@ class AutonomyService:
 
     def status(self) -> dict[str, Any]:
         active = self.control_store.active_window()
+        latest = None if active else next(iter(self.control_store.list_windows(limit=1)), None)
+        window = active or latest
         return {
             "autonomy_enabled": active is not None,
             "active_window": window_to_dict(active) if active else None,
+            "latest_window": window_to_dict(latest) if latest else None,
+            "last_progress_at": self.control_store.window_last_progress_at(window.id) if window else None,
+            # Work still waiting in this window; the stalled warning needs it, not the max_tasks budget.
+            "unfinished_tasks": self.control_store.window_unfinished_task_count(active.id) if active else 0,
             "mode": ("delegated_controller_bounded_window" if active and active.confirmation_mode == "DELEGATED_CONTROLLER"
                      else "owner_activated_bounded_window"),
         }

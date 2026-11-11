@@ -19,7 +19,7 @@ from pathlib import Path
 import base64
 from typing import Any, Callable, Mapping, Sequence
 
-from .run_store import TaskStore, TaskStoreError
+from .run_store import TERMINAL_STATUSES, TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
 from .repository_workspace import normalize_github_origin, normalize_repository_identity
 
@@ -501,6 +501,8 @@ class PlatformControlStore:
                 if column not in receipt_columns:
                     self._conn.execute(f"ALTER TABLE platform_operation_receipts ADD COLUMN {column} {definition}")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_claim_window ON platform_coordinator_claims(window_id, task_id)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_event_task_time ON task_events(task_id, timestamp)")
 
     # Goal records -----------------------------------------------------
 
@@ -1719,6 +1721,37 @@ class PlatformControlStore:
                 (max(1, min(limit, 500)),),
             ).fetchall()
             return tuple(self._row_to_window(row) for row in rows)
+
+    def window_last_progress_at(self, window_id: str) -> str | None:
+        """Read the newest task event in this window without loading task records.
+
+        A claim rebound from an earlier window keeps its original created_at, so
+        the window's own budget reservation for the task marks when it entered
+        this window; events before that belong to the earlier window.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT e.timestamp FROM platform_coordinator_claims c "
+                "JOIN task_events e ON e.task_id = c.task_id "
+                "WHERE c.window_id = ? AND julianday(e.timestamp) >= julianday(COALESCE(("
+                "SELECT MIN(r.created_at) FROM platform_budget_reservations r "
+                "WHERE r.task_id = c.task_id AND r.window_id = c.window_id), c.created_at)) "
+                "ORDER BY julianday(e.timestamp) DESC LIMIT 1", (window_id,),
+            ).fetchone()
+            return row["timestamp"] if row else None
+
+    def window_unfinished_task_count(self, window_id: str) -> int:
+        """Non-terminal tasks of this window's RUNNING goals; one aggregate query."""
+        terminal = sorted(TERMINAL_STATUSES)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "WHERE g.window_id = ? AND g.status = 'RUNNING' "
+                f"AND t.status NOT IN ({', '.join('?' for _ in terminal)})", (window_id, *terminal),
+            ).fetchone()
+            return int(row["n"]) if row else 0
 
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
         current = now or _utc_now_precise()
