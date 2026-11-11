@@ -775,3 +775,35 @@ def test_retry_ancestry_keeps_previous_attempt_authors_and_fails_on_missing_evid
     events['old'] = []
     with pytest.raises(TaskStoreError, match='review_not_independent'):
         service._review_authors(review, goal, planned)
+
+
+@pytest.mark.parametrize('classification,detail,reason', [
+    # As the durable OpenCode executor stores them on the run host (2026-11-11, #1460).
+    ('MODEL_UNAVAILABLE:not_allowed_for_user_type',
+     'opencode_nonzero:exit=1:MODEL_UNAVAILABLE:not_allowed_for_user_type name=APIError status=400 '
+     'message=WorkBuddy AI: model [gpt-6.1-sol] is not allowed for user type [personal_free_user]',
+     'not_allowed_for_user_type'),
+    ('MODEL_UNAVAILABLE:model_is_not_supported',
+     'opencode_nonzero:exit=1:MODEL_UNAVAILABLE:model_is_not_supported name=APIError status=400 '
+     'message=Copilot: The requested model is not supported.',
+     'model_is_not_supported'),
+])
+def test_durable_executor_entitlement_failure_is_learned(readiness_host, classification, detail, reason):
+    from datetime import datetime, timezone
+    host = readiness_host
+    row, connection = add_magpie(host)
+    host._availability_probe = None
+    task = host._task_store.create_task(title='Observation', executor_kind='opencode', binding_ref='magpie')
+    host._task_store._conn.execute(
+        'UPDATE tasks SET status=?, failure_classification=?, failure_detail=?, updated_at=? WHERE id=?',
+        ('FAILED', classification, detail, datetime.now(timezone.utc).isoformat(), task.id))
+    host._task_store._conn.commit()
+    with pytest.raises(TaskStoreError) as caught:
+        host._resolve_task_model(routing_task())
+    assert caught.value.decision['excluded_candidates'][0]['filter'] == 'availability:' + reason
+    assert host._availability_cache.check(row, connection)['state'] == 'UNAVAILABLE'
+
+
+def test_copilot_unsupported_model_wording_is_an_entitlement_error():
+    from reverse_agent.platform_v1.model_availability import availability_error
+    assert availability_error('Copilot: The requested model is not supported.') == 'model_is_not_supported'

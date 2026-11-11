@@ -857,7 +857,8 @@ class CombinedTrustedHost:
             classification = row["failure_classification"] or ""
             if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
                 cache.remember(binding, connection, observation(now=at, success=True))
-            elif classification == "MODEL_UNAVAILABLE":
+            # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
+            elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
                 cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
