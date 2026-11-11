@@ -19,7 +19,7 @@ test("confirms a queued cancellation and exposes its terminal state", async ({ a
   await queued.getByTestId("run-cancel-task-demo-queued").click();
   await expect(queued.getByTestId("run-cancel-confirm-task-demo-queued")).toBeVisible();
   await queued.getByRole("button", { name: "确认取消" }).click();
-  await expect(queued.getByTestId("run-state-task-demo-queued")).toContainText("CANCELLED");
+  await expect(queued.getByTestId("run-state-task-demo-queued")).toContainText("已取消");
 });
 
 test("identifies each run by task title in the collapsed row and toggle accessible name", async ({ appPage }) => {
