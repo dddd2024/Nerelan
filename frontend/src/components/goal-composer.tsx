@@ -284,9 +284,8 @@ export function GoalComposer({
           高级
         </button>
 
-        <span className="min-w-0 flex-1 truncate text-xs text-ra-text-tertiary" data-testid="goal-composer-context">
-          {draft.repository}
-        </span>
+        {/* The editable repository field below already shows the repository. */}
+        <span className="min-w-0 flex-1" aria-hidden="true" />
         <button
           type="submit"
           disabled={!ready}
