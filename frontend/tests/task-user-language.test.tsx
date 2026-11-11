@@ -3,6 +3,8 @@ import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { TaskCard } from "@/components/task-card";
+import { TaskDetail } from "@/components/task-detail";
+import { renderWithProviders } from "./test-utils";
 import { functionalStatusLabel } from "@/lib/functional-validation";
 import { permissionModeLabel } from "@/lib/format";
 import { taskActionCopy, taskBlockerCopy, taskReviewNotice } from "@/lib/task-status-copy";
@@ -115,5 +117,29 @@ describe("task list rows", () => {
     const note = screen.getByText("Agent 在规划阶段超时；可以查看执行记录和阻塞原因");
     expect(note).toHaveAttribute("title", "planner_failed:opencode_timeout:840");
     expect(screen.queryByText("Investigate failure classification")).not.toBeInTheDocument();
+  });
+
+  it("explains a failure classification even when no blocker text is supplied", () => {
+    const code = "MODEL_UNAVAILABLE:not_allowed_for_user_type";
+    render(<MemoryRouter><TaskCard task={{ ...task, blocker: "", failureClassification: code }} /></MemoryRouter>);
+    expect(screen.getByText(/模型不可用：请检查模型权限/)).toHaveAttribute("title", code);
+    expect(screen.getByText("终态失败")).toHaveAttribute("title", expect.stringContaining("FAILED_TERMINAL"));
+    expect(screen.queryByText(code)).not.toBeInTheDocument();
+  });
+
+  it("leaves unknown blocker codes unchanged", () => {
+    render(<MemoryRouter><TaskCard task={{ ...task, blocker: "unknown_failure:detail" }} /></MemoryRouter>);
+    expect(screen.getByText("unknown_failure:detail")).toHaveAttribute("title", "unknown_failure:detail");
+  });
+
+  it("explains the failure in task details when the backend provides only a classification", () => {
+    renderWithProviders(<TaskDetail task={{
+      ...task, blocker: "", failureClassification: "review_not_independent",
+      activity: [], changes: [], evidence: [], authorityStatus: "MISSING",
+      testStatus: "PENDING", workflowStatus: "UNKNOWN",
+    }} isLoading={false} isError={false} />);
+    const summary = screen.getByTestId("task-thread-summary");
+    expect(within(summary).getByText("审查缺少独立性：请配置与实施者独立的审查者后再试。"))
+      .toHaveAttribute("title", "review_not_independent");
   });
 });

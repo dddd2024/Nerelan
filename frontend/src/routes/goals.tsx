@@ -7,6 +7,7 @@ import { PageHeader, PageSurface } from "@/components/page-header";
 import { HistoryPagination, useHistoryCursor } from "@/components/history-pagination";
 import { fetchGoalsPage } from "@/lib/platform-client";
 import { goalStatusLabel } from "@/lib/goal-status-label";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
 
 export function GoalsPage() {
@@ -32,7 +33,7 @@ export function GoalsPage() {
           <Link to={`/?goal=${encodeURIComponent(goal.id)}`} className="block p-4 transition-colors hover:bg-ra-light/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ra-accent">
             <div className="flex items-start justify-between gap-4">
               <span className="min-w-0 text-sm font-medium text-ra-text" title={displayTitle(goal.title, 160)}>{displayTitle(goal.title)}</span>
-              <span className="shrink-0 text-xs text-ra-text-secondary">{goalStatusLabel(goal.status)}</span>
+              <span title={runtimeTitle(goal.status)} className="shrink-0 text-xs text-ra-text-secondary">{goalStatusLabel(goal.status)}</span>
             </div>
             {goal.objective ? <p className="ra-measure mt-2 line-clamp-2 text-xs leading-5 text-ra-text-secondary" title={goal.objective}>{goal.objective}</p> : null}
             <p className="mt-2 text-xs text-ra-text-tertiary">{goal.repository}</p>

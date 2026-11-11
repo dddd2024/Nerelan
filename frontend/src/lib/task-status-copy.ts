@@ -1,4 +1,5 @@
 import { taskCopy, type UiLocale } from "@/lib/ui-locale";
+import { runtimeExplanation } from "@/lib/runtime-labels";
 
 /** Short user-facing copy over machine status; original identifiers remain in diagnostics. */
 export function taskActionCopy(value: string | undefined, locale?: UiLocale): string {
@@ -7,7 +8,7 @@ export function taskActionCopy(value: string | undefined, locale?: UiLocale): st
   if (/^Investigate failure classification$/i.test(value.trim())) {
     return copy.investigateFailure;
   }
-  return value;
+  return runtimeExplanation(value);
 }
 
 export function taskBlockerCopy(value: string | undefined, locale?: UiLocale): string {
@@ -19,7 +20,7 @@ export function taskBlockerCopy(value: string | undefined, locale?: UiLocale): s
   if (/^(?:codex|claude_code)_no_product_changes$/.test(value.trim())) {
     return copy.noProductChanges;
   }
-  return value;
+  return runtimeExplanation(value);
 }
 
 export function taskReviewNotice(locale?: UiLocale): string {
