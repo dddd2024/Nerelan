@@ -23,7 +23,7 @@ import hashlib
 import os
 import time
 import re
-from threading import Thread
+from threading import BoundedSemaphore, Thread
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote, urlsplit
 import tempfile
@@ -87,6 +87,11 @@ _WORKFLOW_STATUSES = frozenset(
     {"SUCCESS", "FAILURE", "PENDING", "RUNNING", "NEUTRALIZED", "UNKNOWN"}
 )
 _GOVERNANCE_MISSING = object()
+_POLLED_IN_FLIGHT = 4
+_POLLED_SLOTS = {
+    path: BoundedSemaphore(_POLLED_IN_FLIGHT)
+    for path in ("/api/goals", "/api/runs", "/api/tasks", "/api/platform/status")
+}
 
 
 class _EventView:
@@ -364,6 +369,23 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        # Clients poll these lists every few seconds. If answers ever get slower
+        # than the polling interval, requests must not queue up behind the store
+        # lock and starve task execution: surplus polls are refused at once.
+        slot = _POLLED_SLOTS.get(urlsplit(self.path).path.rstrip("/"))
+        if slot is None:
+            self._do_get()
+            return
+        if not slot.acquire(blocking=False):
+            if self._check_origin():
+                self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "busy", "retry": True})
+            return
+        try:
+            self._do_get()
+        finally:
+            slot.release()
+
+    def _do_get(self) -> None:
         if not self._check_origin():
             return
         if self.path.split("?", 1)[0] == "/api/health":
