@@ -25,7 +25,7 @@ Nerelan is a local-first, governed multi-Agent development platform. Give it a f
 - Python 3.13+ and the repository's Python packages.
 - Node.js 22.22.0+ with npm and the locked frontend packages.
 - Git and GitHub CLI (`gh`); GitHub authentication and repository write access for Draft PR publication.
-- One agent command-line tool: OpenCode, Codex CLI or Claude Code CLI. `dev-up.ps1` starts when any one of these is installed. Keep `opencode` on `PATH` even when selecting another executor.
+- One agent command-line tool: OpenCode, Codex CLI or Claude Code CLI. `dev-up.ps1` starts when any one of these is installed.
 - At least one usable model connection and binding, or an authenticated agent CLI session with a matching binding.
 
 ### If something goes wrong
