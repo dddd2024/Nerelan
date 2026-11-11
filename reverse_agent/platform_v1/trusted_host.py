@@ -206,6 +206,8 @@ class CombinedTrustedHost:
         self._owner_window_admission = OwnerWindowAdmission(self)
         from .supervisor_requests import SupervisorRequests
         self._supervisor_requests = SupervisorRequests(self)
+        from .pool_verifier import PoolVerifier
+        self._pool_verifier = PoolVerifier(self)
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -704,6 +706,7 @@ class CombinedTrustedHost:
                                "review_connection": {"auth_method": connection.get("auth_method"),
                                    "protocol_family": connection.get("protocol_family"),
                                    "relay_required": connection.get("auth_method") == "api_key",
+                                   "base_url": connection.get("base_url"),
                                    "native_endpoint": binding.get("native_endpoint", "")},
                                "review_lease_provider": review_lease_provider,
                                "metadata": metadata.get(binding["model_id"], {}),
@@ -854,8 +857,9 @@ class CombinedTrustedHost:
             classification = row["failure_classification"] or ""
             if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
                 cache.remember(binding, connection, observation(now=at, success=True))
-            elif classification == "MODEL_UNAVAILABLE":
-                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
+            # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
+            elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
+                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))
@@ -1592,6 +1596,8 @@ class CombinedTrustedHost:
                 self._coordinator.start()
                 # Answers nothing unless the Owner's settings turn supervisor activation on.
                 self._supervisor_requests.start()
+                # Does nothing without an active window that permits model calls.
+                self._pool_verifier.start()
             self._remote_job_broker = configured_broker()
             if self._remote_job_broker is not None:
                 self._remote_job_broker.start()
@@ -1632,6 +1638,9 @@ class CombinedTrustedHost:
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
         self._supervisor_requests.stop()
+        verifier = getattr(self, "_pool_verifier", None)
+        if verifier is not None:
+            verifier.stop()
         monitor, self._pool_monitor = getattr(self, "_pool_monitor", None), None
         if monitor is not None:
             monitor.stop()
@@ -1912,6 +1921,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
             print(f"Owner window {window.id} active until {window.expires_at}")
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         elif native_goal_id is None:
             host.start()
         else:
@@ -1921,6 +1931,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
                 if unknown_claims_sha256 is not None else {}))
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(

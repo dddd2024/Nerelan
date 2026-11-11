@@ -12,6 +12,29 @@ import {
 const DUMMY_KEY = "test-secret-should-not-appear";
 
 describe("connection client contract", () => {
+  it("sends only account identity to explicit link/unlink actions", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+    try {
+      const client = createHttpModelControlClient("http://127.0.0.1:8765/api");
+      await client.setMagpieAccountLink("native", "abcdef123456");
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "http://127.0.0.1:8765/api/connections/native/link-magpie-account",
+        expect.objectContaining({ method: "POST", body: '{"account_ref":"abcdef123456"}' }),
+      );
+      // Each mocked response is consumed only once.
+      fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+      await client.setMagpieAccountLink("native", null);
+      expect(fetchMock).toHaveBeenLastCalledWith(
+        "http://127.0.0.1:8765/api/connections/native/unlink-magpie-account",
+        expect.objectContaining({ method: "POST", body: "{}" }),
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
   it("serializes api_key on upsert and never returns the raw key", async () => {
     const client = createMockModelControlClient([]);
     const saved = await client.upsertConnection({

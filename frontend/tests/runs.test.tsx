@@ -73,6 +73,23 @@ afterEach(() => {
 
 
 describe("Agent Runs page", () => {
+  it("explains failures and window stops while preserving their exact codes", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const run = {
+      ...httpRun("task-http-explained"),
+      failure_classification: "MODEL_UNAVAILABLE:not_allowed_for_user_type",
+      budget: { stop_reason: "window_expired" },
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ runs: [run] })));
+    renderWithProviders(<RunsPage />);
+    const failure = await screen.findByTestId("run-failure-task-http-explained");
+    expect(failure).toHaveTextContent("模型不可用：请检查模型权限或选择其他可用模型。");
+    expect(failure).toHaveAttribute("title", run.failure_classification);
+    const stop = screen.getByTestId("run-stop-reason-task-http-explained");
+    expect(stop).toHaveTextContent("授权窗口已到期：请由负责人启用新的授权窗口后再继续。");
+    expect(stop).toHaveAttribute("title", "window_expired");
+  });
+
   it("renders the derived run timeline with state badges", async () => {
     renderWithProviders(<RunsPage />);
     expect(screen.getByRole("heading", { name: /Agent 运行/ })).toBeInTheDocument();
@@ -230,7 +247,7 @@ describe("Agent Runs page", () => {
     expect(within(region).getByText(/仅显示最近 3 条结构化活动/)).toBeInTheDocument();
     const commandActivity = within(region).getByTestId("run-activity-activity-demo-5");
     expect(within(commandActivity).getByText(/git_diff_check/)).toBeInTheDocument();
-    expect(within(commandActivity).getByText(/RUNNING/)).toBeInTheDocument();
+    expect(within(commandActivity).getByText("正在执行")).toHaveAttribute("title", expect.stringContaining("RUNNING"));
     expect(within(region).getByTestId("run-files-task-demo-2")).toContainElement(
       within(region).getByText("reverse_agent/platform_v1/task_service.py"),
     );
@@ -267,7 +284,7 @@ describe("Agent Runs page", () => {
     await user.click(screen.getByRole("button", { name: "确认取消" }));
     await waitFor(() => expect(screen.getByTestId("run-cancel-task-demo-queued")).toBeDisabled());
     expect(screen.getByTestId("run-cancel-help-task-demo-queued").textContent).toContain("任务已取消");
-    expect(screen.getByTestId("run-state-task-demo-queued").textContent).toBe("CANCELLED");
+    expect(screen.getByTestId("run-state-task-demo-queued").textContent).toBe("已取消");
   });
 
   it("uses the real 409 error path, refetches run and list, then shows the fixed conflict", async () => {
@@ -706,8 +723,9 @@ describe("Agent Runs page", () => {
     expect(labelA).not.toStrictEqual(labelB);
     expect(labelA).toContain("task-collision-a");
     expect(labelB).toContain("task-collision-b");
-    expect(labelA).toContain("QUEUED");
-    expect(labelB).toContain("QUEUED");
+    // The accessible name states the status in plain language, not the machine code.
+    expect(labelA).toContain("排队中");
+    expect(labelB).toContain("排队中");
   });
 
   it("renders a long public task id verbatim and expands the run by keyboard", async () => {

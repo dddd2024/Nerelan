@@ -113,6 +113,14 @@ def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
     return None
 
 
+# Ends of a discarded line kept for classification (memory stays bounded).
+_DROP_HEAD_BYTES = 512
+_DROP_TAIL_BYTES = 4096
+_DROPPED_COMPLETED_RE = re.compile(rb'"type"\s*:\s*"item\.completed"')
+_DROPPED_COMMAND_RE = re.compile(rb'"type"\s*:\s*"command_execution"')
+_DROPPED_EXIT_RE = re.compile(rb'"exit_code"\s*:\s*(-?\d+)')
+
+
 @dataclass
 class CodexTurn:
     thread_id: str = ""
@@ -133,6 +141,9 @@ class CodexTurn:
     models: list[str] = field(default_factory=list)
     rate_limits: list[dict[str, Any]] = field(default_factory=list)
     reported_cost_usd: float | None = None
+    # Lines longer than the frame bound (typically one large command output) that
+    # were discarded unparsed. Memory stays bounded; the turn itself continues.
+    dropped_frames: int = 0
 
 
 class CodexJsonl:
@@ -143,7 +154,7 @@ class CodexJsonl:
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 256 * 1024,
-        max_stream_bytes: int = 2 * 1024 * 1024,
+        max_stream_bytes: int = 8 * 1024 * 1024,
         max_events: int = 2000,
         limit_classification: str = "codex_usage_limit",
     ) -> None:
@@ -158,6 +169,9 @@ class CodexJsonl:
         self._event_limit = max_events
         self._limit_classification = limit_classification
         self._buffer = bytearray()
+        self._discarding = False
+        self._drop_head = bytearray()
+        self._drop_tail = bytearray()
         self._bytes = 0
         self._events = 0
         self._started = False
@@ -197,11 +211,56 @@ class CodexJsonl:
             end = self._buffer.index(b"\n")
             line = bytes(self._buffer[:end])
             del self._buffer[:end + 1]
+            if self._discarding:
+                # The rest of an oversized line: classify it from its ends and resume framing.
+                self._remember_dropped(line)
+                self._discarding = False
+                self._drop_frame()
+                continue
+            if len(line) > self._frame_limit:
+                self._drop_head, self._drop_tail = bytearray(), bytearray()
+                self._remember_dropped(line)
+                self._drop_frame()
+                continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
-            raise CodexProtocolError("codex_frame_limit_exceeded")
+            # An oversized line still arriving: keep only its ends, so memory stays bounded.
+            if not self._discarding:
+                self._drop_head, self._drop_tail = bytearray(), bytearray()
+                self._discarding = True
+            self._remember_dropped(bytes(self._buffer))
+            self._buffer.clear()
+
+    def _remember_dropped(self, data: bytes) -> None:
+        if len(self._drop_head) < _DROP_HEAD_BYTES:
+            self._drop_head.extend(data[:_DROP_HEAD_BYTES - len(self._drop_head)])
+        self._drop_tail.extend(data[-_DROP_TAIL_BYTES:])
+        del self._drop_tail[:-_DROP_TAIL_BYTES]
+
+    def _drop_frame(self) -> None:
+        """Account for one discarded line, failing closed where it could have mattered."""
+        self.turn.dropped_frames += 1
+        head, tail = bytes(self._drop_head), bytes(self._drop_tail)
+        self._drop_head, self._drop_tail = bytearray(), bytearray()
+        if _DROPPED_COMPLETED_RE.search(head) and _DROPPED_COMMAND_RE.search(head):
+            # Launch failures are judged from status/exit_code, which Codex writes
+            # after the output. Only a proven nonnegative exit code is ordinary output.
+            codes = _DROPPED_EXIT_RE.findall(tail)
+            if not codes or int(codes[-1]) < 0:
+                self.turn.tool_launch_failed = True
+        if not (self.turn.completed or self.turn.failed):
+            # The dropped line may have been the final agent message: never let an
+            # earlier interim message stand in for it, nor reuse an earlier error
+            # as the detail of what follows. After the terminal event it cannot be.
+            self.turn.final_text = ""
+            self._error_fresh = False
 
     def finish(self) -> CodexTurn:
+        if self._discarding:
+            self._remember_dropped(bytes(self._buffer))
+            self._buffer.clear()
+            self._discarding = False
+            self._drop_frame()
         if self._buffer:
             self._line(bytes(self._buffer))
             self._buffer.clear()

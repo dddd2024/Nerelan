@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { ResourceOverview } from "@/components/resource-overview";
 import {
   createHttpModelControlClient,
@@ -55,6 +55,49 @@ const PAYLOAD = {
 describe("resource overview", () => {
   beforeEach(() => {
     resetDefaultModelControlClientForTests();
+  });
+
+  it("asks for explicit identity confirmation and allows unlinking", async () => {
+    const client = getDefaultModelControlClient();
+    let linked = false;
+    vi.spyOn(client, "getResources").mockImplementation(async () => normalizeResourceOverview({
+      resources: [{ ...PAYLOAD.resources[0],
+        magpie_account_ref: linked ? "abcdef123456" : undefined,
+        magpie_link_suggestion: linked ? undefined : {
+          account_ref: "abcdef123456", provider: "codex", plan: "plus", email: "private@example.test",
+        },
+      }],
+    }));
+    const action = vi.spyOn(client, "setMagpieAccountLink").mockImplementation(async (_id, ref) => {
+      linked = ref !== null;
+    });
+    renderWithProviders(<ResourceOverview />);
+    const accept = await screen.findByRole("button", { name: "是，关联" });
+    expect(screen.getByTestId("resource-chatgpt-account")).toHaveTextContent(
+      "Magpie 里有一个 Codex 账号（计划 plus，abcdef123456）。这是本机登录的同一个账号吗？");
+    expect(screen.queryByText(/private@example/)).toBeNull();
+    expect(action).not.toHaveBeenCalled();
+    fireEvent.click(accept);
+    const unlink = await screen.findByRole("button", { name: "取消关联" });
+    expect(action).toHaveBeenLastCalledWith("chatgpt-account", "abcdef123456");
+    expect(screen.getByText(/已关联 Magpie 账号/)).toBeInTheDocument();
+    fireEvent.click(unlink);
+    await screen.findByRole("button", { name: "是，关联" });
+    expect(action).toHaveBeenLastCalledWith("chatgpt-account", null);
+  });
+
+  it("shows a failed confirmation without pretending the account is linked", async () => {
+    const client = getDefaultModelControlClient();
+    vi.spyOn(client, "getResources").mockResolvedValue(normalizeResourceOverview({
+      resources: [{ ...PAYLOAD.resources[0], magpie_link_suggestion: {
+        account_ref: "abcdef123456", provider: "claude", plan: "max",
+      } }],
+    }));
+    vi.spyOn(client, "setMagpieAccountLink").mockRejectedValue(new Error("stale suggestion"));
+    renderWithProviders(<ResourceOverview />);
+    fireEvent.click(await screen.findByRole("button", { name: "是，关联" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("关联失败"));
+    expect(screen.queryByRole("button", { name: "取消关联" })).toBeNull();
   });
 
   it("normalizes the API without inventing numbers", () => {

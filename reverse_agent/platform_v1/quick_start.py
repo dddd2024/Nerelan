@@ -37,6 +37,10 @@ PRESETS: dict[str, dict[str, Any]] = {
     "week": {"label": "一周", "hours": 168, "max_concurrent": 2, "max_retries": 2, "max_token_units": 10_000_000},
 }
 DEFAULT_PRESET = "day"
+# Owner decision 2026-11-10 (D4): review goes to a stronger model than ordinary
+# implementation. The router admits only reviewers whose capability tier is at least
+# the task's difficulty, so the template asks for one tier above the implement task.
+REVIEW_DIFFICULTY = 4
 _PRESET_KEYS = ("hours", "max_concurrent", "max_retries", "max_token_units")
 
 _ISSUE_URL = re.compile(r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/issues/(\d{1,7})\b")
@@ -152,7 +156,8 @@ def team_tasks(label: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]
         return [implement]
     implement["validation_checks"] = checks
     review = {"id": "review", "title": f"Review {label}", "kind": "review", "agent_role": "reviewer",
-              "difficulty": 3, "dependencies": ["implement"], "artifact_input": {"plan_task_id": "implement"},
+              "difficulty": REVIEW_DIFFICULTY, "dependencies": ["implement"],
+              "artifact_input": {"plan_task_id": "implement"},
               "validation_checks": checks,
               "instruction": ("Review the implementation against the Goal objective: correctness, the "
                               "tests it names, and the scope rules. Do not modify files.")}

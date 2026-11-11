@@ -7,9 +7,11 @@ import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
+import { UnattendedStatus } from "@/components/unattended-status";
 import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import { goalStatusLabel } from "@/lib/goal-status-label";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
 
@@ -163,9 +165,10 @@ export function HomePage() {
     return (
       <main
         data-testid="platform-home"
-        className="flex min-h-full flex-col justify-center bg-ra-workspace px-4 py-10 sm:px-8"
+        className="flex min-h-full flex-col bg-ra-workspace"
       >
-        <div className="mx-auto w-full max-w-[720px]">
+        {platform && <UnattendedStatus status={platform} />}
+        <div className="mx-auto my-auto w-full max-w-[784px] px-4 py-10 sm:px-8">
           <header className="mb-5 text-center">
             <NerelanMark className="mx-auto mb-4 h-8 w-8 text-ra-text-tertiary" />
             <h1 className="text-2xl font-medium tracking-[-0.02em] text-ra-text">
@@ -206,13 +209,8 @@ export function HomePage() {
                   <span className="min-w-0 flex-1 truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
                     {displayTitle(goal.title)}
                   </span>
-                  {/* A terminal COMPLETED row states the product meaning
-                      ("execution finished, review still pending"), because a
-                      bare `COMPLETED` reads as delivery. Non-terminal states
-                      keep their machine name: it is the honest value while the
-                      run is in flight, and the tone carries the urgency. */}
-                  <span className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
-                    {goal.status === "COMPLETED" ? goalStatusLabel(goal.status) : goal.status}
+                  <span title={runtimeTitle(goal.status)} className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
+                    {goalStatusLabel(goal.status)}
                   </span>
                   <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-ra-text-tertiary">
                     {relativeTime(goal.updated_at)}
@@ -231,6 +229,7 @@ export function HomePage() {
       data-testid="platform-home"
       className="flex h-full min-h-0 flex-col bg-ra-workspace"
     >
+      {platform && <UnattendedStatus status={platform} />}
       <header
         data-testid="active-goal-header"
         className="flex shrink-0 items-center gap-3 border-b border-ra-border px-4 py-2.5 sm:px-5"
@@ -258,6 +257,7 @@ export function HomePage() {
             <span
               data-testid="goal-state-label"
               className={cn("font-medium", goalStatusTextClass(detailGoal.status))}
+              title={runtimeTitle(detailGoal.status)}
             >
               {goalStatusLabel(detailGoal.status)}
             </span>

@@ -238,6 +238,8 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
     buffer = data.get("reset_buffer", .03)
     if type(buffer) not in (float, int) or not .0 <= buffer <= .2:
         raise ValueError("invalid_model_routing_overrides")
+    if type(data.get("availability_probes", True)) is not bool:
+        raise ValueError("invalid_model_routing_overrides")
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
             or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh"))

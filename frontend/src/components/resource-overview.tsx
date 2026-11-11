@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Gauge } from "lucide-react";
-import { useResources } from "@/hooks/use-model-access";
+import { useMagpieAccountLink, useResources } from "@/hooks/use-model-access";
 import { cn } from "@/lib/cn";
 import {
   totalTokens,
@@ -250,6 +250,29 @@ function TokenLine({ tokens }: { tokens: TokenCounters }) {
   );
 }
 
+function MagpieAccountLink({ resource }: { resource: Resource }) {
+  const mutation = useMagpieAccountLink();
+  const suggestion = resource.magpieLinkSuggestion;
+  if (!resource.magpieAccountRef && !suggestion) return null;
+  const linked = !!resource.magpieAccountRef;
+  return (
+    <div className="mt-2 text-xs text-ra-text-secondary">
+      {linked ? <span>已关联 Magpie 账号（{resource.magpieAccountRef}）</span> : (
+        <span>
+          {`Magpie 里有一个 ${suggestion!.provider === "codex" ? "Codex" : "Claude Code"} 账号（${
+            suggestion!.plan ? `计划 ${suggestion!.plan}，` : ""}${suggestion!.accountRef}）。这是本机登录的同一个账号吗？`}
+        </span>
+      )}
+      <button type="button" className="ml-2 text-ra-accent hover:underline" disabled={mutation.isPending}
+        onClick={() => mutation.mutate({ connectionId: resource.connectionId,
+          accountRef: linked ? null : suggestion!.accountRef })}>
+        {linked ? "取消关联" : "是，关联"}
+      </button>
+      {mutation.isError && <p role="alert">{linked ? "取消关联失败" : "关联失败"}，请刷新后重试。</p>}
+    </div>
+  );
+}
+
 function ResourceCard({ resource }: { resource: Resource }) {
   const used = resource.bindings.filter((b) => b.tokens && b.tokens.input + b.tokens.output > 0);
   return (
@@ -278,6 +301,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
         </div>
       </header>
       <QuotaBlock quota={resource.quota} />
+      <MagpieAccountLink resource={resource} />
       {resource.tasksWithTokens > 0 ? (
         <div className="flex flex-col gap-1">
           <TokenLine tokens={resource.tokens} />

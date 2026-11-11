@@ -34,6 +34,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(appPage.getByTestId("platform-home")).toBeVisible();
 
   await appPage.getByLabel("描述最终目标").fill(GOAL_TITLE);
+  await appPage.locator("[aria-controls=\"goal-composer-advanced\"]").click();
   await appPage.getByLabel("执行模式").selectOption("deterministic_fixture");
   await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
   await expect(appPage.getByTestId("approval-goal-detail")).toBeVisible();
@@ -75,7 +76,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await queued.getByTestId(`run-cancel-${QUEUED_TASK_ID}`).click();
   await expect(queued.getByTestId(`run-cancel-confirm-${QUEUED_TASK_ID}`)).toBeVisible();
   await queued.getByRole("button", { name: "确认取消" }).click();
-  await expect(queued.getByTestId(`run-state-${QUEUED_TASK_ID}`)).toContainText("CANCELLED");
+  await expect(queued.getByTestId(`run-state-${QUEUED_TASK_ID}`)).toContainText("已取消");
 
   await navigateFromShell(appPage, "首页");
   await expect(appPage.getByTestId("platform-home")).toBeVisible();

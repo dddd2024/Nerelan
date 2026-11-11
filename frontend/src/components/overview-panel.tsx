@@ -10,6 +10,8 @@ import {
   formatClock,
 } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { taskActionCopy, taskBlockerCopy } from "@/lib/task-status-copy";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { GitPullRequest } from "lucide-react";
 
 interface OverviewPanelProps {
@@ -50,7 +52,7 @@ export function OverviewPanel({ task, policy }: OverviewPanelProps) {
         </h2>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <Badge className={cn(state.badge)} dot={state.dot}>
-            {state.label}
+            <span title={runtimeTitle(task.state)}>{state.label}</span>
           </Badge>
           <Badge className={cn(risk.badge)} dot={risk.dot}>
             {risk.label}
@@ -81,8 +83,8 @@ export function OverviewPanel({ task, policy }: OverviewPanelProps) {
               )
             }
           />
-           <Field label="阻塞项" value={task.blocker ?? "无"} />
-           <Field label="下一步" value={task.nextAction ?? "—"} />
+           <Field label="阻塞项" value={<span title={task.blocker || task.failureClassification}>{taskBlockerCopy(task.blocker || task.failureClassification)}</span>} />
+           <Field label="下一步" value={<span title={task.nextAction}>{taskActionCopy(task.nextAction)}</span>} />
         </dl>
       </section>
 

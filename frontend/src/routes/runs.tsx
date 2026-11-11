@@ -1,6 +1,7 @@
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
+import { runtimeExplanation, runtimeMessage, runtimeTitle } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { HistoryPagination, useHistoryCursor } from "@/components/history-pagination";
@@ -239,10 +240,10 @@ function ActivityRow({ event }: { event: PlatformRunActivityEvent }) {
           {agent ? <span>{agentLabel(agent)}</span> : null}
           {event.stage ? <span>{executionStageLabel(event.stage)}</span> : null}
         </div>
-        {event.description ? <p className="ra-measure mt-1 text-xs leading-5 text-ra-text-tertiary">{event.description}</p> : null}
+        {event.description ? <p title={event.description} className="ra-measure mt-1 text-xs leading-5 text-ra-text-tertiary">{runtimeExplanation(event.description)}</p> : null}
         {event.path ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.path}>{event.path}</p> : null}
-        {event.command && !event.test ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.command.summary}>{event.command.summary || "命令"} · {event.command.status || event.status || "UNKNOWN"}</p> : null}
-        {event.test ? <p className="ra-measure mt-1 text-xs text-ra-text-secondary">{event.test.summary || "测试"} · {event.test.status || (event.test.exit_code === 0 ? "PASS" : event.test.exit_code == null ? "UNKNOWN" : "FAIL")}</p> : null}
+        {event.command && !event.test ? <p className="mt-1 truncate font-mono text-xs text-ra-text-secondary" title={event.command.summary}>{event.command.summary || "命令"} · <span title={runtimeTitle(event.command.status || event.status || "UNKNOWN")}>{runtimeMessage(event.command.status || event.status || "UNKNOWN").label}</span></p> : null}
+        {event.test ? <p className="ra-measure mt-1 text-xs text-ra-text-secondary">{event.test.summary || "测试"} · <span title={runtimeTitle(event.test.status || (event.test.exit_code === 0 ? "PASS" : event.test.exit_code == null ? "UNKNOWN" : "FAIL"))}>{runtimeMessage(event.test.status || (event.test.exit_code === 0 ? "PASS" : event.test.exit_code == null ? "UNKNOWN" : "FAIL")).label}</span></p> : null}
       </div>
     </li>
   );
@@ -630,7 +631,7 @@ function RunDetailContent({ run }: { run: PlatformAgentRunDetail }) {
         </dl>
         {agents.length > 0 ? <div className="mt-3 flex flex-wrap gap-2 text-xs text-ra-text-tertiary" data-testid={`run-agents-${run.task_id}`}>{agents.map((agent) => <span key={`${agent.agent_id}:${agent.role}`} className="rounded-full border border-ra-border px-2 py-1">{agentLabel(agent)} · {agent.role || "role unknown"}</span>)}</div> : null}
         {run.validation?.functional || run.validation?.command_id === "approved_functional_checks" ? <FunctionalValidationView evidence={run.validation.functional} executor={run.executor_kind} /> : null}
-        {run.validation && !run.validation.functional && run.validation.command_id !== "approved_functional_checks" ? <p className="mt-3 text-xs text-ra-text-secondary" data-testid={`run-validation-${run.task_id}`}>验证：<span className="font-mono">{run.validation.command_id}</span> · {run.validation.status}{run.validation.summary ? ` · ${run.validation.summary}` : ""}</p> : null}
+        {run.validation && !run.validation.functional && run.validation.command_id !== "approved_functional_checks" ? <p className="mt-3 text-xs text-ra-text-secondary" data-testid={`run-validation-${run.task_id}`}>验证：<span className="font-mono">{run.validation.command_id}</span> · <span title={runtimeTitle(run.validation.status)}>{runtimeMessage(run.validation.status).label}</span>{run.validation.summary ? ` · ${run.validation.summary}` : ""}</p> : null}
       </section>
 
       <section aria-labelledby={`run-activity-heading-${run.task_id}`} data-testid={`run-activity-section-${run.task_id}`}>
@@ -659,7 +660,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
       <button type="button" id={`run-toggle-${run.task_id}`} data-testid={`run-toggle-${run.task_id}`} aria-expanded={open} aria-controls={`run-detail-${run.task_id}`} aria-label={runToggleAriaLabel(run)} onClick={() => setOpen((value) => !value)} className="w-full rounded-lg px-1 py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">{open ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />}<div className="min-w-0"><p className="min-w-0 break-words text-sm font-medium text-ra-text" data-testid={`run-heading-${run.task_id}`}>{runHeading(run)}</p>{runHasNonemptyTitle(run) && runTaskId(run) ? <p className="mt-1 min-w-0 break-all font-mono text-xs text-ra-text-tertiary" data-testid={`run-task-id-${run.task_id}`}>ID {runTaskId(run)}</p> : null}<p className="mt-1 text-xs text-ra-text-tertiary">{run.repository} · {run.executor_kind} · {relativeTime(run.updated_at)}</p></div></div>
-          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", toneBadge(runStateTone(run.state), true))} title={run.state}>{runStateStyle(run.state).label}</span>
+          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", toneBadge(runStateTone(run.state), true))} title={runtimeTitle(run.state)}>{runStateStyle(run.state).label}</span>
         </div>
       </button>
 
@@ -692,7 +693,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
           </div>
           {/* Live rows carry no description at all, so the wrapper only
               contributed a blank 4px gap to a row that is already dense. */}
-          {currentActivity.description ? <p className="mt-1 text-xs text-ra-text-tertiary">{currentActivity.description}</p> : null}
+          {currentActivity.description ? <p title={currentActivity.description} className="mt-1 text-xs text-ra-text-tertiary">{runtimeExplanation(currentActivity.description)}</p> : null}
         </div>
       ) : <p className="mt-3 text-xs text-ra-text-tertiary">暂无当前结构化活动。</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">{run.goal_id ? <span data-testid={`run-goal-${run.task_id}`} className="text-ra-text-secondary">目标：{run.goal_title}</span> : <span className="text-ra-text-tertiary">未关联目标</span>}{changeSummary ? <span data-testid={`run-change-summary-${run.task_id}`} className="text-ra-text-secondary">{changeSummary.file_count} 个文件 · +{changeSummary.additions} -{changeSummary.deletions}</span> : null}{run.publication && run.publication.pr_number > 0 ? <a href={run.publication.pr_url} target="_blank" rel="noreferrer" data-testid={`run-pr-${run.task_id}`} className="inline-flex min-h-6 items-center gap-1 text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent" title={`打开 PR #${run.publication.pr_number}`}><GitPullRequest className="h-3.5 w-3.5" aria-hidden="true" />PR #{run.publication.pr_number}</a> : null}</div>
@@ -834,6 +835,8 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
           </p>
         ) : null}
       </section>
+      {run.failure_classification ? <p title={run.failure_classification} data-testid={`run-failure-${run.task_id}`} className="mt-2 text-xs text-ra-status-warning">{runtimeExplanation(run.failure_classification)}</p> : null}
+      {run.budget?.stop_reason ? <p title={run.budget.stop_reason} data-testid={`run-stop-reason-${run.task_id}`} className="mt-2 text-xs text-ra-text-secondary">{runtimeExplanation(run.budget.stop_reason)}</p> : null}
       <RunDetail run={run} open={open} />
     </li>
   );

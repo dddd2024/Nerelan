@@ -1,5 +1,6 @@
 import type { RiskTier, RunState } from "@/types";
 import { taskCopy } from "@/lib/ui-locale";
+import { runtimeMessage } from "@/lib/runtime-labels";
 
 // ---------------------------------------------------------------------------
 // Time formatting
@@ -132,7 +133,7 @@ export function runStateStyle(state: RunState | string): StateStyle {
        * read-model do not share a TypeScript enum, and an unrecognised state
        * must still render as quiet text rather than as `undefined`.
        */
-      return { label: state, badge: TONE_NEUTRAL, dot: "bg-ra-status-stopped" };
+      return { label: runtimeMessage(state).label, badge: TONE_NEUTRAL, dot: "bg-ra-status-stopped" };
   }
 }
 

@@ -37,6 +37,33 @@ RESOURCE_VIEW_MODES: tuple[str, ...] = ("legacy", "hybrid", "magpie_primary")
 # Explicit state shown when Magpie is not enabled in a non-legacy mode.
 _MAGPIE_DISABLED = {"status": "disabled", "reason": "magpie_not_enabled"}
 
+# Native executor provider -> Magpie account provider. This suggests, never proves, identity.
+NATIVE_MAGPIE_PROVIDERS = {"codex": "codex", "claude-code": "claude"}
+
+
+def native_account_link_suggestions(connections: list[Mapping[str, Any]],
+                                    snapshot: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Only an unclaimed, unique provider account can be offered for confirmation."""
+    if snapshot.get("status") != "available":
+        return {}
+    claimed = {c.get("account_ref") for c in connections if c.get("account_ref")}
+    suggestions = {}
+    for connection in connections:
+        provider = NATIVE_MAGPIE_PROVIDERS.get(connection.get("executor_provider_id"))
+        if (not provider or connection.get("enabled") is not True
+                or connection.get("auth_method") != "external_cli_session" or connection.get("account_ref")):
+            continue
+        accounts = [a for a in snapshot.get("accounts", [])
+                    if isinstance(a, Mapping) and a.get("provider") == provider]
+        if len(accounts) != 1:
+            continue
+        account = accounts[0]
+        ref = account.get("account_ref")
+        if isinstance(ref, str) and ref and ref not in claimed:
+            suggestions[connection["connection_id"]] = {
+                "account_ref": ref, "provider": provider, "plan": account.get("plan")}
+    return suggestions
+
 
 def _credential(connection: Mapping[str, Any]) -> dict[str, Any]:
     auth = connection.get("auth_method")
@@ -421,7 +448,7 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
 
     *mode* controls only how the resource view is read/displayed (M2, #1170):
 
-    - ``"legacy"`` (default): byte-identical to the pre-M2 view.  When *external*
+    - ``"legacy"`` (default): the local resource view, with optional account-link metadata. When *external*
       is given, its snapshot appears under ``external_sources.magpie``; when
       *external* is None the response has no ``external_sources`` key.
     - ``"hybrid"``: always includes ``external_sources.magpie`` with an explicit
@@ -501,17 +528,24 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
                         "equivalent_cost": _combine_costs([item["equivalent_cost"] for item in resources
                                                            if item["equivalent_cost"]]),
                         "quota_guard": _guard_entries(guard_log)}}
+    magpie_snapshot = _read_external(external) if external is not None else dict(_MAGPIE_DISABLED)
+    suggestions = native_account_link_suggestions(connections, magpie_snapshot)
+    for connection, resource in zip(connections, resources):
+        if (connection.get("auth_method") == "external_cli_session"
+                and connection.get("executor_provider_id") in NATIVE_MAGPIE_PROVIDERS):
+            if connection.get("account_ref"):
+                resource["magpie_account_ref"] = connection["account_ref"]
+            if connection["connection_id"] in suggestions:
+                resource["magpie_link_suggestion"] = suggestions[connection["connection_id"]]
     if mode == "legacy":
-        # Byte-identical to the pre-M2 view: external_sources only when a
-        # caller explicitly provides an external snapshot.
+        # External sources appear only when a caller explicitly provides a snapshot.
         if external is not None:
-            view["external_sources"] = {"magpie": _read_external(external)}
+            view["external_sources"] = {"magpie": magpie_snapshot}
         return view
 
     # Non-legacy modes always surface external_sources with an explicit state
     # so the consumer knows whether Magpie data is available, disabled, or
     # unreachable — never silently absent.
-    magpie_snapshot = _read_external(external) if external is not None else dict(_MAGPIE_DISABLED)
     view["view_mode"] = mode
     view["external_sources"] = {"magpie": magpie_snapshot}
     view["correlation"] = _correlation(resources, magpie_snapshot)

@@ -100,6 +100,26 @@ def _prepare(h):
     return call
 
 
+def test_explicit_link_enables_magpie_windows_for_the_native_connection(monkeypatch):
+    from reverse_agent.model_access.store import ModelProfileStore
+
+    ref = "abcdef123456"
+    reading = _snapshot(_account(ref, 23.0))
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": NATIVE, "name": "Native", "provider": "codex",
+                             "base_url": "https://example.test", "auth_method": "external_cli_session"})
+    h = _host(monkeypatch, reading)
+    before = store.get_connection_public(NATIVE)
+    assert h.host._account_quota(before).get("windows", []) == []
+    after = store.set_native_account_link(NATIVE, ref, reading)
+    quota = h.host._account_quota(after)
+    assert quota["source"] == "magpie"
+    assert quota["account_ref"] == ref
+    assert [w["used_percent"] for w in quota["windows"]] == [23.0, 30.0]
+    cleared = store.set_native_account_link(NATIVE, None, {})
+    assert h.host._account_quota(cleared).get("windows", []) == []
+
+
 def _assert_unknown(call, account):
     evidence = call["evidence"]
     assert call["account_ref"] == account and evidence["account_ref"] == account

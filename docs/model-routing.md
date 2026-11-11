@@ -94,7 +94,18 @@ requests and entitlement failures cache for 24 hours; transient errors for five
 minutes. Probes have a global one-minute rate limit and issue only `Reply OK`
 through the host credential relay. Runtime probing requires the existing live
 model-control opt-in plus `REVERSE_AGENT_ROUTING_PROBES=1`, and an active
-window that does not prohibit model/provider calls. Native Owner subscriptions and Magpie `codex/*` and
+window that does not prohibit model/provider calls.
+
+Background verification (Owner decision 2026-11-11) is on by default and is
+separate from selection-time probing. While a window that permits model calls
+is active, the host checks at most one unverified binding per minute with the
+same `Reply OK` request, free before subscription and stronger before weaker,
+and stores the result in `model_availability.json`. A paid API binding is
+checked only when the window allows paid use. The first check comes one
+minute after host start. It does not re-route tasks that already have a
+binding; later selections, escalations and windows see the results. Turn it
+off with `"availability_probes": false` in `model_routing_overrides.json` or
+`REVERSE_AGENT_ROUTING_PROBES=0`. Native Owner subscriptions and Magpie `codex/*` and
 `claude/*`, and native Codex/Claude Code executors are never probed. Native
 accounts use existing `managed_login_ready` executor/session readiness and the
 real quota guard; external executor sessions use their existing session readiness.
@@ -159,3 +170,20 @@ required ancestry fails closed. Pins and underpowered fallback cannot override
 this exclusion. Without an independent reviewer meeting the required tier,
 selection fails with `review_not_independent` and persists `MODEL_SELECTION_FAILED`
 as blocked evidence. Review tasks without `artifact_input` retain ordinary routing.
+
+A non-Codex artifact review is one tool-less chat request, and a binding can be the
+reviewer only if its connection supports that request in one of two ways:
+
+- an API-key OpenCode connection, through an execution-scoped host relay lease;
+- a keyless gateway on this machine: an OpenCode connection with `auth_method: none`
+  whose base URL is plain `http` on a loopback host with an explicit port (Magpie).
+  The host calls it directly and sends no credential. The answer is checked the same
+  way: the gateway must echo the requested model, one `stop` choice, no tool calls.
+
+Any other connection is excluded from review with `review_transport_unsupported`.
+Until 2026-11-10 only the first form existed, so no gateway model could review; on the
+run host that left two reviewers among 183 bindings and reviews failed with
+`review_not_independent` whenever the author shared their family.
+
+The quick-start team template asks for a reviewer one capability tier above the
+implement task (review difficulty 4, implement 3; Owner decision 2026-11-10, D4).
