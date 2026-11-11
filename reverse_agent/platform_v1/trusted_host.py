@@ -1552,6 +1552,7 @@ class CombinedTrustedHost:
             task_handler = _task_handler_factory(
                 self._task_store,
                 self._router,
+                executor_status_provider=self._store.list_executors_public,
                 allowed_origin=self._allowed_origin,
                 lease_provider=self._lease_provider_factory(),
                 binding_resolver=binding_resolver,

@@ -1114,6 +1114,27 @@ export async function fetchAccountPool(): Promise<AccountPool> {
   return request<AccountPool>("/api/platform/accounts");
 }
 
+export interface DoctorCheck {
+  id: string;
+  component: string;
+  state: "READY" | "DEGRADED" | "BLOCKED" | "UNKNOWN";
+  required: boolean;
+  summary: string;
+  reason_code: string;
+  remediation_id: string;
+}
+
+export interface DoctorReport {
+  schema_version: number;
+  state: DoctorCheck["state"];
+  checks: DoctorCheck[];
+}
+
+export async function fetchDoctorReport(): Promise<DoctorReport> {
+  if (isMock()) return { schema_version: 1, state: "READY", checks: [] };
+  return request<DoctorReport>("/api/platform/doctor");
+}
+
 export async function fetchPlatformStatus(): Promise<PlatformStatus> {
   if (isMock()) return {
     service: "reverse-agent-platform-v2",

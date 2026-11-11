@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
+import { ReadinessChecklist } from "@/components/readiness-checklist";
 import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
 import { ErrorState } from "@/components/error-state";
@@ -141,6 +142,7 @@ export function HomePage() {
 
   const composer = (dock: boolean) => (
     <section data-testid="goal-composer-section">
+      <ReadinessChecklist />
       <GoalComposer
         busy={startGoal.isPending}
         compact={dock}

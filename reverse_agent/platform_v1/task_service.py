@@ -407,6 +407,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 report = SystemDoctor(
                     store=self.store,
                     runtime_status_provider=self._platform_status_response,
+                    executor_status_provider=getattr(self, "executor_status_provider", None),
                 ).run()
                 self._send_json(HTTPStatus.OK, report)
                 return
@@ -1421,12 +1422,16 @@ def _handler_factory(
     local_client_session: Any | None = None,
     magpie_status: Callable | None = None,
     pool_monitor: Any | None = None,
+    executor_status_provider: Callable | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
     ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
     ConfiguredHandler.pool_monitor = pool_monitor
+    ConfiguredHandler.executor_status_provider = (
+        staticmethod(executor_status_provider) if executor_status_provider else None
+    )
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin

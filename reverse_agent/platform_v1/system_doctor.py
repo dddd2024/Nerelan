@@ -67,9 +67,11 @@ class SystemDoctor:
         *,
         store: Any,
         runtime_status_provider: Callable[[], Mapping[str, Any]],
+        executor_status_provider: Callable[[], list[dict[str, Any]]] | None = None,
     ) -> None:
         self._store = store
         self._runtime_status_provider = runtime_status_provider
+        self._executor_status_provider = executor_status_provider
 
     def run(self) -> dict[str, Any]:
         checks = (
@@ -91,12 +93,7 @@ class SystemDoctor:
                 reason_code="repository_workspace_truth_not_integrated",
                 remediation_id="complete_repository_workspace_binding",
             ),
-            self._not_integrated(
-                check_id="executor_readiness",
-                component="executor",
-                reason_code="executor_provenance_truth_not_integrated",
-                remediation_id="complete_executor_provenance_integration",
-            ),
+            *self._executor_checks(),
             self._not_integrated(
                 check_id="connection_binding_readiness",
                 component="connection_binding",
@@ -140,6 +137,39 @@ class SystemDoctor:
             reason_code="task_store_readable",
             remediation_id="none",
         )
+
+    def _executor_checks(self) -> tuple[DoctorCheck, ...]:
+        # Consume only the trusted host's cached public descriptors; never probe.
+        try:
+            if self._executor_status_provider is None:
+                raise ValueError("executor_status_unavailable")
+            executors = self._executor_status_provider()
+            usable = any(item.get("operational") is True for item in executors)
+            details = tuple(
+                DoctorCheck(
+                    id=f"executor_{item['executor_id']}", component="executor_tool",
+                    state=READY if item.get("operational") is True else BLOCKED,
+                    required=False,
+                    summary="Agent tool is usable." if item.get("operational") is True
+                    else "Agent tool is not usable.",
+                    reason_code="executor_operational" if item.get("operational") is True
+                    else "executor_unavailable", remediation_id="configure_agent_tool",
+                ) for item in executors
+            )
+        except Exception:
+            return (self._not_integrated(
+                check_id="executor_readiness", component="executor",
+                reason_code="executor_provenance_truth_not_integrated",
+                remediation_id="complete_executor_provenance_integration",
+            ),)
+        return (DoctorCheck(
+            id="executor_readiness", component="executor",
+            state=READY if usable else BLOCKED, required=True,
+            summary="At least one agent tool is usable." if usable
+            else "No usable agent tool is available.",
+            reason_code="executor_available" if usable else "executor_unavailable",
+            remediation_id="configure_agent_tool",
+        ), *details)
 
     def _task_store_storage_path(self) -> DoctorCheck:
         try:
