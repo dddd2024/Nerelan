@@ -9,7 +9,7 @@ from urllib.request import Request
 import pytest
 
 from reverse_agent.model_access import credential_relay, service
-from reverse_agent.model_access.http_safe import urlopen
+from reverse_agent.model_access.http_safe import urlopen, urlopen_direct
 
 
 def _serve(handler):
@@ -66,3 +66,35 @@ def test_redirects_are_refused_and_the_key_is_not_forwarded(redirect_to_collecto
 def test_model_listing_and_relay_use_the_safe_opener():
     assert service.urlopen is urlopen
     assert credential_relay.urlopen is urlopen
+
+
+def test_direct_open_ignores_environment_proxies(monkeypatch):
+    """The review gateway's diff must reach loopback directly, never a configured proxy."""
+    hits = {"proxy": 0, "gateway": 0}
+
+    def recorder(name):
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                hits[name] += 1
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"{}")
+
+            def log_message(self, *args):
+                pass
+        return Handler
+
+    proxy, gateway = _serve(recorder("proxy")), _serve(recorder("gateway"))
+    try:
+        for name in ("http_proxy", "HTTP_PROXY"):
+            monkeypatch.setenv(name, f"http://127.0.0.1:{proxy.server_port}")
+        for name in ("no_proxy", "NO_PROXY"):
+            monkeypatch.delenv(name, raising=False)
+        url = f"http://127.0.0.1:{gateway.server_port}/v1/chat/completions"
+        with urlopen_direct(Request(url, data=b"{}", method="POST"), timeout=5) as response:
+            assert response.read() == b"{}"
+        assert hits == {"proxy": 0, "gateway": 1}
+    finally:
+        proxy.shutdown()
+        gateway.shutdown()

@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request
 from urllib.error import URLError
 
-from ..model_access.http_safe import urlopen
+from ..model_access.http_safe import urlopen_direct
 from ..model_access.credential_relay import _normalize_model_id
 from .run_store import TaskStoreError
 from .task_runtime import ExecutorRuntimeError
@@ -65,10 +65,12 @@ def gateway_chat(base_url, body):
 
 
 def _post(base_url, body, headers):
+    # Both destinations are loopback-only (relay URL and keyless gateway are
+    # validated as such); never hand the diff or a lease token to a proxy.
     request = Request(base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(body).encode("utf-8"),
         headers={**headers, "Content-Type": "application/json"})
-    with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+    with urlopen_direct(request, timeout=TIMEOUT_SECONDS) as response:
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
         raise TaskStoreError("model_review_invalid_output")

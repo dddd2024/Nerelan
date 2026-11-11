@@ -219,7 +219,7 @@ def test_chat_request_is_bounded_and_has_no_tools(monkeypatch):
     def open_request(request, *, timeout):
         observed.update(url=request.full_url, body=json.loads(request.data), timeout=timeout)
         return Response()
-    monkeypatch.setattr(transport, "urlopen", open_request)
+    monkeypatch.setattr(transport, "urlopen_direct", open_request)
     lease = SimpleNamespace(relay_url="http://127.0.0.1:1234", lease_id="fake")
     body = {"model": "test", "messages": [{"role": "user", "content": "assembled prompt"}],
             "stream": False, "max_tokens": 8192}
@@ -259,3 +259,18 @@ def test_replay_after_persisted_evidence_has_no_second_call(toolless, monkeypatc
     result = s["service"].resume_single(s["consumer"], lease_owner="relay-restart")
     assert result.success, result
     assert len(s["calls"]) == 1 and s["released"] == [True]
+
+
+def test_gateway_chat_uses_the_proxy_free_opener(monkeypatch):
+    used = []
+    class Response:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def read(self, limit): return b'{"id":"request"}'
+    def direct(request, *, timeout):
+        used.append((request.full_url, request.get_header("Authorization")))
+        return Response()
+    assert not hasattr(transport, "urlopen"), "only the proxy-free opener may be used"
+    monkeypatch.setattr(transport, "urlopen_direct", direct)
+    assert transport.gateway_chat("http://127.0.0.1:3425/v1", {"model": "m"}) == {"id": "request"}
+    assert used == [("http://127.0.0.1:3425/v1/chat/completions", None)]
