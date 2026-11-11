@@ -31,15 +31,15 @@ requires_windows_powershell = pytest.mark.skipif(
 )
 
 
-def _run_ps(script: str, timeout: int = 15) -> subprocess.CompletedProcess:
+def _run_ps(script: str, timeout: int = 15, *, encoding: str | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [_PWSH or "powershell", "-NoProfile", "-Command", script],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True, text=True, timeout=timeout, encoding=encoding,
     )
 
 
 def _text(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8-sig")
 
 
 _DEV_UP = _text(DEV_UP)
@@ -266,10 +266,108 @@ def test_dev_up_runtime_state_is_under_platform_v1_runtime() -> None:
     assert "devup_pids.json" in _DEV_UP
 
 
-def test_dev_up_only_checks_opencode_prerequisite() -> None:
-    assert 'Find-Executable "opencode"' in _DEV_UP
+def test_dev_up_checks_all_supported_cli_prerequisites_without_inference() -> None:
+    for cli in ("opencode", "codex", "claude"):
+        assert f'Executables = @("{cli}")' in _DEV_UP
+    assert 'Find-Executable $executable' in _DEV_UP
+    assert 'if (-not $opencode) { Fail-Closed' not in _DEV_UP
     assert "opencode run" not in _DEV_UP
     assert "opencode.exe" not in _DEV_UP
+
+
+@requires_powershell
+@pytest.mark.parametrize("installed", [
+    [], ["opencode"], ["codex"], ["claude"],
+    ["opencode", "codex"], ["opencode", "claude"],
+    ["codex", "claude"], ["opencode", "codex", "claude"],
+])
+def test_dev_up_cli_detection_environment_and_summary(installed: list[str]) -> None:
+    # Execute only prerequisite/configuration ASTs with lookup stubs. No CLI,
+    # service, login probe, browser, network request or process cleanup runs.
+    source_path = str(DEV_UP).replace("'", "''")
+    script = r"""
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+$runtimeDir = [System.IO.Path]::GetTempPath()
+$sourceDir = $runtimeDir; $repoDir = $runtimeDir
+$errors = $null; $tokens = $null
+$tree = [System.Management.Automation.Language.Parser]::ParseFile('__SOURCE__', [ref]$tokens, [ref]$errors)
+if ($errors.Count) { throw 'launcher parse failed' }
+$source = $tree.Extent.Text
+$installed = @(__INSTALLED__)
+function Find-Executable([string]$name) {
+  if ($installed -contains $name) { return "C:\CLI tools\$name.exe" }
+  return $null
+}
+function Fail-Closed([string]$msg) { throw $msg }
+$OpenCodeModel = 'test/model'
+$start = $source.IndexOf('$agentCliTools = @(')
+$end = $source.IndexOf('$stackReused = $false', $start)
+try {
+  $messages = @(. ([scriptblock]::Create($source.Substring($start, $end - $start))))
+} catch {
+  ConvertTo-Json -Compress @{ failure = $_.Exception.Message }
+  exit 0
+}
+# Parse the actual environment, record, reuse comparison and summary, never
+# the top-level launcher that starts services and inspects runtime processes.
+foreach ($name in @('combinedTrustedHostEnv', 'record')) {
+  $assignment = @($tree.FindAll({ param($n)
+    $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+    $n.Left.Extent.Text -eq ('$' + $name)
+  }, $true))
+  if ($assignment.Count -ne 1) { throw "expected one assignment: $name" }
+  . ([scriptblock]::Create($assignment[0].Extent.Text))
+}
+$summaryFunction = $tree.FindAll({ param($n)
+  $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+  $n.Name -eq 'Write-StackSummary'
+}, $true)[0]
+. ([scriptblock]::Create($summaryFunction.Extent.Text))
+$summary = @(Write-StackSummary)
+$comparison = $tree.FindAll({ param($n)
+  $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+  $n.Left.Extent.Text -eq '$configMatches'
+}, $true)[0].Extent.Text
+$runtimeState = [pscustomobject]$record
+. ([scriptblock]::Create($comparison))
+$sameConfig = $configMatches
+$runtimeState.agent_cli_signature = 'changed-cli-path'
+. ([scriptblock]::Create($comparison))
+ConvertTo-Json -Depth 8 -Compress @{
+  paths = $agentCliPaths; messages = $messages; summary = $summary
+  hostEnv = $combinedTrustedHostEnv; record = $record
+  sameConfig = $sameConfig; changedConfig = $configMatches
+}
+""".replace("__SOURCE__", source_path).replace(
+        "__INSTALLED__", ", ".join(f"'{cli}'" for cli in installed)
+    )
+    result = _run_ps(script, timeout=30, encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = json.loads(result.stdout)
+    if not installed:
+        for option in ("OpenCode (opencode)", "Codex CLI (codex)", "Claude Code CLI (claude)"):
+            assert option in data["failure"]
+        return
+    expected = {
+        "claude_code" if cli == "claude" else cli: f"C:\\CLI tools\\{cli}.exe"
+        for cli in installed
+    }
+    assert data["paths"] == expected
+    for name, path in expected.items():
+        assert any(name in line and path in line for line in data["messages"])
+        assert any(name in line and path in line for line in data["summary"])
+    model = "test/model" if "opencode" in installed else ""
+    assert data["hostEnv"]["REVERSE_AGENT_OPENCODE_MODEL"] == model
+    assert data["hostEnv"]["REVERSE_AGENT_CODEX_ENABLED"] == "1"
+    assert data["hostEnv"]["REVERSE_AGENT_CLAUDE_CODE_ENABLED"] == "1"
+    assert data["record"]["open_code_model"] == model
+    assert data["record"]["metadata"]["installed_agent_clis"] == expected
+    assert data["record"]["metadata"]["open_code_model"] == model
+    assert data["sameConfig"] is True
+    assert data["changedConfig"] is False
+    if "opencode" not in installed:
+        assert all("opencode" not in line.lower() for line in data["summary"])
 
 
 def test_dev_up_starts_only_existing_service_entrypoints() -> None:

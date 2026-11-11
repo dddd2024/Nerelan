@@ -19,7 +19,7 @@
   working directory or a previous runtime value.
 
   RepoDir  = trusted service host (frontend/node_modules, .platform_v1_runtime).
-  SourceDir = repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
+  SourceDir = repository exposed to agent executors via REVERSE_AGENT_REPO_DIR.
   When SourceDir is omitted or blank it deterministically equals resolved RepoDir.
 
   Process-tree ownership: each child is recorded with its exact PID, expected
@@ -266,14 +266,17 @@ function Write-StackSummary {
   Write-Output "Model Control: ${ModelControlUrl}"
   Write-Output "Task API:      ${TaskApiUrl}"
   Write-Output "Frontend:      ${FrontendUrl}"
-  Write-Output "Executor:      opencode"
+  Write-Output "Installed CLIs:    $($agentCliPaths.Keys -join ', ')"
+  foreach ($tool in $agentCliPaths.GetEnumerator()) {
+    Write-Output "  $($tool.Key): $($tool.Value)"
+  }
   Write-Output "Coordinator:   enabled (requires an owner-activated window)"
-  Write-Output "Model:         ${OpenCodeModel}"
+  if ($opencode) { Write-Output "OpenCode model: ${effectiveOpenCodeModel}" }
   Write-Output "Runtime state: ${pidFile}"
 }
 
 # RepoDir is the trusted service host: frontend/node_modules and runtime.
-# SourceDir is the repository exposed to OpenCode via REVERSE_AGENT_REPO_DIR.
+# SourceDir is the repository exposed to agent executors via REVERSE_AGENT_REPO_DIR.
 # Blank/absent SourceDir deterministically falls back to resolved RepoDir (V3-F2).
 # Blank/absent RepoDir deterministically resolves to the script directory, never
 # the caller's current working directory, so the runtime directory is identical
@@ -461,6 +464,34 @@ function Wait-PortsFreed {
   }
 }
 
+# Detect installed CLIs only; authentication/compatibility remain host readiness checks.
+$agentCliTools = @(
+  @{ Name = "opencode"; Executables = @("opencode"); Label = "OpenCode" }
+  @{ Name = "codex"; Executables = @("codex"); Label = "Codex CLI" }
+  @{ Name = "claude_code"; Executables = @("claude"); Label = "Claude Code CLI" }
+)
+$agentCliPaths = [ordered]@{}
+foreach ($tool in $agentCliTools) {
+  foreach ($executable in $tool.Executables) {
+    $cliPath = Find-Executable $executable
+    if ($cliPath) {
+      $agentCliPaths[$tool.Name] = $cliPath
+      break
+    }
+  }
+}
+$opencode = $agentCliPaths["opencode"]
+if ($agentCliPaths.Count -eq 0) {
+  $options = @($agentCliTools | ForEach-Object { "$($_.Label) ($($_.Executables -join ', '))" })
+  Fail-Closed "prerequisite missing: install at least one agent CLI: $($options -join ', ')"
+}
+foreach ($tool in $agentCliPaths.GetEnumerator()) {
+  Write-Output "dev-up: found $($tool.Key): $($tool.Value)"
+}
+# Empty child setting also clears an inherited OpenCode-only model default.
+$effectiveOpenCodeModel = if ($opencode) { $OpenCodeModel } else { "" }
+$agentCliSignature = $agentCliPaths | ConvertTo-Json -Compress
+
 $stackReused = $false
 if (Test-Path -LiteralPath $pidFile) {
   $runtimeState = $null
@@ -507,7 +538,8 @@ if (Test-Path -LiteralPath $pidFile) {
     } else {
       $ownedChildren = @($runtimeState.children | Where-Object { Test-RecordedChildOwned $_ })
       $configMatches = (([string]$runtimeState.source_dir).TrimEnd('\') -ieq ([string]$sourceDir).TrimEnd('\')) -and
-        ([string]$runtimeState.open_code_model -eq [string]$OpenCodeModel) -and
+        ([string]$runtimeState.open_code_model -eq [string]$effectiveOpenCodeModel) -and
+        ([string]$runtimeState.agent_cli_signature -eq $agentCliSignature) -and
         ([bool]$runtimeState.client_ui_enabled -eq (-not [bool]$NoBrowser)) -and
         ([string]$runtimeState.client_transport_revision -eq "1")
       $rootsPresent = @($ownedChildren | Where-Object { Get-Process -Id $_.pid -ErrorAction SilentlyContinue }).Count -eq $ownedChildren.Count
@@ -545,10 +577,8 @@ if (-not $node) { Fail-Closed "prerequisite missing: node (not installed)" }
 $npm = Find-Executable "npm"
 if (-not $npm) { Fail-Closed "prerequisite missing: npm (not installed)" }
 
-$opencode = Find-Executable "opencode"
-if (-not $opencode) { Fail-Closed "prerequisite missing: opencode (not installed)" }
 Write-Output "dev-up: startup repo=${repoDir} source=${sourceDir}"
-Write-Output "dev-up: py=$py npm=$npm opencode=$opencode"
+Write-Output "dev-up: py=$py npm=$npm"
 
 $nodeModules = Join-Path $repoDir "frontend\node_modules"
 if (-not (Test-Path -LiteralPath $nodeModules)) {
@@ -575,7 +605,7 @@ $taskApiEnv = [ordered]@{
   "REVERSE_AGENT_TASK_SERVICE_PORT" = [string]$TaskApiPort
   "REVERSE_AGENT_TASK_SERVICE_ORIGIN" = $FrontendUrl
   "REVERSE_AGENT_REPO_DIR" = $sourceDir
-  "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
+  "REVERSE_AGENT_OPENCODE_MODEL" = $effectiveOpenCodeModel
 }
 
 $frontendEnv = [ordered]@{
@@ -593,7 +623,7 @@ $combinedTrustedHostEnv = [ordered]@{
   "REVERSE_AGENT_TASK_SERVICE_PORT" = [string]$TaskApiPort
   "REVERSE_AGENT_TASK_SERVICE_ORIGIN" = $FrontendUrl
   "REVERSE_AGENT_REPO_DIR" = $sourceDir
-  "REVERSE_AGENT_OPENCODE_MODEL" = $OpenCodeModel
+  "REVERSE_AGENT_OPENCODE_MODEL" = $effectiveOpenCodeModel
   "REVERSE_AGENT_AUTONOMOUS" = "1"
   "REVERSE_AGENT_TRUSTED_CLIENT_UI" = $(if ($NoBrowser) { "0" } else { "1" })
   "REVERSE_AGENT_TRUSTED_CLIENT_NODE" = $node
@@ -676,7 +706,8 @@ $record = [ordered]@{
   created_at = (Get-Date -Format o)
   repo_dir = $repoDir
   source_dir = $sourceDir
-  open_code_model = $OpenCodeModel
+  open_code_model = $effectiveOpenCodeModel
+  agent_cli_signature = $agentCliSignature
   client_ui_enabled = (-not [bool]$NoBrowser)
   client_transport_revision = "1"
   children = $persistentChildren
@@ -684,9 +715,9 @@ $record = [ordered]@{
     frontend_url = $FrontendUrl
     task_api_url = $TaskApiUrl
     model_control_url = $ModelControlUrl
-    executor = "opencode"
+    installed_agent_clis = $agentCliPaths
     unattended_coordinator = "enabled"
-    open_code_model = $OpenCodeModel
+    open_code_model = $effectiveOpenCodeModel
   }
 }
 
