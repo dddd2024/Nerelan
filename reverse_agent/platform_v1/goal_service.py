@@ -1243,7 +1243,8 @@ class GoalService:
             if model_review and failed.failure_classification == "model_review_rejected":
                 continue
             refusal = failed.failure_classification == "MODEL_REFUSED"
-            unavailable = failed.failure_classification == "MODEL_UNAVAILABLE"
+            # Durable executors store "MODEL_UNAVAILABLE:<marker>" (#1460).
+            unavailable = (failed.failure_classification or "").split(":", 1)[0] == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
             if not miss and not overloaded and not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
                 continue

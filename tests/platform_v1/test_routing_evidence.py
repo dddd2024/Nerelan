@@ -317,7 +317,8 @@ def test_ordinary_dispatch_classifies_willingness_and_entitlement(tmp_path, clas
     assert result['success'] == (not expected)
 
 
-def test_dispatch_entitlement_failure_reroutes_without_capability_failure(monkeypatch, tmp_path):
+@pytest.mark.parametrize('classification', ['MODEL_UNAVAILABLE', 'MODEL_UNAVAILABLE:model_not_supported'])
+def test_dispatch_entitlement_failure_reroutes_without_capability_failure(monkeypatch, tmp_path, classification):
     from datetime import datetime, timezone
     import time
     from tests.platform_v1.test_agent_team import _team, _window_payload
@@ -338,8 +339,8 @@ def test_dispatch_entitlement_failure_reroutes_without_capability_failure(monkey
     goals.launch(goal.id, expected_revision=1, window_id=autonomy.activate(_window_payload(goal.repository)).id)
     task = store.get_task(control.list_goal_tasks(goal.id)[0]['task_id'])
     assert task.binding_ref == 'cheap'
-    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='MODEL_UNAVAILABLE', failure_detail='model_not_supported', updated_at=? WHERE id=?",
-        (datetime.now(timezone.utc).isoformat(), task.id))
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification=?, failure_detail='model_not_supported', updated_at=? WHERE id=?",
+        (classification, datetime.now(timezone.utc).isoformat(), task.id))
     store._conn.commit()
     [retry] = goals.escalate_failed_tasks(goal.id)
     replacement = store.get_task(retry['to_task_id'])

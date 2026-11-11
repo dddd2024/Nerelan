@@ -859,7 +859,7 @@ class CombinedTrustedHost:
                 cache.remember(binding, connection, observation(now=at, success=True))
             # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
             elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
-                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
+                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))
