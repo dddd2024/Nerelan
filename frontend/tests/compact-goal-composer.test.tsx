@@ -14,6 +14,10 @@ vi.mock("@/hooks/use-platform", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/hooks/use-platform")>(),
   useApprovedPolicy: () => ({ data: approvedPolicyState.data, isError: false }),
 }));
+vi.mock("@/hooks/use-model-access", () => {
+  const data = [{ bindingId: "available-opencode", name: "Available model", executorId: "opencode", enabled: true }];
+  return { useBindings: () => ({ data, isLoading: false }) };
+});
 
 function deferred() {
   let resolve!: () => void;
@@ -63,25 +67,73 @@ describe("GoalComposer compact progressive disclosure", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   });
 
-  it("starts compact and keeps secondary configuration out of the empty idle surface", async () => {
+  it("keeps the repository visible and advanced controls hidden until opened, even after typing", async () => {
     const user = userEvent.setup();
     renderWithProviders(<GoalComposer busy={false} onSubmit={async () => {}} />);
 
     const objective = screen.getByLabelText("描述最终目标");
     expect(objective).toHaveAttribute("rows", "2");
-    expect(screen.queryByTestId("goal-composer-options")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("执行模式")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("仓库")).toBeVisible();
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "执行模式" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("自动选择执行方式和模型");
+    await user.type(objective, "完成自动路由目标测试");
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
 
-    const options = screen.getByRole("button", { name: "输入选项" });
+    const options = screen.getByRole("button", { name: "高级" });
     expect(options).toHaveAttribute("aria-expanded", "false");
     await user.click(options);
 
     expect(options).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("goal-composer-options")).toBeInTheDocument();
     expect(screen.getByLabelText("仓库")).toBeInTheDocument();
-    expect(screen.getByLabelText("执行模式")).toBeInTheDocument();
-    expect(screen.getByLabelText("模型绑定")).toBeInTheDocument();
+    expect(screen.getByLabelText("执行模式")).toBeVisible();
+    expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
+    await user.selectOptions(screen.getByLabelText("执行模式"), "opencode");
+    expect(screen.getByLabelText("模型绑定")).toBeVisible();
+    await user.click(options);
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.getByLabelText("模型绑定")).not.toBeVisible();
     expect(screen.getByText("先保存草稿，审阅并批准后再启动。")).toBeInTheDocument();
+  });
+
+  it("submits a new draft as an unpinned automatically routed team", async () => {
+    const onSubmit = vi.fn(async () => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText("描述最终目标"), "使用系统自动选择执行方式和模型");
+    await user.click(screen.getByLabelText("创建并审阅目标"));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      executorKind: "opencode", teamMode: true, bindingRef: "",
+    }));
+    await waitFor(() => expect(screen.getByLabelText("描述最终目标")).toHaveValue(""));
+    expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
+    expect(screen.getByRole("button", { name: "高级" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("shows and submits an advanced mode and binding even after collapsing", async () => {
+    const onSubmit = vi.fn(async (_input: StartGoalInput) => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText("描述最终目标"), "使用指定绑定完成这个目标");
+    await user.click(screen.getByRole("button", { name: "高级" }));
+    await user.selectOptions(screen.getByLabelText("执行模式"), "codex");
+    await user.clear(screen.getByLabelText("模型绑定"));
+    await user.type(screen.getByLabelText("模型绑定"), "my-codex-binding");
+    await user.click(screen.getByRole("button", { name: "高级" }));
+
+    const summary = screen.getByTestId("goal-composer-execution-summary");
+    expect(summary).toBeVisible();
+    expect(summary).toHaveTextContent("Codex 单任务（ChatGPT 账号） · 模型绑定：my-codex-binding");
+    expect(screen.getByLabelText("模型绑定")).not.toBeVisible();
+    await user.click(screen.getByLabelText("创建并审阅目标"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      executorKind: "codex", bindingRef: "my-codex-binding",
+    }));
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("teamMode");
   });
 
   it("keeps the submitted draft visible until success, then clears only that operation", async () => {
@@ -94,6 +146,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     const submit = screen.getByLabelText("创建并审阅目标");
 
     await user.type(objective, "完成 provider-free 多 Agent 验证");
+    await user.click(screen.getByRole("button", { name: "高级" }));
     await user.selectOptions(
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
@@ -109,8 +162,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       executorKind: "deterministic_fixture",
       autonomyHours: 2,
     });
-    // The binding is resolved from the bindings that exist, never hardcoded.
-    expect(sent.bindingRef).toBeTruthy();
+    expect(sent.bindingRef).toBe("");
     expect(sent.operationId).toMatch(/^[A-Za-z0-9._:-]{8,160}$/);
     expect(objective).toHaveValue("完成 provider-free 多 Agent 验证");
 
@@ -127,7 +179,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(secondSent.operationId).not.toBe(sent.operationId);
     second.resolve();
     await waitFor(() => expect(objective).toHaveValue(""));
-    expect(screen.queryByTestId("goal-composer-options")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
   });
 
   it("retains failed draft and operation identity across remount, then rotates identity after editing", async () => {
@@ -141,6 +193,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       screen.getByLabelText("描述最终目标"),
       "恢复同一个 Goal 启动操作",
     );
+    await user.click(screen.getByRole("button", { name: "高级" }));
     await user.selectOptions(
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
@@ -165,6 +218,8 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(screen.getByLabelText("执行模式")).toHaveValue(
       "deterministic_fixture",
     );
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("无模型验证");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("创建并审阅目标"));

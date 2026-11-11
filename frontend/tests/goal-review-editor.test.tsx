@@ -243,3 +243,22 @@ it("limits each task to eight check pairs and leaves approved plans immutable", 
   view.rerender(<GoalReviewEditor {...current} goal={{ ...current.goal, status: "APPROVED" }} />);
   expect(screen.queryByRole("button", { name: "编辑当前计划" })).not.toBeInTheDocument();
 });
+
+it("treats an unpinned Agent team goal as configured", () => {
+  const current = props({ ...fixture, executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "",
+    repository: "owner/selected" });
+  render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
+  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(true);
+});
+
+it("still requires a known binding for a single-mode goal and for a pinned team", () => {
+  for (const goal of [
+    { ...fixture, executor_kind: "opencode", orchestration_mode: "single", binding_ref: "", repository: "owner/selected" },
+    { ...fixture, executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "missing", repository: "owner/selected" },
+  ] as PlatformGoal[]) {
+    const current = props(goal);
+    const view = render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
+    expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false);
+    view.unmount();
+  }
+});
