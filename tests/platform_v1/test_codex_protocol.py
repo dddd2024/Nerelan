@@ -173,10 +173,89 @@ def test_failed_turn_never_echoes_secret_bearing_error_object():
 
 
 @pytest.mark.parametrize("newline", [b"", b"\n"])
-def test_line_size_bound_applies_with_and_without_delimiter(newline):
-    parser = CodexJsonl(max_frame_bytes=100, max_stream_bytes=1000)
-    with pytest.raises(CodexProtocolError, match="codex_frame_limit_exceeded"):
-        parser.feed(b"x" * 101 + newline)
+def test_oversized_line_is_dropped_with_bounded_memory(newline):
+    parser = CodexJsonl(max_frame_bytes=100, max_stream_bytes=10_000)
+    parser.feed(b"x" * 101 + newline)
+    # Counted (and classified) once the line ends; memory is bounded meanwhile.
+    assert parser.turn.dropped_frames == (1 if newline else 0) and len(parser._buffer) <= 100
+
+
+@pytest.mark.parametrize("chunk", [1, 7, 4096])
+def test_turn_completes_after_an_oversized_command_output(chunk):
+    """Run host 2026-11-11: one large command output failed a real Codex turn."""
+    big = json.dumps({"type": "item.completed", "item": {
+        "type": "command_execution", "command": "git diff", "aggregated_output": "y" * 5000,
+        "exit_code": 0, "status": "completed"}}).encode()
+    final = {"type": "item.completed", "item": {"type": "agent_message", "text": "done"}}
+    data = wire(*START) + big + b"\n" + wire(final, DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    for start in range(0, len(data), chunk):
+        parser.feed(data[start:start + chunk])
+        assert len(parser._buffer) <= 1024
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == "done" and turn.dropped_frames == 1
+    assert not turn.tool_launch_failed
+
+
+def _oversized_command(kind, **fields):
+    return json.dumps({"type": kind, "item": {"id": "item_1", "type": "command_execution",
+        "command": "pwsh -Command " + "s" * 5000, "aggregated_output": "", **fields}}).encode() + b"\n"
+
+
+@pytest.mark.parametrize("chunk", [1, 7, 4096])
+@pytest.mark.parametrize("fields,launch_failed", [
+    ({"exit_code": 0, "status": "completed"}, False),
+    ({"exit_code": 1, "status": "failed"}, False),      # an ordinary failing command
+    ({"exit_code": -1, "status": "failed"}, True),      # CLI could not launch it
+    ({"exit_code": None, "status": "failed"}, True),    # no proof it ran
+    ({}, True),
+])
+def test_dropped_command_item_keeps_launch_failure_evidence(chunk, fields, launch_failed):
+    """Review of #1466: dropping an oversized failed command must not erase tool_launch_failed."""
+    data = wire(*START) + _oversized_command("item.completed", **fields) + wire(MESSAGE, DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    for start in range(0, len(data), chunk):
+        parser.feed(data[start:start + chunk])
+        assert len(parser._buffer) <= 1024 and len(parser._drop_tail) <= 4096
+    turn = parser.finish()
+    assert turn.completed and turn.dropped_frames == 1
+    assert turn.tool_launch_failed is launch_failed
+
+
+def test_dropped_started_command_item_is_not_a_launch_failure():
+    data = wire(*START) + _oversized_command("item.started", status="in_progress", exit_code=None) + wire(MESSAGE, DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    parser.feed(data)
+    assert not parser.finish().tool_launch_failed
+
+
+@pytest.mark.parametrize("chunk", [1, 4096])
+def test_dropped_final_message_never_reuses_an_interim_message(chunk):
+    interim = {"type": "item.completed", "item": {"type": "agent_message", "text": "Let me look at the files first."}}
+    huge_final = json.dumps({"type": "item.completed", "item": {
+        "type": "agent_message", "text": "z" * 5000}}).encode()
+    data = wire(*START, interim) + huge_final + b"\n" + wire(DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    for start in range(0, len(data), chunk):
+        parser.feed(data[start:start + chunk])
+    with pytest.raises(CodexProtocolError, match="codex_final_message_missing"):
+        parser.finish()
+
+
+def test_oversized_trailing_line_after_completion_keeps_the_result():
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    parser.feed(wire(*START, MESSAGE, DONE) + b"q" * 3000)
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == "已完成" and turn.dropped_frames == 1
+
+
+def test_dropped_final_message_still_fails_closed():
+    huge_final = json.dumps({"type": "item.completed", "item": {
+        "type": "agent_message", "text": "z" * 5000}}).encode()
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    parser.feed(wire(*START) + huge_final + b"\n" + wire(DONE))
+    with pytest.raises(CodexProtocolError, match="codex_final_message_missing"):
+        parser.finish()
 
 
 def test_total_stream_and_event_counts_are_independently_bounded():
