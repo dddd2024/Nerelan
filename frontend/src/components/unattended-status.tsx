@@ -1,16 +1,7 @@
 import type { PlatformStatus } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import { runtimeMessage } from "@/lib/runtime-labels";
 import { useEffect, useState } from "react";
-
-const STOP_REASONS: Record<string, string> = {
-  owner_stopped: "你已停止本次运行",
-  window_expired: "运行时间已到期",
-  usage_budget_reached: "用量预算已耗尽",
-  usage_unknown_budget_reached: "无法确认用量，预算保护已触发",
-  usage_unknown: "无法确认用量",
-  usage_reservation_overrun: "实际用量超出预留预算",
-  receipt_persistence_failed: "运行记录保存失败",
-};
 
 export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformStatus; now?: number }) {
   const [clock, setClock] = useState(Date.now);
@@ -22,7 +13,8 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
   }, [fixedNow]);
   const now = fixedNow ?? clock;
   const window = status.autonomy.active_window ?? status.autonomy.latest_window;
-  const active = window?.status === "ACTIVE";
+  // The backend's active_window already applies expiry and start time; a stale ACTIVE row is not running.
+  const active = window != null && window === status.autonomy.active_window;
   const minutesSince = (value: string | undefined | null) => {
     const timestamp = value ? Date.parse(value) : NaN;
     return Number.isFinite(timestamp) ? Math.max(0, Math.floor((now - timestamp) / 60_000)) : null;
@@ -46,7 +38,7 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
       {!recent ? "当前没有无人值守任务在运行。" : <>
         {active && !coordinatorStopped
           ? `无人值守运行中 · 剩余 ${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟 · ${window.tasks_completed} 个任务完成`
-          : `无人值守已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (STOP_REASONS[reason || ""] ?? reason) || "本次运行已结束"}。请检查运行记录，处理后重新启动或继续目标。`}
+          : `无人值守已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。请检查运行记录，处理后重新启动或继续目标。`}
         {stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`
           : progressAge !== null ? ` · 上次进展：${progressAge === 0 ? "刚刚" : `${progressAge} 分钟前`}`
             : " · 尚无任务进展记录"}

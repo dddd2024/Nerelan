@@ -62,12 +62,19 @@ describe("UnattendedStatus", () => {
     expect(screen.getByRole("status")).not.toHaveTextContent("没有进展");
     expect(screen.getByRole("status")).not.toHaveClass("text-ra-status-warning");
   });
-  it.each([["window_expired", "运行时间已到期"], ["new_reason", "new_reason"]])("explains a stopped window (%s) and the next action", (code, label) => {
+  it.each([["window_expired", "授权窗口已到期"], ["new_reason", "new_reason"]])("explains a stopped window (%s) and the next action", (code, label) => {
     const stopped = status(null);
     stopped.autonomy.latest_window = { ...window, status: "EXPIRED", stop_reason: code };
     render(<UnattendedStatus status={stopped} now={now} />);
     expect(screen.getByRole("status")).toHaveTextContent(`无人值守已停止 · ${label}`);
     expect(screen.getByRole("status")).toHaveTextContent("处理后重新启动或继续目标");
+  });
+  it("does not call a window running when the backend no longer reports it active", () => {
+    const stale = status(null);
+    stale.autonomy.latest_window = { ...window, status: "ACTIVE", stop_reason: "" };
+    render(<UnattendedStatus status={stale} now={now} />);
+    expect(screen.getByRole("status")).not.toHaveTextContent("运行中");
+    expect(screen.getByRole("status")).toHaveTextContent("无人值守已停止");
   });
   it("does not keep an old stop notice forever", () => {
     const stopped = status(null);
