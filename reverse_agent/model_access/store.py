@@ -849,6 +849,26 @@ class ModelProfileStore:
             )
             return stored.public(self._connection_secret_status(stored))
 
+    def set_native_account_link(self, connection_id: str, account_ref: str | None,
+                                snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        """Confirm or clear identity through the normal save transaction, under its lock."""
+        from .resources import NATIVE_MAGPIE_PROVIDERS, native_account_link_suggestions
+
+        with self._lock:
+            current = self.get_connection_public(connection_id)
+            if (current.get("auth_method") != "external_cli_session"
+                    or current.get("executor_provider_id") not in NATIVE_MAGPIE_PROVIDERS):
+                raise ValueError("only native CLI connections support Magpie account links")
+            if account_ref is not None:
+                suggestion = native_account_link_suggestions(self.list_connections_public(), snapshot).get(connection_id)
+                if not suggestion or suggestion["account_ref"] != account_ref:
+                    raise ValueError("Magpie account link suggestion is no longer available")
+            # Public derived status fields are not accepted by the save path.
+            payload = {key: current[key] for key in (
+                "connection_id", "name", "provider", "base_url", "auth_method", "enabled",
+                "upstream_provider_id", "protocol_family", "executor_provider_id", "anthropic_base_url")}
+            return self.upsert_connection(dict(payload, account_ref=account_ref))
+
     def delete_connection(self, connection_id: str) -> None:
         with self._lock:
             self._ensure_connection_binding_ready()

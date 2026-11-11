@@ -40,6 +40,15 @@ export function useResources(mode: ResourceViewMode = "legacy") {
   });
 }
 
+export function useMagpieAccountLink() {
+  const client = getDefaultModelControlClient();
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { connectionId: string; accountRef: string | null }>({
+    mutationFn: ({ connectionId, accountRef }) => client.setMagpieAccountLink(connectionId, accountRef),
+    onSuccess: () => void queryClient.invalidateQueries(),
+  });
+}
+
 export function useAgentRoster() {
   const client = getDefaultModelControlClient();
   return useQuery<AgentRoster>({

@@ -206,6 +206,8 @@ class CombinedTrustedHost:
         self._owner_window_admission = OwnerWindowAdmission(self)
         from .supervisor_requests import SupervisorRequests
         self._supervisor_requests = SupervisorRequests(self)
+        from .pool_verifier import PoolVerifier
+        self._pool_verifier = PoolVerifier(self)
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -1592,6 +1594,8 @@ class CombinedTrustedHost:
                 self._coordinator.start()
                 # Answers nothing unless the Owner's settings turn supervisor activation on.
                 self._supervisor_requests.start()
+                # Does nothing without an active window that permits model calls.
+                self._pool_verifier.start()
             self._remote_job_broker = configured_broker()
             if self._remote_job_broker is not None:
                 self._remote_job_broker.start()
@@ -1632,6 +1636,9 @@ class CombinedTrustedHost:
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
         self._supervisor_requests.stop()
+        verifier = getattr(self, "_pool_verifier", None)
+        if verifier is not None:
+            verifier.stop()
         monitor, self._pool_monitor = getattr(self, "_pool_monitor", None), None
         if monitor is not None:
             monitor.stop()
@@ -1912,6 +1919,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
             print(f"Owner window {window.id} active until {window.expires_at}")
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         elif native_goal_id is None:
             host.start()
         else:
@@ -1921,6 +1929,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
                 if unknown_claims_sha256 is not None else {}))
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(
