@@ -206,15 +206,25 @@ class CodexJsonl:
                 self._discarding = False
                 continue
             if len(line) > self._frame_limit:
-                self.turn.dropped_frames += 1
+                self._drop_frame()
                 continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
             # An oversized line still arriving: count it once and keep memory bounded.
             if not self._discarding:
-                self.turn.dropped_frames += 1
+                self._drop_frame()
                 self._discarding = True
             self._buffer.clear()
+
+    def _drop_frame(self) -> None:
+        # The dropped line may have been the final agent message: never let an
+        # earlier interim message stand in for it, and never reuse an earlier
+        # error as the detail of what follows.
+        self.turn.dropped_frames += 1
+        if not (self.turn.completed or self.turn.failed):
+            # After the terminal event a dropped line cannot be the final message.
+            self.turn.final_text = ""
+            self._error_fresh = False
 
     def finish(self) -> CodexTurn:
         if self._discarding:

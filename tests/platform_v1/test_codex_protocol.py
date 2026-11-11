@@ -194,6 +194,26 @@ def test_turn_completes_after_an_oversized_command_output(chunk):
     assert turn.completed and turn.final_text == "done" and turn.dropped_frames == 1
 
 
+@pytest.mark.parametrize("chunk", [1, 4096])
+def test_dropped_final_message_never_reuses_an_interim_message(chunk):
+    interim = {"type": "item.completed", "item": {"type": "agent_message", "text": "Let me look at the files first."}}
+    huge_final = json.dumps({"type": "item.completed", "item": {
+        "type": "agent_message", "text": "z" * 5000}}).encode()
+    data = wire(*START, interim) + huge_final + b"\n" + wire(DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    for start in range(0, len(data), chunk):
+        parser.feed(data[start:start + chunk])
+    with pytest.raises(CodexProtocolError, match="codex_final_message_missing"):
+        parser.finish()
+
+
+def test_oversized_trailing_line_after_completion_keeps_the_result():
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    parser.feed(wire(*START, MESSAGE, DONE) + b"q" * 3000)
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == "已完成" and turn.dropped_frames == 1
+
+
 def test_dropped_final_message_still_fails_closed():
     huge_final = json.dumps({"type": "item.completed", "item": {
         "type": "agent_message", "text": "z" * 5000}}).encode()
