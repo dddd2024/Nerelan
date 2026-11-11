@@ -241,6 +241,7 @@ export interface PlatformStatus {
     active_window: PlatformWindow | null;
     latest_window?: PlatformWindow | null;
     last_progress_at?: string | null;
+    unfinished_tasks?: number;
     mode: string;
   };
   coordinator: {

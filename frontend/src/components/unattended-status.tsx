@@ -32,7 +32,8 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
   const recent = active || (window && stoppedAge !== null && stoppedAge < 24 * 60);
   const progressAge = minutesSince(status.autonomy.last_progress_at);
   const idleAge = progressAge ?? minutesSince(window?.starts_at);
-  const stalled = active && window.tasks_completed < window.max_tasks && idleAge !== null && idleAge >= 15;
+  // Only warn while work is still waiting; an unused task budget with an empty queue is not a stall.
+  const stalled = active && (status.autonomy.unfinished_tasks ?? 0) > 0 && idleAge !== null && idleAge >= 15;
   const coordinatorStopped = active && (!status.coordinator.enabled || status.coordinator.accepting_work === false);
   const warning = stalled || coordinatorStopped || Boolean(recent && !active);
   const timeLeft = window ? Math.max(0, Math.ceil((Date.parse(window.expires_at) - now) / 60_000)) : 0;

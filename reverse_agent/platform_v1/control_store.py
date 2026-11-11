@@ -19,7 +19,7 @@ from pathlib import Path
 import base64
 from typing import Any, Callable, Mapping, Sequence
 
-from .run_store import TaskStore, TaskStoreError
+from .run_store import TERMINAL_STATUSES, TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
 from .repository_workspace import normalize_github_origin, normalize_repository_identity
 
@@ -1732,6 +1732,19 @@ class PlatformControlStore:
                 "ORDER BY julianday(e.timestamp) DESC LIMIT 1", (window_id,),
             ).fetchone()
             return row["timestamp"] if row else None
+
+    def window_unfinished_task_count(self, window_id: str) -> int:
+        """Non-terminal tasks of this window's RUNNING goals; one aggregate query."""
+        terminal = sorted(TERMINAL_STATUSES)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) AS n FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "WHERE g.window_id = ? AND g.status = 'RUNNING' "
+                f"AND t.status NOT IN ({', '.join('?' for _ in terminal)})", (window_id, *terminal),
+            ).fetchone()
+            return int(row["n"]) if row else 0
 
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
         current = now or _utc_now_precise()

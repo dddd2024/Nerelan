@@ -17,7 +17,7 @@ const window: PlatformWindow = {
 function status(active: PlatformWindow | null = window, progress: string | null = "2026-11-11T11:58:00Z"): PlatformStatus {
   return {
     service: "test", autonomy: { autonomy_enabled: Boolean(active), active_window: active,
-      mode: "test", last_progress_at: progress },
+      mode: "test", last_progress_at: progress, unfinished_tasks: 1 },
     coordinator: { enabled: true, last_error: "", active_window_id: active?.id ?? "" },
     task_count: 3, goal_count: 1, capability_count: 1, live_model_calls: false,
   };
@@ -55,9 +55,12 @@ describe("UnattendedStatus", () => {
     render(<UnattendedStatus status={status(window, null)} now={now} />);
     expect(screen.getByRole("status")).toHaveTextContent("已有 60 分钟没有进展");
   });
-  it("does not warn when all tasks have completed", () => {
-    render(<UnattendedStatus status={status({ ...window, tasks_completed: 8 }, "2026-11-11T11:00:00Z")} now={now} />);
+  it("does not warn when no task is waiting, even with task budget left", () => {
+    const idle = status(window, "2026-11-11T11:00:00Z");
+    idle.autonomy.unfinished_tasks = 0;
+    render(<UnattendedStatus status={idle} now={now} />);
     expect(screen.getByRole("status")).not.toHaveTextContent("没有进展");
+    expect(screen.getByRole("status")).not.toHaveClass("text-ra-status-warning");
   });
   it.each([["window_expired", "运行时间已到期"], ["new_reason", "new_reason"]])("explains a stopped window (%s) and the next action", (code, label) => {
     const stopped = status(null);
