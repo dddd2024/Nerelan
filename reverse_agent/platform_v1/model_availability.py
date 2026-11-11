@@ -10,7 +10,8 @@ import threading
 import time
 from typing import Any, Callable, Mapping
 
-UNAVAILABLE_MARKERS = ('model_not_supported', 'not allowed for user type', 'not_allowed', 'not-allowed', 'not allowed',
+# "model is not supported": Copilot answers "The requested model is not supported."
+UNAVAILABLE_MARKERS = ('model_not_supported', 'model is not supported', 'not allowed for user type', 'not_allowed', 'not-allowed', 'not allowed',
                        'model_not_found', 'invalid_api_key', 'authentication_error')
 
 
