@@ -482,8 +482,8 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(classes.some((cls) => cls.includes("ra-status-error"))).toBe(true);
     expect(within(recentSection).getByText("执行完成，待审查")).toBeVisible();
     expect(within(recentSection).queryByText("COMPLETED")).not.toBeInTheDocument();
-    expect(within(recentSection).getByText("RUNNING")).toBeVisible();
-    expect(within(recentSection).getByText("BLOCKED")).toBeVisible();
+    expect(within(recentSection).getByText("正在执行")).toHaveAttribute("title", expect.stringContaining("RUNNING"));
+    expect(within(recentSection).getByText("需要处理阻塞")).toHaveAttribute("title", expect.stringContaining("BLOCKED"));
   });
 
   it("updates Recent goals completion wording without claiming fixture or missing-proof verification", async () => {
@@ -502,7 +502,7 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => client, initialEntries: ["/"] });
     const recent = within(screen.getByTestId("recent-goals-section"));
     const fixtureRow = recent.getByRole("button", { name: /内置夹具目标/ });
-    expect(within(fixtureRow).getByText("RUNNING")).toBeVisible();
+    expect(within(fixtureRow).getByText("正在执行")).toBeVisible();
     const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("span")?.textContent);
 
     const completedFixture: PlatformGoal = {

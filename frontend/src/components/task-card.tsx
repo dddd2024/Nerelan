@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
 import { taskProjectName } from "@/lib/task-project";
 import { taskActionCopy, taskBlockerCopy } from "@/lib/task-status-copy";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import {
   formatRelativeTime,
   permissionModeLabel,
@@ -43,8 +44,9 @@ export function TaskCard({ task }: TaskCardProps) {
   const risk = riskTierStyle(task.riskTier);
   // Same product copy as the detail header; the raw code stays in the
   // tooltip and in the detail page's diagnostics disclosure.
-  const rawNote = task.blocker ?? task.nextAction;
-  const note = task.blocker ? taskBlockerCopy(task.blocker) : task.nextAction ? taskActionCopy(task.nextAction) : undefined;
+  const blocker = task.blocker || task.failureClassification;
+  const rawNote = blocker || task.nextAction;
+  const note = blocker ? taskBlockerCopy(blocker) : task.nextAction ? taskActionCopy(task.nextAction) : undefined;
 
   /*
    * Row shape follows `#448` §7 (high-density / low-noise rows): identity and
@@ -70,7 +72,7 @@ export function TaskCard({ task }: TaskCardProps) {
         <span
           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", state.dot)}
           aria-label={state.label}
-          title={state.label}
+          title={runtimeTitle(task.state)}
         />
         <span
           className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-ra-text"
@@ -78,6 +80,7 @@ export function TaskCard({ task }: TaskCardProps) {
         >
           {task.issueNumber ? `#${task.issueNumber} — ` : ""}{displayTitle(task.title)}
         </span>
+        <span title={runtimeTitle(task.state)} className="shrink-0 text-[11px] text-ra-text-secondary">{state.label}</span>
         <span className="shrink-0 text-[11px] tabular-nums text-ra-text-tertiary">
           {formatRelativeTime(task.updatedAt)}
         </span>

@@ -10,6 +10,7 @@ import { LoadingState } from "@/components/loading-state";
 import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { useRuns } from "@/hooks/use-runs";
 import { goalStatusLabel } from "@/lib/goal-status-label";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
 
@@ -206,13 +207,8 @@ export function HomePage() {
                   <span className="min-w-0 flex-1 truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
                     {displayTitle(goal.title)}
                   </span>
-                  {/* A terminal COMPLETED row states the product meaning
-                      ("execution finished, review still pending"), because a
-                      bare `COMPLETED` reads as delivery. Non-terminal states
-                      keep their machine name: it is the honest value while the
-                      run is in flight, and the tone carries the urgency. */}
-                  <span className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
-                    {goal.status === "COMPLETED" ? goalStatusLabel(goal.status) : goal.status}
+                  <span title={runtimeTitle(goal.status)} className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
+                    {goalStatusLabel(goal.status)}
                   </span>
                   <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-ra-text-tertiary">
                     {relativeTime(goal.updated_at)}
@@ -258,6 +254,7 @@ export function HomePage() {
             <span
               data-testid="goal-state-label"
               className={cn("font-medium", goalStatusTextClass(detailGoal.status))}
+              title={runtimeTitle(detailGoal.status)}
             >
               {goalStatusLabel(detailGoal.status)}
             </span>
