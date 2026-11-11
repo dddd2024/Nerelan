@@ -1723,12 +1723,19 @@ class PlatformControlStore:
             return tuple(self._row_to_window(row) for row in rows)
 
     def window_last_progress_at(self, window_id: str) -> str | None:
-        """Read the newest task event in this window without loading task records."""
+        """Read the newest task event in this window without loading task records.
+
+        A claim rebound from an earlier window keeps its original created_at, so
+        the window's own budget reservation for the task marks when it entered
+        this window; events before that belong to the earlier window.
+        """
         with self._lock:
             row = self._conn.execute(
                 "SELECT e.timestamp FROM platform_coordinator_claims c "
                 "JOIN task_events e ON e.task_id = c.task_id "
-                "WHERE c.window_id = ? AND julianday(e.timestamp) >= julianday(c.created_at) "
+                "WHERE c.window_id = ? AND julianday(e.timestamp) >= julianday(COALESCE(("
+                "SELECT MIN(r.created_at) FROM platform_budget_reservations r "
+                "WHERE r.task_id = c.task_id AND r.window_id = c.window_id), c.created_at)) "
                 "ORDER BY julianday(e.timestamp) DESC LIMIT 1", (window_id,),
             ).fetchone()
             return row["timestamp"] if row else None
