@@ -173,10 +173,34 @@ def test_failed_turn_never_echoes_secret_bearing_error_object():
 
 
 @pytest.mark.parametrize("newline", [b"", b"\n"])
-def test_line_size_bound_applies_with_and_without_delimiter(newline):
-    parser = CodexJsonl(max_frame_bytes=100, max_stream_bytes=1000)
-    with pytest.raises(CodexProtocolError, match="codex_frame_limit_exceeded"):
-        parser.feed(b"x" * 101 + newline)
+def test_oversized_line_is_dropped_with_bounded_memory(newline):
+    parser = CodexJsonl(max_frame_bytes=100, max_stream_bytes=10_000)
+    parser.feed(b"x" * 101 + newline)
+    assert parser.turn.dropped_frames == 1 and len(parser._buffer) <= 100
+
+
+@pytest.mark.parametrize("chunk", [1, 7, 4096])
+def test_turn_completes_after_an_oversized_command_output(chunk):
+    """Run host 2026-11-11: one large command output failed a real Codex turn."""
+    big = json.dumps({"type": "item.completed", "item": {
+        "type": "command_execution", "command": "git diff", "aggregated_output": "y" * 5000}}).encode()
+    final = {"type": "item.completed", "item": {"type": "agent_message", "text": "done"}}
+    data = wire(*START) + big + b"\n" + wire(final, DONE)
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    for start in range(0, len(data), chunk):
+        parser.feed(data[start:start + chunk])
+        assert len(parser._buffer) <= 1024
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == "done" and turn.dropped_frames == 1
+
+
+def test_dropped_final_message_still_fails_closed():
+    huge_final = json.dumps({"type": "item.completed", "item": {
+        "type": "agent_message", "text": "z" * 5000}}).encode()
+    parser = CodexJsonl(max_frame_bytes=1024, max_stream_bytes=100_000)
+    parser.feed(wire(*START) + huge_final + b"\n" + wire(DONE))
+    with pytest.raises(CodexProtocolError, match="codex_final_message_missing"):
+        parser.finish()
 
 
 def test_total_stream_and_event_counts_are_independently_bounded():

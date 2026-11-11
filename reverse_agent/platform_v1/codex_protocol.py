@@ -133,6 +133,9 @@ class CodexTurn:
     models: list[str] = field(default_factory=list)
     rate_limits: list[dict[str, Any]] = field(default_factory=list)
     reported_cost_usd: float | None = None
+    # Lines longer than the frame bound (typically one large command output) that
+    # were discarded unparsed. Memory stays bounded; the turn itself continues.
+    dropped_frames: int = 0
 
 
 class CodexJsonl:
@@ -143,7 +146,7 @@ class CodexJsonl:
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 256 * 1024,
-        max_stream_bytes: int = 2 * 1024 * 1024,
+        max_stream_bytes: int = 8 * 1024 * 1024,
         max_events: int = 2000,
         limit_classification: str = "codex_usage_limit",
     ) -> None:
@@ -158,6 +161,7 @@ class CodexJsonl:
         self._event_limit = max_events
         self._limit_classification = limit_classification
         self._buffer = bytearray()
+        self._discarding = False
         self._bytes = 0
         self._events = 0
         self._started = False
@@ -197,11 +201,25 @@ class CodexJsonl:
             end = self._buffer.index(b"\n")
             line = bytes(self._buffer[:end])
             del self._buffer[:end + 1]
+            if self._discarding:
+                # The rest of an oversized line: drop it and resume framing.
+                self._discarding = False
+                continue
+            if len(line) > self._frame_limit:
+                self.turn.dropped_frames += 1
+                continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
-            raise CodexProtocolError("codex_frame_limit_exceeded")
+            # An oversized line still arriving: count it once and keep memory bounded.
+            if not self._discarding:
+                self.turn.dropped_frames += 1
+                self._discarding = True
+            self._buffer.clear()
 
     def finish(self) -> CodexTurn:
+        if self._discarding:
+            self._buffer.clear()
+            self._discarding = False
         if self._buffer:
             self._line(bytes(self._buffer))
             self._buffer.clear()
