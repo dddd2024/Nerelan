@@ -34,6 +34,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(appPage.getByTestId("platform-home")).toBeVisible();
 
   await appPage.getByLabel("描述最终目标").fill(GOAL_TITLE);
+  await appPage.locator("[aria-controls=\"goal-composer-advanced\"]").click();
   await appPage.getByLabel("执行模式").selectOption("deterministic_fixture");
   await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
   await expect(appPage.getByTestId("approval-goal-detail")).toBeVisible();

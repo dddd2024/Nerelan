@@ -5,6 +5,7 @@ test("does not infer an artifact input for a task with no dependencies", async (
   await open(appPage, "/");
   await settle(appPage);
   await appPage.getByLabel("描述最终目标").fill("Review explicit accepted artifact input");
+  await appPage.locator("[aria-controls=\"goal-composer-advanced\"]").click();
   await appPage.getByLabel("执行模式").selectOption("deterministic_fixture");
   await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
   await appPage.getByTestId("approval-plan-button").click();
