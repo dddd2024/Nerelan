@@ -82,6 +82,8 @@ export interface ResourceBinding {
 
 export interface Resource {
   connectionId: string;
+  magpieAccountRef?: string | null;
+  magpieLinkSuggestion?: { accountRef: string; provider: string; plan: string | null } | null;
   name: string;
   enabled: boolean;
   credentialKind: "api_key" | "subscription" | "none";
@@ -473,9 +475,17 @@ export function normalizeResourceOverview(payload: unknown): ResourceOverview {
     const r = asRecord(item);
     const credential = asRecord(r.credential);
     const usage = asRecord(r.token_usage);
+    const suggestion = asRecord(r.magpie_link_suggestion);
+    const suggestedRef = asString(suggestion.account_ref);
     const kind = credential.kind === "api_key" || credential.kind === "subscription" ? credential.kind : "none";
     return {
       connectionId: asString(r.connection_id) ?? "",
+      magpieAccountRef: asString(r.magpie_account_ref),
+      magpieLinkSuggestion: suggestedRef ? {
+        accountRef: suggestedRef,
+        provider: asString(suggestion.provider) ?? "",
+        plan: asString(suggestion.plan),
+      } : null,
       name: asString(r.name) ?? asString(r.connection_id) ?? "",
       enabled: r.enabled === true,
       credentialKind: kind,
