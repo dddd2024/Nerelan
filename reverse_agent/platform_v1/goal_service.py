@@ -1473,13 +1473,13 @@ class GoalService:
         goals = self.control_store.list_goals(limit=limit)
         payload: list[dict[str, Any]] = []
         for goal in goals:
-            payload.append(self._response_snapshot(goal.id))
+            payload.append(self._response_snapshot(goal.id, forecast=False))
         return payload
 
     def list_page(self, *, limit: int = 100, cursor: str | None = None) -> dict[str, Any]:
         goals, total, next_cursor = self.control_store.list_goals_page(limit=limit, cursor=cursor)
         return {
-            "goals": [self._response_snapshot(goal.id) for goal in goals],
+            "goals": [self._response_snapshot(goal.id, forecast=False) for goal in goals],
             "total": total,
             "next_cursor": next_cursor,
         }
@@ -1487,9 +1487,21 @@ class GoalService:
     def detail(self, goal_id: str) -> dict[str, Any]:
         return self._response_snapshot(goal_id)
 
-    def _response_snapshot(self, goal_id: str) -> dict[str, Any]:
-        """Build one coherent goal response after durable status reconciliation."""
+    def _response_snapshot(self, goal_id: str, *, forecast: bool = True) -> dict[str, Any]:
+        """Build one coherent goal response after durable status reconciliation.
 
+        The quota forecast routes every task across the whole binding catalog.
+        Lists are polled, so they carry ``quota_fit: None``; the detail view
+        computes the forecast after the store lock is released, so a slow
+        forecast can never hold up task execution.
+        """
+
+        response, goal = self._locked_snapshot(goal_id)
+        if forecast and goal.tasks:
+            response["quota_fit"] = self._quota_fit(goal, self._normalize_tasks(goal.tasks))
+        return response
+
+    def _locked_snapshot(self, goal_id: str) -> tuple[dict[str, Any], GoalRecord]:
         with self.store._lock:
             conn = self.store._conn
             owns_transaction = not conn.in_transaction
@@ -1515,10 +1527,10 @@ class GoalService:
                         # changed a Task during reconciliation on this connection.
                         goal = self.control_store.refresh_goal_status(goal_id)
                 response = goal_to_dict(goal, links=links)
-                response["quota_fit"] = self._quota_fit(goal, self._normalize_tasks(goal.tasks)) if goal.tasks else None
+                response["quota_fit"] = None
                 response["account_accounting"] = self.control_store.account_budget_summary(goal.window_id) if goal.window_id else {}
                 conn.execute("COMMIT" if owns_transaction else "RELEASE goal_response_snapshot")
-                return response
+                return response, goal
             except BaseException:
                 if owns_transaction:
                     conn.execute("ROLLBACK")

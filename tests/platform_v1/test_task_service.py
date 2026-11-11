@@ -3044,3 +3044,39 @@ def _synthetic_window(server, payload):
     """In-process fixture setup only; never evidence of human authorization."""
     from reverse_agent.platform_v1.autonomy import window_to_dict
     return 201, window_to_dict(server.RequestHandlerClass.autonomy_service.activate(payload))
+
+
+def test_surplus_polls_of_a_list_are_refused_instead_of_queueing(task_server, monkeypatch):
+    """Slow list answers must not pile up request threads (run host, 2026-11-11)."""
+    from reverse_agent.platform_v1 import task_service
+
+    base_url, server = task_server
+    handler = server.RequestHandlerClass
+    entered, release = threading.Semaphore(0), threading.Event()
+    original = handler._list_tasks_response
+
+    def slow(self):
+        entered.release()
+        release.wait(10)
+        return original(self)
+
+    monkeypatch.setattr(handler, "_list_tasks_response", slow)
+    results = []
+    workers = [threading.Thread(target=lambda: results.append(_req(base_url, "GET", "/api/tasks")[0]))
+               for _ in range(task_service._POLLED_IN_FLIGHT)]
+    for worker in workers:
+        worker.start()
+    for _ in workers:
+        assert entered.acquire(timeout=10)
+    try:
+        status, body = _req(base_url, "GET", "/api/tasks")
+        assert (status, body) == (503, {"error": "busy", "retry": True})
+        # Other endpoints and unpolled paths are unaffected.
+        assert _req(base_url, "GET", "/api/health")[0] == 200
+        assert _req(base_url, "GET", "/api/goals")[0] == 200
+    finally:
+        release.set()
+        for worker in workers:
+            worker.join(timeout=10)
+    assert results == [200] * task_service._POLLED_IN_FLIGHT
+    assert _req(base_url, "GET", "/api/tasks")[0] == 200
