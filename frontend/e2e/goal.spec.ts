@@ -4,6 +4,7 @@ test("runs a provider-free goal with a deterministic fixture and bounded window"
   await open(appPage, "/");
   await settle(appPage);
   await appPage.getByLabel("描述最终目标").fill("Playwright provider-free acceptance goal");
+  await appPage.locator("[aria-controls=\"goal-composer-advanced\"]").click();
   await appPage.getByLabel("执行模式").selectOption("deterministic_fixture");
   await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
   await expect(appPage.getByTestId("approval-goal-detail")).toBeVisible();
