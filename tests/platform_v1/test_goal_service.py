@@ -739,3 +739,24 @@ def test_forecast_replays_availability_without_changing_persisted_cache(tmp_path
     assert result["state"] == "UNAVAILABLE"
     assert cache.path.read_bytes() == before
     assert cache.check(binding, connection)["state"] == "AVAILABLE"
+
+
+def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock():
+    """A polled list must not route every task of every goal (run host, 2026-11-11)."""
+    store, _, _, goals = _services()
+    seen = []
+
+    def forecaster(goal, tasks):
+        # RLock._is_owned() is true only for the thread holding the lock.
+        seen.append(store._lock._is_owned())
+        return {"status": "ok"}
+
+    goal = goals.create({"objective": "Listed", "idempotency_key": "listed"})
+    goals.plan(goal.id, expected_revision=goal.revision)
+    goals.quota_forecaster = forecaster
+
+    assert [item["quota_fit"] for item in goals.list()] == [None]
+    assert [item["quota_fit"] for item in goals.list_page()["goals"]] == [None]
+    assert seen == []
+    assert goals.detail(goal.id)["quota_fit"] == {"status": "ok"}
+    assert seen == [False]
