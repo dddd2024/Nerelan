@@ -3614,6 +3614,9 @@ def _classify_exit(
         return "cli_unavailable"
     if exit_code in (124, 137, 143):
         return "timeout"
+    from .model_availability import EXECUTOR_TERMINATED, external_termination
+    if external_termination(exit_code):
+        return EXECUTOR_TERMINATED
     for payload in _extract_error_payloads(events_raw):
         status = _pick_error_status(payload)
         text = _pick_error_str(payload)

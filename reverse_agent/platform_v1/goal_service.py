@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import transient_overload
+from .model_availability import EXECUTOR_TERMINATED, transient_overload
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -1246,10 +1246,16 @@ class GoalService:
                         continue  # already re-run once on its explicit targets; never a capability signal
                 except (ValueError, TypeError):
                     continue
-            overloaded = not miss and failed.status == "FAILED" and transient_overload(
-                failed.failure_classification, failed.failure_detail)
+            # The machine stopped the agent (shutdown, closed console): like provider
+            # overload it is neither the model's failure nor capability evidence, so
+            # the same model resumes from the retained tree after a backoff.
+            terminated = (not miss and failed.status == "FAILED"
+                          and failed.failure_classification == EXECUTOR_TERMINATED)
+            overloaded = not miss and failed.status == "FAILED" and (terminated or transient_overload(
+                failed.failure_classification, failed.failure_detail))
+            transient_reason = EXECUTOR_TERMINATED if terminated else "transient_overload"
             if overloaded:
-                transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == "transient_overload"
+                transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == transient_reason
                                 for row in history)
                 if transient >= MAX_TRANSIENT_RETRIES:
                     overloaded = False  # persistent overload: ordinary routing may move on
@@ -1420,9 +1426,13 @@ class GoalService:
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             if overloaded:
                 # Events reach the context packet; evidence detail does not.
-                self.store.add_event(task.id, event_type="VALIDATED", title="Retry after provider overload",
+                cause = ("The machine stopped your previous attempt (shutdown or closed console)"
+                         if terminated else "The provider was at capacity")
+                self.store.add_event(task.id, event_type="VALIDATED",
+                                     title="Retry after the agent was stopped" if terminated
+                                     else "Retry after provider overload",
                                      description=(snapshot["feedback"] if snapshot is not None else
-                                                  "The provider was at capacity; your previous attempt was cut "
+                                                  cause + "; your previous attempt was cut "
                                                   "off and is not available. Start from the approved base."),
                                      metadata={"source_task_id": failed.id})
             if miss:
@@ -1434,7 +1444,7 @@ class GoalService:
                 self.store.add_event(task.id, event_type="VALIDATED", title="Contract fix-up required",
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
-            reason = ("contract_fixup" if miss else "transient_overload" if overloaded
+            reason = ("contract_fixup" if miss else transient_reason if overloaded
                       else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
