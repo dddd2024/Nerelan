@@ -386,7 +386,8 @@ def _relative_path(repo_resolved: Path, candidate: Path) -> str:
 
 # Per-execution native TMP scratch at the worktree top (codex_executor._task_temp_env).
 _NATIVE_SCRATCH = re.compile(r"\.nt(?:-[0-9a-f]{12})?")
-_SCRATCH_IGNORE = b"*\n"
+# codex_executor writes the file in text mode: "*\r\n" on Windows. Git reads both as "ignore all".
+_SCRATCH_IGNORES = (b"*\n", b"*\r\n")
 
 
 def _ignored_native_scratch(candidate: Path) -> bool:
@@ -411,13 +412,18 @@ def _ignored_native_scratch(candidate: Path) -> bool:
         ignore_info = ignore.lstat()
         if (not _stat.S_ISREG(ignore_info.st_mode)
                 or getattr(ignore_info, "st_file_attributes", 0) & _stat.FILE_ATTRIBUTE_REPARSE_POINT
-                or ignore_info.st_size != len(_SCRATCH_IGNORE)):
+                or ignore_info.st_size > max(map(len, _SCRATCH_IGNORES))):
             return False
-        if ignore.read_bytes() != _SCRATCH_IGNORE:
+        if ignore.read_bytes() not in _SCRATCH_IGNORES:
             return False
         again = candidate.lstat()  # not swapped for a link while reading
-        return (again.st_dev, again.st_ino, again.st_mode) == (info.st_dev, info.st_ino, info.st_mode)
-    except OSError:
+        if (again.st_dev, again.st_ino, again.st_mode) != (info.st_dev, info.st_ino, info.st_mode):
+            return False
+        # An ignore rule does not hide tracked files: `git add -A` would still stage them.
+        tracked = subprocess.run(["git", "ls-files", "-z", "--", candidate.name], cwd=candidate.parent,
+                                 capture_output=True, timeout=30, check=False)
+        return tracked.returncode == 0 and not tracked.stdout
+    except (OSError, subprocess.SubprocessError):
         return False
 
 

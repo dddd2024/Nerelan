@@ -623,9 +623,41 @@ class TestNativeScratch:
         assert changed == ("calc.py",)
         assert not any(path.startswith(".nt") for path in _tree_paths(repo, observed))
 
+    def test_the_scratch_the_codex_executor_really_makes_is_exempt(self, tmp_path, monkeypatch):
+        # Built by the executor itself: on Windows its ignore file is "*\r\n" (review of #1469).
+        from reverse_agent.platform_v1.codex_executor import _task_temp_env
+        repo, base = _repo(tmp_path)
+        scratch = Path(_task_temp_env(repo, {})["TMP"])
+        assert scratch.parent == repo and core._NATIVE_SCRATCH.fullmatch(scratch.name)
+        (scratch / "locked-tmp").mkdir()
+        self._lock(monkeypatch, "locked-tmp")
+        assert core._ignored_native_scratch(scratch) is True
+        assert core._scan_workspace_indirections(repo) == []
+        assert core._snapshot_workspace(repo, base)[2] == ()
+
+    @pytest.mark.parametrize("ignore", [b"*\n", b"*\r\n"])
+    def test_both_line_endings_are_exempt(self, tmp_path, ignore):
+        repo, _ = _repo(tmp_path)
+        assert core._ignored_native_scratch(self._scratch(repo, ignore)) is True
+
+    def test_a_scratch_name_with_tracked_files_is_still_scanned(self, tmp_path, monkeypatch):
+        repo, _ = _repo(tmp_path)
+        scratch = repo / self.SCRATCH
+        scratch.mkdir()
+        (scratch / "product.py").write_text("X = 1\n", encoding="utf-8")
+        _run(repo, "git", "add", "--", self.SCRATCH)
+        _run(repo, "git", "commit", "-qm", "tracked scratch name")
+        (scratch / ".gitignore").write_bytes(b"*\n")
+        (scratch / "locked-tmp").mkdir()
+        self._lock(monkeypatch, "locked-tmp")
+        assert core._ignored_native_scratch(scratch) is False
+        assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["access_error"]
+
     @pytest.mark.parametrize("ignore, name", [
         (b"*\n!keep\n", SCRATCH),       # a changed ignore file
         (b"", SCRATCH),                 # an emptied one
+        (b"\xef\xbb\xbf*\n", SCRATCH),  # a BOM
+        (b"*", SCRATCH),                # no line end
         (b"*\n", ".nt-NOTHEX123456"),   # not the executor's name
         (b"*\n", "nested-ok"),          # an ordinary directory
     ])
