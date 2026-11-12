@@ -178,6 +178,8 @@ describe("GoalTimeline attempts", () => {
     // The current attempt takes its reason from the goal detail, the authority for status.
     expect(screen.getByTestId("timeline-stop-task-3")).toHaveTextContent("执行器异常退出");
     expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("已停下：执行器异常退出");
+    // Each step's run link is named for its step, as before the timeline.
+    expect(screen.getByRole("link", { name: "查看 #1458 [Routing] implement 的运行" })).toHaveAttribute("href", "/runs?task=task-3");
   });
 
   it("shows a new current attempt from the goal detail before the timeline has it", () => {

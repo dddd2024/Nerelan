@@ -51,11 +51,11 @@ const COLLAPSE_PREF_KEY = "nerelan.sidebar-collapsed.v1";
 const RECENT_GOAL_LIMIT = 12;
 
 /** The issue a goal resolves (its "#1234" title or issues/1234 link), so retries of it show once. */
-export function goalIssueKey(goal: Pick<PlatformGoal, "id" | "title" | "objective">): string {
+export function goalIssueKey(goal: Pick<PlatformGoal, "id" | "title" | "objective" | "repository">): string {
   const fromTitle = /^#(\d+)\b/.exec(goal.title ?? "")?.[1];
   const fromLink = /\/issues\/(\d+)\b/.exec(goal.objective ?? "")?.[1];
   const issue = fromTitle ?? fromLink;
-  return issue ? `issue-${issue}` : goal.id;
+  return issue ? `${goal.repository ?? ""}#${issue}` : goal.id;
 }
 
 /** Newest goal per issue, newest first. Older goals of the same issue stay in 所有目标. */

@@ -366,6 +366,7 @@ def _model_selection_description(metadata: Mapping[str, Any]) -> str:
 
 
 TIMELINE_EVENTS_PER_ATTEMPT = 200
+TIMELINE_EVENTS_PER_PAST_ATTEMPT = 60  # finished attempts: newest 60, the rest on the run page
 TIMELINE_INSTRUCTION_CHARS = 600
 TIMELINE_NARRATION_CHARS = 400
 TIMELINE_SUMMARY_CHARS = 1500
@@ -663,10 +664,12 @@ class RunReadModel:
                     task = self.store.get_task(task_id, event_limit=0)
                 except TaskStoreError:
                     continue
-                events, total = self.store.public_events(task_id, limit=events_per_attempt)
+                current = index == len(chain) - 1
+                events, total = self.store.public_events(
+                    task_id, limit=events_per_attempt if current else TIMELINE_EVENTS_PER_PAST_ATTEMPT)
                 record = self.store.agent_record(task_id)
                 live = None
-                if index == len(chain) - 1:
+                if current:
                     # Only the current attempt can be live; earlier ones are history.
                     durable_run = self._durable_run(task.id)
                     detail = _liveness(task, events, durable_run, self._clock(),

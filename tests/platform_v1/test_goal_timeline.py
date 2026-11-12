@@ -139,3 +139,21 @@ def test_prose_keeps_ordinary_words_and_masks_secrets():
     assert "ABCDEFGHIJKLMNOP" not in out
     assert _safe_prose("Authorization: Bearer abcdefghijklmnop", limit=500).count("abcdefghijklmnop") == 0
     assert _safe_prose(None, limit=10) == ""
+
+
+def test_finished_attempts_carry_fewer_events_than_the_current_one(monkeypatch):
+    from reverse_agent.platform_v1 import run_read_model as rrm
+    store = TaskStore()
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    model = rrm.RunReadModel(store=store, control_store=PlatformControlStore(store))
+    old, new = store.create_task(title="old"), store.create_task(title="new")
+    for task in (old, new):
+        for i in range(10):
+            store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="OpenCode", description=f"read f{i}.py")
+    monkeypatch.setattr(rrm, "TIMELINE_EVENTS_PER_PAST_ATTEMPT", 3)
+    goal = {"id": "g", "tasks": [], "task_links": [{"task_id": new.id, "plan_task_id": "T001", "title": "t", "status": "RUNNING",
+            "attempts": [{"task_id": old.id, "status": "FAILED", "failure": None}]}]}
+    [step] = model.goal_timeline(goal, events_per_attempt=8)["steps"]
+    first, current = step["attempts"]
+    assert len(first["events"]) == 3 and first["events_truncated"]
+    assert len(current["events"]) == 8

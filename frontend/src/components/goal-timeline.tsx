@@ -321,6 +321,7 @@ function StepBlock({ step }: { step: PlatformTimelineStep }) {
           {publicationText(step.publication, step.publication_blocked)}
         </span>
         <Link to={`/runs?task=${encodeURIComponent(taskId)}`}
+          aria-label={`查看 ${step.title} 的${state === "interrupted" ? "中断" : ""}运行`}
           className="ml-auto inline-flex min-h-6 items-center rounded px-1 font-medium text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
           查看运行
         </Link>

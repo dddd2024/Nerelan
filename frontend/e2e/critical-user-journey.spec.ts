@@ -70,6 +70,9 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(primary.getByTestId(`run-files-${PRIMARY_TASK_ID}`)).toBeVisible();
   await expect(primary.getByTestId(`run-validation-${PRIMARY_TASK_ID}`)).toBeVisible();
 
+  // The timeline link lists this goal's runs; the queued run belongs to another goal.
+  await open(appPage, "/runs");
+  await settle(appPage);
   const queued = appPage.getByTestId(`run-${QUEUED_TASK_ID}`);
   await expect(queued).toBeVisible();
   await queued.getByTestId(`run-toggle-${QUEUED_TASK_ID}`).click();

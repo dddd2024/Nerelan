@@ -150,6 +150,13 @@ describe("task-first sidebar IA", () => {
     expect(screen.getByTestId("sidebar-recent-goal-goal-newest")).toHaveAttribute("data-selected", "true");
   });
 
+  it("keys goals by repository and issue, so the same number in two repositories stays two entries", async () => {
+    const { goalIssueKey, recentGoals } = await import("@/components/sidebar");
+    const goal = (id: string, repository: string) => ({ id, title: "#7 fix", objective: "", repository, updated_at: "2026-08-01T00:00:00Z" });
+    expect(goalIssueKey(goal("a", "org/alpha") as never)).toBe("org/alpha#7");
+    expect(recentGoals([goal("a", "org/alpha"), goal("b", "org/beta")] as never).map((g) => g.id).sort()).toEqual(["a", "b"]);
+  });
+
   it("deduplicates Projects from goal repositories and keeps project emphasis weaker", () => {
     sidebar(["/tasks?repository=org%2Falpha"]);
 
