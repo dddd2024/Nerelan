@@ -90,8 +90,9 @@ _GOVERNANCE_MISSING = object()
 _POLLED_IN_FLIGHT = 4
 _POLLED_SLOTS = {
     path: BoundedSemaphore(_POLLED_IN_FLIGHT)
-    for path in ("/api/goals", "/api/runs", "/api/tasks", "/api/platform/status")
+    for path in ("/api/goals", "/api/runs", "/api/tasks", "/api/platform/status", "/api/goals/*/timeline")
 }
+_TIMELINE_PATH = re.compile(r"^/api/goals/[^/]+/timeline$")
 
 
 class _EventView:
@@ -372,7 +373,8 @@ class _TaskHandler(BaseHTTPRequestHandler):
         # Clients poll these lists every few seconds. If answers ever get slower
         # than the polling interval, requests must not queue up behind the store
         # lock and starve task execution: surplus polls are refused at once.
-        slot = _POLLED_SLOTS.get(urlsplit(self.path).path.rstrip("/"))
+        path = urlsplit(self.path).path.rstrip("/")
+        slot = _POLLED_SLOTS.get("/api/goals/*/timeline" if _TIMELINE_PATH.match(path) else path)
         if slot is None:
             self._do_get()
             return
@@ -460,6 +462,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
                 )
+                return
+            if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "timeline":
+                try:
+                    snapshot = self.goal_service.timeline_snapshot(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
+                    return
+                self._send_json(HTTPStatus.OK, self.run_read_model.goal_timeline(snapshot))
                 return
             if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":
                 from .agent_planner import planner_status_payload

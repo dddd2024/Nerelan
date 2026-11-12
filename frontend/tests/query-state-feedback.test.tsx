@@ -43,6 +43,7 @@ beforeEach(async () => {
   vi.spyOn(client, "fetchGoals").mockResolvedValue([goal]);
   vi.spyOn(client, "fetchGoal").mockResolvedValue(goal);
   vi.spyOn(client, "fetchRuns").mockResolvedValue([]);
+  vi.spyOn(client, "fetchGoalTimeline").mockResolvedValue({ goal: { id: goal.id, title: goal.title, objective: goal.objective, status: goal.status, repository: goal.repository }, plan: [], steps: [] });
 });
 afterEach(() => {
   cleanup();
@@ -105,10 +106,10 @@ describe("Home independent reads", () => {
     expect(screen.queryByText("协调器在线")).not.toBeInTheDocument();
   });
 
-  it("reports unavailable run activity without removing the selected Goal", async () => {
-    vi.mocked(client.fetchRuns).mockRejectedValue(new Error("Runs unavailable"));
+  it("reports an unavailable goal timeline without removing the selected Goal", async () => {
+    vi.mocked(client.fetchGoalTimeline).mockRejectedValue(new Error("Timeline unavailable"));
     mount(<HomePage />, [], `/?goal=${goal.id}`);
-    expect(await screen.findByText("运行活动加载失败")).toBeInTheDocument();
+    expect(await screen.findByText("执行过程加载失败")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-stream")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-header")).toHaveTextContent(goal.title);
   });
