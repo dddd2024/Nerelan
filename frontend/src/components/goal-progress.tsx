@@ -5,6 +5,7 @@ import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/func
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { failureText } from "@/components/goal-attention";
 
 function statusFor(raw: string) {
   if (raw === "INTERRUPTED") return "interrupted";
@@ -113,7 +114,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{task.plan_task_id || `T${index + 1}`}</span>
             </div>
             <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
-              <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{materialized ? taskStateText(state) : "尚未启动"}</span>
+              <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{!materialized ? "尚未启动" : state === "blocked" && task.failure ? failureText(task.failure).label : taskStateText(state)}</span>
               {materialized && <>
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
                   {functionalStatusLabel(proof.status)}
