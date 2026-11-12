@@ -148,7 +148,8 @@ def test_run_read_model_exposes_no_write_api(read_model) -> None:
         for name in dir(model)
         if not name.startswith("_") and callable(getattr(model, name))
     }
-    assert public == {"list_runs", "run_detail"}
+    # goal_timeline is a derived read over the same projections (no writes).
+    assert public == {"list_runs", "run_detail", "goal_timeline"}
 
 
 def test_durable_observation_is_bounded_and_read_only(read_model) -> None:

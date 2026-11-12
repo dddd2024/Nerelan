@@ -3,15 +3,12 @@ import { useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
-import { GoalCurrentActivity } from "@/components/goal-current-activity";
-import { GoalProgress } from "@/components/goal-progress";
-import { GoalAttention } from "@/components/goal-attention";
+import { GoalTimeline } from "@/components/goal-timeline";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { UnattendedStatus } from "@/components/unattended-status";
-import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
-import { useRuns } from "@/hooks/use-runs";
+import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { goalStatusLabel } from "@/lib/goal-status-label";
 import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
@@ -98,11 +95,9 @@ function coordinatorNotice(code: string): string {
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
-  const runsQuery = useRuns();
   const startGoal = useCreateGoalDraft();
   const navigate = useNavigate();
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
-  const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("goal") || undefined;
   const setSelectedId = (goalId: string) => setSearchParams((previous) => {
@@ -112,6 +107,7 @@ export function HomePage() {
   });
 
   const detailQuery = useGoal(selectedId);
+  const timelineQuery = useGoalTimeline(selectedId);
   const detailGoal = detailQuery.data;
   const recent = useMemo(() => goals.slice(0, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
@@ -154,7 +150,7 @@ export function HomePage() {
       <GoalComposer
         busy={startGoal.isPending}
         compact={dock}
-        placeholder={dock ? "下达一个新目标…" : undefined}
+        placeholder={dock ? "另起一个新目标…" : undefined}
         onSubmit={async (input) => {
           const goal = await startGoal.mutateAsync(input);
           setSelectedId(goal.id);
@@ -337,10 +333,8 @@ export function HomePage() {
             ) : detailGoal ? (
               <div data-testid="active-goal-stream" className="space-y-5">
                 <ReadFeedback query={detailQuery} label="目标详情" />
-                <GoalAttention goal={detailGoal} />
-                <GoalProgress goal={detailGoal} />
-                <ReadFeedback query={runsQuery} label="运行活动" />
-                {runsQuery.data !== undefined && <GoalCurrentActivity goal={detailGoal} runs={runs} />}
+                <ReadFeedback query={timelineQuery} label="执行过程" />
+                <GoalTimeline goal={detailGoal} timeline={timelineQuery.data} />
               </div>
             ) : null}
           </section>
