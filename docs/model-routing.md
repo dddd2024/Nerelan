@@ -197,4 +197,3 @@ commands, commit messages, code comments and handoff files stay in English. Set
 `REVERSE_AGENT_AGENT_LANGUAGE=en` (for example in `run.env.json`) to leave the
 prompt without a language line. The model-review prompt, which requires strict
 JSON, is not changed.
-
