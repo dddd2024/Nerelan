@@ -1,0 +1,300 @@
+import { useState } from "react";
+import { AlertTriangle, Check, Circle, LoaderCircle, PauseCircle, ShieldAlert } from "lucide-react";
+import { Link } from "react-router";
+import type {
+  PlatformGoal,
+  PlatformGoalTimeline,
+  PlatformTimelineAttempt,
+  PlatformTimelineStep,
+} from "@/lib/platform-client";
+import { cn } from "@/lib/cn";
+import { displayTitle } from "@/lib/display-title";
+import { formatRelativeTime } from "@/lib/format";
+import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/functional-validation";
+import { FunctionalValidationView } from "@/components/functional-validation";
+import { runtimeMessage } from "@/lib/runtime-labels";
+import { collapseRepeats, eventDetail, failureText, meaningfulEvents, modelName, readableAgent } from "@/lib/run-explain";
+import {
+  activityCategoryClass,
+  activityCategoryLabel,
+  activityTitleRestatesCategory,
+  livenessDotClass,
+  livenessLabel,
+} from "@/lib/run-vocabulary";
+import {
+  EXECUTOR_LABELS,
+  isReviewReady,
+  progressClassName,
+  publicationText,
+  statusFor,
+  taskStateClass,
+  taskStateText,
+} from "@/components/goal-progress";
+
+/** Events shown per attempt before "显示全部"; the server caps the total. */
+export const TIMELINE_VISIBLE_EVENTS = 8;
+
+const STOPPED = new Set(["FAILED", "BLOCKED", "INTERRUPTED"]);
+
+function who(attempt: Pick<PlatformTimelineAttempt, "executor_kind" | "binding_ref">) {
+  return [EXECUTOR_LABELS[attempt.executor_kind ?? ""] ?? attempt.executor_kind, modelName(attempt.binding_ref)]
+    .filter(Boolean).join(" · ");
+}
+
+function latestAttempt(step: PlatformTimelineStep) {
+  return step.attempts[step.attempts.length - 1];
+}
+
+/** The one sentence a reader needs first: what is happening now, or what waits on them. */
+export function timelineStatusLine(timeline: PlatformGoalTimeline): { tone: "live" | "stopped" | "done" | "idle"; text: string } {
+  for (const step of timeline.steps) {
+    const attempt = latestAttempt(step);
+    if (attempt && statusFor(attempt.status) === "running") {
+      const shown = meaningfulEvents(attempt.events);
+      const last = shown[shown.length - 1];
+      const doing = last ? (eventDetail(last) || activityCategoryLabel(last.category)) : "Agent 已启动，等待第一条动作";
+      return { tone: "live", text: `正在做：${doing}` };
+    }
+  }
+  const stopped = timeline.steps.find((step) => STOPPED.has(latestAttempt(step)?.status ?? ""));
+  if (stopped) {
+    const reason = failureText(latestAttempt(stopped)?.failure);
+    return { tone: "stopped", text: `已停下：${reason.label}${reason.nextStep ? `。${reason.nextStep}` : ""}` };
+  }
+  if (timeline.steps.length > 0 && timeline.steps.every((step) => isReviewReady(statusFor(latestAttempt(step)?.status ?? step.status)))) {
+    return { tone: "done", text: "执行完成，等待审查。" };
+  }
+  return { tone: "idle", text: runtimeMessage(String(timeline.goal.status ?? "")).label };
+}
+
+function EventRows({ attempt }: { attempt: PlatformTimelineAttempt }) {
+  const [expanded, setExpanded] = useState(false);
+  const rows = collapseRepeats(meaningfulEvents(attempt.events).map((event, index) => ({ event, key: event.id || `${attempt.task_id}-${index}` })));
+  const visible = expanded ? rows : rows.slice(-TIMELINE_VISIBLE_EVENTS);
+  const hidden = rows.length - visible.length;
+  if (rows.length === 0) {
+    return <p className="text-xs text-ra-text-tertiary">还没有动作记录。</p>;
+  }
+  return (
+    <div>
+      {hidden > 0 && (
+        <button type="button" onClick={() => setExpanded(true)}
+          className="mb-1 text-[11px] text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+          显示更早的 {hidden} 条动作
+        </button>
+      )}
+      <ul className="space-y-1" aria-label="动作记录" data-testid={`timeline-events-${attempt.task_id}`}>
+        {visible.map(({ event, key, repeats }) => {
+          const label = activityCategoryLabel(event.category);
+          const title = activityTitleRestatesCategory(event.category, event.title) || event.title === "Model selected" ? "" : event.title;
+          const detail = eventDetail(event);
+          const agent = readableAgent(event);
+          return (
+            <li key={key} data-testid={`timeline-event-${event.id || key}`} className="flex min-w-0 items-baseline gap-2 text-xs">
+              <span className={cn("w-12 shrink-0 text-[11px]", activityCategoryClass(event.category))}>{label}</span>
+              <span className="min-w-0 flex-1 truncate text-ra-text-secondary" title={[title, detail].filter(Boolean).join(" · ")}>
+                {[title, detail].filter(Boolean).join(" · ") || label}
+                {repeats > 1 ? ` ×${repeats}` : ""}
+              </span>
+              {agent && <span className="hidden shrink-0 text-[11px] text-ra-text-tertiary sm:inline">{agent}</span>}
+            </li>
+          );
+        })}
+      </ul>
+      {attempt.events_truncated && (
+        <p className="mt-1 text-[11px] text-ra-text-tertiary">
+          只显示最近 {attempt.events.length} 条，共 {attempt.events_total} 条。
+          <Link to={`/runs?task=${encodeURIComponent(attempt.task_id)}`} className="ml-1 text-ra-accent hover:underline">查看完整运行</Link>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; total: number }) {
+  const state = statusFor(attempt.status);
+  const stopped = STOPPED.has(attempt.status);
+  const reason = stopped ? failureText(attempt.failure) : null;
+  const files = attempt.changed_files ?? [];
+  const additions = files.reduce((sum, file) => sum + (file.additions ?? 0), 0);
+  const deletions = files.reduce((sum, file) => sum + (file.deletions ?? 0), 0);
+  return (
+    <li data-testid={`timeline-attempt-${attempt.task_id}`} className="relative border-l border-ra-border/70 pb-4 pl-4 last:pb-1">
+      <span aria-hidden="true" className={cn("absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 bg-ra-base",
+        stopped ? "border-ra-status-error" : state === "running" ? "border-ra-accent" : isReviewReady(state) ? "border-ra-status-running" : "border-ra-border-strong")} />
+      <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <p className="text-xs font-medium text-ra-text">
+          {total > 1 ? `第 ${attempt.index} 次` : "执行"}{who(attempt) ? ` · ${who(attempt)}` : ""}
+        </p>
+        {attempt.started_at && <span className="text-[11px] text-ra-text-tertiary">{formatRelativeTime(attempt.started_at)}开始</span>}
+        <span className="ml-auto inline-flex items-center gap-1.5 text-[11px]">
+          {/* The step header carries the state; an attempt adds only liveness or its stop reason. */}
+          {attempt.live && state === "running" ? <>
+            <span className={cn("h-1.5 w-1.5 rounded-full", livenessDotClass(attempt.live.state))} aria-hidden="true" />
+            <span className="text-ra-text-secondary" data-testid={`timeline-liveness-${attempt.task_id}`}>{livenessLabel(attempt.live.state)}</span>
+          </> : stopped && reason && total > 1 ? <span className={taskStateClass(state)}>{reason.label}</span> : null}
+        </span>
+      </div>
+      <EventRows attempt={attempt} />
+      {reason && (
+        <div role="alert" data-testid={`timeline-stop-${attempt.task_id}`}
+          className="mt-2 flex items-start gap-2.5 rounded-xl border border-ra-status-error/30 bg-ra-status-error/5 px-3 py-2.5">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ra-status-error" aria-hidden="true" />
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-sm font-semibold text-ra-text">为什么停下：{reason.label}</p>
+            {reason.nextStep && <p className="text-xs text-ra-text-secondary">下一步：{reason.nextStep}</p>}
+            {reason.detail && <p className="break-words font-mono text-[11px] leading-5 text-ra-text-tertiary">{reason.detail}</p>}
+          </div>
+        </div>
+      )}
+      {files.length > 0 && (
+        <p className="mt-2 text-[11px] text-ra-text-secondary" data-testid={`timeline-files-${attempt.task_id}`}>
+          改了 {files.length} 个文件 · +{additions} −{deletions}
+          <span className="ml-1 font-mono text-ra-text-tertiary">{files.slice(0, 3).map((file) => file.path).join("、")}{files.length > 3 ? " …" : ""}</span>
+        </p>
+      )}
+    </li>
+  );
+}
+
+function StepIcon({ state }: { state: string }) {
+  const Icon = isReviewReady(state) ? Check : state === "running" ? LoaderCircle
+    : state === "interrupted" ? PauseCircle : state === "blocked" ? ShieldAlert : Circle;
+  return (
+    <span aria-hidden="true" className={cn("mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center", taskStateClass(state))}>
+      <Icon className={cn(state === "queued" ? "h-2.5 w-2.5" : "h-3.5 w-3.5", state === "running" && "animate-spin")} />
+    </span>
+  );
+}
+
+function StepBlock({ step }: { step: PlatformTimelineStep }) {
+  const current = latestAttempt(step);
+  const state = statusFor(current?.status ?? step.status);
+  const executor = (current?.status ?? "").endsWith("_FIXTURE") ? "deterministic_fixture" : current?.executor_kind;
+  const proof = normalizeFunctionalValidation(step.functional_validation, executor);
+  const taskId = current?.task_id ?? step.plan_task_id;
+  return (
+    <article data-testid={`goal-task-${taskId}`} className="rounded-2xl border border-ra-border/70 bg-ra-workspace px-4 pt-3.5 pb-2 sm:px-5">
+      <header className="flex min-w-0 items-start gap-3">
+        <StepIcon state={state} />
+        <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={displayTitle(step.title, 160)}>
+          {displayTitle(step.title)}
+        </h3>
+        <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{step.plan_task_id}</span>
+      </header>
+      <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
+        <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>
+          {state === "blocked" && current?.failure ? failureText(current.failure).label : taskStateText(state)}
+        </span>
+        <span data-testid={`goal-functional-status-${taskId}`}
+          className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
+          {functionalStatusLabel(proof.status)}
+        </span>
+        <span data-testid={`goal-publication-${taskId}`}
+          className={cn("rounded-md px-1.5 py-0.5", step.publication ? "bg-ra-light text-ra-text-secondary" : step.publication_blocked ? "text-ra-status-error" : "text-ra-text-tertiary")}>
+          {publicationText(step.publication, step.publication_blocked)}
+        </span>
+        <Link to={`/runs?task=${encodeURIComponent(taskId)}`}
+          className="ml-auto inline-flex min-h-6 items-center rounded px-1 font-medium text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+          查看运行
+        </Link>
+      </div>
+      <ol className="ml-2 mt-3" aria-label="尝试">
+        {step.attempts.map((attempt) => <AttemptBlock key={attempt.task_id} attempt={attempt} total={step.attempts.length} />)}
+      </ol>
+      <details className="ml-7 mb-1 text-xs text-ra-text-secondary">
+        <summary className="min-h-6 w-fit cursor-pointer rounded underline-offset-4 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">查看功能检查</summary>
+        <FunctionalValidationView evidence={proof} executor={executor} />
+      </details>
+    </article>
+  );
+}
+
+/**
+ * The goal page as one conversation: status sentence, then each plan step with
+ * its attempts in order, each attempt's actions, its stop reason where it
+ * stopped, and what it changed.
+ *
+ * The goal detail (already polled) is the authority for which steps exist and
+ * their status; the timeline adds each attempt's actions and history. Until
+ * the timeline arrives, each step shows its current attempt from the detail.
+ */
+export function mergeTimelineSteps(goal: PlatformGoal, timeline?: PlatformGoalTimeline): PlatformTimelineStep[] {
+  const byPlanTask = new Map((timeline?.steps ?? []).map((step) => [step.plan_task_id, step]));
+  return (goal.task_links ?? []).map((link) => {
+    const fromTimeline = byPlanTask.get(link.plan_task_id);
+    const attempts = fromTimeline?.attempts.length ? fromTimeline.attempts.map((attempt, index, all) =>
+      index === all.length - 1 && attempt.task_id === link.task_id
+        ? { ...attempt, status: link.status, failure: link.failure ?? attempt.failure } : attempt)
+      : [{
+        index: (link.attempts?.length ?? 0) + 1, task_id: link.task_id, status: link.status,
+        executor_kind: link.executor_kind, binding_ref: link.binding_ref, failure: link.failure ?? null,
+        events: [], events_total: 0, events_truncated: false, changed_files: [], validation: null, live: null,
+      }];
+    // A new attempt the timeline has not seen yet still shows up at once.
+    const last = attempts[attempts.length - 1];
+    const withCurrent = last.task_id === link.task_id ? attempts : [...attempts, {
+      index: attempts.length + 1, task_id: link.task_id, status: link.status, executor_kind: link.executor_kind,
+      binding_ref: link.binding_ref, failure: link.failure ?? null, events: [], events_total: 0,
+      events_truncated: false, changed_files: [], validation: null, live: null,
+    }];
+    return {
+      plan_task_id: link.plan_task_id, title: link.title, status: link.status,
+      functional_validation: link.functional_validation, publication: link.publication,
+      publication_blocked: link.publication_blocked, attempts: withCurrent,
+    };
+  });
+}
+
+export function GoalTimeline({ goal, timeline }: { goal: PlatformGoal; timeline?: PlatformGoalTimeline }) {
+  const steps = mergeTimelineSteps(goal, timeline);
+  const status = steps.length || timeline ? timelineStatusLine({ goal: { ...goal }, plan: timeline?.plan ?? [], steps }) : null;
+  const reviewReady = steps.filter((step) => isReviewReady(statusFor(latestAttempt(step)?.status ?? step.status))).length;
+  const total = steps.length || goal.tasks.length;
+  const progress = total ? Math.round((reviewReady / total) * 100) : 0;
+  return (
+    <section aria-label="执行过程" data-testid="goal-timeline" className="space-y-4">
+      <span className="sr-only">执行进度</span>
+      <div className="flex items-center gap-3 px-1" aria-label={`执行进度 ${reviewReady}/${total}`}>
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-ra-tertiary" data-testid="goal-progress-bar">
+          <div className={cn("h-full rounded-full transition-[width] duration-200", progressClassName(goal.status))} style={{ width: `${progress}%` }} />
+        </div>
+        <span data-testid="goal-progress-summary" className="shrink-0 font-mono text-[10px] tabular-nums text-ra-text-tertiary">
+          {reviewReady}/{total}
+        </span>
+      </div>
+      {status && (
+        <p data-testid="goal-timeline-status"
+          className={cn("flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm",
+            status.tone === "live" ? "bg-ra-accent/5 text-ra-text" : status.tone === "stopped" ? "bg-ra-status-error/5 text-ra-text"
+              : status.tone === "done" ? "bg-ra-status-running/10 text-ra-text" : "bg-ra-light/60 text-ra-text-secondary")}>
+          {status.tone === "live" && <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin text-ra-accent" aria-hidden="true" />}
+          {status.tone === "stopped" && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-ra-status-error" aria-hidden="true" />}
+          {status.tone === "done" && <Check className="h-3.5 w-3.5 shrink-0 text-ra-status-running" aria-hidden="true" />}
+          <span className="min-w-0">{status.text}</span>
+        </p>
+      )}
+      {steps.length === 0 ? (
+        <ol aria-label="计划" className="space-y-2 rounded-2xl border border-ra-border/70 bg-ra-workspace px-4 py-3.5">
+          <li className="text-xs font-medium text-ra-text-secondary">计划</li>
+          {(timeline?.plan ?? goal.tasks.map((task) => ({ plan_task_id: task.id, title: task.title }))).map((task) => (
+            <li key={task.plan_task_id} data-testid={`goal-plan-${task.plan_task_id}`} className="flex items-start gap-3 text-sm text-ra-text">
+              <Circle className="mt-1.5 h-2.5 w-2.5 shrink-0 text-ra-text-tertiary" aria-hidden="true" />
+              <span className="min-w-0 flex-1">{displayTitle(task.title)}</span>
+              <span className="shrink-0 text-[11px] text-ra-text-tertiary">尚未启动</span>
+            </li>
+          ))}
+        </ol>
+      ) : steps.map((step) => <StepBlock key={step.plan_task_id} step={step} />)}
+      <p className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] leading-5 text-ra-text-tertiary">
+        <span>执行完成不代表功能验证或交付完成；远端审查、合并与交付另行确认。</span>
+        {steps.length > 0 && (
+          <Link to={`/runs?goal=${encodeURIComponent(goal.id)}`} data-testid="goal-timeline-runs-link"
+            className="font-medium text-ra-text-secondary underline-offset-2 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            查看这个目标的全部运行
+          </Link>
+        )}
+      </p>
+    </section>
+  );
+}

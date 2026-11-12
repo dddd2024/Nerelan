@@ -1535,6 +1535,10 @@ class GoalService:
     def detail(self, goal_id: str) -> dict[str, Any]:
         return self._response_snapshot(goal_id)
 
+    def timeline_snapshot(self, goal_id: str) -> dict[str, Any]:
+        """The goal response without the routing forecast (the timeline is polled)."""
+        return self._response_snapshot(goal_id, forecast=False)
+
     def _response_snapshot(self, goal_id: str, *, forecast: bool = True) -> dict[str, Any]:
         """Build one coherent goal response after durable status reconciliation.
 

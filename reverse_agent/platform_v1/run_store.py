@@ -1104,6 +1104,22 @@ class TaskStore:
         return [{"type": row[0], "title": row[1], "description": (row[2] or "")[:400],
                  "timestamp": row[3]} for row in rows]
 
+    def public_events(self, task_id: str, *, limit: int = 200) -> tuple[list[dict[str, Any]], int]:
+        """Newest public events in time order, and how many public events exist.
+
+        Excludes the per-action evidence rows and never returns raw_log.
+        """
+        bounded = max(1, min(int(limit), 500))
+        where = "task_id = ? AND title != 'Executor action evidence'"
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, task_id, type, timestamp, title, description, metadata FROM task_events "
+                f"WHERE {where} ORDER BY seq DESC LIMIT ?", (task_id, bounded)).fetchall()
+            total = self._conn.execute(f"SELECT COUNT(*) FROM task_events WHERE {where}", (task_id,)).fetchone()[0]
+        events = [dict(zip(("id", "task_id", "type", "timestamp", "title", "description", "metadata"), row))
+                  for row in reversed(rows)]
+        return events, int(total)
+
     def get_events(self, task_id: str) -> list[TaskEvent]:
         with self._lock:
             rows = self._conn.execute(

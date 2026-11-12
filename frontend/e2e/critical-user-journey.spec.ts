@@ -51,9 +51,9 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(appPage.getByRole("heading", { name: GOAL_TITLE })).toBeVisible();
   expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);
   const currentExecution = appPage.getByTestId("current-execution-section");
-  await expect(currentExecution.getByTestId("goal-current-activity")).toBeVisible({ timeout: 12_000 });
+  await expect(currentExecution.getByTestId("goal-timeline")).toBeVisible({ timeout: 12_000 });
 
-  await currentExecution.getByTestId("goal-activity-full-run-link").click();
+  await currentExecution.getByTestId("goal-timeline-runs-link").click();
   await settle(appPage);
   await expect(appPage.getByTestId("runs-page")).toBeVisible();
   const primary = appPage.getByTestId("runs-list").locator(":scope > li").filter({

@@ -349,6 +349,10 @@ def _model_selection_description(metadata: Mapping[str, Any]) -> str:
     return summary
 
 
+TIMELINE_EVENTS_PER_ATTEMPT = 200
+TIMELINE_INSTRUCTION_CHARS = 600
+
+
 def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
     metadata = _metadata(event)
     event_type = _safe_text(event.get("type"), limit=64)
@@ -613,6 +617,73 @@ class RunReadModel:
             return None
         return {key: state[key] for key in ("phase", "review_round", "pr_number", "head_sha",
                                            "next_attempt_ms", "parking_reason")}
+
+    def goal_timeline(self, goal: Mapping[str, Any], *, events_per_attempt: int = TIMELINE_EVENTS_PER_ATTEMPT) -> dict[str, Any]:
+        """One goal as one conversation: request, plan, every attempt in order, result.
+
+        ``goal`` is the goal service's own response snapshot, so status,
+        attempts and stop reasons come from one place. Events go through the
+        same allowlisted projection as run detail.
+        """
+        plan = [{
+            "plan_task_id": _safe_text(task.get("id"), limit=64),
+            "title": _safe_text(task.get("title"), limit=300),
+            "role": _safe_text(task.get("agent_role"), limit=32),
+            "instruction": _safe_text(task.get("instruction"), limit=TIMELINE_INSTRUCTION_CHARS),
+        } for task in goal.get("tasks") or () if isinstance(task, Mapping)]
+        steps = []
+        for link in goal.get("task_links") or ():
+            earlier = list(link.get("attempts") or ())
+            attempts = []
+            chain = [*earlier, {**link, "failure": link.get("failure")}]
+            for index, attempt in enumerate(chain):
+                task_id = str(attempt.get("task_id", ""))
+                try:
+                    task = self.store.get_task(task_id, event_limit=0)
+                except TaskStoreError:
+                    continue
+                events, total = self.store.public_events(task_id, limit=events_per_attempt)
+                live = None
+                if index == len(chain) - 1:
+                    # Only the current attempt can be live; earlier ones are history.
+                    durable_run = self._durable_run(task.id)
+                    detail = _liveness(task, events, durable_run, self._clock(),
+                                       stale_after=self._stale_after_seconds)
+                    live = {"state": detail["state"], "last_activity_at": detail["last_activity_at"],
+                            "stage": self._stage(task, durable_run, self.control_store.get_publication(task.id))}
+                attempts.append({
+                    "index": index + 1,
+                    "task_id": task.id,
+                    "status": task.status,
+                    "executor_kind": task.executor_kind,
+                    "binding_ref": task.binding_ref,
+                    "started_at": _time_text(task.created_at),
+                    "updated_at": _time_text(task.updated_at),
+                    "retry_reason": _safe_text(attempt.get("retry_reason"), limit=64),
+                    "failure": attempt.get("failure"),
+                    "events": [_event_projection(event, task=task) for event in events],
+                    "events_total": total,
+                    "events_truncated": total > len(events),
+                    "changed_files": self._changed_files(task.changed_files),
+                    "validation": self._validation(task),
+                    "live": live,
+                })
+            steps.append({
+                "plan_task_id": _safe_text(link.get("plan_task_id"), limit=64),
+                "title": _safe_text(link.get("title"), limit=300),
+                "status": _safe_text(link.get("status"), limit=32),
+                "functional_validation": link.get("functional_validation"),
+                "publication": link.get("publication"),
+                "publication_blocked": _safe_text(link.get("publication_blocked"), limit=64),
+                "attempts": attempts,
+            })
+        return {
+            "goal": {key: goal.get(key) for key in (
+                "id", "title", "objective", "status", "repository", "executor_kind",
+                "orchestration_mode", "binding_ref", "window_id", "created_at", "updated_at")},
+            "plan": plan,
+            "steps": steps,
+        }
 
     def run_detail(self, task_id: str) -> dict[str, Any]:
         task = self.store.get_task(task_id, event_limit=MAX_DETAIL_EVENTS)

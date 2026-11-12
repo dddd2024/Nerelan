@@ -13,13 +13,12 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useTasks } from "@/hooks/use-tasks";
-import { useAccountPool, usePlatformStatus } from "@/hooks/use-platform";
+import { useAccountPool, useGoals, usePlatformStatus } from "@/hooks/use-platform";
+import type { PlatformGoal } from "@/lib/platform-client";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
 import { taskProjectName } from "@/lib/task-project";
-import { runStateStyle } from "@/lib/format";
 import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
@@ -29,7 +28,6 @@ import {
   sidebarNavLabelClassName,
   sidebarNavRowClassName,
 } from "@/vendor/agent-canvas-v1.6.1/sidebar-layout";
-import type { Task } from "@/types";
 
 interface SidebarProps {
   onNewTask: () => void;
@@ -50,7 +48,31 @@ interface SidebarActionProps {
 }
 
 const COLLAPSE_PREF_KEY = "nerelan.sidebar-collapsed.v1";
-const RECENT_TASK_LIMIT = 12;
+const RECENT_GOAL_LIMIT = 12;
+
+/** The issue a goal resolves (its "#1234" title or issues/1234 link), so retries of it show once. */
+export function goalIssueKey(goal: Pick<PlatformGoal, "id" | "title" | "objective">): string {
+  const fromTitle = /^#(\d+)\b/.exec(goal.title ?? "")?.[1];
+  const fromLink = /\/issues\/(\d+)\b/.exec(goal.objective ?? "")?.[1];
+  const issue = fromTitle ?? fromLink;
+  return issue ? `issue-${issue}` : goal.id;
+}
+
+/** Newest goal per issue, newest first. Older goals of the same issue stay in 所有目标. */
+export function recentGoals(goals: PlatformGoal[], limit = RECENT_GOAL_LIMIT): PlatformGoal[] {
+  const newest: Record<string, PlatformGoal> = {};
+  for (const goal of goals) {
+    const key = goalIssueKey(goal);
+    const kept = newest[key];
+    if (!kept || timestamp(goal.updated_at) > timestamp(kept.updated_at)) newest[key] = goal;
+  }
+  return Object.values(newest).sort((a, b) => timestamp(b.updated_at) - timestamp(a.updated_at)).slice(0, limit);
+}
+
+const GOAL_DOT: Record<string, string> = {
+  RUNNING: "bg-ra-accent", COMPLETED: "bg-ra-status-running", BLOCKED: "bg-ra-status-error",
+  INVALIDATED: "bg-ra-status-error",
+};
 
 function savedCollapsed(): boolean {
   try {
@@ -101,8 +123,8 @@ function projectLabel(repository: string) {
  * amber while the task list and Home painted it red. It reads the shared
  * mapping instead.
  */
-function stateDot(task: Task) {
-  return runStateStyle(task.state).dot;
+function goalDot(goal: PlatformGoal) {
+  return GOAL_DOT[goal.status] ?? "bg-ra-border-strong";
 }
 
 function SidebarAction({
@@ -172,7 +194,7 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState(savedCollapsed);
   const location = useLocation();
   const navigate = useNavigate();
-  const { data: tasks = [], isLoading, isError } = useTasks({ watch: true });
+  const { data: goals = [], isLoading, isError } = useGoals();
   const platformQuery = usePlatformStatus();
   const activeAlerts = useAccountPool().data?.alerts.active ?? [];
   const urgentAlerts = activeAlerts.filter((alert) => alert.severity !== "info").length;
@@ -202,24 +224,18 @@ export function Sidebar({
     return () => window.removeEventListener("keydown", toggle);
   }, []);
 
-  const recentTasks = useMemo(
-    () =>
-      [...tasks]
-        .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt))
-        .slice(0, RECENT_TASK_LIMIT),
-    [tasks],
-  );
+  const recent = useMemo(() => recentGoals(goals), [goals]);
 
   const projects = useMemo(
     () =>
       Array.from(
         new Set(
-          tasks
-            .map((task) => task.repository?.trim() ?? "")
+          goals
+            .map((goal) => goal.repository?.trim() ?? "")
             .filter((repository) => repository.length > 0),
         ),
       ).slice(0, 5),
-    [tasks],
+    [goals],
   );
 
   const selectedRepository = new URLSearchParams(location.search).get("repository");
@@ -344,22 +360,22 @@ export function Sidebar({
         首页
       </Link>
 
-      <section aria-label="最近任务">
-        <SectionLabel testId="sidebar-section-recent">最近任务</SectionLabel>
+      <section aria-label="最近目标">
+        <SectionLabel testId="sidebar-section-recent">最近目标</SectionLabel>
         {isError && (
           <p role="alert" className="px-2.5 py-1 text-[11px] text-ra-text-secondary">
-            最近任务读取失败，请检查服务连接
+            最近目标读取失败，请检查服务连接
           </p>
         )}
         <div className="flex flex-col gap-0.5">
-          {recentTasks.length > 0 ? (
-            recentTasks.map((task) => {
-              const selected = location.pathname === `/tasks/${task.id}`;
+          {recent.length > 0 ? (
+            recent.map((goal) => {
+              const selected = location.pathname === "/" && new URLSearchParams(location.search).get("goal") === goal.id;
               return (
-                <div key={task.id} className="relative min-w-0">
+                <div key={goal.id} className="relative min-w-0">
                 <Link
-                  to={`/tasks/${task.id}`}
-                  data-testid={`sidebar-recent-task-${task.id}`}
+                  to={`/?goal=${encodeURIComponent(goal.id)}`}
+                  data-testid={`sidebar-recent-goal-${goal.id}`}
                   data-selected={String(selected)}
                   className={cn(
                     "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md pl-2.5 pr-24 text-[13px] leading-4",
@@ -368,29 +384,29 @@ export function Sidebar({
                       ? "bg-ra-tertiary text-ra-text"
                       : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                   )}
-                  title={displayTitle(task.title)}
+                  title={displayTitle(goal.title, 160)}
                 >
                   <span
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
-                      stateDot(task),
-                      task.state === "RUNNING" && "ra-pulse",
+                      goalDot(goal),
+                      goal.status === "RUNNING" && "ra-pulse",
                     )}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate">{displayTitle(task.title)}</span>
+                  <span className="min-w-0 flex-1 truncate">{displayTitle(goal.title)}</span>
                 </Link>
                 <span className="pointer-events-none absolute right-2.5 top-1.5 max-w-20 truncate text-[10px] text-ra-text-tertiary"
-                      data-testid={`sidebar-recent-project-${task.id}`}
-                      title={task.repository?.trim() || "未归属"}>
-                  {taskProjectName(task.repository)}
+                      data-testid={`sidebar-recent-project-${goal.id}`}
+                      title={goal.repository?.trim() || "未归属"}>
+                  {taskProjectName(goal.repository)}
                 </span>
                 </div>
               );
             })
           ) : !isError ? (
             <p role="status" className="px-2.5 py-1 text-[11px] text-ra-text-tertiary">
-              {isLoading ? "正在加载最近任务…" : "暂无最近任务"}
+              {isLoading ? "正在加载最近目标…" : "暂无最近目标"}
             </p>
           ) : null}
         </div>

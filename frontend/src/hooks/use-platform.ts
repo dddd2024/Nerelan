@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchGoal,
+  fetchGoalTimeline,
   fetchGoals,
   fetchPlatformStatus,
   fetchAccountPool,
@@ -9,6 +10,7 @@ import {
   preflightOwnerWindow,
   type QuickStartDraftInput,
   type OwnerWindowPreflightRequest,
+  type PlatformGoalTimeline,
 } from "@/lib/platform-client";
 import {
   startGoal,
@@ -70,6 +72,25 @@ export function useGoal(goalId: string | undefined) {
     refetchInterval: (query) => {
       const status = (query.state.data as { status?: string } | undefined)?.status;
       return status === "RUNNING" ? 2_500 : false;
+    },
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+  });
+}
+
+const LIVE_ATTEMPT = new Set(["RUNNING", "RUNNING_FIXTURE", "VALIDATING", "PREPARING_WORKSPACE", "QUEUED"]);
+
+/** The goal timeline; polled only while an attempt can still change. */
+export function useGoalTimeline(goalId: string | undefined) {
+  return useQuery({
+    queryKey: ["goals", goalId, "timeline"],
+    queryFn: () => fetchGoalTimeline(goalId ?? ""),
+    enabled: Boolean(goalId),
+    staleTime: 1_500,
+    refetchInterval: (query) => {
+      const data = query.state.data as PlatformGoalTimeline | undefined;
+      const live = data?.steps.some((step) => step.attempts.some((attempt) => LIVE_ATTEMPT.has(attempt.status)));
+      return live || data?.goal.status === "RUNNING" ? 3_000 : false;
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
