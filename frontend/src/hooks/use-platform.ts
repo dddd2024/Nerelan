@@ -3,6 +3,7 @@ import {
   fetchGoal,
   fetchGoals,
   fetchPlatformStatus,
+  fetchDoctorReport,
   fetchAccountPool,
   fetchApprovedPolicyIfConfigured,
   draftQuickStart,
@@ -15,6 +16,20 @@ import {
   createGoalDraft,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
+
+export function useDoctorReport(enabled = true) {
+  return useQuery({
+    queryKey: ["platform", "doctor"],
+    queryFn: fetchDoctorReport,
+    enabled,
+    staleTime: Infinity,
+    retry: false,
+    refetchInterval: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+}
 
 export function useApprovedPolicy() {
   return useQuery({

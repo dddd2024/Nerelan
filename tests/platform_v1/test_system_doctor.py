@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
+import pytest
 from http.server import ThreadingHTTPServer
 
 from reverse_agent.platform_v1.run_store import TaskStore
@@ -142,6 +143,49 @@ def test_doctor_does_not_probe_unowned_store_capabilities() -> None:
     ).run()
 
     assert report["state"] == UNKNOWN
+
+
+@pytest.mark.parametrize("operational, expected", [
+    ([True, False, False], READY),
+    ([False, True, False], READY),
+    ([False, False, False], BLOCKED),
+    ([], BLOCKED),
+])
+def test_executor_readiness_needs_only_one_usable_tool(operational, expected) -> None:
+    report = SystemDoctor(
+        store=TaskStore(":memory:"), runtime_status_provider=_runtime_status,
+        executor_status_provider=lambda: [
+            {"executor_id": name, "operational": ready}
+            for name, ready in zip(("opencode", "codex", "claude_code"), operational)
+        ],
+    ).run()
+    assert _by_id(report)["executor_readiness"]["state"] == expected
+    assert report["state"] == (UNKNOWN if expected == READY else BLOCKED)
+    tools = [check for check in report["checks"] if check["component"] == "executor_tool"]
+    assert len(tools) == len(operational)
+    assert all(not check["required"] for check in tools)
+    assert [check["state"] == READY for check in tools] == operational
+
+
+def test_executor_status_failure_is_unknown_and_does_not_leak_exception() -> None:
+    def broken():
+        raise RuntimeError("SECRET_EXECUTOR_SENTINEL")
+
+    report = SystemDoctor(
+        store=TaskStore(":memory:"), runtime_status_provider=_runtime_status,
+        executor_status_provider=broken,
+    ).run()
+    assert _by_id(report)["executor_readiness"]["state"] == UNKNOWN
+    assert "SECRET_EXECUTOR_SENTINEL" not in json.dumps(report)
+
+
+def test_handler_wires_cached_executor_status_without_a_server() -> None:
+    provider = lambda: [{"executor_id": "codex", "operational": True}]
+    handler = _handler_factory(
+        TaskStore(":memory:"), ExecutorRouter(), allowed_origin="http://localhost:5173",
+        executor_status_provider=provider,
+    )
+    assert handler.executor_status_provider() == provider()
 
 
 def _request(base_url: str, *, origin: str) -> tuple[int, dict]:
