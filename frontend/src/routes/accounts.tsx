@@ -59,6 +59,7 @@ function AlertRow({ alert }: { alert: PoolAlert }) {
     <li
       data-testid={`pool-alert-${alert.code}`}
       data-severity={alert.severity}
+      title={alert.code}
       className="flex items-start gap-2.5 px-3.5 py-2.5 text-sm"
     >
       <Icon
@@ -71,7 +72,6 @@ function AlertRow({ alert }: { alert: PoolAlert }) {
         )}
       />
       <span className="min-w-0 flex-1 text-ra-text">{alert.detail}</span>
-      <span className="shrink-0 text-[11px] text-ra-text-tertiary">{alert.code}</span>
     </li>
   );
 }
@@ -98,7 +98,11 @@ function feedbackLabel(account: PoolAccount) {
   return `${Math.round((score.successes / score.attempts) * 100)}% 成功 · ${score.attempts} 次${latency}`;
 }
 
-function AccountRow({ account, now }: { account: PoolAccount; now: number }) {
+function hasFeedback(account: PoolAccount) {
+  return Boolean(account.score && account.score.attempts > 0);
+}
+
+function AccountRow({ account, now, feedback }: { account: PoolAccount; now: number; feedback: boolean }) {
   const health = HEALTH[account.health];
   return (
     <tr data-testid={`pool-account-${account.provider ?? account.account_ref}`} className="border-t border-ra-border">
@@ -124,7 +128,7 @@ function AccountRow({ account, now }: { account: PoolAccount; now: number }) {
             配速 {signedPercent(account.weekly_pace.deviation)}
             {account.weekly_pace.draining
               ? "，已宣布重置，放开使用至 3%"
-              : account.weekly_pace.held_until ? `，暂停派发，预计${untilLabel(account.weekly_pace.held_until, now)}恢复` : ""}
+              : account.weekly_pace.held_until ? `，暂停派发，预计${untilLabel(account.weekly_pace.held_until, now)}恢复派发` : ""}
           </span>
         ) : null}
         {account.reset_cards && account.reset_cards.count > 0 ? (
@@ -142,8 +146,15 @@ function AccountRow({ account, now }: { account: PoolAccount; now: number }) {
         ) : null}
       </td>
       <td className="px-3.5 py-2.5 text-ra-text-secondary"><Headroom value={account.headroom_pct} /></td>
-      <td className="px-3.5 py-2.5 text-ra-text-secondary">{untilLabel(account.next_reset_at, now)}</td>
-      <td className="px-3.5 py-2.5 text-ra-text-secondary">{feedbackLabel(account)}</td>
+      <td className="px-3.5 py-2.5 text-ra-text-secondary">
+        {untilLabel(account.next_reset_at, now)}
+        {account.weekly_pace?.held_until && account.next_reset_at && account.next_reset_at < account.weekly_pace.held_until ? (
+          <span data-testid={`pool-reset-note-${account.provider ?? account.account_ref}`} className="block text-xs text-ra-text-tertiary">
+            短周期额度先重置，但要等本周配速回落才恢复派发
+          </span>
+        ) : null}
+      </td>
+      {feedback ? <td className="px-3.5 py-2.5 text-ra-text-secondary">{feedbackLabel(account)}</td> : null}
     </tr>
   );
 }
@@ -200,6 +211,8 @@ export function AccountsPage() {
   const query = useAccountPool();
   const pool = query.data;
   const now = Date.now();
+  // Run feedback appears once routing has recorded attempts; an always-empty column says nothing.
+  const feedback = Boolean(pool?.accounts.some(hasFeedback));
 
   return (
     <main data-testid="accounts-page" className="h-full overflow-auto bg-ra-workspace px-4 py-5 lg:px-7 lg:py-7">
@@ -279,17 +292,17 @@ export function AccountsPage() {
                     <th scope="col" className="px-3.5 py-2 font-normal">服务</th>
                     <th scope="col" className="px-3.5 py-2 font-normal">状态</th>
                     <th scope="col" className="px-3.5 py-2 font-normal">余量</th>
-                    <th scope="col" className="px-3.5 py-2 font-normal">下次重置</th>
-                    <th scope="col" className="px-3.5 py-2 font-normal">运行反馈</th>
+                    <th scope="col" className="px-3.5 py-2 font-normal">下次额度重置</th>
+                    {feedback ? <th scope="col" className="px-3.5 py-2 font-normal">运行反馈</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {pool.accounts.map((account) => (
-                    <AccountRow key={account.account_ref} account={account} now={now} />
+                    <AccountRow key={account.account_ref} account={account} now={now} feedback={feedback} />
                   ))}
                   {pool.accounts.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="border-t border-ra-border px-3.5 py-6 text-center text-sm text-ra-text-tertiary">
+                      <td colSpan={feedback ? 5 : 4} className="border-t border-ra-border px-3.5 py-6 text-center text-sm text-ra-text-tertiary">
                         还没有账户。请在设置中接入 Magpie 或添加连接。
                       </td>
                     </tr>

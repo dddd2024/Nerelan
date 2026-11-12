@@ -67,7 +67,7 @@ describe("Accounts page", () => {
       account({ account_ref: "claude:1", provider: "claude",
                 weekly_pace: { used: 0.69, deviation: -0.29, line: 0.87, held_until: null, resets_at: now + 86400 } }),
     ] }));
-    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +20%，暂停派发，预计2 小时后恢复");
+    expect(await screen.findByTestId("pool-pace-codex")).toHaveTextContent("配速 +20%，暂停派发，预计2 小时后恢复派发");
     expect(screen.getByTestId("pool-pace-claude")).toHaveTextContent("配速 −29%");
     expect(screen.getByTestId("pool-pace-claude")).not.toHaveTextContent("暂停");
     expect(screen.getByTestId("pool-cards-codex")).toHaveTextContent("重置卡 2 张，最早 3 天后过期");
@@ -81,6 +81,27 @@ describe("Accounts page", () => {
     ] }));
     expect(within(await screen.findByTestId("pool-account-codex")).getByText("75% 成功 · 4 次 · 2.0 秒")).toBeInTheDocument();
     expect(within(screen.getByTestId("pool-account-claude")).getByText("暂无反馈")).toBeInTheDocument();
+  });
+
+  it("drops the feedback column while no account has feedback, and explains a pace hold past a reset", async () => {
+    const now = Date.now() / 1000;
+    mount(pool({ accounts: [
+      account({ next_reset_at: now + 3 * 3600,
+                weekly_pace: { used: 0.9, deviation: 0.3, line: 0.58, held_until: now + 2 * 86400, resets_at: now + 3 * 86400 } }),
+    ] }));
+    expect(await screen.findByTestId("pool-account-codex")).toBeInTheDocument();
+    expect(screen.queryByText("运行反馈")).not.toBeInTheDocument();
+    expect(screen.getByTestId("pool-reset-note-codex")).toHaveTextContent("要等本周配速回落才恢复派发");
+  });
+
+  it("keeps alert codes out of the sentence", async () => {
+    mount(pool({ alerts: { active: [
+      { code: "goals_stranded", severity: "warning", subject: "goals", detail: "2 个目标还有未完成的任务", since: 1 },
+    ], recent: [] } }));
+    const row = await screen.findByTestId("pool-alert-goals_stranded");
+    expect(row).toHaveTextContent("2 个目标还有未完成的任务");
+    expect(row).not.toHaveTextContent("goals_stranded");
+    expect(row).toHaveAttribute("title", "goals_stranded");
   });
 
   it("lists active alerts with their severity", async () => {
