@@ -6,15 +6,15 @@ const GOAL_TITLE = "Playwright provider-free critical journey";
 // intentionally has one bounded Task, matching the actual Goal planner.
 const QUEUED_TASK_ID = "task-demo-queued";
 
-async function navigateFromShell(page: Page, destination: "首页" | "设置") {
+async function navigateFromShell(page: Page, destination: "首页" | "设置" | "Agent 运行") {
   const mobile = await page.evaluate(() => window.innerWidth <= 500);
   if (mobile) {
     await page.getByTestId("mobile-menu-button").click();
     const link = page.getByTestId(`mobile-nav-${destination}`);
     await expect(link).toBeVisible();
     await link.click();
-  } else if (destination === "设置") {
-    await page.getByTestId("sidebar-nav-设置").click();
+  } else if (destination === "设置" || destination === "Agent 运行") {
+    await page.getByTestId(`sidebar-nav-${destination}`).click();
   } else {
     await page.getByTestId("sidebar-logo").click();
   }
@@ -71,8 +71,8 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(primary.getByTestId(`run-validation-${PRIMARY_TASK_ID}`)).toBeVisible();
 
   // The timeline link lists this goal's runs; the queued run belongs to another goal.
-  await open(appPage, "/runs");
-  await settle(appPage);
+  // Navigate in-app: a reload would reset the mock store and lose the new Goal.
+  await navigateFromShell(appPage, "Agent 运行");
   const queued = appPage.getByTestId(`run-${QUEUED_TASK_ID}`);
   await expect(queued).toBeVisible();
   await queued.getByTestId(`run-toggle-${QUEUED_TASK_ID}`).click();
