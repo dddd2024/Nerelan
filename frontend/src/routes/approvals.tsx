@@ -13,6 +13,8 @@ import {
 } from "@/hooks/use-goal-continuation";
 import { useGoal, useGoals } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
+import { PlanSteps } from "@/components/plan-steps";
+import { bindingLabel, executionModeLabel } from "@/lib/goal-labels";
 import type { GoalStatus, PlatformGoal } from "@/lib/platform-client";
 
 const PENDING_STATUSES = new Set<GoalStatus>(["DRAFT", "PLANNED", "APPROVED"]);
@@ -68,6 +70,7 @@ function GoalDetail({
   const [autonomyHours, setAutonomyHours] = useState(2);
   const [editing, setEditing] = useState(false);
   const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
+  const [configurationIssue, setConfigurationIssue] = useState("");
   const [launchConfirmed, setLaunchConfirmed] = useState(false);
   useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
   const canPlan = goal.status === "DRAFT";
@@ -85,7 +88,7 @@ function GoalDetail({
             Goal
           </p>
           <h2 className="mt-1 text-xl font-semibold text-ra-text">{goal.title}</h2>
-          <p className="ra-measure mt-2 text-sm leading-6 text-ra-text-secondary">
+          <p className="ra-measure mt-2 whitespace-pre-line text-sm leading-6 text-ra-text-secondary">
             {goal.objective}
           </p>
         </div>
@@ -105,20 +108,20 @@ function GoalDetail({
         </div>
         <div>
           <dt className="text-xs text-ra-text-tertiary">执行模式</dt>
-          <dd className="mt-1 text-ra-text-secondary">{goal.executor_kind}</dd>
+          <dd className="mt-1 text-ra-text-secondary" title={`${goal.executor_kind} · ${goal.orchestration_mode}`}>{executionModeLabel(goal)}</dd>
         </div>
         <div>
           <dt className="text-xs text-ra-text-tertiary">模型绑定</dt>
-          <dd className="mt-1 break-all text-ra-text-secondary">
-            {goal.binding_ref || "未绑定（当前持久化值为空）"}
+          <dd className="mt-1 break-all text-ra-text-secondary" title={goal.binding_ref || undefined}>
+            {bindingLabel(goal)}
           </dd>
         </div>
       </dl>
 
       <GoalReviewEditor goal={goal} busy={pending} onEditingChange={setEditing}
-        onConfigurationReady={setConfigurationReady} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
+        onConfigurationReady={(ready, issue) => { setConfigurationReady(ready); setConfigurationIssue(issue ?? ""); }} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
       {!configurationReady && (canPlan || canApprove || canLaunch) && <p className="mt-3 text-sm text-ra-text-secondary">
-        当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。
+        {configurationIssue || "当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。"}
       </p>}
 
       {goal.status !== "DRAFT" && (
@@ -126,12 +129,7 @@ function GoalDetail({
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-ra-text-tertiary">
             当前计划
           </p>
-          <pre
-            data-testid="approval-plan"
-            className="ra-measure mt-2 whitespace-pre-wrap rounded-xl border border-ra-border bg-ra-light/30 p-4 font-sans text-sm leading-6 text-ra-text-secondary"
-          >
-            {goal.plan_markdown || "当前 Goal 没有可显示的计划内容。"}
-          </pre>
+          <PlanSteps goal={goal} />
         </div>
       )}
 

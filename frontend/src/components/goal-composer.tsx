@@ -174,10 +174,10 @@ export function GoalComposer({
     : draft.teamMode
       ? "自动选择执行方式和模型"
       : `${{
-          opencode: "OpenCode 多 Agent",
+          opencode: "OpenCode：规划 → 编码 → 审查",
           claude_code: "Claude Code 单任务（Claude 账号）",
           codex: "Codex 单任务（ChatGPT 账号）",
-          deterministic_fixture: "无模型验证",
+          deterministic_fixture: "无模型演练（只验证平台流程）",
         }[draft.executorKind]}${draft.executorKind !== "deterministic_fixture"
           ? ` · 模型绑定：${draft.bindingRef || "未选择"}` : ""}`;
   const needsBinding = draft.executorKind !== "deterministic_fixture" && !checkerOnly && !draft.teamMode;
@@ -341,11 +341,11 @@ export function GoalComposer({
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
-                  <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode 多 Agent"}</option>
-                  {!checkerOnly && <option value="agent_team">多 Agent 分工（按 Agent 团队派发）</option>}
+                  {!checkerOnly && <option value="agent_team">自动（按任务选择 Agent 和模型）</option>}
+                  <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode：规划 → 编码 → 审查"}</option>
                   {!checkerOnly && <option value="claude_code">Claude Code 单任务（Claude 账号）</option>}
                   {!checkerOnly && <option value="codex">Codex 单任务（ChatGPT 账号）</option>}
-                  <option value="deterministic_fixture">无模型验证</option>
+                  <option value="deterministic_fixture">无模型演练（只验证平台流程）</option>
                 </select>
               </label>
               {needsBinding && (

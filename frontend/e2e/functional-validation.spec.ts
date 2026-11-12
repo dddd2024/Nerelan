@@ -34,13 +34,14 @@ test("reviews selected functional checks before explicit approval in the mock UI
   await expect(appPage.getByRole("button", { name: "保存计划修改" })).toBeDisabled();
   await directory.fill(".");
   await appPage.getByRole("button", { name: "保存计划修改" }).click();
-  await expect(appPage.getByTestId("approval-plan")).toContainText("功能检查：python_pytest · .");
+  await expect(appPage.getByTestId("approval-plan")).toContainText("功能检查：python_pytest（在 .）");
   await expect(appPage.getByTestId("approval-launch-button")).toHaveCount(0);
   await appPage.getByRole("button", { name: "编辑当前计划" }).click();
   await expect(directory).toHaveValue(".");
   await appPage.getByRole("button", { name: "移除任务 T001 检查 1" }).click();
   await appPage.getByRole("button", { name: "保存计划修改" }).click();
-  await expect(appPage.getByTestId("approval-plan")).not.toContainText("功能检查：");
+  await expect(appPage.getByTestId("plan-step-T001")).toContainText("没有选择功能检查");
+  await expect(appPage.getByTestId("plan-step-T001")).not.toContainText("功能检查：python_pytest");
   await appPage.getByTestId("approval-approve-button").click();
   await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
   await expect(appPage.getByRole("button", { name: "编辑当前计划" })).toHaveCount(0);

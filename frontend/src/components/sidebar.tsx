@@ -17,6 +17,7 @@ import { useAccountPool, useGoals, usePlatformStatus } from "@/hooks/use-platfor
 import type { PlatformGoal } from "@/lib/platform-client";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
+import { isCredentialError } from "@/lib/http-errors";
 import { displayTitle } from "@/lib/display-title";
 import { taskProjectName } from "@/lib/task-project";
 import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
@@ -99,7 +100,10 @@ const PRIMARY_ROUTES = [
 ] as const;
 
 /** One label for the host state; an error never reads as a healthy green dot. */
-function hostStatus(coordinator: { enabled: boolean; last_error: string } | undefined, failed: boolean) {
+function hostStatus(coordinator: { enabled: boolean; last_error: string } | undefined, failed: boolean, error?: unknown) {
+  if (failed && isCredentialError((error as { status?: number } | null)?.status)) {
+    return { tone: "error", label: "请在启动器窗口中使用" } as const;
+  }
   if (failed) return { tone: "error", label: coordinator ? "状态待刷新" : "服务未连接" } as const;
   if (coordinator?.last_error) return { tone: "warning", label: "协调器需要处理" } as const;
   return coordinator?.enabled
@@ -199,7 +203,7 @@ export function Sidebar({
   const activeAlerts = useAccountPool().data?.alerts.active ?? [];
   const urgentAlerts = activeAlerts.filter((alert) => alert.severity !== "info").length;
   const criticalAlert = activeAlerts.some((alert) => alert.severity === "critical");
-  const host = hostStatus(platformQuery.data?.coordinator, platformQuery.isError);
+  const host = hostStatus(platformQuery.data?.coordinator, platformQuery.isError, platformQuery.error);
   const instance = platformQuery.data?.instance;
   const instanceLabel = instance
     ? `${instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · ${instance.id}`

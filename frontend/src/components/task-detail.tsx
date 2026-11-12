@@ -216,7 +216,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   if (isError || !displayTask) {
     return (
       <main data-testid="task-detail">
-        <ErrorState title="未找到任务" error={error} />
+        <ErrorState title={error instanceof Error && !error.message.startsWith("未找到") ? "读取任务失败" : "未找到任务"} error={error} />
         <div className="px-4">
           <Link
             to="/tasks"

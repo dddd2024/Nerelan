@@ -135,7 +135,7 @@ it.each(["pending", "error", "empty", "disabled"])("blocks unavailable %s metada
   await user.click(screen.getByRole("button", { name: "编辑目标配置" }));
   expect(screen.getByLabelText("目标模型绑定")).toHaveValue("coding-selected");
   expect(screen.getByRole("button", { name: "保存目标配置" })).toBeDisabled();
-  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false);
+  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false, expect.stringMatching(/\S/));
   if (state === "error") {
     expect(screen.getByRole("alert")).toHaveTextContent("模型绑定读取失败");
     expect(screen.queryByText(/暂无可用的 OpenCode/)).not.toBeInTheDocument();
@@ -248,7 +248,7 @@ it("treats an unpinned Agent team goal as configured", () => {
   const current = props({ ...fixture, executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "",
     repository: "owner/selected" });
   render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
-  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(true);
+  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(true, "");
 });
 
 it("still requires a known binding for a single-mode goal and for a pinned team", () => {
@@ -258,7 +258,7 @@ it("still requires a known binding for a single-mode goal and for a pinned team"
   ] as PlatformGoal[]) {
     const current = props(goal);
     const view = render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
-    expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false);
+    expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false, expect.stringMatching(/\S/));
     view.unmount();
   }
 });

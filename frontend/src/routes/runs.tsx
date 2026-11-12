@@ -121,7 +121,10 @@ function formatUnits(value: number) {
 }
 
 function formatCost(microUnits: number) {
-  return `$${(microUnits / 1_000_000).toFixed(4)}`;
+  // Subscription and free models report no price: "$0", not a four-decimal bill.
+  if (!microUnits) return "$0";
+  const dollars = microUnits / 1_000_000;
+  return `$${dollars < 0.01 ? dollars.toFixed(4) : dollars.toFixed(2)}`;
 }
 
 /**
@@ -233,7 +236,7 @@ function ActivityRow({ event }: { event: PlatformRunActivityEvent }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <p className="min-w-0 text-sm font-medium text-ra-text">{event.title || activityCategoryLabel(event.category)}</p>
-          <span className="shrink-0 text-[11px] text-ra-text-tertiary">{relativeTime(event.timestamp)}</span>
+          <span className="shrink-0 text-xs text-ra-text-tertiary">{relativeTime(event.timestamp)}</span>
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ra-text-secondary">
           <span className="rounded-full bg-ra-light px-2 py-0.5">{activityCategoryLabel(event.category)}</span>
@@ -635,13 +638,13 @@ function RunDetailContent({ run }: { run: PlatformAgentRunDetail }) {
       </section>
 
       <section aria-labelledby={`run-activity-heading-${run.task_id}`} data-testid={`run-activity-section-${run.task_id}`}>
-        <div className="flex items-center justify-between gap-3"><h3 id={`run-activity-heading-${run.task_id}`} className="text-xs font-semibold text-ra-text-tertiary">执行活动</h3><span className="text-[11px] text-ra-text-tertiary">{activityTotal > events.length ? `最近 ${events.length} / 共 ${activityTotal} 条` : `${events.length} 条结构化活动`}</span></div>
+        <div className="flex items-center justify-between gap-3"><h3 id={`run-activity-heading-${run.task_id}`} className="text-xs font-semibold text-ra-text-tertiary">执行活动</h3><span className="text-xs text-ra-text-tertiary">{activityTotal > events.length ? `最近 ${events.length} / 共 ${activityTotal} 条` : `${events.length} 条结构化活动`}</span></div>
         {activityTotal > events.length ? <p className="ra-measure mt-2 text-xs text-ra-text-tertiary">为保持详情清晰，仅显示最近 {events.length} 条结构化活动。</p> : null}
         {events.length > 0 ? <ol className="mt-2" aria-label="运行活动时间线">{events.map((event) => <ActivityRow key={event.id} event={event} />)}</ol> : <p data-testid={`run-activity-empty-${run.task_id}`} className="mt-3 rounded-xl border border-dashed border-ra-border py-6 text-center text-xs text-ra-text-tertiary">暂无结构化活动。</p>}
       </section>
 
       <section aria-labelledby={`run-files-heading-${run.task_id}`} data-testid={`run-files-section-${run.task_id}`}>
-        <div className="flex items-center justify-between gap-3"><h3 id={`run-files-heading-${run.task_id}`} className="text-xs font-semibold text-ra-text-tertiary">变更文件</h3><span className="text-[11px] text-ra-text-tertiary">{fileCount} 个文件 · +{additions} -{deletions}</span></div>
+        <div className="flex items-center justify-between gap-3"><h3 id={`run-files-heading-${run.task_id}`} className="text-xs font-semibold text-ra-text-tertiary">变更文件</h3><span className="text-xs text-ra-text-tertiary">{fileCount} 个文件 · +{additions} -{deletions}</span></div>
         {changedFiles.length > 0 ? <ul className="mt-2 divide-y divide-ra-border/60 rounded-xl border border-ra-border" data-testid={`run-files-${run.task_id}`}>{changedFiles.map((file) => <li key={file.path} className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs"><FileCode2 className="h-3.5 w-3.5 shrink-0 text-ra-text-tertiary" aria-hidden="true" /><span className="min-w-0 flex-1 truncate font-mono text-ra-text-secondary" title={file.path}>{file.path}</span><span className="text-ra-status-success">+{file.additions}</span><span className="text-ra-status-error">-{file.deletions}</span></li>)}</ul> : <p data-testid={`run-files-empty-${run.task_id}`} className="mt-3 rounded-xl border border-dashed border-ra-border py-6 text-center text-xs text-ra-text-tertiary">暂无文件变更。</p>}
       </section>
     </div>
@@ -660,7 +663,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
       <button type="button" id={`run-toggle-${run.task_id}`} data-testid={`run-toggle-${run.task_id}`} aria-expanded={open} aria-controls={`run-detail-${run.task_id}`} aria-label={runToggleAriaLabel(run)} onClick={() => setOpen((value) => !value)} className="w-full rounded-lg px-1 py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">{open ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />}<div className="min-w-0"><p className="min-w-0 break-words text-sm font-medium text-ra-text" data-testid={`run-heading-${run.task_id}`}>{runHeading(run)}</p>{runHasNonemptyTitle(run) && runTaskId(run) ? <p className="mt-1 min-w-0 break-all font-mono text-xs text-ra-text-tertiary" data-testid={`run-task-id-${run.task_id}`}>ID {runTaskId(run)}</p> : null}<p className="mt-1 text-xs text-ra-text-tertiary">{run.repository} · {run.executor_kind} · {relativeTime(run.updated_at)}</p></div></div>
-          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", toneBadge(runStateTone(run.state), true))} title={runtimeTitle(run.state)}>{runStateStyle(run.state).label}</span>
+          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", toneBadge(runStateTone(run.state), true))} title={runtimeTitle(run.state)}>{runStateStyle(run.state).label}</span>
         </div>
       </button>
 
@@ -727,7 +730,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
             {usage.show_totals ? (
               <>
                 <span>
-                  Tokens {formatUnits(usage.total_token_units)}
+                  用量 {formatUnits(usage.total_token_units)} tokens
                   {usage.kind === "partial"
                     ? "（部分）"
                     : usage.kind === "observed-zero"
@@ -735,7 +738,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
                       : ""}
                 </span>
                 <span>
-                  Cost {formatCost(usage.cost_micro_units)}
+                  费用 {formatCost(usage.cost_micro_units)}
                   {usage.kind === "partial"
                     ? "（部分）"
                     : usage.kind === "observed-zero"
@@ -773,7 +776,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
         {run.budget?.enforcement_class === "HARD_ADMISSION_ENFORCED" &&
         run.budget.max_token_units !== null ? (
           <div className="mt-3" data-testid={`run-budget-${run.task_id}`}>
-            <div className="mb-1 flex justify-between text-[11px] text-ra-text-tertiary">
+            <div className="mb-1 flex justify-between text-xs text-ra-text-tertiary">
               <span>已观测 + 已预留</span>
               <span>
                 {formatUnits(

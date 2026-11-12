@@ -1,3 +1,4 @@
+import { httpErrorMessage } from "@/lib/http-errors";
 export interface Repository {
   full_name: string;
   html_url: string;
@@ -39,20 +40,16 @@ export async function fetchRepositories(): Promise<Repository[]> {
     const payload = await _json<Record<string, unknown>>(response).catch(
       () => ({}),
     );
-    throw new Error(
-      `GitHub 适配器暂不可用：${(payload as { error?: string }).error ?? "服务未就绪"}`,
-    );
+    throw new Error(httpErrorMessage(503, (payload as { error?: string }).error ?? "github_adapter_unavailable"));
   }
   if (response.status === 500) {
     const payload = await _json<Record<string, unknown>>(response).catch(
       () => ({}),
     );
-    throw new Error(
-      `读取仓库失败：${(payload as { error?: string }).error ?? "服务返回错误"}`,
-    );
+    throw new Error(httpErrorMessage(500, (payload as { error?: string }).error ?? "repository_discovery_failed"));
   }
   if (!response.ok) {
-    throw new Error(`读取仓库列表失败（HTTP ${response.status}）。`);
+    throw new Error(httpErrorMessage(response.status));
   }
   const payload = (await _json<{
     repositories: Array<Record<string, unknown>>;
