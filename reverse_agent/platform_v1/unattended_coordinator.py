@@ -34,6 +34,8 @@ TaskExecutor = Callable[[str], Any]
 # Upper bound on any idle wait: a new goal, claim or receipt must never wait
 # longer than this for the next poll, even if a quota window resets in hours.
 IDLE_WAIT_CAP_SECONDS = 60.0
+# An unchanged stuck goal is re-examined at most this often by the reconcile sweep (#1473).
+SWEEP_REPEAT_SECONDS = 900.0
 # Only delegate a long idle wait to Magpie's own `quota wait`; below this it is
 # cheaper to just poll. The upper bound keeps one delegated wait from outliving
 # a stop request by more than a minute (cancellation polls every 0.2 s).
@@ -226,20 +228,37 @@ class UnattendedCoordinator:
             window = self.control_store.active_window()
             if window is None:
                 return
-            rows = self.control_store._conn.execute(
-                "SELECT DISTINCT g.id FROM platform_goals g "
-                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
-                "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
-                (window.id,)).fetchall()
+            with self.control_store._lock:
+                rows = self.control_store._conn.execute(
+                    "SELECT g.id AS goal_id, t.id AS task_id, t.updated_at FROM platform_goals g "
+                    "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                    "JOIN tasks t ON t.id = l.task_id "
+                    "WHERE g.window_id = ? AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
+                    (window.id,)).fetchall()
         except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
             self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
             return
+        # A goal is re-examined at once when one of its stuck tasks is new or changed, and
+        # otherwise only every SWEEP_REPEAT_SECONDS (backoffs expire; an unroutable task
+        # would else log a selection failure every minute).
+        seen = getattr(self, "_swept", None)
+        if seen is None:
+            seen = self._swept = {}
+        now = time.monotonic()
+        due: dict[str, list[tuple[str, str]]] = {}
         for row in rows:
+            due.setdefault(row["goal_id"], []).append((row["task_id"], row["updated_at"]))
+        for goal_id, tasks in due.items():
+            last = seen.get(goal_id)
+            if last is not None and last[0] == tasks and now - last[1] < SWEEP_REPEAT_SECONDS:
+                continue
+            seen[goal_id] = (tasks, now)
             try:
-                self.goal_escalator(row["id"])
+                self.goal_escalator(goal_id)
             except Exception as exc:  # noqa: BLE001 - one goal must not stop the others
                 self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
+        for goal_id in set(seen) - set(due):
+            seen.pop(goal_id, None)
 
     def tick(self, *, background: bool = False) -> int:
         # External synchronous ticks must not race the live poller: they are

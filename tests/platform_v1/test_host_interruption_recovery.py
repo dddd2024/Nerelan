@@ -186,3 +186,26 @@ def test_reconcile_sweeps_window_goals_with_failed_or_blocked_tasks(case):
     seen.clear()
     coordinator._sweep_escalations()
     assert seen == []
+
+
+def test_an_unchanged_stuck_goal_is_swept_at_most_every_repeat_interval(case, monkeypatch):
+    from reverse_agent.platform_v1 import unattended_coordinator as uc
+    store, control, goal, task = case[2], case[3], case[5], case[-1]
+    store._conn.execute("UPDATE tasks SET status='FAILED', updated_at='2026-11-12T00:00:00Z' WHERE id=?", (task.id,))
+    store._conn.commit()
+    clock = [1000.0]
+    monkeypatch.setattr(uc.time, "monotonic", lambda: clock[0])
+    seen = []
+    coordinator = uc.UnattendedCoordinator.__new__(uc.UnattendedCoordinator)
+    coordinator.control_store, coordinator._last_error, coordinator.goal_escalator = control, "", seen.append
+    coordinator._sweep_escalations()
+    clock[0] += 60
+    coordinator._sweep_escalations()
+    assert seen == [goal.id]  # unchanged: not again after a minute
+    store._conn.execute("UPDATE tasks SET updated_at='2026-11-12T00:05:00Z' WHERE id=?", (task.id,))
+    store._conn.commit()
+    coordinator._sweep_escalations()
+    assert seen == [goal.id, goal.id]  # changed: at once
+    clock[0] += uc.SWEEP_REPEAT_SECONDS
+    coordinator._sweep_escalations()
+    assert seen == [goal.id, goal.id, goal.id]  # unchanged but due again

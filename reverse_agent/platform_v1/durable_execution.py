@@ -561,12 +561,14 @@ class _HeartbeatContext:
         last_wall, last_mono = time.time(), time.monotonic()
         while not self._stop_event.is_set():
             attempt_at = time.monotonic()
-            if attempt_at >= renewal_deadline:
+            # The monotonic clock stops while the machine sleeps on some platforms; the wall
+            # clock and the persisted expiry do not. A gap between them means this holder
+            # slept (#1321). Where monotonic time counts sleep, the deadline below would
+            # trip first, so a detected sleep skips it and asks the store instead.
+            slept = (time.time() - last_wall) - (attempt_at - last_mono) >= SUSPEND_GAP_SECONDS
+            if attempt_at >= renewal_deadline and not slept:
                 self.stop_reason = "lease_expired"
                 break
-            # The monotonic clock stops while the machine sleeps; the wall clock and the
-            # persisted expiry do not. A gap between them means this holder slept (#1321).
-            slept = (time.time() - last_wall) - (attempt_at - last_mono) >= SUSPEND_GAP_SECONDS
             try:
                 self.store._heartbeat_durable_lease(
                     self.run_id, self.owner, self.epoch, self.expiry_ms,
