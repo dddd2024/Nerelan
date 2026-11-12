@@ -223,7 +223,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                     reason = "review_transport_unsupported"
         endpoints = metadata.get("native_endpoints", ())
         responses_only = endpoints and all(endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in endpoints)
-        if reason:
+        if candidate.get("executor_available") is False:
+            reason = "executor_unavailable"
+        elif reason:
             pass
         elif (not candidate.get("enabled", True) or not candidate.get("runnable", True)
                 or role == "planner" and candidate["executor_id"] not in {"codex", "claude_code"}
@@ -279,7 +281,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "refusal_retry_tier"
         if reason:
             exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
-            if reason == "account_quarantined":
+            if reason == "executor_unavailable":
+                exclusion["executor_id"] = candidate["executor_id"]  # name the missing CLI
+            elif reason == "account_quarantined":
                 exclusion["retry_at"] = quota.get("retry_at")
             elif reason == "weekly_pace":
                 exclusion["retry_at"] = pace_hold

@@ -368,6 +368,7 @@ class ExecutorDescriptor:
     operational: bool
     capabilities: tuple[str, ...]
     readiness_status: str = ""
+    cli_available: bool | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         result = {
@@ -378,6 +379,8 @@ class ExecutorDescriptor:
         }
         if self.readiness_status:
             result["readiness_status"] = self.readiness_status
+        if self.cli_available is not None:
+            result["cli_available"] = self.cli_available
         return result
 
 
