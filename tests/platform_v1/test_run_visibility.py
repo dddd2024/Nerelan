@@ -45,6 +45,11 @@ def test_progress_summary_never_carries_tool_output_or_secrets():
     summary = oe.progress_summary(event)
     assert "SECRETSECRETSECRET" not in json.dumps(summary)
     assert "FILE CONTENTS" not in json.dumps(summary)
+    # A control byte inside a secret must not split it past the redactor.
+    split = oe.progress_summary(tool("bash", command="curl -H 'Authorization: Bearer sk-\x07live-SECRETSECRETSECRET'"))
+    assert "SECRETSECRETSECRET" not in json.dumps(split)
+    text = oe.progress_summary({"type": "text", "part": {"type": "text", "text": "token Bearer abc\x1bdefSECRETSECRET"}})
+    assert "SECRETSECRET" not in json.dumps(text)
     assert oe.progress_summary({"type": "step_start"}) is None
     assert oe.progress_summary("not an event") is None
 

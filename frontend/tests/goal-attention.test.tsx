@@ -40,6 +40,12 @@ describe("GoalAttention", () => {
     expect(card).not.toHaveTextContent("task_unsuccessful");
   });
 
+  it("does not raise an alarm for a task the Owner cancelled", () => {
+    const { container } = render(<MemoryRouter><GoalAttention goal={goal([{ ...base, status: "CANCELLED",
+      failure: { classification: "", detail: "", message: "" } }])} /></MemoryRouter>);
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("renders nothing for queued or finished-for-review work", () => {
     const { container } = render(<MemoryRouter><GoalAttention goal={goal([{ ...base, status: "READY_FOR_REVIEW" }])} /></MemoryRouter>);
     expect(container).toBeEmptyDOMElement();

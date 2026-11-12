@@ -7,7 +7,8 @@ import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
 
 const RUNNING = new Set(["RUNNING", "RUNNING_FIXTURE", "VALIDATING", "PREPARING_WORKSPACE"]);
-const STOPPED = new Set(["FAILED", "BLOCKED", "INTERRUPTED", "CANCELLED"]);
+// CANCELLED is an Owner decision, not a failure: it gets no red "为什么停下" card.
+const STOPPED = new Set(["FAILED", "BLOCKED", "INTERRUPTED"]);
 
 const EXECUTORS: Record<string, string> = {
   opencode: "OpenCode", codex: "Codex", claude_code: "Claude Code", deterministic_fixture: "无模型验证",

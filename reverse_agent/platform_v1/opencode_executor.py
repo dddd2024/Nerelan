@@ -3744,6 +3744,8 @@ _MODEL_UNAVAILABLE_RE = re.compile(
 MAX_PROGRESS_EVENTS = 300
 PROGRESS_TEXT_INTERVAL_SECONDS = 5.0
 _PROGRESS_TARGET_KEYS = ("filePath", "path", "file", "command", "pattern", "url", "query", "description")
+# Control bytes inside a secret could split a redaction pattern; drop them first.
+_PROGRESS_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _PROGRESS_TOOL_KINDS = {
     "read": "READ", "list": "READ", "ls": "READ",
     "grep": "SEARCH", "glob": "SEARCH", "search": "SEARCH", "codesearch": "SEARCH", "websearch": "SEARCH",
@@ -3780,14 +3782,14 @@ def progress_summary(event: Any) -> dict[str, str] | None:
                        if isinstance(tool_input.get(key), str) and tool_input[key].strip()), "")
         if not target and isinstance(state.get("title"), str):
             target = state["title"]
-        target = redact_secrets(" ".join(str(target).split()))[:160]
+        target = redact_secrets(" ".join(_PROGRESS_CONTROL.sub("", str(target)).split()))[:160]
         return {"kind": "tool", "tool": tool[:40], "target": target,
                 "text": f"{tool[:40]} {target}".strip()}
     if kind == "text":
         text = part.get("text") if part.get("type") == "text" else None
         if not isinstance(text, str) or not text.strip():
             return None
-        excerpt = redact_secrets(" ".join(text.replace("\x00", "").split()))[:200]
+        excerpt = redact_secrets(" ".join(_PROGRESS_CONTROL.sub("", text).split()))[:200]
         return {"kind": "text", "tool": "", "target": "", "text": excerpt}
     error = event.get("error")
     if kind in ("error", "session.error") or isinstance(error, Mapping):
