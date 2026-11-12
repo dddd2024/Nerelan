@@ -1874,8 +1874,14 @@ class TaskStore:
 
     def _heartbeat_durable_lease(
         self, run_id: str, owner: str, epoch: int,
-        expiry_ms: int,
+        expiry_ms: int, *, renew_expired: bool = False,
     ) -> None:
+        """Renew a live lease; ``renew_expired`` also renews one that only aged.
+
+        ``renew_expired`` is for a holder whose machine slept past the expiry
+        (#1321): it succeeds only while this owner and epoch still hold the run,
+        i.e. nobody reconciled or took it over (reconciling clears the owner).
+        """
         with self._lock:
             cur = self._conn.cursor()
             try:
@@ -1895,7 +1901,7 @@ class TaskStore:
                         f"current_owner={row['lease_owner']}:"
                         f"current_epoch={row['lease_epoch']}"
                     )
-                if int(row["lease_expiry_ms"] or 0) <= now_ms:
+                if int(row["lease_expiry_ms"] or 0) <= now_ms and not renew_expired:
                     cur.execute("ROLLBACK")
                     raise TaskStoreError(f"lease_expired:{run_id}:owner={owner}:epoch={epoch}")
                 cur.execute(
@@ -2981,6 +2987,8 @@ class TaskStore:
         *,
         now_ms: int,
         max_age_ms: int,
+        live_owner: str = "",
+        live_task_ids: Any = (),
     ) -> tuple[dict[str, Any], ...]:
         """Reconcile expired leases to INTERRUPTED and ownerless preparation to FAILED.
 
@@ -3007,10 +3015,16 @@ class TaskStore:
             (now_ms,),
         ).fetchall()
         records: list[dict[str, Any]] = []
+        live = frozenset(live_task_ids or ())
         for row in runs:
             run_id = row["run_id"]
             task_id = row["task_id"]
             task_status = row["task_status"]
+            if live_owner and row["lease_owner"] == live_owner and task_id in live:
+                # This process's own executor is still running it: an expiry here means the
+                # machine slept past the lease, not that the run was orphaned (#1321). Its
+                # heartbeat renews the lease on wake.
+                continue
             cur = self._conn.cursor()
             try:
                 cur.execute("BEGIN IMMEDIATE")

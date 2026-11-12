@@ -34,6 +34,8 @@ TaskExecutor = Callable[[str], Any]
 # Upper bound on any idle wait: a new goal, claim or receipt must never wait
 # longer than this for the next poll, even if a quota window resets in hours.
 IDLE_WAIT_CAP_SECONDS = 60.0
+# An unchanged stuck goal is re-examined at most this often by the reconcile sweep (#1473).
+SWEEP_REPEAT_SECONDS = 900.0
 # Only delegate a long idle wait to Magpie's own `quota wait`; below this it is
 # cheaper to just poll. The upper bound keeps one delegated wait from outliving
 # a stop request by more than a minute (cancellation polls every 0.2 s).
@@ -189,8 +191,12 @@ class UnattendedCoordinator:
     def reconcile(self, *, fail_closed_on_durable: bool = False) -> tuple[str, ...]:
         durable = self._durable_service()
         reconciled: list[str] = []
+        with self._lifecycle_lock:
+            live = frozenset(self._active_task_ids)
         try:
-            result = durable.reconcile_expired_runs()
+            # Runs this process is still executing are not orphans, even if the
+            # machine slept past their lease (#1321).
+            result = durable.reconcile_expired_runs(live_owner=self.owner, live_task_ids=live)
         except Exception as exc:
             self._last_error = f"reconcile_failed:{type(exc).__name__}"
             if fail_closed_on_durable:
@@ -206,7 +212,53 @@ class UnattendedCoordinator:
             )
         except Exception as exc:
             self._last_error = f"budget_reconcile_failed:{type(exc).__name__}"
+        self._sweep_escalations()
         return tuple(reconciled)
+
+    def _sweep_escalations(self) -> None:
+        """Re-examine the active window's goals with FAILED or BLOCKED tasks (#1473).
+
+        Escalation otherwise runs only after a task this process just executed, so
+        a task the host itself broke (restart during preparation, an interrupted
+        run refused on resume) would wait forever once the host came back.
+        """
+        if self.goal_escalator is None:
+            return
+        try:
+            window = self.control_store.active_window()
+            if window is None:
+                return
+            with self.control_store._lock:
+                rows = self.control_store._conn.execute(
+                    "SELECT g.id AS goal_id, t.id AS task_id, t.updated_at FROM platform_goals g "
+                    "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                    "JOIN tasks t ON t.id = l.task_id "
+                    "WHERE g.window_id = ? AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
+                    (window.id,)).fetchall()
+        except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
+            self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
+            return
+        # A goal is re-examined at once when one of its stuck tasks is new or changed, and
+        # otherwise only every SWEEP_REPEAT_SECONDS (backoffs expire; an unroutable task
+        # would else log a selection failure every minute).
+        seen = getattr(self, "_swept", None)
+        if seen is None:
+            seen = self._swept = {}
+        now = time.monotonic()
+        due: dict[str, list[tuple[str, str]]] = {}
+        for row in rows:
+            due.setdefault(row["goal_id"], []).append((row["task_id"], row["updated_at"]))
+        for goal_id, tasks in due.items():
+            last = seen.get(goal_id)
+            if last is not None and last[0] == tasks and now - last[1] < SWEEP_REPEAT_SECONDS:
+                continue
+            seen[goal_id] = (tasks, now)
+            try:
+                self.goal_escalator(goal_id)
+            except Exception as exc:  # noqa: BLE001 - one goal must not stop the others
+                self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
+        for goal_id in set(seen) - set(due):
+            seen.pop(goal_id, None)
 
     def tick(self, *, background: bool = False) -> int:
         # External synchronous ticks must not race the live poller: they are
