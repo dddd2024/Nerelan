@@ -189,8 +189,12 @@ class UnattendedCoordinator:
     def reconcile(self, *, fail_closed_on_durable: bool = False) -> tuple[str, ...]:
         durable = self._durable_service()
         reconciled: list[str] = []
+        with self._lifecycle_lock:
+            live = frozenset(self._active_task_ids)
         try:
-            result = durable.reconcile_expired_runs()
+            # Runs this process is still executing are not orphans, even if the
+            # machine slept past their lease (#1321).
+            result = durable.reconcile_expired_runs(live_owner=self.owner, live_task_ids=live)
         except Exception as exc:
             self._last_error = f"reconcile_failed:{type(exc).__name__}"
             if fail_closed_on_durable:
@@ -206,7 +210,36 @@ class UnattendedCoordinator:
             )
         except Exception as exc:
             self._last_error = f"budget_reconcile_failed:{type(exc).__name__}"
+        self._sweep_escalations()
         return tuple(reconciled)
+
+    def _sweep_escalations(self) -> None:
+        """Re-examine the active window's goals with FAILED or BLOCKED tasks (#1473).
+
+        Escalation otherwise runs only after a task this process just executed, so
+        a task the host itself broke (restart during preparation, an interrupted
+        run refused on resume) would wait forever once the host came back.
+        """
+        if self.goal_escalator is None:
+            return
+        try:
+            window = self.control_store.active_window()
+            if window is None:
+                return
+            rows = self.control_store._conn.execute(
+                "SELECT DISTINCT g.id FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "WHERE g.window_id = ? AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
+                (window.id,)).fetchall()
+        except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
+            self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
+            return
+        for row in rows:
+            try:
+                self.goal_escalator(row["id"])
+            except Exception as exc:  # noqa: BLE001 - one goal must not stop the others
+                self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
 
     def tick(self, *, background: bool = False) -> int:
         # External synchronous ticks must not race the live poller: they are

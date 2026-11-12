@@ -85,6 +85,9 @@ EXTERNAL_OP_STATES = frozenset({
 
 LEASE_DEFAULT_EXPIRY_MS = 300_000
 LEASE_HEARTBEAT_WINDOW_MS = 60_000
+# Wall-clock time passing this much faster than monotonic time between two
+# heartbeats means the machine slept (#1321).
+SUSPEND_GAP_SECONDS = 30.0
 HEARTBEAT_STORAGE_MAX_FAILURES = 3
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -555,14 +558,19 @@ class _HeartbeatContext:
     def _heartbeat_loop(self) -> None:
         failures = 0
         renewal_deadline = time.monotonic() + self.expiry_ms / 1000.0
+        last_wall, last_mono = time.time(), time.monotonic()
         while not self._stop_event.is_set():
             attempt_at = time.monotonic()
             if attempt_at >= renewal_deadline:
                 self.stop_reason = "lease_expired"
                 break
+            # The monotonic clock stops while the machine sleeps; the wall clock and the
+            # persisted expiry do not. A gap between them means this holder slept (#1321).
+            slept = (time.time() - last_wall) - (attempt_at - last_mono) >= SUSPEND_GAP_SECONDS
             try:
                 self.store._heartbeat_durable_lease(
                     self.run_id, self.owner, self.epoch, self.expiry_ms,
+                    **({"renew_expired": True} if slept else {}),
                 )
             except TaskStoreError as exc:
                 cause = exc.__cause__
@@ -587,6 +595,7 @@ class _HeartbeatContext:
                 self._stop_event.wait(timeout=min(1.0, self.heartbeat_window_ms / 1000.0 * 0.1, remaining))
                 continue
             failures = 0
+            last_wall, last_mono = time.time(), time.monotonic()
             # Conservative deadline: SQL may itself have waited for a writer.
             # The store also checks persisted expiry inside its write transaction.
             renewal_deadline = attempt_at + self.expiry_ms / 1000.0
@@ -4430,6 +4439,8 @@ class DurableExecutionService:
         *,
         now_ms: int | None = None,
         max_age_ms: int | None = None,
+        live_owner: str = "",
+        live_task_ids: Any = (),
     ) -> tuple[dict[str, Any], ...]:
         """Find expired active run leases, mark stale tasks INTERRUPTED,
         record orphan/stale-lease classification.
@@ -4441,6 +4452,8 @@ class DurableExecutionService:
         return quota_records + self.store._reconcile_expired_runs(
             now_ms=current_ms,
             max_age_ms=max_age_ms or self.expiry_ms,
+            live_owner=live_owner,
+            live_task_ids=live_task_ids,
         )
 
     # ---------------------------------------------------------------

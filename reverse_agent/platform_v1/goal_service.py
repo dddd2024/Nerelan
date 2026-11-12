@@ -164,6 +164,39 @@ _NON_AGENT_FAILURE = re.compile(
 _LEGACY_CLEANUP_UNCERTAIN_PREFIX = "opencode_timeout:cleanup_unconfirmed:"
 
 
+REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
+
+
+def _interrupted_dispatch(store: Any, failed: Any) -> bool:
+    """A dispatch refused only because an interrupted run left its call PENDING (#1473).
+
+    The refusal keeps a second executor out of the same worktree. A new task gets
+    its own worktree; the interrupted executor is gone (a live one in this process
+    is no longer reconciled away, and a restarted host's job object killed its
+    children), so moving the plan task on is safe.
+    """
+    if (failed.status != "FAILED" or failed.failure_classification != "ambiguous_external_operation"
+            or (failed.failure_detail or "") != REFUSED_SECOND_DISPATCH):
+        return False
+    row = store._conn.execute(
+        "SELECT recovery_classification FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
+        (failed.id,)).fetchone()
+    return row is not None and row["recovery_classification"] == "orphan_stale_lease"
+
+
+def _interrupted_preparation(store: Any, failed: Any) -> bool:
+    """Workspace preparation that broke before anything was dispatched (#1473).
+
+    A restart while ``git worktree add`` runs leaves an unregistered directory and a
+    BLOCKED task. No model ran, so a new task (with a new worktree path) is a plain retry.
+    """
+    if (failed.status != "BLOCKED"
+            or not (failed.failure_detail or "").startswith("worktree_preparation_failed:")):
+        return False
+    return store._conn.execute(
+        "SELECT 1 FROM durable_external_operations WHERE task_id = ? LIMIT 1", (failed.id,)).fetchone() is None
+
+
 def _explicit_cleanup_uncertainty(failed: Any) -> bool:
     if failed.failure_classification == "cleanup_unconfirmed":
         return True
@@ -1179,12 +1212,17 @@ class GoalService:
         if self.task_resolver is not None:
             outcomes.extend(self._reroute_quota_held(goal, planned))
         for link in self.control_store.list_goal_tasks(goal_id):
-            if link["status"] != "FAILED" or int(link["goal_revision"]) != goal.revision:
+            if link["status"] not in {"FAILED", "BLOCKED"} or int(link["goal_revision"]) != goal.revision:
                 continue
             plan_task = planned.get(link["plan_task_id"])
             if plan_task is None or plan_task.validation_command_id:
                 continue  # host validation is not model work; a stronger agent cannot fix it
             failed = self.store.get_task(link["task_id"])
+            # Interrupted by the host (sleep, restart), not by the agent: retry in a new task.
+            interrupted_dispatch = _interrupted_dispatch(self.store, failed)
+            interrupted_preparation = _interrupted_preparation(self.store, failed)
+            if failed.status == "BLOCKED" and not interrupted_preparation:
+                continue  # other BLOCKED tasks are policy/blockers and never escalate
             if _explicit_cleanup_uncertainty(failed):
                 continue
             if self._review_intent_hold(failed, plan_task):
@@ -1247,7 +1285,10 @@ class GoalService:
             # Durable executors store "MODEL_UNAVAILABLE:<marker>" (#1460).
             unavailable = (failed.failure_classification or "").split(":", 1)[0] == "MODEL_UNAVAILABLE"
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if not miss and not overloaded and not model_review and not refusal and not unavailable and not quota_failure and _NON_AGENT_FAILURE.search(failed.failure_classification or ""):
+            interrupted = interrupted_dispatch or interrupted_preparation
+            if (not miss and not overloaded and not model_review and not refusal and not unavailable
+                    and not quota_failure and not interrupted
+                    and _NON_AGENT_FAILURE.search(failed.failure_classification or "")):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
@@ -1261,9 +1302,9 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
-            if miss or overloaded:
-                # Contract misses and provider overload are not capability failures:
-                # the same model retries, never a weaker one.
+            if miss or overloaded or interrupted_preparation:
+                # Contract misses, provider overload and a preparation the host broke are
+                # not capability failures: the same model retries, never a weaker one.
                 target = (role, failed.executor_kind, failed.binding_ref)
             elif self.task_resolver is not None:
                 # Compare with the tier actually selected for this attempt, rather

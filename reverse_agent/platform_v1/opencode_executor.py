@@ -1348,6 +1348,32 @@ class OwnedCliProcessResult:
     timed_out: bool
     cleanup_confirmed: bool
     output_truncated: bool = False
+    # Stopped because the CLI wrote nothing for ``stall_seconds`` (#1473), not
+    # because the overall timeout ran out. ``timed_out`` is also True then.
+    stalled: bool = False
+
+
+# A CLI that writes nothing for this long is stopped (#1473). OpenCode streams JSON
+# events while it works; it goes silent while it waits out a provider's 429 (once
+# for an hour). REVERSE_AGENT_EXECUTOR_STALL_SECONDS overrides; 0 turns it off.
+DEFAULT_STALL_SECONDS = 900
+MIN_STALL_SECONDS = 120
+
+
+def executor_stall_seconds() -> float | None:
+    environ = getattr(os, "environ", None) or {}
+    raw = str(environ.get("REVERSE_AGENT_EXECUTOR_STALL_SECONDS", "")).strip()
+    if not raw:
+        return float(DEFAULT_STALL_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_STALL_SECONDS)
+    if value == 0:
+        return None
+    if not math.isfinite(value) or value < 0:
+        return float(DEFAULT_STALL_SECONDS)
+    return max(float(MIN_STALL_SECONDS), value)
 
 
 def _run_owned_cli_process(
@@ -1357,6 +1383,8 @@ def _run_owned_cli_process(
     env: Mapping[str, str],
     timeout: int | float,
     encoding: str = "utf-8",
+    stall_seconds: Any = "env",
+    poll_seconds: float = 5.0,
 ) -> OwnedCliProcessResult:
     """Launch the CLI as an owned process tree and return its bounded output.
 
@@ -1371,6 +1399,8 @@ def _run_owned_cli_process(
     from .functional_validation import _WindowsJob
     from .native_quota import stop_and_confirm
 
+    if stall_seconds == "env":
+        stall_seconds = executor_stall_seconds()  # host setting (#1473); tests pass their own
     job = _WindowsJob() if os.name == "nt" else None
     proc: subprocess.Popen[bytes] | None = None
     stdout_buf = bytearray()
@@ -1381,17 +1411,22 @@ def _run_owned_cli_process(
     cleanup_confirmed = False
     process_error: BaseException | None = None
     output_truncated = False
+    stalled = False
+    last_output = time.monotonic()
 
     def _drain(pipe: Any, sink: bytearray, cap: int) -> None:
-        nonlocal output_truncated
+        nonlocal output_truncated, last_output
         while not stopping.is_set():
             try:
-                chunk = pipe.read(4096)
+                # read1: return what is available instead of waiting for a full block,
+                # so the stall clock sees each event as it is written.
+                chunk = pipe.read1(4096) if hasattr(pipe, "read1") else pipe.read(4096)
             except (OSError, ValueError):
                 break
             if not chunk:
                 break
             with lock:
+                last_output = time.monotonic()
                 remaining = cap - len(sink)
                 if len(chunk) > remaining:
                     output_truncated = True
@@ -1448,10 +1483,23 @@ def _run_owned_cli_process(
             reader.start()
 
         timed_out = False
-        try:
-            proc.wait(timeout=float(timeout))
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        deadline = time.monotonic() + float(timeout)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                proc.wait(timeout=min(remaining, poll_seconds) if stall_seconds else remaining)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if stall_seconds:
+                with lock:
+                    silent = time.monotonic() - last_output
+                if silent >= stall_seconds:
+                    timed_out = stalled = True
+                    break
     except BaseException as exc:
         process_error = exc
         raise
@@ -1514,6 +1562,7 @@ def _run_owned_cli_process(
         timed_out=timed_out,
         cleanup_confirmed=cleanup_confirmed,
         output_truncated=output_truncated,
+        stalled=stalled,
     )
 
 
@@ -1768,6 +1817,8 @@ class OpenCodeExecutor:
         stderr = owned.stderr or ""
         timed_out = owned.timed_out
         cleanup_confirmed = owned.cleanup_confirmed
+        stalled = bool(getattr(owned, "stalled", False))
+        timeout_class = "executor_stalled" if stalled else "timeout"
 
         if timed_out:
             # Preserve bounded, sanitized partial diagnostics while keeping
@@ -1833,7 +1884,7 @@ class OpenCodeExecutor:
                     "description": "First partial text retained; completion was cut off",
                     "metadata": {
                         "execution_id": execution_id,
-                        "failure_classification": "timeout",
+                        "failure_classification": timeout_class,
                         "role": role_context.role,
                         "partial_text": redact_secrets(partial_text_parts[0])[:MAX_EVIDENCE_STRING_LEN],
                         "is_partial": True,
@@ -1848,7 +1899,7 @@ class OpenCodeExecutor:
                     "description": "Bounded stderr retained for timeout diagnosis",
                     "metadata": {
                         "execution_id": execution_id,
-                        "failure_classification": "timeout",
+                        "failure_classification": timeout_class,
                         "role": role_context.role,
                         "stderr_summary": stderr_redacted[:512],
                         "is_partial": True,
@@ -1857,12 +1908,14 @@ class OpenCodeExecutor:
 
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
-                "title": "OpenCode timeout",
-                "description": "OpenCode CLI exceeded timeout",
+                "title": "OpenCode stalled" if stalled else "OpenCode timeout",
+                "description": ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
+                                if stalled else "OpenCode CLI exceeded timeout"),
                 "metadata": {
                     "execution_id": execution_id,
                     "timeout": self._timeout,
-                    "failure_classification": "timeout",
+                    "stall_seconds": executor_stall_seconds() if stalled else None,
+                    "failure_classification": timeout_class,
                     "role": role_context.role,
                     "cleanup_confirmed": cleanup_confirmed,
                     "partial_usage_observations": len(partial_observations),
@@ -1876,6 +1929,8 @@ class OpenCodeExecutor:
             # descendants may still be mutating them.
             changed_files = _collect_changed_files(worktree) if cleanup_confirmed else []
             error = "opencode_timeout:%s" % self._timeout
+            if stalled:
+                error = "opencode_stalled:%s" % int(executor_stall_seconds() or 0)
             if not cleanup_confirmed:
                 error = "opencode_timeout:cleanup_unconfirmed:%s" % self._timeout
             return ExecutorResult(
@@ -1889,7 +1944,8 @@ class OpenCodeExecutor:
                 workspace=str(worktree),
                 execution_id=execution_id,
                 process_exit_code=-1,
-                failure_classification="timeout",
+                # Cleanup uncertainty keeps the plain timeout path and its retry guard.
+                failure_classification=timeout_class if cleanup_confirmed else "timeout",
             )
 
         if not cleanup_confirmed:
