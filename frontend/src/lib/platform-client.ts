@@ -195,6 +195,12 @@ export interface PlatformTimelineAttempt {
   validation?: { command_id: string; status: string; exit_code?: number | null } | null;
   /** Only on the current attempt. */
   live?: { state: string; last_activity_at?: string; stage?: string } | null;
+  /** The agent's own sentences kept from its exit evidence (runs before live progress). */
+  narration?: Array<{ timestamp: string; text: string }>;
+  /** Tool calls recorded at exit; their details were not kept for older runs. */
+  tool_actions?: number;
+  /** The agent's final response. */
+  summary?: string;
 }
 
 export interface PlatformTaskActivity {
@@ -492,6 +498,10 @@ export interface PlatformRunActivityEvent {
   category: PlatformRunActivityCategory;
   title: string;
   description: string;
+  /** The host event type, e.g. EXECUTOR_PROGRESS. */
+  type?: string;
+  /** "text" when a live progress event is the agent speaking. */
+  progress_kind?: string;
   status?: string;
   stage?: PlatformRunStage;
   agent_id?: string;

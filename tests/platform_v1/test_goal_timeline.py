@@ -98,3 +98,44 @@ def test_timeline_polls_share_a_bounded_slot():
     assert "/api/goals/*/timeline" in ts._POLLED_SLOTS
     assert ts._TIMELINE_PATH.match("/api/goals/goal-1/timeline")
     assert not ts._TIMELINE_PATH.match("/api/goals/goal-1/timeline/extra")
+
+
+def test_agent_record_keeps_sentences_tool_count_and_summary_from_exit_evidence():
+    store = TaskStore()
+    task = store.create_task(title="older run")
+    def evidence(label, value=""):
+        store.add_event(task.id, event_type="EXECUTOR_FINISHED", title="Executor action evidence", description=label,
+                        metadata={"evidence_category": "ExecutorAction", "evidence_label": label, "evidence_value": value})
+    evidence("step_start")
+    evidence("text", "I will read the routing code first.")
+    for _ in range(3):
+        evidence("tool_use")
+    evidence("text", "Now adding the detector.")
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="OpenCode response",
+                    metadata={"final_text": "Implemented the detector.", "executor_kind": "opencode"})
+    record = store.agent_record(task.id)
+    assert [item["text"] for item in record["narration"]] == ["I will read the routing code first.", "Now adding the detector."]
+    assert record["tool_actions"] == 3
+    assert record["summary"] == "Implemented the detector."
+    empty = store.agent_record(store.create_task(title="new").id)
+    assert empty == {"narration": [], "tool_actions": 0, "summary": ""}
+
+
+def test_progress_events_say_when_the_agent_is_speaking():
+    from reverse_agent.platform_v1.run_read_model import _event_projection
+    speaking = _event_projection({"type": "EXECUTOR_PROGRESS", "title": "OpenCode", "description": "I'll add a line.",
+                                  "metadata": {"progress_kind": "text", "activity_kind": "PLAN"}}, task=None)
+    tool = _event_projection({"type": "EXECUTOR_PROGRESS", "title": "OpenCode", "description": "read a.py",
+                              "metadata": {"progress_kind": "tool", "activity_kind": "READ"}}, task=None)
+    other = _event_projection({"type": "EXECUTOR_FINISHED", "title": "x", "metadata": {"progress_kind": "text"}}, task=None)
+    assert (speaking["progress_kind"], tool["progress_kind"], other["progress_kind"]) == ("text", "tool", "")
+
+
+def test_prose_keeps_ordinary_words_and_masks_secrets():
+    from reverse_agent.platform_v1.run_read_model import _safe_prose
+    text = "Implemented #1458 in the supplied worktree; the response prompt is fine. key sk-live-ABCDEFGHIJKLMNOP"
+    out = _safe_prose(text, limit=500)
+    assert out.startswith("Implemented #1458 in the supplied worktree; the response prompt is fine.")
+    assert "ABCDEFGHIJKLMNOP" not in out
+    assert _safe_prose("Authorization: Bearer abcdefghijklmnop", limit=500).count("abcdefghijklmnop") == 0
+    assert _safe_prose(None, limit=10) == ""

@@ -78,6 +78,7 @@ _METADATA_KEYS = frozenset({
     "validation_exit_code", "exit_code", "changed_file_count", "failure_classification",
     "waiting_reason", "checkpoint", "recovery_classification", "mutation_command_id",
     "fixture_path", "binding_ref", "model_id", "excluded_candidates", "difficulty", "kind", "reason", "candidates",
+    "progress_kind",
 })
 
 
@@ -92,6 +93,21 @@ def _safe_text(value: Any, *, limit: int = _MAX_TEXT) -> str:
     if not value or _SENSITIVE_RE.search(value) or _OPAQUE_SECRET_RE.search(value):
         return ""
     return value[:limit]
+
+
+def _safe_prose(value: Any, *, limit: int) -> str:
+    """Agent and host sentences: secrets are masked, ordinary words are kept.
+
+    ``_safe_text`` blanks a whole value that merely mentions words such as
+    "worktree" or "response", which suits identifiers, not prose. Prose is
+    redacted with the executor's own redactor, then opaque tokens are masked,
+    and only then truncated so a boundary cannot hide the end of a secret.
+    """
+    if not isinstance(value, str):
+        return ""
+    from .opencode_executor import redact_secrets
+    text = _OPAQUE_SECRET_RE.sub("[REDACTED]", redact_secrets(value.replace(chr(0), "").strip()))
+    return text[:limit]
 
 
 def _safe_int(value: Any) -> int | None:
@@ -351,6 +367,8 @@ def _model_selection_description(metadata: Mapping[str, Any]) -> str:
 
 TIMELINE_EVENTS_PER_ATTEMPT = 200
 TIMELINE_INSTRUCTION_CHARS = 600
+TIMELINE_NARRATION_CHARS = 400
+TIMELINE_SUMMARY_CHARS = 1500
 
 
 def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
@@ -410,9 +428,12 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
                         _safe_text(metadata.get("reason"), limit=512) if event_type == "MODEL_SELECTION_FAILED" else
                         # Live progress is already redacted by its executor; a stop event's text is
                         # the host's own explanation. Both are what the user needs to see.
-                        _safe_text(event.get("description"), limit=300)
+                        _safe_prose(event.get("description"), limit=300)
                         if event_type == "EXECUTOR_PROGRESS" or category == "BLOCKED" else ""),
         "category": category,
+        # "text" marks the agent speaking (live progress), so a timeline can show it as prose.
+        "progress_kind": (_safe_text(metadata.get("progress_kind"), limit=16)
+                          if event_type == "EXECUTOR_PROGRESS" else ""),
         "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),
         "agent_id": agent_id,
@@ -643,6 +664,7 @@ class RunReadModel:
                 except TaskStoreError:
                     continue
                 events, total = self.store.public_events(task_id, limit=events_per_attempt)
+                record = self.store.agent_record(task_id)
                 live = None
                 if index == len(chain) - 1:
                     # Only the current attempt can be live; earlier ones are history.
@@ -667,6 +689,12 @@ class RunReadModel:
                     "changed_files": self._changed_files(task.changed_files),
                     "validation": self._validation(task),
                     "live": live,
+                    # The agent's own words (redacted at the executor; re-checked here).
+                    "narration": [{"timestamp": _time_text(item["timestamp"]),
+                                   "text": _safe_prose(item["text"], limit=TIMELINE_NARRATION_CHARS)}
+                                  for item in record["narration"]],
+                    "tool_actions": record["tool_actions"],
+                    "summary": _safe_prose(record["summary"], limit=TIMELINE_SUMMARY_CHARS),
                 })
             steps.append({
                 "plan_task_id": _safe_text(link.get("plan_task_id"), limit=64),
