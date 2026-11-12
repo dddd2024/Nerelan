@@ -36,6 +36,7 @@ describe("labels", () => {
   it("names each execution mode for what it does", () => {
     expect(executionModeLabel(GOAL)).toBe("OpenCode：规划 → 编码 → 审查");
     expect(executionModeLabel({ executor_kind: "opencode", orchestration_mode: "agent_team" })).toBe("自动（按任务选择 Agent 和模型）");
+    expect(executionModeLabel({ executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "pinned" })).toBe("多 Agent 分工（固定使用所选模型）");
     expect(executionModeLabel({ executor_kind: "deterministic_fixture", orchestration_mode: "single" })).toBe("无模型演练（只验证平台流程）");
   });
 
@@ -57,5 +58,7 @@ describe("error messages", () => {
     expect(new PlatformClientError(409, "owner_selection_confirmation_unavailable").message).toContain("请在终端运行 owner_window");
     expect(httpErrorMessage(500, "repository_discovery_failed")).toContain("gh auth login");
     expect(httpErrorMessage(409, "something_new")).toBe("平台请求未完成（something_new）");
+    expect(httpErrorMessage(503, "busy")).toBe("Nerelan 正忙，稍后会自动重试。");
+    expect(httpErrorMessage(503)).toContain("连不上 Nerelan 服务");
   });
 });

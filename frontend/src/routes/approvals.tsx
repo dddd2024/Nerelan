@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { GoalReviewEditor } from "@/components/goal-review-editor";
@@ -71,6 +71,10 @@ function GoalDetail({
   const [editing, setEditing] = useState(false);
   const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
   const [configurationIssue, setConfigurationIssue] = useState("");
+  const onConfigurationReady = useCallback((ready: boolean, issue?: string) => {
+    setConfigurationReady(ready);
+    setConfigurationIssue(issue ?? "");
+  }, []);
   const [launchConfirmed, setLaunchConfirmed] = useState(false);
   useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
   const canPlan = goal.status === "DRAFT";
@@ -119,7 +123,7 @@ function GoalDetail({
       </dl>
 
       <GoalReviewEditor goal={goal} busy={pending} onEditingChange={setEditing}
-        onConfigurationReady={(ready, issue) => { setConfigurationReady(ready); setConfigurationIssue(issue ?? ""); }} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
+        onConfigurationReady={onConfigurationReady} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
       {!configurationReady && (canPlan || canApprove || canLaunch) && <p className="mt-3 text-sm text-ra-text-secondary">
         {configurationIssue || "当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。"}
       </p>}

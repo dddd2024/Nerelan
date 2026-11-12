@@ -20,6 +20,8 @@ export function isCredentialError(status: number | undefined): boolean {
 export function httpErrorMessage(status: number, code = ""): string {
   if (isCredentialError(status)) return CLIENT_CREDENTIAL_MISSING;
   if (CODE_MESSAGES[code]) return CODE_MESSAGES[code];
+  // The host sheds polled reads with 503 busy when requests pile up: it is up, just loaded.
+  if (code === "busy") return "Nerelan 正忙，稍后会自动重试。";
   if (status === 404) return "请求的内容不存在，可能已被移除。";
   if (status === 0 || status >= 502) return "连不上 Nerelan 服务：请确认启动器仍在运行。";
   return code ? `平台请求未完成（${code}）` : `平台请求未完成（HTTP ${status}）`;

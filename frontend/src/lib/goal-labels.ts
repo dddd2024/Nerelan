@@ -6,8 +6,11 @@ import { modelName } from "@/lib/run-explain";
  * The stored pair (executor, orchestration) decides it: "opencode" alone runs
  * planner → coder → reviewer, so it must not be called "多 Agent".
  */
-export function executionModeLabel(goal: Pick<PlatformGoal, "executor_kind" | "orchestration_mode">): string {
-  if (goal.orchestration_mode === "agent_team") return "自动（按任务选择 Agent 和模型）";
+export function executionModeLabel(goal: Pick<PlatformGoal, "executor_kind" | "orchestration_mode"> & { binding_ref?: string }): string {
+  if (goal.orchestration_mode === "agent_team") {
+    // A team pinned to one binding runs every step on it (goal_service._task_route).
+    return goal.binding_ref ? "多 Agent 分工（固定使用所选模型）" : "自动（按任务选择 Agent 和模型）";
+  }
   switch (goal.executor_kind) {
     case "opencode":
       return goal.orchestration_mode === "sequential_team" ? "OpenCode：规划 → 编码 → 审查" : "OpenCode 单任务";
@@ -40,7 +43,7 @@ const QUOTA_FIT_TEXT: Record<string, string> = {
   fits_now: "按预测，现有额度够完成全部步骤。",
   needs_a_reset: "按预测，额度要等下一次刷新后才够。",
   needs_another_model: "按预测，需要换一个模型或账户才够。",
-  UNKNOWN: "还估算不出额度够不够（缺少账户的用量数据）。",
+  UNKNOWN: "还估算不出额度够不够（缺少账户用量数据，或有步骤还没分到账户）。",
 };
 
 /** The quota forecast as one sentence; it reserves nothing and promises nothing. */

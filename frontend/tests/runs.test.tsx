@@ -486,7 +486,7 @@ describe("Agent Runs page", () => {
 
     const observedZeroUsage = await screen.findByTestId("run-usage-task-usage-observed-zero");
     expect(observedZeroUsage.textContent).toContain("用量 0 tokens");
-    expect(observedZeroUsage.textContent).toContain("费用 $0");
+    expect(observedZeroUsage.textContent).toMatch(/费用 \$0（已观测为 0）/);
     expect(observedZeroUsage.textContent).toContain("已观测为 0");
     expect(observedZeroUsage.textContent).not.toContain("用量未知");
 
