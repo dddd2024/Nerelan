@@ -84,8 +84,8 @@ describe("OpenHands-style workspace shell", () => {
     );
     expect(screen.getByTestId("sidebar-logo")).toBeInTheDocument();
     expect(screen.getByLabelText("Nerelan")).toBeInTheDocument();
-    expect(screen.getByTestId("new-task-button")).toBeInTheDocument();
-    expect(screen.getByLabelText("新建任务")).toBeInTheDocument();
+    expect(screen.getByTestId("new-goal-button")).toBeInTheDocument();
+    expect(screen.getByLabelText("新建目标")).toBeInTheDocument();
     expect(screen.getByTestId("toggle-conversation-panel")).toBeInTheDocument();
     expect(screen.getByLabelText("打开搜索")).toBeInTheDocument();
   });

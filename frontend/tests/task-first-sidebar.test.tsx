@@ -177,8 +177,9 @@ describe("task-first sidebar IA", () => {
 
     expect(screen.queryByTestId("sidebar-more-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toHaveAttribute("href", "/tasks");
-    expect(screen.getByTestId("sidebar-nav-收件箱")).toHaveAttribute("href", "/inbox");
-    expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
+    expect(screen.getByTestId("sidebar-nav-目标")).toHaveAttribute("href", "/goals");
+    expect(screen.getByTestId("sidebar-nav-审批")).toHaveAttribute("href", "/approvals");
+    expect(screen.queryByTestId("sidebar-nav-收件箱")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
   });
@@ -271,7 +272,7 @@ describe("task Search and project filtering", () => {
     expect(screen.queryByTestId("palette-command-go-/runs")).not.toBeInTheDocument();
 
     await user.clear(screen.getByTestId("task-search-input"));
-    await user.click(screen.getByTestId("palette-command-new-task"));
+    await user.click(screen.getByTestId("palette-command-new-goal"));
     expect(onNewTask).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
