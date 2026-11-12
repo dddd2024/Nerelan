@@ -370,6 +370,20 @@ class OwnerWindowAdmission:
         del request["goal_ids"]
         return request
 
+    def card_request(self, goal_ids: Any, preset: Any = "") -> dict[str, Any]:
+        """The confirmation card's starting point: the presets and the request one gives.
+
+        Read-only and authorizes nothing; the card still runs preflight and the
+        activation rereads everything. An empty preset means the default.
+        """
+        from .quick_start import DEFAULT_PRESET, presets
+        options = presets(self._state_dir())
+        chosen = preset or DEFAULT_PRESET
+        request = self.supervisor_request(goal_ids, chosen)
+        return {"preset": chosen, "request": {"goal_ids": list(goal_ids), **request},
+                "presets": {name: dict(values) for name, values in options.items()},
+                "confirmation": self.confirmation_mode()}
+
     def admit_from_supervisor(self, goal_ids: Any, *, preset: Any, card_digest: Any,
                               requested_by: Any = "") -> Any:
         """Activation a supervising agent asks the running host for (Owner decision 2026-11-10).

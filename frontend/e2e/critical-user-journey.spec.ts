@@ -39,13 +39,13 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await appPage.getByRole("button", { name: "创建并审阅目标" }).click();
   await expect(appPage.getByTestId("approval-goal-detail")).toBeVisible();
   const goalId = new URL(appPage.url()).searchParams.get("goal");
-  await expect(appPage.getByTestId("approval-launch-button")).toHaveCount(0);
+  await expect(appPage.getByTestId("start-card")).toHaveCount(0);
   await appPage.getByTestId("approval-plan-button").click();
   await expect(appPage.getByTestId("approval-plan")).toContainText(GOAL_TITLE);
-  await appPage.getByTestId("approval-approve-button").click();
-  await expect(appPage.getByTestId("approval-launch-button")).toBeDisabled();
-  await appPage.getByLabel("确认启动当前计划").check();
-  await appPage.getByTestId("approval-launch-button").click();
+  // Owner decision 2026-11-09: the planned goal starts from the confirmation card.
+  await expect(appPage.getByTestId("approval-approve-button")).toHaveCount(0);
+  await expect(appPage.getByTestId("start-preflight")).toContainText("检查通过");
+  await appPage.getByTestId("start-button").click();
 
   await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
   await expect(appPage.getByRole("heading", { name: GOAL_TITLE })).toBeVisible();

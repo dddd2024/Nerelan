@@ -639,3 +639,41 @@ class TestCardActivation:
         route = handler[handler.index('["api", "owner-window", "activate"]'):]
         route = route[:route.index('["api", "owner-window", "preflight"]')]
         assert 'payload.pop("card_digest"' in route and "card_digest=card_digest" in route
+
+
+class TestCardRequest:
+    """The card starts from a preset: the host turns it into the request it will check."""
+
+    def test_the_default_preset_gives_a_request_preflight_accepts(self, setup):
+        a = setup.planned("a", "codex", "pinned", tasks=2)
+        admission = setup.host._owner_window_admission
+        card = admission.card_request([a.id])
+        assert card["preset"] == "day" and set(card["presets"]) >= {"trial", "day", "week"}
+        assert card["confirmation"] == "ui"
+        request = dict(card["request"])
+        assert request.pop("goal_ids") == [a.id]
+        assert request["max_tasks"] == 2 * (1 + request["max_retries"]) and request["max_cost_micro_units"] == 0
+        report = admission.preflight([a.id], **request)
+        assert report["ok"] is True
+        window = admission.admit_from_card([a.id], card_digest=report["card_digest"], **request)
+        assert window.status == "ACTIVE"
+
+    def test_a_named_preset_changes_the_bounds(self, setup):
+        a = setup.planned("a", "codex", "pinned")
+        trial = setup.host._owner_window_admission.card_request([a.id], "trial")["request"]
+        assert trial["hours"] == 2.0 and trial["max_retries"] == 1
+
+    @pytest.mark.parametrize("preset", ["forever", 3])
+    def test_an_unknown_preset_is_refused(self, setup, preset):
+        a = setup.planned("a", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="owner_window_preset_invalid"):
+            setup.host._owner_window_admission.card_request([a.id], preset)
+
+    def test_the_route_is_read_only(self):
+        import inspect
+        from reverse_agent.platform_v1 import task_service, trusted_host
+        assert "owner_window_card_request=self._owner_window_admission.card_request" in inspect.getsource(trusted_host)
+        handler = inspect.getsource(task_service._TaskHandler)
+        route = handler[handler.index('["api", "owner-window", "request"]'):]
+        route = route[:route.index('["api", "owner-window", "preflight"]')]
+        assert "admit" not in route and "activate" not in route

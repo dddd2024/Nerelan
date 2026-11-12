@@ -1615,6 +1615,8 @@ export interface OwnerWindowPreflightScope {
 export interface OwnerWindowPreflightResult {
   ok: boolean;
   checks: OwnerWindowPreflightCheck[];
+  /** Not refusals: what the window would do that the Owner may not expect. */
+  warnings?: Array<{ warning: string; goal_id?: string; detail?: string }>;
   preview: string[];
   scope: OwnerWindowPreflightScope | null;
   card_digest?: string;
@@ -1632,7 +1634,80 @@ export interface OwnerWindowPreflightRequest {
   max_cost_micro_units?: number;
 }
 
+export interface OwnerWindowPreset {
+  label?: string;
+  hours: number;
+  max_concurrent: number;
+  max_retries: number;
+  max_token_units: number;
+}
+
+/** POST /api/owner-window/request: the presets and the request one gives (read-only). */
+export interface OwnerWindowCard {
+  preset: string;
+  presets: Record<string, OwnerWindowPreset>;
+  request: OwnerWindowPreflightRequest & { max_token_units: number; max_cost_micro_units: number };
+  confirmation: "ui" | "terminal";
+}
+
+const MOCK_PRESETS: Record<string, OwnerWindowPreset> = {
+  trial: { label: "试跑", hours: 2, max_concurrent: 1, max_retries: 1, max_token_units: 300_000 },
+  day: { label: "一天", hours: 24, max_concurrent: 1, max_retries: 2, max_token_units: 2_000_000 },
+  week: { label: "一周", hours: 168, max_concurrent: 2, max_retries: 2, max_token_units: 10_000_000 },
+};
+
+export async function fetchOwnerWindowCard(goalIds: string[], preset = ""): Promise<OwnerWindowCard> {
+  if (isMock()) {
+    const chosen = preset || "day";
+    const values = MOCK_PRESETS[chosen];
+    if (!values) throw new PlatformClientError(409, "owner_window_preset_invalid");
+    const tasks = goalIds.reduce((sum, id) => sum + (mockGoals.find((goal) => goal.id === id)?.tasks.length ?? 0), 0);
+    return { preset: chosen, presets: MOCK_PRESETS, confirmation: "ui", request: {
+      goal_ids: goalIds, hours: values.hours, max_tasks: Math.max(tasks, 1) * (1 + values.max_retries),
+      max_concurrent: values.max_concurrent, max_retries: values.max_retries,
+      capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
+      max_token_units: values.max_token_units, max_cost_micro_units: 0,
+    } };
+  }
+  return request<OwnerWindowCard>("/api/owner-window/request", {
+    method: "POST",
+    body: JSON.stringify({ goal_ids: goalIds, preset }),
+  });
+}
+
+/**
+ * Start on the confirmation card (Owner decision 2026-11-09): the host rereads the
+ * scope, compares it with ``cardDigest`` from the preflight the Owner saw, and
+ * activates in one transaction, or refuses with ``owner_window_scope_changed``.
+ */
+export async function activateOwnerWindow(activation: OwnerWindowPreflightRequest, cardDigest: string): Promise<PlatformWindow> {
+  if (isMock()) {
+    for (const goalId of activation.goal_ids) {
+      const goal = mockGoals.find((entry) => entry.id === goalId);
+      if (!goal || goal.status !== "PLANNED") throw new PlatformClientError(409, `owner_window_goal_not_admissible:${goalId}`);
+    }
+    activation.goal_ids.forEach((goalId) => __launchMockGoal(goalId));
+    return { ...mockWindow };
+  }
+  return request<PlatformWindow>("/api/owner-window/activate", {
+    method: "POST",
+    body: JSON.stringify({ ...activation, card_digest: cardDigest }),
+  });
+}
+
 export async function preflightOwnerWindow(preflightRequest: OwnerWindowPreflightRequest): Promise<OwnerWindowPreflightResult> {
+  if (isMock()) {
+    const goals = preflightRequest.goal_ids.map((id) => mockGoals.find((goal) => goal.id === id));
+    const admissible = goals.every((goal) => goal?.status === "PLANNED");
+    return {
+      ok: admissible,
+      checks: [{ check: "goals", ok: admissible, reason: admissible ? "" : "owner_window_goal_not_admissible", detail: "" }],
+      preview: goals.flatMap((goal) => goal?.tasks.map((task) => `- ${goal.id} ${task.id}: free (token-sensenova/glm-5.2, mock_route)`) ?? []),
+      scope: null,
+      card_digest: "0".repeat(64),
+      confirmation: "ui",
+    };
+  }
   return request<OwnerWindowPreflightResult>("/api/owner-window/preflight", {
     method: "POST",
     body: JSON.stringify(preflightRequest),

@@ -11,7 +11,8 @@ import {
   useSaveGoalConfiguration,
   useSaveGoalPlan,
 } from "@/hooks/use-goal-continuation";
-import { useGoal, useGoals } from "@/hooks/use-platform";
+import { useApprovedPolicy, useGoal, useGoals } from "@/hooks/use-platform";
+import { StartCard } from "@/components/start-card";
 import { cn } from "@/lib/cn";
 import type { GoalStatus, PlatformGoal } from "@/lib/platform-client";
 
@@ -70,9 +71,15 @@ function GoalDetail({
   const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
   const [launchConfirmed, setLaunchConfirmed] = useState(false);
   useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
+  // Owner decision 2026-11-09: a planned goal starts from the confirmation card.
+  // The older approve-then-launch pair stays only for a delegated policy host;
+  // elsewhere approving moved a goal to APPROVED, which no window accepts.
+  const delegated = Boolean(useApprovedPolicy().data);
   const canPlan = goal.status === "DRAFT";
-  const canApprove = goal.status === "PLANNED";
-  const canLaunch = goal.status === "APPROVED";
+  const cardStart = goal.status === "PLANNED" && !delegated;
+  const canApprove = goal.status === "PLANNED" && delegated;
+  const canLaunch = goal.status === "APPROVED" && delegated;
+  const legacyApproved = goal.status === "APPROVED" && !delegated;
 
   return (
     <section
@@ -161,6 +168,8 @@ function GoalDetail({
         </p>
       )}
 
+      {cardStart && !editing ? <StartCard goal={goal} /> : null}
+
       <div className="mt-6 flex flex-wrap items-end gap-3">
         {canPlan && (
           <button
@@ -216,7 +225,13 @@ function GoalDetail({
             </button>
           </>
         )}
-        {!canPlan && !canApprove && !canLaunch && (
+        {legacyApproved && (
+          <p data-testid="approval-legacy-approved" className="text-sm text-ra-text-secondary">
+            这个目标是按旧流程批准的，执行窗口只接受「计划已生成、尚未批准」的目标。
+            编辑目标配置并保存后会回到草稿，重新生成计划就能在这里开始执行。
+          </p>
+        )}
+        {!canPlan && !canApprove && !canLaunch && !cardStart && !legacyApproved && (
           <p className="text-sm text-ra-text-tertiary">
             当前状态只读；此页面不会对该 Goal 执行新的审批动作。
           </p>

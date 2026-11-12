@@ -90,7 +90,7 @@ describe("Approvals continuation page", () => {
     vi.restoreAllMocks();
   });
 
-  it("deep-links the same Goal through explicit Plan, Approve, and Launch", async () => {
+  it("deep-links the same Goal through Plan and the start card", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ApprovalsPage />, {
       initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`],
@@ -105,26 +105,22 @@ describe("Approvals continuation page", () => {
     expect(screen.getByTestId("approval-plan-button")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("approval-plan-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-approve-button")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId("start-card")).toBeInTheDocument());
     expect(screen.getByTestId("approval-plan")).toHaveTextContent(
       "实现并验证目标",
     );
+    // Approving no longer exists as a separate step outside a delegated host.
+    expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("approval-approve-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-launch-button")).toBeInTheDocument(),
-    );
-
-    await user.selectOptions(screen.getByLabelText("自治窗口时长"), "4");
-    expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
-    await user.click(screen.getByLabelText("确认启动当前计划"));
-    await user.click(screen.getByTestId("approval-launch-button"));
+    await user.click(await screen.findByTestId("start-preset-week"));
+    await waitFor(() => expect(screen.getByTestId("start-bounds")).toHaveTextContent("时长 7 天"));
+    await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
+    expect(screen.getByTestId("start-preflight")).toHaveTextContent("检查通过，可以开始。");
+    await user.click(screen.getByTestId("start-button"));
     await waitFor(() => expect(screen.getByText("运行中")).toBeInTheDocument());
 
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("start-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
   });
 
