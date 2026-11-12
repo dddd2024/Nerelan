@@ -5,6 +5,8 @@ import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalCurrentActivity } from "@/components/goal-current-activity";
 import { GoalProgress } from "@/components/goal-progress";
+import { GoalAttention } from "@/components/goal-attention";
+import { runtimeMessage } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { UnattendedStatus } from "@/components/unattended-status";
@@ -87,6 +89,12 @@ function ObjectiveDisclosure({ objective }: { objective: string }) {
   );
 }
 
+/** "task_unsuccessful:task-…" reads as a sentence; the raw code stays in the tooltip. */
+function coordinatorNotice(code: string): string {
+  const message = runtimeMessage(code);
+  return message.nextStep ? `${message.label}：${message.nextStep}` : `调度需要处理：${code}`;
+}
+
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
@@ -135,7 +143,7 @@ export function HomePage() {
             className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ra-status-error"
             aria-hidden="true"
           />
-          <span>协调器需要处理：{coordinatorError}</span>
+          <span title={coordinatorError}>{coordinatorNotice(coordinatorError)}</span>
         </div>
       )}
     </>
@@ -329,6 +337,7 @@ export function HomePage() {
             ) : detailGoal ? (
               <div data-testid="active-goal-stream" className="space-y-5">
                 <ReadFeedback query={detailQuery} label="目标详情" />
+                <GoalAttention goal={detailGoal} />
                 <GoalProgress goal={detailGoal} />
                 <ReadFeedback query={runsQuery} label="运行活动" />
                 {runsQuery.data !== undefined && <GoalCurrentActivity goal={detailGoal} runs={runs} />}

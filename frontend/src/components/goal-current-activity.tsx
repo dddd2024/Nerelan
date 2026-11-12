@@ -74,6 +74,28 @@ function eventKey(event: PlatformRunActivityEvent, runId: string) {
   return event.id || `${runId}-${event.timestamp}-${event.title}`;
 }
 
+function eventDetail(event: PlatformRunActivityEvent) {
+  if (event.path) return event.path;
+  if (event.command) return event.command.summary;
+  if (event.test) return event.test.summary;
+  return event.description ?? "";
+}
+
+/** Adjacent rows that say the same thing (same title and detail) become one row with a count. */
+export function collapseRepeats<T extends { event: PlatformRunActivityEvent; key: string }>(rows: T[]) {
+  const out: Array<T & { repeats: number }> = [];
+  for (const row of rows) {
+    const previous = out[out.length - 1];
+    if (previous && previous.event.title === row.event.title && previous.event.category === row.event.category
+        && eventDetail(previous.event) === eventDetail(row.event)) {
+      previous.repeats += 1;
+    } else {
+      out.push({ ...row, repeats: 1 });
+    }
+  }
+  return out;
+}
+
 interface GoalCurrentActivityProps {
   goal: PlatformGoal;
   runs: PlatformAgentRun[];
@@ -295,20 +317,17 @@ export function GoalCurrentActivity({
           data-testid="goal-activity-events"
           aria-label="最近活动"
         >
-          {view.events.map(({ event, key }) => {
+          {collapseRepeats(view.events).map(({ event, key, repeats }) => {
             const agent = eventAgent(event);
             const metadata = [
               activityCategoryLabel(event.category),
               event.stage ? executionStageLabel(event.stage) : "",
               agent ? agentLabel(agent) : "",
             ].filter(Boolean);
-            const detail = event.path
-              ? event.path
-              : event.command
-                ? event.command.summary
-                : event.test
-                  ? event.test.summary
-                  : "";
+            const detail = eventDetail(event);
+            const title = activityTitleRestatesCategory(event.category, event.title)
+              ? activityCategoryLabel(event.category)
+              : event.title;
 
             return (
               <li
@@ -318,7 +337,7 @@ export function GoalCurrentActivity({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs text-ra-text-secondary" title={event.title}>
-                    {event.title}
+                    {title}{repeats > 1 ? ` ×${repeats}` : ""}
                   </p>
                   {detail ? (
                     <p className="mt-0.5 truncate font-mono text-[11px] text-ra-text-tertiary">

@@ -403,7 +403,11 @@ def _event_projection(event: Mapping[str, Any], *, task: Any) -> dict[str, Any]:
             else "Model selected" if event_type == "MODEL_SELECTED" else _activity_title(category)
         ),
         "description": (_model_selection_description(metadata) if event_type == "MODEL_SELECTED" else
-                        _safe_text(metadata.get("reason"), limit=512) if event_type == "MODEL_SELECTION_FAILED" else ""),
+                        _safe_text(metadata.get("reason"), limit=512) if event_type == "MODEL_SELECTION_FAILED" else
+                        # Live progress is already redacted by its executor; a stop event's text is
+                        # the host's own explanation. Both are what the user needs to see.
+                        _safe_text(event.get("description"), limit=300)
+                        if event_type == "EXECUTOR_PROGRESS" or category == "BLOCKED" else ""),
         "category": category,
         "status": _status_for_event(category, metadata, event_type),
         "stage": _event_stage(event_type, category, metadata),

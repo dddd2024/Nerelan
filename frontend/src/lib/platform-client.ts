@@ -153,6 +153,36 @@ export interface PlatformGoalTaskLink {
   publication?: PlatformAgentRun["publication"];
   /** Why the host will not publish this finished task as a Draft PR ("" when it can). */
   publication_blocked?: string;
+  /** Newest public event of this task (live progress while it runs). */
+  activity?: PlatformTaskActivity | null;
+  /** Why this task stopped, when it did. */
+  failure?: PlatformTaskFailure | null;
+  /** Earlier attempts of the same plan task, oldest first. */
+  attempts?: PlatformTaskAttempt[];
+}
+
+export interface PlatformTaskActivity {
+  type: string;
+  title: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface PlatformTaskFailure {
+  classification: string;
+  detail: string;
+  /** The host's own last explanation, e.g. "OpenCode stalled: ...". */
+  message: string;
+}
+
+export interface PlatformTaskAttempt {
+  task_id: string;
+  status: string;
+  executor_kind?: string;
+  binding_ref?: string;
+  updated_at?: string;
+  retry_reason?: string;
+  failure?: PlatformTaskFailure | null;
 }
 
 export interface PlatformWindow {

@@ -23,6 +23,7 @@ Boundaries:
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import math
@@ -1324,6 +1325,13 @@ def _validate_execution_timeout(timeout: object) -> int | float:
 # consuming and the child is never allowed to grow an unbounded in-memory
 # buffer. Partial diagnostics stay within these bounds.
 _OWNED_STDOUT_BOUND_BYTES = 8 * 1024 * 1024
+
+# Receives each complete stdout line while the CLI runs (live progress).
+# A ContextVar rather than a parameter: the call site keeps its signature and
+# a sink failure can never affect the owned process or its bounded buffers.
+_STDOUT_LINE_SINK: contextvars.ContextVar[Callable[[bytes], None] | None] = (
+    contextvars.ContextVar("opencode_stdout_line_sink", default=None))
+_MAX_SINK_LINE_BYTES = 256 * 1024
 _OWNED_STDERR_BOUND_BYTES = 256 * 1024
 
 
@@ -1413,9 +1421,26 @@ def _run_owned_cli_process(
     output_truncated = False
     stalled = False
     last_output = time.monotonic()
+    line_sink = _STDOUT_LINE_SINK.get()
 
-    def _drain(pipe: Any, sink: bytearray, cap: int) -> None:
+    def _deliver_lines(pending: bytearray, chunk: bytes) -> None:
+        pending.extend(chunk)
+        while True:
+            newline = pending.find(b"\n")
+            if newline < 0:
+                if len(pending) > _MAX_SINK_LINE_BYTES:
+                    pending.clear()  # an oversized line is not progress; the buffer keeps it
+                return
+            line = bytes(pending[:newline])
+            del pending[:newline + 1]
+            try:
+                line_sink(line)
+            except Exception:
+                pass
+
+    def _drain(pipe: Any, sink: bytearray, cap: int, live: bool = False) -> None:
         nonlocal output_truncated, last_output
+        pending = bytearray()
         while not stopping.is_set():
             try:
                 # read1: return what is available instead of waiting for a full block,
@@ -1432,6 +1457,8 @@ def _run_owned_cli_process(
                     output_truncated = True
                 if remaining > 0:
                     sink.extend(chunk[:remaining])
+            if live and line_sink is not None:
+                _deliver_lines(pending, chunk)
 
     try:
         if job is not None:
@@ -1470,7 +1497,7 @@ def _run_owned_cli_process(
         readers = [
             threading.Thread(
                 target=_drain,
-                args=(proc.stdout, stdout_buf, _OWNED_STDOUT_BOUND_BYTES),
+                args=(proc.stdout, stdout_buf, _OWNED_STDOUT_BOUND_BYTES, True),
                 daemon=True,
             ),
             threading.Thread(
@@ -1757,12 +1784,18 @@ class OpenCodeExecutor:
                         None,
                         role,
                     )
-                owned = _run_owned_cli_process(
-                    cli_argv,
-                    cwd=str(worktree),
-                    env=child_env,
-                    timeout=self._timeout,
-                )
+                sink_token = _STDOUT_LINE_SINK.set(_progress_sink(
+                    event_callback, task_id,
+                    execution_id=execution_id, role=role_context.role))
+                try:
+                    owned = _run_owned_cli_process(
+                        cli_argv,
+                        cwd=str(worktree),
+                        env=child_env,
+                        timeout=self._timeout,
+                    )
+                finally:
+                    _STDOUT_LINE_SINK.reset(sink_token)
             finally:
                 if lease_handle is not None:
                     try:
@@ -3707,6 +3740,104 @@ _MODEL_UNAVAILABLE_RE = re.compile(
 # ---------------------------------------------------------------------------
 # Emit helper
 # ---------------------------------------------------------------------------
+
+MAX_PROGRESS_EVENTS = 300
+PROGRESS_TEXT_INTERVAL_SECONDS = 5.0
+_PROGRESS_TARGET_KEYS = ("filePath", "path", "file", "command", "pattern", "url", "query", "description")
+_PROGRESS_TOOL_KINDS = {
+    "read": "READ", "list": "READ", "ls": "READ",
+    "grep": "SEARCH", "glob": "SEARCH", "search": "SEARCH", "codesearch": "SEARCH", "websearch": "SEARCH",
+    "edit": "EDIT", "write": "EDIT", "patch": "EDIT", "multiedit": "EDIT", "apply_patch": "EDIT",
+    "bash": "COMMAND", "shell": "COMMAND",
+}
+
+
+def progress_activity_kind(summary: Mapping[str, str]) -> str:
+    """The run read-model category for one live summary (unknown tools are planning steps)."""
+    if summary.get("kind") == "error":
+        return "BLOCKED"
+    return _PROGRESS_TOOL_KINDS.get(str(summary.get("tool", "")).lower(), "PLAN")
+
+
+def progress_summary(event: Any) -> dict[str, str] | None:
+    """One public line for a live OpenCode JSON event, or None to skip it.
+
+    Only the tool name, a short target, a short text excerpt or an allowlisted
+    error diagnostic leave the process; tool output and file contents never do.
+    """
+    if not isinstance(event, Mapping):
+        return None
+    kind = event.get("type")
+    part = event.get("part") if isinstance(event.get("part"), Mapping) else {}
+    if kind == "tool_use":
+        tool = part.get("tool") or event.get("tool") or event.get("name")
+        if not isinstance(tool, str) or not tool:
+            return None
+        state = part.get("state") if isinstance(part.get("state"), Mapping) else {}
+        tool_input = state.get("input") if isinstance(state.get("input"), Mapping) else (
+            event.get("input") if isinstance(event.get("input"), Mapping) else {})
+        target = next((tool_input[key] for key in _PROGRESS_TARGET_KEYS
+                       if isinstance(tool_input.get(key), str) and tool_input[key].strip()), "")
+        if not target and isinstance(state.get("title"), str):
+            target = state["title"]
+        target = redact_secrets(" ".join(str(target).split()))[:160]
+        return {"kind": "tool", "tool": tool[:40], "target": target,
+                "text": f"{tool[:40]} {target}".strip()}
+    if kind == "text":
+        text = part.get("text") if part.get("type") == "text" else None
+        if not isinstance(text, str) or not text.strip():
+            return None
+        excerpt = redact_secrets(" ".join(text.replace("\x00", "").split()))[:200]
+        return {"kind": "text", "tool": "", "target": "", "text": excerpt}
+    error = event.get("error")
+    if kind in ("error", "session.error") or isinstance(error, Mapping):
+        payload = error if isinstance(error, Mapping) else event
+        message = _single_error_diagnostic(payload, 240)
+        return {"kind": "error", "tool": "", "target": "", "text": message or "error"}
+    return None
+
+
+def _progress_sink(
+    callback: ExecutorCallback | None,
+    task_id: str,
+    *,
+    execution_id: str,
+    role: str,
+) -> Callable[[bytes], None] | None:
+    """Bounded live EXECUTOR_PROGRESS events; final evidence is still built at exit."""
+    if callback is None:
+        return None
+    state = {"count": 0, "last_text": 0.0}
+    guard = threading.Lock()
+
+    def sink(line: bytes) -> None:
+        try:
+            event = json.loads(line.decode("utf-8", errors="replace"))
+        except ValueError:
+            return
+        summary = progress_summary(event)
+        if summary is None:
+            return
+        with guard:
+            if state["count"] >= MAX_PROGRESS_EVENTS:
+                return
+            now = time.monotonic()
+            if summary["kind"] == "text":
+                if now - state["last_text"] < PROGRESS_TEXT_INTERVAL_SECONDS:
+                    return
+                state["last_text"] = now
+            state["count"] += 1
+        _emit(callback, task_id, {
+            "type": "EXECUTOR_PROGRESS", "title": "OpenCode",
+            "description": summary["text"],
+            "metadata": {"executor_kind": "opencode", "execution_id": execution_id, "role": role,
+                         "progress_kind": summary["kind"], "tool": summary["tool"],
+                         "target": summary["target"],
+                         "activity_kind": progress_activity_kind(summary)},
+        })
+
+    return sink
+
 
 def _emit(
     callback: ExecutorCallback | None,

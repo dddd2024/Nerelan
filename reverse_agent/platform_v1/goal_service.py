@@ -164,6 +164,11 @@ _NON_AGENT_FAILURE = re.compile(
 _LEGACY_CLEANUP_UNCERTAIN_PREFIX = "opencode_timeout:cleanup_unconfirmed:"
 
 
+_STOPPED_TASK_STATUSES = frozenset({"FAILED", "BLOCKED", "INTERRUPTED", "CANCELLED"})
+_FAILURE_EVENT_TYPES = ("EXECUTOR_FINISHED", "VALIDATED")
+_MAX_ATTEMPTS_SHOWN = 10
+
+
 REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
 
 
@@ -1556,8 +1561,9 @@ class GoalService:
                 conn.execute("SAVEPOINT goal_response_snapshot")
             try:
                 goal = self.control_store.refresh_goal_status(goal_id)
+                history = self.control_store.list_task_escalations(goal_id)
                 links = [
-                    self._task_link_evidence(goal, link)
+                    self._task_link_evidence(goal, link, history=history)
                     for link in self.control_store.list_goal_tasks(goal_id)
                 ]
                 if links:
@@ -1582,7 +1588,42 @@ class GoalService:
                     conn.execute("RELEASE goal_response_snapshot")
                 raise
 
-    def _task_link_evidence(self, goal: GoalRecord, link: Mapping[str, Any]) -> dict[str, Any]:
+    def _failure_view(self, task: Any) -> dict[str, Any] | None:
+        """Why a finished task stopped: its class plus the host's own last explanation."""
+        if task.status not in _STOPPED_TASK_STATUSES:
+            return None
+        reason = self.store.latest_events(task.id, types=_FAILURE_EVENT_TYPES)
+        message = ""
+        if reason:
+            message = reason[0]["title"]
+            if reason[0]["description"]:
+                message += ": " + reason[0]["description"]
+        return {"classification": task.failure_classification or "",
+                "detail": (task.failure_detail or "")[:400], "message": message[:400]}
+
+    def _attempt_history(self, task: Any, plan_task_id: str,
+                         history: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+        """Earlier attempts of this plan task, oldest first (escalations keep them in place)."""
+        previous = {row["to_task_id"]: row for row in history if row["plan_task_id"] == plan_task_id}
+        chain: list[dict[str, Any]] = []
+        current = task.id
+        while current in previous and len(chain) < _MAX_ATTEMPTS_SHOWN:
+            row = previous[current]
+            try:
+                earlier = self.store.get_task(str(row["from_task_id"]), event_limit=0)
+            except TaskStoreError:
+                break
+            chain.append({
+                "task_id": earlier.id, "status": earlier.status,
+                "executor_kind": earlier.executor_kind, "binding_ref": earlier.binding_ref,
+                "updated_at": earlier.updated_at, "retry_reason": str(row.get("reason") or ""),
+                "failure": self._failure_view(earlier),
+            })
+            current = earlier.id
+        return list(reversed(chain))
+
+    def _task_link_evidence(self, goal: GoalRecord, link: Mapping[str, Any], *,
+                            history: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
         task = self.store.get_task(str(link["task_id"]), event_limit=0)
         proof = functional_evidence(task)
         try:
@@ -1622,6 +1663,10 @@ class GoalService:
             "publication": publication_projection(publication),
             # #1462: a finished task the host will not publish says why.
             "publication_blocked": blocked,
+            # What the user needs at a glance: the newest event, why it stopped, earlier tries.
+            "activity": next(iter(self.store.latest_events(task.id)), None),
+            "failure": self._failure_view(task),
+            "attempts": self._attempt_history(task, str(link["plan_task_id"]), history),
         }
 
     @staticmethod

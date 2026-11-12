@@ -1084,6 +1084,26 @@ class TaskStore:
                 metadata=metadata,
             )
 
+    def latest_events(self, task_id: str, *, limit: int = 1,
+                      types: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+        """Newest public events first, without the bulk per-action evidence rows.
+
+        One indexed query, so a polled goal response never loads a task's
+        whole event history.
+        """
+        sql = ("SELECT type, title, description, timestamp FROM task_events "
+               "WHERE task_id = ? AND title != 'Executor action evidence'")
+        params: list[Any] = [task_id]
+        if types:
+            sql += " AND type IN (%s)" % ",".join("?" for _ in types)
+            params.extend(types)
+        sql += " ORDER BY seq DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 50)))
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [{"type": row[0], "title": row[1], "description": (row[2] or "")[:400],
+                 "timestamp": row[3]} for row in rows]
+
     def get_events(self, task_id: str) -> list[TaskEvent]:
         with self._lock:
             rows = self._conn.execute(
