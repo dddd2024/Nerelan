@@ -621,7 +621,7 @@ class CombinedTrustedHost:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model
-        from .routing_inputs import read_overrides, binding_cost_class, weekly_pace_config
+        from .routing_inputs import read_overrides, weekly_pace_config
         from .routing_capabilities import read_capability_table
         try:
             owner = read_overrides(getattr(self._store, "_state_path", None))
@@ -658,10 +658,14 @@ class CombinedTrustedHost:
         allow_paid = self._routing_paid_allowed(goal, owner)
         availability_history = self._routing_availability_history()
         paced_providers = set(weekly_pace_config(owner).get("providers", ()))
+        from .resource_allowances import effective_cost
+        allowances = self._resource_allowances(refresh=not forecast)
+        allowance_now = time.time()
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
-            cost_class = binding_cost_class(binding, connection, owner)
+            # Magpie's time-limited allowances and expiring credits (#1471) adjust the class.
+            cost_class, resources = effective_cost(binding, connection, owner, allowances, now=allowance_now)
             quota = None if forecast else self._quota_check(binding)
             # A gateway model naming a paced upstream ("claude/...") spends that account's
             # weekly allowance, so it is paced against that account's own windows.
@@ -718,7 +722,7 @@ class CombinedTrustedHost:
                                "short_resets_at": short_reset,
                                "weekly_resets_at": reset_time(weekly_window),
                                "paced_provider": paced_provider,
-                               "cost_class": cost_class}
+                               "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
             try:
@@ -1345,12 +1349,19 @@ class CombinedTrustedHost:
         from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
         from ..model_access.subscription_quota import magpie_account_quotas, magpie_quota_windows
         if not magpie_enabled(os.environ):
+            self._magpie_allowances = None
             return local
         try:
             snapshot = fetch_magpie_snapshot(
                 os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
         except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            self._magpie_allowances = None  # no reading now: no allowance is assumed
             return local
+        try:
+            from .resource_allowances import read_allowances
+            self._magpie_allowances = read_allowances(snapshot, now=time.time())
+        except Exception:  # noqa: BLE001 - allowances only add preferences; none is the safe default
+            self._magpie_allowances = None
         magpie = magpie_quota_windows(snapshot)
         merged = dict(local)
         for key, quota in magpie.items():
@@ -1372,6 +1383,20 @@ class CombinedTrustedHost:
                 if refs.count(ref) == 1:
                     merged[_MAGPIE_ACCOUNT_KEY + ref] = quota
         return merged
+
+    def _resource_allowances(self, *, refresh: bool = True) -> dict[str, Any]:
+        """Magpie's model allowances and expiring credits (#1471) from the latest reading.
+
+        ``refresh`` reads through the shared quota cache (at most one Magpie call per
+        cache period); a forecast only reuses what the last reading found.
+        """
+        if refresh:
+            try:
+                self._subscription_quotas()
+            except Exception:  # noqa: BLE001 - no reading means no allowance, never a failure
+                pass
+        found = getattr(self, "_magpie_allowances", None)
+        return found if isinstance(found, dict) else {}
 
     def _claude_reset_quota_recheck(self) -> None:
         # Read-only official CLI telemetry; never change entitlement/limits.
