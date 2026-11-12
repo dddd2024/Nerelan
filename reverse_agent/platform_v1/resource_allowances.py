@@ -14,11 +14,12 @@ Both give a bounded preference that grows as the reset or expiry nears, so the
 soonest-to-lapse resource is used first. The preference never makes a
 subscription cheaper than a free route and never overrides a hard filter.
 
-Fail-safe rules: only FRESH readings count; a provider with more than one fresh
-account is ambiguous (the gateway picks the account, not us) and contributes
-nothing; an allowance that names no model (WorkBuddy AI's "Free model tokens")
-is reported but not attributed; an explicit Owner cost class always wins; only
-bindings that run through the Magpie gateway are matched.
+Fail-safe rules: only FRESH readings count; a provider with more than one account
+(in any state) is ambiguous (the gateway picks the account, not us) and contributes
+nothing; an allowance that names no model (WorkBuddy AI's "Free model tokens",
+"input tokens") is reported but not attributed; an explicit Owner cost class always
+wins; a weekly-paced provider is never made free (it keeps its subscription guards);
+only bindings that run through the Magpie gateway are matched.
 """
 from __future__ import annotations
 
@@ -42,7 +43,9 @@ CREDIT_URGENCY_BONUS = .5
 _MODEL_TOKENS = re.compile(
     r"\s*(?P<model>[A-Za-z0-9][A-Za-z0-9 ._:-]{0,120}?)\s+tokens(?:\s*\((?:est\.?|estimated)\))?\s*", re.I)
 # Window titles that say "tokens" without naming a model.
-_UNNAMED = frozenset({"free model", "free models", "model", "models", "free", "total", "daily", "monthly"})
+_UNNAMED = frozenset({"free model", "free models", "model", "models", "free", "total", "daily", "weekly",
+                      "monthly", "input", "output", "prompt", "completion", "cached", "cache", "premium",
+                      "extra", "bonus", "remaining", "used"})
 
 EMPTY: dict[str, Any] = {"models": {}, "credits": {}, "unattributed": [], "ambiguous": []}
 
@@ -65,17 +68,20 @@ def read_allowances(snapshot: Mapping[str, Any] | None, *, now: float) -> dict[s
     """Allowances and expiring credits from one parsed Magpie snapshot; EMPTY when unusable."""
     if not isinstance(snapshot, Mapping) or snapshot.get("status") != "available":
         return {key: type(value)() for key, value in EMPTY.items()}
-    fresh: dict[str, list[Mapping[str, Any]]] = {}
+    # Every account Magpie lists, whatever its state: with more than one, the gateway
+    # may pick any of them, so no single reading speaks for the route.
+    by_provider: dict[str, list[Mapping[str, Any]]] = {}
     for account in snapshot.get("accounts") or ():
-        if (isinstance(account, Mapping) and account.get("state") == "FRESH"
-                and isinstance(account.get("provider"), str) and account["provider"]):
-            fresh.setdefault(account["provider"].lower(), []).append(account)
+        if isinstance(account, Mapping) and isinstance(account.get("provider"), str) and account["provider"]:
+            by_provider.setdefault(account["provider"].lower(), []).append(account)
     result: dict[str, Any] = {"models": {}, "credits": {}, "unattributed": [], "ambiguous": []}
-    for provider, accounts in sorted(fresh.items()):
+    for provider, accounts in sorted(by_provider.items()):
         if len(accounts) != 1:
             result["ambiguous"].append(provider)
             continue
         account = accounts[0]
+        if account.get("state") != "FRESH":
+            continue
         for window in account.get("windows") or ():
             if not isinstance(window, Mapping) or not isinstance(window.get("name"), str):
                 continue
@@ -129,8 +135,11 @@ def effective_cost(binding: Mapping[str, Any], connection: Mapping[str, Any], ow
 
     Returns ``(cost_class, resources)``; ``resources`` is empty when nothing applies.
     """
-    from .routing_inputs import binding_cost_class, explicit_cost_class
+    from .routing_inputs import binding_cost_class, explicit_cost_class, weekly_pace_config
     cost_class = binding_cost_class(binding, connection, owner)
+    # A weekly-paced account (Codex, Claude...) keeps its subscription guards: pacing,
+    # quota capacity and reset buffers apply only to the subscription class.
+    paced = {str(name).lower() for name in weekly_pace_config(owner).get("providers", ())}
     model_id = binding.get("model_id") if isinstance(binding.get("model_id"), str) else ""
     if "/" not in model_id or not allowances or not gateway_connection(connection, magpie_url):
         return cost_class, {}
@@ -140,7 +149,8 @@ def effective_cost(binding: Mapping[str, Any], connection: Mapping[str, Any], ow
     if allowance_active(allowance, now=now):
         resources["allowance"] = {key: allowance.get(key) for key in
                                   ("window", "remaining_percent", "resets_at", "limit")}
-        if cost_class == "subscription" and not explicit_cost_class(binding, connection, owner):
+        if (cost_class == "subscription" and provider not in paced
+                and not explicit_cost_class(binding, connection, owner)):
             resources["allowance"]["default_cost_class"] = cost_class
             cost_class = "free"
     credit = (allowances.get("credits") or {}).get(provider)

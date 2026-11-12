@@ -1321,6 +1321,7 @@ class CombinedTrustedHost:
         keys from :meth:`_merge_magpie_quotas`; provider lookups are unchanged.
         """
         if os.environ.get("REVERSE_AGENT_SUBSCRIPTION_QUOTA") == "0":
+            self._magpie_allowances = None  # quota reading off: no allowance is assumed either
             return {}
         from ..model_access.subscription_quota import claude_quota, codex_quota
         from .usage_ledger import latest_rate_limits

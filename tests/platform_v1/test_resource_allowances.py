@@ -79,6 +79,18 @@ class TestReading:
         found = ra.read_allowances(snapshot(WORKBUDDY, second), now=T)
         assert found["models"] == {} and found["credits"] == {} and found["ambiguous"] == ["workbuddy"]
 
+    def test_a_second_stale_account_still_makes_the_provider_ambiguous(self):
+        stale = dict(raw_account("workbuddy", WORKBUDDY["windows"], user="someone-else"),
+                     readAt=(NOW - timedelta(hours=1)).isoformat())
+        found = ra.read_allowances(snapshot(WORKBUDDY, stale), now=T)
+        assert found["models"] == {} and found["ambiguous"] == ["workbuddy"]
+
+    @pytest.mark.parametrize("title", ["Input tokens", "Weekly tokens", "Free model tokens", "Premium tokens (est.)"])
+    def test_generic_titles_name_no_model(self, title):
+        account = raw_account("workbuddy", [{"name": title, "used": 0, "remaining": 100, "resetsAt": iso(5)}])
+        found = ra.read_allowances(snapshot(account), now=T)
+        assert found["models"] == {} and [u["window"] for u in found["unattributed"]] == [title]
+
     def test_stale_or_missing_readings_give_nothing(self):
         stale = dict(WORKBUDDY, readAt=(NOW - timedelta(hours=1)).isoformat())
         assert ra.read_allowances(snapshot(stale), now=T)["models"] == {}
@@ -108,6 +120,12 @@ class TestEffectiveCost:
         owner = {"models": {"workbuddy/deepseek-v4.1-flash": {"cost_class": "subscription"}}}
         assert ra.effective_cost(binding("workbuddy/deepseek-v4.1-flash"), GATEWAY, owner, self.allowances, now=T)[0] == "subscription"
         assert ra.effective_cost(binding("workbuddy/deepseek-v4.1-flash", "direct"), OTHER, {}, self.allowances, now=T) == ("subscription", {})
+
+    def test_a_weekly_paced_provider_keeps_its_subscription_guards(self):
+        account = raw_account("codex", [{"name": "gpt-6 tokens", "used": 0, "remaining": 100, "resetsAt": iso(5)}])
+        allowances = ra.read_allowances(snapshot(account), now=T)
+        cost, resources = ra.effective_cost(binding("codex/gpt-6"), GATEWAY, {}, allowances, now=T)
+        assert cost == "subscription" and "default_cost_class" not in resources["allowance"]
 
     def test_an_unclassified_paid_route_is_not_upgraded(self):
         account = raw_account("unknownco", [{"name": "big-model tokens", "used": 0, "remaining": 100, "resetsAt": iso(5)}])
