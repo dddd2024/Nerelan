@@ -588,3 +588,77 @@ def test_installation_tree_paths_rejected_by_path_rule(tmp_path):
     paths = _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()
     assert not any("site-packages" in p for p in paths)
     assert (site_pkg / "payload.py").read_text(encoding="utf-8") == "installed = True\n"
+
+
+class TestNativeScratch:
+    """#1468: unreadable dirs in the executor's own ignored scratch do not fail a snapshot."""
+
+    SCRATCH = ".nt-0e4845639db2"
+
+    @staticmethod
+    def _lock(monkeypatch, marker: str) -> None:
+        # A directory the host cannot list, like an owner-only temp dir made by a sandbox user.
+        real = os.scandir
+
+        def scandir(path="."):
+            if Path(path).name.startswith(marker):
+                raise PermissionError(13, "Permission denied", str(path))
+            return real(path)
+        monkeypatch.setattr(os, "scandir", scandir)
+
+    def _scratch(self, repo: Path, ignore: bytes = b"*\n", name: str = SCRATCH) -> Path:
+        scratch = repo / name
+        scratch.mkdir()
+        (scratch / ".gitignore").write_bytes(ignore)
+        (scratch / "locked-tmp").mkdir()
+        return scratch
+
+    def test_unreadable_dir_inside_proper_scratch_is_not_a_violation(self, tmp_path, monkeypatch):
+        repo, base = _repo(tmp_path)
+        self._scratch(repo)
+        (repo / "calc.py").write_text("def add(left, right):\n    return left + right\n", encoding="utf-8")
+        self._lock(monkeypatch, "locked-tmp")
+        assert core._scan_workspace_indirections(repo) == []
+        _, observed, changed, _ = core._snapshot_workspace(repo, base)
+        assert changed == ("calc.py",)
+        assert not any(path.startswith(".nt") for path in _tree_paths(repo, observed))
+
+    @pytest.mark.parametrize("ignore, name", [
+        (b"*\n!keep\n", SCRATCH),       # a changed ignore file
+        (b"", SCRATCH),                 # an emptied one
+        (b"*\n", ".nt-NOTHEX123456"),   # not the executor's name
+        (b"*\n", "nested-ok"),          # an ordinary directory
+    ])
+    def test_anything_else_is_still_scanned(self, tmp_path, monkeypatch, ignore, name):
+        repo, _ = _repo(tmp_path)
+        self._scratch(repo, ignore, name)
+        self._lock(monkeypatch, "locked-tmp")
+        assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["access_error"]
+
+    def test_scratch_below_the_top_level_is_still_scanned(self, tmp_path, monkeypatch):
+        repo, _ = _repo(tmp_path)
+        self._scratch(repo / "src")
+        self._lock(monkeypatch, "locked-tmp")
+        assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["access_error"]
+
+    def test_a_missing_ignore_file_is_still_scanned(self, tmp_path, monkeypatch):
+        repo, _ = _repo(tmp_path)
+        scratch = self._scratch(repo)
+        (scratch / ".gitignore").unlink()
+        self._lock(monkeypatch, "locked-tmp")
+        assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["access_error"]
+
+    def test_a_linked_scratch_is_still_refused(self, tmp_path):
+        repo, _ = _repo(tmp_path)
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        (outside / ".gitignore").write_bytes(b"*\n")
+        try:
+            os.symlink(outside, repo / self.SCRATCH, target_is_directory=True)
+        except OSError:
+            if os.name != "nt" or subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(repo / self.SCRATCH), str(outside)],
+                    capture_output=True, check=False).returncode:
+                pytest.skip("neither symlinks nor junctions available")
+        assert core._ignored_native_scratch(repo / self.SCRATCH) is False
+        assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["reparse_point"]
