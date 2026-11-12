@@ -29,6 +29,11 @@ describe("goalProgressLine", () => {
     expect(line.text).toMatch(/^已停下：.+（已试 2 次）$/);
   });
 
+  it("treats a cancelled step as stopped, not queued", () => {
+    expect(goalProgressLine({ status: "BLOCKED", task_links: [link({ status: "READY_FOR_REVIEW" }), link({ task_id: "t2", status: "CANCELLED" })] }))
+      .toEqual({ tone: "stopped", text: "已停下：有一步被取消" });
+  });
+
   it("names what waits on the Owner before any task exists", () => {
     expect(goalProgressLine({ status: "DRAFT", task_links: [] }).text).toBe("草稿：等你生成计划");
     expect(goalProgressLine({ status: "PLANNED" }).text).toBe("计划已生成：等你审阅");

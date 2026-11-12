@@ -28,7 +28,8 @@ export function goalProgressLine(goal: Pick<PlatformGoal, "status" | "task_links
     const doing = short(running.activity?.description || running.activity?.title || "");
     return { tone: "live", text: `正在做：${doing || "Agent 已启动，等待第一条动作"}` };
   }
-  const stopped = links.find((link) => ["FAILED", "BLOCKED", "INTERRUPTED"].includes(link.status));
+  const stopped = links.find((link) => ["FAILED", "BLOCKED", "INTERRUPTED", "CANCELLED"].includes(link.status));
+  if (stopped?.status === "CANCELLED") return { tone: "stopped", text: "已停下：有一步被取消" };
   if (stopped) {
     const tries = (stopped.attempts?.length ?? 0) + 1;
     return { tone: "stopped", text: `已停下：${failureText(stopped.failure).label}${tries > 1 ? `（已试 ${tries} 次）` : ""}` };
