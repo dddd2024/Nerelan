@@ -142,6 +142,15 @@ def _is_sensenova_gateway(connection: Mapping[str, Any] | None) -> bool:
     return host == _SENSENOVA_HOST_SUFFIX or host.endswith("." + _SENSENOVA_HOST_SUFFIX)
 
 
+def explicit_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
+    """The Owner's own cost class for this binding, model or connection, or "" when unset."""
+    binding, connection = binding or {}, connection or {}
+    model_id = binding.get("model_id") if isinstance(binding.get("model_id"), str) else ""
+    return (_owner_cost(owner, "bindings", binding.get("binding_id"))
+            or _owner_cost(owner, "models", model_id)
+            or _owner_cost(owner, "connections", binding.get("connection_id")) or "")
+
+
 def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any], owner: Mapping[str, Any]) -> str:
     """Resolve a binding's cost class with explicit Owner precedence.
 

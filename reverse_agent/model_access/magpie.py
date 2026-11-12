@@ -216,9 +216,17 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
                     reason = "invalid_window"
                     normalized = []
                     break
-                normalized.append(dict(name=name, used_percent=used, remaining_percent=remaining,
-                                       resets_at=reset.isoformat() if reset else None,
-                                       unlimited=window.get("unlimited", False)))
+                entry = dict(name=name, used_percent=used, remaining_percent=remaining,
+                             resets_at=reset.isoformat() if reset else None,
+                             unlimited=window.get("unlimited", False))
+                # Size and expiry of time-limited resources (#1471), kept only when Magpie
+                # states them; an unreadable value is dropped, never guessed.
+                if _number(window.get("limit")) is not None:
+                    entry["limit"] = window["limit"]
+                runs_out_at = _date(window.get("runsOutAt"))
+                if runs_out_at is not None and _number(window.get("runsOut")) is not None:
+                    entry.update(runs_out_at=runs_out_at.isoformat(), runs_out=window["runsOut"])
+                normalized.append(entry)
         if reason is None:
             account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH", reason=None)
             account.update(windows=normalized, cached_windows=[])

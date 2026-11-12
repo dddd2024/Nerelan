@@ -15,6 +15,7 @@ from .run_store import TaskStoreError
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
 from .routing_inputs import requirements, reset_decision
+from .resource_allowances import urgency
 import time
 
 KINDS = frozenset({"code", "analysis", "writing", "research_design", "review"})
@@ -308,9 +309,13 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         context_bonus = min(.5, window / 2_000_000) if "long_context" in needs else 0.
         latency_penalty = min(2., (override.get("median_ok_seconds", bucket.get("median_ok_seconds")) or 0) / 60) if "low_latency" in needs else 0.
         availability_penalty = candidate.get("availability", {}).get("penalty", 0.)
-        adjusted = cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty - context_bonus
+        # Use a time-limited allowance or expiring credits before they lapse (#1471).
+        resource_urgency = urgency(candidate.get("resources"), now=now)
+        adjusted = (cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty
+                    - context_bonus - resource_urgency)
         breakdown = {"availability_rank": int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
                      "base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
+                     "resource_urgency": resource_urgency,
                      "refusal_penalty": refusal_penalty, "context_bonus": context_bonus,
                      "latency_penalty": latency_penalty, "reset_adjustment": cost - base_cost,
                      "quota_pressure": 1. - headroom if observed_headroom is not None else None, "quota_penalty": quota_penalty}
@@ -407,6 +412,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         top = [*top[:4], chosen]
     evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "availability", "tier", "tier_source", "tier_basis", "unproven",
                                             "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score", "score_breakdown", "refusal_risk", "characteristics", "quota_headroom", "reset")}
+                | ({"resources": item["resources"]} if item.get("resources") else {})
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],
             "model_id": chosen["model_id"], "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,

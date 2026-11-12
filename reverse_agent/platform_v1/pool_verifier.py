@@ -71,7 +71,8 @@ class PoolVerifier:
         """Verify at most one unproven binding; returns its id, or None if nothing was checked."""
         from .model_availability import native_owner_account
         from .model_router import capability
-        from .routing_inputs import binding_cost_class, read_overrides
+        from .resource_allowances import effective_cost, urgency
+        from .routing_inputs import read_overrides
 
         host = self._host
         now = time.time() if now is None else now
@@ -94,6 +95,9 @@ class PoolVerifier:
         runnable = host._runnable_bindings()
         profiles = host._usage_profiles()
         history = host._routing_availability_history()
+        # Magpie's time-limited allowances (#1471): a binding free only until its reset is
+        # verified first, so it can be used before the allowance lapses.
+        allowances = host._resource_allowances(refresh=True) if hasattr(host, "_resource_allowances") else {}
         pending = []
         for binding in host._store.list_bindings_public():
             binding_id = binding["binding_id"]
@@ -103,7 +107,7 @@ class PoolVerifier:
                     or now - self._tried.get(binding_id, float("-inf")) < RETRY_SECONDS
                     or (owner.get("bindings", {}).get(binding_id) or {}).get("exclude") is True):
                 continue
-            cost_class = binding_cost_class(binding, connection, owner)
+            cost_class, resources = effective_cost(binding, connection, owner, allowances, now=now)
             if cost_class == "paid_api" and not allow_paid:
                 continue
             known = host._routing_availability(binding, connection, allow_paid=allow_paid, cost_class=cost_class,
@@ -111,10 +115,11 @@ class PoolVerifier:
             if known.get("state") != "UNKNOWN":
                 continue
             tier = capability(binding["model_id"], profiles.get(binding_id, {}), "code", 3)[0]
-            pending.append((_COST_RANK.get(cost_class, 2), -tier, binding_id, binding, connection))
+            pending.append((_COST_RANK.get(cost_class, 2), -urgency(resources, now=now), -tier, binding_id,
+                            binding, connection))
         if not pending:
             return None
-        _, _, binding_id, binding, connection = min(pending, key=lambda item: item[:3])
+        *_, binding_id, binding, connection = min(pending, key=lambda item: item[:4])
         cache = host._availability_cache
         if now < cache.next_probe:
             return None  # the one-per-minute limit shared with selection-time probes
