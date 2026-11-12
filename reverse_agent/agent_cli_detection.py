@@ -1,4 +1,9 @@
-"""Installed agent CLI discovery shared by the launcher and trusted host.
+"""Installed agent CLI discovery for the trusted host.
+
+This is the same rule as dev-up.ps1's Find-Executable (PATH, then cwd on
+Windows; PATHEXT plus npm shim extensions); tests/platform_v1/
+test_agent_cli_detection_parity.py runs both on one layout and requires equal
+results. Only the real host process calls it (run_combined_trusted_host).
 
 Discovery only checks executable files; it never starts a CLI or inspects login
 state. Windows includes npm shims even when PATHEXT omits their extensions.

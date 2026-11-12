@@ -68,6 +68,7 @@ const FAILURES: Record<string, [string, string]> = {
   no_willing_model: ["没有模型愿意执行", "请查看拒绝原因并调整任务范围。"],
   pinned_model_unavailable: ["指定模型不可用", "请检查指定模型的权限、额度和配置。"],
   cli_unavailable: ["执行工具不可用", "请检查本地执行工具是否已安装并可用。"],
+  executor_unavailable: ["执行工具未安装", "这个模型需要的执行工具（如 OpenCode、Codex 或 Claude Code）在本机没有找到，安装后重启 Nerelan。"],
   auth_provider_route_failure: ["认证或服务路由失败", "请检查连接的登录状态和服务地址。"],
   network_provider_failure: ["服务连接失败", "请检查网络和服务连接后重试。"],
   model_provider_unavailable: ["模型服务不可用", "请检查服务配置或选择其他可用模型。"],

@@ -136,6 +136,9 @@ def test_routing_refuses_missing_executors_even_for_pins_and_exploration(install
             choose(pool, exploration_draw=0)
         assert error.value.decision["reason"] == "no_runnable_model"
         assert {row["filter"] for row in error.value.decision["excluded_candidates"]} == {"executor_unavailable"}
+        # The refusal names each missing executor, not only the filter.
+        assert {row["executor_id"] for row in error.value.decision["excluded_candidates"]} == {
+            "opencode", "codex", "claude_code"}
     else:
         result = choose(pool, exploration_draw=0)
         assert result["executor_kind"] in installed

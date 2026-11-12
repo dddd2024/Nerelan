@@ -138,7 +138,7 @@ class CombinedTrustedHost:
             self._store = ModelProfileStore(
                 state_path=state_path,
                 vault=resolved_vault,
-                executor_detector=executor_detector or detect_agent_clis,
+                executor_detector=executor_detector,
             )
         from .magpie_launch import MagpieLaunch
         self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
@@ -1934,6 +1934,9 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
     auth_sha = _resolve_trusted_authority_sha()
     planning_sha = _resolve_trusted_planning_sha()
     host = CombinedTrustedHost(
+        # Only the real host process discovers installed CLIs; library and test
+        # hosts keep deterministic executor defaults (#1458).
+        executor_detector=detect_agent_clis,
         execution_authority_sha=auth_sha,
         planning_sha=planning_sha,
         model_control_host=os.environ.get("REVERSE_AGENT_MODEL_CONTROL_HOST", "127.0.0.1"),

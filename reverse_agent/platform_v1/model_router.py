@@ -281,7 +281,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "refusal_retry_tier"
         if reason:
             exclusion = {"binding_id": candidate["binding_id"], "model_id": candidate["model_id"], "filter": reason}
-            if reason == "account_quarantined":
+            if reason == "executor_unavailable":
+                exclusion["executor_id"] = candidate["executor_id"]  # name the missing CLI
+            elif reason == "account_quarantined":
                 exclusion["retry_at"] = quota.get("retry_at")
             elif reason == "weekly_pace":
                 exclusion["retry_at"] = pace_hold
