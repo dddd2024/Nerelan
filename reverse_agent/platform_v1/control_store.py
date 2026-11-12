@@ -502,6 +502,7 @@ class PlatformControlStore:
                     self._conn.execute(f"ALTER TABLE platform_operation_receipts ADD COLUMN {column} {definition}")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_receipt_window_seq ON platform_operation_receipts(window_id, seq)")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_claim_window ON platform_coordinator_claims(window_id, task_id)")
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_goal_window ON platform_goals(window_id)")
             self._conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_event_task_time ON task_events(task_id, timestamp)")
 
     # Goal records -----------------------------------------------------
@@ -993,6 +994,17 @@ class PlatformControlStore:
                 }
                 for row in rows
             )
+
+    def ready_window_tasks(self, window_id: str) -> tuple[str, ...]:
+        """READY_FOR_REVIEW tasks of this window's goals, oldest goal and plan order first (#1462)."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT l.task_id FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "WHERE g.window_id = ? AND t.status = 'READY_FOR_REVIEW' "
+                "ORDER BY g.created_at ASC, l.seq ASC", (window_id,)).fetchall()
+        return tuple(str(row["task_id"]) for row in rows)
 
     def goal_id_for_task(self, task_id: str) -> str:
         with self._lock:

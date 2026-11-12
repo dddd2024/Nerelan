@@ -46,7 +46,14 @@ const EXECUTOR_LABELS: Record<string, string> = {
   opencode: "OpenCode", codex: "Codex", claude_code: "Claude Code", deterministic_fixture: "Fixture",
 };
 
-function publicationText(publication: PlatformGoalTaskLink["publication"]) {
+const PUBLICATION_BLOCKERS: Record<string, string> = {
+  no_functional_checks: "不会发布：计划没有功能检查",
+  no_review_handoff: "不会发布：结果没有交给评审",
+  functional_validation_not_accepted: "不会发布：功能检查未通过",
+};
+
+function publicationText(publication: PlatformGoalTaskLink["publication"], blocked = "") {
+  if (!publication && blocked) return PUBLICATION_BLOCKERS[blocked] ?? `不会发布：${blocked}`;
   if (!publication) return "尚无发布记录";
   if (publication.status === "PENDING") return "等待发布";
   if (publication.status === "COMMIT_CREATED") return "提交已生成，尚未发布";
@@ -111,8 +118,8 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
                   {functionalStatusLabel(proof.status)}
                 </span>
-                <span data-testid={`goal-publication-${task.task_id}`} className={cn("rounded-md px-1.5 py-0.5", task.publication ? "bg-ra-light text-ra-text-secondary" : "text-ra-text-tertiary")}>
-                  {publicationText(task.publication)}
+                <span data-testid={`goal-publication-${task.task_id}`} className={cn("rounded-md px-1.5 py-0.5", task.publication ? "bg-ra-light text-ra-text-secondary" : task.publication_blocked ? "text-ra-status-error" : "text-ra-text-tertiary")}>
+                  {publicationText(task.publication, task.publication_blocked)}
                 </span>
                 {task.executor_kind && <span data-testid={`goal-agent-${task.task_id}`} className="rounded-md bg-ra-tertiary/60 px-1.5 py-0.5 font-mono text-[10px] text-ra-text-secondary"
                   title="执行此任务的 Agent">
