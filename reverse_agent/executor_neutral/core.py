@@ -384,6 +384,49 @@ def _relative_path(repo_resolved: Path, candidate: Path) -> str:
     return relative.as_posix()
 
 
+# Per-execution native TMP scratch at the worktree top (codex_executor._task_temp_env).
+_NATIVE_SCRATCH = re.compile(r"\.nt(?:-[0-9a-f]{12})?")
+# codex_executor writes the file in text mode: "*\r\n" on Windows. Git reads both as "ignore all".
+_SCRATCH_IGNORES = (b"*\n", b"*\r\n")
+
+
+def _ignored_native_scratch(candidate: Path) -> bool:
+    """True only for a plain top-level scratch directory whose own ignore file hides all of it.
+
+    Such a directory can never contribute to the snapshot (``git add -A`` skips
+    everything below an ignored directory, and nested ignore files there are not
+    read), so its contents are not product evidence. Tests run by the executor may
+    leave sub-directories the host cannot read (owner-only temp directories made
+    by another sandbox user); they must not fail the artifact (#1468). Anything
+    else, including a linked or substituted scratch, is scanned as before.
+    """
+    import stat as _stat
+    if not _NATIVE_SCRATCH.fullmatch(candidate.name):
+        return False
+    try:
+        info = candidate.lstat()
+        if (not _stat.S_ISDIR(info.st_mode) or _stat.S_ISLNK(info.st_mode)
+                or getattr(info, "st_file_attributes", 0) & _stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            return False
+        ignore = candidate / ".gitignore"
+        ignore_info = ignore.lstat()
+        if (not _stat.S_ISREG(ignore_info.st_mode)
+                or getattr(ignore_info, "st_file_attributes", 0) & _stat.FILE_ATTRIBUTE_REPARSE_POINT
+                or ignore_info.st_size > max(map(len, _SCRATCH_IGNORES))):
+            return False
+        if ignore.read_bytes() not in _SCRATCH_IGNORES:
+            return False
+        again = candidate.lstat()  # not swapped for a link while reading
+        if (again.st_dev, again.st_ino, again.st_mode) != (info.st_dev, info.st_ino, info.st_mode):
+            return False
+        # An ignore rule does not hide tracked files: `git add -A` would still stage them.
+        tracked = subprocess.run(["git", "ls-files", "-z", "--", candidate.name], cwd=candidate.parent,
+                                 capture_output=True, timeout=30, check=False)
+        return tracked.returncode == 0 and not tracked.stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def _scan_workspace_indirections(repo: Path) -> list[dict[str, str]]:
     violations: list[dict[str, str]] = []
     repo_resolved = repo.resolve()
@@ -420,8 +463,11 @@ def _scan_workspace_indirections(repo: Path) -> list[dict[str, str]]:
             dirnames[:] = []
             continue
         kept = []
+        at_top = current_dir == repo
         for name in list(dirnames):
             candidate = current_dir / name
+            if at_top and _ignored_native_scratch(candidate):
+                continue
             try:
                 if _is_reparse_point(candidate):
                     violations.append({"path": _relative_path(repo_resolved, candidate), "rule": "reparse_point"})
