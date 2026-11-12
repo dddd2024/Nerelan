@@ -465,20 +465,23 @@ function Wait-PortsFreed {
 }
 
 # Detect installed CLIs only; authentication/compatibility remain host readiness checks.
+$py = Find-Executable "python"
+if (-not $py) { Fail-Closed "prerequisite missing: python (not installed)" }
 $agentCliTools = @(
   @{ Name = "opencode"; Executables = @("opencode"); Label = "OpenCode" }
   @{ Name = "codex"; Executables = @("codex"); Label = "Codex CLI" }
   @{ Name = "claude_code"; Executables = @("claude"); Label = "Claude Code CLI" }
 )
 $agentCliPaths = [ordered]@{}
-foreach ($tool in $agentCliTools) {
-  foreach ($executable in $tool.Executables) {
-    $cliPath = Find-Executable $executable
-    if ($cliPath) {
-      $agentCliPaths[$tool.Name] = $cliPath
-      break
-    }
+try {
+  $detectedClis = & $py (Join-Path $PSScriptRoot "reverse_agent\agent_cli_detection.py")
+  if ($LASTEXITCODE -ne 0) { throw "CLI discovery failed" }
+  $detectedClis = $detectedClis | ConvertFrom-Json
+  foreach ($property in $detectedClis.PSObject.Properties) {
+    $agentCliPaths[$property.Name] = [string]$property.Value
   }
+} catch {
+  Fail-Closed "agent CLI discovery failed: $($_.Exception.Message)"
 }
 $opencode = $agentCliPaths["opencode"]
 if ($agentCliPaths.Count -eq 0) {
@@ -567,9 +570,6 @@ if ($stackReused) {
   Write-StackSummary
   exit 0
 }
-
-$py = Find-Executable "python"
-if (-not $py) { Fail-Closed "prerequisite missing: python (not installed)" }
 
 $node = Find-Executable "node"
 if (-not $node) { Fail-Closed "prerequisite missing: node (not installed)" }

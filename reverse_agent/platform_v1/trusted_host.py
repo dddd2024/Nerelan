@@ -41,6 +41,7 @@ from ..model_access.os_vault import default_vault_adapter
 from ..model_access.account_auth import AccountAuthManager, ServerFactory
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
+from ..agent_cli_detection import detect_agent_clis
 from .github_adapter import LiveGitHubAdapter
 from .opencode_executor import (
     ExecutionLeaseHandle,
@@ -93,6 +94,7 @@ class CombinedTrustedHost:
         account_auth_server_factory: ServerFactory | None = None,
         codex_readiness_probe: Callable[[], str] | None = None,
         claude_code_readiness_probe: Callable[[], str] | None = None,
+        executor_detector: Callable[[], Mapping[str, str]] | None = None,
         reset_signal_reader: Callable[[], Mapping[str, Any]] | None = None,
         availability_probe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
         vault: Any = _PLATFORM_VAULT,
@@ -121,6 +123,8 @@ class CombinedTrustedHost:
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:
             self._store = store
+            if executor_detector is not None:
+                self._store.refresh_executor_availability(executor_detector)
         else:
             state_path = _resolve_store_state_path(task_store)
             # Platforms without a supported OS vault adapter (None) keep the
@@ -134,6 +138,7 @@ class CombinedTrustedHost:
             self._store = ModelProfileStore(
                 state_path=state_path,
                 vault=resolved_vault,
+                executor_detector=executor_detector or detect_agent_clis,
             )
         from .magpie_launch import MagpieLaunch
         self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
@@ -635,6 +640,7 @@ class CombinedTrustedHost:
         by_id = {b["binding_id"]: b for b in bindings}
         connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
         runnable = self._runnable_bindings()
+        executors = {item["executor_id"]: item for item in self._store.list_executors_public()}
         profiles = self._usage_profiles()
         forecast_evidence = (self._forecast_evidence() if quota_evidence is None else quota_evidence) if forecast else {}
         role = task.agent_role or (
@@ -706,6 +712,7 @@ class CombinedTrustedHost:
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
+                                "executor_available": executors.get(binding["executor_id"], {}).get("cli_available"),
                                "account_ref": connection.get("account_ref") or connection.get("connection_id"),
                                "review_connection": {"auth_method": connection.get("auth_method"),
                                    "protocol_family": connection.get("protocol_family"),
@@ -973,6 +980,8 @@ class CombinedTrustedHost:
         if not entry or not entry["available"]:
             raise TaskStoreError(f"agent_role_unfilled:{role}")
         executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
+        if self._store.get_executor_public(executor_id).get("cli_available") is False:
+            raise TaskStoreError(f"executor_unavailable:{executor_id}")
         return self._quota_guarded(role, executor_id, binding_id, roster["roles"],
                                    standins=roster.get("standins", {}).get(role, ()))
 

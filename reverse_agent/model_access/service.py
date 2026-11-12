@@ -767,7 +767,8 @@ def _handler_factory(
 
 
 def store_from_environment() -> ModelProfileStore:
-    store = ModelProfileStore()
+    from ..agent_cli_detection import detect_agent_clis
+    store = ModelProfileStore(executor_detector=detect_agent_clis)
     raw = os.environ.get("REVERSE_AGENT_MODEL_PROFILES_JSON", "").strip()
     if not raw:
         return store

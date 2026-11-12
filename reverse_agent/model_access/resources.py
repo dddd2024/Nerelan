@@ -78,7 +78,7 @@ def _credential(connection: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _executor_ready(executor: Mapping[str, Any] | None, connection: Mapping[str, Any]) -> bool:
-    if executor is None:
+    if executor is None or executor.get("cli_available") is False:
         return False
     if executor.get("operational") is True:
         return True
@@ -511,6 +511,7 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
             "credential_owner": (native[1] if native else "external_cli") if credential["kind"] == "subscription"
             else "nerelan" if credential["kind"] == "api_key" else "none",
             "executors": [{"executor_id": executor_id, "ready": ready[executor_id],
+                           "cli_available": (executors.get(executor_id) or {}).get("cli_available"),
                            "readiness_status": (executors.get(executor_id) or {}).get("readiness_status") or None}
                           for executor_id in compatible],
             "bindings": rows,
