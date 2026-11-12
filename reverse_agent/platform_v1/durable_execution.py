@@ -1404,6 +1404,13 @@ class DurableExecutionService:
                 and not exec_result.error.startswith("opencode_nonzero:exit=")
                 else exec_result.failure_classification or "failed"
             ) or "failed"
+            # A failed attempt still shows what it changed (the run page's
+            # file count); executors return [] when the tree was unsafe to read.
+            if exec_result.changed_files:
+                self.store._fenced_set_changed_files(
+                    lease.run_id, task_id, tuple(exec_result.changed_files),
+                    lease.owner, lease.epoch,
+                )
             self.store._accept_checkpoint(
                 lease.run_id, "POST_PLANNER",
                 _digest(str(exec_result.error)),
