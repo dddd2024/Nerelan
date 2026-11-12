@@ -202,3 +202,52 @@ class TestTeamTemplate:
         report = setup.host._owner_window_admission.preflight(request.pop("goal_ids"), **request)
         assert report["ok"] is True, report["checks"]
         assert len(report["preview"]) == 2
+
+
+class TestUnpublishableDrafts:
+    """#1462: a drafted goal gets checks from the source files its issue names, or says it won't publish."""
+
+    EXISTING = {"tests/test_model_access.py", "tests/platform_v1/test_goal_service.py", "frontend/package.json"}
+
+    def exists(self, name):
+        return name in self.EXISTING
+
+    def test_named_source_files_bring_the_tests_that_cover_them(self):
+        from reverse_agent.platform_v1.quick_start import checks_from_text
+        text = ("The store in reverse_agent/model_access/store.py and reverse_agent/platform_v1/goal_service.py; "
+                "also reverse_agent/platform_v1/nothing_tests_this.py and frontend/src/routes/home.tsx")
+        assert checks_from_text(text, self.exists) == [
+            {"profile_id": "python_pytest", "working_directory": ".",
+             "targets": ["tests/test_model_access.py", "tests/platform_v1/test_goal_service.py"]},
+            {"profile_id": "npm_test", "working_directory": "frontend"}]
+        # Without a workspace nothing is guessed; named tests still win over inference.
+        assert checks_from_text(text) == []
+        assert checks_from_text(text + " tests/platform_v1/test_x.py", self.exists)[0]["targets"] == [
+            "tests/platform_v1/test_x.py"]
+
+    def test_a_draft_uses_the_workspace_and_reports_unpublishable_goals(self, setup):
+        bodies = {1: "Change reverse_agent/model_access/store.py", 2: "Only words here."}
+
+        def reader(repository, number):
+            return {"number": number, "title": "T", "state": "OPEN", "url": f"u{number}", "body": bodies[number]}
+        result = QuickStart(setup.host._goal_service, issue_reader=reader,
+                            files=lambda repository: self.exists).draft("fix #1 #2", REPO)
+        first, second = result["goals"]
+        assert (first["publishes_draft_pr"], first["publication_blocked"]) == (True, "")
+        assert (second["publishes_draft_pr"], second["publication_blocked"]) == (False, "no_functional_checks")
+        assert result["warnings"] == [f"no_functional_checks:{second['id']}"]
+
+    def test_preflight_warns_but_does_not_refuse(self, setup, monkeypatch):
+        free = {"executor_kind": "opencode", "binding_ref": "free", "model_id": "token-sensenova/glm-test",
+                "reason": "fixture_route"}
+        monkeypatch.setattr(setup.host._goal_service, "task_resolver", lambda item, **_: dict(free))
+        reader, _ = issues()
+        result = QuickStart(setup.host._goal_service, issue_reader=reader,
+                            files=lambda repository: None).draft("fix #1 试跑", REPO)
+        request = dict(result["request"])
+        goal_ids = request.pop("goal_ids")
+        report = setup.host._owner_window_admission.preflight(goal_ids, **request)
+        assert report["ok"] is True, report["checks"]
+        assert [(w["warning"], w["goal_id"]) for w in report["warnings"]] == [("goal_unpublishable", goal_ids[0])]
+        request["capabilities"] = [c for c in request["capabilities"] if c != "open_draft_pr"]
+        assert setup.host._owner_window_admission.preflight(goal_ids, **request)["warnings"] == []

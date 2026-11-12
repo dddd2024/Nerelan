@@ -151,6 +151,8 @@ export interface PlatformGoalTaskLink {
   binding_ref?: string;
   functional_validation?: FunctionalValidation;
   publication?: PlatformAgentRun["publication"];
+  /** Why the host will not publish this finished task as a Draft PR ("" when it can). */
+  publication_blocked?: string;
 }
 
 export interface PlatformWindow {

@@ -51,6 +51,7 @@ from .control_store import (
     canonical_json,
     sha256_json,
 )
+from .artifact_handoff import published_plan_tasks
 from .functional_validation import repository_base
 from .repository_workspace import resolve_repository_workspace
 from .run_store import TaskStoreError
@@ -414,7 +415,9 @@ class OwnerWindowAdmission:
         def add(check: str, reason: str = "", detail: str = "") -> None:
             checks.append({"check": check, "ok": not reason, "reason": reason, "detail": detail})
 
-        result: dict[str, Any] = {"ok": False, "checks": checks, "preview": [], "scope": None}
+        # Not refusals: what the window would do but the Owner may not expect.
+        warnings: list[dict[str, str]] = []
+        result: dict[str, Any] = {"ok": False, "checks": checks, "warnings": warnings, "preview": [], "scope": None}
         try:
             goal_ids, envelope = self._prepare(goal_ids, **request)
         except TaskStoreError as exc:
@@ -439,6 +442,13 @@ class OwnerWindowAdmission:
         if scope is not None:
             tasks = sum(len(goal["tasks"]) for goal in scope["goals"])
             add("goals", "", f"{len(scope['goals'])} goals, {tasks} tasks in {scope['repository']}")
+            if "open_draft_pr" in scope["envelope"]["capabilities"]:
+                for goal in scope["goals"]:
+                    if not published_plan_tasks(goal["tasks"]):
+                        # #1462: such a goal turns COMPLETED and nothing is ever published.
+                        warnings.append({"warning": "goal_unpublishable", "goal_id": goal["id"],
+                                         "detail": "no task hands a checked result to a review, so the host "
+                                                   "will not open a Draft PR for this goal"})
             add("model_pool", "" if scope["approved_pool"] else "owner_window_pool_empty",
                 f"{len(scope['approved_pool'])} bindings offered, {len(scope['pool_skipped'])} not offered")
             try:

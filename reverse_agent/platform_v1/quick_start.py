@@ -24,6 +24,7 @@ import re
 import subprocess
 from typing import Any
 
+from .artifact_handoff import published_plan_tasks
 from .control_store import OWNER_WINDOW_CAPABILITIES, OWNER_WINDOW_MAX_GOALS
 from .run_store import TaskStoreError
 
@@ -50,6 +51,11 @@ _REPOSITORY = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+")
 # the review reruns. pytest targets are capped like functional_validation's.
 _PYTEST_TARGET = re.compile(r"(?<![\w/.-])(tests/[A-Za-z0-9_./-]+\.py)\b")
 _FRONTEND_TESTS = re.compile(r"npm (?:--prefix frontend )?test|vitest|frontend/tests?/", re.I)
+# Source files an issue names, when it names no test (#1462): the tests that already
+# cover them become the checks. Only files that exist in the workspace are used.
+_PYTHON_SOURCE = re.compile(r"(?<![\w/.-])((?:[A-Za-z0-9_]+/)+[A-Za-z0-9_]+\.py)\b")
+_FRONTEND_SOURCE = re.compile(r"(?<![\w/.-])frontend/src/[A-Za-z0-9_./-]+\.tsx?\b")
+UNPUBLISHABLE = "no_functional_checks"
 MAX_TARGETS = 16
 _PRESET_HINTS = (
     ("week", re.compile(r"一周|7\s*天|七天|week", re.I)),
@@ -131,15 +137,56 @@ def gh_issue_reader(repository: str, number: int) -> dict[str, Any]:
             "body": str(raw.get("body", "")), "state": str(raw.get("state", "")), "url": str(raw.get("url", ""))}
 
 
-def checks_from_text(text: str) -> list[dict[str, Any]]:
-    """Functional checks an issue names: its pytest files, and the frontend suite if it asks."""
-    targets = list(dict.fromkeys(_PYTEST_TARGET.findall(text or "")))[:MAX_TARGETS]
+def _covering_tests(source: str) -> list[str]:
+    """Test files that conventionally cover ``source`` (``pkg/sub/mod.py``), most specific first."""
+    parts = source.split("/")
+    if parts[0] == "tests" or parts[-1].startswith("test_") or parts[-1] == "__init__.py" or len(parts) < 2:
+        return []
+    module, packages = parts[-1][:-3], parts[1:-1]
+    folder = "/".join(["tests", *packages])
+    names = [f"{folder}/test_{module}.py", f"tests/test_{module}.py"]
+    if packages:
+        names += [f"{folder}/test_{packages[-1]}.py", f"tests/test_{packages[-1]}.py"]
+    return list(dict.fromkeys(names))
+
+
+def checks_from_text(text: str, exists: Callable[[str], bool] | None = None) -> list[dict[str, Any]]:
+    """Functional checks for an issue: the pytest files and frontend suite it names.
+
+    An issue that names no test but names source files gets the existing tests that
+    cover them (``exists`` says which repository files exist), so its result can be
+    validated and published (#1462). Without ``exists`` nothing is inferred.
+    """
+    text = text or ""
+    targets = list(dict.fromkeys(_PYTEST_TARGET.findall(text)))[:MAX_TARGETS]
+    frontend = bool(_FRONTEND_TESTS.search(text))
+    if not targets and not frontend and exists is not None:
+        for source in dict.fromkeys(_PYTHON_SOURCE.findall(text)):
+            found = next((name for name in _covering_tests(source) if exists(name)), None)
+            if found and found not in targets:
+                targets.append(found)
+        targets = targets[:MAX_TARGETS]
+        frontend = bool(_FRONTEND_SOURCE.search(text)) and exists("frontend/package.json")
     checks: list[dict[str, Any]] = []
     if targets:
         checks.append({"profile_id": "python_pytest", "working_directory": ".", "targets": targets})
-    if _FRONTEND_TESTS.search(text or ""):
+    if frontend:
         checks.append({"profile_id": "npm_test", "working_directory": "frontend"})
     return checks
+
+
+def workspace_files(repository: str) -> Callable[[str], bool] | None:
+    """``exists`` for the host's configured workspace of ``repository``, or None if it has none."""
+    from .repository_workspace import RepositoryWorkspaceError, resolve_repository_workspace
+    try:
+        root = resolve_repository_workspace(repository).repo_dir
+    except (RepositoryWorkspaceError, ValueError, OSError):
+        return None
+
+    def exists(name: str) -> bool:
+        path = (root / name).resolve()
+        return path.is_relative_to(root) and path.is_file()
+    return exists
 
 
 def team_tasks(label: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -168,10 +215,12 @@ class QuickStart:
     """Creates and plans the Goals one sentence asks for. Creates no window."""
 
     def __init__(self, goal_service: Any, *, issue_reader: Callable[[str, int], Mapping[str, Any]] = gh_issue_reader,
-                 state_dir: str | Path | None = None) -> None:
+                 state_dir: str | Path | None = None,
+                 files: Callable[[str], Callable[[str], bool] | None] = workspace_files) -> None:
         self._goals = goal_service
         self._read_issue = issue_reader
         self._state_dir = state_dir
+        self._files = files
 
     def draft(self, text: str, repository: str, *, preset: str = "") -> dict[str, Any]:
         request = parse(text, repository)
@@ -179,18 +228,25 @@ class QuickStart:
         chosen = preset or request["preset"]
         if chosen not in options:
             raise TaskStoreError("quick_start_preset_invalid")
-        specs = [self._issue_spec(repository, number) for number in request["issues"]] or [
+        exists = self._files(repository) if request["issues"] else None
+        specs = [self._issue_spec(repository, number, exists) for number in request["issues"]] or [
             self._text_spec(request["text"])]
         goals = [self._planned(repository, spec) for spec in specs]
         tasks = sum(len(goal.tasks) for goal in goals)
-        return {"goals": [{"id": goal.id, "title": goal.title, "status": goal.status, "tasks": list(goal.tasks),
-                           # Only a Goal with a review is published as a Draft PR by the host.
-                           "publishes_draft_pr": any(t.get("kind") == "review" for t in goal.tasks)}
-                          for goal in goals],
+        drafted = []
+        for goal in goals:
+            # Only a checked result handed to a review is published as a Draft PR.
+            publishes = bool(published_plan_tasks(goal.tasks))
+            drafted.append({"id": goal.id, "title": goal.title, "status": goal.status, "tasks": list(goal.tasks),
+                            "publishes_draft_pr": publishes,
+                            "publication_blocked": "" if publishes else UNPUBLISHABLE})
+        warnings = [f"{UNPUBLISHABLE}:{goal['id']}" for goal in drafted if not goal["publishes_draft_pr"]]
+        return {"goals": drafted, "warnings": warnings,
                 "preset": chosen, "presets": options,
                 "request": window_request(options[chosen], [goal.id for goal in goals], tasks=tasks)}
 
-    def _issue_spec(self, repository: str, number: int) -> dict[str, str]:
+    def _issue_spec(self, repository: str, number: int,
+                    exists: Callable[[str], bool] | None = None) -> dict[str, Any]:
         issue = self._read_issue(repository, number)
         if str(issue.get("state", "")).upper() != "OPEN":
             raise TaskStoreError(f"quick_start_issue_not_open:{number}")
@@ -199,7 +255,7 @@ class QuickStart:
         body = str(issue.get("body", ""))[:MAX_ISSUE_BODY_CHARS]
         return {"key": f"issue-{number}", "title": title[:200], "subject": url,
                 "objective": f"Resolve {url}\n\n# {issue.get('title', '')}\n\n{body}".strip(),
-                "checks": checks_from_text(body)}
+                "checks": checks_from_text(body, exists)}
 
     @staticmethod
     def _text_spec(text: str) -> dict[str, str]:

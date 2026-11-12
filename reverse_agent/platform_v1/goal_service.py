@@ -55,7 +55,8 @@ def _initial_resource_wait(decision: Mapping[str, Any]) -> dict[str, Any] | None
     return {"version": 1, "kind": "resource",
             "retry_at": max(now + 1, min(due, now + INITIAL_MODEL_RECHECK_SECONDS))}
 from .artifact_handoff import (
-    freeze_handoff_contract, load_handoff_contract, normalize_input, validate_plan_inputs,
+    ACCEPTED_CATEGORY, _load_evidence, freeze_handoff_contract, load_handoff_contract, normalize_input,
+    publication_blocker, published_plan_tasks, validate_plan_inputs,
 )
 from .task_runtime import HOST_VALIDATION_CONTRACT, ExecutorRuntimeError, load_host_validation_contract
 
@@ -1563,10 +1564,23 @@ class GoalService:
         publication = self.control_store.get_publication(task.id)
         if publication is not None and publication.repository != task.repository:
             publication = None
+        blocked = ""
+        if goal.window_id and publication is None and task.status == "READY_FOR_REVIEW":
+            plan_task_id = str(link["plan_task_id"])
+            blocked = publication_blocker(goal.tasks, plan_task_id)
+            if not blocked and plan_task_id in published_plan_tasks(goal.tasks):
+                try:
+                    accepted = _load_evidence(task, ACCEPTED_CATEGORY, task.execution_id)
+                except TaskStoreError:
+                    accepted = None
+                if accepted is None:
+                    blocked = "functional_validation_not_accepted"
         return {
             **link, "executor_kind": task.executor_kind, "binding_ref": task.binding_ref,
             "functional_validation": proof,
             "publication": publication_projection(publication),
+            # #1462: a finished task the host will not publish says why.
+            "publication_blocked": blocked,
         }
 
     @staticmethod

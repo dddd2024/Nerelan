@@ -236,10 +236,8 @@ class UnattendedCoordinator:
         # Bounded scan over local intent; GitHub truth is read by each tick.
         if window is not None and self.publication is not None and self.goals is not None:
             from . import artifact_handoff as artifacts
-            rows = self.control_store._conn.execute(
-                "SELECT task_id FROM platform_goal_task_links LIMIT 100").fetchall()
-            for row in rows:
-                task = self.store.get_task(row["task_id"])
+            for task_id in self.control_store.ready_window_tasks(window.id):
+                task = self.store.get_task(task_id)
                 if task.status != "READY_FOR_REVIEW" or not artifacts._load_evidence(
                         task, artifacts.ACCEPTED_CATEGORY, task.execution_id):
                     continue
