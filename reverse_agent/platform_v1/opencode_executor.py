@@ -1153,6 +1153,30 @@ _ROLE_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+# The language the agent writes its progress notes and final summary in, so
+# the Owner reads its turn without a translation step. Code, identifiers,
+# paths, commands, commit messages, comments and handoff files stay English.
+# REVERSE_AGENT_AGENT_LANGUAGE: "zh-CN" (default) or "en" to leave it unset.
+_OUTPUT_LANGUAGE_RULES = {
+    "zh-CN": ("OUTPUT LANGUAGE: Write your progress notes and your final summary for the Owner "
+              "in Simplified Chinese (\u7b80\u4f53\u4e2d\u6587). Keep code, identifiers, file paths, "
+              "commands, commit messages, code comments and handoff files in English."),
+}
+
+
+def output_language_rule() -> str:
+    """The prompt line that sets the agent's prose language ("" for English)."""
+    value = os.environ.get("REVERSE_AGENT_AGENT_LANGUAGE", "zh-CN").strip()
+    if value.lower() in {"", "en", "en-us", "english", "off", "none"}:
+        return ""
+    return _OUTPUT_LANGUAGE_RULES.get(value, _OUTPUT_LANGUAGE_RULES["zh-CN"])
+
+
+def _language_block() -> str:
+    rule = output_language_rule()
+    return f"{rule}\n" if rule else ""
+
+
 def build_prompt(task_title: str, worktree: str) -> str:
     """Build the bounded authority envelope wrapping the user task."""
     return (
@@ -1160,6 +1184,7 @@ def build_prompt(task_title: str, worktree: str) -> str:
         f"{_PROMPT_CONSTRAINTS}\n"
         f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
+        f"{_language_block()}"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"
@@ -1197,6 +1222,7 @@ def build_role_prompt(
         f"{_ROLE_END_STATE_DISCLAIMER}\n"
         f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
+        f"{_language_block()}"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"

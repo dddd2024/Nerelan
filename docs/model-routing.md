@@ -187,3 +187,13 @@ run host that left two reviewers among 183 bindings and reviews failed with
 
 The quick-start team template asks for a reviewer one capability tier above the
 implement task (review difficulty 4, implement 3; Owner decision 2026-11-10, D4).
+
+## Agent output language
+
+Every executor prompt (OpenCode, Codex, Claude Code) asks the agent to write its
+progress notes and final summary for the Owner in Simplified Chinese, so the goal
+timeline reads without a translation step. Code, identifiers, file paths,
+commands, commit messages, code comments and handoff files stay in English. Set
+`REVERSE_AGENT_AGENT_LANGUAGE=en` (for example in `run.env.json`) to leave the
+prompt without a language line. The model-review prompt, which requires strict
+JSON, is not changed.

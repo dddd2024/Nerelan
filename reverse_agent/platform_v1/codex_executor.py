@@ -342,9 +342,12 @@ class CodexExecutor:
         title = getattr(task, "title", "")
         if not isinstance(title, str) or not title.strip() or len(title.encode()) > 64 * 1024:
             raise ExecutorRuntimeError(self._e("task_instruction_invalid"))
+        from .opencode_executor import output_language_rule
+        language = output_language_rule()
         prompt = ("Perform only this admitted task inside this isolated workspace. Preserve existing work. "
                   "Do not commit, push, merge, access credentials, install dependencies, or bypass policy. "
-                  "Report changes and checks truthfully; CLI success is not functional acceptance.\n\n" + title)
+                  "Report changes and checks truthfully; CLI success is not functional acceptance.\n"
+                  + (language + "\n" if language else "") + "\n" + title)
         from .context_builder import executor_context
         context = executor_context(store, task_id=task_id, workspace=prepared.worktree,
                                    expected_head=prepared.base_sha)
