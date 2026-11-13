@@ -135,8 +135,8 @@ describe("Agent Runs page", () => {
   it("shows numeric usage and only draws a bar for hard admission", async () => {
     renderWithProviders(<RunsPage />);
     const observed = await screen.findByTestId("run-usage-task-demo-1");
-    expect(observed.textContent).toContain("Tokens 68,420");
-    expect(observed.textContent).toContain("Cost $0.8123");
+    expect(observed.textContent).toContain("用量 68,420 tokens");
+    expect(observed.textContent).toContain("费用 $0.81");
     expect(screen.getByTestId("run-enforcement-task-demo-1").textContent).toBe(
       "派发前硬预算",
     );
@@ -485,22 +485,22 @@ describe("Agent Runs page", () => {
     renderWithProviders(<RunsPage />);
 
     const observedZeroUsage = await screen.findByTestId("run-usage-task-usage-observed-zero");
-    expect(observedZeroUsage.textContent).toContain("Tokens 0");
-    expect(observedZeroUsage.textContent).toContain("Cost $0.0000");
+    expect(observedZeroUsage.textContent).toContain("用量 0 tokens");
+    expect(observedZeroUsage.textContent).toMatch(/费用 \$0（已观测为 0）/);
     expect(observedZeroUsage.textContent).toContain("已观测为 0");
     expect(observedZeroUsage.textContent).not.toContain("用量未知");
 
     const noObservations = await screen.findByTestId("run-usage-task-usage-no-obs");
     expect(noObservations.textContent).toContain("尚无用量观测记录");
-    expect(noObservations.textContent).not.toContain("Tokens");
+    expect(noObservations.textContent).not.toContain("tokens");
 
     const allUnknownUsage = await screen.findByTestId("run-usage-task-usage-all-unknown");
     expect(allUnknownUsage.textContent).toContain("用量未知：1 条观测均未提供数值");
-    expect(allUnknownUsage.textContent).not.toContain("Tokens");
+    expect(allUnknownUsage.textContent).not.toContain("tokens");
 
     const partialUsage = await screen.findByTestId("run-usage-task-usage-partial");
-    expect(partialUsage.textContent).toContain("Tokens 1,500（部分）");
-    expect(partialUsage.textContent).toContain("Cost $0.0050（部分）");
+    expect(partialUsage.textContent).toContain("用量 1,500 tokens（部分）");
+    expect(partialUsage.textContent).toContain("费用 $0.0050（部分）");
     expect(partialUsage.textContent).toContain("1 条未知");
     expect(partialUsage.textContent).not.toContain("尚无可信数值观测");
 
@@ -508,8 +508,8 @@ describe("Agent Runs page", () => {
     // the zero truthfully and mark it partial, never hiding behind
     // no-trustworthy-observation copy.
     const partialZeroUsage = await screen.findByTestId("run-usage-task-usage-partial-zero");
-    expect(partialZeroUsage.textContent).toContain("Tokens 0（部分）");
-    expect(partialZeroUsage.textContent).toContain("Cost $0.0000（部分）");
+    expect(partialZeroUsage.textContent).toContain("用量 0 tokens（部分）");
+    expect(partialZeroUsage.textContent).toContain("费用 $0（部分）");
     expect(partialZeroUsage.textContent).toContain("1 条未知");
     expect(partialZeroUsage.textContent).not.toContain("尚无可信数值观测");
     expect(partialZeroUsage.textContent).not.toContain("已观测为 0");

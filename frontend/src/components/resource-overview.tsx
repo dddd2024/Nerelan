@@ -165,7 +165,7 @@ function QuotaWindowRow({ window }: { window: QuotaWindow }) {
       {showMeter && (
         <Meter label={`${label}已用比例`} value={window.usedPercent} range={window.basis === "estimated" ? window.usedPercentRange : null} />
       )}
-      <p className="mt-0.5 text-[11px] text-ra-text-tertiary">
+      <p className="mt-0.5 text-xs text-ra-text-tertiary">
         {reset && !window.resetPassed ? `${window.resetsAtEstimated ? "约 " : ""}${reset} 重置` : ""}
         {provenanceText(window) && (
           <>
@@ -195,11 +195,11 @@ function QuotaBlock({ quota }: { quota: Quota }) {
         <QuotaWindowRow key={window.window} window={window} />
       ))}
       {lastHit && (
-        <p className="text-[11px] text-ra-text-tertiary" data-testid="quota-limit-hits">
+        <p className="text-xs text-ra-text-tertiary" data-testid="quota-limit-hits">
           最近 8 天触顶 {quota.limitHits.length} 次，最近一次 {formatReset(lastHit.at)}
         </p>
       )}
-      <p className="text-[11px] text-ra-text-tertiary">
+      <p className="text-xs text-ra-text-tertiary">
         来源：{source}
         {quota.plan ? ` · 计划 ${quota.plan}` : ""}
         {formatReset(quota.observedAt) ? ` · 记录于 ${formatReset(quota.observedAt)}` : ""}
@@ -213,7 +213,7 @@ function GuardLog({ entries }: { entries: QuotaGuardEntry[] }) {
   return (
     <div className="mt-4" data-testid="quota-guard-log">
       <h3 className="text-xs font-semibold text-ra-text">额度预警与自动切换</h3>
-      <ul className="mt-1 flex flex-col gap-0.5 text-[11px] text-ra-text-secondary">
+      <ul className="mt-1 flex flex-col gap-0.5 text-xs text-ra-text-secondary">
         {entries.slice(0, 8).map((entry, index) => (
           <li key={`${entry.at}-${index}`}>
             {formatReset(entry.at) ?? ""} · {entry.role ? `${entry.role}：` : ""}
@@ -234,7 +234,7 @@ function GuardLog({ entries }: { entries: QuotaGuardEntry[] }) {
 
 function TokenLine({ tokens }: { tokens: TokenCounters }) {
   return (
-    <dl className="grid grid-cols-4 gap-1 text-[11px]">
+    <dl className="grid grid-cols-4 gap-1 text-xs">
       {([
         ["输入", tokens.input],
         ["缓存读取", tokens.cacheRead],
@@ -283,7 +283,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
       <header className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-medium text-ra-text">{resource.name}</h3>
-          <p className="text-[11px] text-ra-text-tertiary">
+          <p className="text-xs text-ra-text-tertiary">
             {OWNER_LABELS[resource.credentialOwner] ?? resource.credentialOwner}
             {!resource.credentialConfigured && <span className="text-ra-status-warning"> · 未就绪</span>}
           </p>
@@ -292,9 +292,9 @@ function ResourceCard({ resource }: { resource: Resource }) {
           <p className="text-sm font-medium tabular-nums text-ra-text" data-testid="resource-cost">
             {costText(resource.equivalentCost)}
           </p>
-          <p className="text-[11px] text-ra-text-tertiary">等价 API 成本</p>
+          <p className="text-xs text-ra-text-tertiary">等价 API 成本</p>
           {resource.equivalentCost?.cliReportedUsd != null && (
-            <p className="text-[11px] text-ra-text-tertiary" data-testid="resource-cli-cost">
+            <p className="text-xs text-ra-text-tertiary" data-testid="resource-cli-cost">
               Claude Code 自报 {money(resource.equivalentCost.cliReportedUsd)}
             </p>
           )}
@@ -305,7 +305,7 @@ function ResourceCard({ resource }: { resource: Resource }) {
       {resource.tasksWithTokens > 0 ? (
         <div className="flex flex-col gap-1">
           <TokenLine tokens={resource.tokens} />
-          <p className="text-[11px] text-ra-text-tertiary">来自 Nerelan 的 {resource.tasksWithTokens} 个任务</p>
+          <p className="text-xs text-ra-text-tertiary">来自 Nerelan 的 {resource.tasksWithTokens} 个任务</p>
         </div>
       ) : (
         <p className="text-xs text-ra-text-tertiary">Nerelan 还没有用这个连接运行过有 Token 记录的任务。</p>
@@ -422,8 +422,8 @@ function MagpieModels({ models }: { models: MagpieModel[] }) {
   if (models.length === 0) return null;
   return (
     <div className="mt-2" data-testid="magpie-models">
-      <p className="text-[11px] font-medium text-ra-text-secondary">外部模型</p>
-      <ul className="mt-1 flex flex-col gap-0.5 text-[11px]">
+      <p className="text-xs font-medium text-ra-text-secondary">外部模型</p>
+      <ul className="mt-1 flex flex-col gap-0.5 text-xs">
         {models.map((model) => (
           <li key={model.modelId} data-testid={`magpie-model-${model.modelId}`}>
             <span className="text-ra-text">{model.displayName ?? model.modelId}</span>
@@ -445,7 +445,7 @@ function MagpieModels({ models }: { models: MagpieModel[] }) {
 function MagpieWindowRow({ window, observed }: { window: MagpieAccountWindow; observed: boolean }) {
   return (
     <div className="mt-0.5" data-testid={`magpie-window-${window.name}`}>
-      <div className="flex items-baseline justify-between gap-2 text-[11px]">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className="text-ra-text-secondary">{window.name}</span>
         <span className="text-ra-text-tertiary">
           {window.unlimited
@@ -456,7 +456,7 @@ function MagpieWindowRow({ window, observed }: { window: MagpieAccountWindow; ob
         </span>
       </div>
       {window.resetsAt && (
-        <p className="text-[11px] text-ra-text-tertiary">{formatReset(window.resetsAt)} 重置</p>
+        <p className="text-xs text-ra-text-tertiary">{formatReset(window.resetsAt)} 重置</p>
       )}
     </div>
   );
@@ -479,7 +479,7 @@ function MagpieAccountRow({ account, attribution }: {
       </div>
       {badge && attribution && (
         <p
-          className={cn("text-[11px]", badge.tone)}
+          className={cn("text-xs", badge.tone)}
           data-testid="account-attribution"
           data-attribution={attribution.status}
           title={attribution.reasonCode ?? undefined}
@@ -489,7 +489,7 @@ function MagpieAccountRow({ account, attribution }: {
           {attribution.connectionIds.length > 0 ? ` · 连接 ${attribution.connectionIds.join("、")}` : ""}
         </p>
       )}
-      <p className="text-[11px] text-ra-text-tertiary">
+      <p className="text-xs text-ra-text-tertiary">
         账号伪名 {account.accountRef ?? "未知"}{account.plan ? ` · 计划 ${account.plan}` : ""}
       </p>
       {account.windows.map((window) => (
@@ -497,10 +497,10 @@ function MagpieAccountRow({ account, attribution }: {
       ))}
       {hasCached && (
         <div className="mt-1" data-testid="magpie-cached-windows">
-          <p className="text-[11px] text-ra-text-tertiary">缓存的过往读数（非当前额度）</p>
+          <p className="text-xs text-ra-text-tertiary">缓存的过往读数（非当前额度）</p>
           {account.cachedWindows.map((window) => (
             <div key={`cached-${window.name}`} className="mt-0.5" data-testid={`magpie-cached-window-${window.name}`}>
-              <div className="flex items-baseline justify-between gap-2 text-[11px]">
+              <div className="flex items-baseline justify-between gap-2 text-xs">
                 <span className="text-ra-text-tertiary">{window.name}</span>
                 <span className="text-ra-text-tertiary">
                   {window.unlimited
@@ -509,21 +509,21 @@ function MagpieAccountRow({ account, attribution }: {
                 </span>
               </div>
               {window.resetsAt && (
-                <p className="text-[11px] text-ra-text-tertiary">{formatReset(window.resetsAt)} 重置（历史）</p>
+                <p className="text-xs text-ra-text-tertiary">{formatReset(window.resetsAt)} 重置（历史）</p>
               )}
             </div>
           ))}
           {formatReset(account.observedAt) && (
-            <p className="text-[11px] text-ra-text-tertiary">观测于 {formatReset(account.observedAt)}（已过期）</p>
+            <p className="text-xs text-ra-text-tertiary">观测于 {formatReset(account.observedAt)}（已过期）</p>
           )}
         </div>
       )}
-      <p className="text-[11px] text-ra-text-tertiary">
+      <p className="text-xs text-ra-text-tertiary">
         来源 {account.provenance}{account.sourceVersion ? ` · ${account.sourceVersion}` : ""}
         {formatReset(account.observedAt) ? ` · 观测于 ${formatReset(account.observedAt)}` : " · 观测时间未知"}
       </p>
       {!observed && (
-        <p className="text-[11px] text-ra-status-warning" data-testid="magpie-account-unknown">
+        <p className="text-xs text-ra-status-warning" data-testid="magpie-account-unknown">
           当前用量与余额未知，不计入本地合计。
         </p>
       )}
@@ -546,7 +546,7 @@ function MagpieAccounts({ accounts, attribution }: {
   return (
     <div className="mt-2 flex flex-col gap-2" data-testid="magpie-accounts">
       {summary && summary.accounts > 0 && (
-        <p className="text-[11px] text-ra-text-tertiary" data-testid="account-attribution-summary">
+        <p className="text-xs text-ra-text-tertiary" data-testid="account-attribution-summary">
           账户 {summary.accounts} · 已绑定路由 {summary.routeBound} · 仅遥测 {summary.noRouteIdentity} ·
           归属不明 {summary.ambiguous} · 未观测 {summary.unobserved}
         </p>
@@ -565,9 +565,9 @@ function MagpieAccounts({ accounts, attribution }: {
 function MagpieCorrelation({ correlation }: { correlation: Correlation }) {
   return (
     <div className="mt-2" data-testid="magpie-correlation">
-      <p className="text-[11px] font-medium text-ra-text-secondary">账号 / 模型关联（来源匹配，未验证）</p>
+      <p className="text-xs font-medium text-ra-text-secondary">账号 / 模型关联（来源匹配，未验证）</p>
       {correlation.accounts.map((entry, index) => (
-        <p key={`acct-${index}`} className="text-[11px] text-ra-text-tertiary">
+        <p key={`acct-${index}`} className="text-xs text-ra-text-tertiary">
           外部 {entry.externalProvider ?? "未知"} 账号 {entry.externalAccountRef ?? "未知"}
           {entry.matchedConnectionIds.length > 0
             ? ` 可能匹配本地连接 ${entry.matchedConnectionIds.join("、")}（来源匹配，未验证为同一账号）`
@@ -575,7 +575,7 @@ function MagpieCorrelation({ correlation }: { correlation: Correlation }) {
         </p>
       ))}
       {correlation.models.map((entry, index) => (
-        <p key={`model-${index}`} className="text-[11px] text-ra-text-tertiary">
+        <p key={`model-${index}`} className="text-xs text-ra-text-tertiary">
           外部模型 {entry.externalModelId ?? "未知"}（{entry.externalProvider ?? "未知"}）
           {entry.matchedBindingIds && entry.matchedBindingIds.length > 0
             ? ` 候选绑定 ${entry.matchedBindingIds.join("、")}（实际路由模型未知）`
@@ -602,7 +602,7 @@ function MagpiePanel({ data, correlation, attribution }: {
       <header className="flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-medium text-ra-text">Magpie 外部数据</h3>
         <span
-          className={cn("text-[11px]", available ? "text-ra-accent" : "text-ra-text-tertiary")}
+          className={cn("text-xs", available ? "text-ra-accent" : "text-ra-text-tertiary")}
           data-testid="magpie-status"
         >
           {available ? "可用" : "不可用"}
@@ -617,7 +617,7 @@ function MagpiePanel({ data, correlation, attribution }: {
         </div>
       ) : (
         <>
-          {data.version && <p className="text-[11px] text-ra-text-tertiary">版本 {data.version}</p>}
+          {data.version && <p className="text-xs text-ra-text-tertiary">版本 {data.version}</p>}
           <MagpieModels models={data.models} />
           <MagpieAccounts accounts={data.accounts} attribution={attribution} />
           {correlation && <MagpieCorrelation correlation={correlation} />}

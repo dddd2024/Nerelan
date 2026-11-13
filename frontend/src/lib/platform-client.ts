@@ -1,4 +1,5 @@
 import type { FunctionalCheckInput, FunctionalValidation, PolicyContract } from "@/types";
+import { httpErrorMessage } from "@/lib/http-errors";
 import { policySchema } from "@/schemas/policy";
 import { serializePolicy } from "@/lib/policy-serializer";
 
@@ -1135,7 +1136,7 @@ export class PlatformClientError extends Error {
   readonly code: string;
 
   constructor(status: number, code: string) {
-    super("平台请求未完成");
+    super(httpErrorMessage(status, code));
     this.name = "PlatformClientError";
     this.status = status;
     this.code = code;

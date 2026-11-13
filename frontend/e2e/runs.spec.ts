@@ -37,8 +37,8 @@ test("presents truthful usage for observed and all-unknown runs", async ({ appPa
   await open(appPage, "/runs");
   await settle(appPage);
   const observed = appPage.getByTestId("run-usage-task-demo-1");
-  await expect(observed).toContainText("Tokens 68,420");
-  await expect(observed).toContainText("Cost $0.8123");
+  await expect(observed).toContainText("用量 68,420 tokens");
+  await expect(observed).toContainText("费用 $0.81");
 
   const unknown = appPage.getByTestId("run-usage-task-demo-2");
   await expect(unknown).toContainText("用量未知：1 条观测均未提供数值");
