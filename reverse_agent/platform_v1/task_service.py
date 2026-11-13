@@ -470,7 +470,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 except TaskStoreError:
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
                     return
-                self._send_json(HTTPStatus.OK, self.run_read_model.goal_timeline(snapshot))
+                timeline = self.run_read_model.goal_timeline(snapshot)
+                timeline["retry"] = self.goal_service.retry_options(segments[2])
+                self._send_json(HTTPStatus.OK, timeline)
                 return
             if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":
                 from .agent_planner import planner_status_payload
@@ -789,6 +791,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     )
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
                     return
+            if (len(segments) == 6 and segments[:2] == ["api", "goals"] and segments[3] == "tasks"
+                    and segments[5] == "retry"):
+                # Owner decision 2026-11-12 A: retry a stopped step inside the Goal's active window.
+                payload = self._read_json(optional=True)
+                binding_ref = payload.get("binding_ref", "")
+                if not isinstance(binding_ref, str):
+                    raise TaskStoreError("owner_retry_model_invalid")
+                self.goal_service.owner_retry(segments[2], segments[4],
+                                              expected_revision=self._expected_revision(payload),
+                                              binding_ref=binding_ref)
+                self._send_json(HTTPStatus.OK, self.goal_service.detail(segments[2]))
+                return
             if segments[:2] == ["api", "agent-policy"]:
                 if self.agent_policy is None:
                     raise TaskStoreError("agent_policy_unavailable")
