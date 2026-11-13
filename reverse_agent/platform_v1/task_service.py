@@ -75,6 +75,7 @@ FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
     "timeout": "PENDING",
     "malformed_executor_output": "FAIL",
     "executor_nonzero": "FAIL",
+    "executor_terminated": "PENDING",
     "deterministic_validation_failure": "FAIL",
     "policy_worktree_violation": "FAIL",
 }
