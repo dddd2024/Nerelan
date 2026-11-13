@@ -26,10 +26,10 @@ test("identifies each run by task title in the collapsed row and toggle accessib
   await open(appPage, "/runs");
   await settle(appPage);
   const first = appPage.getByTestId("run-task-demo-1");
-  await expect(first.getByText(/T001 分析目标与代码库/)).toBeVisible();
+  await expect(first.getByText(/完善无人值守多 Agent 平台 · 分析目标与代码库/)).toBeVisible();
   await expect(first.getByTestId("run-toggle-task-demo-1")).toHaveAttribute(
     "aria-label",
-    /运行：.*T001 分析目标与代码库/,
+    /运行：完善无人值守多 Agent 平台 · 分析目标与代码库/,
   );
 });
 

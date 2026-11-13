@@ -10,17 +10,18 @@ test.describe("home workspace", () => {
     await expect(appPage.getByTestId("active-goal-header")).toHaveCount(0);
   });
 
-  test("shows a selected Goal as a thread with a docked composer", async ({ appPage }) => {
+  test("shows a selected Goal as a thread without a composer", async ({ appPage }) => {
     await open(appPage, "/?goal=goal-demo-platform");
     await settle(appPage);
     await expect(appPage.getByTestId("active-goal-header")).toBeVisible();
     await expect(
       appPage.getByRole("heading", { name: "完善无人值守多 Agent 平台" }),
     ).toBeVisible();
-    await expect(appPage.getByTestId("goal-composer-section")).toBeInViewport();
+    // The composer belongs to the empty home; a goal page is about that goal.
+    await expect(appPage.getByTestId("goal-composer-section")).toHaveCount(0);
     await expect(appPage.getByTestId("current-execution-section")).toBeVisible();
     await expect(appPage.getByTestId("active-goal-stream")).toBeVisible();
-    await expect(appPage.getByTestId("autonomy-status")).toContainText("1/12");
+    await expect(appPage.getByTestId("autonomy-status")).toContainText(/执行窗口：.*\/12 个任务/);
     await expect(appPage.getByTestId("coordinator-status")).toContainText("协调器在线");
     await expect(appPage.getByText(/能力$/)).toHaveCount(0);
     if (await appPage.evaluate(() => window.innerWidth > 500)) {
