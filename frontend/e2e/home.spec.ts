@@ -4,9 +4,11 @@ test.describe("home workspace", () => {
   test("opens on the composer and lists recent goals", async ({ appPage }) => {
     await open(appPage, "/");
     await settle(appPage);
-    await expect(appPage.getByRole("heading", { name: "今天想完成什么？" })).toBeVisible();
+    await expect(appPage.getByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeVisible();
     await expect(appPage.getByTestId("goal-composer-section")).toBeVisible();
     await expect(appPage.getByTestId("recent-goals-section")).toBeVisible();
+    // A normally running window stays quiet on the home page.
+    await expect(appPage.getByText(/执行窗口运行中/)).toHaveCount(0);
     await expect(appPage.getByTestId("active-goal-header")).toHaveCount(0);
   });
 
@@ -32,9 +34,12 @@ test.describe("home workspace", () => {
       await expect(appPage.getByTestId("new-goal-button")).toBeVisible();
       await expect(appPage.getByTestId("toggle-conversation-panel")).toBeVisible();
       await expect(appPage.getByTestId("sidebar-section-recent")).toBeVisible();
-      await expect(appPage.getByTestId("sidebar-section-projects")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-section-projects")).toHaveCount(0);
+      await expect(appPage.getByTestId("sidebar-nav-目标")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-nav-设置")).toBeHidden();
+      await appPage.getByTestId("sidebar-menu").locator("summary").click();
       await expect(appPage.getByTestId("sidebar-nav-设置")).toBeVisible();
-      await expect(appPage.getByTestId("sidebar-nav-Agent 运行")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-nav-运行记录")).toBeVisible();
     } else {
       await expect(appPage.getByTestId("mobile-menu-button")).toBeVisible();
     }
@@ -49,7 +54,7 @@ test.describe("home workspace", () => {
       await appPage.getByTestId("mobile-menu-button").click();
       await appPage.getByTestId("mobile-new-goal-button").click();
     }
-    await expect(appPage.getByRole("heading", { name: "今天想完成什么？" })).toBeVisible();
+    await expect(appPage.getByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeVisible();
     await expect(appPage.getByTestId("goal-composer-section").locator("textarea")).toBeFocused();
   });
 

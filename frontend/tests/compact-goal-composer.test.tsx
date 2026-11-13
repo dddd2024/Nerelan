@@ -73,10 +73,13 @@ describe("GoalComposer compact progressive disclosure", () => {
 
     const objective = screen.getByLabelText("描述最终目标");
     expect(objective).toHaveAttribute("rows", "2");
-    expect(screen.getByLabelText("仓库")).toBeVisible();
+    const summary = screen.getByTestId("goal-composer-execution-summary");
+    expect(summary).toBeVisible();
+    expect(summary).toHaveTextContent("自动选择执行方式和模型");
+    expect(summary.textContent).toMatch(/\S+\/\S+ · /);
+    expect(screen.getByLabelText("仓库")).not.toBeVisible();
     expect(screen.getByLabelText("执行模式")).not.toBeVisible();
     expect(screen.queryByRole("combobox", { name: "执行模式" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("自动选择执行方式和模型");
     await user.type(objective, "完成自动路由目标测试");
     expect(screen.getByLabelText("执行模式")).not.toBeVisible();
 
@@ -86,7 +89,7 @@ describe("GoalComposer compact progressive disclosure", () => {
 
     expect(options).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("goal-composer-options")).toBeInTheDocument();
-    expect(screen.getByLabelText("仓库")).toBeInTheDocument();
+    expect(screen.getByLabelText("仓库")).toBeVisible();
     expect(screen.getByLabelText("执行模式")).toBeVisible();
     expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
     await user.selectOptions(screen.getByLabelText("执行模式"), "opencode");

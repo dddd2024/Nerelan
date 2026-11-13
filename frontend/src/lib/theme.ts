@@ -16,7 +16,8 @@ export interface Appearance {
 
 export const DEFAULT_APPEARANCE: Appearance = {
   mode: "system",
-  accent: "cyan",
+  // A warm accent matches the warm neutral palette.
+  accent: "amber",
 };
 
 function defaultStorage(): Storage | undefined {

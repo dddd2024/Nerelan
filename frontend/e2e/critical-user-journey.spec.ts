@@ -6,14 +6,17 @@ const GOAL_TITLE = "Playwright provider-free critical journey";
 // intentionally has one bounded Task, matching the actual Goal planner.
 const QUEUED_TASK_ID = "task-demo-queued";
 
-async function navigateFromShell(page: Page, destination: "首页" | "设置" | "Agent 运行") {
+async function navigateFromShell(page: Page, destination: "首页" | "设置" | "运行记录") {
   const mobile = await page.evaluate(() => window.innerWidth <= 500);
   if (mobile) {
     await page.getByTestId("mobile-menu-button").click();
     const link = page.getByTestId(`mobile-nav-${destination}`);
     await expect(link).toBeVisible();
     await link.click();
-  } else if (destination === "设置" || destination === "Agent 运行") {
+  } else if (destination === "设置" || destination === "运行记录") {
+    // 设置 and 运行记录 live in the bottom 更多 menu.
+    const menu = page.getByTestId("sidebar-menu");
+    if (!(await menu.evaluate((el) => (el as HTMLDetailsElement).open))) await menu.locator("summary").click();
     await page.getByTestId(`sidebar-nav-${destination}`).click();
   } else {
     await page.getByTestId("sidebar-logo").click();
@@ -58,7 +61,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
     await currentExecution.getByTestId("goal-panel").getByRole("link", { name: "查看完整运行记录" }).click();
     await settle(appPage);
   } else {
-    await navigateFromShell(appPage, "Agent 运行");
+    await navigateFromShell(appPage, "运行记录");
   }
   await expect(appPage.getByTestId("runs-page")).toBeVisible();
   const primary = appPage.getByTestId("runs-list").locator(":scope > li").filter({
@@ -77,7 +80,7 @@ test("completes one provider-free critical user journey end to end", async ({ ap
 
   // The timeline link lists this goal's runs; the queued run belongs to another goal.
   // Navigate in-app: a reload would reset the mock store and lose the new Goal.
-  await navigateFromShell(appPage, "Agent 运行");
+  await navigateFromShell(appPage, "运行记录");
   const queued = appPage.getByTestId(`run-${QUEUED_TASK_ID}`);
   await expect(queued).toBeVisible();
   await queued.getByTestId(`run-toggle-${QUEUED_TASK_ID}`).click();

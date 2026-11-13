@@ -28,39 +28,39 @@ async function seedAppearance(appPage: Page, appearance: Appearance) {
 test.describe("visual acceptance", () => {
   test("home light @visual", async ({ appPage }) => {
     await open(appPage, "/");
-    await seedAppearance(appPage, { mode: "light", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "light", accent: "amber" });
     await expect(appPage).toHaveScreenshot("home-light.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
   test("home dark @visual", async ({ appPage }) => {
     await open(appPage, "/");
-    await seedAppearance(appPage, { mode: "dark", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "dark", accent: "amber" });
     await expect(appPage).toHaveScreenshot("home-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
   test("goal thread light @visual", async ({ appPage }) => {
     await open(appPage, "/?goal=goal-demo-platform");
-    await seedAppearance(appPage, { mode: "light", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "light", accent: "amber" });
     await expect(appPage.getByTestId("goal-thread")).toBeVisible();
     await expect(appPage).toHaveScreenshot("goal-thread-light.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
   test("goal thread dark @visual", async ({ appPage }) => {
     await open(appPage, "/?goal=goal-demo-platform");
-    await seedAppearance(appPage, { mode: "dark", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "dark", accent: "amber" });
     await expect(appPage.getByTestId("goal-thread")).toBeVisible();
     await expect(appPage).toHaveScreenshot("goal-thread-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
   test("settings light @visual", async ({ appPage }) => {
     await open(appPage, "/settings");
-    await seedAppearance(appPage, { mode: "light", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "light", accent: "amber" });
     await expect(appPage).toHaveScreenshot("settings-light.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
   test("settings dark @visual", async ({ appPage }) => {
     await open(appPage, "/settings");
-    await seedAppearance(appPage, { mode: "dark", accent: "cyan" });
+    await seedAppearance(appPage, { mode: "dark", accent: "amber" });
     await expect(appPage).toHaveScreenshot("settings-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 });

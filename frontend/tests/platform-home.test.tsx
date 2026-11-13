@@ -184,7 +184,9 @@ describe("Platform V2 Home Workspace V2", () => {
 
   it("opens on the composer with recent goals and selects no goal by itself", async () => {
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
-    expect(await screen.findByRole("heading", { name: "今天想完成什么？" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeInTheDocument();
+    // Screen readers keep the original prompt.
+    expect(screen.getByText(/今天想完成什么？/)).toHaveClass("sr-only");
     expect(screen.getByLabelText("描述最终目标")).toBeInTheDocument();
     expect(screen.queryByTestId("active-goal-header")).not.toBeInTheDocument();
     expect(screen.queryByTestId("current-execution-section")).not.toBeInTheDocument();
@@ -205,7 +207,8 @@ describe("Platform V2 Home Workspace V2", () => {
     const composer = screen.getByTestId("goal-composer-section");
     expect(screen.getByTestId("goal-thread")).toContainElement(composer);
     expect(within(composer).getByLabelText("描述最终目标")).toHaveAttribute("placeholder", "另起一个新目标…");
-    expect(within(composer).queryByTestId("goal-composer-execution-summary")).not.toBeInTheDocument();
+    // Compact mode names only the repository in the bottom row, with no execution summary.
+    expect(within(composer).getByTestId("goal-composer-execution-summary")).not.toHaveTextContent("·");
     expect(screen.queryByTestId("recent-goals-section")).not.toBeInTheDocument();
     expect(screen.getByLabelText("返回新目标")).toHaveAttribute("href", "/");
   });
@@ -305,7 +308,7 @@ describe("Platform V2 Home Workspace V2", () => {
   it("creates an inert Goal for review without activating a window", async () => {
     // The composer lives on the empty home; goal pages no longer dock it.
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
-    await screen.findByRole("heading", { name: "今天想完成什么？" });
+    await screen.findByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ });
     const create = vi.spyOn(platformClient, "createGoalDraftRecord");
     const automaticStart = vi.spyOn(platformClient, "startGoal");
     const user = userEvent.setup();
