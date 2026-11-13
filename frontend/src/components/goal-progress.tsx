@@ -5,8 +5,9 @@ import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/func
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { failureText } from "@/lib/run-explain";
 
-function statusFor(raw: string) {
+export function statusFor(raw: string) {
   if (raw === "INTERRUPTED") return "interrupted";
   if (raw === "READY_FOR_REVIEW") return "review-ready";
   if (raw === "READY_FOR_REVIEW_FIXTURE") return "fixture-review-ready";
@@ -15,25 +16,25 @@ function statusFor(raw: string) {
   return "queued";
 }
 
-function isReviewReady(state: string) {
+export function isReviewReady(state: string) {
   return state === "review-ready" || state === "fixture-review-ready";
 }
 
-function progressClassName(status: PlatformGoal["status"]) {
+export function progressClassName(status: PlatformGoal["status"]) {
   if (status === "RUNNING") return "bg-ra-accent";
   if (status === "COMPLETED") return "bg-ra-status-running";
   if (status === "BLOCKED" || status === "INVALIDATED") return "bg-ra-status-error";
   return "bg-ra-border-strong";
 }
 
-function taskStateClass(state: string) {
+export function taskStateClass(state: string) {
   if (state === "interrupted" || state === "blocked") return "text-ra-status-error";
   if (isReviewReady(state)) return "text-ra-status-running";
   if (state === "running") return "text-ra-accent";
   return "text-ra-text-tertiary";
 }
 
-function taskStateText(state: string) {
+export function taskStateText(state: string) {
   if (state === "interrupted") return "执行已中断";
   if (state === "review-ready") return "执行完成，待审查";
   if (state === "fixture-review-ready") return "Fixture 完成，待审查";
@@ -42,7 +43,7 @@ function taskStateText(state: string) {
   return "等待依赖完成";
 }
 
-const EXECUTOR_LABELS: Record<string, string> = {
+export const EXECUTOR_LABELS: Record<string, string> = {
   opencode: "OpenCode", codex: "Codex", claude_code: "Claude Code", deterministic_fixture: "Fixture",
 };
 
@@ -52,7 +53,7 @@ const PUBLICATION_BLOCKERS: Record<string, string> = {
   functional_validation_not_accepted: "不会发布：功能检查未通过",
 };
 
-function publicationText(publication: PlatformGoalTaskLink["publication"], blocked = "") {
+export function publicationText(publication: PlatformGoalTaskLink["publication"], blocked = "") {
   if (!publication && blocked) return PUBLICATION_BLOCKERS[blocked] ?? `不会发布：${blocked}`;
   if (!publication) return "尚无发布记录";
   if (publication.status === "PENDING") return "等待发布";
@@ -113,7 +114,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
               <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{task.plan_task_id || `T${index + 1}`}</span>
             </div>
             <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
-              <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{materialized ? taskStateText(state) : "尚未启动"}</span>
+              <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{!materialized ? "尚未启动" : state === "blocked" && task.failure ? failureText(task.failure).label : taskStateText(state)}</span>
               {materialized && <>
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
                   {functionalStatusLabel(proof.status)}

@@ -125,6 +125,47 @@ def test_fitness_review_model_identity_and_pin_precedence():
     assert choose(pool)["binding_ref"] == "b"
 
 
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_routing_refuses_missing_executors_even_for_pins_and_exploration(installed):
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate(executor, "flash-lite", executor=executor,
+                      executor_available=executor in installed)
+            for executor in ("opencode", "codex", "claude_code")]
+    if not installed:
+        with pytest.raises(ModelSelectionError) as error:
+            choose(pool, exploration_draw=0)
+        assert error.value.decision["reason"] == "no_runnable_model"
+        assert {row["filter"] for row in error.value.decision["excluded_candidates"]} == {"executor_unavailable"}
+        # The refusal names each missing executor, not only the filter.
+        assert {row["executor_id"] for row in error.value.decision["excluded_candidates"]} == {
+            "opencode", "codex", "claude_code"}
+    else:
+        result = choose(pool, exploration_draw=0)
+        assert result["executor_kind"] in installed
+        assert {row["binding_id"] for row in result["excluded_candidates"]} == set(("opencode", "codex", "claude_code")) - set(installed)
+        if "opencode" not in installed:
+            with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as error:
+                choose(pool, pin="opencode")
+            assert error.value.decision["excluded_candidates"][0]["filter"] == "executor_unavailable"
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_host_startup_injects_discovery_before_readiness(tmp_path, installed):
+    from reverse_agent.platform_v1.run_store import TaskStore
+    calls = []
+    def detector():
+        calls.append(True)
+        return {executor: f"fixture/{executor}.cmd" for executor in installed}
+    task_store = TaskStore(str(tmp_path / "tasks.sqlite3"))
+    host = CombinedTrustedHost(task_store=task_store, vault=None, executor_detector=detector,
+                               codex_readiness_probe=lambda: "managed_login_ready",
+                               claude_code_readiness_probe=lambda: "managed_login_ready")
+    assert calls == [True]
+    for executor in host._store.list_executors_public():
+        assert executor["cli_available"] is (executor["executor_id"] in installed)
+        assert executor["operational"] is (executor["executor_id"] in installed)
+
+
 def test_escalation_prefers_higher_then_distinct_same_tier_model():
     pool = [candidate("a", "flash-lite"), candidate("sibling", "flash-lite"),
             candidate("b", "glm-5.3"), candidate("c", "opus", "paid_api")]
@@ -174,6 +215,39 @@ def fixture_host(monkeypatch, tmp_path):
             for row in host._store.list_bindings_public() if row["model_id"] in FIXTURE_TIERS}
     monkeypatch.setattr(host, "_usage_profiles", measured_profiles)
     return host
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_host_routes_using_detected_executor_state_and_real_resource_view(monkeypatch, tmp_path, installed):
+    host = fixture_host(monkeypatch, tmp_path)
+    # Restore the real resource-view admission used by production routing.
+    monkeypatch.delattr(host, "_runnable_bindings")
+    host._store.refresh_executor_availability(lambda: {executor: f"fixture/{executor}.cmd" for executor in installed})
+    host._store.set_codex_readiness("managed_login_ready")
+    host._store.set_native_readiness("claude_code", "managed_login_ready")
+    host._store.upsert_connection({"connection_id": "codex-account", "name": "Codex", "provider": "codex",
+                                   "base_url": "https://api.openai.com/v1", "auth_method": "external_cli_session"})
+    host._store.upsert_binding({"binding_id": "codex-model", "name": "Codex", "executor_id": "codex",
+                                "connection_id": "codex-account", "model_id": "gpt-6.1-sol"})
+    task = PlannedTask("T001", "t", "i", difficulty=2)
+    if not installed:
+        with pytest.raises(TaskStoreError, match="no_runnable_model") as error:
+            host._resolve_task_model(task)
+        assert {row["filter"] for row in error.value.decision["excluded_candidates"]} == {"executor_unavailable"}
+    else:
+        result = host._resolve_task_model(task)
+        assert result["executor_kind"] in installed
+        if installed == ("codex",):
+            assert result["binding_ref"] == "codex-model"
+            assert {row["filter"] for row in result["excluded_candidates"]} == {"executor_unavailable"}
+
+
+def test_legacy_role_routing_refuses_missing_executor(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    host._store.put_agent_roster({"roles": {"simple": "cheap"}})
+    host._store.refresh_executor_availability(lambda: {})
+    with pytest.raises(TaskStoreError, match="executor_unavailable:opencode"):
+        host._resolve_agent_role("simple")
 
 
 def test_host_routes_goal_tasks_records_events_and_learns_outcomes(monkeypatch, tmp_path):

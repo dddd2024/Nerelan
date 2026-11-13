@@ -1084,6 +1084,77 @@ class TaskStore:
                 metadata=metadata,
             )
 
+    def latest_events(self, task_id: str, *, limit: int = 1,
+                      types: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+        """Newest public events first, without the bulk per-action evidence rows.
+
+        One indexed query, so a polled goal response never loads a task's
+        whole event history.
+        """
+        sql = ("SELECT type, title, description, timestamp FROM task_events "
+               "WHERE task_id = ? AND title != 'Executor action evidence'")
+        params: list[Any] = [task_id]
+        if types:
+            sql += " AND type IN (%s)" % ",".join("?" for _ in types)
+            params.extend(types)
+        sql += " ORDER BY seq DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 50)))
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+        return [{"type": row[0], "title": row[1], "description": (row[2] or "")[:400],
+                 "timestamp": row[3]} for row in rows]
+
+    def public_events(self, task_id: str, *, limit: int = 200) -> tuple[list[dict[str, Any]], int]:
+        """Newest public events in time order, and how many public events exist.
+
+        Excludes the per-action evidence rows and never returns raw_log.
+        """
+        bounded = max(1, min(int(limit), 500))
+        where = "task_id = ? AND title != 'Executor action evidence'"
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, task_id, type, timestamp, title, description, metadata FROM task_events "
+                f"WHERE {where} ORDER BY seq DESC LIMIT ?", (task_id, bounded)).fetchall()
+            total = self._conn.execute(f"SELECT COUNT(*) FROM task_events WHERE {where}", (task_id,)).fetchone()[0]
+        events = [dict(zip(("id", "task_id", "type", "timestamp", "title", "description", "metadata"), row))
+                  for row in reversed(rows)]
+        return events, int(total)
+
+    def agent_record(self, task_id: str, *, narration_limit: int = 20) -> dict[str, Any]:
+        """What the agent said and how many tools it used, from its exit evidence.
+
+        Runs before live progress existed only kept per-action evidence rows:
+        their ``text`` rows hold the agent's own (already redacted) sentences,
+        and the final ``OpenCode response`` holds its summary.
+        """
+        evidence = "title = 'Executor action evidence' AND task_id = ?"
+        with self._lock:
+            text_rows = self._conn.execute(
+                f"SELECT timestamp, metadata FROM task_events WHERE {evidence} "
+                "AND metadata LIKE '%\"evidence_label\":\"text\"%' ORDER BY seq LIMIT ?",
+                (task_id, max(1, min(int(narration_limit), 50)))).fetchall()
+            tools = self._conn.execute(
+                f"SELECT COUNT(*) FROM task_events WHERE {evidence} "
+                "AND metadata LIKE '%\"evidence_label\":\"tool_use\"%'", (task_id,)).fetchone()[0]
+            final = self._conn.execute(
+                "SELECT metadata FROM task_events WHERE task_id = ? AND type = 'EXECUTOR_COMPLETED' "
+                "ORDER BY seq DESC LIMIT 1", (task_id,)).fetchone()
+        narration = []
+        for timestamp, raw in text_rows:
+            try:
+                value = json.loads(raw or "{}").get("evidence_value")
+            except ValueError:
+                continue
+            if isinstance(value, str) and value.strip():
+                narration.append({"timestamp": timestamp, "text": value})
+        summary = ""
+        if final is not None:
+            try:
+                summary = json.loads(final[0] or "{}").get("final_text") or ""
+            except ValueError:
+                summary = ""
+        return {"narration": narration, "tool_actions": int(tools), "summary": summary if isinstance(summary, str) else ""}
+
     def get_events(self, task_id: str) -> list[TaskEvent]:
         with self._lock:
             rows = self._conn.execute(

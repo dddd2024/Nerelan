@@ -1,19 +1,20 @@
 import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
-import { GoalCurrentActivity } from "@/components/goal-current-activity";
-import { GoalProgress } from "@/components/goal-progress";
+import { GoalTimeline } from "@/components/goal-timeline";
+import { runtimeMessage } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { UnattendedStatus } from "@/components/unattended-status";
-import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
-import { useRuns } from "@/hooks/use-runs";
+import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { goalStatusLabel } from "@/lib/goal-status-label";
 import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
+import { recentGoals } from "@/components/sidebar";
+import { GOAL_PROGRESS_TONE_CLASS, goalProgressLine } from "@/lib/goal-progress-line";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -87,14 +88,20 @@ function ObjectiveDisclosure({ objective }: { objective: string }) {
   );
 }
 
+/** "task_unsuccessful:task-…" reads as a sentence; the raw code stays in the tooltip. */
+function coordinatorNotice(code: string): string {
+  const message = runtimeMessage(code);
+  return message.nextStep ? `${message.label}：${message.nextStep}` : `调度需要处理：${code}`;
+}
+
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
-  const runsQuery = useRuns();
   const startGoal = useCreateGoalDraft();
   const navigate = useNavigate();
+  const location = useLocation();
+  const newGoalRequest = (location.state as { newGoal?: number } | null)?.newGoal;
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
-  const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("goal") || undefined;
   const setSelectedId = (goalId: string) => setSearchParams((previous) => {
@@ -104,8 +111,9 @@ export function HomePage() {
   });
 
   const detailQuery = useGoal(selectedId);
+  const timelineQuery = useGoalTimeline(selectedId);
   const detailGoal = detailQuery.data;
-  const recent = useMemo(() => goals.slice(0, RECENT_GOAL_LIMIT), [goals]);
+  const recent = useMemo(() => recentGoals(goals, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
   const activeWindow = platform?.autonomy.active_window;
   const coordinatorError = platform?.coordinator.last_error;
@@ -135,7 +143,7 @@ export function HomePage() {
             className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ra-status-error"
             aria-hidden="true"
           />
-          <span>协调器需要处理：{coordinatorError}</span>
+          <span title={coordinatorError}>{coordinatorNotice(coordinatorError)}</span>
         </div>
       )}
     </>
@@ -146,7 +154,8 @@ export function HomePage() {
       <GoalComposer
         busy={startGoal.isPending}
         compact={dock}
-        placeholder={dock ? "下达一个新目标…" : undefined}
+        focusKey={dock ? undefined : newGoalRequest}
+        placeholder={dock ? "另起一个新目标…" : undefined}
         onSubmit={async (input) => {
           const goal = await startGoal.mutateAsync(input);
           setSelectedId(goal.id);
@@ -198,25 +207,34 @@ export function HomePage() {
               <p className="px-2.5 py-3 text-sm text-ra-text-tertiary">还没有目标。</p>
             )}
             <div className="flex flex-col gap-0.5">
-              {recent.map((goal) => (
+              {recent.map((goal) => {
+                const progress = goalProgressLine(goal);
+                return (
                 <button
                   type="button"
                   key={goal.id}
+                  data-testid={`recent-goal-${goal.id}`}
                   onClick={() => setSelectedId(goal.id)}
                   title={goal.objective}
                   className="flex min-h-9 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 >
-                  <span className="min-w-0 flex-1 truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
-                    {displayTitle(goal.title)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
+                      {displayTitle(goal.title)}
+                    </span>
+                    <span data-testid={`goal-progress-line-${goal.id}`} className={cn("block truncate text-xs", GOAL_PROGRESS_TONE_CLASS[progress.tone])}>
+                      {progress.text}
+                    </span>
                   </span>
-                  <span title={runtimeTitle(goal.status)} className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
+                  <span title={runtimeTitle(goal.status)} className={cn("sr-only", goalStatusTextClass(goal.status))}>
                     {goalStatusLabel(goal.status)}
                   </span>
                   <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-ra-text-tertiary">
                     {relativeTime(goal.updated_at)}
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>
@@ -329,9 +347,8 @@ export function HomePage() {
             ) : detailGoal ? (
               <div data-testid="active-goal-stream" className="space-y-5">
                 <ReadFeedback query={detailQuery} label="目标详情" />
-                <GoalProgress goal={detailGoal} />
-                <ReadFeedback query={runsQuery} label="运行活动" />
-                {runsQuery.data !== undefined && <GoalCurrentActivity goal={detailGoal} runs={runs} />}
+                <ReadFeedback query={timelineQuery} label="执行过程" />
+                <GoalTimeline goal={detailGoal} timeline={timelineQuery.data} />
               </div>
             ) : null}
           </section>

@@ -65,6 +65,29 @@ vi.mock("@/hooks/use-tasks", () => {
   };
 });
 
+const goalReadState = vi.hoisted(() => ({
+  override: undefined as undefined | { data: unknown[]; isLoading: boolean; isError: boolean; error?: Error },
+}));
+
+vi.mock("@/hooks/use-platform", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/use-platform")>();
+  const goal = (id: string, title: string, updated: string, repository: string, status = "BLOCKED", objective = "") =>
+    ({ id, title, objective, status, repository, updated_at: updated, tasks: [] });
+  const goals = [
+    goal("goal-old", "Older alpha goal", "2026-08-01T08:00:00Z", "org/alpha", "COMPLETED"),
+    goal("goal-newest", "Newest alpha goal", "2026-08-03T08:00:00Z", "org/alpha", "RUNNING"),
+    goal("goal-beta", "Beta validation goal", "2026-08-02T08:00:00Z", "org/beta"),
+    // Two goals for the same issue: only the newer one is listed.
+    goal("goal-1459-a", "#1459 [Runtime] Cache the forecast", "2026-07-30T08:00:00Z", "org/alpha"),
+    goal("goal-1459-b", "#1459 [Runtime] Cache the forecast", "2026-07-31T08:00:00Z", "org/alpha", "RUNNING",
+      "Resolve https://github.com/org/alpha/issues/1459"),
+  ];
+  return {
+    ...actual,
+    useGoals: () => goalReadState.override ?? { data: goals, isLoading: false, isError: false, error: null },
+  };
+});
+
 function sidebar(initialEntries = ["/"]) {
   const onOpen = vi.fn();
   renderWithProviders(
@@ -79,55 +102,62 @@ function sidebar(initialEntries = ["/"]) {
   return { onOpen };
 }
 
-afterEach(() => { taskReadState.override = undefined; });
+afterEach(() => { taskReadState.override = undefined; goalReadState.override = undefined; });
 
-describe("sidebar task read states", () => {
+describe("sidebar goal read states", () => {
   it("shows loading without claiming the database is empty", () => {
-    taskReadState.override = { data: [], isLoading: true, isError: false };
+    goalReadState.override = { data: [], isLoading: true, isError: false };
     sidebar();
-    expect(screen.getByText("正在加载最近任务…")).toBeInTheDocument();
+    expect(screen.getByText("正在加载最近目标…")).toBeInTheDocument();
     expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
-    expect(screen.queryByText("暂无最近任务")).not.toBeInTheDocument();
+    expect(screen.queryByText("暂无最近目标")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无项目")).not.toBeInTheDocument();
   });
 
   it("reports a failed read without displaying raw errors or an empty result", () => {
-    taskReadState.override = { data: [], isLoading: false, isError: true, error: new Error("private diagnostic") };
+    goalReadState.override = { data: [], isLoading: false, isError: true, error: new Error("private diagnostic") };
     sidebar();
-    expect(screen.getByRole("alert")).toHaveTextContent("最近任务读取失败，请检查服务连接");
-    expect(screen.queryByText("暂无最近任务")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("最近目标读取失败，请检查服务连接");
+    expect(screen.queryByText("暂无最近目标")).not.toBeInTheDocument();
     expect(screen.queryByText("暂无项目")).not.toBeInTheDocument();
     expect(screen.queryByText(/private diagnostic/)).not.toBeInTheDocument();
   });
 
   it("shows empty only after a successful empty read", () => {
-    taskReadState.override = { data: [], isLoading: false, isError: false };
+    goalReadState.override = { data: [], isLoading: false, isError: false };
     sidebar();
-    expect(screen.getByText("暂无最近任务")).toBeInTheDocument();
+    expect(screen.getByText("暂无最近目标")).toBeInTheDocument();
     expect(screen.getByText("暂无项目")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
 describe("task-first sidebar IA", () => {
-  it("uses the compact width and orders Recent by authoritative updatedAt", () => {
-    sidebar(["/tasks/task-newest"]);
+  it("lists goals, newest first, one per issue, and opens the goal page", () => {
+    sidebar(["/?goal=goal-newest"]);
 
     expect(screen.getByTestId("sidebar")).toHaveClass("w-[256px]");
-    expect(screen.getByTestId("sidebar-section-recent")).toHaveTextContent("最近任务");
-    const recent = screen.getAllByTestId(/^sidebar-recent-task-/);
+    expect(screen.getByTestId("sidebar-section-recent")).toHaveTextContent("最近目标");
+    const recent = screen.getAllByTestId(/^sidebar-recent-goal-/);
     expect(recent.map((item) => item.textContent)).toEqual([
-      "Newest alpha task",
-      "Beta validation task",
-      "Older alpha task",
+      "Newest alpha goal",
+      "Beta validation goal",
+      "Older alpha goal",
+      "#1459 [Runtime] Cache the forecast",
     ]);
-    expect(screen.getByTestId("sidebar-recent-task-task-newest")).toHaveAttribute(
-      "data-selected",
-      "true",
-    );
+    expect(screen.queryByTestId("sidebar-recent-goal-goal-1459-a")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-recent-goal-goal-1459-b")).toHaveAttribute("href", "/?goal=goal-1459-b");
+    expect(screen.getByTestId("sidebar-recent-goal-goal-newest")).toHaveAttribute("data-selected", "true");
   });
 
-  it("deduplicates Projects from task repositories and keeps project emphasis weaker", () => {
+  it("keys goals by repository and issue, so the same number in two repositories stays two entries", async () => {
+    const { goalIssueKey, recentGoals } = await import("@/components/sidebar");
+    const goal = (id: string, repository: string) => ({ id, title: "#7 fix", objective: "", repository, updated_at: "2026-08-01T00:00:00Z" });
+    expect(goalIssueKey(goal("a", "org/alpha") as never)).toBe("org/alpha#7");
+    expect(recentGoals([goal("a", "org/alpha"), goal("b", "org/beta")] as never).map((g) => g.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("deduplicates Projects from goal repositories and keeps project emphasis weaker", () => {
     sidebar(["/tasks?repository=org%2Falpha"]);
 
     expect(screen.getByTestId("sidebar-section-projects")).toHaveTextContent("项目");
@@ -147,8 +177,9 @@ describe("task-first sidebar IA", () => {
 
     expect(screen.queryByTestId("sidebar-more-toggle")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toHaveAttribute("href", "/tasks");
-    expect(screen.getByTestId("sidebar-nav-收件箱")).toHaveAttribute("href", "/inbox");
-    expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
+    expect(screen.getByTestId("sidebar-nav-目标")).toHaveAttribute("href", "/goals");
+    expect(screen.getByTestId("sidebar-nav-审批")).toHaveAttribute("href", "/approvals");
+    expect(screen.queryByTestId("sidebar-nav-收件箱")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
     expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
   });
@@ -241,7 +272,7 @@ describe("task Search and project filtering", () => {
     expect(screen.queryByTestId("palette-command-go-/runs")).not.toBeInTheDocument();
 
     await user.clear(screen.getByTestId("task-search-input"));
-    await user.click(screen.getByTestId("palette-command-new-task"));
+    await user.click(screen.getByTestId("palette-command-new-goal"));
     expect(onNewTask).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });

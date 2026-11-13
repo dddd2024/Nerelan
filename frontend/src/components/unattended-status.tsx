@@ -37,13 +37,16 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
     )}>
       {!recent ? "当前没有无人值守任务在运行。" : <>
         {active && !coordinatorStopped
-          ? `无人值守运行中 · 剩余 ${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟 · ${window.tasks_completed} 个任务完成`
+          // tasks_completed counts finished claims, failed ones included: "已结束", never "完成".
+          ? `无人值守运行中 · 剩余 ${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟 · 已结束 ${window.tasks_completed} 个任务`
           : `无人值守已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。请检查运行记录，处理后重新启动或继续目标。`}
         {stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`
           : progressAge !== null ? ` · 上次进展：${progressAge === 0 ? "刚刚" : `${progressAge} 分钟前`}`
             : " · 尚无任务进展记录"}
       </>}
-      {Boolean(status.coordinator.stranded_goals?.length) && " · 有未完成目标等待你重新启动。"}
+      {/* Stranded goals belong to earlier, stopped windows: say so, and not while one is running. */}
+      {Boolean(status.coordinator.stranded_goals?.length) && (!active || coordinatorStopped)
+        && ` · 另有 ${status.coordinator.stranded_goals!.length} 个早先的目标没有完成。`}
     </div>
   );
 }

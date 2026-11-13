@@ -9,7 +9,7 @@ import json
 import os
 import re
 from threading import RLock
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 import tempfile
 
 from .contracts import (
@@ -396,6 +396,7 @@ class ModelProfileStore:
         state_path: str | Path | None = None,
         *,
         vault: VaultAdapter | None = None,
+        executor_detector: Callable[[], Mapping[str, str]] | None = None,
     ) -> None:
         self._state_path: Path | None = None
         if state_path is not None:
@@ -449,6 +450,11 @@ class ModelProfileStore:
                             self.record_model_catalog(connection_id, catalog.get("models", []), catalog.get("metadata", {}), persist=False)
             except (OSError, ValueError, TypeError):
                 self._routing_catalogs = {}
+
+        # Library/test stores retain deterministic legacy defaults. Real hosts
+        # inject discovery once per startup; observations are not persisted.
+        if executor_detector is not None:
+            self.refresh_executor_availability(executor_detector)
 
     def record_model_catalog(self, connection_id: str, models: list[str], metadata: Mapping[str, Any], *, persist: bool = True) -> None:
         """Save sanitized listing observations, never entitlement or credentials."""
@@ -975,6 +981,22 @@ class ModelProfileStore:
         with self._lock:
             return [executor.to_public_dict() for executor in self._executors.values()]
 
+    def refresh_executor_availability(self, detector: Callable[[], Mapping[str, str]]) -> None:
+        """Fresh host discovery invalidates previous process-local readiness."""
+        installed = detector()
+        with self._lock:
+            for executor_id, current in self._executors.items():
+                available = bool(installed.get(executor_id))
+                self._executors[executor_id] = replace(
+                    current, cli_available=available,
+                    operational=available and executor_id == "opencode",
+                    readiness_status=("cli_available" if executor_id == "opencode" else "not_probed")
+                    if available else "cli_unavailable",
+                )
+            for stored in self._connections.values():
+                if stored.connection.executor_provider_id in NATIVE_CLI_PROVIDERS:
+                    stored.external_session_status = "missing"
+
     def set_codex_readiness(self, status: str) -> None:
         self.set_native_readiness("codex", status)
 
@@ -989,9 +1011,10 @@ class ModelProfileStore:
             raise ValueError(f"{executor_id}_readiness_invalid")
         with self._lock:
             current = self._executors[executor_id]
-            self._executors[executor_id] = ExecutorDescriptor(
-                executor_id=executor_id, name=current.name, operational=status == "managed_login_ready",
-                capabilities=current.capabilities, readiness_status=status,
+            if current.cli_available is False:
+                status = "cli_unavailable"
+            self._executors[executor_id] = replace(
+                current, operational=status == "managed_login_ready", readiness_status=status,
             )
             for stored in self._connections.values():
                 if stored.connection.executor_provider_id == provider:

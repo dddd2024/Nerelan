@@ -153,6 +153,78 @@ export interface PlatformGoalTaskLink {
   publication?: PlatformAgentRun["publication"];
   /** Why the host will not publish this finished task as a Draft PR ("" when it can). */
   publication_blocked?: string;
+  /** Newest public event of this task (live progress while it runs). */
+  activity?: PlatformTaskActivity | null;
+  /** Why this task stopped, when it did. */
+  failure?: PlatformTaskFailure | null;
+  /** Earlier attempts of the same plan task, oldest first. */
+  attempts?: PlatformTaskAttempt[];
+}
+
+/** GET /api/goals/<id>/timeline: one goal as one conversation. */
+export interface PlatformGoalTimeline {
+  goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
+  plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
+  steps: PlatformTimelineStep[];
+}
+
+export interface PlatformTimelineStep {
+  plan_task_id: string;
+  title: string;
+  status: string;
+  functional_validation?: FunctionalValidation;
+  publication?: PlatformAgentRun["publication"];
+  publication_blocked?: string;
+  attempts: PlatformTimelineAttempt[];
+}
+
+export interface PlatformTimelineAttempt {
+  index: number;
+  task_id: string;
+  status: string;
+  executor_kind?: string;
+  binding_ref?: string;
+  started_at?: string;
+  updated_at?: string;
+  retry_reason?: string;
+  failure?: PlatformTaskFailure | null;
+  events: PlatformRunActivityEvent[];
+  events_total: number;
+  events_truncated: boolean;
+  changed_files: PlatformRunChangedFile[];
+  validation?: { command_id: string; status: string; exit_code?: number | null } | null;
+  /** Only on the current attempt. */
+  live?: { state: string; last_activity_at?: string; stage?: string } | null;
+  /** The agent's own sentences kept from its exit evidence (runs before live progress). */
+  narration?: Array<{ timestamp: string; text: string }>;
+  /** Tool calls recorded at exit; their details were not kept for older runs. */
+  tool_actions?: number;
+  /** The agent's final response. */
+  summary?: string;
+}
+
+export interface PlatformTaskActivity {
+  type: string;
+  title: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface PlatformTaskFailure {
+  classification: string;
+  detail: string;
+  /** The host's own last explanation, e.g. "OpenCode stalled: ...". */
+  message: string;
+}
+
+export interface PlatformTaskAttempt {
+  task_id: string;
+  status: string;
+  executor_kind?: string;
+  binding_ref?: string;
+  updated_at?: string;
+  retry_reason?: string;
+  failure?: PlatformTaskFailure | null;
 }
 
 export interface PlatformWindow {
@@ -426,6 +498,10 @@ export interface PlatformRunActivityEvent {
   category: PlatformRunActivityCategory;
   title: string;
   description: string;
+  /** The host event type, e.g. EXECUTOR_PROGRESS. */
+  type?: string;
+  /** "text" when a live progress event is the agent speaking. */
+  progress_kind?: string;
   status?: string;
   stage?: PlatformRunStage;
   agent_id?: string;
@@ -1224,6 +1300,45 @@ export async function startAgentPlan(goalId: string, expectedRevision: number): 
 
 export async function fetchAgentPlanStatus(goalId: string): Promise<AgentPlanStatus> {
   return request<AgentPlanStatus>(`/api/goals/${encodeURIComponent(goalId)}/agent-plan`);
+}
+
+export async function fetchGoalTimeline(goalId: string): Promise<PlatformGoalTimeline> {
+  if (isMock()) return mockGoalTimeline(goalId);
+  return request<PlatformGoalTimeline>(`/api/goals/${encodeURIComponent(goalId)}/timeline`);
+}
+
+/** Mock mode: the same shape the host builds, from the mock goal and its mock runs. */
+function mockGoalTimeline(goalId: string): PlatformGoalTimeline {
+  const goal = mockGoals.find((item) => item.id === goalId) ?? mockGoal;
+  const steps = (goal.task_links ?? []).map((link) => {
+    const earlier = (link.attempts ?? []).map((attempt, index) => ({
+      index: index + 1, task_id: attempt.task_id, status: attempt.status, executor_kind: attempt.executor_kind,
+      binding_ref: attempt.binding_ref, started_at: attempt.updated_at, updated_at: attempt.updated_at,
+      retry_reason: attempt.retry_reason, failure: attempt.failure ?? null, events: [], events_total: 0,
+      events_truncated: false, changed_files: [], validation: null, live: null,
+    }));
+    const run = mockRuns.find((item) => item.task_id === link.task_id);
+    const events = run ? [...(run.activity ?? run.events ?? [])] : [];
+    const current = {
+      index: earlier.length + 1, task_id: link.task_id, status: link.status,
+      executor_kind: link.executor_kind ?? run?.executor_kind, binding_ref: link.binding_ref,
+      started_at: run?.created_at, updated_at: run?.updated_at, retry_reason: "", failure: link.failure ?? null,
+      events, events_total: run?.activity_total ?? events.length, events_truncated: (run?.activity_total ?? events.length) > events.length,
+      changed_files: run?.changed_files ?? [], validation: null,
+      live: run ? { state: typeof run.liveness === "object" ? String(run.liveness?.state ?? "") : String(run.liveness ?? ""),
+        last_activity_at: run.last_activity_at, stage: String(run.stage ?? "") } : null,
+    };
+    return {
+      plan_task_id: link.plan_task_id, title: link.title, status: link.status,
+      functional_validation: link.functional_validation, publication: link.publication,
+      publication_blocked: link.publication_blocked, attempts: [...earlier, current],
+    };
+  });
+  return {
+    goal: { id: goal.id, title: goal.title, objective: goal.objective, status: goal.status, repository: goal.repository },
+    plan: goal.tasks.map((task) => ({ plan_task_id: task.id, title: task.title, role: "", instruction: "" })),
+    steps,
+  };
 }
 
 export async function fetchGoal(goalId: string): Promise<PlatformGoal> {

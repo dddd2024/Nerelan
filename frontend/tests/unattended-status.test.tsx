@@ -30,7 +30,7 @@ describe("UnattendedStatus", () => {
   });
   it("shows active progress and remaining time", () => {
     render(<UnattendedStatus status={status()} now={now} />);
-    expect(screen.getByRole("status")).toHaveTextContent("运行中 · 剩余 60 分钟 · 2 个任务完成 · 上次进展：2 分钟前");
+    expect(screen.getByRole("status")).toHaveTextContent("运行中 · 剩余 60 分钟 · 已结束 2 个任务 · 上次进展：2 分钟前");
     expect(screen.getByRole("status")).not.toHaveClass("text-ra-status-warning");
   });
   it("warns at the 15 minute boundary", () => {
@@ -88,6 +88,13 @@ describe("UnattendedStatus", () => {
     stopped.coordinator.stranded_goals = [{ goal_id: "goal" }];
     render(<UnattendedStatus status={stopped} now={now} />);
     expect(screen.getByRole("status")).toHaveTextContent("协调器未在接收任务");
-    expect(screen.getByRole("status")).toHaveTextContent("有未完成目标等待你重新启动");
+    expect(screen.getByRole("status")).toHaveTextContent("另有 1 个早先的目标没有完成");
+  });
+  it("does not count failed tasks as completed or nag about old goals while running", () => {
+    const running = status();
+    running.coordinator.stranded_goals = [{ goal_id: "old" }];
+    render(<UnattendedStatus status={running} now={now} />);
+    expect(screen.getByRole("status")).not.toHaveTextContent("个任务完成");
+    expect(screen.getByRole("status")).not.toHaveTextContent("早先的目标");
   });
 });

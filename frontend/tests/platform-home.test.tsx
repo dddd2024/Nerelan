@@ -503,7 +503,7 @@ describe("Platform V2 Home Workspace V2", () => {
     const recent = within(screen.getByTestId("recent-goals-section"));
     const fixtureRow = recent.getByRole("button", { name: /内置夹具目标/ });
     expect(within(fixtureRow).getByText("正在执行")).toBeVisible();
-    const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("span")?.textContent);
+    const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("span > span")?.textContent);
 
     const completedFixture: PlatformGoal = {
       ...fixture, status: "COMPLETED",
@@ -515,7 +515,7 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => expect(
       within(recent.getByRole("button", { name: /内置夹具目标/ })).getByText("执行完成，待审查"),
     ).toBeVisible());
-    expect(recent.getAllByRole("button").map((row) => row.querySelector("span")?.textContent)).toEqual(beforeOrder);
+    expect(recent.getAllByRole("button").map((row) => row.querySelector("span > span")?.textContent)).toEqual(beforeOrder);
     for (const row of recent.getAllByRole("button")) {
       expect(within(row).getByText("执行完成，待审查")).toBeVisible();
       expect(within(row).queryByText(/COMPLETED|功能已验证|结果已验证|交付完成/)).not.toBeInTheDocument();

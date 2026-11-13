@@ -10,6 +10,7 @@ import pytest
 
 from reverse_agent.model_access.contracts import Connection, ModelProfile, ProbeResult
 from reverse_agent.model_access.store import ModelProfileStore
+from reverse_agent.agent_cli_detection import detect_agent_clis
 from reverse_agent.model_access.service import (
     _handler_factory,
     probe_openai_compatible,
@@ -30,6 +31,89 @@ def profile_payload(**overrides: Any) -> dict[str, Any]:
     }
     payload.update(overrides)
     return payload
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_agent_cli_discovery_includes_windows_npm_shims(tmp_path, installed):
+    commands = {"opencode": "opencode", "codex": "codex", "claude_code": "claude"}
+    for executor_id in installed:
+        (tmp_path / f"{commands[executor_id]}.cmd").write_text("fixture shim", encoding="utf-8")
+    # npm .cmd shims must be found even when PATHEXT contains only .EXE.
+    found = detect_agent_clis(path=str(tmp_path), pathext=".EXE", windows=True, cwd=tmp_path)
+    assert set(found) == set(installed)
+    assert all(value.endswith(".cmd") for value in found.values())
+
+
+def test_agent_cli_discovery_search_order_and_files_only(tmp_path):
+    first, second = tmp_path / "first", tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    (first / "opencode.cmd").mkdir()
+    (second / "opencode.cmd").write_text("fixture", encoding="utf-8")
+    (second / "codex.exe").write_text("fixture", encoding="utf-8")
+    (second / "codex.cmd").write_text("fixture", encoding="utf-8")
+    found = detect_agent_clis(path=f"{first};{second}", pathext=".EXE", windows=True, cwd=first)
+    assert found == {"opencode": str(second / "opencode.cmd"), "codex": str(second / "codex.exe")}
+    (first / "codex.cmd").write_text("fixture", encoding="utf-8")
+    assert detect_agent_clis(path=str(second), pathext=".EXE", windows=True, cwd=first)["codex"] == str(second / "codex.exe")
+    assert detect_agent_clis(path="", pathext="", windows=True, cwd=first) == {"codex": str(first / "codex.cmd")}
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_executor_discovery_is_injected_and_resource_view_is_truthful(installed):
+    from reverse_agent.model_access.resources import build_resource_view
+
+    calls = []
+    def detector():
+        calls.append(True)
+        return {executor: f"fixture/{executor}.cmd" for executor in installed}
+
+    store = ModelProfileStore(executor_detector=detector)
+    assert calls == [True]
+    # A successful login probe cannot make an absent CLI usable.
+    for executor_id in ("codex", "claude_code"):
+        store.set_native_readiness(executor_id, "managed_login_ready")
+    executors = {row["executor_id"]: row for row in store.list_executors_public()}
+    for executor_id, executor in executors.items():
+        assert executor["cli_available"] is (executor_id in installed)
+        assert executor["operational"] is (executor_id in installed)
+        if executor_id not in installed:
+            assert executor["readiness_status"] == "cli_unavailable"
+    store.upsert_connection({"connection_id": "api", "name": "Fixture", "provider": "openai-compatible",
+                             "base_url": "https://example.test/v1", "auth_method": "none"})
+    store.upsert_binding({"binding_id": "api-model", "name": "Fixture", "executor_id": "opencode",
+                          "connection_id": "api", "model_id": "fixture"})
+    [resource] = build_resource_view(store, dict)["resources"]
+    assert resource["bindings"][0]["usable"] is ("opencode" in installed)
+    assert resource["executors"][0]["cli_available"] is ("opencode" in installed)
+    assert calls == [True]
+
+
+def test_executor_discovery_does_not_claim_native_login_readiness_or_persist_state(tmp_path):
+    state = tmp_path / "model_setup_state.json"
+    store = ModelProfileStore(state_path=state, executor_detector=lambda: {"codex": "fixture/codex.cmd"})
+    assert store.get_executor_public("codex")["cli_available"] is True
+    assert store.get_executor_public("codex")["operational"] is False
+    assert store.get_executor_public("codex")["readiness_status"] == "not_probed"
+    store.set_codex_readiness("managed_login_ready")
+    store.upsert_connection({"connection_id": "native", "name": "Native", "provider": "codex",
+                             "base_url": "https://api.openai.com/v1", "auth_method": "external_cli_session"})
+    before = state.read_bytes()
+    store.refresh_executor_availability(lambda: {})
+    assert state.read_bytes() == before
+    assert store.get_connection_public("native")["external_session_status"] == "missing"
+    restarted = ModelProfileStore(state_path=state, executor_detector=lambda: {})
+    assert all(not row["operational"] for row in restarted.list_executors_public())
+    assert restarted.get_connection_public("native")["external_session_status"] == "missing"
+
+
+def test_default_library_store_never_discovers_real_clis(monkeypatch):
+    def unexpected(*args, **kwargs):
+        pytest.fail("implicit CLI detection")
+    monkeypatch.setattr("reverse_agent.agent_cli_detection.detect_agent_clis", unexpected)
+    import shutil
+    monkeypatch.setattr(shutil, "which", unexpected)
+    assert ModelProfileStore().get_executor_public("opencode")["operational"] is True
 
 
 def test_profile_validation_rejects_embedded_credentials() -> None:

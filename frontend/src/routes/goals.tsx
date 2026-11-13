@@ -9,6 +9,8 @@ import { fetchGoalsPage } from "@/lib/platform-client";
 import { goalStatusLabel } from "@/lib/goal-status-label";
 import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
+import { cn } from "@/lib/cn";
+import { GOAL_PROGRESS_TONE_CLASS, goalProgressLine } from "@/lib/goal-progress-line";
 
 export function GoalsPage() {
   const navigation = useHistoryCursor();
@@ -35,8 +37,9 @@ export function GoalsPage() {
               <span className="min-w-0 text-sm font-medium text-ra-text" title={displayTitle(goal.title, 160)}>{displayTitle(goal.title)}</span>
               <span title={runtimeTitle(goal.status)} className="shrink-0 text-xs text-ra-text-secondary">{goalStatusLabel(goal.status)}</span>
             </div>
-            {goal.objective ? <p className="ra-measure mt-2 line-clamp-2 text-xs leading-5 text-ra-text-secondary" title={goal.objective}>{goal.objective}</p> : null}
-            <p className="mt-2 text-xs text-ra-text-tertiary">{goal.repository}</p>
+            <p data-testid={`goal-progress-line-${goal.id}`} className={cn("mt-1.5 text-sm", GOAL_PROGRESS_TONE_CLASS[goalProgressLine(goal).tone])}>{goalProgressLine(goal).text}</p>
+            {goal.objective ? <p className="ra-measure mt-1.5 line-clamp-1 text-xs leading-5 text-ra-text-tertiary" title={goal.objective}>{goal.objective}</p> : null}
+            <p className="mt-1 text-xs text-ra-text-tertiary">{goal.repository}</p>
           </Link>
           {["DRAFT", "PLANNED", "APPROVED"].includes(goal.status) && <div className="px-4 pb-3">
             <Link

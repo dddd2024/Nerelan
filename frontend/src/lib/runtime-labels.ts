@@ -68,6 +68,7 @@ const FAILURES: Record<string, [string, string]> = {
   no_willing_model: ["没有模型愿意执行", "请查看拒绝原因并调整任务范围。"],
   pinned_model_unavailable: ["指定模型不可用", "请检查指定模型的权限、额度和配置。"],
   cli_unavailable: ["执行工具不可用", "请检查本地执行工具是否已安装并可用。"],
+  executor_unavailable: ["执行工具未安装", "这个模型需要的执行工具（如 OpenCode、Codex 或 Claude Code）在本机没有找到，安装后重启 Nerelan。"],
   auth_provider_route_failure: ["认证或服务路由失败", "请检查连接的登录状态和服务地址。"],
   network_provider_failure: ["服务连接失败", "请检查网络和服务连接后重试。"],
   model_provider_unavailable: ["模型服务不可用", "请检查服务配置或选择其他可用模型。"],
@@ -117,6 +118,13 @@ const FAILURES: Record<string, [string, string]> = {
   unapproved: ["尚未获得批准", "请由负责人核对任务范围并批准后再继续。"],
   role_failed: ["角色执行失败", "请查看对应角色的执行记录后再安排执行。"],
   opencode_nonzero: ["执行器异常退出", "请查看执行记录中的退出原因并处理后重试。"],
+  executor_stalled: ["Agent 长时间没有任何输出，已被停止", "最常见的原因是模型被限流（429）后一直在等。可以换一个模型重试，或稍后再试。"],
+  opencode_stalled: ["Agent 长时间没有任何输出，已被停止", "最常见的原因是模型被限流（429）后一直在等。可以换一个模型重试，或稍后再试。"],
+  opencode_timeout: ["执行超过时间上限", "这个模型可能太慢或卡住了。可以换一个更快的模型重试。"],
+  executor_terminated: ["Agent 被系统中断（关机或关闭了窗口）", "系统会用同一个模型接着上次的进度重试；没有自动重试时，可以重新启动。"],
+  functional_check_failed: ["功能检查没有通过", "请查看检查输出。如果失败的是已知会偶发失败的测试，可以直接重试。"],
+  task_unsuccessful: ["有任务没有成功", "请打开对应目标，查看页面顶部的停止原因。"],
+  worktree_preparation_failed: ["工作区准备失败", "请检查磁盘空间和仓库状态后重试。"],
 };
 
 // Both native executors use codex_executor._e for these classifications.
