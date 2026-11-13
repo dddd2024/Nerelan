@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { Plus, Send, X } from "lucide-react";
+import { Link } from "react-router";
 import { PermissionSelector } from "@/components/permission-selector";
 import { AuthorizationSummary } from "@/components/authorization-summary";
 import { CustomPolicyEditor } from "@/components/custom-policy-editor";
@@ -13,6 +14,8 @@ import { cn } from "@/lib/cn";
 import { taskCopy } from "@/lib/ui-locale";
 
 export type ExecutorChoice = "opencode" | "codex" | "claude_code" | "deterministic_fixture";
+
+export const DEFAULT_INTERACTIVE_MODEL_ID = "token-sensenova/glm-5.2";
 
 interface ExecutorOption {
   value: ExecutorChoice;
@@ -88,7 +91,9 @@ export function NewTaskComposer({
     if (bindingsQuery.data === undefined) {
       return;
     }
-    const usable = opencodeBindings.length > 0 ? opencodeBindings[0] : null;
+    const usable =
+      opencodeBindings.find((b) => b.modelId === DEFAULT_INTERACTIVE_MODEL_ID) ??
+      (opencodeBindings.length > 0 ? opencodeBindings[0] : null);
     if (usable) {
       setSelectedBindingId(usable.bindingId);
     }
@@ -197,6 +202,14 @@ export function NewTaskComposer({
             <h2 className="text-sm font-semibold text-ra-text-secondary">
               新建任务
             </h2>
+            {isOpenCode && (
+              <span
+                data-testid="owner-present-label"
+                className="rounded-full border border-ra-accent/40 bg-ra-accent/10 px-2 py-0.5 text-[10px] text-ra-accent"
+              >
+                此模式需要你在场
+              </span>
+            )}
             <button
               type="button"
               aria-label="关闭"
@@ -323,7 +336,15 @@ export function NewTaskComposer({
                 )}
                 {!bindingsQuery.isLoading && opencodeBindings.length === 0 && (
                   <p className="mt-1 text-xs text-ra-status-warning" data-testid="no-binding-hint">
-                    没有可用的 OpenCode 绑定，请前往设置创建。
+                    没有可用的 OpenCode 绑定，请前往
+                    <Link
+                      to="/accounts"
+                      data-testid="no-binding-accounts-link"
+                      className="mx-1 underline text-ra-accent hover:text-ra-accent/80"
+                    >
+                      账户
+                    </Link>
+                    页面创建。
                   </p>
                 )}
                 {selectedBinding && (
