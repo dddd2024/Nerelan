@@ -20,6 +20,10 @@ import {
 } from "lucide-react";
 import type { Task } from "@/types";
 import { useTasks } from "@/hooks/use-tasks";
+import { useGoals } from "@/hooks/use-platform";
+import { recentGoals } from "@/components/sidebar";
+import { goalProgressLine } from "@/lib/goal-progress-line";
+import type { PlatformGoal } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
 import { runStateStyle } from "@/lib/format";
@@ -58,6 +62,10 @@ function searchableTaskText(task: Task) {
     .toLocaleLowerCase();
 }
 
+function searchableGoalText(goal: PlatformGoal) {
+  return [goal.title, goal.objective, goal.repository].join(" ").toLocaleLowerCase();
+}
+
 function taskMeta(task: Task) {
   return [task.repository, task.branch].filter(Boolean).join(" · ");
 }
@@ -76,6 +84,7 @@ function resolvedDark() {
  */
 export function ConversationPanel({ open, onClose, onNewTask }: ConversationPanelProps) {
   const { data: tasks, isLoading, isError } = useTasks();
+  const { data: goals } = useGoals();
   const location = useLocation();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -104,11 +113,18 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
       .slice(0, 12);
   }, [normalized, tasks]);
 
+  // One entry per issue, newest first, like the sidebar's 最近目标.
+  const filteredGoals = useMemo(() => {
+    const source = recentGoals(goals ?? [], Number.MAX_SAFE_INTEGER);
+    if (!normalized) return source.slice(0, 5);
+    return source.filter((goal) => searchableGoalText(goal).includes(normalized)).slice(0, 8);
+  }, [goals, normalized]);
+
   const commands = useMemo<PaletteCommand[]>(() => {
     const dark = open && resolvedDark();
     const all: PaletteCommand[] = [
       ...(onNewTask
-        ? [{ id: "new-task", label: "新建任务", keywords: "new task create", icon: Plus, run: onNewTask }]
+        ? [{ id: "new-goal", label: "新建目标", keywords: "new goal task create 新建 任务", icon: Plus, run: onNewTask }]
         : []),
       ...ROUTES.map((route) => ({
         id: `go-${route.to}`,
@@ -133,6 +149,11 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
       `${command.label} ${command.keywords}`.toLocaleLowerCase().includes(normalized),
     );
   }, [navigate, normalized, onNewTask, open]);
+
+  const handleGoalClick = (goalId: string) => {
+    navigate(`/?goal=${encodeURIComponent(goalId)}`);
+    onClose();
+  };
 
   const handleTaskClick = (taskId: string) => {
     navigate(`/tasks/${taskId}`);
@@ -207,6 +228,23 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
               </Command.Group>
             ) : null}
 
+            {filteredGoals.length > 0 ? (
+              <Command.Group heading="目标" data-testid="conversation-panel-goals">
+                {filteredGoals.map((goal) => (
+                  <Command.Item
+                    key={goal.id}
+                    value={`goal-${goal.id}`}
+                    data-testid={`conversation-goal-${goal.id}`}
+                    onSelect={() => handleGoalClick(goal.id)}
+                    className="flex min-h-[42px] w-full cursor-pointer flex-col justify-center rounded-md px-2.5 py-1.5 text-left text-ra-text-secondary"
+                  >
+                    <span className="w-full truncate text-[13px] font-medium leading-5">{displayTitle(goal.title)}</span>
+                    <span className="block w-full truncate text-[11px] leading-4 text-ra-text-tertiary">{goalProgressLine(goal).text}</span>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            ) : null}
+
             {isLoading ? (
               <div className="px-4 py-8 text-center text-xs text-ra-text-tertiary">正在加载任务…</div>
             ) : isError || !tasks ? (
@@ -218,12 +256,14 @@ export function ConversationPanel({ open, onClose, onNewTask }: ConversationPane
                 无法加载任务列表。
               </div>
             ) : filteredTasks.length === 0 ? (
-              <div
-                data-testid="conversation-panel-empty"
-                className="px-4 py-8 text-center text-xs text-ra-text-tertiary"
-              >
-                没有匹配的任务。
-              </div>
+              filteredGoals.length === 0 ? (
+                <div
+                  data-testid="conversation-panel-empty"
+                  className="px-4 py-8 text-center text-xs text-ra-text-tertiary"
+                >
+                  {normalized ? "没有匹配的目标或任务。" : "还没有任务。"}
+                </div>
+              ) : null
             ) : (
               <Command.Group heading="任务" data-testid="conversation-panel-list">
                 {filteredTasks.map((task) => {
