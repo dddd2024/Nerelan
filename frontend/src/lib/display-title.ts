@@ -57,6 +57,24 @@ function bound(value: string, maxLength: number): string {
 }
 
 /**
+ * The leading `[...]` goal-title prefix, matched with nesting: a goal titled
+ * `#1488 [Runtime] Detect …` yields `[#1488 [Runtime] Detect …] implement …`,
+ * and stopping at the first `]` would cut the title to `#1488 [Runtime`.
+ */
+export function leadingBracket(source: string): { inner: string; end: number } | null {
+  if (!source.startsWith("[")) return null;
+  let depth = 0;
+  for (let index = 0; index < Math.min(source.length, 400); index += 1) {
+    if (source[index] === "[") depth += 1;
+    else if (source[index] === "]") {
+      depth -= 1;
+      if (depth === 0) return index > 1 ? { inner: source.slice(1, index), end: index + 1 } : null;
+    }
+  }
+  return null;
+}
+
+/**
  * Derive the short, human-readable title for a task or goal row.
  *
  * Order of preference:
@@ -73,9 +91,9 @@ export function displayTitle(
   const firstParagraph = (raw.split(/\r?\n\s*\r?\n/)[0] ?? "").trim();
   const source = collapseWhitespace(firstParagraph);
 
-  const bracketed = /^\[([^\]]{1,300})\]\s*/.exec(source);
-  const bracketTitle = bracketed ? stripPrefixes(collapseWhitespace(bracketed[1])) : "";
-  const stripped = stripPrefixes(bracketed ? source.slice(bracketed[0].length) : source);
+  const bracketed = leadingBracket(source);
+  const bracketTitle = bracketed ? stripPrefixes(collapseWhitespace(bracketed.inner)) : "";
+  const stripped = stripPrefixes(bracketed ? source.slice(bracketed.end).trimStart() : source);
 
   const candidate = bracketTitle || stripped || source;
   return bound(candidate, maxLength);
@@ -94,6 +112,7 @@ export function displayObjective(raw: string | null | undefined): string {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .join("\n\n");
-  const withoutBracket = head.replace(/^\[[^\]]{1,300}\]\s*/, "");
+  const bracket = leadingBracket(head);
+  const withoutBracket = bracket ? head.slice(bracket.end).trimStart() : head;
   return [collapseWhitespace(withoutBracket), body].filter(Boolean).join("\n\n");
 }

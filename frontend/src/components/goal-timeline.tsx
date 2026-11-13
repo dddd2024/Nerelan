@@ -15,6 +15,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/functional-validation";
 import { FunctionalValidationView } from "@/components/functional-validation";
 import { StepRetry } from "@/components/step-retry";
+import { humanCommand, stepTitle } from "@/lib/goal-view";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { collapseRepeats, eventDetail, failureText, meaningfulEvents, modelName, readableAgent } from "@/lib/run-explain";
 import {
@@ -58,6 +59,24 @@ function isSpeech(event: PlatformRunActivityEvent) {
   return event.type === "EXECUTOR_PROGRESS" && event.progress_kind === "text";
 }
 
+const FILE_VERBS: Record<string, string> = { READ: "正在读", EDIT: "正在修改", SEARCH: "正在搜索" };
+
+/** One event as a short phrase: "正在跑测试", "正在修改 goal_service.py", or the agent's own words. */
+export function eventPhrase(event: PlatformRunActivityEvent): string {
+  const category = String(event.category);
+  if (event.path && FILE_VERBS[category]) return `${FILE_VERBS[category]} ${event.path.split(/[\\/]/).pop()}`;
+  if (category === "TEST") return "正在跑检查";
+  const command = event.command?.summary || (category === "COMMAND" || category === "EDIT" ? event.description : "");
+  if (command) return humanCommand(command);
+  const detail = eventDetail(event) || activityCategoryLabel(event.category);
+  return `正在做：${detail.length > 60 ? `${detail.slice(0, 59)}…` : detail}`;
+}
+
+/** Retries the host made by itself (interruption, stall, provider overload): not the model's failure. */
+export function hostRetried(reason?: string): boolean {
+  return /^(host_retry|transient_overload|executor_terminated)/.test(reason ?? "");
+}
+
 /** The one sentence a reader needs first: what is happening now, or what waits on them. */
 export function timelineStatusLine(timeline: PlatformGoalTimeline): { tone: "live" | "stopped" | "done" | "idle"; text: string } {
   for (const step of timeline.steps) {
@@ -65,8 +84,7 @@ export function timelineStatusLine(timeline: PlatformGoalTimeline): { tone: "liv
     if (attempt && statusFor(attempt.status) === "running") {
       const shown = meaningfulEvents(attempt.events).filter((event) => !isSpeech(event));
       const last = shown[shown.length - 1];
-      const doing = last ? (eventDetail(last) || activityCategoryLabel(last.category)) : "Agent 已启动，等待第一条动作";
-      return { tone: "live", text: `正在做：${doing}` };
+      return { tone: "live", text: last ? eventPhrase(last) : "Agent 已启动，等待第一条动作" };
     }
   }
   const stopped = timeline.steps.find((step) => STOPPED.has(latestAttempt(step)?.status ?? ""));
@@ -96,7 +114,9 @@ export function attemptBlocks(attempt: PlatformTimelineAttempt): Block[] {
   meaningfulEvents(attempt.events).forEach((event, index) => {
     const key = event.id || `${attempt.task_id}-${index}`;
     if (isSpeech(event)) {
-      blocks.push({ kind: "say", key, text: cleanSpeech(event.description) });
+      const text = cleanSpeech(event.description);
+      // A lone "…" (often a mis-decoded ellipsis) says nothing.
+      if (/[\p{L}\p{N}]/u.test(text)) blocks.push({ kind: "say", key, text });
     } else if (TOOL_CATEGORIES.has(String(event.category)) || event.type === "EXECUTOR_PROGRESS") {
       const last = blocks[blocks.length - 1];
       if (last?.kind === "actions") last.events.push(event);
@@ -175,19 +195,7 @@ function AgentTurn({ attempt, live }: { attempt: PlatformTimelineAttempt; live: 
         if (block.kind === "note") {
           return <ul key={block.key} className="space-y-1"><ActionRow event={block.event} repeats={1} /></ul>;
         }
-        const rows = collapseRepeats(block.events.map((event) => ({ event, key: event.id })));
-        return (
-          <details key={block.key} open={live && block.key === lastActions} className="group">
-            <summary data-testid={`timeline-actions-${block.key}`}
-              className="flex w-fit cursor-pointer list-none items-center gap-1 rounded text-xs text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
-              {actionsSummary(block.events)}
-              <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" aria-hidden="true" />
-            </summary>
-            <ul className="mt-1 space-y-1 border-l border-ra-border/60 pl-3">
-              {rows.map(({ event, key, repeats }) => <ActionRow key={key} event={event} repeats={repeats} />)}
-            </ul>
-          </details>
-        );
+        return <ActionGroup key={block.key} block={block} open={live && block.key === lastActions} />;
       })}
       {legacyTools > 0 && (
         <p className="text-xs text-ra-text-secondary" data-testid={`timeline-legacy-tools-${attempt.task_id}`}>
@@ -202,6 +210,35 @@ function AgentTurn({ attempt, live }: { attempt: PlatformTimelineAttempt; live: 
         </p>
       )}
     </div>
+  );
+}
+
+/** Rows shown in an open action group before "显示全部". */
+export const ACTION_ROWS_SHOWN = 6;
+
+function ActionGroup({ block, open }: { block: Extract<Block, { kind: "actions" }>; open: boolean }) {
+  const [all, setAll] = useState(false);
+  const rows = collapseRepeats(block.events.map((event) => ({ event, key: event.id })));
+  const shown = all ? rows : rows.slice(-ACTION_ROWS_SHOWN);
+  return (
+    <details open={open} className="group">
+      <summary data-testid={`timeline-actions-${block.key}`}
+        className="flex w-fit cursor-pointer list-none items-center gap-1 rounded text-xs text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+        {actionsSummary(block.events)}
+        <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" aria-hidden="true" />
+      </summary>
+      <ul className="mt-1 space-y-1 border-l border-ra-border/60 pl-3">
+        {shown.length < rows.length && (
+          <li>
+            <button type="button" onClick={() => setAll(true)}
+              className="text-xs text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+              显示全部 {rows.length} 条
+            </button>
+          </li>
+        )}
+        {shown.map(({ event, key, repeats }) => <ActionRow key={key} event={event} repeats={repeats} />)}
+      </ul>
+    </details>
   );
 }
 
@@ -234,7 +271,12 @@ export function checkSummary(text: string): string {
 
 function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; total: number }) {
   const state = statusFor(attempt.status);
-  const stopped = STOPPED.has(attempt.status);
+  // An attempt the host retried by itself (restart, stall, overload) is not a failure to act on;
+  // `retry_reason` is recorded on the attempt that was retried.
+  const autoRetried = hostRetried(attempt.retry_reason);
+  // A failure that a later attempt already retried is history, not something to act on.
+  const superseded = attempt.index < total;
+  const stopped = STOPPED.has(attempt.status) && !autoRetried;
   const reason = stopped ? failureText(attempt.failure) : null;
   const checks = reason ? checkSummary(reason.detail) : "";
   const files = attempt.changed_files ?? [];
@@ -243,18 +285,20 @@ function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; to
   return (
     <li data-testid={`timeline-attempt-${attempt.task_id}`} className="relative border-l border-ra-border/70 pb-4 pl-4 last:pb-1">
       <span aria-hidden="true" className={cn("absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 bg-ra-base",
-        stopped ? "border-ra-status-error" : state === "running" ? "border-ra-accent" : isReviewReady(state) ? "border-ra-status-running" : "border-ra-border-strong")} />
+        stopped && !superseded ? "border-ra-status-error" : state === "running" ? "border-ra-accent" : isReviewReady(state) ? "border-ra-status-running" : "border-ra-border-strong")} />
       <div className="mb-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <p className="text-xs font-medium text-ra-text">
           {total > 1 ? `第 ${attempt.index} 次` : "执行"}{who(attempt) ? ` · ${who(attempt)}` : ""}
         </p>
-        {attempt.started_at && <span className="text-xs text-ra-text-tertiary">{formatRelativeTime(attempt.started_at)}开始</span>}
+        {attempt.started_at && state !== "queued" && <span className="text-xs text-ra-text-tertiary">{formatRelativeTime(attempt.started_at)}开始</span>}
+        {state === "queued" && <span className="text-xs text-ra-text-tertiary">还没开始</span>}
         <span className="ml-auto inline-flex items-center gap-1.5 text-xs">
           {/* The step header carries the state; an attempt adds only liveness or its stop reason. */}
           {attempt.live && state === "running" ? <>
             <span className={cn("h-1.5 w-1.5 rounded-full", livenessDotClass(attempt.live.state))} aria-hidden="true" />
             <span className="text-ra-text-secondary" data-testid={`timeline-liveness-${attempt.task_id}`}>{livenessLabel(attempt.live.state)}</span>
-          </> : stopped && reason && total > 1 ? <span className={taskStateClass(state)}>{reason.label}</span> : null}
+          </> : stopped && reason && total > 1 ? <span className={superseded ? "text-ra-text-tertiary" : taskStateClass(state)}>{reason.label}</span>
+            : autoRetried ? <span data-testid={`timeline-auto-retry-${attempt.task_id}`} className="text-ra-text-tertiary">被中断，已自动重试</span> : null}
         </span>
       </div>
       <AgentTurn attempt={attempt} live={state === "running"} />
@@ -264,7 +308,18 @@ function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; to
           <span className="ml-1 font-mono text-ra-text-tertiary">{files.slice(0, 3).map((file) => file.path).join("、")}{files.length > 3 ? " …" : ""}</span>
         </p>
       )}
-      {reason && (
+      {reason && superseded && (
+        <details data-testid={`timeline-stop-${attempt.task_id}`} className="mt-2 text-xs text-ra-text-secondary">
+          <summary className="w-fit cursor-pointer rounded hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            这次因“{reason.label}”停下，之后已重试
+          </summary>
+          <div className="mt-1 space-y-0.5 pl-3 text-ra-text-tertiary">
+            {checks && <p data-testid={`timeline-checks-${attempt.task_id}`}>{checks}</p>}
+            {reason.detail && <p className="break-words font-mono leading-5">{reason.detail}</p>}
+          </div>
+        </details>
+      )}
+      {reason && !superseded && (
         <div role="alert" data-testid={`timeline-stop-${attempt.task_id}`}
           className="mt-2 flex items-start gap-2.5 rounded-xl border border-ra-status-error/30 bg-ra-status-error/5 px-3 py-2.5">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ra-status-error" aria-hidden="true" />
@@ -298,7 +353,7 @@ function StepIcon({ state }: { state: string }) {
 /** Stopped attempts the Owner can retry (the host refuses others). */
 const RETRYABLE = new Set(["FAILED", "BLOCKED"]);
 
-function StepBlock({ step, goalId, retry }: { step: PlatformTimelineStep; goalId: string; retry?: PlatformRetryOptions }) {
+function StepBlock({ step, goalId, retry, role }: { step: PlatformTimelineStep; goalId: string; retry?: PlatformRetryOptions; role?: string }) {
   const current = latestAttempt(step);
   const state = statusFor(current?.status ?? step.status);
   const executor = (current?.status ?? "").endsWith("_FIXTURE") ? "deterministic_fixture" : current?.executor_kind;
@@ -308,10 +363,9 @@ function StepBlock({ step, goalId, retry }: { step: PlatformTimelineStep; goalId
     <article data-testid={`goal-task-${taskId}`} className="rounded-2xl border border-ra-border/70 bg-ra-workspace px-4 pt-3.5 pb-2 sm:px-5">
       <header className="flex min-w-0 items-start gap-3">
         <StepIcon state={state} />
-        <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={displayTitle(step.title, 160)}>
-          {displayTitle(step.title)}
+        <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={`${displayTitle(step.title, 160)}（${step.plan_task_id}）`}>
+          {stepTitle(step.title, role)}
         </h3>
-        <span className="shrink-0 font-mono text-xs text-ra-text-tertiary">{step.plan_task_id}</span>
       </header>
       <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs leading-4">
         <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>
@@ -420,7 +474,11 @@ export function GoalTimeline({ goal, timeline }: { goal: PlatformGoal; timeline?
             </li>
           ))}
         </ol>
-      ) : steps.map((step) => <StepBlock key={step.plan_task_id} step={step} goalId={goal.id} retry={timeline?.retry} />)}
+      ) : steps.map((step) => (
+        <StepBlock key={step.plan_task_id} step={step} goalId={goal.id} retry={timeline?.retry}
+          role={timeline?.plan.find((item) => item.plan_task_id === step.plan_task_id)?.role
+            ?? goal.tasks.find((task) => task.id === step.plan_task_id)?.agent_role ?? step.plan_task_id} />
+      ))}
       <p className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs leading-5 text-ra-text-tertiary">
         <span>执行完成不代表功能验证或交付完成；远端审查、合并与交付另行确认。</span>
         {steps.length > 0 && (

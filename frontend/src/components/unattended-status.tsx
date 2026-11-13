@@ -30,23 +30,21 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
   const warning = stalled || coordinatorStopped || Boolean(recent && !active);
   const timeLeft = window ? Math.max(0, Math.ceil((Date.parse(window.expires_at) - now) / 60_000)) : 0;
   const reason = window?.stop_reason || status.coordinator.last_error;
+  const left = timeLeft >= 90 ? `${Math.round(timeLeft / 60)} 小时` : `${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟`;
+  // Nothing running and nothing recently stopped: no banner at all.
+  if (!recent) return null;
   return (
     <div role="status" className={cn(
       "shrink-0 border-b px-4 py-3 text-sm sm:px-5",
       warning ? "border-ra-status-warning/30 bg-ra-status-warning/10 text-ra-status-warning" : "border-ra-border text-ra-text-secondary",
     )}>
-      {!recent ? "当前没有无人值守任务在运行。" : <>
-        {active && !coordinatorStopped
-          // tasks_completed counts finished claims, failed ones included: "已结束", never "完成".
-          ? `无人值守运行中 · 剩余 ${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟 · 已结束 ${window.tasks_completed} 个任务`
-          : `无人值守已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。请检查运行记录，处理后重新启动或继续目标。`}
-        {stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`
-          : progressAge !== null ? ` · 上次进展：${progressAge === 0 ? "刚刚" : `${progressAge} 分钟前`}`
-            : " · 尚无任务进展记录"}
-      </>}
-      {/* Stranded goals belong to earlier, stopped windows: say so, and not while one is running. */}
-      {Boolean(status.coordinator.stranded_goals?.length) && (!active || coordinatorStopped)
-        && ` · 另有 ${status.coordinator.stranded_goals!.length} 个早先的目标没有完成。`}
+      {active && !coordinatorStopped
+        // tasks_completed counts finished claims, failed ones included: "已结束", never "完成".
+        ? `执行窗口运行中 · 剩 ${left} · 已结束 ${window.tasks_completed} 个任务`
+        : `执行窗口已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。需要继续时在目标页重试，或开一个新窗口。`}
+      {/* Progress only matters while the window can still make some. */}
+      {active && !coordinatorStopped && (stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`
+        : progressAge !== null ? ` · 上次进展：${progressAge === 0 ? "刚刚" : `${progressAge} 分钟前`}` : "")}
     </div>
   );
 }

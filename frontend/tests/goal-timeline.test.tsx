@@ -77,7 +77,7 @@ describe("Home goal timeline", () => {
     expect(screen.getByTestId("timeline-event-a3")).toHaveTextContent("Test Agent");
     // The server's generic English category titles never show beside the product label.
     expect(screen.getByTestId("timeline-event-a2").textContent).not.toContain("Repository change");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在做：pytest tests/test_upload.py -q");
+    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在跑测试");
     expect(screen.getByTestId("timeline-liveness-t-active")).toHaveTextContent("有新活动");
     expect(screen.getByTestId("timeline-attempt-t-active")).toHaveTextContent("OpenCode · codex-gpt-6.1-sol");
     // Semantic activity, never an exact wall-clock stamp.
@@ -125,7 +125,7 @@ describe("Home goal timeline", () => {
     // The newest group of a running attempt is open; older groups stay folded.
     expect(screen.getByTestId("timeline-actions-t4").closest("details")).toHaveAttribute("open");
     expect(screen.getByTestId("timeline-actions-t1").closest("details")).not.toHaveAttribute("open");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在做：c.py");
+    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在修改 c.py");
   });
 
   it(`shows the newest ${TIMELINE_VISIBLE_BLOCKS} blocks and reveals older ones on request`, async () => {
@@ -182,6 +182,17 @@ describe("GoalTimeline attempts", () => {
     expect(screen.getByRole("link", { name: "查看 #1458 [Routing] implement 的运行" })).toHaveAttribute("href", "/runs?task=task-3");
   });
 
+  it("marks a host-retried attempt as interrupted-and-retried instead of a red stop card", () => {
+    const retried = { ...timeline, steps: [{ ...timeline.steps[0], attempts: [
+      { ...attempt(1, "task-1", "FAILED", "magpie-codex-gpt-6.1-sol", { classification: "executor_terminated", detail: "host_restart", message: "Executor terminated" }), retry_reason: "host_retry:restart" },
+      attempt(2, "task-2", "FAILED", "magpie-codex-gpt-6.1-sol", { classification: "timeout", detail: "opencode_timeout:3600", message: "OpenCode timeout" }),
+    ] }] } as PlatformGoalTimeline;
+    render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={retried} /></MemoryRouter>);
+    expect(screen.getByTestId("timeline-auto-retry-task-1")).toHaveTextContent("被中断，已自动重试");
+    expect(screen.queryByTestId("timeline-stop-task-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("timeline-auto-retry-task-2")).not.toBeInTheDocument();
+  });
+
   it("shows a new current attempt from the goal detail before the timeline has it", () => {
     const stale = { ...timeline, steps: [{ ...timeline.steps[0], attempts: timeline.steps[0].attempts.slice(0, 2) }] };
     const [step] = mergeTimelineSteps(GOAL, stale);
@@ -213,9 +224,16 @@ describe("older runs and stop details", () => {
     expect(checkSummary(text)).toBe("功能检查：180 个通过，1 个失败（test_foreign_origin_error_body_no_secret）");
     expect(checkSummary("nothing to parse")).toBe("");
     render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={timeline} /></MemoryRouter>);
+    // An attempt a later one already retried is history: a folded line, not an alert card.
     const card = screen.getByTestId("timeline-stop-task-2");
-    expect(card.querySelector("details")).not.toHaveAttribute("open");
-    expect(card.querySelector("details")).toHaveTextContent("技术细节");
+    expect(card.tagName).toBe("DETAILS");
+    expect(card).not.toHaveAttribute("open");
+    expect(card).toHaveTextContent("之后已重试");
+    // The latest attempt keeps the alert card with its raw detail folded.
+    const latest = screen.getByTestId("timeline-stop-task-3");
+    expect(latest).toHaveAttribute("role", "alert");
+    expect(latest.querySelector("details")).not.toHaveAttribute("open");
+    expect(latest.querySelector("details")).toHaveTextContent("技术细节");
   });
 
   it("counts folded tool calls by kind", () => {

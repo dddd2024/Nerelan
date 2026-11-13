@@ -143,7 +143,7 @@ describe("task-first sidebar IA", () => {
       "Newest alpha goal",
       "Beta validation goal",
       "Older alpha goal",
-      "#1459 [Runtime] Cache the forecast",
+      "Cache the forecast",
     ]);
     expect(screen.queryByTestId("sidebar-recent-goal-goal-1459-a")).not.toBeInTheDocument();
     expect(screen.getByTestId("sidebar-recent-goal-goal-1459-b")).toHaveAttribute("href", "/?goal=goal-1459-b");

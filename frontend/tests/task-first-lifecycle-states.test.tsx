@@ -59,9 +59,9 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     renderWithProviders(<HomePage />, { initialEntries: [`/?goal=${GOAL_ID}`] });
 
     const state = await screen.findByTestId("goal-state-label");
-    expect(state).toHaveTextContent("执行完成，待审查");
+    expect(state).toHaveTextContent("待审查");
     expect(state).toHaveClass("text-ra-status-running");
-    expect(state).not.toHaveTextContent("正在执行");
+    expect(state).not.toHaveTextContent("进行中");
 
     await waitFor(() => {
       expect(screen.getByTestId("goal-progress-summary")).toHaveTextContent("3/3");
@@ -85,7 +85,8 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     renderWithProviders(<HomePage />, { initialEntries: [`/?goal=${GOAL_ID}`] });
 
     const state = await screen.findByTestId("goal-state-label");
-    expect(state).toHaveTextContent("需要处理阻塞");
+    expect(state).toHaveTextContent("已停下");
+    expect(state).not.toHaveTextContent("进行中");
     expect(state).toHaveClass("text-ra-status-error");
     expect(state).not.toHaveClass("text-ra-accent");
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass(

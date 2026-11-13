@@ -99,6 +99,13 @@ export const TONE_ERROR_FLAT = "bg-ra-status-error/12 text-ra-status-error";
 export const TONE_NEUTRAL_FLAT = "bg-ra-light text-ra-text-secondary";
 export const TONE_MUTED_FLAT = "bg-ra-light text-ra-text-tertiary";
 
+/** A queued or cancelled task is not "waiting for the Owner" nor a terminal failure. */
+export function runDisplayState(run: { state: string; status?: string }): string {
+  if (run.status === "QUEUED") return "QUEUED";
+  if (run.status === "CANCELLED") return "CANCELLED";
+  return run.state;
+}
+
 export function runStateStyle(state: RunState | string): StateStyle {
   switch (state) {
     case "READY_FOR_HUMAN":
@@ -127,6 +134,12 @@ export function runStateStyle(state: RunState | string): StateStyle {
       return { label: "终态失败", badge: TONE_ERROR, dot: "bg-ra-status-error" };
     case "WAITING_FOR_OWNER":
       return { label: "等待 Owner", badge: TONE_WARNING, dot: "bg-ra-status-warning" };
+    // The read model folds these into WAITING_FOR_OWNER / FAILED_TERMINAL; the
+    // raw task status says what they are (see `runDisplayState`).
+    case "QUEUED":
+      return { label: "排队中", badge: TONE_NEUTRAL, dot: "bg-ra-border-strong" };
+    case "CANCELLED":
+      return { label: "已取消", badge: TONE_NEUTRAL, dot: "bg-ra-status-stopped" };
     default:
       /*
        * Total function on purpose: the platform run read-model and the task

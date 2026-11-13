@@ -2,6 +2,7 @@ import { Link } from "react-router";
 import type { Task } from "@/types";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { taskTitle } from "@/lib/goal-view";
 import { taskProjectName } from "@/lib/task-project";
 import { taskActionCopy, taskBlockerCopy } from "@/lib/task-status-copy";
 import { runtimeTitle } from "@/lib/runtime-labels";
@@ -78,7 +79,7 @@ export function TaskCard({ task }: TaskCardProps) {
           className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-ra-text"
           title={displayTitle(task.title, 160)}
         >
-          {task.issueNumber ? `#${task.issueNumber} — ` : ""}{displayTitle(task.title)}
+          {taskTitle(task.title)}
         </span>
         <span title={runtimeTitle(task.state)} className="shrink-0 text-xs text-ra-text-secondary">{state.label}</span>
         <span className="shrink-0 text-xs tabular-nums text-ra-text-tertiary">

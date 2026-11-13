@@ -29,7 +29,10 @@ import {
   type PlatformRunAgent,
 } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
-import { runStateStyle, runStateTone } from "@/lib/format";
+import { runDisplayState, runStateStyle, runStateTone } from "@/lib/format";
+import { displayTitle } from "@/lib/display-title";
+import { cleanIssueTitle, taskTitle } from "@/lib/goal-view";
+import { modelChoice, tidyDetail } from "@/lib/run-explain";
 import {
   activityCategoryClass,
   activityCategoryLabel,
@@ -54,9 +57,9 @@ import {
  * the same mapping the task list and the sidebar use.
  */
 const ENFORCEMENT_LABELS: Record<string, string> = {
-  HARD_ADMISSION_ENFORCED: "派发前硬预算",
-  POST_RUN_OBSERVED: "仅运行后观测",
-  USAGE_UNKNOWN: "用量未知，已停派发",
+  HARD_ADMISSION_ENFORCED: "有预算上限",
+  POST_RUN_OBSERVED: "运行后统计",
+  USAGE_UNKNOWN: "用量未知，已暂停派发",
 };
 
 const CANCEL_REASON_LABELS: Record<string, string> = {
@@ -181,7 +184,8 @@ function livenessBadge(value: PlatformAgentRun["liveness"]) {
  */
 function runHeading(run: PlatformAgentRun): string {
   const title = (run.title ?? "").trim();
-  if (title) return title;
+  // "[<goal title>] implement Implement #1488 <instructions>" → "<goal title> · 实现".
+  if (title) return taskTitle(title, 200);
   const taskId = (run.task_id ?? "").trim();
   if (taskId) return `任务 ${taskId} · 标题暂不可用`;
   return "未命名任务 · 标题暂不可用";
@@ -196,7 +200,7 @@ function runTaskId(run: PlatformAgentRun): string {
 }
 
 function runToggleAriaLabel(run: PlatformAgentRun): string {
-  const state = runStateStyle(run.state).label;
+  const state = runStateStyle(runDisplayState(run)).label;
   const taskId = runTaskId(run);
   if (runHasNonemptyTitle(run) && taskId) {
     return `运行：${runHeading(run)}，${state}，任务 ${taskId}`;
@@ -663,7 +667,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
       <button type="button" id={`run-toggle-${run.task_id}`} data-testid={`run-toggle-${run.task_id}`} aria-expanded={open} aria-controls={`run-detail-${run.task_id}`} aria-label={runToggleAriaLabel(run)} onClick={() => setOpen((value) => !value)} className="w-full rounded-lg px-1 py-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2">{open ? <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" /> : <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-ra-text-tertiary" aria-hidden="true" />}<div className="min-w-0"><p className="min-w-0 break-words text-sm font-medium text-ra-text" data-testid={`run-heading-${run.task_id}`}>{runHeading(run)}</p>{runHasNonemptyTitle(run) && runTaskId(run) ? <p className="mt-1 min-w-0 break-all font-mono text-xs text-ra-text-tertiary" data-testid={`run-task-id-${run.task_id}`}>ID {runTaskId(run)}</p> : null}<p className="mt-1 text-xs text-ra-text-tertiary">{run.repository} · {run.executor_kind} · {relativeTime(run.updated_at)}</p></div></div>
-          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", toneBadge(runStateTone(run.state), true))} title={runtimeTitle(run.state)}>{runStateStyle(run.state).label}</span>
+          <span data-testid={`run-state-${run.task_id}`} className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium", toneBadge(runStateTone(runDisplayState(run)), true))} title={runtimeTitle(run.state)}>{runStateStyle(runDisplayState(run)).label}</span>
         </div>
       </button>
 
@@ -696,10 +700,10 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
           </div>
           {/* Live rows carry no description at all, so the wrapper only
               contributed a blank 4px gap to a row that is already dense. */}
-          {currentActivity.description ? <p title={currentActivity.description} className="mt-1 text-xs text-ra-text-tertiary">{runtimeExplanation(currentActivity.description)}</p> : null}
+          {currentActivity.description ? <p title={currentActivity.description} className="mt-1 break-words text-xs text-ra-text-tertiary">{currentActivity.title === "Model selected" ? modelChoice(currentActivity.description) : runtimeExplanation(tidyDetail(currentActivity.description))}</p> : null}
         </div>
       ) : <p className="mt-3 text-xs text-ra-text-tertiary">暂无当前结构化活动。</p>}
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">{run.goal_id ? <span data-testid={`run-goal-${run.task_id}`} className="text-ra-text-secondary">目标：{run.goal_title}</span> : <span className="text-ra-text-tertiary">未关联目标</span>}{changeSummary ? <span data-testid={`run-change-summary-${run.task_id}`} className="text-ra-text-secondary">{changeSummary.file_count} 个文件 · +{changeSummary.additions} -{changeSummary.deletions}</span> : null}{run.publication && run.publication.pr_number > 0 ? <a href={run.publication.pr_url} target="_blank" rel="noreferrer" data-testid={`run-pr-${run.task_id}`} className="inline-flex min-h-6 items-center gap-1 text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent" title={`打开 PR #${run.publication.pr_number}`}><GitPullRequest className="h-3.5 w-3.5" aria-hidden="true" />PR #{run.publication.pr_number}</a> : null}</div>
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">{run.goal_id ? <span data-testid={`run-goal-${run.task_id}`} className="text-ra-text-secondary" title={run.goal_title}>目标：{cleanIssueTitle(displayTitle(run.goal_title ?? "", 120))}</span> : <span className="text-ra-text-tertiary">未关联目标</span>}{changeSummary ? <span data-testid={`run-change-summary-${run.task_id}`} className="text-ra-text-secondary">{changeSummary.file_count} 个文件 · +{changeSummary.additions} -{changeSummary.deletions}</span> : null}{run.publication && run.publication.pr_number > 0 ? <a href={run.publication.pr_url} target="_blank" rel="noreferrer" data-testid={`run-pr-${run.task_id}`} className="inline-flex min-h-6 items-center gap-1 text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent" title={`打开 PR #${run.publication.pr_number}`}><GitPullRequest className="h-3.5 w-3.5" aria-hidden="true" />PR #{run.publication.pr_number}</a> : null}</div>
 
       {run.goal_id ? (
         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ra-text-secondary">
@@ -777,12 +781,9 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
         run.budget.max_token_units !== null ? (
           <div className="mt-3" data-testid={`run-budget-${run.task_id}`}>
             <div className="mb-1 flex justify-between text-xs text-ra-text-tertiary">
-              <span>已观测 + 已预留</span>
-              <span>
-                {formatUnits(
-                  run.budget.observed_token_units + run.budget.reserved_token_units,
-                )}{" "}
-                / {formatUnits(run.budget.max_token_units)}
+              <span>执行窗口的 Token 预算</span>
+              <span title={`${formatUnits(run.budget.observed_token_units + run.budget.reserved_token_units)} / ${formatUnits(run.budget.max_token_units)}（已用 + 本任务预留）`}>
+                已用约 {Math.max(run.budget.observed_token_units + run.budget.reserved_token_units > 0 ? 1 : 0, Math.round(((run.budget.observed_token_units + run.budget.reserved_token_units) / Math.max(1, run.budget.max_token_units)) * 100))}%
               </span>
             </div>
             <div
@@ -821,7 +822,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
         {(usage.kind === "no-observations" || usage.kind === "all-unknown") &&
         run.budget?.enforcement_class !== "USAGE_UNKNOWN" ? (
           <p className="mt-2 text-xs text-ra-text-tertiary">
-            尚无可信数值观测；不会把缺失用量显示为 0。
+            还没有用量记录（不会把缺失的用量当成 0）。
           </p>
         ) : null}
         {run.budget?.stop_reason === "usage_reservation_overrun" ? (
@@ -878,15 +879,14 @@ export function RunsPage() {
         description={
           <>
             <span className="block">
-              由任务库、目标链接与发布记录派生的只读时间线；任务状态变化会直接反映在这里。
+              每个 Agent 尝试的完整记录，用来排查问题；日常查看进度请打开目标。
             </span>
             <span
               id="runs-cost-context"
               data-testid="runs-cost-context"
               className="mt-1 block text-xs leading-5 text-ra-text-tertiary"
             >
-              用量与成本为 Provider 上报的本地观测，非正式账单或余额，也不代表免费；缺失观测不会被当作
-              0，已观测的真实小计（包括 0）仍会显示并标注为部分。
+              用量和费用是本地观测值，不是账单；没有记录的用量不会当成 0。
             </span>
           </>
         }

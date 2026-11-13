@@ -18,8 +18,7 @@ import type { PlatformGoal } from "@/lib/platform-client";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
 import { isCredentialError } from "@/lib/http-errors";
-import { displayTitle } from "@/lib/display-title";
-import { taskProjectName } from "@/lib/task-project";
+import { GOAL_TONE_DOT, goalState, goalTitle } from "@/lib/goal-view";
 import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
@@ -70,11 +69,6 @@ export function recentGoals(goals: PlatformGoal[], limit = RECENT_GOAL_LIMIT): P
   return Object.values(newest).sort((a, b) => timestamp(b.updated_at) - timestamp(a.updated_at)).slice(0, limit);
 }
 
-const GOAL_DOT: Record<string, string> = {
-  RUNNING: "bg-ra-accent", COMPLETED: "bg-ra-status-running", BLOCKED: "bg-ra-status-error",
-  INVALIDATED: "bg-ra-status-error",
-};
-
 function savedCollapsed(): boolean {
   try {
     return window.localStorage.getItem(COLLAPSE_PREF_KEY) === "1";
@@ -110,7 +104,7 @@ function hostStatus(coordinator: { enabled: boolean; last_error: string } | unde
   if (coordinator?.last_error) return { tone: "warning", label: "协调器需要处理" } as const;
   return coordinator?.enabled
     ? ({ tone: "ok", label: "协调器在线" } as const)
-    : ({ tone: "warning", label: "手动模式" } as const);
+    : ({ tone: "warning", label: "协调器未运行" } as const);
 }
 
 function timestamp(value: string) {
@@ -121,16 +115,6 @@ function timestamp(value: string) {
 function projectLabel(repository: string) {
   const pieces = repository.split("/").filter(Boolean);
   return pieces.at(-1) ?? repository;
-}
-
-/**
- * The sidebar is a third renderer of the same authoritative task state, so it
- * must not keep its own colour table: it previously painted `BLOCKED_EXTERNAL`
- * amber while the task list and Home painted it red. It reads the shared
- * mapping instead.
- */
-function goalDot(goal: PlatformGoal) {
-  return GOAL_DOT[goal.status] ?? "bg-ra-border-strong";
 }
 
 function SidebarAction({
@@ -207,9 +191,8 @@ export function Sidebar({
   const criticalAlert = activeAlerts.some((alert) => alert.severity === "critical");
   const host = hostStatus(platformQuery.data?.coordinator, platformQuery.isError, platformQuery.error);
   const instance = platformQuery.data?.instance;
-  const instanceLabel = instance
-    ? `${instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · ${instance.id}`
-    : "";
+  // Only an acceptance instance needs saying: its tasks are not the real ones.
+  const instanceLabel = instance?.kind === "acceptance" ? `验收实例（独立任务数据） · ${instance.id}` : "";
 
   useEffect(() => {
     onConversationPanelClose();
@@ -384,29 +367,24 @@ export function Sidebar({
                   data-testid={`sidebar-recent-goal-${goal.id}`}
                   data-selected={String(selected)}
                   className={cn(
-                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md pl-2.5 pr-24 text-[13px] leading-4",
+                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md px-2.5 text-[13px] leading-4",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     selected
                       ? "bg-ra-tertiary text-ra-text"
                       : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                   )}
-                  title={displayTitle(goal.title, 160)}
+                  title={`${goalTitle(goal, 300)} · ${goalState(goal).label}`}
                 >
                   <span
                     className={cn(
                       "h-1.5 w-1.5 shrink-0 rounded-full",
-                      goalDot(goal),
-                      goal.status === "RUNNING" && "ra-pulse",
+                      GOAL_TONE_DOT[goalState(goal).tone],
+                      goalState(goal).key === "running" && "ra-pulse",
                     )}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate">{displayTitle(goal.title)}</span>
+                  <span className="min-w-0 flex-1 truncate">{goalTitle(goal)}</span>
                 </Link>
-                <span className="pointer-events-none absolute right-2.5 top-1.5 max-w-20 truncate text-[10px] text-ra-text-tertiary"
-                      data-testid={`sidebar-recent-project-${goal.id}`}
-                      title={goal.repository?.trim() || "未归属"}>
-                  {taskProjectName(goal.repository)}
-                </span>
                 </div>
               );
             })

@@ -19,16 +19,30 @@ export function failureText(failure?: PlatformTaskFailure | null): { label: stri
   return { label, nextStep: chosen.nextStep, detail: failure.message || failure.detail };
 }
 
+/**
+ * Paths inside an attempt's private workspace read as repository paths, and a
+ * shell wrapper ("bash …") is dropped: "edit F:\…\task_workspaces\task-1\a\b.py" → "edit a/b.py".
+ */
+export function tidyDetail(text: string): string {
+  return text
+    .replace(/[A-Za-z]:[\\/][^\s"']*?[\\/]task_workspaces[\\/]task-[\w-]+[\\/]/g, "")
+    .replace(/\/[^\s"']*?\/task_workspaces\/task-[\w-]+\//g, "")
+    .replace(/^(?:bash|powershell|pwsh|sh)\s+/i, "")
+    .replace(/(\w)\\(?=\w)/g, "$1/");
+}
+
+/** "<model> [<binding>]: <reason> (difficulty …). Candidates: …" → "选择模型：<model>". */
+export function modelChoice(description?: string): string {
+  const model = (description ?? "").split(" [", 1)[0].trim();
+  return model ? `选择模型：${model}` : "选择模型";
+}
+
 export function eventDetail(event: PlatformRunActivityEvent): string {
-  if (event.title === "Model selected") {
-    // "<model> [<binding>]: <reason> (difficulty …). Candidates: …" → just the chosen model.
-    const model = (event.description ?? "").split(" [", 1)[0].trim();
-    return model ? `选择模型：${model}` : "选择模型";
-  }
-  if (event.path) return event.path;
-  if (event.command) return event.command.summary;
+  if (event.title === "Model selected") return modelChoice(event.description);
+  if (event.path) return tidyDetail(event.path);
+  if (event.command) return tidyDetail(event.command.summary);
   if (event.test) return event.test.summary;
-  return event.description ?? "";
+  return tidyDetail(event.description ?? "");
 }
 
 /** Adjacent rows that say the same thing (same title, category and detail) become one row with a count. */
@@ -46,7 +60,7 @@ export function collapseRepeats<T extends { event: PlatformRunActivityEvent; key
   return out;
 }
 
-const LIFECYCLE = new Set(["AGENT_STARTED", "AGENT_COMPLETED", "PLAN", "CHECKPOINT", "VERIFY"]);
+const LIFECYCLE = new Set(["AGENT_STARTED", "AGENT_COMPLETED", "PLAN", "CHECKPOINT", "VERIFY", "RECOVERY"]);
 
 /**
  * The actions worth reading: lifecycle markers with nothing to say and raw
@@ -64,5 +78,6 @@ export function meaningfulEvents(events: PlatformRunActivityEvent[]): PlatformRu
 /** A person-readable agent name, never a derived hash or execution id. */
 export function readableAgent(event: PlatformRunActivityEvent): string {
   const name = event.agent?.display_name || event.agent?.role || event.role || "";
-  return /^(agent|exec)-[0-9a-z-]{6,}$/i.test(name) ? "" : name;
+  // A single agent's own role ("Executor") adds nothing; ids are never names.
+  return /^(agent|exec)-[0-9a-z-]{6,}$/i.test(name) || /^executor$/i.test(name) ? "" : name;
 }
