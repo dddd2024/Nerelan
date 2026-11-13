@@ -165,15 +165,13 @@ it("completes Inbox capture, configuration, edited-plan review and explicit laun
   await waitFor(() => expect(screen.getByTestId("approval-plan-button")).toBeEnabled());
   await user.click(screen.getByTestId("approval-plan-button"));
   await user.click(await screen.findByRole("button", { name: "编辑当前计划" }));
-  expect(screen.getByTestId("approval-approve-button")).toBeDisabled();
+  expect(screen.queryByTestId("start-card")).not.toBeInTheDocument();
   await user.clear(screen.getByLabelText("任务 T001 说明"));
   await user.type(screen.getByLabelText("任务 T001 说明"), "Edited full journey implementation");
   await user.click(screen.getByRole("button", { name: "保存计划修改" }));
   await waitFor(() => expect(screen.getByTestId("approval-plan")).toHaveTextContent("Edited full journey implementation"));
-  await user.click(screen.getByTestId("approval-approve-button"));
-  expect(await screen.findByTestId("approval-launch-button")).toBeDisabled();
-  await user.click(screen.getByLabelText("确认启动当前计划"));
-  await user.click(screen.getByTestId("approval-launch-button"));
+  await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
+  await user.click(screen.getByTestId("start-button"));
   await screen.findByTestId("goal-progress-bar");
   const saved = await fetchGoal(goalId);
   expect(saved).toMatchObject({ id: goalId, status: "RUNNING", revision: 3, executor_kind: "opencode",
