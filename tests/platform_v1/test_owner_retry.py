@@ -183,3 +183,14 @@ def test_unconfirmed_cleanup_is_not_retried(case):
     with pytest.raises(TaskStoreError, match="owner_retry_cleanup_unconfirmed"):
         _retry(service, goal)
     assert store.count_tasks() == count
+
+
+def test_owner_retry_of_a_review_repair_keeps_its_findings(case):
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    _, _, store, _, service, goal, _, task = case
+    document = {"review_task_id": "task-review", "review_digest": "d" * 64, "findings": ["fix the name"],
+                "producer": {"task_id": "task-producer", "commit": "c" * 40}}
+    store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id, document=document)
+    _fail(store, task)
+    retry = store.get_task(_retry(service, goal)["to_task_id"])
+    assert _load_evidence(retry, "ReviewRepair", retry.execution_id) == document

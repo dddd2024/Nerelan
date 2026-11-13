@@ -226,3 +226,18 @@ def test_actual_same_author_model_refused(review_setup):
     assert result.failure_classification == "review_not_independent"
     assert not [row for row in review_setup[0].get_task(review_setup[3]).evidence_refs
                 if row.get("category") == "ModelReview"]
+
+
+def test_free_retries_do_not_block_a_review_repair_round(review_setup):
+    # Decision B: a not-the-model's-fault retry elsewhere in the goal spends no max_retries.
+    store, control, service, goal_id = rejected(review_setup)
+    _, _, producer, review, *_ = review_setup
+    goal = control.get_goal(goal_id)
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 2')
+    store._conn.execute(
+        "INSERT INTO platform_task_escalations (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, "
+        "from_role, to_role, reason, created_at) VALUES (?, ?, 'T-other', 1, ?, ?, 'coder', 'coder', "
+        "'host_retry:executor_stalled', '2026-01-01T00:00:00Z')", (goal_id, goal.revision, producer, review))
+    store._conn.commit()
+    outcome, = service.escalate_failed_tasks(goal_id)
+    assert outcome['to_task_id'] not in {producer, review}

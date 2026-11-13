@@ -2,6 +2,7 @@ import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useRetryGoalStep } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
+import { httpErrorMessage } from "@/lib/http-errors";
 import { PlatformClientError, type PlatformRetryOptions } from "@/lib/platform-client";
 
 const RETRY_ERRORS: Record<string, string> = {
@@ -23,7 +24,7 @@ const RETRY_ERRORS: Record<string, string> = {
 
 function retryError(error: unknown): string {
   if (error instanceof PlatformClientError) {
-    return RETRY_ERRORS[error.code] ?? `没能重试（${error.code}）。`;
+    return RETRY_ERRORS[error.code] ?? httpErrorMessage(error.status, error.code);
   }
   return "没能重试，请检查 Nerelan 是否在运行。";
 }

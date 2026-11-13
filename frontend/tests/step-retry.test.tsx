@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StepRetry, poolLabel } from "@/components/step-retry";
 import type { PlatformRetryOptions } from "@/lib/platform-client";
+import { CLIENT_CREDENTIAL_MISSING } from "@/lib/http-errors";
 
 const OPTIONS: PlatformRetryOptions = {
   available: true, reason: "", revision: 4, routing_retries_left: 1,
@@ -68,6 +69,13 @@ describe("StepRetry", () => {
     mount(OPTIONS);
     fireEvent.click(screen.getByRole("button", { name: /重试（自动选模型）/ }));
     expect((await screen.findByRole("alert")).textContent).toBe("这个模型不在本窗口确认过的模型里。");
+  });
+
+  it("says a missing credential plainly instead of a generic failure", async () => {
+    stubFetch(401, { error: "client_session_required" });
+    mount(OPTIONS);
+    fireEvent.click(screen.getByRole("button", { name: /重试（自动选模型）/ }));
+    expect((await screen.findByRole("alert")).textContent).toBe(CLIENT_CREDENTIAL_MISSING);
   });
 
   it("labels pool entries by model and agent", () => {

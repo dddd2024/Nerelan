@@ -1195,7 +1195,7 @@ class GoalService:
                     producer = self.store.get_task(links[source_id]["task_id"])
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
-                    if len(rounds) + 1 >= self.max_review_rounds or len(history) + 2 > window.max_retries:
+                    if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history) + 2 > window.max_retries:
                         self.store.block_model_selection(failed.id, decision={"reason":
                             "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
                         continue
@@ -1661,6 +1661,13 @@ class GoalService:
                 freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
                 freeze_required_artifacts(self.store, task, goal=goal, plan_task=plan_task)
                 freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+                # A retried review repair keeps its findings and restored input, as the host's own retry does,
+                # so the repaired work still goes back to a fresh review.
+                from .artifact_handoff import _load_evidence
+                repair = _load_evidence(failed, "ReviewRepair", failed.execution_id)
+                if repair is not None:
+                    self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
+                                                     document=repair)
                 self.control_store.escalate_goal_task(
                     goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                     to_task_id=task.id, from_role=role, to_role=role, reason=OWNER_RETRY_REASON)
