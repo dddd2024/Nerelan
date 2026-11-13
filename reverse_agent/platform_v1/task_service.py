@@ -343,6 +343,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
     agent_policy: Any | None = None
     owner_window_preflight: Any | None = None
     owner_window_activate: Any | None = None
+    owner_window_card_request: Any | None = None
     quick_start: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
@@ -840,6 +841,17 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 request = owner_window_request(payload)
                 window = self.owner_window_activate(request.pop("goal_ids"), card_digest=card_digest, **request)
                 self._send_json(HTTPStatus.CREATED, window_to_dict(window))
+                return
+            if segments == ["api", "owner-window", "request"]:
+                # Read-only: presets and the window request one gives for these Goals.
+                if self.owner_window_card_request is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_preflight_unavailable")
+                payload = self._read_json()
+                if not isinstance(payload.get("preset", ""), str):
+                    raise TaskStoreError("owner_window_request_invalid")
+                self._send_json(HTTPStatus.OK, self.owner_window_card_request(
+                    payload.get("goal_ids"), payload.get("preset", "")))
                 return
             if segments == ["api", "owner-window", "preflight"]:
                 # Read-only report for the confirmation card; it authorizes nothing.
@@ -1450,6 +1462,7 @@ def _handler_factory(
     agent_policy: Any | None = None,
     owner_window_preflight: Callable | None = None,
     owner_window_activate: Callable | None = None,
+    owner_window_card_request: Callable | None = None,
     quick_start: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
@@ -1498,6 +1511,9 @@ def _handler_factory(
     )
     ConfiguredHandler.owner_window_preflight = (
         _CallableWrapper(owner_window_preflight) if owner_window_preflight else None
+    )
+    ConfiguredHandler.owner_window_card_request = (
+        _CallableWrapper(owner_window_card_request) if owner_window_card_request else None
     )
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy

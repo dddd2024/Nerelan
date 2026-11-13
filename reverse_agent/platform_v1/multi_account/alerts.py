@@ -113,7 +113,8 @@ def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
         yield Alert("admission_hold", WARNING, str(reason), f"任务准入被搁置：{reason}")
     if coordinator.get("stranded_goals"):
         yield Alert("goals_stranded", WARNING, "goals",
-                    f"{len(coordinator['stranded_goals'])} 个目标的窗口已无法派发")
+                    f"{len(coordinator['stranded_goals'])} 个目标还有未完成的任务，但所在的执行窗口已结束；"
+                    "开新窗口时可以把它们接上，不需要的可以忽略")
     if window and not runtime.get("window_renews"):
         expires = epoch_seconds(window.get("expires_at"))
         if expires is not None and 0 <= expires - now < WINDOW_EXPIRY_NOTICE_SECONDS:
