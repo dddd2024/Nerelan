@@ -12,6 +12,7 @@ const RETRY_ERRORS: Record<string, string> = {
   owner_retry_host_check: "这一步是主机检查，不由模型完成，不能换模型重试。",
   owner_retry_review_unresolved: "上一次审查结果还没确定，先等它结束。",
   owner_retry_step_recovering: "主机还在收尾上一次尝试，稍后再试。",
+  owner_retry_cleanup_unconfirmed: "上一次尝试的清理还没确认，先在运行详情里处理。",
   owner_retry_model_outside_window: "这个模型不在本窗口确认过的模型里。",
   owner_retry_model_choice_unavailable: "这个窗口没有确认过的模型列表，只能自动选模型。",
   owner_retry_model_unavailable: "这个模型现在不可用，换一个或自动选择。",

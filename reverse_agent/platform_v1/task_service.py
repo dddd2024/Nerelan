@@ -471,7 +471,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
                     return
                 timeline = self.run_read_model.goal_timeline(snapshot)
-                timeline["retry"] = self.goal_service.retry_options(segments[2])
+                try:
+                    timeline["retry"] = self.goal_service.retry_options(segments[2])
+                except TaskStoreError:
+                    pass  # the timeline still renders; the UI then offers no retry
                 self._send_json(HTTPStatus.OK, timeline)
                 return
             if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":

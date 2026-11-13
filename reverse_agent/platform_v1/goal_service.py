@@ -1593,6 +1593,8 @@ class GoalService:
         if link["status"] not in {"FAILED", "BLOCKED"}:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
+        if _explicit_cleanup_uncertainty(failed):
+            raise TaskStoreError("owner_retry_cleanup_unconfirmed")  # the host skips these too
         if self._review_intent_hold(failed, plan_task):
             raise TaskStoreError("owner_retry_review_unresolved")  # never authorize a second reviewer call
         if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):

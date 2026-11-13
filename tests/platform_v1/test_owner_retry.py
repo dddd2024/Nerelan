@@ -174,3 +174,12 @@ def test_a_step_that_moved_on_during_routing_is_not_retried_twice(case, monkeypa
     with pytest.raises(TaskStoreError, match="owner_retry_step_not_stopped"):
         _retry(service, goal)
     assert store.count_tasks() == count and control.list_task_escalations(goal.id) == ()
+
+
+def test_unconfirmed_cleanup_is_not_retried(case):
+    _, _, store, _, service, goal, _, task = case
+    _fail(store, task, classification="cleanup_unconfirmed")
+    count = store.count_tasks()
+    with pytest.raises(TaskStoreError, match="owner_retry_cleanup_unconfirmed"):
+        _retry(service, goal)
+    assert store.count_tasks() == count
