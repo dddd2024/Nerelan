@@ -248,7 +248,7 @@ def test_status_route_fields_and_failed_launch_host_still_starts(config, tmp_pat
         def serve_forever(self): pass
         def shutdown(self): pass
         def server_close(self): pass
-    monkeypatch.setattr(trusted_host_module, "ThreadingHTTPServer", Server)
+    monkeypatch.setattr(trusted_host_module, "ExclusiveThreadingHTTPServer", Server)
     monkeypatch.setattr(credential_relay_module, "run_credential_relay_server", lambda **kw: Server())
     store = ModelProfileStore()
     store.put_magpie(config)
