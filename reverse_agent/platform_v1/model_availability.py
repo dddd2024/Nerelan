@@ -31,6 +31,17 @@ _NOT_OVERLOAD_CLASS = re.compile(r"limit|quota|rate|429|unavailable|refus|no_wil
 OVERLOADED = "provider_overloaded"
 
 
+# Windows reports these for a child killed from outside: TerminateProcess during
+# shutdown or logoff (DBG_TERMINATE_PROCESS) and a closed console or Ctrl+C
+# (STATUS_CONTROL_C_EXIT). The agent did not fail; the machine stopped it.
+EXTERNAL_TERMINATION_EXIT_CODES = frozenset({0x40010004, 0xC000013A})
+EXECUTOR_TERMINATED = "executor_terminated"
+
+
+def external_termination(exit_code: int) -> bool:
+    return (exit_code & 0xFFFFFFFF) in EXTERNAL_TERMINATION_EXIT_CODES
+
+
 def provider_overloaded(value: str) -> bool:
     return bool(OVERLOAD_RE.search(value or ""))
 
