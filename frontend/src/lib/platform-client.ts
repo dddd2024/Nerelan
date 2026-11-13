@@ -1605,9 +1605,12 @@ export interface OwnerWindowPreflightCheck {
 export interface OwnerWindowPreflightScope {
   repository: string;
   base_sha: string;
-  goals: Array<{ id: string; objective: string; mode: string; tasks: Array<{ id: string | null; title: string | null }> }>;
-  pool: unknown;
-  pool_skipped: unknown;
+  /** The goals at the revisions the card digest covers. */
+  goals: Array<{ id: string; revision?: number; objective: string; mode: string; tasks: Array<{ id: string | null; title: string | null }> }>;
+  /** Every binding Start authorizes for the window (routing may move between them). */
+  pool: Array<{ binding: string; executor: string; model: string; cost: string; weekly_paced?: boolean }>;
+  /** Bindings not offered, with the reason. */
+  pool_skipped: string[];
   envelope: Record<string, unknown>;
   paid_api: unknown;
 }
@@ -1703,7 +1706,13 @@ export async function preflightOwnerWindow(preflightRequest: OwnerWindowPrefligh
       ok: admissible,
       checks: [{ check: "goals", ok: admissible, reason: admissible ? "" : "owner_window_goal_not_admissible", detail: "" }],
       preview: goals.flatMap((goal) => goal?.tasks.map((task) => `- ${goal.id} ${task.id}: free (token-sensenova/glm-5.2, mock_route)`) ?? []),
-      scope: null,
+      scope: admissible ? {
+        repository: goals[0]?.repository ?? "", base_sha: "",
+        goals: goals.flatMap((goal) => goal ? [{ id: goal.id, revision: goal.revision, objective: goal.objective,
+          mode: goal.orchestration_mode ?? "", tasks: goal.tasks.map((task) => ({ id: task.id, title: task.title }))}] : []),
+        pool: [{ binding: "token-sensenova-glm-5.2", executor: "opencode", model: "token-sensenova/glm-5.2", cost: "free" }],
+        pool_skipped: [], envelope: {}, paid_api: "excluded",
+      } : null,
       card_digest: "0".repeat(64),
       confirmation: "ui",
     };

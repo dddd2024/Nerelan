@@ -16,8 +16,16 @@ const CARD: OwnerWindowCard = {
              capabilities: ["execute_task"], max_token_units: 2_000_000, max_cost_micro_units: 0 },
 };
 
+const SCOPE = {
+  repository: "dddd2024/Nerelan", base_sha: "b".repeat(40),
+  goals: [{ id: "goal-x", revision: 2, objective: "o", mode: "agent_team", tasks: [{ id: "T001", title: "t" }] }],
+  pool: [{ binding: "token-sensenova-glm", executor: "opencode", model: "glm-5.2", cost: "free", weekly_paced: false },
+         { binding: "codex-gpt", executor: "codex", model: "gpt-6.1", cost: "subscription", weekly_paced: true }],
+  pool_skipped: ["copilot-x (ValueError)"], envelope: {}, paid_api: "excluded",
+};
+
 const PASS = { ok: true, checks: [{ check: "goals", ok: true, reason: "", detail: "" }],
-  preview: ["- goal-x T001: free (token-sensenova/glm-5.2, fixture_route)"], scope: null, card_digest: "a".repeat(64), confirmation: "ui" };
+  preview: ["- goal-x T001: free (token-sensenova/glm-5.2, fixture_route)"], scope: SCOPE, card_digest: "a".repeat(64), confirmation: "ui" };
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -63,6 +71,28 @@ describe("start card", () => {
     expect(await screen.findByTestId("start-terminal")).toHaveTextContent(
       "python -m reverse_agent.platform_v1.owner_window --goal goal-x --hours 24 --max-tasks 3");
     expect(screen.queryByTestId("start-button")).not.toBeInTheDocument();
+  });
+
+  it("shows every model Start authorizes and the ones left out", async () => {
+    vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(CARD);
+    vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue(PASS);
+    renderWithProviders(<StartCard goal={GOAL} />);
+    const pool = await screen.findByTestId("start-pool");
+    expect(pool).toHaveTextContent("本窗口可以用这些模型（2 个）");
+    expect(pool).toHaveTextContent("glm-5.2 · opencode（免费）");
+    expect(pool).toHaveTextContent("gpt-6.1 · codex（订阅额度，按周配额节奏）");
+    expect(screen.getByTestId("start-pool-skipped")).toHaveTextContent("不会使用：copilot-x (ValueError)");
+  });
+
+  it("keeps Start disabled while the checked plan is newer than the plan on screen", async () => {
+    vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(CARD);
+    vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue({
+      ...PASS, scope: { ...SCOPE, goals: [{ ...SCOPE.goals[0], revision: 3 }] } });
+    const activate = vi.spyOn(client, "activateOwnerWindow").mockResolvedValue({} as never);
+    renderWithProviders(<StartCard goal={GOAL} />);
+    expect(await screen.findByTestId("start-stale")).toHaveTextContent("计划刚被修改过");
+    expect(screen.getByTestId("start-button")).toBeDisabled();
+    expect(activate).not.toHaveBeenCalled();
   });
 
   it("refetches with the chosen preset", async () => {

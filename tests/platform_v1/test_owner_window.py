@@ -472,6 +472,9 @@ class TestPreflight:
         scope = report["scope"]
         assert scope["repository"] == "owner/repo" and scope["paid_api"] == "excluded"
         assert [goal["id"] for goal in scope["goals"]] == [a.id, b.id]
+        # The card enables Start only when the plan on screen is this revision.
+        assert [goal["revision"] for goal in scope["goals"]] == [
+            setup.host._control_store.get_goal(a.id).revision, setup.host._control_store.get_goal(b.id).revision]
         assert scope["goals"][1]["tasks"] == [{"id": "T0", "title": "Task 0 of b"}, {"id": "T1", "title": "Task 1 of b"}]
         assert (scope["envelope"]["max_tasks"], scope["envelope"]["max_retries"]) == (10, 2)
         assert {entry["binding"] for entry in scope["pool"]} == {"pinned", "free"}

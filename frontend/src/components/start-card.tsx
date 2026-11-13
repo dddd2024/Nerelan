@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { AlertTriangle, CheckCircle2, Loader2, Play } from "lucide-react";
@@ -59,6 +59,15 @@ function previewLine(line: string): string {
   return `${task} → ${model}（${costLabel}）`;
 }
 
+const COST_LABELS: Record<string, string> = { free: "免费", subscription: "订阅额度", paid: "付费" };
+
+/** Start authorizes only the plan on screen: every checked goal must be at the revision shown. */
+export function scopeMatchesGoal(report: OwnerWindowPreflightResult | undefined, goal: PlatformGoal): boolean {
+  const goals = report?.scope?.goals ?? [];
+  return goals.length > 0 && goals.every((entry) => entry.id !== goal.id || entry.revision === goal.revision)
+    && goals.some((entry) => entry.id === goal.id);
+}
+
 function terminalCommand(card: OwnerWindowCard) {
   const r = card.request;
   return ["python -m reverse_agent.platform_v1.owner_window", ...r.goal_ids.map((id) => `--goal ${id}`),
@@ -100,6 +109,9 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     onError: (error) => {
       if (error instanceof PlatformClientError && error.code === "owner_window_scope_changed") {
         setNotice("你确认之后范围变了（计划、模型或参数），已重新检查，请再看一遍再开始。");
+        // Reload the goal itself, not only the check: Start must never authorize a plan not on screen.
+        void queryClient.invalidateQueries({ queryKey: ["goals", goal.id] });
+        void queryClient.invalidateQueries({ queryKey: ["owner-window-card", goal.id] });
         void preflightQuery.refetch();
       }
     },
@@ -107,7 +119,13 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
 
   const failed = report?.checks.filter((check) => !check.ok) ?? [];
   const terminal = card?.confirmation === "terminal" || report?.confirmation === "terminal";
-  const canStart = Boolean(card && report?.ok && report.card_digest && !terminal && !start.isPending);
+  const stale = Boolean(report?.scope) && !scopeMatchesGoal(report, goal);
+  const canStart = Boolean(card && report?.ok && report.card_digest && scopeMatchesGoal(report, goal)
+    && !terminal && !start.isPending);
+  useEffect(() => {
+    // The host checked a newer plan than the one shown: bring the shown plan up to date.
+    if (stale) void queryClient.invalidateQueries({ queryKey: ["goals", goal.id] });
+  }, [stale, queryClient, goal.id, report?.card_digest]);
 
   return (
     <section data-testid="start-card" aria-label="开始执行" className="mt-6 rounded-2xl border border-ra-border bg-ra-light/30 p-4">
@@ -169,6 +187,28 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
                 : warning.detail ?? warning.warning}
             </p>
           ))}
+          {stale ? (
+            <p role="status" data-testid="start-stale" className="text-xs text-ra-status-warning">
+              计划刚被修改过，页面上的计划还不是主机检查的那一版：正在刷新，刷新后再开始。
+            </p>
+          ) : null}
+          {report.scope?.pool?.length ? (
+            <div data-testid="start-pool" className="text-xs text-ra-text-secondary">
+              <p>本窗口可以用这些模型（{report.scope.pool.length} 个），执行时会在其中挑选：</p>
+              <ul className="mt-1 space-y-0.5">
+                {report.scope.pool.map((entry) => (
+                  <li key={entry.binding}>
+                    {entry.model || entry.binding} · {entry.executor}（{COST_LABELS[entry.cost] ?? entry.cost}{entry.weekly_paced ? "，按周配额节奏" : ""}）
+                  </li>
+                ))}
+              </ul>
+              {report.scope.pool_skipped?.length ? (
+                <p data-testid="start-pool-skipped" className="mt-1 text-ra-text-tertiary">
+                  不会使用：{report.scope.pool_skipped.join("、")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           {report.preview.length > 0 ? (
             <details className="text-xs text-ra-text-tertiary">
               <summary className="cursor-pointer select-none hover:text-ra-text-secondary">每一步预计用的模型（{report.preview.length}）</summary>

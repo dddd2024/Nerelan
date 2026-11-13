@@ -473,7 +473,8 @@ class OwnerWindowAdmission:
             env = scope["envelope"]
             result["scope"] = {
                 "repository": scope["repository"], "base_sha": scope["base_sha"],
-                "goals": [{"id": goal["id"], "objective": goal["objective"], "mode": goal["orchestration_mode"],
+                "goals": [{"id": goal["id"], "revision": goal["revision"], "objective": goal["objective"],
+                           "mode": goal["orchestration_mode"],
                            "tasks": [{"id": task.get("id"), "title": task.get("title")} for task in goal["tasks"]]}
                           for goal in scope["goals"]],
                 "pool": scope["pool_display"], "pool_skipped": scope["pool_skipped"],
