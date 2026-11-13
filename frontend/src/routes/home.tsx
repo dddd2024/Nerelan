@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
 import { GoalTimeline } from "@/components/goal-timeline";
@@ -13,6 +13,8 @@ import { goalStatusLabel } from "@/lib/goal-status-label";
 import { runtimeTitle } from "@/lib/runtime-labels";
 import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
+import { recentGoals } from "@/components/sidebar";
+import { GOAL_PROGRESS_TONE_CLASS, goalProgressLine } from "@/lib/goal-progress-line";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -97,6 +99,8 @@ export function HomePage() {
   const goalsQuery = useGoals();
   const startGoal = useCreateGoalDraft();
   const navigate = useNavigate();
+  const location = useLocation();
+  const newGoalRequest = (location.state as { newGoal?: number } | null)?.newGoal;
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedId = searchParams.get("goal") || undefined;
@@ -109,7 +113,7 @@ export function HomePage() {
   const detailQuery = useGoal(selectedId);
   const timelineQuery = useGoalTimeline(selectedId);
   const detailGoal = detailQuery.data;
-  const recent = useMemo(() => goals.slice(0, RECENT_GOAL_LIMIT), [goals]);
+  const recent = useMemo(() => recentGoals(goals, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
   const activeWindow = platform?.autonomy.active_window;
   const coordinatorError = platform?.coordinator.last_error;
@@ -150,6 +154,7 @@ export function HomePage() {
       <GoalComposer
         busy={startGoal.isPending}
         compact={dock}
+        focusKey={dock ? undefined : newGoalRequest}
         placeholder={dock ? "另起一个新目标…" : undefined}
         onSubmit={async (input) => {
           const goal = await startGoal.mutateAsync(input);
@@ -202,25 +207,34 @@ export function HomePage() {
               <p className="px-2.5 py-3 text-sm text-ra-text-tertiary">还没有目标。</p>
             )}
             <div className="flex flex-col gap-0.5">
-              {recent.map((goal) => (
+              {recent.map((goal) => {
+                const progress = goalProgressLine(goal);
+                return (
                 <button
                   type="button"
                   key={goal.id}
+                  data-testid={`recent-goal-${goal.id}`}
                   onClick={() => setSelectedId(goal.id)}
                   title={goal.objective}
                   className="flex min-h-9 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 >
-                  <span className="min-w-0 flex-1 truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
-                    {displayTitle(goal.title)}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
+                      {displayTitle(goal.title)}
+                    </span>
+                    <span data-testid={`goal-progress-line-${goal.id}`} className={cn("block truncate text-xs", GOAL_PROGRESS_TONE_CLASS[progress.tone])}>
+                      {progress.text}
+                    </span>
                   </span>
-                  <span title={runtimeTitle(goal.status)} className={cn("shrink-0 text-[11px] font-medium", goalStatusTextClass(goal.status))}>
+                  <span title={runtimeTitle(goal.status)} className={cn("sr-only", goalStatusTextClass(goal.status))}>
                     {goalStatusLabel(goal.status)}
                   </span>
                   <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-ra-text-tertiary">
                     {relativeTime(goal.updated_at)}
                   </span>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </section>
         </div>

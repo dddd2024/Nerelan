@@ -3,8 +3,8 @@ import { test, expect, open, settle } from "./fixtures";
 const routes = [
   ["/", "platform-home"],
   ["/tasks", "tasks-page"],
-  ["/inbox", "inbox-page"],
-  ["/roadmap", "roadmap-page"],
+  ["/goals", "goals-page"],
+  ["/approvals", "approvals-page"],
   ["/runs", "runs-page"],
   ["/accounts", "accounts-page"],
   ["/settings", "settings-hub"],
@@ -13,10 +13,10 @@ const routes = [
 function routeLabel(path: string) {
   return path === "/tasks"
     ? "任务"
-    : path === "/inbox"
-      ? "收件箱"
-      : path === "/roadmap"
-        ? "路线图"
+    : path === "/goals"
+      ? "目标"
+      : path === "/approvals"
+        ? "审批"
         : path === "/runs"
           ? "Agent 运行"
           : path === "/accounts"

@@ -5,12 +5,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
-  Inbox,
   ListChecks,
-  Map,
   Plus,
   Search,
   Settings,
+  ShieldCheck,
+  Target,
   Users,
 } from "lucide-react";
 import { useAccountPool, useGoals, usePlatformStatus } from "@/hooks/use-platform";
@@ -90,11 +90,13 @@ function persistCollapsed(collapsed: boolean) {
   }
 }
 
+// Goal first, like an agent tool's session list: goals, what waits on the Owner,
+// the agents' runs, then the raw tasks. Inbox and roadmap stay one search away.
 const PRIMARY_ROUTES = [
-  { to: "/tasks", label: "任务", icon: ListChecks },
-  { to: "/inbox", label: "收件箱", icon: Inbox },
-  { to: "/roadmap", label: "路线图", icon: Map },
+  { to: "/goals", label: "目标", icon: Target },
+  { to: "/approvals", label: "审批", icon: ShieldCheck },
   { to: "/runs", label: "Agent 运行", icon: Bot },
+  { to: "/tasks", label: "任务", icon: ListChecks },
   { to: "/accounts", label: "账户", icon: Users },
 ] as const;
 
@@ -282,9 +284,9 @@ export function Sidebar({
     <>
       <SidebarAction
         collapsed={collapsed}
-        label="新建任务"
-        text="新建任务"
-        testId="new-task-button"
+        label="新建目标"
+        text="新建目标"
+        testId="new-goal-button"
         icon={<Plus className="h-4 w-4" />}
         onClick={onNewTask}
       />

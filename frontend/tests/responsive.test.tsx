@@ -54,8 +54,8 @@ describe("responsive layout", () => {
     expect(screen.getByLabelText("打开搜索")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-收件箱")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-路线图")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-目标")).toBeInTheDocument();
+    expect(screen.getByTestId("sidebar-nav-审批")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-Agent 运行")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-设置")).toBeInTheDocument();
   });
