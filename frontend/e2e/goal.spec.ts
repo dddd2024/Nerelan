@@ -17,7 +17,7 @@ test("runs a provider-free goal with a deterministic fixture and bounded window"
   await expect(appPage.getByTestId("approval-approve-button")).toHaveCount(0);
   await expect(appPage.getByTestId("start-preflight")).toContainText("检查通过");
   await appPage.getByTestId("start-button").click();
-  await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
+  await expect(appPage.getByTestId("goal-thread")).toBeVisible();
   expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);
   await expect(appPage.getByRole("heading", { name: "Playwright provider-free acceptance goal" })).toBeVisible();
 });

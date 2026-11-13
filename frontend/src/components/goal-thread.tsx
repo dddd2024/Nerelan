@@ -8,20 +8,20 @@
  *   follow-up messages, so it does not pretend to);
  * - a side panel (Codex) with the steps, what changed and the checks.
  */
-import { useMemo, useState, type PropsWithChildren, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, type PropsWithChildren, type ReactNode } from "react";
 import {
   AssistantRuntimeProvider,
-  ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAuiState,
   useExternalStoreRuntime,
-  type AppendMessage,
   type DataMessagePartProps,
   type TextMessagePartProps,
   type ThreadMessageLike,
   type ToolCallMessagePartProps,
 } from "@assistant-ui/react";
-import { ArrowDown, ArrowUp, Check, ChevronRight, CircleAlert, FileText, FolderSearch, LoaderCircle, PencilLine, Search, SquareTerminal, TestTube2 } from "lucide-react";
+import { MarkdownTextPrimitive } from "@assistant-ui/react-markdown";
+import { ArrowDown, Check, ChevronRight, CircleAlert, FileText, FolderSearch, LoaderCircle, PencilLine, Search, SquareTerminal, TestTube2 } from "lucide-react";
 import { Link } from "react-router";
 import type { PlatformGoal, PlatformGoalTimeline, PlatformRetryOptions, PlatformTimelineStep } from "@/lib/platform-client";
 import { goalThread, type AttemptFiles, type AttemptHeader, type AttemptStop, type ToolArgs } from "@/lib/goal-thread";
@@ -57,8 +57,22 @@ function UserMessage() {
   );
 }
 
-function Prose({ text }: TextMessagePartProps) {
-  return <p className="my-2 whitespace-pre-wrap text-[15px] leading-7 text-ra-text">{text}</p>;
+/** The agent's words as markdown, styled like an agent chat's prose. Raw HTML is never rendered. */
+const MARKDOWN_COMPONENTS = {
+  p: ({ node: _node, ...props }: { node?: unknown }) => <p className="my-2 text-[15px] leading-7 text-ra-text" {...props} />,
+  ul: ({ node: _node, ...props }: { node?: unknown }) => <ul className="my-2 list-disc space-y-1 pl-5 text-[15px] leading-7 text-ra-text" {...props} />,
+  ol: ({ node: _node, ...props }: { node?: unknown }) => <ol className="my-2 list-decimal space-y-1 pl-5 text-[15px] leading-7 text-ra-text" {...props} />,
+  h1: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h3 className="mb-1 mt-4 text-base font-semibold text-ra-text" {...props}>{children}</h3>,
+  h2: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h3 className="mb-1 mt-4 text-base font-semibold text-ra-text" {...props}>{children}</h3>,
+  h3: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h4 className="mb-1 mt-3 text-[15px] font-semibold text-ra-text" {...props}>{children}</h4>,
+  strong: ({ node: _node, ...props }: { node?: unknown }) => <strong className="font-semibold text-ra-text" {...props} />,
+  code: ({ node: _node, ...props }: { node?: unknown }) => <code className="rounded bg-ra-tertiary px-1 py-0.5 font-mono text-[13px]" {...props} />,
+  pre: ({ node: _node, ...props }: { node?: unknown }) => <pre className="my-2 overflow-x-auto rounded-xl bg-ra-tertiary p-3 font-mono text-xs leading-5" {...props} />,
+  a: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <a className="text-ra-accent underline-offset-2 hover:underline" target="_blank" rel="noreferrer" {...props}>{children}</a>,
+};
+
+function Prose(_: TextMessagePartProps) {
+  return <MarkdownTextPrimitive components={MARKDOWN_COMPONENTS} />;
 }
 
 function ToolRow(props: ToolCallMessagePartProps) {
@@ -73,7 +87,8 @@ function ToolRow(props: ToolCallMessagePartProps) {
 }
 
 /** Consecutive tool calls fold into one row, the way agent chats show "Ran 3 commands". */
-function ToolGroup({ children, startIndex, endIndex, parts }: PropsWithChildren<{ startIndex: number; endIndex: number; parts: readonly { type: string; toolName?: string }[] }>) {
+function ToolGroup({ children, startIndex, endIndex }: PropsWithChildren<{ startIndex: number; endIndex: number }>) {
+  const parts = useAuiState((state) => state.message.parts) as readonly { type: string; toolName?: string }[];
   const counts = new Map<string, number>();
   for (const part of parts.slice(startIndex, endIndex + 1)) {
     if (part.type === "tool-call" && part.toolName) counts.set(part.toolName, (counts.get(part.toolName) ?? 0) + 1);
@@ -98,7 +113,8 @@ const STATE_TEXT: Record<AttemptHeader["state"], [string, string]> = {
   retried: ["被中断，已自动重试", "text-ra-text-tertiary"],
 };
 
-function AttemptHeaderPart({ data }: DataMessagePartProps<AttemptHeader>) {
+function AttemptHeaderPart(props: DataMessagePartProps) {
+  const data = props.data as AttemptHeader;
   const [label, tone] = STATE_TEXT[data.state];
   return (
     <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ra-text-tertiary" data-testid="thread-attempt-header">
@@ -114,11 +130,18 @@ function AttemptHeaderPart({ data }: DataMessagePartProps<AttemptHeader>) {
   );
 }
 
-function NotePart({ data }: DataMessagePartProps<{ text: string }>) {
-  return <p className="my-1 text-xs text-ra-text-tertiary">{data.text}</p>;
+function NotePart(props: DataMessagePartProps) {
+  const data = props.data as { text: string; taskId?: string };
+  return (
+    <p className="my-1 text-xs text-ra-text-tertiary">
+      {data.text}
+      {data.taskId && <Link to={`/runs?task=${encodeURIComponent(data.taskId)}`} className="ml-1 text-ra-accent hover:underline">查看完整运行</Link>}
+    </p>
+  );
 }
 
-function FilesPart({ data }: DataMessagePartProps<AttemptFiles>) {
+function FilesPart(props: DataMessagePartProps) {
+  const data = props.data as AttemptFiles;
   const add = data.files.reduce((sum, file) => sum + file.additions, 0);
   const del = data.files.reduce((sum, file) => sum + file.deletions, 0);
   return (
@@ -142,23 +165,12 @@ function FilesPart({ data }: DataMessagePartProps<AttemptFiles>) {
   );
 }
 
-function SummaryPart({ data }: DataMessagePartProps<{ text: string }>) {
-  const [open, setOpen] = useState(false);
-  const long = data.text.length > 400;
-  return (
-    <div className="my-2" data-testid="thread-summary">
-      <p className={cn("whitespace-pre-wrap text-[15px] leading-7 text-ra-text", long && !open && "line-clamp-6")}>{data.text}</p>
-      {long && (
-        <button type="button" onClick={() => setOpen((value) => !value)}
-          className="text-xs text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
-          {open ? "收起" : "展开全部"}
-        </button>
-      )}
-    </div>
-  );
-}
+/** The goal and its retry options, for parts that act on a step (the stop card's retry). */
+const ThreadContext = createContext<{ goalId: string; retry?: PlatformRetryOptions }>({ goalId: "" });
 
-function StopPart({ data }: DataMessagePartProps<AttemptStop>) {
+function StopPart(props: DataMessagePartProps) {
+  const data = props.data as AttemptStop;
+  const { goalId, retry } = useContext(ThreadContext);
   if (data.superseded) {
     return <p className="my-2 text-xs text-ra-text-tertiary" data-testid="thread-stop">这次因“{data.label}”停下，之后已重试。</p>;
   }
@@ -167,6 +179,7 @@ function StopPart({ data }: DataMessagePartProps<AttemptStop>) {
       <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-ra-status-error" aria-hidden="true" />
       <div className="min-w-0 text-sm">
         <p className="font-medium text-ra-text">停下了：{data.label}</p>
+        {data.checks && <p className="mt-0.5 text-ra-text">{data.checks}</p>}
         {data.nextStep && <p className="mt-0.5 text-ra-text-secondary">{data.nextStep}</p>}
         {data.detail && (
           <details className="mt-1 text-xs text-ra-text-tertiary">
@@ -174,36 +187,47 @@ function StopPart({ data }: DataMessagePartProps<AttemptStop>) {
             <p className="mt-1 break-words font-mono">{data.detail}</p>
           </details>
         )}
+        {/* The retry sits where the Owner reads why it stopped, on every screen width. */}
+        {retry && <div className="-ml-7"><StepRetry goalId={goalId} planTaskId={data.planTaskId} options={retry} /></div>}
       </div>
     </div>
   );
 }
 
-function AssistantMessage({ messages }: { messages: ThreadMessageLike[] }) {
+function AssistantMessage() {
   return (
     <MessagePrimitive.Root className="mb-8" data-testid="thread-assistant-message">
       <MessagePrimitive.Parts
         components={{
           Text: Prose,
           tools: { Fallback: ToolRow },
-          ToolGroup: ({ children, startIndex, endIndex }) => (
-            <MessagePartsOf messages={messages}>
-              {(parts) => <ToolGroup parts={parts} startIndex={startIndex} endIndex={endIndex}>{children}</ToolGroup>}
-            </MessagePartsOf>
-          ),
-          data: { by_name: { attempt: AttemptHeaderPart, note: NotePart, files: FilesPart, summary: SummaryPart, stop: StopPart } },
+          ToolGroup,
+          data: { by_name: { attempt: AttemptHeaderPart, note: NotePart, files: FilesPart, stop: StopPart } },
         }}
       />
     </MessagePrimitive.Root>
   );
 }
 
-/** The current message's own parts (for the tool-group summary), read from the converted messages. */
-function MessagePartsOf({ messages, children }: { messages: ThreadMessageLike[]; children: (parts: readonly { type: string; toolName?: string }[]) => ReactNode }) {
-  const id = MessagePrimitive.useMessageId?.();
-  const message = messages.find((item) => item.id === id);
-  const parts = typeof message?.content === "string" ? [] : (message?.content ?? []);
-  return <>{children(parts as readonly { type: string; toolName?: string }[])}</>;
+/** Below the panel's breakpoint, the steps as one line above the conversation. */
+function StepStrip({ steps, roles }: { steps: PlatformTimelineStep[]; roles: Map<string, string> }) {
+  if (steps.length === 0) return null;
+  return (
+    <ol aria-label="步骤" data-testid="goal-step-strip" className="mb-6 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ra-text-secondary lg:hidden">
+      {steps.map((step) => {
+        const state = stepState(step);
+        const tone = state === "running" ? "text-ra-accent" : state === "blocked" || state === "interrupted" ? "text-ra-status-error"
+          : state === "queued" ? "text-ra-text-tertiary" : "text-ra-status-running";
+        const label = state === "running" ? "进行中" : state === "blocked" || state === "interrupted" ? "停下" : state === "queued" ? "未开始" : "完成";
+        return (
+          <li key={step.plan_task_id} className="inline-flex items-center gap-1">
+            <span className="font-medium text-ra-text">{stepTitle(step.title, roles.get(step.plan_task_id) ?? step.plan_task_id)}</span>
+            <span className={tone}>{label}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 function stepState(step: PlatformTimelineStep) {
@@ -212,11 +236,14 @@ function stepState(step: PlatformTimelineStep) {
 }
 
 /** Codex-style side panel: the plan's steps, what changed, the checks, the PR. */
-function GoalPanel({ goal, steps, retry, roles }: { goal: PlatformGoal; steps: PlatformTimelineStep[]; retry?: PlatformRetryOptions; roles: Map<string, string> }) {
-  const files = new Map<string, { additions: number; deletions: number }>();
+function GoalPanel({ goal, steps, roles }: { goal: PlatformGoal; steps: PlatformTimelineStep[]; roles: Map<string, string> }) {
+  // Each step's newest attempt that changed files; its task page shows the diff.
+  const files = new Map<string, { additions: number; deletions: number; taskId: string }>();
   for (const step of steps) {
     const latest = [...step.attempts].reverse().find((attempt) => (attempt.changed_files ?? []).length > 0);
-    for (const file of latest?.changed_files ?? []) files.set(file.path, { additions: file.additions ?? 0, deletions: file.deletions ?? 0 });
+    for (const file of latest?.changed_files ?? []) {
+      files.set(file.path, { additions: file.additions ?? 0, deletions: file.deletions ?? 0, taskId: latest!.task_id });
+    }
   }
   return (
     <aside aria-label="目标概况" data-testid="goal-panel" className="hidden w-80 shrink-0 overflow-y-auto border-l border-ra-border px-5 py-5 text-sm lg:block custom-scrollbar">
@@ -245,8 +272,10 @@ function GoalPanel({ goal, steps, retry, roles }: { goal: PlatformGoal; steps: P
                   打开 PR #{step.publication.pr_number}
                 </a>
               )}
-              {retry && ["FAILED", "BLOCKED"].includes(current?.status ?? "") && (
-                <StepRetry goalId={goal.id} planTaskId={step.plan_task_id} options={retry} />
+              {current && (
+                <Link to={`/runs?task=${encodeURIComponent(current.task_id)}`} className="ml-6 block text-xs text-ra-text-tertiary hover:text-ra-text hover:underline">
+                  查看这一步的运行
+                </Link>
               )}
             </li>
           );
@@ -257,10 +286,13 @@ function GoalPanel({ goal, steps, retry, roles }: { goal: PlatformGoal; steps: P
           <h2 className="mb-2 mt-6 text-xs font-medium text-ra-text-tertiary">改动（{files.size} 个文件）</h2>
           <ul className="space-y-1" data-testid="goal-panel-files">
             {[...files.entries()].map(([path, file]) => (
-              <li key={path} className="flex items-center gap-2 font-mono text-xs">
-                <span className="min-w-0 flex-1 truncate text-ra-text-secondary" title={path}>{path.split("/").pop()}</span>
-                <span className="text-ra-status-running">+{file.additions}</span>
-                <span className="text-ra-status-error">−{file.deletions}</span>
+              <li key={path}>
+                <Link to={`/tasks/${encodeURIComponent(file.taskId)}`} title={`${path}（查看改动）`}
+                  className="flex items-center gap-2 rounded font-mono text-xs hover:bg-ra-light/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                  <span className="min-w-0 flex-1 truncate text-ra-text-secondary">{path.split("/").pop()}</span>
+                  <span className="text-ra-status-running">+{file.additions}</span>
+                  <span className="text-ra-status-error">−{file.deletions}</span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -274,11 +306,11 @@ function GoalPanel({ goal, steps, retry, roles }: { goal: PlatformGoal; steps: P
   );
 }
 
-export function GoalThread({ goal, timeline, onNewGoal, busy }: {
+export function GoalThread({ goal, timeline, composer }: {
   goal: PlatformGoal;
   timeline?: PlatformGoalTimeline;
-  onNewGoal: (text: string) => Promise<void>;
-  busy?: boolean;
+  /** The new-goal composer (it needs repository and mode, which only the goal composer collects). */
+  composer?: ReactNode;
 }) {
   const thread = useMemo(() => goalThread(goal, timeline), [goal, timeline]);
   const roles = useMemo(() => {
@@ -290,20 +322,19 @@ export function GoalThread({ goal, timeline, onNewGoal, busy }: {
     messages: thread.messages,
     convertMessage: (message) => message,
     isRunning: thread.running,
-    isDisabled: busy,
-    onNew: async (message: AppendMessage) => {
-      const text = message.content.map((part) => (part.type === "text" ? part.text : "")).join("").trim();
-      if (text) await onNewGoal(text);
-    },
+    // A running agent cannot receive follow-up messages; new work starts a new goal.
+    onNew: async () => undefined,
   });
   return (
+    <ThreadContext.Provider value={{ goalId: goal.id, retry: timeline?.retry }}>
     <AssistantRuntimeProvider runtime={runtime}>
       <div className="flex min-h-0 flex-1" data-testid="goal-thread">
         <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ThreadPrimitive.Viewport className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <div className="mx-auto w-full max-w-[760px] px-4 pb-8 pt-6 sm:px-6">
+              <StepStrip steps={thread.steps} roles={roles} />
               <ThreadPrimitive.Messages
-                components={{ UserMessage, AssistantMessage: () => <AssistantMessage messages={thread.messages} /> }}
+                components={{ UserMessage, AssistantMessage }}
               />
             </div>
             <ThreadPrimitive.ScrollToBottom
@@ -312,24 +343,11 @@ export function GoalThread({ goal, timeline, onNewGoal, busy }: {
               <span className="sr-only">回到最新</span>
             </ThreadPrimitive.ScrollToBottom>
           </ThreadPrimitive.Viewport>
-          <div className="shrink-0 px-4 pb-4 sm:px-6">
-            <ComposerPrimitive.Root className="mx-auto flex w-full max-w-[760px] items-end gap-2 rounded-3xl border border-ra-border bg-ra-base px-4 py-2.5 shadow-sm focus-within:border-ra-border-strong">
-              <ComposerPrimitive.Input
-                rows={1}
-                placeholder="开始一个新目标…（正在运行的 Agent 不会收到这里的消息）"
-                aria-label="开始一个新目标"
-                className="max-h-40 min-h-6 flex-1 resize-none bg-transparent py-1 text-[15px] leading-6 text-ra-text outline-none placeholder:text-ra-text-tertiary"
-              />
-              <ComposerPrimitive.Send
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ra-text text-ra-base disabled:opacity-30">
-                <ArrowUp className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only">创建目标</span>
-              </ComposerPrimitive.Send>
-            </ComposerPrimitive.Root>
-          </div>
+          {composer && <div className="mx-auto w-full max-w-[760px] shrink-0 px-4 pb-4 sm:px-6">{composer}</div>}
         </ThreadPrimitive.Root>
-        <GoalPanel goal={goal} steps={thread.steps} retry={timeline?.retry} roles={roles} />
+        <GoalPanel goal={goal} steps={thread.steps} roles={roles} />
       </div>
     </AssistantRuntimeProvider>
+    </ThreadContext.Provider>
   );
 }

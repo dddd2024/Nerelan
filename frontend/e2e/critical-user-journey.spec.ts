@@ -47,14 +47,19 @@ test("completes one provider-free critical user journey end to end", async ({ ap
   await expect(appPage.getByTestId("start-preflight")).toContainText("检查通过");
   await appPage.getByTestId("start-button").click();
 
-  await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
+  await expect(appPage.getByTestId("goal-thread")).toBeVisible();
   await expect(appPage.getByRole("heading", { name: GOAL_TITLE })).toBeVisible();
   expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);
   const currentExecution = appPage.getByTestId("current-execution-section");
-  await expect(currentExecution.getByTestId("goal-timeline")).toBeVisible({ timeout: 12_000 });
+  await expect(currentExecution.getByTestId("thread-assistant-message").first()).toBeVisible({ timeout: 12_000 });
 
-  await currentExecution.getByTestId("goal-timeline-runs-link").click();
-  await settle(appPage);
+  // The goal's side panel (wide screens) links to its runs; narrow screens use the shell.
+  if (await appPage.evaluate(() => window.innerWidth >= 1024)) {
+    await currentExecution.getByTestId("goal-panel").getByRole("link", { name: "查看完整运行记录" }).click();
+    await settle(appPage);
+  } else {
+    await navigateFromShell(appPage, "Agent 运行");
+  }
   await expect(appPage.getByTestId("runs-page")).toBeVisible();
   const primary = appPage.getByTestId("runs-list").locator(":scope > li").filter({
     has: appPage.getByText(`目标：${GOAL_TITLE}`, { exact: true }),

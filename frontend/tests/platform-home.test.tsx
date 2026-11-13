@@ -145,11 +145,22 @@ function seedPollingClientFull(): {
 
 async function homeReady() {
   render(<HomePage />, { factory: () => seededHomeClient() });
-  await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
+  await waitFor(() => expect(screen.getByTestId("goal-thread")).toBeInTheDocument(), { timeout: 4000 });
+}
+
+/** The goal page's one state label in the header (the thread itself carries per-attempt state). */
+function goalStateLabel() {
+  return screen.getByTestId("goal-state-label");
 }
 
 function getGoalDetailCacheData(client: QueryClient): PlatformGoal | undefined {
   return client.getQueryData(["goals", DEMO_ID]) as PlatformGoal | undefined;
+}
+
+/** Every attempt turn on the goal page reads 完成. */
+function allAttemptsDone() {
+  const headers = screen.queryAllByTestId("thread-attempt-header");
+  return headers.length > 0 && headers.every((header) => header.lastElementChild?.textContent === "完成");
 }
 
 function hasTextInCurrentSection(text: string) {
@@ -182,26 +193,30 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(composer.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it("opens a recent goal as a thread without a docked composer", async () => {
+  it("opens a recent goal as a thread with a compact docked composer", async () => {
     const user = userEvent.setup();
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
     await user.click(await screen.findByRole("button", { name: /完善无人值守多 Agent 平台/ }));
-    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
-    expect(screen.getByTestId("goal-thread-objective")).toBeInTheDocument();
-    expect(screen.getByTestId("goal-progress-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("current-execution-section")).toBeInTheDocument();
-    // The composer belongs to the empty home only; goal pages no longer dock it.
-    expect(screen.queryByTestId("goal-composer-section")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("描述最终目标")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("goal-thread")).toBeInTheDocument(), { timeout: 4000 });
+    // The Owner's request opens the conversation.
+    expect(screen.getByTestId("thread-user-message")).toHaveTextContent("目标 A");
+    expect(screen.getByTestId("current-execution-section")).toContainElement(screen.getByTestId("goal-thread"));
+    // A compact composer docks under the thread to start another goal.
+    const composer = screen.getByTestId("goal-composer-section");
+    expect(screen.getByTestId("goal-thread")).toContainElement(composer);
+    expect(within(composer).getByLabelText("描述最终目标")).toHaveAttribute("placeholder", "另起一个新目标…");
+    expect(within(composer).queryByTestId("goal-composer-execution-summary")).not.toBeInTheDocument();
     expect(screen.queryByTestId("recent-goals-section")).not.toBeInTheDocument();
     expect(screen.getByLabelText("返回新目标")).toHaveAttribute("href", "/");
   });
 
-  it("removes the permanent right rail and the activity-stream placeholder", async () => {
+  it("keeps only the goal's own side panel and no activity-stream placeholder", async () => {
     await homeReady();
     const main = screen.getByTestId("platform-home");
     expect(main.querySelector("[class*='grid-cols']")).toBeNull();
-    expect(main.querySelector("aside")).toBeNull();
+    // The one aside is the goal's steps-and-changes panel (wide screens only).
+    expect([...main.querySelectorAll("aside")]).toEqual([screen.getByTestId("goal-panel")]);
+    expect(screen.getByTestId("goal-panel")).toHaveClass("hidden", "lg:block");
     expect(main.querySelector('[data-testid="activity-stream-slot"]')).toBeNull();
     expect(screen.queryByText("Multi-agent workspace")).not.toBeInTheDocument();
     expect(screen.queryByText(/能力$/)).not.toBeInTheDocument();
@@ -212,9 +227,15 @@ describe("Platform V2 Home Workspace V2", () => {
     const goalTitle = screen.getByRole("heading", { name: "完善无人值守多 Agent 平台" });
     expect(goalTitle).toBeInTheDocument();
     const currentSection = screen.getByTestId("current-execution-section");
-    expect(currentSection).toContainElement(screen.getByText("执行进度"));
-    expect(currentSection).toContainElement(screen.getByText("分析目标与代码库"));
-    expect(currentSection).toContainElement(screen.getByText("验证并准备证据"));
+    expect(currentSection).toContainElement(screen.getByTestId("goal-panel"));
+    expect(screen.getByTestId("goal-panel-step-T001")).toHaveTextContent("分析目标与代码库");
+    expect(screen.getByTestId("goal-panel-step-T003")).toHaveTextContent("验证并准备证据");
+    // One turn per attempt: done, running, then the one that has not started.
+    const states = screen.getAllByTestId("thread-attempt-header").map((header) => header.lastElementChild?.textContent);
+    expect(states).toHaveLength(3);
+    expect(states[0]).toBe("完成");
+    expect(states[2]).toBe("等待开始");
+    expect(goalStateLabel()).toHaveTextContent("进行中");
   });
 
   it("labels a completed current goal as execution complete and awaiting review", async () => {
@@ -228,7 +249,7 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
     expect(screen.getByTestId("goal-state-label")).toHaveTextContent("待审查");
     expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-running");
-    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-running");
+    for (const header of screen.getAllByTestId("thread-attempt-header")) expect(header).toHaveTextContent("完成");
     expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
   });
 
@@ -243,7 +264,9 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
     expect(screen.getByTestId("goal-state-label")).toHaveTextContent("已停下");
     expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-error");
-    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-error");
+    // One alert, on the attempt that stopped.
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByTestId("thread-stop")).toHaveAttribute("role", "alert");
   });
 
   it("distinguishes selected-detail loading from the empty state", async () => {
@@ -274,7 +297,7 @@ describe("Platform V2 Home Workspace V2", () => {
     const retry = screen.getByRole("button", { name: "重试加载当前目标" });
     await userEvent.setup().click(retry);
 
-    await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("goal-thread")).toBeInTheDocument());
     expect(goalSpy).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -306,7 +329,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
     goalSpy.mockClear();
 
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
@@ -316,7 +339,8 @@ describe("Platform V2 Home Workspace V2", () => {
     });
 
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(goalStateLabel()).toHaveTextContent("待审查");
+    expect(allAttemptsDone()).toBe(true);
     expect(hasTextInCurrentSection("结果已验证")).toBe(false);
     expect(goalSpy).toHaveBeenCalledTimes(1);
   });
@@ -327,7 +351,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
     goalSpy.mockClear();
 
     __setMockGoalStatus(DEMO_ID, { status: "BLOCKED", task_links: [...BLOCKED_LINKS] });
@@ -337,7 +361,8 @@ describe("Platform V2 Home Workspace V2", () => {
     });
 
     expect(getGoalDetailCacheData(client)?.status).toBe("BLOCKED");
-    expect(hasTextInCurrentSection("需要处理阻塞")).toBe(true);
+    expect(goalStateLabel()).toHaveTextContent("已停下");
+    expect(screen.getByTestId("thread-stop")).toHaveAttribute("role", "alert");
     expect(goalSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -346,7 +371,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+    await waitFor(() => expect(goalStateLabel()).toHaveTextContent("进行中"), { timeout: 4000 });
 
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
 
@@ -354,7 +379,7 @@ describe("Platform V2 Home Workspace V2", () => {
     goalSpy.mockClear();
     expect(goalSpy).not.toHaveBeenCalled();
     expect(getGoalDetailCacheData(client)?.status).toBe("RUNNING");
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
 
     await act(async () => {
       focusManager.setFocused(false);
@@ -364,7 +389,8 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => {
       const detailCache = getGoalDetailCacheData(client);
       expect(detailCache?.status).toBe("COMPLETED");
-      expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+      expect(goalStateLabel()).toHaveTextContent("待审查");
+      expect(allAttemptsDone()).toBe(true);
       expect(hasTextInCurrentSection("结果已验证")).toBe(false);
       expect(goalSpy).toHaveBeenCalledTimes(1);
     }, { timeout: 4000 });
@@ -376,7 +402,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    await waitFor(() => expect(screen.getByText("Agent 正在执行")).toBeInTheDocument(), { timeout: 4000 });
+    await waitFor(() => expect(goalStateLabel()).toHaveTextContent("进行中"), { timeout: 4000 });
 
     __setMockGoalStatus(DEMO_ID, { status: "BLOCKED", task_links: [...BLOCKED_LINKS] });
 
@@ -384,7 +410,7 @@ describe("Platform V2 Home Workspace V2", () => {
     goalSpy.mockClear();
     expect(goalSpy).not.toHaveBeenCalled();
     expect(getGoalDetailCacheData(client)?.status).toBe("RUNNING");
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
 
     await act(async () => {
       onlineGetter.mockReturnValue(false);
@@ -396,7 +422,8 @@ describe("Platform V2 Home Workspace V2", () => {
     await waitFor(() => {
       const detailCache = getGoalDetailCacheData(client);
       expect(detailCache?.status).toBe("BLOCKED");
-      expect(hasTextInCurrentSection("需要处理阻塞")).toBe(true);
+      expect(goalStateLabel()).toHaveTextContent("已停下");
+      expect(screen.getByTestId("thread-stop")).toHaveAttribute("role", "alert");
       expect(goalSpy).toHaveBeenCalledTimes(1);
     }, { timeout: 4000 });
   });
@@ -407,7 +434,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
     goalSpy.mockClear();
 
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
@@ -418,7 +445,8 @@ describe("Platform V2 Home Workspace V2", () => {
 
     expect(hasTextInCurrentSection("分析目标与代码库")).toBe(true);
     expect(hasTextInCurrentSection("验证并准备证据")).toBe(true);
-    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(goalStateLabel()).toHaveTextContent("待审查");
+    expect(allAttemptsDone()).toBe(true);
     expect(hasTextInCurrentSection("结果已验证")).toBe(false);
     expect(goalSpy).toHaveBeenCalledTimes(1);
   });
@@ -429,7 +457,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
     render(<HomePage />, { factory: () => client });
 
-    expect(screen.getByText("Agent 正在执行")).toBeInTheDocument();
+    expect(goalStateLabel()).toHaveTextContent("进行中");
     goalSpy.mockClear();
 
     __setMockGoalStatus(DEMO_ID, { status: "COMPLETED", task_links: [...COMPLETED_LINKS] });
@@ -439,7 +467,8 @@ describe("Platform V2 Home Workspace V2", () => {
     });
 
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(hasTextInCurrentSection("执行完成，待审查")).toBe(true);
+    expect(goalStateLabel()).toHaveTextContent("待审查");
+    expect(allAttemptsDone()).toBe(true);
     expect(hasTextInCurrentSection("结果已验证")).toBe(false);
 
     const fetchesDuringTerminal = goalSpy.mock.calls.length;
@@ -452,7 +481,8 @@ describe("Platform V2 Home Workspace V2", () => {
 
     expect(goalSpy.mock.calls.length).toBe(fetchesDuringTerminal);
     expect(getGoalDetailCacheData(client)?.status).toBe("COMPLETED");
-    expect(hasTextInCurrentSection("需要处理阻塞")).toBe(false);
+    expect(goalStateLabel()).not.toHaveTextContent("已停下");
+    expect(screen.queryByTestId("thread-stop")).not.toBeInTheDocument();
   });
 
   it("keeps Recent Goals capped at 5 entries even with more goals", async () => {
@@ -529,6 +559,6 @@ describe("Platform V2 Home Workspace V2", () => {
     }
     await userEvent.click(recent.getByRole("button", { name: /证据缺失目标/ }));
     expect(await screen.findByRole("heading", { name: "证据缺失目标" })).toBeVisible();
-    expect(screen.getByTestId("goal-functional-status-missing-task")).toHaveTextContent("尚未完成测试");
+    expect(await screen.findByTestId("goal-panel-step-T001")).toHaveTextContent("尚未完成测试");
   });
 });

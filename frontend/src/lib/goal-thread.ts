@@ -8,7 +8,7 @@
  */
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import type { PlatformGoal, PlatformRunActivityEvent, PlatformTimelineAttempt, PlatformTimelineStep } from "@/lib/platform-client";
-import { mergeTimelineSteps, hostRetried, cleanSpeech } from "@/components/goal-timeline";
+import { checkSummary, mergeTimelineSteps, hostRetried, cleanSpeech } from "@/components/goal-timeline";
 import { statusFor } from "@/components/goal-progress";
 import { eventDetail, failureText, meaningfulEvents, modelName } from "@/lib/run-explain";
 import { objectiveText, stepTitle } from "@/lib/goal-view";
@@ -29,6 +29,10 @@ export interface AttemptHeader {
 }
 
 export interface AttemptStop {
+  /** The plan step, so the stop card can offer the Owner retry in place. */
+  planTaskId: string;
+  /** "180 个通过，1 个失败：…" when the host's message carries a pytest summary. */
+  checks: string;
   label: string;
   nextStep: string;
   detail: string;
@@ -91,17 +95,30 @@ function attemptParts(step: PlatformTimelineStep, attempt: PlatformTimelineAttem
     }
   }
   if (!said.size && attempt.narration?.length) {
-    for (const item of attempt.narration) parts.splice(1, 0, { type: "text", text: cleanSpeech(item.text) });
+    parts.splice(1, 0, ...attempt.narration.map((item): Part => ({ type: "text", text: cleanSpeech(item.text) })));
+  }
+  // Runs from before live progress kept only a tool count.
+  const legacyTools = !attempt.events.some((event) => event.type === "EXECUTOR_PROGRESS") ? attempt.tool_actions ?? 0 : 0;
+  if (legacyTools > 0) {
+    parts.push({ type: "data-note", id: `${attempt.task_id}-legacy`, data: { text: `调用了 ${legacyTools} 次工具（这次运行没有记录每次调用的明细）` } });
+  }
+  if (attempt.events_truncated) {
+    parts.push({ type: "data-note", id: `${attempt.task_id}-truncated`, data: {
+      text: `只显示最近 ${attempt.events.length} 条记录，共 ${attempt.events_total} 条`, taskId: attempt.task_id } });
   }
   const files = attempt.changed_files ?? [];
   if (files.length) {
     const data: AttemptFiles = { files: files.map((file) => ({ path: file.path, additions: file.additions ?? 0, deletions: file.deletions ?? 0 })) };
     parts.push({ type: "data-files", id: `${attempt.task_id}-files`, data });
   }
-  if (attempt.summary) parts.push({ type: "data-summary", id: `${attempt.task_id}-summary`, data: { text: cleanSpeech(attempt.summary) } });
+  // The agent's final answer is prose like the rest of its turn.
+  if (attempt.summary) parts.push({ type: "text", text: cleanSpeech(attempt.summary) });
   if (STOPPED.has(attempt.status) && !hostRetried(attempt.retry_reason)) {
     const reason = failureText(attempt.failure);
-    const stop: AttemptStop = { ...reason, superseded: attempt.index < step.attempts.length };
+    const stop: AttemptStop = {
+      ...reason, planTaskId: step.plan_task_id, checks: checkSummary(reason.detail),
+      superseded: attempt.index < step.attempts.length,
+    };
     parts.push({ type: "data-stop", id: `${attempt.task_id}-stop`, data: stop });
   }
   return parts;
@@ -115,7 +132,11 @@ export interface GoalThread {
 
 /** The whole goal as messages, oldest first. */
 export function goalThread(goal: PlatformGoal, timeline?: PlatformGoalTimeline): GoalThread {
-  const steps = mergeTimelineSteps(goal, timeline);
+  const linked = mergeTimelineSteps(goal, timeline);
+  // Before dispatch a goal has a plan but no task links: show its steps as not started.
+  const plan = timeline?.plan?.length ? timeline.plan : goal.tasks.map((task) => ({ plan_task_id: task.id, title: task.title }));
+  const steps: PlatformTimelineStep[] = linked.length ? linked
+    : plan.map((item) => ({ plan_task_id: item.plan_task_id, title: item.title, status: "QUEUED", attempts: [] }));
   const roles = new Map((timeline?.plan ?? []).map((item) => [item.plan_task_id, item.role]));
   for (const task of goal.tasks) if (!roles.has(task.id) && task.agent_role) roles.set(task.id, task.agent_role);
   const messages: ThreadMessageLike[] = [{
@@ -132,10 +153,15 @@ export function goalThread(goal: PlatformGoal, timeline?: PlatformGoalTimeline):
         id: attempt.task_id,
         role: "assistant",
         content: attemptParts(step, attempt, roles.get(step.plan_task_id) ?? step.plan_task_id),
-        createdAt: attempt.started_at ? new Date(attempt.started_at) : undefined,
+        // A queued attempt's timestamp is its creation, not a start: it sorts last.
+        createdAt: attempt.started_at && state !== "queued" ? new Date(attempt.started_at) : undefined,
         status: state === "running" ? { type: "running" } : { type: "complete", reason: "stop" },
       });
     }
   }
-  return { messages, running, steps };
+  // One conversation in time order across steps; attempts that have not started go last.
+  const [request, ...turns] = messages;
+  const at = (message: ThreadMessageLike) => message.createdAt?.getTime() ?? Number.MAX_SAFE_INTEGER;
+  turns.sort((a, b) => at(a) - at(b));
+  return { messages: [request, ...turns], running, steps };
 }

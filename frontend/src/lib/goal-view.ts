@@ -54,7 +54,10 @@ export function objectiveText(goal: Pick<PlatformGoal, "objective">): string {
     .replace(/\s*#{2,6}\s+/g, "\n\n")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
-    // A flattened markdown list item (" - Recognise …"), not a dash inside prose ("1 - 5").
+    // A flattened markdown list item starts a line or follows a sentence or another item;
+    // a dash inside prose ("1 - 5", "A - B") stays.
+    .replace(/(^|\n|[.。:：!?！？])[ \t]*-\s+(?=\S)/g, (_match, before: string) => `${before && before !== "\n" ? `${before}\n` : before}· `)
+    // Issue bodies are stored flattened ("## Change - While …"): an item there starts with a capital or CJK.
     .replace(/\s+-\s+(?=[A-Z一-鿿`*"“])/g, "\n· ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

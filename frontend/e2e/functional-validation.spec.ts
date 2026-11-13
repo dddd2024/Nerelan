@@ -3,12 +3,16 @@ import { test, expect, open, settle } from "./fixtures";
 test("keeps mock Goal completion unverified and opens its exact Run evidence", async ({ appPage }) => {
   await open(appPage, "/?goal=goal-demo-platform");
   await settle(appPage);
-  const task = appPage.getByTestId("goal-task-task-demo-1");
-  await expect(task.getByText("执行完成，待审查")).toBeVisible();
-  await expect(task.getByTestId("goal-functional-status-task-demo-1")).toHaveText("尚未完成测试");
-  await expect(task.getByTestId("goal-publication-task-demo-1")).toHaveText("尚无发布记录");
-  await task.getByRole("link", { name: "查看 分析目标与代码库 的运行" }).click();
-  await expect(appPage).toHaveURL(/\/runs\?task=task-demo-1$/);
+  const turn = appPage.locator('[data-testid="thread-assistant-message"][data-message-id="task-demo-1"]');
+  await expect(turn.getByTestId("thread-attempt-header")).toContainText("完成");
+  // The side panel with each step's checks and publication shows on wide screens only.
+  if (await appPage.evaluate(() => window.innerWidth >= 1024)) {
+    const step = appPage.getByTestId("goal-panel-step-T001");
+    await expect(step).toContainText("尚未完成测试");
+    await expect(step).toContainText("尚无发布记录");
+  }
+  await open(appPage, "/runs?task=task-demo-1");
+  await settle(appPage);
   const selected = appPage.getByRole("region", { name: "选中运行" });
   await expect(selected.getByTestId("run-overview-task-demo-1")).toBeVisible();
   await expect(selected.getByTestId("run-validation-task-demo-1")).toBeVisible();
@@ -44,6 +48,6 @@ test("reviews selected functional checks before explicit approval in the mock UI
   await expect(appPage.getByTestId("plan-step-T001")).not.toContainText("功能检查：python_pytest");
   await expect(appPage.getByTestId("start-preflight")).toContainText("检查通过");
   await appPage.getByTestId("start-button").click();
-  await expect(appPage.getByTestId("goal-progress-bar")).toBeVisible();
+  await expect(appPage.getByTestId("goal-thread")).toBeVisible();
   expect(new URL(appPage.url()).searchParams.get("goal")).toBe(goalId);
 });

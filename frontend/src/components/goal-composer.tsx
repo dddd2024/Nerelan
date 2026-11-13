@@ -275,9 +275,12 @@ export function GoalComposer({
         />
 
       </div>
-      <p data-testid="goal-composer-execution-summary" className="break-words px-3 pb-2 text-xs text-ra-text-tertiary">
-        {executionSummary}
-      </p>
+      {/* Docked under a goal the composer is one quiet box; the details live behind 高级. */}
+      {!compact && (
+        <p data-testid="goal-composer-execution-summary" className="break-words px-3 pb-2 text-xs text-ra-text-tertiary">
+          {executionSummary}
+        </p>
+      )}
       <div className="flex items-center gap-1.5 px-2 pb-2">
         <button
           type="button"
@@ -321,6 +324,7 @@ export function GoalComposer({
 
       <div
         data-testid="goal-composer-options"
+        hidden={compact && !optionsOpen}
         className="border-t border-ra-border/60 px-3 py-2.5"
       >
         <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">

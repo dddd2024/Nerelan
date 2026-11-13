@@ -38,6 +38,20 @@ test.describe("visual acceptance", () => {
     await expect(appPage).toHaveScreenshot("home-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
   });
 
+  test("goal thread light @visual", async ({ appPage }) => {
+    await open(appPage, "/?goal=goal-demo-platform");
+    await seedAppearance(appPage, { mode: "light", accent: "cyan" });
+    await expect(appPage.getByTestId("goal-thread")).toBeVisible();
+    await expect(appPage).toHaveScreenshot("goal-thread-light.png", { animations: "disabled", caret: "hide", scale: "css" });
+  });
+
+  test("goal thread dark @visual", async ({ appPage }) => {
+    await open(appPage, "/?goal=goal-demo-platform");
+    await seedAppearance(appPage, { mode: "dark", accent: "cyan" });
+    await expect(appPage.getByTestId("goal-thread")).toBeVisible();
+    await expect(appPage).toHaveScreenshot("goal-thread-dark.png", { animations: "disabled", caret: "hide", scale: "css" });
+  });
+
   test("settings light @visual", async ({ appPage }) => {
     await open(appPage, "/settings");
     await seedAppearance(appPage, { mode: "light", accent: "cyan" });
