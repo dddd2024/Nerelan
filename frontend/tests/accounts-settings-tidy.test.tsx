@@ -7,6 +7,8 @@ import type { Task } from "@/types";
 import { BindingList } from "@/components/binding-list";
 import { TaskInbox } from "@/components/task-inbox";
 import { taskActionCopy } from "@/lib/task-status-copy";
+import { runtimeExplanation } from "@/lib/runtime-labels";
+import { UI_LOCALE_STORAGE_KEY } from "@/lib/ui-locale";
 
 const binding = (over: Partial<Binding>): Binding => ({
   bindingId: "b", name: "n", connectionId: "magpie", executorId: "opencode", modelId: "m", enabled: true, ...over,
@@ -67,5 +69,15 @@ describe("task inbox", () => {
   it("says the host's next action in Chinese", () => {
     expect(taskActionCopy("Waiting for executor dispatch")).toBe("排队中：等待执行窗口派发");
     expect(taskActionCopy("Owner review; functional acceptance evidence still required")).toBe("等你审查（还缺功能验收证据）");
+  });
+
+  it("keeps host actions in English when the stored locale is English", () => {
+    localStorage.setItem(UI_LOCALE_STORAGE_KEY, "en");
+    try {
+      expect(taskActionCopy("Waiting for executor dispatch")).toBe(runtimeExplanation("Waiting for executor dispatch"));
+      expect(taskActionCopy("Waiting for executor dispatch", "zh-CN")).toBe("排队中：等待执行窗口派发");
+    } finally {
+      localStorage.removeItem(UI_LOCALE_STORAGE_KEY);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { taskCopy, type UiLocale } from "@/lib/ui-locale";
+import { taskCopy, uiLocale, type UiLocale } from "@/lib/ui-locale";
 import { runtimeExplanation } from "@/lib/runtime-labels";
 
 /** Short user-facing copy over machine status; original identifiers remain in diagnostics. */
@@ -10,9 +10,10 @@ const HOST_ACTIONS: Record<string, string> = {
   "Owner review; functional acceptance evidence still required": "等你审查（还缺功能验收证据）",
 };
 
-export function taskActionCopy(value: string | undefined, locale?: UiLocale): string {
+export function taskActionCopy(value: string | undefined, locale: UiLocale = uiLocale()): string {
   const copy = taskCopy(locale);
   if (!value?.trim()) return copy.noNextAction;
+  // Callers usually omit the locale; resolve the Owner's preference so English stays English.
   if (locale !== "en" && HOST_ACTIONS[value.trim()]) return HOST_ACTIONS[value.trim()];
   if (/^Investigate failure classification$/i.test(value.trim())) {
     return copy.investigateFailure;
