@@ -48,7 +48,7 @@ function Stat({ label, value, hint, testId }: { label: string; value: string; hi
     <div className="min-w-0 rounded-lg border border-ra-border bg-ra-light px-3.5 py-3">
       <p className="text-xs text-ra-text-tertiary">{label}</p>
       <p data-testid={testId} className="mt-1 text-xl font-medium tabular-nums text-ra-text">{value}</p>
-      {hint ? <p className="mt-0.5 truncate text-[11px] text-ra-text-tertiary">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate text-xs text-ra-text-tertiary">{hint}</p> : null}
     </div>
   );
 }
@@ -109,7 +109,7 @@ function AccountRow({ account, now, feedback }: { account: PoolAccount; now: num
       <td className="px-3.5 py-2.5">
         <span className="block font-medium text-ra-text">{account.provider ?? "未识别服务"}</span>
         {!account.admission_evidence ? (
-          <span className="text-[11px] text-ra-text-tertiary" title="本平台没有路由认领该服务，它的额度不参与准入">
+          <span className="text-xs text-ra-text-tertiary" title="本平台没有路由认领该服务，它的额度不参与准入">
             仅观测
           </span>
         ) : null}
@@ -122,7 +122,7 @@ function AccountRow({ account, now, feedback }: { account: PoolAccount; now: num
         {account.weekly_pace ? (
           <span
             data-testid={`pool-pace-${account.provider ?? account.account_ref}`}
-            className={cn("block text-[11px]", account.weekly_pace.held_until ? "text-ra-status-warning" : "text-ra-text-tertiary")}
+            className={cn("block text-xs", account.weekly_pace.held_until ? "text-ra-status-warning" : "text-ra-text-tertiary")}
             title={`与 Magpie 同口径：已用比例减本周已过时间比例。超过配速线 ${Math.round(account.weekly_pace.line * 100)}% 时暂停派发`}
           >
             配速 {signedPercent(account.weekly_pace.deviation)}
@@ -132,7 +132,7 @@ function AccountRow({ account, now, feedback }: { account: PoolAccount; now: num
           </span>
         ) : null}
         {account.reset_cards && account.reset_cards.count > 0 ? (
-          <span data-testid={`pool-cards-${account.provider ?? account.account_ref}`} className="block text-[11px] text-ra-text-tertiary">
+          <span data-testid={`pool-cards-${account.provider ?? account.account_ref}`} className="block text-xs text-ra-text-tertiary">
             重置卡 {account.reset_cards.count} 张
             {account.reset_cards.next_expires_at
               ? `，最早 ${untilLabel(Date.parse(account.reset_cards.next_expires_at) / 1000, now)}过期`
@@ -140,7 +140,7 @@ function AccountRow({ account, now, feedback }: { account: PoolAccount; now: num
           </span>
         ) : null}
         {account.cooldown ? (
-          <span className="block text-[11px] text-ra-status-warning">
+          <span className="block text-xs text-ra-status-warning">
             {account.cooldown.tier === "quarantine" ? "隔离中" : "冷却中"}，{untilLabel(account.cooldown.until, now)}恢复
           </span>
         ) : null}
@@ -201,7 +201,7 @@ function PolicyPanel({ policy }: { policy: PoolPolicy }) {
           {weights.latency_weight.toFixed(2)}
         </p>
       ) : null}
-      <p className="mt-1 text-[11px] text-ra-text-tertiary">回滚需在宿主停止后通过命令行执行，不在浏览器中提供。</p>
+      <p className="mt-1 text-xs text-ra-text-tertiary">回滚需在宿主停止后通过命令行执行，不在浏览器中提供。</p>
     </section>
   );
 }

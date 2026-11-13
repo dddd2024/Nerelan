@@ -477,19 +477,19 @@ export function SettingsPage({ section = "all" }: { section?: SettingsSection })
                     <span className="truncate text-sm font-medium text-ra-text">
                       {conn.name}
                     </span>
-                    <span className="ml-auto shrink-0 text-[11px] font-medium text-ra-accent">
+                    <span className="ml-auto shrink-0 text-xs font-medium text-ra-accent">
                       {conn.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
                   <span className="truncate text-xs text-ra-text-tertiary">
                     {conn.provider} · {conn.authMethod}
                   </span>
-                  <span className="text-[11px] text-ra-text-tertiary">
+                  <span className="text-xs text-ra-text-tertiary">
                     密钥：{secretStatusLabel(conn.secretStatus)}
                   </span>
                   {executorManagedAuth(conn.authMethod) && (
                     <span
-                      className="text-[11px] text-ra-text-tertiary"
+                      className="text-xs text-ra-text-tertiary"
                       data-testid={`connection-list-external-session-${conn.connectionId}`}
                     >
                       外部会话：{externalSessionStatusLabel(conn.externalSessionStatus)}

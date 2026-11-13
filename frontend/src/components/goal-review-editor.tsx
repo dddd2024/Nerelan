@@ -11,7 +11,8 @@ interface Props {
   goal: PlatformGoal;
   busy: boolean;
   onEditingChange: (editing: boolean) => void;
-  onConfigurationReady: (ready: boolean) => void;
+  /** ``issue`` names the first unmet requirement when not ready. */
+  onConfigurationReady: (ready: boolean, issue?: string) => void;
   onSaveConfiguration: (goal: PlatformGoal, input: GoalConfigurationInput) => Promise<unknown>;
   onSavePlan: (goal: PlatformGoal, input: GoalPlanInput) => Promise<unknown>;
 }
@@ -61,7 +62,19 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
       && repositories.some((repository) => repository.full_name === goal.repository));
 
   useEffect(() => { onEditingChange(mode !== null); }, [mode, onEditingChange]);
-  useEffect(() => { onConfigurationReady(currentConfigurationReady); }, [currentConfigurationReady, onConfigurationReady]);
+  const configurationIssue = currentConfigurationReady ? ""
+    : repositoriesQuery.isError ? (repositoriesQuery.error?.message || "主机读不到 GitHub 仓库列表。")
+    : bindingsQuery.isError ? "读不到模型绑定列表，请稍后重试。"
+    : repositoriesQuery.isSuccess && !repositories.some((repository) => repository.full_name === goal.repository)
+      ? `仓库 ${goal.repository} 不在主机可用的仓库里：请编辑目标改用可用仓库，或确认 GitHub 账号有权限。`
+    : bindingsQuery.isSuccess && goal.binding_ref && !bindings.some((binding) => binding.bindingId === goal.binding_ref)
+      ? `模型绑定 ${goal.binding_ref} 不可用：请在设置里启用它，或编辑目标改用其他绑定。`
+    : bindingsQuery.isSuccess && !goal.binding_ref && goal.orchestration_mode !== "agent_team"
+      ? "这个目标还没有选择模型绑定：请编辑目标选择一个。"
+    : repositoriesQuery.isPending || bindingsQuery.isPending ? "正在读取仓库和模型绑定…"
+    : "当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。";
+  useEffect(() => { onConfigurationReady(currentConfigurationReady, configurationIssue); },
+    [currentConfigurationReady, configurationIssue, onConfigurationReady]);
 
   function reload(nextMode = mode) {
     setBase(structuredClone(goal));

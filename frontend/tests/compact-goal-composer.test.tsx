@@ -219,7 +219,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       "deterministic_fixture",
     );
     expect(screen.getByLabelText("执行模式")).not.toBeVisible();
-    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("无模型验证");
+    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("无模型演练");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("创建并审阅目标"));

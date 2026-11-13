@@ -81,7 +81,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-ra-tertiary" data-testid="goal-progress-bar">
           <div className={cn("h-full rounded-full transition-[width] duration-200", progressClassName(goal.status))} style={{ width: `${progress}%` }} />
         </div>
-        <span data-testid="goal-progress-summary" className="shrink-0 font-mono text-[10px] tabular-nums text-ra-text-tertiary">
+        <span data-testid="goal-progress-summary" className="shrink-0 font-mono text-xs tabular-nums text-ra-text-tertiary">
           {reviewReady}/{links.length}
         </span>
       </div>
@@ -111,9 +111,9 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                 <Icon className={cn(state === "queued" ? "h-2.5 w-2.5" : "h-3.5 w-3.5", state === "running" && "animate-spin")} />
               </span>
               <p className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={displayTitle(task.title, 160)}>{displayTitle(task.title)}</p>
-              <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{task.plan_task_id || `T${index + 1}`}</span>
+              <span className="shrink-0 font-mono text-xs text-ra-text-tertiary">{task.plan_task_id || `T${index + 1}`}</span>
             </div>
-            <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
+            <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs leading-4">
               <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>{!materialized ? "尚未启动" : state === "blocked" && task.failure ? failureText(task.failure).label : taskStateText(state)}</span>
               {materialized && <>
                 <span data-testid={`goal-functional-status-${task.task_id}`} className={cn("rounded-md border border-ra-border/60 px-1.5 py-0.5", proof.verified ? "text-ra-status-running" : proof.status === "FAILED" ? "text-ra-status-error" : "text-ra-text-secondary")}>
@@ -122,7 +122,7 @@ export function GoalProgress({ goal }: { goal: PlatformGoal }) {
                 <span data-testid={`goal-publication-${task.task_id}`} className={cn("rounded-md px-1.5 py-0.5", task.publication ? "bg-ra-light text-ra-text-secondary" : task.publication_blocked ? "text-ra-status-error" : "text-ra-text-tertiary")}>
                   {publicationText(task.publication, task.publication_blocked)}
                 </span>
-                {task.executor_kind && <span data-testid={`goal-agent-${task.task_id}`} className="rounded-md bg-ra-tertiary/60 px-1.5 py-0.5 font-mono text-[10px] text-ra-text-secondary"
+                {task.executor_kind && <span data-testid={`goal-agent-${task.task_id}`} className="rounded-md bg-ra-tertiary/60 px-1.5 py-0.5 font-mono text-xs text-ra-text-secondary"
                   title="执行此任务的 Agent">
                   {EXECUTOR_LABELS[task.executor_kind] ?? task.executor_kind}{task.binding_ref ? ` · ${task.binding_ref}` : ""}
                 </span>}

@@ -124,7 +124,7 @@ export function HomePage() {
       className={cn(
         platform.coordinator.enabled && !statusQuery.isError
           ? "sr-only"
-          : "inline-flex items-center gap-1.5 text-xs text-ra-status-error",
+          : cn("inline-flex items-center gap-1.5 text-xs", statusQuery.isError ? "text-ra-status-error" : "text-ra-text-secondary"),
       )}
     >
       {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}

@@ -139,12 +139,12 @@ function ActionRow({ event, repeats }: { event: PlatformRunActivityEvent; repeat
   const agent = readableAgent(event);
   return (
     <li data-testid={`timeline-event-${event.id}`} className="flex min-w-0 items-baseline gap-2 text-xs">
-      <span className={cn("w-12 shrink-0 text-[11px]", activityCategoryClass(event.category))}>{label}</span>
-      <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ra-text-secondary" title={[title, detail].filter(Boolean).join(" · ")}>
+      <span className={cn("w-12 shrink-0 text-xs", activityCategoryClass(event.category))}>{label}</span>
+      <span className="min-w-0 flex-1 truncate font-mono text-xs text-ra-text-secondary" title={[title, detail].filter(Boolean).join(" · ")}>
         {[title, detail].filter(Boolean).join(" · ") || label}
         {repeats > 1 ? ` ×${repeats}` : ""}
       </span>
-      {agent && <span className="hidden shrink-0 text-[11px] text-ra-text-tertiary sm:inline">{agent}</span>}
+      {agent && <span className="hidden shrink-0 text-xs text-ra-text-tertiary sm:inline">{agent}</span>}
     </li>
   );
 }
@@ -164,7 +164,7 @@ function AgentTurn({ attempt, live }: { attempt: PlatformTimelineAttempt; live: 
     <div className="space-y-1.5" data-testid={`timeline-events-${attempt.task_id}`}>
       {hidden > 0 && (
         <button type="button" onClick={() => setExpanded(true)}
-          className="text-[11px] text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+          className="text-xs text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
           显示更早的 {hidden} 段
         </button>
       )}
@@ -196,7 +196,7 @@ function AgentTurn({ attempt, live }: { attempt: PlatformTimelineAttempt; live: 
       )}
       {attempt.summary && <AgentSummary text={cleanSpeech(attempt.summary)} taskId={attempt.task_id} />}
       {attempt.events_truncated && (
-        <p className="text-[11px] text-ra-text-tertiary">
+        <p className="text-xs text-ra-text-tertiary">
           只显示最近 {attempt.events.length} 条记录，共 {attempt.events_total} 条。
           <Link to={`/runs?task=${encodeURIComponent(attempt.task_id)}`} className="ml-1 text-ra-accent hover:underline">查看完整运行</Link>
         </p>
@@ -210,11 +210,11 @@ function AgentSummary({ text, taskId }: { text: string; taskId: string }) {
   const long = text.length > 280 || text.split("\n").length > 5;
   return (
     <div data-testid={`timeline-summary-${taskId}`} className="rounded-xl bg-ra-light/60 px-3 py-2">
-      <p className="mb-0.5 text-[11px] font-medium text-ra-text-tertiary">Agent 的总结</p>
+      <p className="mb-0.5 text-xs font-medium text-ra-text-tertiary">Agent 的总结</p>
       <p className={cn("whitespace-pre-wrap text-sm leading-6 text-ra-text", long && !open && "line-clamp-4")}>{text}</p>
       {long && (
         <button type="button" onClick={() => setOpen((value) => !value)}
-          className="mt-0.5 text-[11px] text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+          className="mt-0.5 text-xs text-ra-accent underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
           {open ? "收起" : "展开全部"}
         </button>
       )}
@@ -248,8 +248,8 @@ function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; to
         <p className="text-xs font-medium text-ra-text">
           {total > 1 ? `第 ${attempt.index} 次` : "执行"}{who(attempt) ? ` · ${who(attempt)}` : ""}
         </p>
-        {attempt.started_at && <span className="text-[11px] text-ra-text-tertiary">{formatRelativeTime(attempt.started_at)}开始</span>}
-        <span className="ml-auto inline-flex items-center gap-1.5 text-[11px]">
+        {attempt.started_at && <span className="text-xs text-ra-text-tertiary">{formatRelativeTime(attempt.started_at)}开始</span>}
+        <span className="ml-auto inline-flex items-center gap-1.5 text-xs">
           {/* The step header carries the state; an attempt adds only liveness or its stop reason. */}
           {attempt.live && state === "running" ? <>
             <span className={cn("h-1.5 w-1.5 rounded-full", livenessDotClass(attempt.live.state))} aria-hidden="true" />
@@ -259,7 +259,7 @@ function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; to
       </div>
       <AgentTurn attempt={attempt} live={state === "running"} />
       {files.length > 0 && (
-        <p className="mt-2 text-[11px] text-ra-text-secondary" data-testid={`timeline-files-${attempt.task_id}`}>
+        <p className="mt-2 text-xs text-ra-text-secondary" data-testid={`timeline-files-${attempt.task_id}`}>
           改了 {files.length} 个文件 · +{additions} −{deletions}
           <span className="ml-1 font-mono text-ra-text-tertiary">{files.slice(0, 3).map((file) => file.path).join("、")}{files.length > 3 ? " …" : ""}</span>
         </p>
@@ -273,7 +273,7 @@ function AttemptBlock({ attempt, total }: { attempt: PlatformTimelineAttempt; to
             {checks && <p className="text-xs text-ra-text" data-testid={`timeline-checks-${attempt.task_id}`}>{checks}</p>}
             {reason.nextStep && <p className="text-xs text-ra-text-secondary">下一步：{reason.nextStep}</p>}
             {reason.detail && (
-              <details className="text-[11px] text-ra-text-tertiary">
+              <details className="text-xs text-ra-text-tertiary">
                 <summary className="w-fit cursor-pointer rounded hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">技术细节</summary>
                 <p className="mt-1 break-words font-mono leading-5">{reason.detail}</p>
               </details>
@@ -311,9 +311,9 @@ function StepBlock({ step, goalId, retry }: { step: PlatformTimelineStep; goalId
         <h3 className="min-w-0 flex-1 break-words text-sm font-medium leading-5 text-ra-text" title={displayTitle(step.title, 160)}>
           {displayTitle(step.title)}
         </h3>
-        <span className="shrink-0 font-mono text-[10px] text-ra-text-tertiary">{step.plan_task_id}</span>
+        <span className="shrink-0 font-mono text-xs text-ra-text-tertiary">{step.plan_task_id}</span>
       </header>
-      <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] leading-4">
+      <div className="ml-7 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs leading-4">
         <span className={cn("rounded-md bg-ra-light px-1.5 py-0.5", taskStateClass(state))}>
           {state === "blocked" && current?.failure ? failureText(current.failure).label : taskStateText(state)}
         </span>
@@ -394,7 +394,7 @@ export function GoalTimeline({ goal, timeline }: { goal: PlatformGoal; timeline?
         <div className="h-1 flex-1 overflow-hidden rounded-full bg-ra-tertiary" data-testid="goal-progress-bar">
           <div className={cn("h-full rounded-full transition-[width] duration-200", progressClassName(goal.status))} style={{ width: `${progress}%` }} />
         </div>
-        <span data-testid="goal-progress-summary" className="shrink-0 font-mono text-[10px] tabular-nums text-ra-text-tertiary">
+        <span data-testid="goal-progress-summary" className="shrink-0 font-mono text-xs tabular-nums text-ra-text-tertiary">
           {reviewReady}/{total}
         </span>
       </div>
@@ -416,12 +416,12 @@ export function GoalTimeline({ goal, timeline }: { goal: PlatformGoal; timeline?
             <li key={task.plan_task_id} data-testid={`goal-plan-${task.plan_task_id}`} className="flex items-start gap-3 text-sm text-ra-text">
               <Circle className="mt-1.5 h-2.5 w-2.5 shrink-0 text-ra-text-tertiary" aria-hidden="true" />
               <span className="min-w-0 flex-1">{displayTitle(task.title)}</span>
-              <span className="shrink-0 text-[11px] text-ra-text-tertiary">尚未启动</span>
+              <span className="shrink-0 text-xs text-ra-text-tertiary">尚未启动</span>
             </li>
           ))}
         </ol>
       ) : steps.map((step) => <StepBlock key={step.plan_task_id} step={step} goalId={goal.id} retry={timeline?.retry} />)}
-      <p className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px] leading-5 text-ra-text-tertiary">
+      <p className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs leading-5 text-ra-text-tertiary">
         <span>执行完成不代表功能验证或交付完成；远端审查、合并与交付另行确认。</span>
         {steps.length > 0 && (
           <Link to={`/runs?goal=${encodeURIComponent(goal.id)}`} data-testid="goal-timeline-runs-link"
