@@ -54,7 +54,8 @@ export function objectiveText(goal: Pick<PlatformGoal, "objective">): string {
     .replace(/\s*#{2,6}\s+/g, "\n\n")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
-    .replace(/\s+-\s+(?=\S)/g, "\n· ")
+    // A flattened markdown list item (" - Recognise …"), not a dash inside prose ("1 - 5").
+    .replace(/\s+-\s+(?=[A-Z一-鿿`*"“])/g, "\n· ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -109,7 +110,8 @@ export function goalState(goal: Pick<PlatformGoal, "status" | "task_links">): Go
   }
   const live = links.filter((link) => link.status !== "CANCELLED");
   if (live.length > 0 && live.every((link) => READY.has(link.status))) {
-    const published = live.some((link) => link.publication);
+    // Only a completed publication with a PR number is an opened PR (as `publicationText` reads it).
+    const published = live.some((link) => link.publication?.status === "COMPLETE" && (link.publication.pr_number ?? 0) > 0);
     return {
       key: "needs_you", group: "needs_you", label: "待审查",
       detail: published ? "已开 Draft PR，等你审查" : "执行完成，等你审查结果", tone: "done",
@@ -124,6 +126,9 @@ export function goalState(goal: Pick<PlatformGoal, "status" | "task_links">): Go
   }
   if (goal.status === "RUNNING") {
     return { key: "queued", group: "active", label: "排队中", detail: "等待执行窗口派发", tone: "waiting" };
+  }
+  if (goal.status === "BLOCKED") {
+    return { key: "stopped", group: "stopped", label: "已停下", detail: "执行受阻", tone: "stopped" };
   }
   return { key: "done", group: "ended", label: "已结束", detail: "", tone: "idle" };
 }
@@ -174,7 +179,8 @@ export function humanActivity(activity?: Pick<PlatformTaskActivity, "title" | "d
   const text = (activity.description || activity.title || "").trim();
   if (!text) return "";
   if (/^(bash|powershell|pwsh|cmd|sh|edit|write|apply_patch)\b/i.test(text)) return humanCommand(text);
-  if (/^(read|view)\s+\S/i.test(text)) return `正在读 ${fileName(text.split(/\s+/)[1])}`;
+  const read = /^(?:read|view)\s+(\S*[\\/]\S*|\S+\.\w{1,6})(?:\s|$)/i.exec(text);
+  if (read) return `正在读 ${fileName(read[1])}`;
   if (/^(Model selected|选择模型)/.test(text)) return "正在选择模型";
   // The agent's own sentence: keep it, in one line.
   const line = text.replace(/\s+/g, " ");
@@ -199,7 +205,7 @@ export function stepTitle(raw: string, role?: string): string {
   const bracket = leadingBracket(source);
   const rest = bracket ? source.slice(bracket.end).trim() : source;
   // Execution titles repeat the plan id first ("implement Implement #1488"): drop that token only.
-  const words = rest.replace(/^(?:[\w-]+|T\d{2,4})\s+(?=(?:implement|review|test|verify|plan)\b)/i, "").trim();
+  const words = rest.replace(/^(?:(implement|review|test|verify|plan)\s+(?=\1\b)|T\d{2,4}\s+)/i, "").trim();
   // Generated steps ("Implement #1488", "review") read as their role; a plan's own title stays.
   const kind = /^(implement|review|test|verify|plan)\b(?:\s*#\d+)?\s*$/i.exec(words)?.[1]?.toLowerCase();
   if (kind && STEP_ROLES[kind]) return STEP_ROLES[kind];

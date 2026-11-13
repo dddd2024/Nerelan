@@ -52,6 +52,8 @@ describe("goals page grouping", () => {
     expect(stopped.getByText("Fix upload")).toBeInTheDocument();
     expect(stopped.getByText("#1490")).toBeInTheDocument();
     expect(stopped.getByText("之前还有 1 个同一 Issue 的旧目标")).toBeInTheDocument();
+    // The older goal stays reachable: its own link sits inside the fold.
+    expect(screen.getByTestId("goal-older-g-stop").querySelector('a[href="/?goal=g-stop-old"]')).not.toBeNull();
     expect(screen.getAllByText("Fix upload")).toHaveLength(1);
     expect(screen.getByTestId("goal-row-g-cancel")).toHaveTextContent("已取消");
     // A goal that has not started continues on the approvals page.
