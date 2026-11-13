@@ -36,6 +36,15 @@ function ReadFeedback({ query, label }: {
 
 const RECENT_GOAL_LIMIT = 5;
 
+/** A short greeting by the time of day, the way agent chats open. */
+function greeting(now = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 5) return "夜深了，有什么要做的？";
+  if (hour < 12) return "早上好，今天做点什么？";
+  if (hour < 18) return "下午好，今天做点什么？";
+  return "晚上好，今天做点什么？";
+}
+
 /** "执行窗口：剩 23 小时 · 已开始 1/30 个任务". */
 function windowLine(window: { expires_at: string; tasks_started?: number; tasks_completed: number; max_tasks: number }): string {
   const hours = Math.max(0, Math.round((new Date(window.expires_at).getTime() - Date.now()) / 3_600_000));
@@ -134,16 +143,14 @@ export function HomePage() {
         data-testid="platform-home"
         className="flex min-h-full flex-col bg-ra-workspace"
       >
-        {platform && <UnattendedStatus status={platform} />}
+        {platform && <UnattendedStatus status={platform} quietWhenRunning />}
         <div className="mx-auto my-auto w-full max-w-[784px] px-4 py-10 sm:px-8">
-          <header className="mb-5 text-center">
-            <NerelanMark className="mx-auto mb-4 h-8 w-8 text-ra-text-tertiary" />
-            <h1 className="text-2xl font-medium tracking-[-0.02em] text-ra-text">
-              今天想完成什么？
+          <header className="mb-7 text-center">
+            <h1 className="inline-flex items-center gap-3 text-[32px] font-normal tracking-[-0.02em] text-ra-text">
+              <NerelanMark className="h-7 w-7 text-ra-accent" />
+              {greeting()}
             </h1>
-            <p className="mt-2 text-sm text-ra-text-secondary">
-              给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
-            </p>
+            <p className="sr-only">今天想完成什么？给出最终目标，平台会协调 Agent 完成，并把结果留给你审查。</p>
             {coordinatorStatus}
           </header>
 
@@ -235,7 +242,7 @@ export function HomePage() {
           {detailState ? (
             <span
               data-testid="goal-state-label"
-              className={cn("inline-flex items-center gap-1.5 rounded-full bg-ra-light px-2.5 py-1 font-medium", GOAL_TONE_TEXT[detailState.tone])}
+              className={cn("inline-flex items-center gap-1.5 font-medium", GOAL_TONE_TEXT[detailState.tone])}
             >
               <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", GOAL_TONE_DOT[detailState.tone])} />
               {detailState.label}

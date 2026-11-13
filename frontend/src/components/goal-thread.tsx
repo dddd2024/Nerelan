@@ -46,8 +46,8 @@ function UserMessage() {
   const long = text.length > 220 || text.split("\n").length > 4;
   return (
     <MessagePrimitive.Root className="mb-8 flex justify-end" data-testid="thread-user-message">
-      <div className="max-w-[85%] rounded-3xl bg-ra-tertiary px-4 py-2.5">
-        <div className={cn("whitespace-pre-line text-[15px] leading-7 text-ra-text", long && !open && "line-clamp-4")}>
+      <div className="max-w-[80%] rounded-2xl bg-ra-tertiary px-4 py-3">
+        <div className={cn("whitespace-pre-line text-base leading-[1.75] text-ra-text", long && !open && "line-clamp-4")}>
           <MessagePrimitive.Parts />
         </div>
         {long && (
@@ -63,9 +63,9 @@ function UserMessage() {
 
 /** The agent's words as markdown, styled like an agent chat's prose. Raw HTML is never rendered. */
 const MARKDOWN_COMPONENTS = {
-  p: ({ node: _node, ...props }: { node?: unknown }) => <p className="my-2 text-[15px] leading-7 text-ra-text" {...props} />,
-  ul: ({ node: _node, ...props }: { node?: unknown }) => <ul className="my-2 list-disc space-y-1 pl-5 text-[15px] leading-7 text-ra-text" {...props} />,
-  ol: ({ node: _node, ...props }: { node?: unknown }) => <ol className="my-2 list-decimal space-y-1 pl-5 text-[15px] leading-7 text-ra-text" {...props} />,
+  p: ({ node: _node, ...props }: { node?: unknown }) => <p className="my-2 text-base leading-[1.75] text-ra-text" {...props} />,
+  ul: ({ node: _node, ...props }: { node?: unknown }) => <ul className="my-2 list-disc space-y-1 pl-5 text-base leading-[1.75] text-ra-text" {...props} />,
+  ol: ({ node: _node, ...props }: { node?: unknown }) => <ol className="my-2 list-decimal space-y-1 pl-5 text-base leading-[1.75] text-ra-text" {...props} />,
   h1: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h3 className="mb-1 mt-4 text-base font-semibold text-ra-text" {...props}>{children}</h3>,
   h2: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h3 className="mb-1 mt-4 text-base font-semibold text-ra-text" {...props}>{children}</h3>,
   h3: ({ children, node: _node, ...props }: PropsWithChildren<{ node?: unknown }>) => <h4 className="mb-1 mt-3 text-[15px] font-semibold text-ra-text" {...props}>{children}</h4>,
@@ -100,7 +100,7 @@ function ToolGroup({ children, startIndex, endIndex }: PropsWithChildren<{ start
   const summary = [...counts.entries()].map(([name, n]) => TOOL_VERB[name] ? `${TOOL_VERB[name][0]} ${n} ${TOOL_VERB[name][1]}` : `${n} 个动作`).join("、");
   return (
     <details className="group my-1.5" data-testid="thread-tool-group">
-      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md py-0.5 text-[13px] text-ra-text-secondary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden">
+      <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md py-0.5 text-[13px] text-ra-text-tertiary hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden">
         {summary || "工具调用"}
         <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" aria-hidden="true" />
       </summary>
@@ -121,8 +121,8 @@ function AttemptHeaderPart(props: DataMessagePartProps) {
   const data = props.data as AttemptHeader;
   const [label, tone] = STATE_TEXT[data.state];
   return (
-    <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ra-text-tertiary" data-testid="thread-attempt-header">
-      <span className="font-medium text-ra-text">{data.step}</span>
+    <div className="mb-1.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-xs text-ra-text-tertiary" data-testid="thread-attempt-header">
+      <span className="text-[13px] font-medium text-ra-text-secondary">{data.step}</span>
       {data.attempts > 1 && <span>第 {data.attempt} 次</span>}
       {data.agent && <span>· {data.agent}</span>}
       {data.startedAt && data.state !== "queued" && <span>· {formatRelativeTime(data.startedAt)}</span>}
@@ -200,7 +200,7 @@ function StopPart(props: DataMessagePartProps) {
 
 function AssistantMessage() {
   return (
-    <MessagePrimitive.Root className="mb-8" data-testid="thread-assistant-message">
+    <MessagePrimitive.Root className="mb-10" data-testid="thread-assistant-message">
       <MessagePrimitive.Parts
         components={{
           Text: Prose,

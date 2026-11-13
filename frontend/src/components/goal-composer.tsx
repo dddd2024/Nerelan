@@ -218,7 +218,7 @@ export function GoalComposer({
 
   return (
     <form
-      className="rounded-2xl border border-ra-border bg-ra-input shadow-[var(--ra-shadow-1)] transition-[border-color] focus-within:border-ra-border-strong"
+      className="rounded-3xl border border-ra-border/70 bg-ra-input shadow-[var(--ra-shadow-2)] transition-[border-color,box-shadow] focus-within:border-ra-border-strong"
       onSubmit={async (event) => {
         event.preventDefault();
         if (!ready) return;
@@ -275,12 +275,7 @@ export function GoalComposer({
         />
 
       </div>
-      {/* Docked under a goal the composer is one quiet box; the details live behind 高级. */}
-      {!compact && (
-        <p data-testid="goal-composer-execution-summary" className="break-words px-3 pb-2 text-xs text-ra-text-tertiary">
-          {executionSummary}
-        </p>
-      )}
+      {/* One quiet card, as agent chats have it: the details live behind 高级. */}
       <div className="flex items-center gap-1.5 px-2 pb-2">
         <button
           type="button"
@@ -292,9 +287,9 @@ export function GoalComposer({
           <Settings2 className="h-4 w-4" aria-hidden="true" />
           高级
         </button>
-
-        {/* The editable repository field below already shows the repository. */}
-        <span className="min-w-0 flex-1" aria-hidden="true" />
+        <span data-testid="goal-composer-execution-summary" className="min-w-0 flex-1 truncate text-xs text-ra-text-tertiary" title={executionSummary}>
+          {draft.repository}{compact ? "" : ` · ${executionSummary}`}
+        </span>
         <button
           type="submit"
           disabled={!ready}
@@ -302,7 +297,7 @@ export function GoalComposer({
           aria-describedby={blockedReason ? "goal-composer-blocked" : undefined}
           title={blockedReason ?? "创建并审阅目标"}
           className={cn(
-            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition",
+            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition",
             ready
               ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
               : "bg-ra-tertiary/60 text-ra-text-tertiary",
@@ -324,7 +319,7 @@ export function GoalComposer({
 
       <div
         data-testid="goal-composer-options"
-        hidden={compact && !optionsOpen}
+        hidden={!optionsOpen}
         className="border-t border-ra-border/60 px-3 py-2.5"
       >
         <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">

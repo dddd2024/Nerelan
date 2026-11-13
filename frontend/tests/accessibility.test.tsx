@@ -131,19 +131,19 @@ describe("accessibility", () => {
     expect(screen.getByTestId("body")).toBeInTheDocument();
   });
 
-  const LIGHT_SURFACES = ["#f3f4f6", "#ffffff", "#eff0f3", "#e8eaee", "#f8f9fa"];
-  const DARK_SURFACES = ["#0f1012", "#1e2024", "#17181b", "#131417", "#25272c"];
+  const LIGHT_SURFACES = ["#f4f2ec", "#ffffff", "#efece4", "#ebe7dd", "#f7f5f0", "#faf9f5"];
+  const DARK_SURFACES = ["#1b1b19", "#262624", "#20201e", "#181816", "#2f2e2b"];
 
   it("keeps tertiary text at WCAG AA contrast on every surface it renders on", () => {
     const css = read("src/index.css");
 
-    expect(css).toContain("--ra-text-tertiary: #5c6069;");
-    expect(css).toContain("--ra-text-tertiary: #9599a1;");
+    expect(css).toContain("--ra-text-tertiary: #605c53;");
+    expect(css).toContain("--ra-text-tertiary: #a09d94;");
     for (const surface of LIGHT_SURFACES) {
-      expect(contrastRatio("#5c6069", surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio("#605c53", surface)).toBeGreaterThanOrEqual(4.5);
     }
     for (const surface of DARK_SURFACES) {
-      expect(contrastRatio("#9599a1", surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio("#a09d94", surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 
