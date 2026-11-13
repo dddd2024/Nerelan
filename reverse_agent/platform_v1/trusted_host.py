@@ -1604,6 +1604,7 @@ class CombinedTrustedHost:
                 agent_policy=self._agent_policy(),
                 owner_window_preflight=self._owner_window_admission.preflight,
                 owner_window_activate=self._owner_window_admission.admit_from_card,
+                owner_window_card_request=self._owner_window_admission.card_request,
                 quick_start=self._quick_start(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
