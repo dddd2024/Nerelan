@@ -42,16 +42,20 @@ const TOOL_VERB: Record<string, [string, string]> = {
 
 function UserMessage() {
   const [open, setOpen] = useState(false);
+  const text = useAuiState((state) => state.message.parts.map((part) => ("text" in part ? String(part.text) : "")).join(""));
+  const long = text.length > 220 || text.split("\n").length > 4;
   return (
     <MessagePrimitive.Root className="mb-8 flex justify-end" data-testid="thread-user-message">
       <div className="max-w-[85%] rounded-3xl bg-ra-tertiary px-4 py-2.5">
-        <div className={cn("whitespace-pre-line text-[15px] leading-7 text-ra-text", !open && "line-clamp-4")}>
+        <div className={cn("whitespace-pre-line text-[15px] leading-7 text-ra-text", long && !open && "line-clamp-4")}>
           <MessagePrimitive.Parts />
         </div>
-        <button type="button" onClick={() => setOpen((value) => !value)}
-          className="mt-0.5 text-xs text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
-          {open ? "收起" : "展开全文"}
-        </button>
+        {long && (
+          <button type="button" onClick={() => setOpen((value) => !value)}
+            className="mt-0.5 text-xs text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+            {open ? "收起" : "展开全文"}
+          </button>
+        )}
       </div>
     </MessagePrimitive.Root>
   );
@@ -264,9 +268,16 @@ function GoalPanel({ goal, steps, roles }: { goal: PlatformGoal; steps: Platform
                 <span className="min-w-0 flex-1 truncate font-medium text-ra-text">{stepTitle(step.title, roles.get(step.plan_task_id) ?? step.plan_task_id)}</span>
                 {step.attempts.length > 1 && <span className="text-xs text-ra-text-tertiary">{step.attempts.length} 次</span>}
               </div>
-              <p className="ml-6 mt-0.5 text-xs text-ra-text-tertiary">
-                {functionalStatusLabel(proof.status)} · {publicationText(step.publication, step.publication_blocked)}
-              </p>
+              {(() => {
+                // Only what carries information: a check result, a publication or a reason it won't publish.
+                const facts = [
+                  // A finished step without proof must say so; an unfinished one has nothing to report yet.
+                  proof.status === "VERIFIED" || proof.status === "FAILED" || proof.status === "FIXTURE_VERIFIED"
+                    || state === "review-ready" || state === "fixture-review-ready" ? functionalStatusLabel(proof.status) : "",
+                  step.publication || step.publication_blocked ? publicationText(step.publication, step.publication_blocked) : "",
+                ].filter(Boolean);
+                return facts.length ? <p className="ml-6 mt-0.5 text-xs text-ra-text-tertiary">{facts.join(" · ")}</p> : null;
+              })()}
               {step.publication?.pr_url && (
                 <a href={step.publication.pr_url} target="_blank" rel="noreferrer" className="ml-6 text-xs text-ra-accent hover:underline">
                   打开 PR #{step.publication.pr_number}

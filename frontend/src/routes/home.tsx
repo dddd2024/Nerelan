@@ -202,7 +202,7 @@ export function HomePage() {
       data-testid="platform-home"
       className="flex h-full min-h-0 flex-col bg-ra-workspace"
     >
-      {platform && <UnattendedStatus status={platform} />}
+      {platform && <UnattendedStatus status={platform} quietWhenRunning />}
       <header
         data-testid="active-goal-header"
         className="flex shrink-0 items-center gap-3 border-b border-ra-border px-4 py-2.5 sm:px-5"
@@ -244,7 +244,7 @@ export function HomePage() {
           {activeWindow && detailGoal?.window_id === activeWindow.id ? (
             <span
               data-testid="autonomy-status"
-              className="text-ra-text-tertiary"
+              className="hidden text-ra-text-tertiary sm:inline"
               title="这个目标所在的执行窗口：窗口到期、任务数或 Token 用完就会停下"
             >
               {windowLine(activeWindow)}
