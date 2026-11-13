@@ -22,6 +22,11 @@ const GROUPS: Array<{ id: GoalGroup; title: string; empty?: string; fold?: numbe
 /** Goals that have not run yet continue on the approvals page. */
 const BEFORE_RUN = new Set(["DRAFT", "PLANNED", "APPROVED"]);
 
+function goalLink(goal: PlatformGoal): string {
+  const id = encodeURIComponent(goal.id);
+  return BEFORE_RUN.has(goal.status) ? `/approvals?goal=${id}` : `/?goal=${id}`;
+}
+
 interface Row {
   goal: PlatformGoal;
   /** Older goals for the same issue, newest first. */
@@ -53,7 +58,7 @@ function GoalRow({ goal, older }: Row) {
   const issue = issueRef(goal);
   return (
     <li data-testid={`goal-row-${goal.id}`}>
-      <Link to={BEFORE_RUN.has(goal.status) ? `/approvals?goal=${encodeURIComponent(goal.id)}` : `/?goal=${encodeURIComponent(goal.id)}`}
+      <Link to={goalLink(goal)}
         className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-ra-light/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ra-accent">
         <span aria-hidden="true" className={cn("mt-[7px] h-2 w-2 shrink-0 rounded-full", GOAL_TONE_DOT[state.tone], state.key === "running" && "animate-pulse")} />
         <span className="min-w-0 flex-1">
@@ -64,12 +69,31 @@ function GoalRow({ goal, older }: Row) {
           <span data-testid={`goal-progress-line-${goal.id}`} className={cn("mt-0.5 block truncate text-sm", GOAL_TONE_TEXT[state.tone])}>
             {state.label}{state.detail ? `：${state.detail}` : ""}
           </span>
-          {older.length > 0 && (
-            <span className="mt-0.5 block text-xs text-ra-text-tertiary">之前还有 {older.length} 个同一 Issue 的旧目标</span>
-          )}
         </span>
         <span className="shrink-0 pt-0.5 text-xs tabular-nums text-ra-text-tertiary">{formatRelativeTime(goal.updated_at)}</span>
       </Link>
+      {older.length > 0 && (
+        // Older goals for the same issue stay reachable here (the sidebar and Home show one per issue).
+        <details className="group px-4 pb-2.5 pl-9" data-testid={`goal-older-${goal.id}`}>
+          <summary className="w-fit cursor-pointer list-none text-xs text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden">
+            之前还有 {older.length} 个同一 Issue 的旧目标
+            <ChevronRight className="ml-0.5 inline h-3 w-3 transition-transform group-open:rotate-90" aria-hidden="true" />
+          </summary>
+          <ul className="mt-1 space-y-0.5">
+            {older.map((old) => {
+              const oldState = goalState(old);
+              return (
+                <li key={old.id}>
+                  <Link to={goalLink(old)} className="flex items-baseline gap-2 rounded text-xs hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                    <span className={GOAL_TONE_TEXT[oldState.tone]}>{oldState.label}{oldState.detail ? `：${oldState.detail}` : ""}</span>
+                    <span className="text-ra-text-tertiary">{formatRelativeTime(old.updated_at)}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
     </li>
   );
 }

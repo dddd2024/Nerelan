@@ -74,6 +74,27 @@ describe("goal state", () => {
   });
 });
 
+describe("review findings on #1493", () => {
+  it("calls a PR opened only when one was", () => {
+    const ready = (publication?: unknown) => goalState(goal({ status: "COMPLETED", task_links: [link("READY_FOR_REVIEW", { publication } as Partial<PlatformGoalTaskLink>)] }));
+    expect(ready({ status: "PUSHED", pr_number: 0 }).detail).toBe("执行完成，等你审查结果");
+    expect(ready({ status: "COMPLETE", pr_number: 77 }).detail).toBe("已开 Draft PR，等你审查");
+  });
+
+  it("keeps dashes inside prose and reads ordinary words", () => {
+    expect(objectiveText(goal({ objective: "Use range 1 - 5 here" }))).toBe("Use range 1 - 5 here");
+    expect(stepTitle("Add review endpoint")).toBe("Add review endpoint");
+    expect(humanActivity({ type: "x", title: "", description: "Read the docs first" })).toBe("Read the docs first");
+    expect(humanActivity({ type: "x", title: "", description: "read src/lib/a.ts" })).toBe("正在读 a.ts");
+    expect(tidyDetail("printf 'a\\nb'")).toBe("printf 'a\\nb'");
+    expect(tidyDetail("type src\\lib\\a.ts")).toBe("type src/lib/a.ts");
+  });
+
+  it("puts a blocked goal without steps with the stopped ones", () => {
+    expect(goalState(goal({ status: "BLOCKED", task_links: [] }))).toMatchObject({ group: "stopped" });
+  });
+});
+
 describe("activity in plain words", () => {
   it("reads commands", () => {
     expect(humanCommand("bash python -m pytest -q tests/platform_v1/test_x.py")).toBe("正在跑测试");
