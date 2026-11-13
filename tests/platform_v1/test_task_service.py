@@ -630,6 +630,23 @@ def test_list_tasks_and_events(task_server) -> None:
     assert events["events"][0]["type"] == "DISCOVERED"
 
 
+def test_task_list_carries_counts_not_event_logs(task_server) -> None:
+    """The polled list stays small; a task's page reads its own events."""
+    base, _ = task_server
+    _, created = _req(base, "POST", "/api/tasks", {"title": "t", "executor_kind": "deterministic_fixture"})
+    tid = created["id"]
+    _, listed = _req(base, "GET", "/api/tasks")
+    row = next(t for t in listed["tasks"] if t["id"] == tid)
+    assert row["events"] == [] and row["evidence"] == []
+    assert row["frontend_task"]["activity"] == [] and row["frontend_task"]["evidence"] == []
+    assert row["event_count"] >= 1
+    assert row["status"] == created["status"] and row["frontend_task"]["state"] == created["frontend_task"]["state"]
+
+    _, detail = _req(base, "GET", f"/api/tasks/{tid}")
+    assert detail["events"] and detail["frontend_task"]["activity"]
+    assert detail["event_count"] == len(detail["events"])
+
+
 def test_queue_cancel_http_applies_once_and_exposes_run_activity(task_server) -> None:
     base, server = task_server
     status, created = _req(

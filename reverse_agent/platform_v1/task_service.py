@@ -1136,9 +1136,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
         return revision
 
     def _list_tasks_response(self) -> dict[str, Any]:
-        tasks = self.store.list_tasks(limit=_TASKS_LIMIT)
+        # The list is polled; each task's events and evidence are read from
+        # /api/tasks/<id> when its page opens, so the list carries only counts.
+        tasks = self.store.list_tasks(limit=_TASKS_LIMIT, event_limit=0)
         return {
-            "tasks": [self._task_response(t) for t in tasks],
+            "tasks": [self._task_response(t, list_view=True) for t in tasks],
             "total": self.store.count_tasks(),
         }
 
@@ -1197,7 +1199,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             pass
         return view
 
-    def _task_response(self, task: Any) -> dict[str, Any]:
+    def _task_response(self, task: Any, *, list_view: bool = False) -> dict[str, Any]:
         events = task.events
         if events and isinstance(events[0], Mapping):
             events = [
@@ -1221,6 +1223,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 "base_branch": publication.base_branch,
                 "failure_classification": publication.failure_classification,
             }
+        frontend_task = _map_task_to_frontend(task)
+        if list_view:
+            # Functional status above was derived from the full evidence.
+            frontend_task["activity"] = []
+            frontend_task["evidence"] = []
+            evidence = []
         return {
             "id": task.id,
             "title": task.title,
@@ -1247,9 +1255,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "usage": self.store.usage_summary(task.id),
             "changed_files": list(changed),
             "evidence": list(evidence),
-            "events": self._events_response(events),
+            "events": [] if list_view else self._events_response(events),
+            "event_count": int(getattr(task, "event_count", 0) or 0),
             "publication": publication_view,
-            "frontend_task": _map_task_to_frontend(task),
+            "frontend_task": frontend_task,
         }
 
     def _events_response(self, events: Sequence[Any]) -> list[dict[str, Any]]:
