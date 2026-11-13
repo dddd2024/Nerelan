@@ -7,6 +7,7 @@ import subprocess
 
 from .artifact_handoff import _load_evidence
 from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene
+from .model_availability import EXECUTOR_TERMINATED
 from .run_store import TaskStoreError
 from reverse_agent.executor_neutral.core import _snapshot_workspace, safe_recovery_tree
 
@@ -16,6 +17,8 @@ KINDS = {"target_mismatch", "patch_hygiene"}
 OVERLOAD_KIND = "provider_overloaded"
 OVERLOAD_FEEDBACK = ("The provider was at capacity and your previous turn was cut off. Your workspace "
                      "already contains that attempt's changes: continue from them, do not start over.")
+TERMINATED_FEEDBACK = ("The machine stopped your previous turn (shutdown or a closed console). Your "
+                       "workspace already contains that attempt's changes: continue from them, do not start over.")
 
 
 def attempt_worktree(store, task):
@@ -60,7 +63,8 @@ def retain_interrupted_tree(store, task_id, *, worktree):
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": "",
         "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
-        "feedback": OVERLOAD_FEEDBACK, "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
+        "feedback": TERMINATED_FEEDBACK if task.failure_classification == EXECUTOR_TERMINATED else OVERLOAD_FEEDBACK,
+        "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
         if previous != document:

@@ -24,7 +24,7 @@ test.describe("home workspace", () => {
     await expect(appPage.getByTestId("coordinator-status")).toContainText("协调器在线");
     await expect(appPage.getByText(/能力$/)).toHaveCount(0);
     if (await appPage.evaluate(() => window.innerWidth > 500)) {
-      await expect(appPage.getByTestId("new-task-button")).toBeVisible();
+      await expect(appPage.getByTestId("new-goal-button")).toBeVisible();
       await expect(appPage.getByTestId("toggle-conversation-panel")).toBeVisible();
       await expect(appPage.getByTestId("sidebar-section-recent")).toBeVisible();
       await expect(appPage.getByTestId("sidebar-section-projects")).toBeVisible();
@@ -33,6 +33,26 @@ test.describe("home workspace", () => {
     } else {
       await expect(appPage.getByTestId("mobile-menu-button")).toBeVisible();
     }
+  });
+
+  test("新建目标 leaves a goal thread for a focused empty composer", async ({ appPage }) => {
+    await open(appPage, "/?goal=goal-demo-platform");
+    await settle(appPage);
+    if (await appPage.evaluate(() => window.innerWidth > 500)) {
+      await appPage.getByTestId("new-goal-button").click();
+    } else {
+      await appPage.getByTestId("mobile-menu-button").click();
+      await appPage.getByTestId("mobile-new-goal-button").click();
+    }
+    await expect(appPage.getByRole("heading", { name: "今天想完成什么？" })).toBeVisible();
+    await expect(appPage.getByTestId("goal-composer-section").locator("textarea")).toBeFocused();
+  });
+
+  test("an unknown address says so", async ({ appPage }) => {
+    await open(appPage, "/no-such-page");
+    await settle(appPage);
+    await expect(appPage.getByTestId("not-found-page")).toBeVisible();
+    await expect(appPage.getByRole("heading", { name: "没有这个页面" })).toBeVisible();
   });
 
   test("opens the command palette with the keyboard", async ({ appPage }) => {
@@ -52,7 +72,7 @@ test.describe("home workspace", () => {
     await open(appPage, "/");
     await appPage.getByTestId("mobile-menu-button").click();
     await expect(appPage.getByTestId("mobile-drawer")).toBeVisible();
-    await expect(appPage.getByTestId("mobile-nav-收件箱")).toBeVisible();
+    await expect(appPage.getByTestId("mobile-nav-审批")).toBeVisible();
     await appPage.getByTestId("mobile-drawer-close").click();
     await expect(appPage.getByTestId("mobile-drawer")).toBeHidden();
   });
