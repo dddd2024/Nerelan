@@ -14,6 +14,8 @@ interface GoalComposerProps {
   /** One-line form for the composer docked under a goal thread. */
   compact?: boolean;
   placeholder?: string;
+  /** Changes when the Owner asks for a new goal: the text box takes focus. */
+  focusKey?: unknown;
   busy: boolean;
   onSubmit: (input: StartGoalInput) => Promise<void>;
 }
@@ -123,12 +125,16 @@ export function GoalComposer({
   onSubmit,
   compact = false,
   placeholder = "让 Nerelan 做点什么…",
+  focusKey,
 }: GoalComposerProps) {
   const [draft, setDraft] = useState<GoalComposerDraft>(readDraft);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [bindingTouched, setBindingTouched] = useState(false);
   const draftRef = useRef(draft);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusKey) textareaRef.current?.focus();
+  }, [focusKey]);
 
   const bindingsQuery = useBindings();
   const approvedPolicyQuery = useApprovedPolicy();

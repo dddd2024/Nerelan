@@ -5,12 +5,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { NavLink, useLocation } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { Menu, Plus, X } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { ConversationPanel } from "@/components/conversation-panel";
-import { NewTaskComposer } from "@/components/new-task-composer";
-import { useCreateTask } from "@/hooks/use-tasks";
 import { cn } from "@/lib/cn";
 import { isPrimaryShortcut } from "@/lib/shortcuts";
 
@@ -19,10 +17,10 @@ const DRAWER_LABEL = "导航";
 
 const SIDEBAR_ITEMS: { to: string; label: string }[] = [
   { to: "/", label: "首页" },
-  { to: "/tasks", label: "任务" },
-  { to: "/inbox", label: "收件箱" },
-  { to: "/roadmap", label: "路线图" },
+  { to: "/goals", label: "目标" },
+  { to: "/approvals", label: "审批" },
   { to: "/runs", label: "Agent 运行" },
+  { to: "/tasks", label: "任务" },
   { to: "/accounts", label: "账户" },
   { to: "/settings", label: "设置" },
 ];
@@ -41,17 +39,21 @@ function getNavLabel(to: string): string {
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const createTaskMutation = useCreateTask();
+  const navigate = useNavigate();
   const previousPathnameRef = useRef(location.pathname);
 
   const [conversationPanelOpen, setConversationPanelOpen] = useState(false);
-  const [newTaskComposerOpen, setNewTaskComposerOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<string | null>(null);
+
+  // Every piece of work starts as a goal: "新建" opens the home composer, focused.
+  const startNewGoal = useCallback(() => {
+    navigate("/", { state: { newGoal: Date.now() } });
+  }, [navigate]);
 
   const handleConversationPanelOpen = useCallback(() => {
     setConversationPanelOpen(true);
@@ -177,7 +179,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
     >
       <Sidebar
-        onNewTask={() => setNewTaskComposerOpen(true)}
+        onNewTask={startNewGoal}
         onOpenConversationPanel={handleConversationPanelOpen}
         onConversationPanelClose={handleConversationPanelClose}
         conversationPanelOpen={conversationPanelOpen}
@@ -264,15 +266,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mt-auto flex flex-col gap-2 p-4 border-t border-ra-border/70">
           <button
             type="button"
-            data-testid="mobile-new-task-button"
+            data-testid="mobile-new-goal-button"
             onClick={() => {
               closeDrawer();
-              setNewTaskComposerOpen(true);
+              startNewGoal();
             }}
             className="flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-ra-accent text-ra-base text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent focus-visible:ring-offset-2 focus-visible:ring-offset-ra-base"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            新建任务
+            新建目标
           </button>
           <button
             type="button"
@@ -304,20 +306,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {children}
         </div>
-
-        {newTaskComposerOpen && (
-          <NewTaskComposer
-            open={newTaskComposerOpen}
-            onClose={() => setNewTaskComposerOpen(false)}
-            onSubmit={(input) => createTaskMutation.mutate(input)}
-          />
-        )}
       </div>
 
       <ConversationPanel
         open={conversationPanelOpen}
         onClose={handleConversationPanelClose}
-        onNewTask={() => setNewTaskComposerOpen(true)}
+        onNewTask={startNewGoal}
       />
     </div>
   );
