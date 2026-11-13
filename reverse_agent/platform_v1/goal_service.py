@@ -169,6 +169,21 @@ _FAILURE_EVENT_TYPES = ("EXECUTOR_FINISHED", "VALIDATED")
 _MAX_ATTEMPTS_SHOWN = 10
 
 
+# Owner decision 2026-11-12 B: failures the host classifies as not the model's
+# fault retry on the same model, at most MAX_TRANSIENT_RETRIES per plan step,
+# and never consume the window's max_retries (task count and tokens still apply).
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", "executor_terminated"})
+HOST_RETRY_REASON = "host_retry"
+
+
+def _uses_routing_retry(reason: str) -> bool:
+    """Whether an escalation row spent the window's max_retries (decisions A and B exempt some)."""
+    reason = str(reason or "")
+    if reason in {"transient_overload", "owner_retry"} or reason.startswith(HOST_RETRY_REASON):
+        return False
+    return not LIMIT_HIT.search(reason)  # quota/rate limits are the account's answer, not the model's
+
+
 REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
 
 
@@ -1102,7 +1117,7 @@ class GoalService:
                                 and feedback["review_task_id"] == failed.id):
                             if self._review_intent_hold(failed, review_plan):
                                 continue
-                            if len(history) >= window.max_retries:
+                            if sum(_uses_routing_retry(row.get("reason", "")) for row in history) >= window.max_retries:
                                 self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
                             base = self._approved_base(producer)
@@ -1251,11 +1266,17 @@ class GoalService:
                         continue  # already re-run once on its explicit targets; never a capability signal
                 except (ValueError, TypeError):
                     continue
-            overloaded = not miss and failed.status == "FAILED" and transient_overload(
-                failed.failure_classification, failed.failure_detail)
+            host_failure = (not miss and failed.status == "FAILED"
+                            and failed.failure_classification in HOST_RETRY_CLASSES)
+            overloaded = not miss and failed.status == "FAILED" and (host_failure or transient_overload(
+                failed.failure_classification, failed.failure_detail))
+            transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}" if host_failure
+                                else "transient_overload")
             if overloaded:
-                transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == "transient_overload"
-                                for row in history)
+                # One shared cap per plan step for every not-the-model's-fault retry (decision B).
+                transient = sum(row["plan_task_id"] == plan_task.id and (
+                    row.get("reason") == "transient_overload"
+                    or str(row.get("reason", "")).startswith(HOST_RETRY_REASON)) for row in history)
                 if transient >= MAX_TRANSIENT_RETRIES:
                     overloaded = False  # persistent overload: ordinary routing may move on
                 else:
@@ -1297,7 +1318,10 @@ class GoalService:
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
-            if len(history) >= window.max_retries:
+            # Decision B: only retries that judge the model spend max_retries; host faults,
+            # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
+            exempt = overloaded or interrupted or quota_failure
+            if not exempt and sum(_uses_routing_retry(row.get("reason", "")) for row in history) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
                     self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted",
@@ -1425,7 +1449,9 @@ class GoalService:
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             if overloaded:
                 # Events reach the context packet; evidence detail does not.
-                self.store.add_event(task.id, event_type="VALIDATED", title="Retry after provider overload",
+                self.store.add_event(task.id, event_type="VALIDATED",
+                                     title="Retry after the agent was stopped" if host_failure
+                                     else "Retry after provider overload",
                                      description=(snapshot["feedback"] if snapshot is not None else
                                                   "The provider was at capacity; your previous attempt was cut "
                                                   "off and is not available. Start from the approved base."),
@@ -1439,7 +1465,8 @@ class GoalService:
                 self.store.add_event(task.id, event_type="VALIDATED", title="Contract fix-up required",
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
-            reason = ("contract_fixup" if miss else "transient_overload" if overloaded
+            reason = ("contract_fixup" if miss else transient_reason if overloaded
+                      else f"{HOST_RETRY_REASON}:interrupted" if interrupted
                       else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
