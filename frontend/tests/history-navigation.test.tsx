@@ -82,9 +82,9 @@ describe("Goal history journey", () => {
 });
 
 describe.each(["goals", "runs"] as const)("%s history feedback and navigation", (kind) => {
-  const empty = kind === "goals" ? "这一页没有目标。" : "还没有 Agent 运行记录。";
-  const initialError = kind === "goals" ? "目标历史加载失败" : "暂时无法加载 Agent 运行。";
-  const staleError = kind === "goals" ? "目标历史更新失败，显示上次内容" : "运行列表更新失败，显示上次内容";
+  const empty = kind === "goals" ? "还没有目标。" : "还没有 Agent 运行记录。";
+  const initialError = kind === "goals" ? "目标加载失败" : "暂时无法加载 Agent 运行。";
+  const staleError = kind === "goals" ? "目标更新失败，显示上次内容" : "运行列表更新失败，显示上次内容";
   const saved = kind === "goals" ? "History Goal 0" : "History Run 0";
   const spy = () => kind === "goals" ? vi.mocked(client.fetchGoalsPage) : vi.mocked(client.fetchRunsPage);
 
@@ -108,16 +108,19 @@ describe.each(["goals", "runs"] as const)("%s history feedback and navigation", 
   it("does not show a successful empty result while pending", () => {
     spy().mockImplementation(() => new Promise<never>(() => {}));
     mount(`/${kind}`);
-    expect(screen.getByText(kind === "goals" ? "正在加载目标历史…" : "正在加载 Agent 运行…")).toBeInTheDocument();
+    expect(screen.getByText(kind === "goals" ? "正在加载目标…" : "正在加载 Agent 运行…")).toBeInTheDocument();
     expect(screen.queryByText(empty)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+    // The goals page shows pagination only once there is more than one page.
+    if (kind === "runs") expect(screen.getByRole("button", { name: "下一页" })).toBeDisabled();
+    else expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
   });
 
   it("shows successful empty data truthfully", async () => {
     spy().mockResolvedValue({ items: [], total: 0, next_cursor: null });
     mount(`/${kind}`);
     expect(await screen.findByText(empty)).toBeInTheDocument();
-    expect(screen.getByText(/共 0 条/)).toBeInTheDocument();
+    if (kind === "runs") expect(screen.getByText(/共 0 条/)).toBeInTheDocument();
+    else expect(screen.queryByRole("button", { name: "下一页" })).not.toBeInTheDocument();
   });
 
   it("retries a failed initial page without fabricating an empty result", async () => {

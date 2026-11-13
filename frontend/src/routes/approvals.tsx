@@ -15,6 +15,7 @@ import { useApprovedPolicy, useGoal, useGoals } from "@/hooks/use-platform";
 import { StartCard } from "@/components/start-card";
 import { cn } from "@/lib/cn";
 import { PlanSteps } from "@/components/plan-steps";
+import { goalTitle, issueRef, objectiveText } from "@/lib/goal-view";
 import { bindingLabel, executionModeLabel } from "@/lib/goal-labels";
 import type { GoalStatus, PlatformGoal } from "@/lib/platform-client";
 
@@ -86,6 +87,7 @@ function GoalDetail({
   const cardStart = goal.status === "PLANNED" && !delegated;
   const canApprove = goal.status === "PLANNED" && delegated;
   const canLaunch = goal.status === "APPROVED" && delegated;
+  const issue = issueRef(goal);
   const legacyApproved = goal.status === "APPROVED" && !delegated;
 
   return (
@@ -95,13 +97,22 @@ function GoalDetail({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-ra-text-tertiary">
-            Goal
+          <p className="text-xs font-medium text-ra-text-tertiary">
+            {issue ? (
+              <a href={issue.url} target="_blank" rel="noreferrer" className="hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                目标 · 来自 Issue #{issue.number}
+              </a>
+            ) : "目标"}
           </p>
-          <h2 className="mt-1 text-xl font-semibold text-ra-text">{goal.title}</h2>
-          <p className="ra-measure mt-2 whitespace-pre-line text-sm leading-6 text-ra-text-secondary">
-            {goal.objective}
-          </p>
+          <h2 className="mt-1 text-xl font-semibold text-ra-text" title={goal.title}>{goalTitle(goal, 160)}</h2>
+          <details className="group mt-2">
+            <summary className="cursor-pointer list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden">
+              <p className="ra-measure line-clamp-6 whitespace-pre-line text-sm leading-6 text-ra-text-secondary group-open:line-clamp-none">
+                {objectiveText(goal) || goal.objective}
+              </p>
+              <span className="mt-1 inline-block text-xs text-ra-text-tertiary group-open:hidden">展开全文</span>
+            </summary>
+          </details>
         </div>
         <span className="rounded-full bg-ra-light px-2.5 py-1 text-xs text-ra-text-secondary">
           {STATUS_LABELS[goal.status]}
@@ -370,7 +381,7 @@ export function ApprovalsPage() {
                         : "text-ra-text-secondary hover:bg-ra-light/50",
                     )}
                   >
-                    <span className="block truncate text-sm font-medium">{goal.title}</span>
+                    <span className="block truncate text-sm font-medium" title={goal.title}>{goalTitle(goal)}</span>
                     <span className="mt-1 block text-xs text-ra-text-tertiary">
                       {STATUS_LABELS[goal.status]}
                     </span>

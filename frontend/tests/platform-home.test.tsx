@@ -26,7 +26,7 @@ const COMPLETED_LINKS = [
 
 const BLOCKED_LINKS = [
   { task_id: "t1", plan_task_id: "T001", status: "FAILED", title: "分析目标与代码库" },
-  { task_id: "t2", plan_task_id: "T002", status: "RUNNING", title: "实现协调与恢复链路" },
+  { task_id: "t2", plan_task_id: "T002", status: "QUEUED", title: "实现协调与恢复链路" },
   { task_id: "t3", plan_task_id: "T003", status: "QUEUED", title: "验证并准备证据" },
 ] as const;
 
@@ -182,16 +182,17 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(composer.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it("opens a recent goal as a thread with the composer docked after the transcript", async () => {
+  it("opens a recent goal as a thread without a docked composer", async () => {
     const user = userEvent.setup();
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
     await user.click(await screen.findByRole("button", { name: /完善无人值守多 Agent 平台/ }));
     await waitFor(() => expect(screen.getByText("执行进度")).toBeInTheDocument(), { timeout: 4000 });
     expect(screen.getByTestId("goal-thread-objective")).toBeInTheDocument();
     expect(screen.getByTestId("goal-progress-bar")).toBeInTheDocument();
-    const composer = screen.getByTestId("goal-composer-section");
-    const current = screen.getByTestId("current-execution-section");
-    expect(current.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByTestId("current-execution-section")).toBeInTheDocument();
+    // The composer belongs to the empty home only; goal pages no longer dock it.
+    expect(screen.queryByTestId("goal-composer-section")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("描述最终目标")).not.toBeInTheDocument();
     expect(screen.queryByTestId("recent-goals-section")).not.toBeInTheDocument();
     expect(screen.getByLabelText("返回新目标")).toHaveAttribute("href", "/");
   });
@@ -225,7 +226,7 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => client });
 
     await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
-    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("执行完成，待审查");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("待审查");
     expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-running");
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-running");
     expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
@@ -240,7 +241,7 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => client });
 
     await waitFor(() => expect(screen.getByTestId("goal-state-label")).toBeInTheDocument());
-    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("需要处理阻塞");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("已停下");
     expect(screen.getByTestId("goal-state-label")).toHaveClass("text-ra-status-error");
     expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass("bg-ra-status-error");
   });
@@ -279,7 +280,9 @@ describe("Platform V2 Home Workspace V2", () => {
   });
 
   it("creates an inert Goal for review without activating a window", async () => {
-    await homeReady();
+    // The composer lives on the empty home; goal pages no longer dock it.
+    render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
+    await screen.findByRole("heading", { name: "今天想完成什么？" });
     const create = vi.spyOn(platformClient, "createGoalDraftRecord");
     const automaticStart = vi.spyOn(platformClient, "startGoal");
     const user = userEvent.setup();
@@ -475,15 +478,19 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => c, initialEntries: ["/"] });
 
     const recentSection = await screen.findByTestId("recent-goals-section");
-    const badges = recentSection.querySelectorAll("span");
-    const classes = Array.from(badges).map((el) => el.className);
-    expect(classes.some((cls) => cls.includes("ra-status-running"))).toBe(true);
-    expect(classes.some((cls) => cls.includes("ra-accent"))).toBe(true);
-    expect(classes.some((cls) => cls.includes("ra-status-error"))).toBe(true);
-    expect(within(recentSection).getByText("执行完成，待审查")).toBeVisible();
+    // One state line per row: label, then detail, coloured by tone.
+    const done = within(recentSection).getByTestId("goal-progress-line-goal-completed");
+    const live = within(recentSection).getByTestId("goal-progress-line-goal-running");
+    const stopped = within(recentSection).getByTestId("goal-progress-line-goal-blocked");
+    expect(done).toHaveTextContent(/^待审查：/);
+    expect(done).toHaveClass("text-ra-status-running");
+    expect(live).toHaveTextContent(/^进行中：/);
+    expect(live).toHaveClass("text-ra-accent");
+    expect(stopped).toHaveTextContent(/^已停下：/);
+    expect(stopped).toHaveClass("text-ra-status-error");
     expect(within(recentSection).queryByText("COMPLETED")).not.toBeInTheDocument();
-    expect(within(recentSection).getByText("正在执行")).toHaveAttribute("title", expect.stringContaining("RUNNING"));
-    expect(within(recentSection).getByText("需要处理阻塞")).toHaveAttribute("title", expect.stringContaining("BLOCKED"));
+    // The repository is no longer repeated on every row.
+    expect(recentSection).not.toHaveTextContent("dddd2024/reverse-agent");
   });
 
   it("updates Recent goals completion wording without claiming fixture or missing-proof verification", async () => {
@@ -502,7 +509,7 @@ describe("Platform V2 Home Workspace V2", () => {
     render(<HomePage />, { factory: () => client, initialEntries: ["/"] });
     const recent = within(screen.getByTestId("recent-goals-section"));
     const fixtureRow = recent.getByRole("button", { name: /内置夹具目标/ });
-    expect(within(fixtureRow).getByText("正在执行")).toBeVisible();
+    expect(within(fixtureRow).getByTestId("goal-progress-line-goal-fixture")).toHaveTextContent(/^进行中/);
     const beforeOrder = recent.getAllByRole("button").map((row) => row.querySelector("span > span")?.textContent);
 
     const completedFixture: PlatformGoal = {
@@ -513,11 +520,11 @@ describe("Platform V2 Home Workspace V2", () => {
       client.setQueryData(["goals"], [completedFixture, missing]);
     });
     await waitFor(() => expect(
-      within(recent.getByRole("button", { name: /内置夹具目标/ })).getByText("执行完成，待审查"),
-    ).toBeVisible());
+      within(recent.getByRole("button", { name: /内置夹具目标/ })).getByTestId("goal-progress-line-goal-fixture"),
+    ).toHaveTextContent(/^待审查：/));
     expect(recent.getAllByRole("button").map((row) => row.querySelector("span > span")?.textContent)).toEqual(beforeOrder);
     for (const row of recent.getAllByRole("button")) {
-      expect(within(row).getByText("执行完成，待审查")).toBeVisible();
+      expect(within(row).getByText(/^待审查：/)).toBeVisible();
       expect(within(row).queryByText(/COMPLETED|功能已验证|结果已验证|交付完成/)).not.toBeInTheDocument();
     }
     await userEvent.click(recent.getByRole("button", { name: /证据缺失目标/ }));

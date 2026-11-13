@@ -51,8 +51,8 @@ describe("task-first active Goal workspace", () => {
 
     expect(source).toContain('data-testid="active-goal-header"');
     // The Goal title is still the primary heading; it is now derived through
-    // `displayTitle` so machine-written titles do not become a text wall.
-    expect(source).toContain("displayTitle(detailGoal.title");
+    // `goalTitle` (drops #N and [Tag] prefixes) so machine-written titles do not become a text wall.
+    expect(source).toContain("goalTitle(detailGoal");
     expect(source).toContain('data-testid="active-goal-stream"');
     expect(source).toContain("platform.coordinator.enabled");
     expect(source).toContain('? "sr-only"');

@@ -24,13 +24,14 @@ function status(active: PlatformWindow | null = window, progress: string | null 
 }
 
 describe("UnattendedStatus", () => {
-  it("explains that no window is running", () => {
-    render(<UnattendedStatus status={status(null)} now={now} />);
-    expect(screen.getByRole("status")).toHaveTextContent("当前没有无人值守任务在运行");
+  it("renders nothing when no window is active or recently stopped", () => {
+    const { container } = render(<UnattendedStatus status={status(null)} now={now} />);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(container).toBeEmptyDOMElement();
   });
   it("shows active progress and remaining time", () => {
     render(<UnattendedStatus status={status()} now={now} />);
-    expect(screen.getByRole("status")).toHaveTextContent("运行中 · 剩余 60 分钟 · 已结束 2 个任务 · 上次进展：2 分钟前");
+    expect(screen.getByRole("status")).toHaveTextContent("执行窗口运行中 · 剩 60 分钟 · 已结束 2 个任务 · 上次进展：2 分钟前");
     expect(screen.getByRole("status")).not.toHaveClass("text-ra-status-warning");
   });
   it("warns at the 15 minute boundary", () => {
@@ -66,29 +67,28 @@ describe("UnattendedStatus", () => {
     const stopped = status(null);
     stopped.autonomy.latest_window = { ...window, status: "EXPIRED", stop_reason: code };
     render(<UnattendedStatus status={stopped} now={now} />);
-    expect(screen.getByRole("status")).toHaveTextContent(`无人值守已停止 · ${label}`);
-    expect(screen.getByRole("status")).toHaveTextContent("处理后重新启动或继续目标");
+    expect(screen.getByRole("status")).toHaveTextContent(`执行窗口已停止 · ${label}`);
   });
   it("does not call a window running when the backend no longer reports it active", () => {
     const stale = status(null);
     stale.autonomy.latest_window = { ...window, status: "ACTIVE", stop_reason: "" };
     render(<UnattendedStatus status={stale} now={now} />);
     expect(screen.getByRole("status")).not.toHaveTextContent("运行中");
-    expect(screen.getByRole("status")).toHaveTextContent("无人值守已停止");
+    expect(screen.getByRole("status")).toHaveTextContent("执行窗口已停止");
   });
   it("does not keep an old stop notice forever", () => {
     const stopped = status(null);
     stopped.autonomy.latest_window = { ...window, status: "STOPPED", updated_at: "2026-11-09T12:00:00Z" };
     render(<UnattendedStatus status={stopped} now={now} />);
-    expect(screen.getByRole("status")).toHaveTextContent("当前没有无人值守任务在运行");
+    expect(screen.queryByRole("status")).toBeNull();
   });
-  it("shows a stopped coordinator and stranded goals", () => {
+  it("shows a stopped coordinator without the stranded-goal count", () => {
     const stopped = status();
     stopped.coordinator.enabled = false;
     stopped.coordinator.stranded_goals = [{ goal_id: "goal" }];
     render(<UnattendedStatus status={stopped} now={now} />);
     expect(screen.getByRole("status")).toHaveTextContent("协调器未在接收任务");
-    expect(screen.getByRole("status")).toHaveTextContent("另有 1 个早先的目标没有完成");
+    expect(screen.getByRole("status")).not.toHaveTextContent("早先的目标");
   });
   it("does not count failed tasks as completed or nag about old goals while running", () => {
     const running = status();

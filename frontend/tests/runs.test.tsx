@@ -128,7 +128,7 @@ describe("Agent Runs page", () => {
   it("states the read-model contract in the page copy", () => {
     renderWithProviders(<RunsPage />);
     expect(
-      screen.getByText(/由任务库、目标链接与发布记录派生的只读时间线/),
+      screen.getByText(/每个 Agent 尝试的完整记录，用来排查问题；日常查看进度请打开目标。/),
     ).toBeInTheDocument();
   });
 
@@ -138,19 +138,21 @@ describe("Agent Runs page", () => {
     expect(observed.textContent).toContain("用量 68,420 tokens");
     expect(observed.textContent).toContain("费用 $0.81");
     expect(screen.getByTestId("run-enforcement-task-demo-1").textContent).toBe(
-      "派发前硬预算",
+      "有预算上限",
     );
     expect(within(observed).getByRole("progressbar")).toHaveAttribute(
       "aria-valuemax",
       "240000",
     );
+    expect(screen.getByTestId("run-budget-task-demo-1").textContent).toContain("执行窗口的 Token 预算");
+    expect(screen.getByTestId("run-budget-task-demo-1").textContent).toMatch(/已用约 \d+%/);
     expect(screen.getByTestId("run-usage-overrun-task-demo-1").textContent).toContain(
       "仅在完成后发现",
     );
 
     const unknown = screen.getByTestId("run-usage-task-demo-2");
     expect(screen.getByTestId("run-enforcement-task-demo-2").textContent).toBe(
-      "用量未知，已停派发",
+      "用量未知，已暂停派发",
     );
     expect(within(unknown).queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.getByTestId("run-usage-unknown-task-demo-2").textContent).toContain(
@@ -516,17 +518,17 @@ describe("Agent Runs page", () => {
 
     // The provider-reported cost disclaimer lives once at the page level instead
     // of repeating in every observed row.
-    expect(screen.getByTestId("runs-cost-context").textContent).toContain("成本为 Provider");
-    expect(screen.getByTestId("runs-cost-context").textContent).toContain("不代表免费");
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("用量和费用是本地观测值，不是账单");
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("没有记录的用量不会当成 0");
   });
 
   it("identifies each run by task title in the toggle accessible name", async () => {
     renderWithProviders(<RunsPage />);
     const toggle = await screen.findByTestId("run-toggle-task-demo-1");
     const label = toggle.getAttribute("aria-label") ?? "";
-    expect(label).toMatch(/运行：.*T001 分析目标与代码库/);
+    expect(label).toMatch(/运行：完善无人值守多 Agent 平台 · 分析目标与代码库/);
     expect(label).toContain("等待人工审查");
-    expect(screen.getByText(/T001 分析目标与代码库/)).toBeInTheDocument();
+    expect(screen.getByText(/完善无人值守多 Agent 平台 · 分析目标与代码库/)).toBeInTheDocument();
   });
 
   it("progressively discloses unavailable controls while keeping applicable ones prominent", async () => {

@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, ExternalLink } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
@@ -9,12 +9,9 @@ import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
 import { UnattendedStatus } from "@/components/unattended-status";
 import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
-import { goalStatusLabel } from "@/lib/goal-status-label";
-import { runtimeTitle } from "@/lib/runtime-labels";
-import { displayTitle } from "@/lib/display-title";
 import { cn } from "@/lib/cn";
 import { recentGoals } from "@/components/sidebar";
-import { GOAL_PROGRESS_TONE_CLASS, goalProgressLine } from "@/lib/goal-progress-line";
+import { GOAL_TONE_DOT, GOAL_TONE_TEXT, goalState, goalTitle, issueRef, objectiveText } from "@/lib/goal-view";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -22,13 +19,6 @@ function relativeTime(value: string) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
   return `${Math.floor(seconds / 86400)} 天前`;
-}
-
-function goalStatusTextClass(status: string) {
-  if (status === "COMPLETED") return "text-ra-status-running";
-  if (status === "BLOCKED" || status === "INVALIDATED") return "text-ra-status-error";
-  if (status === "RUNNING") return "text-ra-accent";
-  return "text-ra-text-tertiary";
 }
 
 function ReadFeedback({ query, label }: {
@@ -59,7 +49,7 @@ const OBJECTIVE_CLAMP_THRESHOLD = 140;
 function ObjectiveDisclosure({ objective }: { objective: string }) {
   if (objective.length <= OBJECTIVE_CLAMP_THRESHOLD) {
     return (
-      <p className="ra-measure text-sm leading-5 text-ra-text">
+      <p className="ra-measure whitespace-pre-line text-sm leading-6 text-ra-text">
         {objective}
       </p>
     );
@@ -73,7 +63,7 @@ function ObjectiveDisclosure({ objective }: { objective: string }) {
           "[&::-webkit-details-marker]:hidden",
         )}
       >
-        <p className="ra-measure line-clamp-2 text-sm leading-5 text-ra-text group-open:line-clamp-none">
+        <p className="ra-measure line-clamp-3 whitespace-pre-line text-sm leading-6 text-ra-text group-open:line-clamp-none">
           {objective}
         </p>
         <span className="mt-1 inline-flex items-center gap-1 text-xs text-ra-text-tertiary">
@@ -81,11 +71,20 @@ function ObjectiveDisclosure({ objective }: { objective: string }) {
             className="h-3 w-3 transition-transform group-open:rotate-90"
             aria-hidden="true"
           />
-          展开目标全文
+          <span className="group-open:hidden">展开全文</span>
+          <span className="hidden group-open:inline">收起</span>
         </span>
       </summary>
     </details>
   );
+}
+
+/** "执行窗口：剩 23 小时 · 已开始 1/30 个任务". */
+function windowLine(window: { expires_at: string; tasks_started?: number; tasks_completed: number; max_tasks: number }): string {
+  const hours = Math.max(0, Math.round((new Date(window.expires_at).getTime() - Date.now()) / 3_600_000));
+  const left = hours >= 1 ? `剩 ${hours} 小时` : "即将到期";
+  const started = window.tasks_started ?? window.tasks_completed;
+  return `执行窗口：${left} · 已开始 ${Math.min(started, window.max_tasks)}/${window.max_tasks} 个任务`;
 }
 
 /** "task_unsuccessful:task-…" reads as a sentence; the raw code stays in the tooltip. */
@@ -113,6 +112,8 @@ export function HomePage() {
   const detailQuery = useGoal(selectedId);
   const timelineQuery = useGoalTimeline(selectedId);
   const detailGoal = detailQuery.data;
+  const detailState = detailGoal ? goalState(detailGoal) : null;
+  const detailIssue = detailGoal ? issueRef(detailGoal) : null;
   const recent = useMemo(() => recentGoals(goals, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
   const activeWindow = platform?.autonomy.active_window;
@@ -127,7 +128,7 @@ export function HomePage() {
           : cn("inline-flex items-center gap-1.5 text-xs", statusQuery.isError ? "text-ra-status-error" : "text-ra-text-secondary"),
       )}
     >
-      {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}
+      {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "协调器未运行"}
     </span>
   ) : null;
 
@@ -208,28 +209,25 @@ export function HomePage() {
             )}
             <div className="flex flex-col gap-0.5">
               {recent.map((goal) => {
-                const progress = goalProgressLine(goal);
+                const state = goalState(goal);
                 return (
                 <button
                   type="button"
                   key={goal.id}
                   data-testid={`recent-goal-${goal.id}`}
                   onClick={() => setSelectedId(goal.id)}
-                  title={goal.objective}
                   className="flex min-h-9 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
                 >
+                  <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", GOAL_TONE_DOT[state.tone])} />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-ra-text" title={displayTitle(goal.title, 160)}>
-                      {displayTitle(goal.title)}
+                    <span className="block truncate text-sm text-ra-text" title={goalTitle(goal, 300)}>
+                      {goalTitle(goal)}
                     </span>
-                    <span data-testid={`goal-progress-line-${goal.id}`} className={cn("block truncate text-xs", GOAL_PROGRESS_TONE_CLASS[progress.tone])}>
-                      {progress.text}
+                    <span data-testid={`goal-progress-line-${goal.id}`} className={cn("block truncate text-xs", GOAL_TONE_TEXT[state.tone])}>
+                      {state.label}{state.detail ? `：${state.detail}` : ""}
                     </span>
                   </span>
-                  <span title={runtimeTitle(goal.status)} className={cn("sr-only", goalStatusTextClass(goal.status))}>
-                    {goalStatusLabel(goal.status)}
-                  </span>
-                  <span className="w-16 shrink-0 text-right text-[11px] tabular-nums text-ra-text-tertiary">
+                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-ra-text-tertiary">
                     {relativeTime(goal.updated_at)}
                   </span>
                 </button>
@@ -261,45 +259,38 @@ export function HomePage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[15px] font-semibold leading-6 text-ra-text">
-            {detailGoal ? displayTitle(detailGoal.title, 120) : "目标"}
+          <h1 className="truncate text-[15px] font-semibold leading-6 text-ra-text" title={detailGoal ? goalTitle(detailGoal, 300) : undefined}>
+            {detailGoal ? goalTitle(detailGoal, 120) : "目标"}
           </h1>
           {detailGoal ? (
-            <p className="truncate text-[11px] text-ra-text-tertiary">
-              {detailGoal.repository || "Workspace"}
+            <p className="flex min-w-0 items-center gap-2 truncate text-xs text-ra-text-tertiary">
+              {detailIssue ? (
+                <a href={detailIssue.url} target="_blank" rel="noreferrer" data-testid="goal-issue-link"
+                  className="inline-flex items-center gap-0.5 hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                  Issue #{detailIssue.number}<ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              ) : null}
+              <span className="truncate">{detailGoal.repository}</span>
             </p>
           ) : null}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
-          {detailGoal ? (
+          {detailState ? (
             <span
               data-testid="goal-state-label"
-              className={cn("font-medium", goalStatusTextClass(detailGoal.status))}
-              title={runtimeTitle(detailGoal.status)}
+              className={cn("inline-flex items-center gap-1.5 rounded-full bg-ra-light px-2.5 py-1 font-medium", GOAL_TONE_TEXT[detailState.tone])}
             >
-              {goalStatusLabel(detailGoal.status)}
+              <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", GOAL_TONE_DOT[detailState.tone])} />
+              {detailState.label}
             </span>
           ) : null}
-          {activeWindow ? (
+          {activeWindow && detailGoal?.window_id === activeWindow.id ? (
             <span
               data-testid="autonomy-status"
-              className="inline-flex items-center gap-1.5 text-ra-text-tertiary"
-              title={`自治窗口已完成 ${activeWindow.tasks_completed} 项任务，本窗口上限 ${activeWindow.max_tasks} 项`}
+              className="text-ra-text-tertiary"
+              title="这个目标所在的执行窗口：窗口到期、任务数或 Token 用完就会停下"
             >
-              <Loader2
-                className={cn(
-                  "h-3.5 w-3.5",
-                  activeWindow.status === "ACTIVE" && "animate-spin",
-                )}
-                aria-hidden="true"
-              />
-              {/* The absolute count is cumulative but `max_tasks` is the
-                  per-window budget, so a raw "8/1" ratio asserts an impossible
-                  "8 of 1" once the window has been exceeded. Below the budget
-                  the ratio is denser; above it the ratio is dropped. */}
-              {activeWindow.tasks_completed <= activeWindow.max_tasks
-                ? `自治 ${activeWindow.tasks_completed}/${activeWindow.max_tasks}`
-                : `自治已完成 ${activeWindow.tasks_completed}`}
+              {windowLine(activeWindow)}
             </span>
           ) : null}
           {coordinatorStatus}
@@ -311,13 +302,11 @@ export function HomePage() {
           {notices}
 
           {detailGoal?.objective ? (
-            <div className="mb-5 flex justify-end">
-              <div
-                data-testid="goal-thread-objective"
-                className="max-w-[85%] rounded-2xl rounded-br-md bg-ra-tertiary px-3.5 py-2.5"
-              >
-                <ObjectiveDisclosure objective={detailGoal.objective} />
-              </div>
+            <div data-testid="goal-thread-objective" className="mb-5 rounded-2xl bg-ra-light/60 px-4 py-3">
+              <p className="mb-1 text-xs font-medium text-ra-text-tertiary">
+                {detailIssue ? `目标（来自 Issue #${detailIssue.number}）` : "目标"}
+              </p>
+              <ObjectiveDisclosure objective={objectiveText(detailGoal) || detailGoal.objective} />
             </div>
           ) : null}
 
@@ -355,9 +344,6 @@ export function HomePage() {
         </div>
       </div>
 
-      <div className="shrink-0 px-4 pb-3 pt-1 sm:px-6">
-        <div className="mx-auto w-full max-w-[820px]">{composer(true)}</div>
-      </div>
     </main>
   );
 }

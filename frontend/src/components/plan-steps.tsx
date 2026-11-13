@@ -1,5 +1,6 @@
 import type { PlatformGoal } from "@/lib/platform-client";
 import { quotaFitText, type QuotaFit } from "@/lib/goal-labels";
+import { stepTitle } from "@/lib/goal-view";
 
 type PlanTask = PlatformGoal["tasks"][number];
 
@@ -31,7 +32,7 @@ export function PlanSteps({ goal }: { goal: PlatformGoal & { quota_fit?: QuotaFi
             return (
               <li key={task.id} data-testid={`plan-step-${task.id}`} className="rounded-xl border border-ra-border bg-ra-light/30 p-4">
                 <p className="text-sm font-medium text-ra-text">
-                  <span className="mr-2 text-ra-text-tertiary">第 {index + 1} 步</span>{task.title}
+                  <span className="mr-2 text-ra-text-tertiary">第 {index + 1} 步</span>{stepTitle(task.title, task.agent_role)}
                 </p>
                 {task.instruction ? (
                   <p className="mt-2 whitespace-pre-line text-sm leading-6 text-ra-text-secondary">{task.instruction}</p>
