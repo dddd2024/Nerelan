@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchGoal,
   fetchGoalTimeline,
+  retryGoalStep,
   fetchGoals,
   fetchPlatformStatus,
   fetchAccountPool,
@@ -94,6 +95,19 @@ export function useGoalTimeline(goalId: string | undefined) {
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+  });
+}
+
+export function useRetryGoalStep(goalId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planTaskId, revision, bindingRef }: { planTaskId: string; revision: number; bindingRef?: string }) =>
+      retryGoalStep(goalId, planTaskId, revision, bindingRef),
+    onSuccess: (goal) => {
+      queryClient.setQueryData(["goals", goal.id], goal);
+      void queryClient.invalidateQueries({ queryKey: ["goals", goal.id] });
+      void queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
   });
 }
 

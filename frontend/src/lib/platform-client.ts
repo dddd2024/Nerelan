@@ -167,6 +167,20 @@ export interface PlatformGoalTimeline {
   goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
   plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
   steps: PlatformTimelineStep[];
+  /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
+  retry?: PlatformRetryOptions;
+}
+
+export interface PlatformRetryOptions {
+  available: boolean;
+  /** Why not, e.g. owner_retry_no_active_window. */
+  reason: string;
+  revision: number;
+  /** Models the Owner confirmed for the window; empty when only the automatic choice is offered. */
+  pool: Array<{ binding_ref: string; model_id: string; executor_id: string }>;
+  /** Free retries left per plan step for failures that were not the model's (decision B). */
+  automatic_retries_left: Record<string, number>;
+  routing_retries_left: number;
 }
 
 export interface PlatformTimelineStep {
@@ -1301,6 +1315,15 @@ export async function startAgentPlan(goalId: string, expectedRevision: number): 
 
 export async function fetchAgentPlanStatus(goalId: string): Promise<AgentPlanStatus> {
   return request<AgentPlanStatus>(`/api/goals/${encodeURIComponent(goalId)}/agent-plan`);
+}
+
+/** Owner retry of a stopped step inside the goal's active window; an empty bindingRef lets the router choose. */
+export async function retryGoalStep(goalId: string, planTaskId: string, revision: number,
+  bindingRef = ""): Promise<PlatformGoal> {
+  return request<PlatformGoal>(
+    `/api/goals/${encodeURIComponent(goalId)}/tasks/${encodeURIComponent(planTaskId)}/retry`, {
+      method: "POST", body: JSON.stringify({ expected_revision: revision, binding_ref: bindingRef }),
+    });
 }
 
 export async function fetchGoalTimeline(goalId: string): Promise<PlatformGoalTimeline> {

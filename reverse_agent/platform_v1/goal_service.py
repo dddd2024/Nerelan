@@ -169,6 +169,48 @@ _FAILURE_EVENT_TYPES = ("EXECUTOR_FINISHED", "VALIDATED")
 _MAX_ATTEMPTS_SHOWN = 10
 
 
+# Owner decision 2026-11-12 B: failures the host classifies as not the model's
+# fault retry on the same model, at most MAX_TRANSIENT_RETRIES per plan step,
+# and never consume the window's max_retries (task count and tokens still apply).
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED})
+HOST_RETRY_REASON = "host_retry"
+OWNER_RETRY_REASON = "owner_retry"
+
+
+def _non_model_reason(reason: Any) -> bool:
+    """An escalation that retried after a failure that was not the model's (decision B)."""
+    reason = str(reason or "")
+    return (reason in {"transient_overload", EXECUTOR_TERMINATED} or reason.startswith(HOST_RETRY_REASON)
+            or bool(LIMIT_HIT.search(reason)))  # quota/rate limits are the account's answer
+
+
+def _free_retries_used(history: Sequence[Mapping[str, Any]], plan_task_id: str) -> int:
+    """Non-model retries this plan step has used; all of them share one cap of MAX_TRANSIENT_RETRIES."""
+    return sum(row["plan_task_id"] == plan_task_id and _non_model_reason(row.get("reason")) for row in history)
+
+
+def _routing_retries_spent(history: Sequence[Mapping[str, Any]]) -> int:
+    """Escalations that spent the window's max_retries.
+
+    Decision B: the first MAX_TRANSIENT_RETRIES non-model retries of each plan step
+    are free; any beyond that cap spend max_retries like a model failure. Owner
+    retries (decision A) never do. Task count and tokens still bound all of them.
+    """
+    free: dict[str, int] = {}
+    spent = 0
+    for row in history:
+        reason = row.get("reason")
+        if reason == OWNER_RETRY_REASON:
+            continue
+        if _non_model_reason(reason):
+            used = free.get(row["plan_task_id"], 0)
+            free[row["plan_task_id"]] = used + 1
+            if used < MAX_TRANSIENT_RETRIES:
+                continue
+        spent += 1
+    return spent
+
+
 REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
 
 
@@ -1102,7 +1144,7 @@ class GoalService:
                                 and feedback["review_task_id"] == failed.id):
                             if self._review_intent_hold(failed, review_plan):
                                 continue
-                            if len(history) >= window.max_retries:
+                            if _routing_retries_spent(history) >= window.max_retries:
                                 self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
                             base = self._approved_base(producer)
@@ -1153,7 +1195,7 @@ class GoalService:
                     producer = self.store.get_task(links[source_id]["task_id"])
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
-                    if len(rounds) + 1 >= self.max_review_rounds or len(history) + 2 > window.max_retries:
+                    if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history) + 2 > window.max_retries:
                         self.store.block_model_selection(failed.id, decision={"reason":
                             "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
                         continue
@@ -1251,17 +1293,19 @@ class GoalService:
                         continue  # already re-run once on its explicit targets; never a capability signal
                 except (ValueError, TypeError):
                     continue
-            # The machine stopped the agent (shutdown, closed console): like provider
-            # overload it is neither the model's failure nor capability evidence, so
-            # the same model resumes from the retained tree after a backoff.
-            terminated = (not miss and failed.status == "FAILED"
-                          and failed.failure_classification == EXECUTOR_TERMINATED)
-            overloaded = not miss and failed.status == "FAILED" and (terminated or transient_overload(
+            # The host stopped the agent (shutdown, closed console, stall with no output):
+            # like provider overload it is neither the model's failure nor capability
+            # evidence, so the same model resumes from the retained tree after a backoff.
+            host_failure = (not miss and failed.status == "FAILED"
+                            and failed.failure_classification in HOST_RETRY_CLASSES)
+            overloaded = not miss and failed.status == "FAILED" and (host_failure or transient_overload(
                 failed.failure_classification, failed.failure_detail))
-            transient_reason = EXECUTOR_TERMINATED if terminated else "transient_overload"
+            transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}" if host_failure
+                                else "transient_overload")
+            # One shared cap per plan step for every not-the-model's-fault retry (decision B).
+            free_used = _free_retries_used(history, plan_task.id)
             if overloaded:
-                transient = sum(row["plan_task_id"] == plan_task.id and row.get("reason") == transient_reason
-                                for row in history)
+                transient = free_used
                 if transient >= MAX_TRANSIENT_RETRIES:
                     overloaded = False  # persistent overload: ordinary routing may move on
                 else:
@@ -1303,7 +1347,11 @@ class GoalService:
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
-            if len(history) >= window.max_retries:
+            # Decision B: only retries that judge the model spend max_retries; host faults,
+            # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
+            # All of them share the per-step cap; past it they spend max_retries too.
+            exempt = (overloaded or interrupted or quota_failure) and free_used < MAX_TRANSIENT_RETRIES
+            if not exempt and _routing_retries_spent(history) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
                     self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted",
@@ -1432,9 +1480,11 @@ class GoalService:
             if overloaded:
                 # Events reach the context packet; evidence detail does not.
                 cause = ("The machine stopped your previous attempt (shutdown or closed console)"
-                         if terminated else "The provider was at capacity")
+                         if failed.failure_classification == EXECUTOR_TERMINATED
+                         else "Your previous attempt stopped producing output" if host_failure
+                         else "The provider was at capacity")
                 self.store.add_event(task.id, event_type="VALIDATED",
-                                     title="Retry after the agent was stopped" if terminated
+                                     title="Retry after the agent was stopped" if host_failure
                                      else "Retry after provider overload",
                                      description=(snapshot["feedback"] if snapshot is not None else
                                                   cause + "; your previous attempt was cut "
@@ -1450,6 +1500,7 @@ class GoalService:
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             reason = ("contract_fixup" if miss else transient_reason if overloaded
+                      else f"{HOST_RETRY_REASON}:interrupted" if interrupted
                       else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
@@ -1461,6 +1512,175 @@ class GoalService:
         if outcomes:
             self.control_store.refresh_goal_status(goal_id)
         return tuple(outcomes)
+
+    def _owner_window_pool(self, goal: Any, window_id: str) -> tuple[Mapping[str, Any], ...] | None:
+        """Pool entries the Owner confirmed for this Goal's window; None when it is not an Owner window."""
+        from .control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+        with self.store._lock:
+            row = self.store._conn.execute(
+                "SELECT confirmation_mode FROM platform_autonomous_windows WHERE id = ?", (window_id,)).fetchone()
+            if row is None or row["confirmation_mode"] != OWNER_WINDOW_MODE:
+                return None
+            rows = self.store._conn.execute(
+                "SELECT evidence_json FROM platform_operation_receipts WHERE subject_id = ? AND window_id = ? "
+                "AND operation_type = ? AND decision = 'allowed' AND confirmation_mode = ?",
+                (goal.id, window_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
+        if len(rows) != 1:
+            raise TaskStoreError("owner_retry_window_receipt_invalid")
+        try:
+            pool = json.loads(rows[0]["evidence_json"])["approved_pool"]
+            return tuple({**entry, "binding_ref": str(entry["binding_ref"])} for entry in pool)
+        except (ValueError, KeyError, TypeError) as exc:
+            raise TaskStoreError("owner_retry_window_receipt_invalid") from exc
+
+    def retry_options(self, goal_id: str) -> dict[str, Any]:
+        """Read-only: whether the Owner can retry now, the models to pick from, and automatic retries left."""
+        goal = self.control_store.get_goal(goal_id)
+        options: dict[str, Any] = {"available": False, "reason": "", "revision": goal.revision, "pool": [],
+                                   "automatic_retries_left": {}, "routing_retries_left": 0}
+        if goal.orchestration_mode != "agent_team":
+            options["reason"] = "owner_retry_not_agent_team"
+            return options
+        window = self.control_store.get_window(goal.window_id) if goal.window_id else None
+        if window is None or window.status != "ACTIVE" or not self.store._conn.execute(
+                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
+                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+            options["reason"] = "owner_retry_no_active_window"
+            return options
+        history = self.control_store.list_task_escalations(goal_id)
+        options["routing_retries_left"] = max(0, window.max_retries - _routing_retries_spent(history))
+        options["automatic_retries_left"] = {
+            str(item.get("id")): max(0, MAX_TRANSIENT_RETRIES - _free_retries_used(history, str(item.get("id"))))
+            for item in goal.tasks if isinstance(item, Mapping)}
+        try:
+            pool = self._owner_window_pool(goal, window.id) or ()
+        except TaskStoreError:
+            pool = ()  # owner_retry refuses a model pick then; the automatic choice is still offered
+        options["pool"] = [{key: str(entry.get(key, "")) for key in ("binding_ref", "model_id", "executor_id")}
+                           for entry in pool]
+        options["available"] = True
+        return options
+
+    def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
+                    binding_ref: str = "") -> dict[str, Any]:
+        """Owner decision 2026-11-12 A: the Owner retries a stopped plan step in the Goal's active window.
+
+        The model is the router's choice (``binding_ref`` empty) or one the Owner picks;
+        either must be in the window's confirmed pool. The retry starts from the approved
+        base, counts against the window's task count and tokens when it starts, never
+        spends ``max_retries`` and never widens the window. No active window: refused.
+        """
+        goal = self.control_store.get_goal(goal_id)
+        if goal.revision != expected_revision:
+            raise TaskStoreError("goal_revision_conflict")
+        if goal.orchestration_mode != "agent_team":
+            raise TaskStoreError("owner_retry_not_agent_team")  # only planned steps have attempts to retry
+        if not goal.window_id:
+            raise TaskStoreError("owner_retry_no_active_window")
+        window = self.control_store.get_window(goal.window_id)
+        if window.status != "ACTIVE" or not self.store._conn.execute(
+                "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
+                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+            raise TaskStoreError("owner_retry_no_active_window")
+        planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
+        plan_task = planned.get(plan_task_id)
+        link = next((row for row in self.control_store.list_goal_tasks(goal_id)
+                     if row["plan_task_id"] == plan_task_id and int(row["goal_revision"]) == goal.revision), None)
+        if plan_task is None or link is None:
+            raise TaskStoreError("owner_retry_step_not_found")
+        if plan_task.validation_command_id:
+            raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
+        if link["status"] not in {"FAILED", "BLOCKED"}:
+            raise TaskStoreError("owner_retry_step_not_stopped")
+        failed = self.store.get_task(link["task_id"])
+        if _explicit_cleanup_uncertainty(failed):
+            raise TaskStoreError("owner_retry_cleanup_unconfirmed")  # the host skips these too
+        if self._review_intent_hold(failed, plan_task):
+            raise TaskStoreError("owner_retry_review_unresolved")  # never authorize a second reviewer call
+        if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
+            raise TaskStoreError("owner_retry_step_recovering")
+        entries = self._owner_window_pool(goal, window.id)
+        pool = None if entries is None else {entry["binding_ref"] for entry in entries}
+        binding_ref = str(binding_ref or "").strip()
+        if binding_ref and pool is None:
+            raise TaskStoreError("owner_retry_model_choice_unavailable")  # no Owner-confirmed pool to pick from
+        if binding_ref and binding_ref not in pool:
+            raise TaskStoreError("owner_retry_model_outside_window")
+        history = self.control_store.list_task_escalations(goal_id)
+        previous = [row for row in history if row["plan_task_id"] == plan_task.id]
+        role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
+        decision = None
+        if self.task_resolver is not None:
+            # The Owner's pick is a pin, so the router still checks it is runnable and records its evidence.
+            routed_goal = replace(goal, binding_ref=binding_ref) if binding_ref else goal
+            decision = self.task_resolver(plan_task, goal=routed_goal, failed_binding="",
+                                          **self._review_authors(plan_task, goal, planned))
+            if binding_ref and decision.get("binding_ref") != binding_ref:
+                raise TaskStoreError("owner_retry_model_unavailable")
+            if pool is not None and decision["binding_ref"] not in pool:
+                raise TaskStoreError("owner_retry_no_model_in_window")
+            binding_ref, executor_kind = decision["binding_ref"], decision["executor_kind"]
+        elif binding_ref:
+            raise TaskStoreError("owner_retry_model_choice_unavailable")
+        elif self.roster_resolver is not None:
+            executor_kind, binding_ref = self.roster_resolver(role)
+            if pool is not None and binding_ref not in pool:
+                raise TaskStoreError("owner_retry_no_model_in_window")
+        else:
+            raise TaskStoreError("owner_retry_no_model_in_window")
+        native = executor_kind in {"codex", "claude_code"}
+        base = self._approved_base(failed)
+        if not base and native:
+            base = repository_base(goal.repository)
+        step = len(previous) + 1
+        from .contract_recovery import record_attempt_disposition
+        # Routing ran outside the write lock; re-check that nothing (the host's own
+        # escalation, a second click) moved this step on before creating the attempt.
+        with self.store._lock:
+            owns_transaction = not self.store._conn.in_transaction
+            if owns_transaction:
+                self.store._conn.execute("BEGIN IMMEDIATE")
+            try:
+                current = next((row for row in self.control_store.list_goal_tasks(goal_id)
+                                if row["plan_task_id"] == plan_task_id
+                                and int(row["goal_revision"]) == goal.revision), None)
+                if (current is None or current["task_id"] != failed.id
+                        or current["status"] not in {"FAILED", "BLOCKED"}
+                        or self.control_store.get_goal(goal_id).revision != goal.revision):
+                    raise TaskStoreError("owner_retry_step_not_stopped")
+                record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
+                task = self.store.create_task(
+                    title=self._execution_title(goal, plan_task), repository=goal.repository,
+                    executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native else "",
+                    permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
+                    idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
+                    orchestration_mode="single",
+                )
+                if decision is not None:
+                    self._record_model_selection(task, decision)
+                freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+                freeze_required_artifacts(self.store, task, goal=goal, plan_task=plan_task)
+                freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=base)
+                # A retried review repair keeps its findings and restored input, as the host's own retry does,
+                # so the repaired work still goes back to a fresh review.
+                from .artifact_handoff import _load_evidence
+                repair = _load_evidence(failed, "ReviewRepair", failed.execution_id)
+                if repair is not None:
+                    self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
+                                                     document=repair)
+                self.control_store.escalate_goal_task(
+                    goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
+                    to_task_id=task.id, from_role=role, to_role=role, reason=OWNER_RETRY_REASON)
+                if owns_transaction:
+                    self.store._conn.execute("COMMIT")
+            except BaseException:
+                if owns_transaction:
+                    self.store._conn.execute("ROLLBACK")
+                raise
+        self.control_store.refresh_goal_status(goal_id)
+        return {"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
+                "binding_ref": binding_ref, "executor_kind": executor_kind, "step": step,
+                "reason": OWNER_RETRY_REASON}
 
     def _record_model_selection(self, task: Any, decision: Mapping[str, Any]) -> None:
         if any(event.type == "MODEL_SELECTED" for event in self.store.get_events(task.id)):

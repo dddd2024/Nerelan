@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import type {
   PlatformGoal,
   PlatformGoalTimeline,
+  PlatformRetryOptions,
   PlatformRunActivityEvent,
   PlatformTimelineAttempt,
   PlatformTimelineStep,
@@ -13,6 +14,7 @@ import { displayTitle } from "@/lib/display-title";
 import { formatRelativeTime } from "@/lib/format";
 import { functionalStatusLabel, normalizeFunctionalValidation } from "@/lib/functional-validation";
 import { FunctionalValidationView } from "@/components/functional-validation";
+import { StepRetry } from "@/components/step-retry";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { collapseRepeats, eventDetail, failureText, meaningfulEvents, modelName, readableAgent } from "@/lib/run-explain";
 import {
@@ -293,7 +295,10 @@ function StepIcon({ state }: { state: string }) {
   );
 }
 
-function StepBlock({ step }: { step: PlatformTimelineStep }) {
+/** Stopped attempts the Owner can retry (the host refuses others). */
+const RETRYABLE = new Set(["FAILED", "BLOCKED"]);
+
+function StepBlock({ step, goalId, retry }: { step: PlatformTimelineStep; goalId: string; retry?: PlatformRetryOptions }) {
   const current = latestAttempt(step);
   const state = statusFor(current?.status ?? step.status);
   const executor = (current?.status ?? "").endsWith("_FIXTURE") ? "deterministic_fixture" : current?.executor_kind;
@@ -329,6 +334,9 @@ function StepBlock({ step }: { step: PlatformTimelineStep }) {
       <ol className="ml-2 mt-3" aria-label="尝试">
         {step.attempts.map((attempt) => <AttemptBlock key={attempt.task_id} attempt={attempt} total={step.attempts.length} />)}
       </ol>
+      {retry && RETRYABLE.has(current?.status ?? "") && (
+        <StepRetry goalId={goalId} planTaskId={step.plan_task_id} options={retry} />
+      )}
       <details className="ml-7 mb-1 text-xs text-ra-text-secondary">
         <summary className="min-h-6 w-fit cursor-pointer rounded underline-offset-4 hover:text-ra-text hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">查看功能检查</summary>
         <FunctionalValidationView evidence={proof} executor={executor} />
@@ -412,7 +420,7 @@ export function GoalTimeline({ goal, timeline }: { goal: PlatformGoal; timeline?
             </li>
           ))}
         </ol>
-      ) : steps.map((step) => <StepBlock key={step.plan_task_id} step={step} />)}
+      ) : steps.map((step) => <StepBlock key={step.plan_task_id} step={step} goalId={goal.id} retry={timeline?.retry} />)}
       <p className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs leading-5 text-ra-text-tertiary">
         <span>执行完成不代表功能验证或交付完成；远端审查、合并与交付另行确认。</span>
         {steps.length > 0 && (

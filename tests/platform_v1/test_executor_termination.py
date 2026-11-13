@@ -10,6 +10,7 @@ from test_goal_functional_checks import goal_checks  # noqa: F401 (fixture)
 import reverse_agent.platform_v1.contract_recovery as recovery
 
 TERMINATED = model_availability.EXECUTOR_TERMINATED
+RETRY_REASON = f"{gs.HOST_RETRY_REASON}:{TERMINATED}"
 # Seen on the run host 2026-11-12: OpenCode killed by a Start-menu shutdown.
 SHUTDOWN_EXIT = 1073807364
 
@@ -55,7 +56,7 @@ def test_termination_resumes_same_binding_from_the_retained_tree(case, tmp_path)
         raise AssertionError("a stopped agent must not run capability selection")
     service.task_resolver = forbidden
     [step] = service.escalate_failed_tasks(goal.id)
-    assert step["reason"] == TERMINATED
+    assert step["reason"] == RETRY_REASON
     retry = store.get_task(step["to_task_id"])
     assert (retry.binding_ref, retry.executor_kind) == (task.binding_ref, task.executor_kind)
     binding = recovery.recovery_input(retry)
@@ -78,7 +79,7 @@ def test_termination_waits_for_backoff(case, monkeypatch):
     assert store.count_tasks() == count
     monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
     [step] = service.escalate_failed_tasks(goal.id)
-    assert step["reason"] == TERMINATED
+    assert step["reason"] == RETRY_REASON
 
 
 def test_repeated_termination_falls_back_to_ordinary_routing(case, monkeypatch):
@@ -86,4 +87,4 @@ def test_repeated_termination_falls_back_to_ordinary_routing(case, monkeypatch):
     monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
     _fail_terminated(store, task, root)
     [step] = service.escalate_failed_tasks(goal.id) or [None]
-    assert step is None or step["reason"] != TERMINATED
+    assert step is None or step["reason"] != RETRY_REASON
