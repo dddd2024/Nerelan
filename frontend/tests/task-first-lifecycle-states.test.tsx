@@ -63,12 +63,13 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(state).toHaveClass("text-ra-status-running");
     expect(state).not.toHaveTextContent("进行中");
 
+    // Every step's turn reads done; nothing claims verification.
     await waitFor(() => {
-      expect(screen.getByTestId("goal-progress-summary")).toHaveTextContent("3/3");
+      const headers = screen.getAllByTestId("thread-attempt-header");
+      expect(headers).toHaveLength(3);
+      for (const header of headers) expect(header.lastElementChild).toHaveTextContent(/^完成$/);
     });
-    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass(
-      "bg-ra-status-running",
-    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByText("结果已验证")).not.toBeInTheDocument();
   });
 
@@ -89,9 +90,13 @@ describe("task-first lifecycle-state convergence before R3 visual acceptance", (
     expect(state).not.toHaveTextContent("进行中");
     expect(state).toHaveClass("text-ra-status-error");
     expect(state).not.toHaveClass("text-ra-accent");
-    expect(screen.getByTestId("goal-progress-bar").firstElementChild).toHaveClass(
-      "bg-ra-status-error",
-    );
+    // One error treatment: the stopped attempt's alert, and no turn still running.
+    await waitFor(() => expect(screen.getAllByTestId("thread-attempt-header")).toHaveLength(3));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByTestId("thread-stop")).toHaveAttribute("role", "alert");
+    const states = screen.getAllByTestId("thread-attempt-header").map((header) => header.lastElementChild?.textContent);
+    expect(states).not.toContain("进行中");
+    expect(states).toContain("停下");
   });
 
   it("keeps GoalProgress color contracts while distinguishing real and fixture review-ready states", () => {

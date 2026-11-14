@@ -7,6 +7,19 @@ It also incorporates a bounded pinned direct source fork of selected
 presentation/layout files from Agent Canvas v1.6.1, licensed under the MIT
 License. The MIT terms reproduced below apply to those two attributions.
 
+## assistant-ui (@assistant-ui/react 0.15.32, @assistant-ui/react-markdown 0.14.24)
+
+**Repository:** https://github.com/assistant-ui/assistant-ui
+**License:** MIT
+
+Installed as npm dependencies for the goal page's agent-conversation view
+(`frontend/src/components/goal-thread.tsx`), not vendored. Only presentation
+primitives and the external-store runtime are used over Nerelan's own goal
+timeline; the transitive `assistant-cloud` and `assistant-stream` packages are
+not imported or configured, and no model or network call is made through them.
+Transitive packages and their licences are recorded in
+`frontend/package-lock.json`.
+
 ## cmdk 1.1.1
 
 **Repository:** https://github.com/pacocoursey/cmdk

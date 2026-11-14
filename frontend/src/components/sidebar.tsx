@@ -4,7 +4,6 @@ import {
   Bot,
   ChevronLeft,
   ChevronRight,
-  Folder,
   ListChecks,
   Plus,
   Search,
@@ -89,10 +88,15 @@ function persistCollapsed(collapsed: boolean) {
 // the agents' runs, then the raw tasks. Inbox and roadmap stay one search away.
 const PRIMARY_ROUTES = [
   { to: "/goals", label: "目标", icon: Target },
+] as const;
+
+/** Everything else lives behind one menu, the way agent chats keep their sidebar to the conversations. */
+const MENU_ROUTES = [
   { to: "/approvals", label: "审批", icon: ShieldCheck },
-  { to: "/runs", label: "Agent 运行", icon: Bot },
+  { to: "/runs", label: "运行记录", icon: Bot },
   { to: "/tasks", label: "任务", icon: ListChecks },
   { to: "/accounts", label: "账户", icon: Users },
+  { to: "/settings", label: "设置", icon: Settings },
 ] as const;
 
 /** One label for the host state; an error never reads as a healthy green dot. */
@@ -110,11 +114,6 @@ function hostStatus(coordinator: { enabled: boolean; last_error: string } | unde
 function timestamp(value: string) {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function projectLabel(repository: string) {
-  const pieces = repository.split("/").filter(Boolean);
-  return pieces.at(-1) ?? repository;
 }
 
 function SidebarAction({
@@ -214,20 +213,7 @@ export function Sidebar({
   }, []);
 
   const recent = useMemo(() => recentGoals(goals), [goals]);
-
-  const projects = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          goals
-            .map((goal) => goal.repository?.trim() ?? "")
-            .filter((repository) => repository.length > 0),
-        ),
-      ).slice(0, 5),
-    [goals],
-  );
-
-  const selectedRepository = new URLSearchParams(location.search).get("repository");
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const logo = (
     <button
@@ -321,18 +307,6 @@ export function Sidebar({
                       <Icon className="h-4 w-4" />
                     </span>
                     <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>{item.label}</span>
-                    {item.to === "/accounts" && urgentAlerts > 0 ? (
-                      <span
-                        data-testid="sidebar-alert-count"
-                        aria-label={`${urgentAlerts} 条账户告警`}
-                        className={cn(
-                          "shrink-0 text-[11px] tabular-nums",
-                          criticalAlert ? "text-ra-status-error" : "text-ra-status-warning",
-                        )}
-                      >
-                        {urgentAlerts}
-                      </span>
-                    ) : null}
                   </>
                 )
               }
@@ -396,46 +370,13 @@ export function Sidebar({
         </div>
       </section>
 
-      <section aria-label="项目" className="mt-2">
-        <SectionLabel testId="sidebar-section-projects">项目</SectionLabel>
-        <div className="flex flex-col gap-0.5">
-          {projects.length > 0 ? (
-            projects.map((repository) => {
-              const selected =
-                location.pathname === "/tasks" && selectedRepository === repository;
-              return (
-                <Link
-                  key={repository}
-                  to={`/tasks?repository=${encodeURIComponent(repository)}`}
-                  data-testid={`sidebar-project-${repository}`}
-                  data-selected={String(selected)}
-                  className={cn(
-                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md px-2.5 text-[12px] leading-4",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    selected
-                      ? "font-medium text-ra-text"
-                      : "text-ra-text-tertiary hover:bg-ra-tertiary hover:text-ra-text-secondary",
-                  )}
-                  title={repository}
-                >
-                  <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{projectLabel(repository)}</span>
-                </Link>
-              );
-            })
-          ) : !isError ? (
-            <p className="px-2.5 py-1 text-[11px] text-ra-text-tertiary">
-              {isLoading ? "正在加载项目…" : "暂无项目"}
-            </p>
-          ) : null}
-        </div>
-      </section>
     </>
   );
 
+  const menuActive = MENU_ROUTES.some((item) => location.pathname.startsWith(item.to));
   const footer = (
     <>
-      {!collapsed && (platformQuery.data || platformQuery.isError) ? (
+      {!collapsed && (platformQuery.data || platformQuery.isError) && host.tone !== "ok" ? (
         <div
           data-testid="sidebar-host-status"
           data-tone={host.tone}
@@ -448,7 +389,6 @@ export function Sidebar({
               "h-1.5 w-1.5 shrink-0 rounded-full",
               host.tone === "error" && "bg-ra-status-error",
               host.tone === "warning" && "bg-ra-status-warning",
-              host.tone === "ok" && "bg-ra-status-running",
             )}
           />
           <span className="shrink-0">{host.label}</span>
@@ -460,23 +400,19 @@ export function Sidebar({
         </div>
       ) : null}
 
-      <NavLink
-        to="/settings"
-        data-testid="sidebar-nav-设置"
-        className={({ isActive }) =>
-          cn(
+      <details className="group relative" data-testid="sidebar-menu" open={menuOpen}
+        onToggle={(event) => setMenuOpen((event.currentTarget as HTMLDetailsElement).open)}>
+        <summary
+          className={cn(
             sidebarNavRowClassName({ collapsed }),
-            isActive
-              ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
-              : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-          )
-        }
-        title="设置"
-      >
-        {({ isActive }) =>
-          collapsed ? (
-            <SidebarCollapsedIconSlot active={isActive}>
+            menuActive ? SIDEBAR_ROW_INTERACTIVE_CLASS.active : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
+            "cursor-pointer list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden",
+          )}
+          title="更多"
+          aria-label={urgentAlerts > 0 ? `更多（${urgentAlerts} 条账户告警）` : "更多"}
+        >
+          {collapsed ? (
+            <SidebarCollapsedIconSlot active={menuActive}>
               <Settings className="h-4 w-4" />
             </SidebarCollapsedIconSlot>
           ) : (
@@ -484,11 +420,45 @@ export function Sidebar({
               <span className={SIDEBAR_ICON_SLOT_CLASS}>
                 <Settings className="h-4 w-4" />
               </span>
-              <span className={sidebarNavLabelClassName(false)}>设置</span>
+              <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>更多</span>
             </>
-          )
-        }
-      </NavLink>
+          )}
+          {urgentAlerts > 0 && (
+            <span
+              data-testid="sidebar-alert-count"
+              aria-hidden="true"
+              className={cn("h-1.5 w-1.5 shrink-0 rounded-full", criticalAlert ? "bg-ra-status-error" : "bg-ra-status-warning",
+                collapsed && "absolute right-3 top-2")}
+            />
+          )}
+        </summary>
+        <nav aria-label="更多" className="absolute bottom-full left-0 z-20 mb-1 w-52 rounded-xl border border-ra-border bg-ra-base p-1 shadow-[var(--ra-shadow-2)]">
+          {MENU_ROUTES.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                data-testid={`sidebar-nav-${item.label}`}
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => cn(
+                  "flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                  isActive ? "bg-ra-tertiary text-ra-text" : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="flex-1">{item.label}</span>
+                {item.to === "/accounts" && urgentAlerts > 0 && (
+                  <span className={cn("text-[11px] tabular-nums", criticalAlert ? "text-ra-status-error" : "text-ra-status-warning")}
+                    aria-label={`${urgentAlerts} 条账户告警`}>
+                    {urgentAlerts}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </details>
     </>
   );
 

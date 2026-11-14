@@ -874,7 +874,7 @@ export function RunsPage() {
   return (
     <PageSurface data-testid="runs-page">
       <PageHeader
-        title="Agent 运行"
+        title="运行记录"
         icon={PlayCircle}
         description={
           <>

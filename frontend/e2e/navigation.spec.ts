@@ -18,7 +18,7 @@ function routeLabel(path: string) {
       : path === "/approvals"
         ? "审批"
         : path === "/runs"
-          ? "Agent 运行"
+          ? "运行记录"
           : path === "/accounts"
             ? "账户"
             : "设置";
@@ -40,8 +40,17 @@ test("keeps every product route reachable through task-first desktop IA", async 
       await expect(appPage.getByTestId("mobile-drawer")).toBeHidden();
     }
   } else {
+    // 目标 is a top route; every other route sits in the bottom 更多 menu, which closes after a choice.
+    const menu = appPage.getByTestId("sidebar-menu");
+    const openMenu = async () => {
+      if (!(await menu.evaluate((el) => (el as HTMLDetailsElement).open))) {
+        await menu.locator("summary").click();
+      }
+    };
     for (const [path, testId] of routes.slice(1, -1)) {
-      const link = appPage.getByTestId("sidebar-nav-" + routeLabel(path));
+      const label = routeLabel(path);
+      if (label !== "目标") await openMenu();
+      const link = appPage.getByTestId("sidebar-nav-" + label);
       await expect(link).toBeVisible();
       await link.focus();
       await expect(link).toBeFocused();
@@ -50,11 +59,13 @@ test("keeps every product route reachable through task-first desktop IA", async 
       await expect(appPage.getByTestId(testId)).toBeVisible();
     }
 
+    await openMenu();
     const settings = appPage.getByTestId("sidebar-nav-设置");
     await expect(settings).toBeVisible();
     await settings.click();
     await settle(appPage);
     await expect(appPage.getByTestId("settings-hub")).toBeVisible();
-    await expect(settings).toHaveClass(/bg-ra-tertiary/);
+    await openMenu();
+    await expect(settings).toHaveAttribute("aria-current", "page");
   }
 });

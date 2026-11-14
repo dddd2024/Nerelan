@@ -29,7 +29,7 @@ export function tidyDetail(text: string): string {
     .replace(/\/[^\s"']*?\/task_workspaces\/task-[\w-]+\//g, "")
     .replace(/^(?:bash|powershell|pwsh|sh)\s+/i, "")
     // Windows paths read with "/", but only path-like tokens: an escape such as 'a\nb' stays.
-    .replace(/(?:[A-Za-z]:)?(?:[\w.-]+\\)+[\w-]+\.\w{1,6}\b/g, (path) => path.replace(/\\/g, "/"));
+    .replace(/(?:[A-Za-z]:)?(?:[\w.-]+\\)+[\w-]+\.\w{1,6}\b|(?:[\w.-]+\\){2,}[\w.-]+/g, (path) => path.replace(/\\/g, "/"));
 }
 
 /** "<model> [<binding>]: <reason> (difficulty …). Candidates: …" → "选择模型：<model>". */

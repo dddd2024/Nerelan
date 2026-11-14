@@ -172,7 +172,7 @@ it("completes Inbox capture, configuration, edited-plan review and explicit laun
   await waitFor(() => expect(screen.getByTestId("approval-plan")).toHaveTextContent("Edited full journey implementation"));
   await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
   await user.click(screen.getByTestId("start-button"));
-  await screen.findByTestId("goal-progress-bar");
+  await screen.findByTestId("goal-thread");
   const saved = await fetchGoal(goalId);
   expect(saved).toMatchObject({ id: goalId, status: "RUNNING", revision: 3, executor_kind: "opencode",
     repository: "owner/selected", binding_ref: "coding-selected", orchestration_mode: "sequential_team" });

@@ -1,9 +1,9 @@
-import { ArrowLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useMemo } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
-import { GoalTimeline } from "@/components/goal-timeline";
+import { GoalThread } from "@/components/goal-thread";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -11,7 +11,7 @@ import { UnattendedStatus } from "@/components/unattended-status";
 import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
 import { recentGoals } from "@/components/sidebar";
-import { GOAL_TONE_DOT, GOAL_TONE_TEXT, goalState, goalTitle, issueRef, objectiveText } from "@/lib/goal-view";
+import { GOAL_TONE_DOT, GOAL_TONE_TEXT, goalState, goalTitle, issueRef } from "@/lib/goal-view";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -36,47 +36,13 @@ function ReadFeedback({ query, label }: {
 
 const RECENT_GOAL_LIMIT = 5;
 
-/** Objectives are long machine-written paragraphs: keep them to a summary. */
-const OBJECTIVE_CLAMP_THRESHOLD = 140;
-
-/**
- * Goal objective on the workspace header.
- *
- * The objective is context for the goal, not the page subject, so a long one
- * is clamped to two lines with an explicit expansion. Short objectives render
- * as ordinary prose with no affordance to learn.
- */
-function ObjectiveDisclosure({ objective }: { objective: string }) {
-  if (objective.length <= OBJECTIVE_CLAMP_THRESHOLD) {
-    return (
-      <p className="ra-measure whitespace-pre-line text-sm leading-6 text-ra-text">
-        {objective}
-      </p>
-    );
-  }
-  return (
-    <details className="group" data-testid="goal-objective-disclosure">
-      <summary
-        className={cn(
-          "cursor-pointer list-none",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-          "[&::-webkit-details-marker]:hidden",
-        )}
-      >
-        <p className="ra-measure line-clamp-3 whitespace-pre-line text-sm leading-6 text-ra-text group-open:line-clamp-none">
-          {objective}
-        </p>
-        <span className="mt-1 inline-flex items-center gap-1 text-xs text-ra-text-tertiary">
-          <ChevronRight
-            className="h-3 w-3 transition-transform group-open:rotate-90"
-            aria-hidden="true"
-          />
-          <span className="group-open:hidden">展开全文</span>
-          <span className="hidden group-open:inline">收起</span>
-        </span>
-      </summary>
-    </details>
-  );
+/** A short greeting by the time of day, the way agent chats open. */
+function greeting(now = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 5) return "夜深了，有什么要做的？";
+  if (hour < 12) return "早上好，今天做点什么？";
+  if (hour < 18) return "下午好，今天做点什么？";
+  return "晚上好，今天做点什么？";
 }
 
 /** "执行窗口：剩 23 小时 · 已开始 1/30 个任务". */
@@ -177,16 +143,14 @@ export function HomePage() {
         data-testid="platform-home"
         className="flex min-h-full flex-col bg-ra-workspace"
       >
-        {platform && <UnattendedStatus status={platform} />}
+        {platform && <UnattendedStatus status={platform} quietWhenRunning />}
         <div className="mx-auto my-auto w-full max-w-[784px] px-4 py-10 sm:px-8">
-          <header className="mb-5 text-center">
-            <NerelanMark className="mx-auto mb-4 h-8 w-8 text-ra-text-tertiary" />
-            <h1 className="text-2xl font-medium tracking-[-0.02em] text-ra-text">
-              今天想完成什么？
+          <header className="mb-7 text-center">
+            <h1 className="inline-flex items-center gap-3 text-[32px] font-normal tracking-[-0.02em] text-ra-text">
+              <NerelanMark className="h-7 w-7 text-ra-accent" />
+              {greeting()}
             </h1>
-            <p className="mt-2 text-sm text-ra-text-secondary">
-              给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
-            </p>
+            <p className="sr-only">今天想完成什么？给出最终目标，平台会协调 Agent 完成，并把结果留给你审查。</p>
             {coordinatorStatus}
           </header>
 
@@ -245,7 +209,7 @@ export function HomePage() {
       data-testid="platform-home"
       className="flex h-full min-h-0 flex-col bg-ra-workspace"
     >
-      {platform && <UnattendedStatus status={platform} />}
+      {platform && <UnattendedStatus status={platform} quietWhenRunning />}
       <header
         data-testid="active-goal-header"
         className="flex shrink-0 items-center gap-3 border-b border-ra-border px-4 py-2.5 sm:px-5"
@@ -278,7 +242,7 @@ export function HomePage() {
           {detailState ? (
             <span
               data-testid="goal-state-label"
-              className={cn("inline-flex items-center gap-1.5 rounded-full bg-ra-light px-2.5 py-1 font-medium", GOAL_TONE_TEXT[detailState.tone])}
+              className={cn("inline-flex items-center gap-1.5 font-medium", GOAL_TONE_TEXT[detailState.tone])}
             >
               <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", GOAL_TONE_DOT[detailState.tone])} />
               {detailState.label}
@@ -287,7 +251,7 @@ export function HomePage() {
           {activeWindow && detailGoal?.window_id === activeWindow.id ? (
             <span
               data-testid="autonomy-status"
-              className="text-ra-text-tertiary"
+              className="hidden text-ra-text-tertiary sm:inline"
               title="这个目标所在的执行窗口：窗口到期、任务数或 Token 用完就会停下"
             >
               {windowLine(activeWindow)}
@@ -297,53 +261,46 @@ export function HomePage() {
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-        <div className="mx-auto w-full max-w-[820px] px-4 py-5 sm:px-6">
-          {notices}
-
-          {detailGoal?.objective ? (
-            <div data-testid="goal-thread-objective" className="mb-5 rounded-2xl bg-ra-light/60 px-4 py-3">
-              <p className="mb-1 text-xs font-medium text-ra-text-tertiary">
-                {detailIssue ? `目标（来自 Issue #${detailIssue.number}）` : "目标"}
-              </p>
-              <ObjectiveDisclosure objective={objectiveText(detailGoal) || detailGoal.objective} />
+      {detailGoal ? (
+        // The goal as an agent conversation: thread, docked composer and side panel.
+        <section data-testid="current-execution-section" aria-label="当前执行" className="flex min-h-0 flex-1 flex-col">
+          <div data-testid="active-goal-stream" className="flex min-h-0 flex-1 flex-col">
+            <div className="mx-auto w-full max-w-[760px] px-4 sm:px-6 empty:hidden">
+              {notices}
+              <ReadFeedback query={detailQuery} label="目标详情" />
+              <ReadFeedback query={timelineQuery} label="执行过程" />
             </div>
-          ) : null}
-
-          <section data-testid="current-execution-section" aria-label="当前执行">
-            {detailQuery.isPending ? (
-              <div
-                role="status"
-                aria-live="polite"
-                className="py-12 text-center text-sm text-ra-text-tertiary"
-              >
-                正在加载所选目标的执行进度…
-              </div>
-            ) : detailQuery.isError && !detailGoal ? (
-              <div className="py-10 text-center">
-                <p role="alert" className="text-sm text-ra-status-error">
-                  当前所选目标的执行进度暂时无法加载，请重试。
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void detailQuery.refetch()}
-                  disabled={detailQuery.isFetching}
-                  className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
-                >
-                  {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
-                </button>
-              </div>
-            ) : detailGoal ? (
-              <div data-testid="active-goal-stream" className="space-y-5">
-                <ReadFeedback query={detailQuery} label="目标详情" />
-                <ReadFeedback query={timelineQuery} label="执行过程" />
-                <GoalTimeline goal={detailGoal} timeline={timelineQuery.data} />
-              </div>
-            ) : null}
-          </section>
+            <GoalThread goal={detailGoal} timeline={timelineQuery.data} composer={composer(true)} />
+          </div>
+        </section>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="mx-auto w-full max-w-[760px] px-4 py-5 sm:px-6">
+            {notices}
+            <section data-testid="current-execution-section" aria-label="当前执行">
+              {detailQuery.isError ? (
+                <div className="py-10 text-center">
+                  <p role="alert" className="text-sm text-ra-status-error">
+                    当前所选目标的执行进度暂时无法加载，请重试。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void detailQuery.refetch()}
+                    disabled={detailQuery.isFetching}
+                    className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
+                  </button>
+                </div>
+              ) : (
+                <div role="status" aria-live="polite" className="py-12 text-center text-sm text-ra-text-tertiary">
+                  正在加载所选目标的执行进度…
+                </div>
+              )}
+            </section>
+          </div>
         </div>
-      </div>
-
+      )}
     </main>
   );
 }

@@ -17,7 +17,7 @@
           const modes = ["system", "light", "dark"];
           const accents = ["cyan", "blue", "violet", "amber", "rose"];
           const mode = modes.includes(saved?.mode) ? saved.mode : "system";
-          const accent = accents.includes(saved?.accent) ? saved.accent : "cyan";
+          const accent = accents.includes(saved?.accent) ? saved.accent : "amber";
 
           if (current === null && legacy !== null) {
             localStorage.setItem(key, JSON.stringify({ mode, accent }));
@@ -28,7 +28,7 @@
           document.documentElement.dataset.accent = accent;
         } catch {
           document.documentElement.dataset.theme = "system";
-          document.documentElement.dataset.accent = "cyan";
+          document.documentElement.dataset.accent = "amber";
         }
       })();
     </script>

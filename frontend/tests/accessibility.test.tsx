@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { PermissionSelector } from "@/components/permission-selector";
@@ -68,7 +68,8 @@ describe("accessibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("sidebar nav items are keyboard reachable and labelled", () => {
+  it("sidebar nav items are keyboard reachable and labelled", async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <div>
         <Sidebar
@@ -79,15 +80,39 @@ describe("accessibility", () => {
         />
       </div>,
     );
-    const tasksLink = screen.getByTestId("sidebar-nav-任务");
-    expect(tasksLink).toHaveAttribute("href", "/tasks");
+    // Top routes are plain links, reachable by Tab.
     const homeLink = screen.getByTestId("sidebar-nav-首页");
     expect(homeLink).toHaveAttribute("href", "/");
-    expect(screen.getByTestId("sidebar-nav-目标")).toHaveAttribute("href", "/goals");
-    expect(screen.getByTestId("sidebar-nav-审批")).toHaveAttribute("href", "/approvals");
+    const goalsLink = screen.getByTestId("sidebar-nav-目标");
+    expect(goalsLink).toHaveAttribute("href", "/goals");
+    expect(goalsLink).not.toHaveAttribute("tabindex", "-1");
     expect(screen.queryByTestId("sidebar-nav-收件箱")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
-    expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+
+    // The rest live in the 更多 menu: a focusable summary that opens a labelled nav of links.
+    const menu = screen.getByTestId("sidebar-menu");
+    const summary = within(menu).getByText("更多").closest("summary") as HTMLElement;
+    expect(summary).toHaveAccessibleName("更多");
+    expect(summary).not.toHaveAttribute("tabindex", "-1");
+    summary.focus();
+    expect(summary).toHaveFocus();
+    expect(menu).not.toHaveAttribute("open");
+    await user.click(summary);
+    expect(menu).toHaveAttribute("open");
+    const nav = within(menu).getByRole("navigation", { name: "更多" });
+    const expected: Record<string, string> = {
+      审批: "/approvals", 运行记录: "/runs", 任务: "/tasks", 账户: "/accounts", 设置: "/settings",
+    };
+    for (const [label, href] of Object.entries(expected)) {
+      const link = screen.getByTestId(`sidebar-nav-${label}`);
+      expect(nav).toContainElement(link);
+      expect(link).toHaveAttribute("href", href);
+      expect(link).toHaveAccessibleName(new RegExp(label));
+      expect(link).not.toHaveAttribute("tabindex", "-1");
+    }
+    // Tab from the summary reaches the first menu link.
+    summary.focus();
+    await user.tab();
+    expect(screen.getByTestId("sidebar-nav-审批")).toHaveFocus();
   });
 
   it("custom policy editor traps focus (Tab cycles within dialog)", async () => {
@@ -131,19 +156,19 @@ describe("accessibility", () => {
     expect(screen.getByTestId("body")).toBeInTheDocument();
   });
 
-  const LIGHT_SURFACES = ["#f3f4f6", "#ffffff", "#eff0f3", "#e8eaee", "#f8f9fa"];
-  const DARK_SURFACES = ["#0f1012", "#1e2024", "#17181b", "#131417", "#25272c"];
+  const LIGHT_SURFACES = ["#f4f2ec", "#ffffff", "#efece4", "#ebe7dd", "#f7f5f0", "#faf9f5"];
+  const DARK_SURFACES = ["#1b1b19", "#262624", "#20201e", "#181816", "#2f2e2b"];
 
   it("keeps tertiary text at WCAG AA contrast on every surface it renders on", () => {
     const css = read("src/index.css");
 
-    expect(css).toContain("--ra-text-tertiary: #5c6069;");
-    expect(css).toContain("--ra-text-tertiary: #9599a1;");
+    expect(css).toContain("--ra-text-tertiary: #605c53;");
+    expect(css).toContain("--ra-text-tertiary: #a09d94;");
     for (const surface of LIGHT_SURFACES) {
-      expect(contrastRatio("#5c6069", surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio("#605c53", surface)).toBeGreaterThanOrEqual(4.5);
     }
     for (const surface of DARK_SURFACES) {
-      expect(contrastRatio("#9599a1", surface)).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio("#a09d94", surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 

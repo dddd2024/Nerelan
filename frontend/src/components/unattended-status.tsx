@@ -3,7 +3,12 @@ import { cn } from "@/lib/cn";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { useEffect, useState } from "react";
 
-export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformStatus; now?: number }) {
+export function UnattendedStatus({ status, now: fixedNow, quietWhenRunning = false }: {
+  status: PlatformStatus;
+  now?: number;
+  /** Render nothing while the window runs normally (a goal page says it in its header). */
+  quietWhenRunning?: boolean;
+}) {
   const [clock, setClock] = useState(Date.now);
   useEffect(() => {
     if (fixedNow !== undefined) return;
@@ -33,6 +38,7 @@ export function UnattendedStatus({ status, now: fixedNow }: { status: PlatformSt
   const left = timeLeft >= 90 ? `${Math.round(timeLeft / 60)} 小时` : `${Number.isFinite(timeLeft) ? timeLeft : 0} 分钟`;
   // Nothing running and nothing recently stopped: no banner at all.
   if (!recent) return null;
+  if (quietWhenRunning && !warning) return null;
   return (
     <div role="status" className={cn(
       "shrink-0 border-b px-4 py-3 text-sm sm:px-5",
