@@ -19,7 +19,7 @@ const SIDEBAR_ITEMS: { to: string; label: string }[] = [
   { to: "/", label: "首页" },
   { to: "/goals", label: "目标" },
   { to: "/approvals", label: "审批" },
-  { to: "/runs", label: "Agent 运行" },
+  { to: "/runs", label: "运行记录" },
   { to: "/tasks", label: "任务" },
   { to: "/accounts", label: "账户" },
   { to: "/settings", label: "设置" },

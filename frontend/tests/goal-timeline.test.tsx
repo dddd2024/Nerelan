@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { type ReactNode } from "react";
-import { fireEvent, render, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   __setMockGoalStatus,
@@ -12,7 +12,8 @@ import {
   type PlatformRunActivityEvent,
 } from "@/lib/platform-client";
 import { HomePage } from "@/routes/home";
-import { GoalTimeline, TIMELINE_VISIBLE_BLOCKS, actionsSummary, checkSummary, cleanSpeech, mergeTimelineSteps, timelineStatusLine } from "@/components/goal-timeline";
+import { GoalThread } from "@/components/goal-thread";
+import { checkSummary, cleanSpeech, mergeTimelineSteps, timelineStatusLine } from "@/components/goal-timeline";
 import { collapseRepeats, eventDetail, failureText, meaningfulEvents, modelName, readableAgent } from "@/lib/run-explain";
 
 const GOAL_ID = "goal-demo-platform";
@@ -48,7 +49,14 @@ function makeRun(overrides: Partial<PlatformAgentRun> & { task_id: string }): Pl
   } as PlatformAgentRun;
 }
 
-describe("Home goal timeline", () => {
+/** One attempt's assistant message (assistant-ui keys it by the attempt's task id). */
+function turn(taskId: string): HTMLElement {
+  const message = document.querySelector<HTMLElement>(`[data-testid="thread-assistant-message"][data-message-id="${taskId}"]`);
+  if (!message) throw new Error(`no assistant message for ${taskId}`);
+  return message;
+}
+
+describe("Home goal thread", () => {
   beforeEach(() => __setMockRuns([]));
   afterEach(() => __setMockRuns([]));
 
@@ -60,52 +68,64 @@ describe("Home goal timeline", () => {
         executor_kind: "opencode", binding_ref: "magpie-codex-gpt-6.1-sol", ...extra }],
     });
     rtlRender(<HomePage />, { wrapper: makeWrapper() });
-    await waitFor(() => expect(screen.getByTestId(`timeline-attempt-${run.task_id}`)).toBeInTheDocument());
+    await waitFor(() => expect(within(turn(run.task_id)).getAllByTestId("thread-attempt-header")).toHaveLength(1));
   }
 
-  it("shows each action in order with its category, detail and agent, and says what it is doing now", async () => {
+  it("shows each action in order with its detail, and says what the attempt is doing now", async () => {
     await mount(makeRun({ task_id: "t-active", activity: [
       activity("a1", "READ", "Repository read", { path: "upload_service.py", agent: { agent_id: "coder", role: "coder", display_name: "Coder" } }),
       activity("a2", "EDIT", "Repository change", { path: "validation.py" }),
       activity("a3", "COMMAND", "Approved command", { command: { summary: "pytest tests/test_upload.py -q", status: "RUNNING" },
         agent: { agent_id: "test", role: "test", display_name: "Test Agent" } }),
     ] }));
-    expect(screen.getByTestId("timeline-event-a1")).toHaveTextContent("读取");
-    expect(screen.getByTestId("timeline-event-a1")).toHaveTextContent("upload_service.py");
-    expect(screen.getByTestId("timeline-event-a1")).toHaveTextContent("Coder");
-    expect(screen.getByTestId("timeline-event-a3")).toHaveTextContent("pytest tests/test_upload.py -q");
-    expect(screen.getByTestId("timeline-event-a3")).toHaveTextContent("Test Agent");
-    // The server's generic English category titles never show beside the product label.
-    expect(screen.getByTestId("timeline-event-a2").textContent).not.toContain("Repository change");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在跑测试");
-    expect(screen.getByTestId("timeline-liveness-t-active")).toHaveTextContent("有新活动");
-    expect(screen.getByTestId("timeline-attempt-t-active")).toHaveTextContent("OpenCode · codex-gpt-6.1-sol");
+    // The timeline (with the attempt's actions) arrives after the goal detail.
+    await waitFor(() => expect(screen.getByTestId("thread-tool-a3")).toBeInTheDocument());
+    const message = turn("t-active");
+    expect(within(message).getByTestId("thread-tool-group").querySelector("summary")).toHaveTextContent("读取 1 个文件、修改 1 处、运行 1 条命令");
+    expect(screen.getByTestId("thread-tool-a1")).toHaveTextContent("upload_service.py");
+    expect(screen.getByTestId("thread-tool-a2")).toHaveTextContent("validation.py");
+    expect(screen.getByTestId("thread-tool-a3")).toHaveTextContent("pytest tests/test_upload.py -q");
+    // Actions keep their order.
+    const ids = [...message.querySelectorAll("[data-testid^='thread-tool-a']")].map((row) => row.getAttribute("data-testid"));
+    expect(ids).toEqual(["thread-tool-a1", "thread-tool-a2", "thread-tool-a3"]);
+    // The server's generic English category titles never show beside the detail.
+    expect(screen.getByTestId("thread-tool-a2").textContent).not.toContain("Repository change");
+    const header = within(message).getByTestId("thread-attempt-header");
+    expect(header).toHaveTextContent("OpenCode · codex-gpt-6.1-sol");
+    expect(header).toHaveTextContent("有新活动");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("进行中");
     // Semantic activity, never an exact wall-clock stamp.
-    expect(screen.getByTestId("timeline-events-t-active").textContent).not.toContain("09:41");
+    expect(message.textContent).not.toContain("09:41");
   });
 
   it.each([["WAITING", "等待中"], ["STALE", "疑似停滞"], ["VALIDATING", "验证中"]])(
     "labels %s liveness instead of presenting it as active work", async (state, label) => {
       await mount(makeRun({ task_id: "t-active", liveness: state as PlatformAgentRun["liveness"], activity: [activity("a1", "READ", "Repository read", { path: "a.py" })] }));
-      expect(screen.getByTestId("timeline-liveness-t-active")).toHaveTextContent(label);
-      expect(screen.getByTestId("timeline-liveness-t-active")).not.toHaveTextContent("有新活动");
+      await waitFor(() => expect(within(turn("t-active")).getByTestId("thread-attempt-header")).toHaveTextContent(label));
+      expect(within(turn("t-active")).getByTestId("thread-attempt-header")).not.toHaveTextContent("有新活动");
     });
 
   it("puts the stop reason where the attempt stopped and leads with it", async () => {
     await mount(makeRun({ task_id: "t-active", status: "FAILED", state: "FAILED", liveness: "TERMINAL",
       activity: [activity("a1", "BLOCKED", "Run blocked", { description: "OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)" })] }),
     "FAILED", { failure: { classification: "executor_stalled", detail: "opencode_stalled:900", message: "OpenCode stalled: OpenCode CLI wrote nothing for too long" } });
-    expect(screen.getByTestId("timeline-stop-t-active")).toHaveTextContent("为什么停下：Agent 长时间没有任何输出，已被停止");
-    expect(screen.getByTestId("timeline-stop-t-active")).toHaveTextContent("下一步：最常见的原因是模型被限流（429）");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("已停下：Agent 长时间没有任何输出");
-    expect(screen.queryByTestId("timeline-liveness-t-active")).not.toBeInTheDocument();
+    const message = turn("t-active");
+    const stop = within(message).getByTestId("thread-stop");
+    expect(stop).toHaveAttribute("role", "alert");
+    expect(stop).toHaveTextContent("停下了：Agent 长时间没有任何输出，已被停止");
+    expect(stop).toHaveTextContent("最常见的原因是模型被限流（429）");
+    expect(within(message).getByTestId("thread-attempt-header")).toHaveTextContent("停下");
+    expect(within(message).getByTestId("thread-attempt-header")).not.toHaveTextContent("有新活动");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("已停下");
   });
 
   it("presents finished work without claiming it is still running", async () => {
     await mount(makeRun({ task_id: "t-active", status: "READY_FOR_REVIEW", state: "READY_FOR_REVIEW", liveness: "TERMINAL",
       activity: [activity("a1", "EDIT", "Repository change", { path: "a.py" })] }), "READY_FOR_REVIEW");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("执行完成，等待审查");
-    expect(screen.queryByTestId("timeline-liveness-t-active")).not.toBeInTheDocument();
+    expect(within(turn("t-active")).getByTestId("thread-attempt-header")).toHaveTextContent("完成");
+    expect(within(turn("t-active")).getByTestId("thread-attempt-header")).not.toHaveTextContent("进行中");
+    expect(screen.getByTestId("goal-state-label")).toHaveTextContent("待审查");
+    expect(screen.queryByText("有新活动")).not.toBeInTheDocument();
     expect(screen.queryByText("Agent 正在执行")).not.toBeInTheDocument();
   });
 
@@ -114,35 +134,45 @@ describe("Home goal timeline", () => {
     const tool = (id: string, category: PlatformRunActivityEvent["category"], path: string) =>
       activity(id, category, "OpenCode", { type: "EXECUTOR_PROGRESS", description: `x ${path}`, path });
     await mount(makeRun({ task_id: "t-active", activity: [
-      say("s1", "I'll read the routing code first."),
+      say("s1", "I'll read the **routing** code first."),
       tool("t1", "READ", "a.py"), tool("t2", "READ", "b.py"), tool("t3", "COMMAND", "pytest"),
       say("s2", "Now I'll add the detector."),
       tool("t4", "EDIT", "c.py"),
     ] }));
-    expect(screen.getByTestId("timeline-say-s1")).toHaveTextContent("I'll read the routing code first.");
-    expect(screen.getByTestId("timeline-actions-t1")).toHaveTextContent("读取 2 个文件、运行 1 条命令");
-    expect(screen.getByTestId("timeline-actions-t4")).toHaveTextContent("修改 1 处");
-    // The newest group of a running attempt is open; older groups stay folded.
-    expect(screen.getByTestId("timeline-actions-t4").closest("details")).toHaveAttribute("open");
-    expect(screen.getByTestId("timeline-actions-t1").closest("details")).not.toHaveAttribute("open");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("正在修改 c.py");
+    // A running turn's prose streams in, as in an agent chat.
+    await waitFor(() => expect(turn("t-active")).toHaveTextContent("Now I'll add the detector."));
+    const message = turn("t-active");
+    // The agent's words are markdown.
+    expect(within(message).getByText("routing").tagName).toBe("STRONG");
+    const groups = within(message).getAllByTestId("thread-tool-group");
+    expect(groups).toHaveLength(2);
+    expect(groups[0].querySelector("summary")).toHaveTextContent("读取 2 个文件、运行 1 条命令");
+    expect(groups[1].querySelector("summary")).toHaveTextContent("修改 1 处");
+    expect(within(groups[0]).getByTestId("thread-tool-t2")).toHaveTextContent("b.py");
+    // Prose and tool calls stay in the order the agent produced them.
+    const first = within(message).getByText(/read the/);
+    expect(first.compareDocumentPosition(groups[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it(`shows the newest ${TIMELINE_VISIBLE_BLOCKS} blocks and reveals older ones on request`, async () => {
-    const many = Array.from({ length: TIMELINE_VISIBLE_BLOCKS + 2 }, (_, i) =>
-      activity(`s${i}`, "PLAN", "OpenCode", { type: "EXECUTOR_PROGRESS", progress_kind: "text", description: `step ${i}` }));
-    await mount(makeRun({ task_id: "t-active", activity: many }));
-    expect(screen.queryByTestId("timeline-say-s0")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "显示更早的 2 段" }));
-    expect(screen.getByTestId("timeline-say-s0")).toBeInTheDocument();
+  it("lists the plan's steps before any has started", async () => {
+    __setMockGoalStatus(GOAL_ID, { status: "RUNNING", task_links: [
+      { task_id: "q1", plan_task_id: "T001", status: "QUEUED", title: "实现上传逻辑修复" },
+      { task_id: "q2", plan_task_id: "T002", status: "QUEUED", title: "审查改动" },
+    ] });
+    rtlRender(<HomePage />, { wrapper: makeWrapper() });
+    await waitFor(() => expect(screen.getByTestId("goal-panel-step-T002")).toBeInTheDocument());
+    expect(screen.getByTestId("goal-panel-step-T001")).toHaveTextContent("实现上传逻辑修复");
+    const headers = screen.getAllByTestId("thread-attempt-header");
+    expect(headers).toHaveLength(2);
+    for (const header of headers) expect(header).toHaveTextContent("等待开始");
   });
 
-  it("lists the plan before anything has run", async () => {
+  // A goal with a plan but no task links yet (e.g. PLANNED) still shows its steps.
+  it("lists the plan before any task has been dispatched", async () => {
     __setMockGoalStatus(GOAL_ID, { status: "PLANNED", task_links: [] });
     rtlRender(<HomePage />, { wrapper: makeWrapper() });
-    await waitFor(() => expect(screen.getByTestId("goal-timeline")).toBeInTheDocument());
-    expect(screen.getByTestId("goal-timeline")).toHaveTextContent("计划");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("等待启动");
+    await waitFor(() => expect(screen.getByTestId("goal-panel")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("goal-panel").querySelectorAll("[data-testid^='goal-panel-step-']").length).toBeGreaterThan(0), { timeout: 1500 });
   });
 });
 
@@ -167,19 +197,31 @@ const timeline: PlatformGoalTimeline = {
   ] }],
 };
 
-describe("GoalTimeline attempts", () => {
+function renderThread(goal: PlatformGoal, data?: PlatformGoalTimeline) {
+  return render(<MemoryRouter><GoalThread goal={goal} timeline={data} /></MemoryRouter>);
+}
+
+describe("GoalThread attempts", () => {
 
   it("reads as one story: every attempt in order with its own reason", () => {
-    render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={timeline} /></MemoryRouter>);
-    expect(screen.getByTestId("timeline-attempt-task-1")).toHaveTextContent("第 1 次 · OpenCode · deepseek-v4.1-flash-free");
-    expect(screen.getByTestId("timeline-stop-task-1")).toHaveTextContent("执行超过时间上限");
-    expect(screen.getByTestId("timeline-stop-task-2")).toHaveTextContent("功能检查没有通过");
-    expect(screen.getByTestId("timeline-files-task-2")).toHaveTextContent("改了 2 个文件 · +15 −2");
+    renderThread(GOAL, timeline);
+    const turns = screen.getAllByTestId("thread-assistant-message").map((message) => message.getAttribute("data-message-id"));
+    expect(turns).toEqual(["task-1", "task-2", "task-3"]);
+    const first = within(turn("task-1")).getByTestId("thread-attempt-header");
+    expect(first).toHaveTextContent("第 1 次");
+    expect(first).toHaveTextContent("OpenCode · deepseek-v4.1-flash-free");
+    expect(within(turn("task-1")).getByTestId("thread-stop")).toHaveTextContent("执行超过时间上限");
+    expect(within(turn("task-2")).getByTestId("thread-stop")).toHaveTextContent("功能检查没有通过");
+    const files = within(turn("task-2")).getByTestId("thread-files");
+    expect(files).toHaveTextContent("改了 2 个文件");
+    expect(files).toHaveTextContent("+15");
+    expect(files).toHaveTextContent("−2");
     // The current attempt takes its reason from the goal detail, the authority for status.
-    expect(screen.getByTestId("timeline-stop-task-3")).toHaveTextContent("执行器异常退出");
-    expect(screen.getByTestId("goal-timeline-status")).toHaveTextContent("已停下：执行器异常退出");
-    // Each step's run link is named for its step, as before the timeline.
-    expect(screen.getByRole("link", { name: "查看 #1458 [Routing] implement 的运行" })).toHaveAttribute("href", "/runs?task=task-3");
+    expect(within(turn("task-3")).getByTestId("thread-stop")).toHaveTextContent("停下了：执行器异常退出");
+    // The side panel lists the step once, with its attempt count and what changed.
+    expect(screen.getByTestId("goal-panel-step-T001")).toHaveTextContent("3 次");
+    expect(screen.getByTestId("goal-panel-files")).toHaveTextContent("a.py");
+    expect(screen.getByRole("link", { name: "查看完整运行记录" })).toHaveAttribute("href", "/runs?goal=g");
   });
 
   it("marks a host-retried attempt as interrupted-and-retried instead of a red stop card", () => {
@@ -187,10 +229,10 @@ describe("GoalTimeline attempts", () => {
       { ...attempt(1, "task-1", "FAILED", "magpie-codex-gpt-6.1-sol", { classification: "executor_terminated", detail: "host_restart", message: "Executor terminated" }), retry_reason: "host_retry:restart" },
       attempt(2, "task-2", "FAILED", "magpie-codex-gpt-6.1-sol", { classification: "timeout", detail: "opencode_timeout:3600", message: "OpenCode timeout" }),
     ] }] } as PlatformGoalTimeline;
-    render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={retried} /></MemoryRouter>);
-    expect(screen.getByTestId("timeline-auto-retry-task-1")).toHaveTextContent("被中断，已自动重试");
-    expect(screen.queryByTestId("timeline-stop-task-1")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("timeline-auto-retry-task-2")).not.toBeInTheDocument();
+    renderThread(GOAL, retried);
+    expect(within(turn("task-1")).getByTestId("thread-attempt-header")).toHaveTextContent("被中断，已自动重试");
+    expect(within(turn("task-1")).queryByTestId("thread-stop")).not.toBeInTheDocument();
+    expect(within(turn("task-2")).getByTestId("thread-attempt-header")).not.toHaveTextContent("被中断，已自动重试");
   });
 
   it("shows a new current attempt from the goal detail before the timeline has it", () => {
@@ -198,47 +240,50 @@ describe("GoalTimeline attempts", () => {
     const [step] = mergeTimelineSteps(GOAL, stale);
     expect(step.attempts.map((a) => a.task_id)).toEqual(["task-1", "task-2", "task-3"]);
     expect(timelineStatusLine({ ...stale, steps: [step] }).tone).toBe("stopped");
+    renderThread(GOAL, stale);
+    expect(within(turn("task-3")).getByTestId("thread-stop")).toHaveAttribute("role", "alert");
   });
 
   it("does not raise an alarm for a task the Owner cancelled", () => {
     const cancelled = { ...GOAL, task_links: [{ ...GOAL.task_links![0], status: "CANCELLED", failure: null }] } as PlatformGoal;
-    render(<MemoryRouter><GoalTimeline goal={cancelled} /></MemoryRouter>);
-    expect(screen.queryByTestId("timeline-stop-task-3")).not.toBeInTheDocument();
+    renderThread(cancelled);
+    expect(screen.queryByTestId("thread-stop")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
 describe("older runs and stop details", () => {
-  it("shows what an older run kept: the agent's sentences, a tool count and its summary", () => {
+  it("shows what an older run kept: the agent's sentences and its summary", () => {
     const legacy = { ...attempt(2, "task-3", "FAILED", "magpie-codex-gpt-6.1-sol", null),
       narration: [{ timestamp: "", text: "I��ll read the local scope first." }], tool_actions: 23,
       summary: "Implemented #1458 in the supplied worktree.\n\n- Added CLI discovery...[TRUNCATED]" };
-    render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={{ goal: timeline.goal, plan: [], steps: [{ ...timeline.steps[0], attempts: [legacy] }] }} /></MemoryRouter>);
-    expect(screen.getByText("I'll read the local scope first.")).toBeInTheDocument();
-    expect(screen.getByTestId("timeline-legacy-tools-task-3")).toHaveTextContent("调用了 23 次工具");
-    expect(screen.getByTestId("timeline-summary-task-3")).toHaveTextContent("Implemented #1458");
-    expect(screen.getByTestId("timeline-summary-task-3").textContent).not.toContain("[TRUNCATED]");
+    renderThread(GOAL, { goal: timeline.goal, plan: [], steps: [{ ...timeline.steps[0], attempts: [legacy] }] });
+    const message = turn("task-3");
+    expect(within(message).getByText("I'll read the local scope first.")).toBeInTheDocument();
+    expect(message).toHaveTextContent("Implemented #1458");
+    // The summary's markdown list renders as a list.
+    expect(within(message).getByRole("listitem")).toHaveTextContent("Added CLI discovery…");
+    expect(message.textContent).not.toContain("[TRUNCATED]");
   });
 
   it("states a failed check in plain words and keeps the raw text folded", () => {
     const text = "Functional check failed: Reason: functional_check_failed python_pytest tests/a.py: exit 1, 180 passed, 1 failed FAILED tests.test_model_access.TestOriginGateHttpBoundary::test_foreign_origin_error_body_no_secret: ConnectionAbortedError";
     expect(checkSummary(text)).toBe("功能检查：180 个通过，1 个失败（test_foreign_origin_error_body_no_secret）");
     expect(checkSummary("nothing to parse")).toBe("");
-    render(<MemoryRouter><GoalTimeline goal={GOAL} timeline={timeline} /></MemoryRouter>);
-    // An attempt a later one already retried is history: a folded line, not an alert card.
-    const card = screen.getByTestId("timeline-stop-task-2");
-    expect(card.tagName).toBe("DETAILS");
-    expect(card).not.toHaveAttribute("open");
-    expect(card).toHaveTextContent("之后已重试");
+    renderThread(GOAL, timeline);
+    // An attempt a later one already retried is history: a muted line, not an alert card.
+    const earlier = within(turn("task-2")).getByTestId("thread-stop");
+    expect(earlier).not.toHaveAttribute("role");
+    expect(earlier).toHaveTextContent("之后已重试");
     // The latest attempt keeps the alert card with its raw detail folded.
-    const latest = screen.getByTestId("timeline-stop-task-3");
+    const latest = within(turn("task-3")).getByTestId("thread-stop");
     expect(latest).toHaveAttribute("role", "alert");
     expect(latest.querySelector("details")).not.toHaveAttribute("open");
     expect(latest.querySelector("details")).toHaveTextContent("技术细节");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
-  it("counts folded tool calls by kind", () => {
-    const e = (category: PlatformRunActivityEvent["category"]) => ({ id: category, task_id: "t", timestamp: "", category, title: "", description: "" }) as PlatformRunActivityEvent;
-    expect(actionsSummary([e("READ"), e("READ"), e("SEARCH"), e("EDIT"), e("COMMAND"), e("PLAN")])).toBe("读取 2 个文件、搜索 1 次、修改 1 处、运行 1 条命令、其他 1 个动作");
+  it("cleans stored speech", () => {
     expect(cleanSpeech("I��ll go...[TRUNCATED]")).toBe("I'll go…");
   });
 });

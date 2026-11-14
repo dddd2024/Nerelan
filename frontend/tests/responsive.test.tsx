@@ -53,11 +53,12 @@ describe("responsive layout", () => {
     expect(screen.getByTestId("content")).toBeInTheDocument();
     expect(screen.getByLabelText("打开搜索")).toBeInTheDocument();
     expect(screen.getByTestId("sidebar-nav-首页")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-任务")).toBeInTheDocument();
+    // Goals are a top route; the rest sit in the 更多 menu.
     expect(screen.getByTestId("sidebar-nav-目标")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-审批")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-设置")).toBeInTheDocument();
+    const menu = screen.getByTestId("sidebar-menu");
+    for (const label of ["审批", "运行记录", "任务", "账户", "设置"]) {
+      expect(menu).toContainElement(screen.getByTestId(`sidebar-nav-${label}`));
+    }
   });
 
   it("opens the command palette with Ctrl+K from anywhere", async () => {

@@ -50,7 +50,7 @@ const ROUTES = [
   { to: "/goals", label: "目标", keywords: "goals", icon: Flag },
   { to: "/inbox", label: "收件箱", keywords: "inbox review 审查", icon: Inbox },
   { to: "/roadmap", label: "路线图", keywords: "roadmap", icon: Map },
-  { to: "/runs", label: "Agent 运行", keywords: "runs agent", icon: Bot },
+  { to: "/runs", label: "运行记录", keywords: "runs agent 运行 Agent", icon: Bot },
   { to: "/accounts", label: "账户", keywords: "accounts pool quota alerts 告警 额度", icon: Users },
   { to: "/settings/usage", label: "用量与额度", keywords: "usage quota", icon: Gauge },
   { to: "/settings", label: "设置", keywords: "settings", icon: Settings },

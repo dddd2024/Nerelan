@@ -114,10 +114,6 @@ export function livenessBadgeClass(value: string | undefined, flat = false): str
   return toneBadge(livenessTone(value), flat);
 }
 
-export function livenessDotClass(value: string | undefined): string {
-  return toneDot(livenessTone(value));
-}
-
 /* ------------------------------------------------------------------------ */
 /* Execution stage                                                           */
 /* ------------------------------------------------------------------------ */

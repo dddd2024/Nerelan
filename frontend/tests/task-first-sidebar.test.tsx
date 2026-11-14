@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useState } from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { Sidebar } from "@/components/sidebar";
@@ -109,9 +109,7 @@ describe("sidebar goal read states", () => {
     goalReadState.override = { data: [], isLoading: true, isError: false };
     sidebar();
     expect(screen.getByText("正在加载最近目标…")).toBeInTheDocument();
-    expect(screen.getByText("正在加载项目…")).toBeInTheDocument();
     expect(screen.queryByText("暂无最近目标")).not.toBeInTheDocument();
-    expect(screen.queryByText("暂无项目")).not.toBeInTheDocument();
   });
 
   it("reports a failed read without displaying raw errors or an empty result", () => {
@@ -127,7 +125,6 @@ describe("sidebar goal read states", () => {
     goalReadState.override = { data: [], isLoading: false, isError: false };
     sidebar();
     expect(screen.getByText("暂无最近目标")).toBeInTheDocument();
-    expect(screen.getByText("暂无项目")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
@@ -157,18 +154,17 @@ describe("task-first sidebar IA", () => {
     expect(recentGoals([goal("a", "org/alpha"), goal("b", "org/beta")] as never).map((g) => g.id).sort()).toEqual(["a", "b"]);
   });
 
-  it("deduplicates Projects from goal repositories and keeps project emphasis weaker", () => {
+  it("keeps the sidebar to goals: no Projects section, the 更多 menu carries the product routes", () => {
     sidebar(["/tasks?repository=org%2Falpha"]);
 
-    expect(screen.getByTestId("sidebar-section-projects")).toHaveTextContent("项目");
-    expect(screen.getAllByTestId(/^sidebar-project-/)).toHaveLength(2);
-    const alpha = screen.getByTestId("sidebar-project-org/alpha");
-    expect(alpha).toHaveAttribute("href", "/tasks?repository=org%2Falpha");
-    expect(alpha).toHaveAttribute("data-selected", "true");
-    expect(alpha).not.toHaveClass("bg-ra-tertiary");
+    expect(screen.queryByTestId("sidebar-section-projects")).not.toBeInTheDocument();
+    expect(screen.queryAllByTestId(/^sidebar-project-/)).toHaveLength(0);
+    expect(screen.getByTestId("sidebar-section-recent")).toBeInTheDocument();
+    // On a menu route the menu entry reads as the current location.
+    expect(screen.getByTestId("sidebar-nav-任务")).toHaveAttribute("aria-current", "page");
   });
 
-  it("opens Search directly and keeps every product route one click away", async () => {
+  it("opens Search directly and keeps every product route reachable: top routes directly, the rest via 更多", async () => {
     const user = userEvent.setup();
     const { onOpen } = sidebar();
 
@@ -176,12 +172,18 @@ describe("task-first sidebar IA", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
 
     expect(screen.queryByTestId("sidebar-more-toggle")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-任务")).toHaveAttribute("href", "/tasks");
     expect(screen.getByTestId("sidebar-nav-目标")).toHaveAttribute("href", "/goals");
-    expect(screen.getByTestId("sidebar-nav-审批")).toHaveAttribute("href", "/approvals");
     expect(screen.queryByTestId("sidebar-nav-收件箱")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
-    expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+    const menu = screen.getByTestId("sidebar-menu");
+    expect(menu).not.toHaveAttribute("open");
+    await user.click(within(menu).getByText("更多"));
+    expect(menu).toHaveAttribute("open");
+    const routes: Record<string, string> = {
+      审批: "/approvals", 运行记录: "/runs", 任务: "/tasks", 账户: "/accounts", 设置: "/settings",
+    };
+    for (const [label, href] of Object.entries(routes)) {
+      expect(screen.getByTestId(`sidebar-nav-${label}`)).toHaveAttribute("href", href);
+    }
   });
 
   it("never shows a healthy host when the coordinator reports an error", async () => {

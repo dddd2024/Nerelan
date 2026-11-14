@@ -92,7 +92,7 @@ describe("Agent Runs page", () => {
 
   it("renders the derived run timeline with state badges", async () => {
     renderWithProviders(<RunsPage />);
-    expect(screen.getByRole("heading", { name: /Agent 运行/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /运行记录/ })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("run-task-demo-1")).toBeInTheDocument(),
     );

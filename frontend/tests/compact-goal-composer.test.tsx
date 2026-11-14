@@ -44,6 +44,8 @@ describe("GoalComposer compact progressive disclosure", () => {
     renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
     await user.type(screen.getByLabelText("描述最终目标"), "检查冻结范围内的差异格式");
     expect(screen.getByTestId("approved-policy-summary")).toHaveTextContent("不实现代码或修复目标");
+    // It limits what the run does, so it shows with 高级 closed.
+    expect(screen.getByTestId("approved-policy-summary")).toBeVisible();
     expect(screen.queryByLabelText("模型绑定")).not.toBeInTheDocument();
     await user.click(screen.getByLabelText("创建并审阅目标"));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));
@@ -73,10 +75,13 @@ describe("GoalComposer compact progressive disclosure", () => {
 
     const objective = screen.getByLabelText("描述最终目标");
     expect(objective).toHaveAttribute("rows", "2");
-    expect(screen.getByLabelText("仓库")).toBeVisible();
+    const summary = screen.getByTestId("goal-composer-execution-summary");
+    expect(summary).toBeVisible();
+    expect(summary).toHaveTextContent("自动选择执行方式和模型");
+    expect(summary.textContent).toMatch(/\S+\/\S+ · /);
+    expect(screen.getByLabelText("仓库")).not.toBeVisible();
     expect(screen.getByLabelText("执行模式")).not.toBeVisible();
     expect(screen.queryByRole("combobox", { name: "执行模式" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("自动选择执行方式和模型");
     await user.type(objective, "完成自动路由目标测试");
     expect(screen.getByLabelText("执行模式")).not.toBeVisible();
 
@@ -86,7 +91,7 @@ describe("GoalComposer compact progressive disclosure", () => {
 
     expect(options).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("goal-composer-options")).toBeInTheDocument();
-    expect(screen.getByLabelText("仓库")).toBeInTheDocument();
+    expect(screen.getByLabelText("仓库")).toBeVisible();
     expect(screen.getByLabelText("执行模式")).toBeVisible();
     expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
     await user.selectOptions(screen.getByLabelText("执行模式"), "opencode");
