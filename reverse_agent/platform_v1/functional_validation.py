@@ -258,15 +258,24 @@ def _resolved_argv(profile: str) -> list[str]:
     return [str(Path(node).resolve()), str(cli.resolve()), "test"]
 
 
-def _environment(root: Path) -> dict[str, str]:
+def _environment(root: Path, config_dir: Path | None = None) -> dict[str, str]:
     # Model/provider/GitHub credentials and parent Python injection flags are not inherited.
     names = ("PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
              "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "COMSPEC", "PATHEXT", "LANG", "LC_ALL")
     env = {key: os.environ[key] for key in names if key in os.environ}
+    # The Owner's npm user/global configuration is never read. npm 10+ refuses one file
+    # loaded as both user and global config ("double-loading config"), so each gets its
+    # own empty file in the check's private directory (2026-11-14: with both set to the
+    # null device, npm could not start inside any check).
+    user_config = global_config = os.devnull
+    if config_dir is not None:
+        user_config, global_config = config_dir / "user.npmrc", config_dir / "global.npmrc"
+        for path in (user_config, global_config):
+            path.write_text("", encoding="utf-8")
     env.update(CI="true", PYTHONPATH=str(root), PYTHONDONTWRITEBYTECODE="1",
                NPM_CONFIG_OFFLINE="true", NPM_CONFIG_AUDIT="false",
-               NPM_CONFIG_FUND="false", NPM_CONFIG_UPDATE_NOTIFIER="false", NPM_CONFIG_USERCONFIG=os.devnull,
-               NPM_CONFIG_GLOBALCONFIG=os.devnull)
+               NPM_CONFIG_FUND="false", NPM_CONFIG_UPDATE_NOTIFIER="false",
+               NPM_CONFIG_USERCONFIG=str(user_config), NPM_CONFIG_GLOBALCONFIG=str(global_config))
     return env
 
 
@@ -370,7 +379,9 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
         raise TaskStoreError("functional_npm_project_config_unsupported")
     argv = _resolved_argv(profile)
     with tempfile.TemporaryDirectory(prefix="nerelan-functional-check-") as temporary:
-        env = _environment(root)
+        config = Path(temporary) / "npm-config"
+        config.mkdir()
+        env = _environment(root, config)
         report = Path(temporary) / "tests.xml"
         report_kind = "junit"
         if profile == "python_pytest":
