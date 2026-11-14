@@ -11,6 +11,17 @@ the launcher's client session and without a terminal:
     python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR activate \
         --preset day --goal G1 --goal G2 --card-digest <from preflight>
 
+Owner decision 2026-11-14 lets an external agent operate the host as the Owner can in
+the client, behind the same switch:
+
+    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR status [--goal G1]
+    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR stop_window         --window W1 --reason "why"
+    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR retry_step         --goal G1 --step implement --revision 3 [--binding B]
+
+``status`` is read-only. ``stop_window`` is the client's stop (it also revokes standing
+renewal). ``retry_step`` is the Owner retry of decision 2026-11-12 A, with its rules:
+only inside the Goal's active window, never past its bounds.
+
 The command writes ``<id>.request.json`` into ``supervisor_requests/`` beside the task
 store and waits for ``<id>.result.json``. The host removes a request before acting on
 it, so a request runs at most once.
@@ -60,7 +71,14 @@ _FIELDS = {
     "draft": {"action", "text", "repository", "preset"},
     "preflight": {"action", "goal_ids", "preset"},
     "activate": {"action", "goal_ids", "preset", "card_digest", "requested_by"},
+    # Owner decision 2026-11-14: an external agent may also read state, stop a window
+    # and retry a stopped step, as the Owner can in the client.
+    "status": {"action", "goal_id"},
+    "stop_window": {"action", "window_id", "reason"},
+    "retry_step": {"action", "goal_id", "step", "revision", "binding_ref"},
 }
+_REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+STATUS_GOALS = 20
 
 
 def _write_atomic(path: Path, document: Any) -> None:
@@ -198,16 +216,75 @@ class SupervisorRequests:
             elif action == "preflight":
                 goal_ids = payload.get("goal_ids")
                 result = admission.preflight(goal_ids, **admission.supervisor_request(goal_ids, payload.get("preset")))
-            else:
+            elif action == "activate":
                 result = window_to_dict(admission.admit_from_supervisor(
                     payload.get("goal_ids"), preset=payload.get("preset"),
                     card_digest=payload.get("card_digest"), requested_by=payload.get("requested_by", "")))
+            elif action == "status":
+                result = self._status(payload.get("goal_id", ""))
+            elif action == "stop_window":
+                window_id, reason = payload.get("window_id"), payload.get("reason", "")
+                if not _ref(window_id) or not isinstance(reason, str):
+                    raise TaskStoreError("supervisor_request_invalid")
+                label = _printable(reason)[:160]
+                result = window_to_dict(self._host._control_store.stop_window(
+                    window_id, reason="supervisor_stopped" + (f": {label}" if label else "")))
+            else:
+                goal_id, step = payload.get("goal_id"), payload.get("step")
+                revision, binding_ref = payload.get("revision"), payload.get("binding_ref", "")
+                if not (_ref(goal_id) and _ref(step) and type(revision) is int and isinstance(binding_ref, str)
+                        and (not binding_ref or _ref(binding_ref))):
+                    raise TaskStoreError("supervisor_request_invalid")
+                goals = self._host._goal_service
+                goals.owner_retry(goal_id, step, expected_revision=revision, binding_ref=binding_ref)
+                result = self._goal_summary(goals.control_store.get_goal(goal_id))
             return {"ok": True, "action": action, "result": result}
         except TaskStoreError as exc:
             return {"ok": False, "action": action, "error": str(exc)}
         except Exception:  # noqa: BLE001 - reported as a fixed code, details in the host log
             LOG.exception("supervisor request failed (action=%s)", action)
             return {"ok": False, "action": action, "error": "supervisor_request_failed"}
+
+
+    def _goal_summary(self, goal: Any) -> dict[str, Any]:
+        """What a supervisor needs to act on a Goal: its state, revision and each step's latest attempt."""
+        rows = self._host._task_store._conn.execute(
+            "SELECT l.plan_task_id, t.id, t.status, t.binding_ref, t.failure_classification, t.updated_at "
+            "FROM platform_goal_task_links l JOIN tasks t ON t.id = l.task_id WHERE l.goal_id = ? "
+            "ORDER BY t.created_at", (goal.id,)).fetchall()
+        steps: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            entry = steps.setdefault(row["plan_task_id"], {"step": row["plan_task_id"], "attempts": 0})
+            entry.update(attempts=entry["attempts"] + 1, task_id=row["id"], status=row["status"],
+                         binding_ref=row["binding_ref"] or "", failure=row["failure_classification"] or "",
+                         updated_at=row["updated_at"])
+        planned = [str(item.get("id")) for item in goal.tasks if isinstance(item, dict)]
+        return {"id": goal.id, "title": goal.title, "status": goal.status, "revision": goal.revision,
+                "window_id": goal.window_id or "", "updated_at": goal.updated_at,
+                "steps": [steps.get(step, {"step": step, "attempts": 0, "status": "NOT_STARTED"})
+                          for step in planned] + [entry for key, entry in steps.items() if key not in planned]}
+
+    def _status(self, goal_id: Any) -> dict[str, Any]:
+        """Read-only: the active window and the recent Goals, or one Goal with its retry options."""
+        control = self._host._control_store
+        active = control.active_window()
+        if goal_id:
+            if not _ref(goal_id):
+                raise TaskStoreError("supervisor_request_invalid")
+            goal = control.get_goal(goal_id)
+            return {"active_window": window_to_dict(active) if active else None,
+                    "goal": self._goal_summary(goal), "retry": self._host._goal_service.retry_options(goal.id)}
+        goals = control.list_goals(limit=STATUS_GOALS)
+        return {"active_window": window_to_dict(active) if active else None,
+                "goals": [self._goal_summary(goal) for goal in goals]}
+
+
+def _ref(value: Any) -> bool:
+    return isinstance(value, str) and bool(_REF.fullmatch(value))
+
+
+def _printable(text: str) -> str:
+    return "".join(char for char in text if char.isprintable()).strip()
 
 
 def submit(state_dir: str | Path, payload: dict[str, Any], *, wait_seconds: float = 300.0,
@@ -280,6 +357,16 @@ def main(argv: list[str] | None = None) -> int:
         if name == "activate":
             sub.add_argument("--card-digest", required=True)
             sub.add_argument("--requested-by", default="")
+    status = actions.add_parser("status")
+    status.add_argument("--goal", default="", dest="goal_id")
+    stop = actions.add_parser("stop_window")
+    stop.add_argument("--window", required=True, dest="window_id")
+    stop.add_argument("--reason", default="")
+    retry = actions.add_parser("retry_step")
+    retry.add_argument("--goal", required=True, dest="goal_id")
+    retry.add_argument("--step", required=True)
+    retry.add_argument("--revision", required=True, type=int)
+    retry.add_argument("--binding", default="", dest="binding_ref")
     args = parser.parse_args(argv)
     if not args.state_dir:
         parser.error("--state-dir or REVERSE_AGENT_TASK_DB_DIR is required")
