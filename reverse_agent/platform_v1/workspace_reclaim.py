@@ -32,10 +32,17 @@ through ``git worktree remove`` without ``--force``; if git refuses, or a file
 is locked, the failure is reported and the sweep continues.
 
 ``AutoReclaimer`` runs the same checks unattended inside the trusted host. It
-is off unless ``REVERSE_AGENT_WORKSPACE_RECLAIM`` is ``report`` (log only) or
-``apply``. Every poll it reclaims the workspace of each task that finished
-(terminal status, last update) more than the retention period ago, and once per
-sweep interval it sweeps the whole root. Standalone clones are never included.
+is on by default; ``REVERSE_AGENT_WORKSPACE_RECLAIM`` set to ``report`` only logs
+and ``off`` disables it. Every poll it reclaims the workspace of each task that
+finished (terminal status, last update) more than the retention period ago, and
+once per sweep interval it sweeps the whole root. Standalone clones are never
+included.
+
+When the volume holding the root drops below the free-space target, every poll
+becomes a full sweep with the shorter pressure retention. Pressure only shortens
+the waiting period: every other check above still applies, so dirty, unpushed
+or running work is kept however full the disk is. Below a lower floor,
+``disk_short_for_start`` lets task preparation refuse a new worktree.
 """
 
 from __future__ import annotations
@@ -61,6 +68,9 @@ from .run_store import TERMINAL_STATUSES
 
 LOG = logging.getLogger(__name__)
 DEFAULT_RETENTION_DAYS = 3.0
+DEFAULT_MIN_FREE_GB = 20.0
+DEFAULT_PRESSURE_RETENTION_DAYS = 0.5
+DEFAULT_MIN_START_FREE_GB = 2.0
 _GIT = ("git", "-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false",
         "-c", "core.longpaths=true")
 _GIT_ENV = {"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"}
@@ -129,7 +139,15 @@ def _walk(path: Path) -> tuple[float, bool]:
     stack = [top]
     while stack:
         current = stack.pop()
-        with os.scandir(current) as it:
+        try:
+            listing = os.scandir(current)
+        except PermissionError:
+            # Sandboxed runs leave caches other accounts cannot list. They hold
+            # nothing to lose; anything else stays a reason to keep the tree.
+            if current != top and _is_cache(os.path.relpath(current, top)):
+                continue
+            raise
+        with listing as it:
             for entry in it:
                 st = entry.stat(follow_symlinks=False)
                 newest = max(newest, st.st_mtime)
@@ -161,6 +179,17 @@ def _gitdir(path: Path) -> Path | None:
             target = Path(line[len("gitdir:"):].strip())
             return target if target.is_absolute() else (path / target)
     return None
+
+
+def free_gb(path) -> float | None:
+    """Free space on the volume holding ``path``, which may not exist yet."""
+    probe = Path(path).absolute()
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    try:
+        return shutil.disk_usage(probe).free / 2**30
+    except OSError:
+        return None
 
 
 def _read_tasks(db, columns: str) -> list[tuple] | None:
@@ -358,6 +387,7 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
           patterns=None, include_clones: bool = False, task_db=None,
           apply: bool = False, now: float | None = None, stop=None) -> dict:
     now = time.time() if now is None else now
+    roots = list(roots)
     compiled = [re.compile(p, re.IGNORECASE) for p in (patterns or [])]
     statuses = _task_statuses(task_db)
     entries = []
@@ -387,6 +417,7 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
         "reclaimable": sum(e["reclaim"] for e in entries),
         "removed": sum(bool(e.get("removed")) for e in entries),
         "failed": sum(e.get("removed") is False for e in entries),
+        "free_gb": {str(root): free_gb(root) for root in roots},
     }
 
 
@@ -413,7 +444,7 @@ def _env_number(env, name, default, minimum):
 def auto_config(env=None) -> dict:
     """Read the automatic reclaim settings; anything invalid falls back safely."""
     env = os.environ if env is None else env
-    mode = env.get("REVERSE_AGENT_WORKSPACE_RECLAIM", "").strip().lower() or "off"
+    mode = env.get("REVERSE_AGENT_WORKSPACE_RECLAIM", "").strip().lower() or "apply"
     if mode not in AUTO_MODES:
         LOG.warning("workspace reclaim: unknown mode %r; staying off", mode)
         mode = "off"
@@ -425,7 +456,21 @@ def auto_config(env=None) -> dict:
                                       DEFAULT_SWEEP_INTERVAL_HOURS, 1.0),
         "poll_minutes": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES",
                                     DEFAULT_POLL_MINUTES, 1.0),
+        "min_free_gb": _env_number(env, "REVERSE_AGENT_WORKSPACE_MIN_FREE_GB",
+                                   DEFAULT_MIN_FREE_GB, 0.0),
+        "pressure_retention_days": _env_number(
+            env, "REVERSE_AGENT_WORKSPACE_PRESSURE_RETENTION_DAYS",
+            DEFAULT_PRESSURE_RETENTION_DAYS, 0.0),
     }
+
+
+def disk_short_for_start(path, env=None) -> float | None:
+    """Return the free GB when too little is left to start a task, else ``None``."""
+    env = os.environ if env is None else env
+    floor = _env_number(env, "REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB",
+                        DEFAULT_MIN_START_FREE_GB, 0.0)
+    free = free_gb(path)
+    return free if free is not None and free < floor else None
 
 
 def _parse_utc(text: str) -> float | None:
@@ -452,7 +497,8 @@ class AutoReclaimer:
     def __init__(self, root, task_db, *, mode="report",
                  retention_days=DEFAULT_RETENTION_DAYS,
                  interval_hours=DEFAULT_SWEEP_INTERVAL_HOURS,
-                 poll_minutes=DEFAULT_POLL_MINUTES, state_path=None, clock=time.time):
+                 poll_minutes=DEFAULT_POLL_MINUTES, state_path=None, clock=time.time,
+                 min_free_gb=0.0, pressure_retention_days=DEFAULT_PRESSURE_RETENTION_DAYS):
         if mode not in ("report", "apply"):
             raise ValueError(f"unsupported reclaim mode: {mode}")
         self.root = Path(root).absolute()
@@ -461,6 +507,8 @@ class AutoReclaimer:
         self.retention_days = float(retention_days)
         self.interval_seconds = float(interval_hours) * 3600
         self.poll_seconds = float(poll_minutes) * 60
+        self.min_free_gb = float(min_free_gb)
+        self.pressure_retention_days = float(pressure_retention_days)
         self.state_path = Path(state_path) if state_path else None
         self.clock = clock
         self._handled: set[tuple[str, str]] = set()
@@ -505,15 +553,26 @@ class AutoReclaimer:
     def tick(self) -> dict:
         with self._mutex:
             now = self.clock()
-            finished = self.reclaim_finished(now)
-            swept = self.full_sweep(now) if self._sweep_due(now) else None
-            return {"finished": finished, "sweep": swept}
+            low = self._disk_low()
+            retention = (min(self.retention_days, self.pressure_retention_days)
+                         if low else self.retention_days)
+            finished = self.reclaim_finished(now, retention)
+            swept = self.full_sweep(now, retention) if low or self._sweep_due(now) else None
+            if low:
+                LOG.warning("workspace reclaim: low disk space under %s; target %g GB, now %s GB",
+                            self.root, self.min_free_gb, free_gb(self.root))
+            return {"finished": finished, "sweep": swept, "low_disk": low}
 
-    def _opts(self, now, statuses):
-        return dict(now=now, retention_days=self.retention_days, include_clones=False,
+    def _disk_low(self) -> bool:
+        free = free_gb(self.root) if self.min_free_gb > 0 else None
+        return free is not None and free < self.min_free_gb
+
+    def _opts(self, now, statuses, retention_days):
+        return dict(now=now, retention_days=retention_days, include_clones=False,
                     task_statuses=statuses)
 
-    def reclaim_finished(self, now: float) -> list[dict]:
+    def reclaim_finished(self, now: float, retention_days: float | None = None) -> list[dict]:
+        retention = self.retention_days if retention_days is None else retention_days
         rows = _task_rows(self.task_db)
         if rows is None:
             LOG.warning("workspace reclaim: task store unreadable; skipping")
@@ -526,7 +585,7 @@ class AutoReclaimer:
             if status not in TERMINAL_STATUSES or (task_id, updated_at) in self._handled:
                 continue
             finished_at = _parse_utc(updated_at)
-            if finished_at is None or now - finished_at < self.retention_days * 86400:
+            if finished_at is None or now - finished_at < retention * 86400:
                 continue
             child = self.root / task_id
             # Only a plain direct child of the root; never "", "." or "..".
@@ -534,7 +593,7 @@ class AutoReclaimer:
                     or child.parent != self.root or not os.path.lexists(child)):
                 continue
             self._handled.add((task_id, updated_at))
-            record = _reclaim_one(child, self._opts(now, statuses), self.apply,
+            record = _reclaim_one(child, self._opts(now, statuses, retention), self.apply,
                                   self._stop.is_set)
             self._log(record)
             records.append(record)
@@ -553,8 +612,9 @@ class AutoReclaimer:
             return {}
         return data if isinstance(data, dict) else {}
 
-    def full_sweep(self, now: float) -> dict:
-        report = sweep([self.root], retention_days=self.retention_days, task_db=self.task_db,
+    def full_sweep(self, now: float, retention_days: float | None = None) -> dict:
+        retention = self.retention_days if retention_days is None else retention_days
+        report = sweep([self.root], retention_days=retention, task_db=self.task_db,
                        apply=self.apply, now=now, stop=self._stop.is_set)
         for record in report["entries"]:
             self._log(record)
@@ -592,7 +652,9 @@ def configured_reclaimer(workspace_root, task_db, env=None) -> AutoReclaimer | N
     return AutoReclaimer(workspace_root, task_db, mode=config["mode"],
                          retention_days=config["retention_days"],
                          interval_hours=config["interval_hours"],
-                         poll_minutes=config["poll_minutes"], state_path=state_path)
+                         poll_minutes=config["poll_minutes"], state_path=state_path,
+                         min_free_gb=config["min_free_gb"],
+                         pressure_retention_days=config["pressure_retention_days"])
 
 
 def main(argv=None) -> int:
@@ -622,6 +684,8 @@ def main(argv=None) -> int:
     print(f"workspace_reclaim: {len(report['entries'])} checked, "
           f"{report['reclaimable']} reclaimable, {report['removed']} removed, "
           f"{report['failed']} failed{'' if args.apply else ' (dry run)'}")
+    for root, free in report["free_gb"].items():
+        print(f"free space: {root}: " + ("unknown" if free is None else f"{free:.1f} GB"))
     return 1 if report["failed"] else 0
 
 

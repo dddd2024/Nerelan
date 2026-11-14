@@ -11,6 +11,7 @@ import subprocess
 import uuid
 from .task_runtime import ExecutorRuntimeError, _sanitize_output
 from .opencode_executor import _emit, redact_secrets
+from .workspace_reclaim import disk_short_for_start
 
 def _is_path_contained(path: Path, parent: Path) -> bool:
     return path == parent or parent in path.parents
@@ -110,6 +111,16 @@ def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_valu
         raise ExecutorRuntimeError("workspace_destination_exists")
 
     parents = dest.parent
+    free = disk_short_for_start(parents)
+    if free is not None:
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "not enough disk space",
+            "description": "Too little free disk space to start a task workspace",
+            "metadata": {"failure_classification": "policy_worktree_violation",
+                         "free_gb": round(free, 2)},
+        })
+        raise ExecutorRuntimeError("workspace_disk_space_low")
     parents.mkdir(parents=True, exist_ok=True)
 
     add_proc = _run_git(

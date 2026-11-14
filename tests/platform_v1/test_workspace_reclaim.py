@@ -8,7 +8,8 @@ import time
 
 import pytest
 
-from reverse_agent.platform_v1 import workspace_reclaim
+from reverse_agent.platform_v1 import repository_preparation, workspace_reclaim
+from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
 from reverse_agent.platform_v1.workspace_reclaim import main, sweep
 
 LATER = time.time() + 30 * 86400
@@ -432,26 +433,31 @@ def _reclaimer(root, db, mode="apply", **kw):
     return workspace_reclaim.AutoReclaimer(root, db, mode=mode, clock=lambda: LATER, **kw)
 
 
-def test_auto_config_is_off_by_default_and_rejects_bad_values():
-    assert workspace_reclaim.auto_config({}) == {
-        "mode": "off", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0}
+def test_auto_config_is_on_by_default_and_rejects_bad_values():
+    defaults = {"retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0,
+                "min_free_gb": 20.0, "pressure_retention_days": 0.5}
+    assert workspace_reclaim.auto_config({}) == {"mode": "apply", **defaults}
     config = workspace_reclaim.auto_config({
         "REVERSE_AGENT_WORKSPACE_RECLAIM": "delete-all",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "-1",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS": "nan",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES": "0.1",
+        "REVERSE_AGENT_WORKSPACE_MIN_FREE_GB": "-5",
+        "REVERSE_AGENT_WORKSPACE_PRESSURE_RETENTION_DAYS": "inf",
     })
-    assert config == {"mode": "off", "retention_days": 3.0, "interval_hours": 24.0,
-                      "poll_minutes": 15.0}
+    assert config == {"mode": "off", **defaults}
     config = workspace_reclaim.auto_config({
         "REVERSE_AGENT_WORKSPACE_RECLAIM": " Apply ",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "7"})
     assert config["mode"] == "apply" and config["retention_days"] == 7.0
 
 
-def test_configured_reclaimer_needs_opt_in_and_a_file_store(root, tmp_path):
+def test_configured_reclaimer_can_be_disabled_and_needs_a_file_store(root, tmp_path):
     db = str(tmp_path / "tasks.sqlite3")
-    assert workspace_reclaim.configured_reclaimer(root, db, env={}) is None
+    default = workspace_reclaim.configured_reclaimer(root, db, env={})
+    assert default.apply is True and default.min_free_gb == 20.0
+    off = {"REVERSE_AGENT_WORKSPACE_RECLAIM": "off"}
+    assert workspace_reclaim.configured_reclaimer(root, db, env=off) is None
     on = {"REVERSE_AGENT_WORKSPACE_RECLAIM": "report"}
     assert workspace_reclaim.configured_reclaimer(root, ":memory:", env=on) is None
     reclaimer = workspace_reclaim.configured_reclaimer(root, db, env=on)
@@ -490,6 +496,93 @@ def test_finished_task_with_unsafe_work_is_kept(repo, root, tmp_path):
     assert records["task-dirty"]["reason"] == "uncommitted or untracked changes"
     assert records["task-unpushed"]["reason"] == "commits not on any remote branch"
     assert dirty.exists() and unpushed.exists()
+
+
+def _deny_listing(monkeypatch, name):
+    real = workspace_reclaim.os.scandir
+
+    def scandir(path):
+        if os.path.basename(str(path)) == name:
+            raise PermissionError(5, "Access is denied", str(path))
+        return real(path)
+
+    monkeypatch.setattr(workspace_reclaim.os, "scandir", scandir)
+
+
+def test_unlistable_cache_does_not_block_reclaim(repo, root, monkeypatch):
+    with (repo / ".git" / "info" / "exclude").open("a") as handle:
+        handle.write("__pycache__/\n")
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "__pycache__").mkdir()
+    _deny_listing(monkeypatch, "__pycache__")
+    assert by_name(sweep([root], now=LATER))["task-1"]["reclaim"] is True
+
+
+def test_unlistable_work_directory_keeps_the_tree(repo, root, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "results").mkdir()
+    _deny_listing(monkeypatch, "results")
+    entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
+    assert entry["reason"] == "tree unreadable" and wt.exists()
+
+
+def _low_disk_reclaimer(root, db, tmp_path, monkeypatch, free):
+    monkeypatch.setattr(workspace_reclaim, "free_gb", lambda _path: free)
+    return workspace_reclaim.AutoReclaimer(
+        root, db, mode="apply", min_free_gb=20, pressure_retention_days=0.5,
+        state_path=tmp_path / "state.json", clock=lambda: time.time() + 86400)
+
+
+def test_low_disk_shortens_retention_but_keeps_unsafe_work(repo, root, tmp_path, monkeypatch):
+    clean = add_worktree(repo, root, "task-clean")
+    dirty = add_worktree(repo, root, "task-dirty")
+    (dirty / "a.txt").write_text("changed\n")
+    unpushed = add_worktree(repo, root, "task-unpushed")
+    git(unpushed, "commit", "-q", "--allow-empty", "-m", "local")
+    running = add_worktree(repo, root, "task-run")
+    done = _iso(time.time())
+    db = _store_db(tmp_path / "tasks.sqlite3", [
+        ("task-clean", "FAILED", done), ("task-dirty", "FAILED", done),
+        ("task-unpushed", "FAILED", done), ("task-run", "RUNNING", done)])
+    result = _low_disk_reclaimer(root, db, tmp_path, monkeypatch, 5.0).tick()
+    assert result["low_disk"] is True and not clean.exists()
+    assert dirty.exists() and unpushed.exists() and running.exists()
+
+
+def test_healthy_disk_keeps_normal_retention(repo, root, tmp_path, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(time.time()))])
+    result = _low_disk_reclaimer(root, db, tmp_path, monkeypatch, 50.0).tick()
+    assert result["low_disk"] is False and wt.exists()
+
+
+def test_low_disk_sweeps_every_poll_despite_the_interval(repo, root, tmp_path, monkeypatch):
+    db = _store_db(tmp_path / "tasks.sqlite3", [])
+    reclaimer = _low_disk_reclaimer(root, db, tmp_path, monkeypatch, 5.0)
+    assert reclaimer.tick()["sweep"] is not None
+    assert reclaimer.tick()["sweep"] is not None
+
+
+def test_free_gb_uses_the_nearest_existing_parent(tmp_path):
+    assert workspace_reclaim.free_gb(tmp_path / "not" / "yet") > 0
+
+
+def test_start_floor_defaults_and_can_be_disabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(workspace_reclaim, "free_gb", lambda _path: 1.0)
+    assert workspace_reclaim.disk_short_for_start(tmp_path, env={}) == 1.0
+    off = {"REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB": "0"}
+    assert workspace_reclaim.disk_short_for_start(tmp_path, env=off) is None
+
+
+def test_task_preparation_refuses_a_worktree_when_the_disk_is_nearly_full(repo, root, monkeypatch):
+    monkeypatch.setattr(repository_preparation, "disk_short_for_start", lambda _path: 1.0)
+    events = []
+    with pytest.raises(ExecutorRuntimeError, match="workspace_disk_space_low"):
+        repository_preparation.prepare_linked_worktree(
+            "task-1", root, lambda _task, event: events.append(event),
+            repo_dir_value=str(repo), base_ref="origin/main")
+    assert not (root / "task-1").exists()
+    assert events[-1]["metadata"]["free_gb"] == 1.0
 
 
 def test_report_mode_never_deletes(repo, root, tmp_path):
