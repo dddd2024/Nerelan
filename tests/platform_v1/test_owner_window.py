@@ -224,6 +224,71 @@ class TestAdmission:
             (OWNER_WINDOW_RECEIPT,)).fetchone()[0])["approved_pool"]
         assert [entry["binding_ref"] for entry in pool] == ["pinned"]
 
+    def stale_claim(self, setup, *, task_status="INTERRUPTED", stop=True, expired=True, recorded=True):
+        """An attempt claimed by a window that was then stopped, as on the run host 2026-11-14."""
+        a = setup.planned("old", "codex", "pinned")
+        old, _ = admit(setup.host, (a.id,))
+        if stop:
+            setup.host._control_store.stop_window(old.id, reason="owner_stopped")
+        task = setup.db.create_task(title="abandoned attempt", repository="owner/repo",
+                                    executor_kind="deterministic_fixture")
+        setup.db._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (task_status, task.id))
+        setup.db._conn.execute(
+            "INSERT INTO platform_coordinator_claims (task_id, window_id, epoch, status, expires_at_ms, owner, "
+            "created_at, updated_at) VALUES (?, ?, 1, 'ACTIVE', ?, 'coordinator-old', '', '')",
+            (task.id, old.id, 0 if expired else 10 ** 15))
+        if recorded:
+            # A durable checkpoint with a recorded external operation: effects are known.
+            setup.db._conn.execute(
+                "INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, lease_expiry_ms, "
+                "created_at, updated_at) VALUES (?, ?, 'exec-old', 'fixture', 1, 1, 'x', 'x')",
+                (f"run-{task.id}", task.id))
+            setup.db._conn.execute(
+                "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+                "idempotency_key, request_digest, state, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'k', 'i', 'd', 'SUCCEEDED', 'x', 'x')", (f"op-{task.id}", f"run-{task.id}", task.id))
+        setup.db._conn.commit()
+        return old, task
+
+    def test_an_unknown_effects_claim_stops_blocking_but_keeps_its_hold(self, setup):
+        """#1206/#1277: the ACTIVE claim is the hold; admission must not retire it."""
+        old, task = self.stale_claim(setup, recorded=False)
+        b = setup.planned("b", "codex", "pinned")
+        window, _ = admit(setup.host, (b.id,))
+        assert window.status == "ACTIVE"
+        claim = setup.db._conn.execute("SELECT status FROM platform_coordinator_claims WHERE task_id = ?",
+                                       (task.id,)).fetchone()
+        assert claim["status"] == "ACTIVE"
+        control = setup.host._control_store
+        with control._lock:
+            assert control._stale_claim_unknown_locked(task.id, old.id, 10 ** 15)
+
+    def test_a_stale_claim_of_a_closed_window_is_retired_by_the_next_window(self, setup):
+        old, task = self.stale_claim(setup)
+        b = setup.planned("b", "codex", "pinned")
+        report = setup.host._owner_window_admission.preflight([b.id], **REQUEST)
+        assert report["ok"] is True, report["checks"]
+        assert [w["warning"] for w in report["warnings"]] == ["stale_claims_retired"]
+        window, _ = admit(setup.host, (b.id,))
+        assert window.status == "ACTIVE"
+        claim = setup.db._conn.execute("SELECT status FROM platform_coordinator_claims WHERE task_id = ?",
+                                       (task.id,)).fetchone()
+        assert claim["status"] == "RETIRED"
+        receipt = setup.db._conn.execute(
+            "SELECT reason, result FROM platform_operation_receipts WHERE operation_type = 'claim_retirement' "
+            "AND subject_id = ?", (task.id,)).fetchone()
+        assert (receipt["reason"], receipt["result"]) == ("window_closed_claim_expired", f"retired_for:{window.id}")
+
+    @pytest.mark.parametrize("variant", ["lease_live", "window_active", "task_running"])
+    def test_a_claim_that_may_be_live_still_holds(self, setup, variant):
+        self.stale_claim(setup, expired=variant != "lease_live", stop=variant != "window_active",
+                         task_status="RUNNING" if variant == "task_running" else "INTERRUPTED")
+        b = setup.planned("b", "codex", "pinned")
+        with pytest.raises(TaskStoreError):
+            admit(setup.host, (b.id,))
+        assert setup.db._conn.execute(
+            "SELECT COUNT(*) FROM platform_coordinator_claims WHERE status = 'ACTIVE'").fetchone()[0] == 1
+
     def test_old_active_claims_hold_admission(self, setup):
         a = setup.planned("a", "codex", "pinned")
         setup.db._conn.execute(
@@ -488,7 +553,7 @@ class TestPreflight:
         class Claims:
             def execute(self, sql, *args):
                 if "platform_coordinator_claims" in sql:
-                    return SimpleNamespace(fetchone=lambda: (3,))
+                    return SimpleNamespace(fetchone=lambda: (3,), fetchall=lambda: [])
                 return real.execute(sql, *args)
         monkeypatch.setattr(setup.host._control_store, "_conn", Claims())
         checks = self.by_check(setup.host._owner_window_admission.preflight([a.id], **REQUEST))

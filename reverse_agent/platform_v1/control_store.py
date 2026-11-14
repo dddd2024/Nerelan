@@ -1189,6 +1189,68 @@ class PlatformControlStore:
 
     # Window rebind (#1277) -------------------------------------------
 
+    _STALE_CLAIMS_SQL = (
+        "SELECT claim.task_id, claim.window_id, claim.epoch, claim.owner, task.repository "
+        "FROM platform_coordinator_claims AS claim "
+        "JOIN platform_autonomous_windows AS w ON w.id = claim.window_id "
+        "JOIN tasks AS task ON task.id = claim.task_id "
+        "WHERE claim.status = 'ACTIVE' AND claim.expires_at_ms <= ? AND w.status <> 'ACTIVE' "
+        "AND task.status IN ({}) ORDER BY claim.task_id").format(
+            ",".join("'%s'" % state for state in sorted(REBINDABLE_TASK_STATES | TERMINAL_TASK_STATES)))
+
+    def claim_holds(self, *, now_ms: int | None = None) -> dict[str, int]:
+        """Active coordinator claims that may still be live, and stale ones a new window may retire.
+
+        Stale: the lease has expired, its window is no longer ACTIVE (stopped, expired,
+        blocked) and its task is not in flight. Nothing can resume such a claim: resume
+        needs an active window, and rebind refuses Owner windows. Counting it as a hold
+        made one stopped Owner window block every later one (2026-11-14).
+        """
+        now_ms = _utc_now_ms() if now_ms is None else now_ms
+        with self._lock:
+            active = self._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE status = 'ACTIVE'").fetchone()[0]
+            stale = len(self._conn.execute(self._STALE_CLAIMS_SQL, (now_ms,)).fetchall())
+        return {"live": active - stale, "stale": stale}
+
+    def retire_stale_claims(self, *, to_window_id: str, now_ms: int | None = None) -> tuple[str, ...]:
+        """Retire stale claims (see ``claim_holds``) as rebind does; call inside the admitting transaction.
+
+        Claims that hold an attempt with unknown outside effects stay ACTIVE (rebind keeps
+        them too). Usage of a retired attempt is unknown: its reservation becomes UNKNOWN,
+        never released or refunded; this includes claims of tasks that already finished,
+        whose result is then not settled from this claim. Each retirement leaves a receipt.
+        """
+        now_ms = _utc_now_ms() if now_ms is None else now_ms
+        retired = []
+        from .unknown_claim_isolation import held_task
+        with self._lock:
+            for row in self._conn.execute(self._STALE_CLAIMS_SQL, (now_ms,)).fetchall():
+                # An attempt with unknown outside effects (#1206/#1277) keeps its claim ACTIVE:
+                # that row is the hold. It no longer blocks admission, but it is never retired here.
+                if held_task(self._conn, row["task_id"]) or self._stale_claim_unknown_locked(
+                        row["task_id"], row["window_id"], now_ms):
+                    continue
+                updated = self._conn.execute(
+                    "UPDATE platform_coordinator_claims SET status = 'RETIRED', updated_at = ? "
+                    "WHERE task_id = ? AND window_id = ? AND epoch = ? AND status = 'ACTIVE' AND expires_at_ms <= ?",
+                    (_utc_now(), row["task_id"], row["window_id"], row["epoch"], now_ms))
+                if updated.rowcount != 1:
+                    raise TaskStoreError("coordinator_claim_fenced")
+                self._conn.execute(
+                    "UPDATE platform_budget_reservations SET state = 'UNKNOWN', updated_at = ?, reconciled_at = ? "
+                    "WHERE task_id = ? AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
+                    (_utc_now(), _utc_now(), row["task_id"], row["epoch"], row["window_id"]))
+                self.append_receipt(
+                    window_id=row["window_id"], operation_type="claim_retirement", capability="not_applicable",
+                    repository=row["repository"], subject_id=row["task_id"], decision="not_evaluated",
+                    reason="window_closed_claim_expired",
+                    input_payload={"task_id": row["task_id"], "claim_epoch": row["epoch"],
+                                   "claim_owner": row["owner"], "to_window_id": to_window_id},
+                    result=f"retired_for:{to_window_id}")
+                retired.append(row["task_id"])
+        return tuple(retired)
+
     def rebind_goal_to_window(self, goal_id: str, *, window_id: str, reason: str = "owner_rebind") -> dict[str, Any]:
         """Move a stranded Goal's unfinished tasks under a new, explicitly activated window.
 
