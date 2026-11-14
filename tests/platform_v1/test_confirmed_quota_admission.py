@@ -213,9 +213,10 @@ def reset_host(monkeypatch):
     monkeypatch.setattr(host, "_subscription_quotas", lambda: {})
     connection = {"connection_id": "account", "executor_provider_id": "codex"}
 
-    def fail(reset="", age=0, classification="codex_usage_limit"):
+    def fail(reset="", age=0, classification="codex_usage_limit", detail=""):
         task = tasks.create_task(title="failure", repository="o/r", executor_kind="codex", binding_ref="b")
-        task = tasks.classify_failure(task.id, classification=classification, failure_reset_at=reset)
+        task = tasks.classify_failure(task.id, classification=classification, detail=detail,
+                                      failure_reset_at=reset)
         tasks._conn.execute("UPDATE tasks SET failure_at = ?, updated_at = ? WHERE id = ?",
                             (_iso(now - age), _iso(now - age), task.id))
         tasks._conn.commit()
@@ -383,3 +384,48 @@ def test_weekly_only_router_capacity_blocks_without_reset_signal():
                       weekly_headroom=.12, task_weekly_fraction=.03),
             candidate("fit", "opus", "subscription")]
     assert choose(pool, difficulty=5)["binding_ref"] == "fit"
+
+
+_PLAN_EXHAUSTED = "opencode_nonzero:exit=1:quota_exhausted name=APIError status=429 message=token plan entitlement exhausted"
+
+
+def test_executor_reported_plan_exhaustion_holds_longer_than_a_rate_limit(reset_host):
+    """#1497: a used-up plan stays held for hours; a plain 429 an hour."""
+    host, connection, now, fail = reset_host
+    fail(age=2 * 3600, classification="api_error_429",
+         detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429 message=too many requests")
+    assert host._limit_hit_until(connection) is None
+    fail(age=2 * 3600, classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    assert host._limit_hit_until(connection) == now + 3 * 3600
+
+
+def test_stated_reset_still_beats_the_plan_exhaustion_fallback(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 600), classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    assert host._limit_hit_until(connection) == now + 600
+
+
+@pytest.mark.parametrize("detail", ["quota_exhausted:limit_hit", "quota_exhausted:limit_hit:no_alternative", ""])
+def test_host_quota_refusals_are_not_account_evidence(reset_host, detail):
+    host, connection, now, fail = reset_host
+    fail(classification="quota_exhausted", detail=detail)
+    assert host._limit_hit_until(connection) is None
+
+
+def test_plan_exhausted_binding_is_not_selected_again_in_the_window(monkeypatch):
+    """The next dispatch after a plan-exhaustion failure switches away while the hold lasts."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "glm-plan", "name": "GLM", "provider": "openai_compatible",
+                             "base_url": "https://example.invalid/v1", "auth_method": "api_key",
+                             "enabled": True})
+    store.upsert_binding({"binding_id": "coding-glm", "name": "GLM", "connection_id": "glm-plan",
+                          "executor_id": "opencode", "model_id": "glm-test", "enabled": True})
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {}, raising=False)
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="opencode", binding_ref="coding-glm")
+    tasks.classify_failure(failed.id, classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    verdict = host._quota_check(store.list_bindings_public()[0])
+    assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")

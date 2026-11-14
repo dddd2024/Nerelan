@@ -1194,7 +1194,7 @@ class CombinedTrustedHost:
 
     def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
         """When a run on this account last failed for quota, and the account has not reset since."""
-        from .quota_guard import ACCOUNT_LIMIT, limit_hit_until
+        from .quota_guard import account_refusal_hold, limit_hit_until
         # A recorded account is shared by every connection naming it; an unbound login is only itself.
         account = connection.get("account_ref")
         connections = {c["connection_id"] for c in self._store.list_connections_public()
@@ -1209,7 +1209,7 @@ class CombinedTrustedHost:
         # never from a later admission check. Keep those older failures discoverable.
         since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, failure_reset_at, failure_at, updated_at FROM tasks "
+            "SELECT failure_classification, failure_detail, failure_reset_at, failure_at, updated_at FROM tasks "
             "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
@@ -1217,7 +1217,8 @@ class CombinedTrustedHost:
         holds = []
         for row in rows:
             # Host refusals are not fresh account evidence.
-            if not ACCOUNT_LIMIT.search(row["failure_classification"] or ""):
+            hold = account_refusal_hold(row["failure_classification"] or "", row["failure_detail"] or "")
+            if hold is None:
                 continue
             hit_at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
             if hit_at > now:
@@ -1250,7 +1251,7 @@ class CombinedTrustedHost:
                         resets.append(reset)
                 holds.append(max(resets))
             elif hit_at >= now - 86400:
-                holds.append(limit_hit_until(hit_at, quota))
+                holds.append(limit_hit_until(hit_at, quota, hold))
         until = max(holds, default=0)
         return until if until > now else None
 
