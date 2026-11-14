@@ -316,6 +316,24 @@ export function GoalComposer({
           {blockedReason}
         </p>
       ) : null}
+      {/* What limits Send or the run stays visible with the options closed. */}
+      {approvedPolicy && checkerOnly && <p role="status" className="px-3 pb-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
+        已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
+        {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
+        {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
+      </p>}
+      {approvedPolicyQuery.isError && <p role="status" className="px-3 pb-2 text-xs text-ra-status-warning">当前没有可验证的已批准运行窗口；可以保存草稿，不能据此获得执行授权。</p>}
+      {bindingMissing ? (
+        <p
+          role="status"
+          data-testid="goal-composer-binding-hint"
+          className="px-3 pb-2 text-xs text-ra-status-warning"
+        >
+          {bindingsQuery.isLoading
+            ? "正在获取可用的模型绑定…"
+            : "没有可用的 OpenCode 绑定。请先在设置页创建连接与绑定，或直接填写绑定名称。"}
+        </p>
+      ) : null}
 
       <div
         data-testid="goal-composer-options"
@@ -385,23 +403,11 @@ export function GoalComposer({
 
           <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
         </div>
-        {approvedPolicy && <p role="status" className="mt-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
+        {approvedPolicy && !checkerOnly && <p role="status" className="mt-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
           已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
           {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
           {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
         </p>}
-        {approvedPolicyQuery.isError && <p role="status" className="mt-2 text-xs text-ra-status-warning">当前没有可验证的已批准运行窗口；可以保存草稿，不能据此获得执行授权。</p>}
-        {bindingMissing ? (
-          <p
-            role="status"
-            data-testid="goal-composer-binding-hint"
-            className="mt-2 text-xs text-ra-status-warning"
-          >
-            {bindingsQuery.isLoading
-              ? "正在获取可用的模型绑定…"
-              : "没有可用的 OpenCode 绑定。请先在设置页创建连接与绑定，或直接填写绑定名称。"}
-          </p>
-        ) : null}
       </div>
     </form>
   );

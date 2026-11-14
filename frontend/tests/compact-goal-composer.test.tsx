@@ -44,6 +44,8 @@ describe("GoalComposer compact progressive disclosure", () => {
     renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
     await user.type(screen.getByLabelText("描述最终目标"), "检查冻结范围内的差异格式");
     expect(screen.getByTestId("approved-policy-summary")).toHaveTextContent("不实现代码或修复目标");
+    // It limits what the run does, so it shows with 高级 closed.
+    expect(screen.getByTestId("approved-policy-summary")).toBeVisible();
     expect(screen.queryByLabelText("模型绑定")).not.toBeInTheDocument();
     await user.click(screen.getByLabelText("创建并审阅目标"));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));

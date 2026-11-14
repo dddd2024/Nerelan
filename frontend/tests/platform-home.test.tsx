@@ -173,6 +173,8 @@ describe("Platform V2 Home Workspace V2", () => {
   beforeEach(() => {
     __setMockGoalStatus(DEMO_ID, { status: "RUNNING", task_links: [...RUNNING_LINKS] });
     vi.spyOn(globalThis.navigator, "onLine", "get").mockReturnValue(true);
+    // The greeting follows the hour; pin it so the heading does not depend on when tests run.
+    vi.spyOn(Date.prototype, "getHours").mockReturnValue(14);
   });
 
   afterEach(() => {
@@ -184,7 +186,7 @@ describe("Platform V2 Home Workspace V2", () => {
 
   it("opens on the composer with recent goals and selects no goal by itself", async () => {
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
-    expect(await screen.findByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "下午好，今天做点什么？" })).toBeInTheDocument();
     // Screen readers keep the original prompt.
     expect(screen.getByText(/今天想完成什么？/)).toHaveClass("sr-only");
     expect(screen.getByLabelText("描述最终目标")).toBeInTheDocument();
@@ -305,10 +307,16 @@ describe("Platform V2 Home Workspace V2", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("greets late at night without asking what to do today", async () => {
+    vi.spyOn(Date.prototype, "getHours").mockReturnValue(3);
+    render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
+    expect(await screen.findByRole("heading", { name: "夜深了，有什么要做的？" })).toBeInTheDocument();
+  });
+
   it("creates an inert Goal for review without activating a window", async () => {
     // The composer lives on the empty home; goal pages no longer dock it.
     render(<HomePage />, { factory: () => seededHomeClient(), initialEntries: ["/"] });
-    await screen.findByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ });
+    await screen.findByRole("heading", { name: "下午好，今天做点什么？" });
     const create = vi.spyOn(platformClient, "createGoalDraftRecord");
     const automaticStart = vi.spyOn(platformClient, "startGoal");
     const user = userEvent.setup();
