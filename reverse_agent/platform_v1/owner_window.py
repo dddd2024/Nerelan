@@ -143,8 +143,7 @@ class OwnerWindowAdmission:
         """Persisted truth for the prompt and for the in-transaction recheck."""
         host = self._host
         control = host._control_store
-        if control._conn.execute(
-                "SELECT 1 FROM platform_coordinator_claims WHERE status = 'ACTIVE' LIMIT 1").fetchone():
+        if control.claim_holds()["live"]:
             raise TaskStoreError("owner_window_old_active_claims_hold")
         goals = [control.get_goal(goal_id) for goal_id in goal_ids]
         repositories = {goal.repository for goal in goals}
@@ -441,10 +440,14 @@ class OwnerWindowAdmission:
         control = host._control_store
         scope = None
         with host._task_store._lock, host._store._lock:
-            held = control._conn.execute(
-                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE status = 'ACTIVE'").fetchone()[0]
+            holds = control.claim_holds()
+            held = holds["live"]
             add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
                 f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
+            if holds["stale"]:
+                warnings.append({"warning": "stale_claims_retired",
+                                 "detail": f"{holds['stale']} expired claims of closed windows will be retired; "
+                                           "their unfinished attempts are abandoned and their usage counted as unknown"})
             if held:
                 add("goals", "skipped_while_claims_hold")
             else:
@@ -527,6 +530,7 @@ class OwnerWindowAdmission:
             def sql_admit(window_id: str) -> None:
                 validate()  # BEGIN IMMEDIATE is held: reread persisted truth.
                 control = host._control_store
+                control.retire_stale_claims(to_window_id=window_id)
                 marked = control._conn.execute(
                     "UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
                     (OWNER_WINDOW_MODE, window_id))
