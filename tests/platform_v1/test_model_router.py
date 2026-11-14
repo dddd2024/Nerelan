@@ -8,7 +8,7 @@ from reverse_agent.platform_v1.agent_planner import extract_plan
 from reverse_agent.platform_v1.goal_service import GoalService, PlannedTask
 from reverse_agent.platform_v1.model_router import capability, prior_tier, select_model
 from reverse_agent.platform_v1.model_profiles import compute_agent_profiles
-from reverse_agent.platform_v1.run_store import TaskStoreError
+from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 
@@ -535,3 +535,99 @@ def test_prior_higher_tier_not_capped_by_low_difficulty_measured():
     assert decision['binding_ref'] == 'm4-free'
     assert decision['tier'] == 4
     assert not decision['underpowered']
+
+
+def _benchmark_table():
+    from reverse_agent.platform_v1 import capability_benchmarks as cb, routing_capabilities
+    snapshot = {"version": 1, "snapshot_id": "fixture", "families": {
+        "strong": {"aliases": ["strong"], "scores": [{
+            "benchmark": "swe_bench_verified", "score": 90, "source": "fixture",
+            "url": "https://example.test/bench", "retrieved_at": "2026-11-01"}]},
+        "weak": {"aliases": ["weak"], "scores": [{
+            "benchmark": "swe_bench_verified", "score": 10, "source": "fixture",
+            "url": "https://example.test/bench", "retrieved_at": "2026-11-01"}]}}}
+    table = routing_capabilities.CapabilityTable()
+    table.benchmarks = cb.BenchmarkPriors(snapshot)
+    return table
+
+
+def _proven_code_three():
+    bucket = {"attempts": 3, "success_rate": 1., "timeouts": 0}
+    return {"proven": {"task_buckets": {"code:3": dict(bucket), "review:3": dict(bucket)}}}
+
+
+def test_hard_difficulty_explores_benchmark_strong_unproven_model_within_budget():
+    table, profiles = _benchmark_table(), _proven_code_three()
+    pool = [candidate("proven", "weak"), candidate("strong", "strong")]
+    explored = choose(pool, difficulty=3, profiles=profiles, capability_table=table,
+                      exploration_draw=.05)
+    assert explored["binding_ref"] == "strong"
+    assert explored["reason"] == "exploration_benchmark"
+    assert explored["tier"] == 5 and explored["unproven"]
+    assert explored["ranked_count"] == 2 and explored["proven_pool_dropped"] == 1
+    proven = choose(pool, difficulty=3, profiles=profiles, capability_table=table,
+                    exploration_draw=.5)
+    assert proven["binding_ref"] == "proven"
+    assert proven["reason"] != "exploration_benchmark"
+    explicit = choose(pool, difficulty=3, profiles=profiles, capability_table=table,
+                      exploration_draw=.15, exploration_budget=.1)
+    assert explicit["binding_ref"] == "proven"
+
+
+def test_hard_difficulty_exploration_never_applies_to_review_or_retry():
+    table, profiles = _benchmark_table(), _proven_code_three()
+    pool = [candidate("proven", "weak"), candidate("strong", "strong")]
+    review = choose(pool, difficulty=3, kind="review", profiles=profiles,
+                    capability_table=table, author_models=["author"], exploration_draw=0)
+    assert review["binding_ref"] == "proven"
+    assert review["reason"] != "exploration_benchmark"
+    retried = choose(pool, difficulty=3, profiles=profiles, capability_table=table,
+                     exploration_draw=0, failed_model="strong", failed_tier=5)
+    assert retried["binding_ref"] == "proven"
+    assert retried["reason"] != "exploration_benchmark"
+
+
+def _profile_task(store, status, classification=""):
+    task = store.create_task(title="t", executor_kind="opencode", binding_ref="glm", repository="o/r")
+    store._conn.execute("UPDATE tasks SET status = ?, failure_classification = ? WHERE id = ?",
+                        (status, classification, task.id))
+    store._conn.execute(
+        "INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+        "VALUES (?, ?, 'MODEL_SELECTED', '2026-11-01T00:00:00Z', '', '', '', ?)",
+        (f"sel-{task.id}", task.id,
+         json.dumps({"kind": "code", "difficulty": 3, "content_class": "code"})))
+    store._conn.commit()
+    return task
+
+
+@pytest.mark.parametrize("classification", ["quota_exhausted", "provider_rate_limited:429",
+                                            "functional_check_not_run", "workspace_missing",
+                                            "executor_stalled"])
+def test_non_capability_failure_does_not_lower_measured_success_rate(classification):
+    store = TaskStore(":memory:")
+    for _ in range(3):
+        _profile_task(store, "READY_FOR_REVIEW")
+    _profile_task(store, "FAILED", classification)
+    profile = compute_agent_profiles(store)["glm"]
+    bucket = profile["task_buckets"]["code:3"]
+    assert bucket["attempts"] == 3 and bucket["ok"] == 3
+    assert bucket["success_rate"] == 1.0
+    assert capability("glm", profile, "code", 3) == (3, False)
+
+
+def test_capability_failure_still_lowers_measured_success_rate():
+    store = TaskStore(":memory:")
+    for _ in range(2):
+        _profile_task(store, "READY_FOR_REVIEW")
+    _profile_task(store, "FAILED", "deterministic_validation_failure")
+    bucket = compute_agent_profiles(store)["glm"]["task_buckets"]["code:3"]
+    assert bucket["attempts"] == 3 and bucket["ok"] == 2
+    assert bucket["success_rate"] == pytest.approx(2 / 3)
+
+
+def test_failed_exploration_retry_does_not_spend_routing_retries():
+    from reverse_agent.platform_v1.goal_service import (
+        EXPLORATION_RETRY_REASON, _non_model_reason, _routing_retries_spent)
+    assert _non_model_reason(EXPLORATION_RETRY_REASON)
+    history = [{"plan_task_id": "T001", "reason": EXPLORATION_RETRY_REASON}]
+    assert _routing_retries_spent(history) == 0

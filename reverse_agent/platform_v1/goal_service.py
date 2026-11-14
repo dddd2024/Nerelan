@@ -175,12 +175,16 @@ _MAX_ATTEMPTS_SHOWN = 10
 HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED})
 HOST_RETRY_REASON = "host_retry"
 OWNER_RETRY_REASON = "owner_retry"
+# A router experiment that failed is not a model judgement; it falls back to the
+# proven model and does not spend the window's max_retries (#1507).
+EXPLORATION_RETRY_REASON = "exploration_retry"
 
 
 def _non_model_reason(reason: Any) -> bool:
     """An escalation that retried after a failure that was not the model's (decision B)."""
     reason = str(reason or "")
-    return (reason in {"transient_overload", EXECUTOR_TERMINATED} or reason.startswith(HOST_RETRY_REASON)
+    return (reason in {"transient_overload", EXECUTOR_TERMINATED, EXPLORATION_RETRY_REASON}
+            or reason.startswith(HOST_RETRY_REASON)
             or bool(LIMIT_HIT.search(reason)))  # quota/rate limits are the account's answer
 
 
@@ -1349,8 +1353,13 @@ class GoalService:
                 continue  # the claim is still being recovered and its reservation settled
             # Decision B: only retries that judge the model spend max_retries; host faults,
             # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
+            # A failed router experiment returns to a proven model on the normal
+            # path and never spends the Owner's routing budget (#1507).
+            selected = next((event.metadata for event in reversed(self.store.get_events(failed.id))
+                             if event.type == "MODEL_SELECTED"), {})
+            exploration_failure = selected.get("reason") == "exploration_benchmark"
             # All of them share the per-step cap; past it they spend max_retries too.
-            exempt = (overloaded or interrupted or quota_failure) and free_used < MAX_TRANSIENT_RETRIES
+            exempt = (overloaded or interrupted or quota_failure or exploration_failure) and free_used < MAX_TRANSIENT_RETRIES
             if not exempt and _routing_retries_spent(history) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
@@ -1368,8 +1377,6 @@ class GoalService:
             elif self.task_resolver is not None:
                 # Compare with the tier actually selected for this attempt, rather
                 # than a tier that fresh failure evidence may already have lowered.
-                selected = next((event.metadata for event in reversed(self.store.get_events(failed.id))
-                                 if event.type == "MODEL_SELECTED"), {})
                 failed_tier = selected.get("tier")
                 if type(failed_tier) is not int or not 1 <= failed_tier <= 5:
                     failed_tier = None
@@ -1500,6 +1507,7 @@ class GoalService:
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             reason = ("contract_fixup" if miss else transient_reason if overloaded
+                      else EXPLORATION_RETRY_REASON if exploration_failure
                       else f"{HOST_RETRY_REASON}:interrupted" if interrupted
                       else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(

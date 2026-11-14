@@ -11,6 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import math
+import re
 import threading
 import time
 from statistics import median
@@ -27,6 +28,20 @@ PROVIDER_QUOTA_LIMIT = "provider_quota_limit"
 # OpenCode reports EXECUTOR_RUNNING; native CLIs start right after WORKSPACE_READY.
 _STARTS, _ENDS = ("EXECUTOR_RUNNING", "WORKSPACE_READY"), ("EXECUTOR_COMPLETED", "EXECUTOR_FINISHED")
 MIN_SAMPLES = 2
+
+# Failures that judge the host, account or environment rather than the model.
+# They never enter a task bucket, so they cannot lower the success rate that
+# routing reads as capability evidence (#1507).
+NON_CAPABILITY_FAILURE = re.compile(
+    r"auth|login|readiness|unavailable|not_found|network|transport|dispatch|session|resume|workspace"
+    r"|contract|artifact|budget|reservation|cancel|head_moved|base|ambiguous|coordinator|process_start"
+    r"|rate_limit|quota|api_error|functional_check_not_run|functional_observation_failed"
+    r"|check_timeout|executor_stalled|executor_terminated|host_fault|host_error")
+
+
+def non_capability_failure(classification: str) -> bool:
+    """Whether a failure classification is not evidence about the model (#1507)."""
+    return bool(NON_CAPABILITY_FAILURE.search((classification or "").lower()))
 
 
 def _seconds(start: str, end: str) -> float | None:
@@ -117,6 +132,9 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             profile["provider_quota_limited"] = profile.get("provider_quota_limited", 0) + 1
             continue
+        # Host, account and environment faults stay out of the task buckets that
+        # tier measurement reads; they remain visible in the profile summary (#1507).
+        capability_failure = not non_capability_failure(classification)
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}
         if refused or status in OK_STATUSES or status == "FAILED":
@@ -129,7 +147,7 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             continue  # refusal is willingness evidence, never capability failure
         if any(code in classification for code in ("protocol", "malformed_tool", "tool_call")):
             profile["tool_errors"] = profile.get("tool_errors", 0) + 1
-        if row["id"] in traits and (status in OK_STATUSES or status == "FAILED"):
+        if row["id"] in traits and (status in OK_STATUSES or status == "FAILED") and capability_failure:
             bucket = profile.setdefault("task_buckets", {}).setdefault(traits[row["id"]],
                         {"attempts": 0, "ok": 0, "timeouts": 0, "_seconds": [], "_tokens": []})
             bucket["attempts"] += 1
