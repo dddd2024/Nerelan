@@ -1216,13 +1216,21 @@ class PlatformControlStore:
     def retire_stale_claims(self, *, to_window_id: str, now_ms: int | None = None) -> tuple[str, ...]:
         """Retire stale claims (see ``claim_holds``) as rebind does; call inside the admitting transaction.
 
-        Usage of the abandoned attempt is unknown: its reservation becomes UNKNOWN, never
-        released or refunded. Each retirement leaves a receipt on the old window.
+        Claims that hold an attempt with unknown outside effects stay ACTIVE (rebind keeps
+        them too). Usage of a retired attempt is unknown: its reservation becomes UNKNOWN,
+        never released or refunded; this includes claims of tasks that already finished,
+        whose result is then not settled from this claim. Each retirement leaves a receipt.
         """
         now_ms = _utc_now_ms() if now_ms is None else now_ms
         retired = []
+        from .unknown_claim_isolation import held_task
         with self._lock:
             for row in self._conn.execute(self._STALE_CLAIMS_SQL, (now_ms,)).fetchall():
+                # An attempt with unknown outside effects (#1206/#1277) keeps its claim ACTIVE:
+                # that row is the hold. It no longer blocks admission, but it is never retired here.
+                if held_task(self._conn, row["task_id"]) or self._stale_claim_unknown_locked(
+                        row["task_id"], row["window_id"], now_ms):
+                    continue
                 updated = self._conn.execute(
                     "UPDATE platform_coordinator_claims SET status = 'RETIRED', updated_at = ? "
                     "WHERE task_id = ? AND window_id = ? AND epoch = ? AND status = 'ACTIVE' AND expires_at_ms <= ?",

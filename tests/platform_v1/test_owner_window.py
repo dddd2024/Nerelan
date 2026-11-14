@@ -224,7 +224,7 @@ class TestAdmission:
             (OWNER_WINDOW_RECEIPT,)).fetchone()[0])["approved_pool"]
         assert [entry["binding_ref"] for entry in pool] == ["pinned"]
 
-    def stale_claim(self, setup, *, task_status="INTERRUPTED", stop=True, expired=True):
+    def stale_claim(self, setup, *, task_status="INTERRUPTED", stop=True, expired=True, recorded=True):
         """An attempt claimed by a window that was then stopped, as on the run host 2026-11-14."""
         a = setup.planned("old", "codex", "pinned")
         old, _ = admit(setup.host, (a.id,))
@@ -237,8 +237,31 @@ class TestAdmission:
             "INSERT INTO platform_coordinator_claims (task_id, window_id, epoch, status, expires_at_ms, owner, "
             "created_at, updated_at) VALUES (?, ?, 1, 'ACTIVE', ?, 'coordinator-old', '', '')",
             (task.id, old.id, 0 if expired else 10 ** 15))
+        if recorded:
+            # A durable checkpoint with a recorded external operation: effects are known.
+            setup.db._conn.execute(
+                "INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_epoch, lease_expiry_ms, "
+                "created_at, updated_at) VALUES (?, ?, 'exec-old', 'fixture', 1, 1, 'x', 'x')",
+                (f"run-{task.id}", task.id))
+            setup.db._conn.execute(
+                "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+                "idempotency_key, request_digest, state, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'k', 'i', 'd', 'SUCCEEDED', 'x', 'x')", (f"op-{task.id}", f"run-{task.id}", task.id))
         setup.db._conn.commit()
         return old, task
+
+    def test_an_unknown_effects_claim_stops_blocking_but_keeps_its_hold(self, setup):
+        """#1206/#1277: the ACTIVE claim is the hold; admission must not retire it."""
+        old, task = self.stale_claim(setup, recorded=False)
+        b = setup.planned("b", "codex", "pinned")
+        window, _ = admit(setup.host, (b.id,))
+        assert window.status == "ACTIVE"
+        claim = setup.db._conn.execute("SELECT status FROM platform_coordinator_claims WHERE task_id = ?",
+                                       (task.id,)).fetchone()
+        assert claim["status"] == "ACTIVE"
+        control = setup.host._control_store
+        with control._lock:
+            assert control._stale_claim_unknown_locked(task.id, old.id, 10 ** 15)
 
     def test_a_stale_claim_of_a_closed_window_is_retired_by_the_next_window(self, setup):
         old, task = self.stale_claim(setup)

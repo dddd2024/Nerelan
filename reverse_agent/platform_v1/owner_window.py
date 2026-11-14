@@ -446,8 +446,9 @@ class OwnerWindowAdmission:
                 f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
             if holds["stale"]:
                 warnings.append({"warning": "stale_claims_retired",
-                                 "detail": f"{holds['stale']} expired claims of closed windows will be retired; "
-                                           "their unfinished attempts are abandoned and their usage counted as unknown"})
+                                 "detail": f"{holds['stale']} expired claims of closed windows no longer hold "
+                                           "admission; those without unknown outside effects are retired, their "
+                                           "attempts abandoned and their usage counted as unknown"})
             if held:
                 add("goals", "skipped_while_claims_hold")
             else:
