@@ -997,6 +997,29 @@ class GoalService:
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved
 
+    @staticmethod
+    def _discarded_without_usage(attempt: Any, observations: Sequence[Any]) -> bool:
+        """A failed attempt that called no model and whose tree was not carried on.
+
+        Such an attempt authored nothing the reviewer will see: the host recorded
+        its tree as discarded (never resumed from), and no model observation
+        exists because no model answered (an executor that exited before its
+        first request). Requiring a model identity for it would make every later
+        review of the step impossible (#1504, 2026-11-14). Anything else — usage
+        observed, a reused or unknown disposition, or a non-FAILED status — stays
+        an author and must prove its models.
+        """
+        execution_id = getattr(attempt, "execution_id", "")
+        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+                or not hasattr(attempt, "evidence_refs")):
+            return False
+        from .artifact_handoff import _load_evidence
+        try:
+            record = _load_evidence(attempt, "AttemptDisposition", execution_id)
+        except (TaskStoreError, ValueError, TypeError, KeyError):
+            return False
+        return isinstance(record, dict) and record.get("disposition") == "discarded"
+
     def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask], *,
                         require_frozen: bool = False) -> dict[str, Any]:
         """Resolve authors from execution facts, retaining replaced attempts."""
@@ -1033,6 +1056,8 @@ class GoalService:
                                      tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
                                      tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
                                            for ref in attempt.evidence_refs)))
+                if self._discarded_without_usage(attempt, observations):
+                    continue
                 recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):

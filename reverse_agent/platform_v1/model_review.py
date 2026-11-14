@@ -259,11 +259,13 @@ def review_authors(store, task, binding):
         ids.update(row["from_task_id"] for row in history
                    if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
         for author_id in ids:
-            observed = {model_router.model_identity(row.model_id)
-                        for row in store.list_usage_observations(author_id) if row.model_id}
+            observations = store.list_usage_observations(author_id)
+            observed = {model_router.model_identity(row.model_id) for row in observations if row.model_id}
+            author_task = store.get_task(author_id)
+            if goals._discarded_without_usage(author_task, observations):
+                continue  # called no model and its tree was discarded: it authored nothing
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
-            author_task = store.get_task(author_id)
             if author_task.executor_kind in {"codex", "claude_code"}:
                 reported = {model_router.model_identity(model)
                     for event in store.get_events(author_id) if event.type == "EXECUTOR_COMPLETED"
