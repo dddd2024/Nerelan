@@ -431,12 +431,13 @@ def test_plan_exhausted_binding_is_not_selected_again_in_the_window(monkeypatch)
     assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
 
 
-def _gateway_host(monkeypatch, *, account_ref=None):
+def _gateway_host(monkeypatch, *, account_ref=None, base_url="http://127.0.0.1:3425/v1", auth_method="none"):
     """One gateway connection (as Magpie) fronting two upstreams, plus a second model of the first."""
     from reverse_agent.platform_v1.run_store import TaskStore
+    monkeypatch.delenv("REVERSE_AGENT_MAGPIE_URL", raising=False)
     store = ModelProfileStore()
     connection = {"connection_id": "gateway", "name": "Gateway", "provider": "openai_compatible",
-                  "base_url": "http://127.0.0.1:3425/v1", "auth_method": "none", "enabled": True}
+                  "base_url": base_url, "auth_method": auth_method, "enabled": True}
     if account_ref:
         connection["account_ref"] = account_ref
     store.upsert_connection(connection)
@@ -473,3 +474,10 @@ def test_a_recorded_account_still_holds_every_model_it_serves(monkeypatch):
 def test_without_a_binding_the_whole_connection_is_held_as_before(monkeypatch):
     host, connection, _ = _gateway_host(monkeypatch)
     assert host._limit_hit_until(connection) is not None
+
+
+def test_a_single_account_connection_with_vendor_prefixes_is_held_whole(monkeypatch):
+    """Review of #1522: an OpenRouter-style key serves z-ai/* and moonshotai/* from one account."""
+    host, connection, bindings = _gateway_host(monkeypatch, base_url="https://openrouter.ai/api/v1",
+                                               auth_method="api_key")
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is not None

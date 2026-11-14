@@ -71,6 +71,7 @@ def _upstream_namespace(binding: Mapping[str, Any] | None) -> str:
     model = str((binding or {}).get("model_id") or "")
     return model.split("/", 1)[0].lower() if "/" in model else ""
 
+
 class CombinedTrustedHost:
     """One-process host for Model Control + Task API + credential relay."""
 
@@ -1208,11 +1209,13 @@ class CombinedTrustedHost:
                        if c.get("account_ref") == account} if account else set()
         connections.add(connection.get("connection_id"))
         candidates = [b for b in self._store.list_bindings_public() if b["connection_id"] in connections]
+        from .resource_allowances import gateway_connection
         namespace = _upstream_namespace(binding) if binding is not None and not account else ""
-        if namespace and len({_upstream_namespace(b) for b in candidates}) > 1:
-            # A gateway (Magpie) fronts many upstream accounts behind one connection. One
-            # upstream's refusal holds only that upstream's models, never the whole gateway
-            # (2026-11-14: one 429 on workbuddy held all ~169 Magpie models for an hour).
+        if namespace and gateway_connection(connection):
+            # The local Magpie gateway fronts many upstream accounts behind one connection.
+            # One upstream's refusal holds only that upstream's models, never the whole
+            # gateway (2026-11-14: one 429 on workbuddy held all ~169 Magpie models for an
+            # hour). Any other connection is one account, whatever its model ids look like.
             candidates = [b for b in candidates if _upstream_namespace(b) == namespace]
         bindings = [b["binding_id"] for b in candidates]
         if not bindings:
