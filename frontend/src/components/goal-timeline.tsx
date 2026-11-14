@@ -95,9 +95,12 @@ export function mergeTimelineSteps(goal: PlatformGoal, timeline?: PlatformGoalTi
         executor_kind: link.executor_kind, binding_ref: link.binding_ref, failure: link.failure ?? null,
         events: [], events_total: 0, events_truncated: false, changed_files: [], validation: null, live: null,
       }];
-    // A new attempt the timeline has not seen yet still shows up at once.
-    const last = attempts[attempts.length - 1];
-    const withCurrent = last.task_id === link.task_id ? attempts : [...attempts, {
+    // A new attempt the timeline has not seen yet still shows up at once. When the
+    // timeline already lists the goal's task as an earlier attempt, the goal detail
+    // is the older of the two polls: keep the timeline's order (2026-11-14, a
+    // stopped attempt was shown again after the running one as "attempt 7").
+    const known = attempts.some((attempt) => attempt.task_id === link.task_id);
+    const withCurrent = known ? attempts : [...attempts, {
       index: attempts.length + 1, task_id: link.task_id, status: link.status, executor_kind: link.executor_kind,
       binding_ref: link.binding_ref, failure: link.failure ?? null, events: [], events_total: 0,
       events_truncated: false, changed_files: [], validation: null, live: null,
