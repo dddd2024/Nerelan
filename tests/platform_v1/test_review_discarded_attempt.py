@@ -60,3 +60,20 @@ def test_discarded_attempt_that_did_call_a_model_still_counts_as_author(review_s
     _earlier_attempt(store, producer, disposition="discarded", usage_model="local/test")
     result = run_review(review_setup)
     assert result.failure_classification == "review_not_independent"
+
+
+def test_discarded_attempt_later_carried_by_a_fixup_stays_an_author(review_setup):
+    # PR #1536 review: a contract miss is recorded "discarded" when the retry budget
+    # runs out, and its tree can still be carried forward once budget returns. The
+    # disposition keeps its first value, so the ContractFixup binding is the proof.
+    store, _, producer, *_ = review_setup
+    earlier = _earlier_attempt(store, producer, disposition="discarded")
+    successor = store.create_task(title="contract fix-up attempt", executor_kind="opencode",
+                                  binding_ref="fixture-earlier", idempotency_key="fixup-" + producer)
+    store._conn.execute("UPDATE tasks SET execution_id = ? WHERE id = ?",
+                        ("exec-" + successor.id, successor.id))
+    store._bind_artifact_evidence(successor.id, category="ContractFixup", label="exec-" + successor.id,
+        document={"task_id": successor.id, "execution_id": "exec-" + successor.id,
+                  "source_task_id": earlier, "snapshot_digest": "0" * 64, "feedback": "fix the target"})
+    result = run_review(review_setup)
+    assert result.failure_classification == "review_not_independent"
