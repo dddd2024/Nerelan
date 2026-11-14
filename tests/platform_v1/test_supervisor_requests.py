@@ -350,3 +350,94 @@ class TestReviewFindings:
         assert watcher._thread is not first and watcher._thread.is_alive()
         watcher.stop()
         assert not [t for t in threading.enumerate() if t.name == "supervisor-requests"]
+
+
+class TestSupervisorControl:
+    """Owner decision 2026-11-14: an external agent can read state, stop a window and retry a step."""
+
+    put = TestRequestFiles.put
+    result = TestRequestFiles.result
+
+    def activate(self, setup, state, *goals):  # noqa: F811
+        card = digest(setup, "trial", *goals)
+        return setup.host._owner_window_admission.admit_from_supervisor(
+            [goal.id for goal in goals], preset="trial", card_digest=card, requested_by="test")
+
+    def ask(self, setup, state, name, payload):  # noqa: F811
+        self.put(state, name, payload)
+        assert SupervisorRequests(setup.host).poll_once() == 1
+        return self.result(state, name)
+
+    def test_status_lists_the_active_window_and_recent_goals(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned", tasks=2)
+        window = self.activate(setup, state, a)
+        answer = self.ask(setup, state, "s0000001", {"action": "status"})
+        assert answer["ok"] is True
+        assert answer["result"]["active_window"]["id"] == window.id
+        goal = next(item for item in answer["result"]["goals"] if item["id"] == a.id)
+        assert goal["window_id"] == window.id and [step["step"] for step in goal["steps"]][:2] == ["T0", "T1"]
+
+    def test_status_of_one_goal_carries_its_retry_options(self, setup, state):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        answer = self.ask(setup, state, "s0000002", {"action": "status", "goal_id": a.id})
+        assert answer["result"]["goal"]["id"] == a.id
+        assert answer["result"]["retry"]["reason"] == "owner_retry_not_agent_team"
+        assert answer["result"]["active_window"] is None
+
+    def test_stop_window_stops_it_once_and_says_who_asked(self, setup, state):  # noqa: F811
+        window = self.activate(setup, state, setup.planned("a", "codex", "pinned"))
+        answer = self.ask(setup, state, "s0000003", {"action": "stop_window", "window_id": window.id,
+                                                     "reason": "goals all blocked\n"})
+        assert answer["ok"] is True and answer["result"]["status"] == "STOPPED"
+        stopped = setup.host._control_store.get_window(window.id)
+        assert stopped.status == "STOPPED" and stopped.stop_reason == "supervisor_stopped: goals all blocked"
+        again = self.ask(setup, state, "s0000004", {"action": "stop_window", "window_id": window.id})
+        assert again == {"ok": False, "action": "stop_window", "error": "window_not_active"}
+
+    def test_stop_window_is_off_with_the_switch(self, setup, state):  # noqa: F811
+        window = self.activate(setup, state, setup.planned("a", "codex", "pinned"))
+        watcher = SupervisorRequests(setup.host)
+        watcher._latched()
+        state.unlink()
+        self.put(state, "s0000005", {"action": "stop_window", "window_id": window.id})
+        assert watcher.poll_once() == 1
+        assert self.result(state, "s0000005")["error"] == "owner_window_supervisor_activation_disabled"
+        assert setup.host._control_store.get_window(window.id).status == "ACTIVE"
+
+    @pytest.mark.parametrize("payload", [
+        {"action": "stop_window"},
+        {"action": "stop_window", "window_id": "bad id"},
+        {"action": "stop_window", "window_id": "w1", "reason": 3},
+        {"action": "stop_window", "window_id": "w1", "max_tasks": 9},
+        {"action": "status", "goal_id": "../x"},
+        {"action": "retry_step", "goal_id": "g1", "step": "T0"},
+        {"action": "retry_step", "goal_id": "g1", "step": "T0", "revision": "2"},
+        {"action": "retry_step", "goal_id": "g1", "step": "T0", "revision": 2, "binding_ref": "a b"},
+    ])
+    def test_malformed_control_requests_are_refused(self, setup, state, payload):  # noqa: F811
+        assert self.ask(setup, state, "s0000006", payload)["error"] == "supervisor_request_invalid"
+
+    def test_retry_step_goes_through_the_owner_retry_rules(self, setup, state, monkeypatch):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        refused = self.ask(setup, state, "s0000007", {"action": "retry_step", "goal_id": a.id, "step": "T0",
+                                                      "revision": a.revision})
+        assert refused == {"ok": False, "action": "retry_step", "error": "owner_retry_not_agent_team"}
+        calls = []
+        monkeypatch.setattr(setup.host._goal_service, "owner_retry",
+                            lambda *args, **kwargs: calls.append((args, kwargs)))
+        answer = self.ask(setup, state, "s0000008", {"action": "retry_step", "goal_id": a.id, "step": "T0",
+                                                     "revision": a.revision, "binding_ref": "free"})
+        assert answer["ok"] is True and answer["result"]["id"] == a.id
+        assert calls == [((a.id, "T0"), {"expected_revision": a.revision, "binding_ref": "free"})]
+
+    def test_status_counts_tries_of_the_current_revision(self, setup, state, monkeypatch):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        control = setup.host._control_store
+        monkeypatch.setattr(control, "list_goal_tasks", lambda goal_id: (
+            {"plan_task_id": "T0", "task_id": "task-2", "status": "FAILED", "failure_classification": "api_error_429"},))
+        monkeypatch.setattr(control, "list_task_escalations", lambda goal_id: (
+            {"goal_revision": a.revision, "plan_task_id": "T0"},
+            {"goal_revision": a.revision, "plan_task_id": "T0"},
+            {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
+        step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
+        assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}
