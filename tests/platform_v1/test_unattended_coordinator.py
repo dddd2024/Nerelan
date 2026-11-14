@@ -888,6 +888,8 @@ def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted
     assert coordinator.tick() == 1
     assert dispatched == [eligible_id]
     assert store.get_task(held_id).status == before
+    reason = "window_retry_budget_exhausted" if exhausted == "retries" else "window_task_budget_exhausted"
+    assert coordinator.status()["admission_holds"] == [reason]
     assert control.get_window(window.id).retries_used == (1 if exhausted == "fresh_tasks" else 0)
     assert coordinator.tick() == 0
 
@@ -898,7 +900,7 @@ def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted
 ])
 @pytest.mark.parametrize("capacity,read_fails", [(100, False), (120, False), (120, True)])
 def test_budget_pressure_does_not_starve_retained_reservation(
-    tmp_path, monkeypatch, budget_field, reservation_field, capacity, read_fails,
+    tmp_path, monkeypatch, caplog, budget_field, reservation_field, capacity, read_fails,
 ):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
@@ -954,6 +956,8 @@ def test_budget_pressure_does_not_starve_retained_reservation(
             expected = {first}
         assert coordinator.tick() == len(expected)
     assert set(dispatched) == expected
+    reason = "window_token_budget_exhausted" if budget_field == "max_token_units" else "window_cost_budget_exhausted"
+    assert coordinator.status()["admission_holds"] == [reason]
     assert prepared == ([resumed] if capacity == 100 else
                         [first, second] if read_fails else [first, second, resumed])
     assert store.get_task(second).status == "QUEUED"
@@ -971,6 +975,75 @@ def test_budget_pressure_does_not_starve_retained_reservation(
     assert sorted(dispatched) == sorted([first, second, third, resumed])
     assert control.get_window(window.id).tasks_completed == 4
     assert coordinator.tick() == 0
+    assert coordinator.status()["admission_holds"] == []
+    warnings = [r for r in caplog.records if r.message.startswith("coordinator_admission_hold ")]
+    assert [r.message for r in warnings] == [f"coordinator_admission_hold window={window.id} reason={reason}"]
+
+
+def test_quota_hold_alert_is_bounded_and_clears_after_progress(tmp_path, caplog):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    window = _budget_window(autonomy, policy_id="quota-hold-alert", max_tokens=0, reservation=0)
+    goal = _parallel_goal(goals, window.id, key="quota-hold-alert", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    blocked = True
+
+    def prepare(task):
+        if blocked:
+            raise TaskStoreError("QUOTA_WAIT:fixture-detail-kept-out-of-alerts")
+
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, quota_preparer=prepare,
+        task_executor=lambda tid: _ready_fixture(store, tid))
+    assert coordinator.tick() == coordinator.tick() == 0
+    assert store.get_task(task_id).status == "QUEUED"
+    assert coordinator.status()["admission_holds"] == ["quota_wait"]
+    warnings = [r.message for r in caplog.records if r.message.startswith("coordinator_admission_hold ")]
+    assert warnings == [f"coordinator_admission_hold window={window.id} reason=quota_wait"]
+    blocked = False
+    assert coordinator.tick() == 1
+    assert coordinator.status()["admission_holds"] == []
+
+
+def test_live_claim_is_not_reported_as_unfunded_work(tmp_path, caplog):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    window = _budget_window(autonomy, policy_id="no-hold-for-live-claim", max_tokens=0,
+                            reservation=0, max_tasks=1)
+    goal = _parallel_goal(goals, window.id, key="no-hold-for-live-claim", count=1)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    control.claim_task(window_id=window.id, task_id=task_id, owner="live-owner", lease_ms=60_000)
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=lambda tid: _ready_fixture(store, tid))
+    assert coordinator.tick() == 0
+    assert coordinator.status()["admission_holds"] == []
+    assert not any(r.message.startswith("coordinator_admission_hold ") for r in caplog.records)
+
+
+def test_log_handler_error_does_not_strand_claimed_work(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import unattended_coordinator
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    window = _budget_window(autonomy, policy_id="admission-alert-log-fault", max_tokens=100, reservation=60)
+    _parallel_goal(goals, window.id, key="admission-alert-log-fault")
+
+    def broken_handler(*args):
+        raise OSError("fixture log sink unavailable")
+
+    monkeypatch.setattr(unattended_coordinator._logger, "warning", broken_handler)
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=lambda tid: _ready_fixture(store, tid))
+    assert coordinator.tick() == 1
+    assert coordinator.status()["admission_holds"] == ["window_token_budget_exhausted"]
+    assert coordinator.tick() == 1
+    assert control.get_window(window.id).tasks_completed == 2
 
 
 def test_concurrent_claims_cannot_reserve_past_token_budget(tmp_path):
