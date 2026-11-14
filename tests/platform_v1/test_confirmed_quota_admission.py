@@ -429,3 +429,47 @@ def test_plan_exhausted_binding_is_not_selected_again_in_the_window(monkeypatch)
     tasks.classify_failure(failed.id, classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
     verdict = host._quota_check(store.list_bindings_public()[0])
     assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
+
+
+def _gateway_host(monkeypatch, *, account_ref=None):
+    """One gateway connection (as Magpie) fronting two upstreams, plus a second model of the first."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = ModelProfileStore()
+    connection = {"connection_id": "gateway", "name": "Gateway", "provider": "openai_compatible",
+                  "base_url": "http://127.0.0.1:3425/v1", "auth_method": "none", "enabled": True}
+    if account_ref:
+        connection["account_ref"] = account_ref
+    store.upsert_connection(connection)
+    for binding_id, model in (("trae-glm", "trae-cn/glm-5.2"), ("trae-deepseek", "trae-cn/deepseek-v4.1-flash"),
+                              ("copilot-sonnet", "copilot/claude-sonnet-5.5")):
+        store.upsert_binding({"binding_id": binding_id, "name": binding_id, "connection_id": "gateway",
+                              "executor_id": "opencode", "model_id": model, "enabled": True})
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {}, raising=False)
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="opencode", binding_ref="trae-deepseek")
+    tasks.classify_failure(failed.id, classification="api_error_429",
+                           detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429 message=rpm exhausted")
+    bindings = {b["binding_id"]: b for b in store.list_bindings_public()}
+    return host, store.get_connection_public("gateway"), bindings
+
+
+def test_a_gateway_refusal_holds_only_that_upstream(monkeypatch):
+    """2026-11-14: one upstream's 429 held every model behind Magpie for an hour."""
+    host, connection, bindings = _gateway_host(monkeypatch)
+    assert host._limit_hit_until(connection, bindings["trae-glm"]) is not None  # same upstream account
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is None  # another upstream
+    verdict = host._quota_check(bindings["copilot-sonnet"])
+    assert verdict is None or verdict.get("reason") != "limit_hit"
+    assert host._quota_check(bindings["trae-glm"])["reason"] == "limit_hit"
+
+
+def test_a_recorded_account_still_holds_every_model_it_serves(monkeypatch):
+    host, connection, bindings = _gateway_host(monkeypatch, account_ref="one-account")
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is not None
+
+
+def test_without_a_binding_the_whole_connection_is_held_as_before(monkeypatch):
+    host, connection, _ = _gateway_host(monkeypatch)
+    assert host._limit_hit_until(connection) is not None

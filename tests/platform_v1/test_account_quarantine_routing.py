@@ -22,7 +22,7 @@ def pool(monkeypatch, tmp_path):
     brain = MultiAccountOrchestrator(MultiAccountConfig(), clock=lambda: clock[0], store_path=path)
     monkeypatch.setattr(dispatch, "get_orchestrator", lambda *args, **kwargs: brain)
     monkeypatch.setattr(host, "_quota_check", CombinedTrustedHost._quota_check.__get__(host))
-    monkeypatch.setattr(host, "_limit_hit_until", lambda connection: None)
+    monkeypatch.setattr(host, "_limit_hit_until", lambda connection, binding=None: None)
     for ref, account in (("free-api", "shared"), ("sibling-api", "shared"), ("healthy-api", "healthy")):
         host._store.upsert_connection(dict(connection_id=ref, name=ref, provider="openai-compatible",
             base_url="https://example.invalid/v1", auth_method="none", enabled=True, account_ref=account))
@@ -105,7 +105,7 @@ def test_optional_policy_failure_still_runs_the_existing_quota_check(pool, monke
     def unavailable(*args, **kwargs):
         raise OSError("optional feedback unavailable")
     monkeypatch.setattr(dispatch, "get_orchestrator", unavailable)
-    monkeypatch.setattr(host, "_limit_hit_until", lambda connection: clock[0] + 1000)
+    monkeypatch.setattr(host, "_limit_hit_until", lambda connection, binding=None: clock[0] + 1000)
     assert host._quota_check(host._store.get_binding_public("cheap"))["reason"] == "limit_hit"
 
 
