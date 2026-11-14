@@ -17,11 +17,28 @@ Nothing here reads provider output beyond the persisted, allowlisted event metad
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from functools import wraps
 import json
 from typing import Any
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
 COUNTERS = ("input", "cache_read", "cache_write", "output", "reasoning")
+
+
+def _store_locked(function):
+    """Read through the TaskStore's own lock.
+
+    The store shares one SQLite connection across the host's threads. Reading it
+    unlocked while the coordinator writes interleaves cursors: a planning request
+    then sees another query's rows or a half-written reservation (2026-11-14).
+    The lock is re-entrant, so callers that already hold it are unaffected.
+    """
+    @wraps(function)
+    def locked(store: Any, *args: Any, **kwargs: Any) -> Any:
+        with getattr(store, "_lock", None) or nullcontext():
+            return function(store, *args, **kwargs)
+    return locked
 
 
 def _int(value: Any) -> int | None:
@@ -41,6 +58,7 @@ def _native(usage: dict[str, Any], executor_kind: str) -> dict[str, int | None] 
             "output": output, "reasoning": None}
 
 
+@_store_locked
 def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     """Normalized token counters for the most recent ``limit`` finished, model-backed tasks."""
     conn = store._conn
@@ -91,6 +109,7 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     return records
 
 
+@_store_locked
 def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     """Claim-level measured history without changing the task accounting projection."""
     records = task_token_records(store, limit=limit)
@@ -102,7 +121,12 @@ def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
         if "settlement_json" in columns:
             learned = []
             for row in conn.execute("SELECT * FROM platform_budget_reservations WHERE state<>'ACTIVE' ORDER BY rowid DESC LIMIT ?", (limit,)):
-                fact = json.loads(row["settlement_json"])
+                try:
+                    fact = json.loads(row["settlement_json"])
+                except (TypeError, ValueError):
+                    continue  # a reservation without a readable settlement teaches nothing
+                if not isinstance(fact, dict):
+                    continue
                 estimate = fact.get("estimate", {}).get("estimate", {})
                 if not estimate or not fact.get("tokens") or any(fact["tokens"].get(k) is None for k in ("input", "cache_read", "output")):
                     continue
@@ -117,6 +141,7 @@ def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     return records
 
 
+@_store_locked
 def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200) -> tuple[list, str] | None:
     """The newest persisted ``rate_limits`` notices among tasks of these bindings, with their time."""
     if not binding_refs:
@@ -135,6 +160,7 @@ def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200)
     return None
 
 
+@_store_locked
 def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     """List-price cost (USD) and wall time of one task, for per-account feedback.
 

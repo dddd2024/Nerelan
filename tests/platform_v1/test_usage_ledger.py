@@ -141,3 +141,42 @@ def test_codex_session_logs_are_read_for_rate_limits_only(tmp_path):
     assert quota["observed_at"] == "2026-10-14T04:20:00Z" and quota["windows"][0]["used_percent"] == 30.0
     assert "secret" not in json.dumps(quota)
     assert read_codex_quota(tmp_path / "missing")["state"] == "UNKNOWN"
+
+
+def _reservations(store, *rows):
+    store._conn.execute(
+        "CREATE TABLE IF NOT EXISTS platform_budget_reservations (task_id TEXT, claim_epoch INTEGER, binding_ref TEXT, "
+        "state TEXT, settlement_json TEXT, reconciled_at TEXT)")
+    for row in rows:
+        store._conn.execute("INSERT INTO platform_budget_reservations (task_id, claim_epoch, binding_ref, state, "
+                            "settlement_json, reconciled_at) VALUES (?, 1, 'b', ?, ?, '2026-11-14T05:00:00Z')", row)
+    store._conn.commit()
+
+
+def test_a_reservation_without_a_readable_settlement_is_skipped():
+    from reverse_agent.platform_v1.usage_ledger import estimation_records
+    store = TaskStore(":memory:")
+    settled = {"estimate": {"estimate": {"kind": "code", "difficulty": 3}},
+               "tokens": {"input": 10, "cache_read": 0, "output": 5}, "turn_count": 2}
+    _reservations(store, ("t-null", "RECONCILED", None), ("t-bad", "RECONCILED", "{not json"),
+                  ("t-list", "RECONCILED", "[]"), ("t-ok", "RECONCILED", json.dumps(settled)))
+    learned = [r for r in estimation_records(store) if r.get("source") == "claim_settlement"]
+    assert [r["task_id"] for r in learned] == ["t-ok"]
+
+
+def test_ledger_reads_wait_for_the_store_lock():
+    """2026-11-14: unlocked reads raced the coordinator on the shared connection."""
+    import threading
+    from reverse_agent.platform_v1.usage_ledger import (
+        estimation_records, latest_rate_limits, task_feedback_metrics)
+    store = TaskStore(":memory:")
+    calls = (lambda: task_token_records(store), lambda: estimation_records(store),
+             lambda: latest_rate_limits(store, ["b"]), lambda: task_feedback_metrics(store, "t"))
+    for call in calls:
+        finished = threading.Event()
+        with store._lock:
+            worker = threading.Thread(target=lambda: (call(), finished.set()), daemon=True)
+            worker.start()
+            assert not finished.wait(0.2)  # blocked while another thread holds the store
+        assert finished.wait(5)
+        worker.join(5)
