@@ -1510,3 +1510,106 @@ def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_pat
     # Recorded overlap: the later task started strictly before the earlier
     # task's recorded finish — impossible under serial dispatch.
     assert second_start < first_end, intervals
+
+
+def test_redeploy_authority_mismatch_interrupted_task_is_failed_not_stranded(tmp_path):
+    """#1515: a redeploy strands INTERRUPTED in-flight tasks when the host's own
+    source HEAD (the trusted authority SHA) changes. The durable resume must keep
+    refusing on authority_sha_mismatch (fail-closed identity), but the coordinator
+    must not busy-loop the stranded task: it transitions it to FAILED so escalation
+    and Owner retry can recover it.
+    """
+    store = TaskStore(str(tmp_path / "redeploy-auth.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "redeploy-auth", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({
+        "objective": "Survive a redeploy", "idempotency_key": "redeploy-auth-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Work", "instruction": "Run"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    task = store.get_task(task_id)
+
+    # A durable run started under the OLD (pre-redeploy) authority SHA.
+    store._acquire_durable_lease(
+        task_id=task_id, execution_id=task.execution_id,
+        lease_owner="old-host", execution_authority_sha="old-authority-sha",
+        planning_sha="old-planning-sha", task_status="QUEUED",
+    )
+    # The host restarted (redeployed); the lease expired and the task is INTERRUPTED.
+    store.set_state(task_id, "INTERRUPTED")
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path / "workspaces",
+        execution_authority_sha="new-authority-sha", planning_sha="new-planning-sha",
+        owner="new-host",
+    )
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert final.status == "FAILED"
+    assert final.failure_classification == "authority_sha_mismatch"
+    assert "authority_sha_mismatch" in (final.failure_detail or "")
+    # The stranded task is terminal; a second tick does not busy-loop it.
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "FAILED"
+
+
+def test_redeploy_recovery_does_not_swallow_other_resume_refusals(tmp_path, monkeypatch):
+    """#1515: only authority_sha_mismatch is recovered; other resume refusals still strand."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "other-refusal", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({
+        "objective": "Other refusal", "idempotency_key": "other-refusal-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Work", "instruction": "Run"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    task = store.get_task(task_id)
+    store._acquire_durable_lease(
+        task_id=task_id, execution_id=task.execution_id,
+        lease_owner="old-host", execution_authority_sha="same-sha",
+        planning_sha="same-sha", task_status="QUEUED",
+    )
+    store.set_state(task_id, "INTERRUPTED")
+
+    def refuse_planning(self, task_id, *, lease_owner="", **kwargs):
+        raise DurableResumeError("planning_sha_mismatch:same!=other")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", refuse_planning)
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path / "workspaces",
+        execution_authority_sha="same-sha", planning_sha="same-sha", owner="new-host",
+    )
+    # The non-authority refusal is not recovered: the claim is abandoned and the
+    # task stays INTERRUPTED (unchanged behavior outside the redeploy case).
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "INTERRUPTED"

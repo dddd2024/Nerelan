@@ -10,6 +10,9 @@ import reverse_agent.platform_v1.goal_service as goal_service_module
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
+from test_goal_functional_checks import goal_checks  # noqa: F401 (fixture)
+from test_contract_miss_fixup import case  # noqa: F401 (fixture)
+
 
 def _services():
     store = TaskStore(":memory:")
@@ -760,3 +763,36 @@ def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock(
     assert seen == []
     assert goals.detail(goal.id)["quota_fit"] == {"status": "ok"}
     assert seen == [False]
+
+
+def test_owner_retry_recovers_an_interrupted_step_after_a_redeploy_strand(case):
+    """#1515: an INTERRUPTED step is Owner-retryable, not refused as not-stopped.
+
+    A redeploy can strand an in-flight task as INTERRUPTED with a stale authority
+    SHA whose durable resume then refuses; the Owner must be able to abandon it
+    and start a fresh attempt instead of being blocked on a resume that will fail.
+    """
+    _, _, store, control, service, goal, _window, task = case
+    store._conn.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task.id,))
+    store._conn.commit()
+    result = service.owner_retry(
+        goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+    assert result["reason"] == goal_service_module.OWNER_RETRY_REASON
+    assert result["from_task_id"] == task.id
+    retry = store.get_task(result["to_task_id"])
+    assert retry.status not in {"FAILED", "BLOCKED", "INTERRUPTED"}
+    [row] = control.list_task_escalations(goal.id)
+    assert row["reason"] == goal_service_module.OWNER_RETRY_REASON
+    assert row["from_task_id"] == task.id and row["to_task_id"] == retry.id
+    # The plan link moved on; the stranded task is no longer the current step.
+    [link] = control.list_goal_tasks(goal.id)
+    assert link["task_id"] == retry.id
+
+
+def test_owner_retry_still_refuses_a_running_step(case):
+    """#1515 does not widen Owner retry to non-stopped steps: RUNNING is refused."""
+    _, _, _store, _control, service, goal, _window, _task = case
+    with pytest.raises(TaskStoreError, match="owner_retry_step_not_stopped"):
+        service.owner_retry(
+            goal.id, "T001",
+            expected_revision=service.control_store.get_goal(goal.id).revision)
