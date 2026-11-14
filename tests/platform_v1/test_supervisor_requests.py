@@ -429,3 +429,15 @@ class TestSupervisorControl:
                                                      "revision": a.revision, "binding_ref": "free"})
         assert answer["ok"] is True and answer["result"]["id"] == a.id
         assert calls == [((a.id, "T0"), {"expected_revision": a.revision, "binding_ref": "free"})]
+
+    def test_status_counts_tries_of_the_current_revision(self, setup, state, monkeypatch):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        control = setup.host._control_store
+        monkeypatch.setattr(control, "list_goal_tasks", lambda goal_id: (
+            {"plan_task_id": "T0", "task_id": "task-2", "status": "FAILED", "failure_classification": "api_error_429"},))
+        monkeypatch.setattr(control, "list_task_escalations", lambda goal_id: (
+            {"goal_revision": a.revision, "plan_task_id": "T0"},
+            {"goal_revision": a.revision, "plan_task_id": "T0"},
+            {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
+        step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
+        assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}

@@ -15,10 +15,12 @@ Owner decision 2026-11-14 lets an external agent operate the host as the Owner c
 the client, behind the same switch:
 
     python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR status [--goal G1]
-    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR stop_window         --window W1 --reason "why"
-    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR retry_step         --goal G1 --step implement --revision 3 [--binding B]
+    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR stop_window \
+        --window W1 --reason "why"
+    python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR retry_step \
+        --goal G1 --step implement --revision 3 [--binding B]
 
-``status`` is read-only. ``stop_window`` is the client's stop (it also revokes standing
+``status`` only reads (like the client, it may mark an overdue window expired). ``stop_window`` is the client's stop (it also revokes standing
 renewal). ``retry_step`` is the Owner retry of decision 2026-11-12 A, with its rules:
 only inside the Goal's active window, never past its bounds.
 
@@ -247,22 +249,26 @@ class SupervisorRequests:
 
 
     def _goal_summary(self, goal: Any) -> dict[str, Any]:
-        """What a supervisor needs to act on a Goal: its state, revision and each step's latest attempt."""
-        rows = self._host._task_store._conn.execute(
-            "SELECT l.plan_task_id, t.id, t.status, t.binding_ref, t.failure_classification, t.updated_at "
-            "FROM platform_goal_task_links l JOIN tasks t ON t.id = l.task_id WHERE l.goal_id = ? "
-            "ORDER BY t.created_at", (goal.id,)).fetchall()
-        steps: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            entry = steps.setdefault(row["plan_task_id"], {"step": row["plan_task_id"], "attempts": 0})
-            entry.update(attempts=entry["attempts"] + 1, task_id=row["id"], status=row["status"],
-                         binding_ref=row["binding_ref"] or "", failure=row["failure_classification"] or "",
-                         updated_at=row["updated_at"])
+        """What a supervisor needs to act on a Goal: its state, revision and each step's current task.
+
+        Steps are the current revision's links; a retry rewrites a link in place, so tries are
+        counted from the escalation history of that revision.
+        """
+        control = self._host._control_store
+        retries: dict[str, int] = {}
+        for item in control.list_task_escalations(goal.id):
+            if item.get("goal_revision") == goal.revision:
+                key = str(item.get("plan_task_id"))
+                retries[key] = retries.get(key, 0) + 1
+        steps = {str(row["plan_task_id"]): {
+            "step": str(row["plan_task_id"]), "task_id": row["task_id"], "status": row["status"],
+            "failure": row["failure_classification"] or "", "tries": 1 + retries.get(str(row["plan_task_id"]), 0)}
+            for row in control.list_goal_tasks(goal.id)}
         planned = [str(item.get("id")) for item in goal.tasks if isinstance(item, dict)]
         return {"id": goal.id, "title": goal.title, "status": goal.status, "revision": goal.revision,
                 "window_id": goal.window_id or "", "updated_at": goal.updated_at,
-                "steps": [steps.get(step, {"step": step, "attempts": 0, "status": "NOT_STARTED"})
-                          for step in planned] + [entry for key, entry in steps.items() if key not in planned]}
+                "steps": [steps.get(step, {"step": step, "status": "NOT_STARTED", "tries": 0}) for step in planned]
+                + [entry for key, entry in steps.items() if key not in planned]}
 
     def _status(self, goal_id: Any) -> dict[str, Any]:
         """Read-only: the active window and the recent Goals, or one Goal with its retry options."""
