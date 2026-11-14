@@ -230,6 +230,127 @@ class InvalidTransitionError(TaskStoreError):
     """Raised when a requested status transition is not allowed."""
 
 
+class _LockedCursor:
+    """A cursor whose every SQLite step holds the owning store's lock.
+
+    ``fetch*`` steps the statement too, so it needs the lock as much as
+    ``execute`` does: ``sqlite3`` releases the GIL inside ``sqlite3_step``.
+    """
+
+    __slots__ = ("_cursor", "_lock")
+
+    def __init__(self, cursor: sqlite3.Cursor, lock: RLock) -> None:
+        self._cursor = cursor
+        self._lock = lock
+
+    def execute(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.execute(*args, **kwargs)
+        return self
+
+    def executemany(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.executemany(*args, **kwargs)
+        return self
+
+    def executescript(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.executescript(*args, **kwargs)
+        return self
+
+    def fetchone(self) -> Any:
+        with self._lock:
+            return self._cursor.fetchone()
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> list[Any]:
+        with self._lock:
+            return self._cursor.fetchmany(*args, **kwargs)
+
+    def fetchall(self) -> list[Any]:
+        with self._lock:
+            return self._cursor.fetchall()
+
+    def close(self) -> None:
+        with self._lock:
+            self._cursor.close()
+
+    def __iter__(self):
+        while True:
+            with self._lock:
+                row = self._cursor.fetchone()
+            if row is None:
+                return
+            yield row
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._cursor, name)
+
+
+class _LockedConnection:
+    """The one shared TaskStore connection, serialized by the store's lock.
+
+    The connection is opened with ``check_same_thread=False`` and is reached
+    from HTTP handlers, dispatchers and executor threads, many of them through
+    ``store._conn`` directly rather than a locked store method. ``sqlite3``
+    is not safe for concurrent use of one connection: unserialized use
+    returned rows with swapped/NULL values in a stress test and crashed the
+    host natively in ``_json.scanstring_unicode`` (#1528). Taking the store's
+    re-entrant lock here covers every caller, including future ones.
+    """
+
+    __slots__ = ("_raw", "_lock")
+
+    def __init__(self, raw: sqlite3.Connection, lock: RLock) -> None:
+        object.__setattr__(self, "_raw", raw)
+        object.__setattr__(self, "_lock", lock)
+
+    def execute(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.execute(*args, **kwargs), self._lock)
+
+    def executemany(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.executemany(*args, **kwargs), self._lock)
+
+    def executescript(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.executescript(*args, **kwargs), self._lock)
+
+    def cursor(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.cursor(*args, **kwargs), self._lock)
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._raw, name)
+        if not callable(attribute):
+            return attribute
+        lock = self._lock
+
+        def locked(*args: Any, **kwargs: Any) -> Any:
+            with lock:
+                return attribute(*args, **kwargs)
+
+        return locked
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._raw, name, value)
+
+    def __enter__(self) -> "_LockedConnection":
+        self._lock.acquire()
+        try:
+            self._raw.__enter__()
+        except BaseException:
+            self._lock.release()
+            raise
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        try:
+            return self._raw.__exit__(*exc)
+        finally:
+            self._lock.release()
+
+
 def _with_store_lock(method):
     """Serialize one shared SQLite connection without covering executors.
 
@@ -327,15 +448,16 @@ class TaskStore:
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self._path = db_path
-        self._conn = sqlite3.connect(
+        raw = sqlite3.connect(
             db_path if db_path != ":memory:" else "",
             uri=(db_path == ":memory:"),
             isolation_level=None,
             check_same_thread=False,
         )
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA journal_mode=WAL")
         self._lock = RLock()
+        self._conn = _LockedConnection(raw, self._lock)
         self._init_schema()
 
     # ------------------------------------------------------------------
