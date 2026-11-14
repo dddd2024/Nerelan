@@ -9,7 +9,8 @@ test("keeps mock Goal completion unverified and opens its exact Run evidence", a
   if (await appPage.evaluate(() => window.innerWidth >= 1024)) {
     const step = appPage.getByTestId("goal-panel-step-T001");
     await expect(step).toContainText("尚未完成测试");
-    await expect(step).toContainText("尚无发布记录");
+    // With no publication yet the panel says nothing about it rather than "none yet".
+    await expect(step).not.toContainText("Draft PR");
   }
   await open(appPage, "/runs?task=task-demo-1");
   await settle(appPage);
