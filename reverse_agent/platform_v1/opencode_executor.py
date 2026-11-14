@@ -3728,7 +3728,11 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     r"quota\s+has\s+been\s+exhausted|"
     r"quota\s+is\s+exhausted|"
     r"quota\s+was\s+exhausted|"
-    r"usage[_ -]?limit[_ -]?reached)\b",
+    r"usage[_ -]?limit[_ -]?reached|"
+    # A used-up token/coding plan answers HTTP 429 like a rate limit, but it
+    # does not recover in seconds (#1497).
+    r"(?:plan\s+)?entitlement\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    r"plan\s+(?:is\s+|has\s+been\s+)?exhausted)\b",
     re.IGNORECASE,
 )
 # One exact structured message names a provider-side quota limit. Only that

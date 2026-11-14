@@ -126,9 +126,27 @@ ACCOUNT_LIMIT = re.compile(r"api_error_429|rate_limit|usage_limit")
 # Failures that mean quota, not agent skill: the account's answer, or the host refusing dispatch for it.
 LIMIT_HIT = re.compile(ACCOUNT_LIMIT.pattern + r"|quota_exhausted")
 LIMIT_HIT_HOLD_SECONDS = 3600  # when the account's own reset time is unknown
+# An executor read "quota/plan/entitlement exhausted" in the account's answer. Coding plans
+# refill in multi-hour windows, so an hour-long hold re-picks a still-empty plan (#1497).
+PLAN_EXHAUSTED_HOLD_SECONDS = 5 * 3600
+_EXECUTOR_REPORTED_EXHAUSTION = re.compile(r"\A\w+_nonzero:(?:exit=-?\d+:)?quota_exhausted\b")
 
 
-def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None) -> float:
+def account_refusal_hold(classification: str, detail: str = "") -> int | None:
+    """The fallback hold for a failure in which the account itself said it is out of quota.
+
+    None for anything else, including the host's own ``quota_exhausted:...`` dispatch
+    refusals: those repeat an existing hold, they are not fresh account evidence.
+    """
+    if ACCOUNT_LIMIT.search(classification or ""):
+        return LIMIT_HIT_HOLD_SECONDS
+    if classification == "quota_exhausted" and _EXECUTOR_REPORTED_EXHAUSTION.match(detail or ""):
+        return PLAN_EXHAUSTED_HOLD_SECONDS
+    return None
+
+
+def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None,
+                    hold_seconds: float = LIMIT_HIT_HOLD_SECONDS) -> float:
     """Until when an account that just refused a run counts as exhausted.
 
     The earliest known window reset after the hit; otherwise a fixed hold. An estimate that
@@ -140,4 +158,4 @@ def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None) -> float:
         reset = float(value) if type(value) in (int, float) else parse_time(value)
         if reset is not None and reset > hit_at:
             resets.append(reset)
-    return min(resets) if resets else hit_at + LIMIT_HIT_HOLD_SECONDS
+    return min(resets) if resets else hit_at + hold_seconds

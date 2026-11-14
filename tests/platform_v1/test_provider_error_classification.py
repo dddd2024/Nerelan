@@ -34,6 +34,31 @@ def _dummy_executor() -> OpenCodeExecutor:
             }}}],
             "api_error_429",
         ),
+        # #1497: a used-up coding plan answers 429 too; it is exhaustion, not a rate limit.
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "token plan entitlement exhausted",
+            }}}],
+            "quota_exhausted",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "错误: token plan entitlement exhausted",
+            }}}],
+            "quota_exhausted",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "Your coding plan has been exhausted",
+            }}}],
+            "quota_exhausted",
+        ),
+        (
+            [{"type": "error", "error": {"name": "APIError", "data": {
+                "statusCode": 429, "message": "inference exceeds tpm/rpm limit",
+            }}}],
+            "api_error_429",
+        ),
         (
             [{"type": "error", "error": {"name": "APIError", "data": {
                 "status_code": 529, "message": "Service provider overload",
