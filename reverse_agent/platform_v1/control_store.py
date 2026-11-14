@@ -22,6 +22,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .run_store import TERMINAL_STATUSES, TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
 from .repository_workspace import normalize_github_origin, normalize_repository_identity
+from .usage_ledger import cost_equivalent_units
 
 
 GOAL_STATES = frozenset(
@@ -2561,13 +2562,17 @@ class PlatformControlStore:
                 cost_micro_units = 0
                 if not usage_unknown:
                     for observation in observations:
-                        token_units += sum(
-                            int(observation[key] or 0)
-                            for key in (
-                                "input_units", "output_units", "reasoning_units",
-                                "cache_read_units", "cache_write_units",
-                            )
-                        )
+                        # #1504: the window is charged in cost-equivalent units
+                        # (cache reads at 0.1, cache writes at 1.25), so a cached
+                        # route no longer burns the budget like fresh input. The
+                        # raw counters stay untouched in the observations.
+                        units = cost_equivalent_units(observation)
+                        if units is None:
+                            usage_unknown = True
+                            unknown_count = max(1, unknown_count)
+                            token_units = 0
+                            break
+                        token_units += units
                         cost_micro_units += int(observation["cost_micro_units"] or 0)
                 for observation in observations:
                     cur.execute(
@@ -2658,8 +2663,12 @@ class PlatformControlStore:
                 if free_route:
                     values[0] = values[1] = 0
                 elif owner_charge:
-                    partial_tokens = sum(int(observation[key] or 0) for observation in observations for key in (
-                        "input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units"))
+                    # The same weighted unit as the charge above, so a partial
+                    # reading and the reservation compare like with like.
+                    partial_tokens = sum(
+                        cost_equivalent_units(observation, unknown_as_zero=True) or 0
+                        for observation in observations
+                    )
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
                     values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
                     values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
