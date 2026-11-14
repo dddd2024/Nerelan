@@ -244,6 +244,20 @@ describe("GoalThread attempts", () => {
     expect(within(turn("task-3")).getByTestId("thread-stop")).toHaveAttribute("role", "alert");
   });
 
+  it("keeps the timeline's order when the goal detail still points at an earlier attempt", () => {
+    // The goal poll is older than the timeline poll: its current task is attempt 2.
+    const olderGoal = { ...GOAL, task_links: [{ ...GOAL.task_links![0], task_id: "task-2" }] } as PlatformGoal;
+    const running = { ...timeline, steps: [{ ...timeline.steps[0], attempts: [
+      ...timeline.steps[0].attempts.slice(0, 2), attempt(3, "task-3", "RUNNING", "magpie-workbuddy-glm-5.3", null)] }] };
+    const [step] = mergeTimelineSteps(olderGoal, running);
+    expect(step.attempts.map((a) => [a.index, a.task_id, a.status])).toEqual(
+      [[1, "task-1", "FAILED"], [2, "task-2", "FAILED"], [3, "task-3", "RUNNING"]]);
+    renderThread(olderGoal, running);
+    const turns = screen.getAllByTestId("thread-assistant-message").map((message) => message.getAttribute("data-message-id"));
+    expect(turns).toEqual(["task-1", "task-2", "task-3"]);
+    expect(within(turn("task-3")).queryByTestId("thread-stop")).not.toBeInTheDocument();
+  });
+
   it("does not raise an alarm for a task the Owner cancelled", () => {
     const cancelled = { ...GOAL, task_links: [{ ...GOAL.task_links![0], status: "CANCELLED", failure: null }] } as PlatformGoal;
     renderThread(cancelled);
