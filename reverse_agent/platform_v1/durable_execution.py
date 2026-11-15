@@ -2179,6 +2179,7 @@ class DurableExecutionService:
                     role_results=result.get("role_results", []),
                     classification=result.get("classification", "failed"),
                     failure_detail=result.get("detail", "role failed"),
+                    worktree=prepared.worktree,
                 )
                 return TaskExecutionOutcome(
                     task_id=task_id,
@@ -2222,6 +2223,7 @@ class DurableExecutionService:
                         f"HEAD moved during {role}: "
                         f"expected={repo_base} actual={head_sha}"
                     ),
+                    worktree=prepared.worktree,
                 )
                 return TaskExecutionOutcome(
                     task_id=task_id,
@@ -2765,9 +2767,14 @@ class DurableExecutionService:
         baseline: tuple[dict[str, Any], ...], plan_digest: str,
         roles_executed: list[str], role_results: list[dict[str, Any]],
         classification: str, failure_detail: str,
+        worktree: Path | None = None,
     ) -> None:
+        from .opencode_executor import _collect_final_product_files
+        final_changed = (
+            _collect_final_product_files(worktree) if worktree is not None else []
+        )
         self.store._fenced_set_changed_files(
-            lease.run_id, task_id, baseline,
+            lease.run_id, task_id, final_changed or list(baseline),
             lease.owner, lease.epoch,
         )
         try:
@@ -4119,6 +4126,7 @@ class DurableExecutionService:
                     role_results=result.get("role_results", []),
                     classification=result.get("classification", "failed"),
                     failure_detail=result.get("detail", "role failed"),
+                    worktree=prepared_path,
                 )
                 return TaskExecutionOutcome(
                     task_id=task_id,
