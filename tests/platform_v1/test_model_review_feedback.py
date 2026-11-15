@@ -259,3 +259,24 @@ def test_rejected_review_repair_is_runnable_and_goal_stays_running(review_setup)
     # A failed repair blocks the goal again.
     store._conn.execute("UPDATE tasks SET status = 'FAILED' WHERE id = ?", (repair,))
     assert control.refresh_goal_status(goal_id).status == 'BLOCKED'
+
+
+def test_repair_replaced_by_a_later_attempt_still_keeps_the_goal_running(review_setup):
+    # 2026-11-15: an Owner retry or a 429 retry replaced the repair; the review then
+    # waited on that later attempt, but the goal was BLOCKED again.
+    store, control, service, goal_id = rejected(review_setup)
+    goal = control.get_goal(goal_id)
+    outcome, = service.escalate_failed_tasks(goal_id)
+    repair = store.get_task(outcome['to_task_id'])
+    store._conn.execute("UPDATE tasks SET status = 'FAILED', failure_classification = 'api_error_429' WHERE id = ?",
+                        (repair.id,))
+    assert control.refresh_goal_status(goal_id).status == 'BLOCKED'
+    retry = store.create_task(title=repair.title, repository=repair.repository, executor_kind=repair.executor_kind,
+                              binding_ref=repair.binding_ref)
+    control.escalate_goal_task(goal_id, goal_revision=goal.revision, plan_task_id=outcome['plan_task_id'],
+        from_task_id=repair.id, to_task_id=retry.id, from_role='coder', to_role='coder', reason='owner_retry')
+    assert control.refresh_goal_status(goal_id).status == 'RUNNING'
+    assert retry.id in control.runnable_tasks(goal.window_id)
+    # A failed later attempt blocks the goal again.
+    store._conn.execute("UPDATE tasks SET status = 'FAILED' WHERE id = ?", (retry.id,))
+    assert control.refresh_goal_status(goal_id).status == 'BLOCKED'
