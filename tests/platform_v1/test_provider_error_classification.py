@@ -367,3 +367,216 @@ def test_availability_exit_and_event_order_remain_ahead_of_policy():
     assert executor._classify_exit(124, [policy]) == "timeout"
     assert executor._classify_exit(1, [auth, policy]) == "auth_provider_route_failure"
     assert executor._classify_exit(1, [policy, auth]) == "policy_refusal"
+
+
+# ---------------------------------------------------------------------------
+# #1525: billing answers are quota exhaustion, not a rate limit and not a
+# generic executor failure.
+# ---------------------------------------------------------------------------
+
+OPENROUTER_INSUFFICIENT_CREDITS = {
+    "type": "error",
+    "error": {
+        "name": "APIError",
+        "data": {
+            "statusCode": 402,
+            "message": ("OpenRouter: Insufficient credits. This account never purchased credits, "
+                        "so requests to paid models are rejected."),
+        },
+    },
+}
+
+WORKBUDDY_CREDITS_EXHAUSTED = {
+    "type": "error",
+    "error": {
+        "name": "APIError",
+        "data": {
+            "statusCode": 429,
+            "message": ("WorkBuddy AI: Credits exhausted. Please visit the link below to purchase "
+                        "add-on packs to continue using this model."),
+        },
+    },
+}
+
+
+@pytest.mark.parametrize(
+    ("events", "expected"),
+    [
+        # #1525: OpenRouter answers 402 "Insufficient credits". A generic
+        # executor failure counted against the model and left the router free to
+        # pick the next paid OpenRouter model.
+        ([OPENROUTER_INSUFFICIENT_CREDITS], "quota_exhausted"),
+        # #1525: WorkBuddy answers 429 "Credits exhausted". A rate limit holds
+        # the account for an hour; the credits are simply gone.
+        ([WORKBUDDY_CREDITS_EXHAUSTED], "quota_exhausted"),
+        # A rate limit stays a rate limit.
+        ([{"type": "error", "error": {"name": "APIError", "data": {
+            "statusCode": 429, "message": "rpm exhausted"}}}], "api_error_429"),
+        ([{"type": "error", "error": {"name": "APIError", "data": {
+            "statusCode": 429, "message": "tpm exhausted"}}}], "api_error_429"),
+        ([{"type": "error", "error": {"name": "APIError", "data": {
+            "statusCode": 429, "message": "Too many requests"}}}], "api_error_429"),
+        # 402 without credit wording is still a billing answer, never an
+        # executor failure and never a rate limit.
+        ([{"type": "error", "error": {"name": "APIError", "data": {
+            "statusCode": 402, "message": "Payment required"}}}], "quota_exhausted"),
+    ],
+)
+def test_billing_errors_are_quota_exhausted_not_rate_limits(events, expected):
+    assert _dummy_executor()._classify_exit(1, events) == expected
+
+
+def test_billing_error_is_not_counted_as_a_model_failure():
+    """A billing answer must not train the model's capability profile."""
+    from reverse_agent.platform_v1 import model_profiles
+    assert model_profiles.PROVIDER_QUOTA_LIMIT != "quota_exhausted"
+    assert "quota_exhausted" not in (model_profiles.PROVIDER_QUOTA_LIMIT,)
+
+
+def test_billing_error_takes_the_five_hour_fallback_hold():
+    """#1498/#1522: the executor-reported exhaustion prefix buys the long hold."""
+    from reverse_agent.platform_v1.quota_guard import (PLAN_EXHAUSTED_HOLD_SECONDS,
+                                                      account_refusal_hold)
+    classification = "quota_exhausted"
+    detail = ("opencode_nonzero:exit=1:quota_exhausted message=OpenRouter: Insufficient credits. "
+              "This account never purchased credits")
+    assert account_refusal_hold(classification, detail) == PLAN_EXHAUSTED_HOLD_SECONDS
+    # A bare rate limit keeps its one-hour hold.
+    assert account_refusal_hold("api_error_429", "opencode_nonzero:exit=1:api_error_429") == 3600
+
+
+def test_billing_error_reaches_the_executor_error_detail():
+    """The provider's own wording reaches the durable detail, so the host can
+    recognise the permanent no-credits state later."""
+    from reverse_agent.platform_v1.opencode_executor import _bounded_error_diagnostic
+    diagnostic = _bounded_error_diagnostic([OPENROUTER_INSUFFICIENT_CREDITS])
+    assert "insufficient credits" in diagnostic.lower()
+
+
+def test_no_credits_is_recognised_as_a_billing_state():
+    from reverse_agent.platform_v1.model_availability import NO_CREDITS, no_credits_error
+    assert no_credits_error("OpenRouter: Insufficient credits. This account never purchased credits") == NO_CREDITS
+    assert no_credits_error("WorkBuddy AI: Credits exhausted. Please purchase add-on packs") == NO_CREDITS
+    assert no_credits_error("Your quota has been exhausted") is None
+    assert no_credits_error("Too many requests") is None
+    assert no_credits_error("inference exceeds tpm/rpm limit") is None
+
+
+def test_no_credits_observation_is_unavailable_for_a_week():
+    from reverse_agent.platform_v1.model_availability import (NO_CREDITS, NO_CREDITS_TTL_SECONDS,
+                                                              observation)
+    result = observation(now=1000.0, state="UNAVAILABLE", reason=NO_CREDITS,
+                         ttl_seconds=NO_CREDITS_TTL_SECONDS)
+    assert result["state"] == "UNAVAILABLE"
+    assert result["reason"] == "no_credits"
+    assert result["expires_at"] == 1000.0 + 7 * 86400
+    # A plain transient observation keeps its short lifetime.
+    assert observation(now=1000.0, error="transient")["expires_at"] == 1300.0
+
+
+def _no_credits_host(monkeypatch, tmp_path):
+    """A host with one relay binding and a real task store, no network."""
+    from reverse_agent.model_access.store import ModelProfileStore
+    from reverse_agent.platform_v1.model_availability import AvailabilityCache
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    host = object.__new__(CombinedTrustedHost)
+    host._store = ModelProfileStore(state_path=tmp_path / 'model_setup_state.json')
+    host._task_store = TaskStore(':memory:')
+    host._availability_cache = AvailabilityCache()
+    host._availability_probe = None
+    host._store.upsert_connection({
+        'connection_id': 'openrouter', 'name': 'OpenRouter', 'provider': 'openai-compatible',
+        'base_url': 'https://example.invalid/v1', 'auth_method': 'none', 'enabled': True})
+    host._store.upsert_binding({
+        'binding_id': 'openrouter-paid', 'name': 'OpenRouter paid', 'executor_id': 'opencode',
+        'connection_id': 'openrouter', 'model_id': 'openrouter/openai/gpt-6.1', 'enabled': True})
+    return host
+
+
+def _record_failed_task(host, classification, detail, *, when):
+    """One FAILED task row, as the executor would have left it."""
+    from datetime import datetime, timezone
+    task = host._task_store.create_task(title='Billing failure', executor_kind='opencode',
+                                        binding_ref='openrouter-paid')
+    host._task_store._conn.execute(
+        'UPDATE tasks SET status=?, failure_classification=?, failure_detail=?, updated_at=? WHERE id=?',
+        ('FAILED', classification, detail,
+         datetime.fromtimestamp(when, timezone.utc).isoformat(), task.id))
+    host._task_store._conn.commit()
+    return task
+
+
+def test_no_credits_failure_marks_the_binding_unavailable(monkeypatch, tmp_path):
+    """#1525: "This account never purchased credits" is not temporary. The
+    binding becomes UNAVAILABLE so routing stops offering that upstream."""
+    import time
+    host = _no_credits_host(monkeypatch, tmp_path)
+    binding = host._store.get_binding_public('openrouter-paid')
+    connection = host._store.get_connection_public('openrouter')
+    now = time.time()
+    _record_failed_task(
+        host, "quota_exhausted",
+        "opencode_nonzero:exit=1:quota_exhausted message=OpenRouter: Insufficient credits. "
+        "This account never purchased credits",
+        when=now - 10)
+    result = host._routing_availability(binding, connection, allow_paid=True,
+                                         cost_class='paid_api')
+    assert result["state"] == "UNAVAILABLE"
+    assert result["reason"] == "no_credits"
+    # A week, not the usual day: the account stays unpaid until credits are bought.
+    assert result["expires_at"] >= now - 10 + 7 * 86400 - 1
+
+
+def test_rate_limited_failure_does_not_mark_the_binding_unavailable(monkeypatch, tmp_path):
+    """A plain rate limit is transient: it must not disable the binding."""
+    import time
+    host = _no_credits_host(monkeypatch, tmp_path)
+    binding = host._store.get_binding_public('openrouter-paid')
+    connection = host._store.get_connection_public('openrouter')
+    now = time.time()
+    _record_failed_task(host, "api_error_429",
+                        "opencode_nonzero:exit=1:api_error_429 message=Too many requests",
+                        when=now - 10)
+    result = host._routing_availability(binding, connection, allow_paid=True,
+                                         cost_class='paid_api')
+    assert result["state"] == "TRANSIENT"
+    assert result["reason"] != "no_credits"
+
+
+def test_quota_exhausted_without_credit_wording_stays_transient(monkeypatch, tmp_path):
+    """A quota window that refills is not a billing state."""
+    import time
+    host = _no_credits_host(monkeypatch, tmp_path)
+    binding = host._store.get_binding_public('openrouter-paid')
+    connection = host._store.get_connection_public('openrouter')
+    now = time.time()
+    _record_failed_task(host, "quota_exhausted",
+                        "opencode_nonzero:exit=1:quota_exhausted message=Your quota has been exhausted",
+                        when=now - 10)
+    result = host._routing_availability(binding, connection, allow_paid=True,
+                                         cost_class='paid_api')
+    assert result["state"] != "UNAVAILABLE"
+    assert result["reason"] != "no_credits"
+
+
+def test_no_credits_binding_is_excluded_from_routing(monkeypatch, tmp_path):
+    """Routing stops offering the upstream's paid models while it is unpaid."""
+    import time
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    host = _no_credits_host(monkeypatch, tmp_path)
+    now = time.time()
+    _record_failed_task(
+        host, "quota_exhausted",
+        "opencode_nonzero:exit=1:quota_exhausted message=OpenRouter: Insufficient credits. "
+        "This account never purchased credits",
+        when=now - 10)
+    host._control_store = type("S", (), {
+        "get_window": lambda self, _: None,
+        "window_policy_binding": lambda self, _: {"authority": {}},
+    })()
+    from reverse_agent.platform_v1.goal_service import PlannedTask
+    with pytest.raises(TaskStoreError) as caught:
+        host._resolve_task_model(PlannedTask('T', 'Edit', 'Edit locally', difficulty=2))
+    filters = [row.get('filter') for row in caught.value.decision.get('excluded_candidates', [])]
+    assert "availability:no_credits" in filters
