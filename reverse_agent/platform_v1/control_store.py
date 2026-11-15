@@ -1173,8 +1173,30 @@ class PlatformControlStore:
         links = self.list_goal_tasks(goal_id)
         if not links:
             return self.get_goal(goal_id)
-        statuses = {str(link["status"]) for link in links}
-        if statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+        # A rejected model review whose producer repair is still alive is not a
+        # blocker: the repair must run and the review is then refreshed. Counting
+        # it as BLOCKED stranded every repair, because only RUNNING goals have
+        # their QUEUED tasks claimed (2026-11-15, #1530/#1521 goals).
+        current = {str(link["task_id"]): link for link in links}
+        revision = int(links[0]["goal_revision"])
+        repair_of = {
+            str(row["reason"]).split(":", 1)[1]: str(row["to_task_id"])
+            for row in self.list_task_escalations(goal_id)
+            if int(row["goal_revision"]) == revision
+            and str(row["reason"]).startswith("model_review_repair:")
+        }
+        awaiting_repair = {
+            task_id for task_id, link in current.items()
+            if link["status"] == "FAILED"
+            and link["failure_classification"] == "model_review_rejected"
+            and repair_of.get(task_id) in current
+            and current[repair_of[task_id]]["status"] not in {"FAILED", "BLOCKED", "CANCELLED"}
+        }
+        statuses = {str(link["status"]) for task_id, link in current.items()
+                    if task_id not in awaiting_repair}
+        if awaiting_repair and statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+            status = "RUNNING"  # the repaired artifact still needs its refreshed review
+        elif statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
             status = "COMPLETED"
         elif statuses & {"FAILED", "BLOCKED", "CANCELLED"}:
             status = "BLOCKED"

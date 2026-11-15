@@ -241,3 +241,21 @@ def test_free_retries_do_not_block_a_review_repair_round(review_setup):
     store._conn.commit()
     outcome, = service.escalate_failed_tasks(goal_id)
     assert outcome['to_task_id'] not in {producer, review}
+
+
+def test_rejected_review_repair_is_runnable_and_goal_stays_running(review_setup):
+    # 2026-11-15: a rejected review left its link FAILED, so the goal turned BLOCKED
+    # and the queued repair was never claimed (only RUNNING goals' tasks are).
+    store, control, service, goal_id = rejected(review_setup)
+    goal = control.get_goal(goal_id)
+    outcome, = service.escalate_failed_tasks(goal_id)
+    repair = outcome['to_task_id']
+    assert store.get_task(repair).status == 'QUEUED'
+    assert control.get_goal(goal_id).status == 'RUNNING'
+    assert repair in control.runnable_tasks(goal.window_id)
+    # The repaired artifact still needs its refreshed review: not COMPLETED yet.
+    store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (repair,))
+    assert control.refresh_goal_status(goal_id).status == 'RUNNING'
+    # A failed repair blocks the goal again.
+    store._conn.execute("UPDATE tasks SET status = 'FAILED' WHERE id = ?", (repair,))
+    assert control.refresh_goal_status(goal_id).status == 'BLOCKED'
