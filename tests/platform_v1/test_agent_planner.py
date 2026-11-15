@@ -1,8 +1,11 @@
 """Planner agent: decomposition into role-tagged tasks (zero model calls)."""
 import json
 from pathlib import Path
+import re
 import subprocess
 import sys
+import threading
+import time
 
 import pytest
 
@@ -384,9 +387,129 @@ def test_failure_cleanup_and_safe_runtime_codes(tmp_path, failure, code):
         assert "raw_excerpt" not in status
 
 
-def test_concurrent_goals_have_distinct_workspaces(tmp_path):
-    import threading
-    from reverse_agent.platform_v1 import codex_executor
+_GIT_PHASES = {
+    ("rev-parse", "--verify"): "resolve-base",
+    ("worktree", "add"): "worktree-add",
+    ("rev-parse", "HEAD"): "verify-head",
+    ("worktree", "remove"): "worktree-remove",
+    ("worktree", "prune"): "worktree-prune",
+}
+_GIT_EVIDENCE_ITEMS = 8
+_GIT_EVIDENCE_TEXT = 200
+_GIT_ABSOLUTE_PATH = re.compile(r"(?<![\w.~-])(?:[A-Za-z]:)?[\\/](?:[^\s'\"\\/:]+[\\/])*([^\s'\"\\/:]*)")
+
+
+def _sanitize_git_text(text, private=()):
+    """Bounded diagnostic text: secrets redacted, absolute paths reduced to a basename."""
+    from reverse_agent.platform_v1.opencode_executor import redact_secrets
+    text = redact_secrets(str(text)[:4 * _GIT_EVIDENCE_TEXT])
+    for value in private:
+        if value:
+            text = text.replace(str(value), "<private>")
+    text = _GIT_ABSOLUTE_PATH.sub(lambda m: "<path>/" + m.group(1)[:40], text)
+    text = "".join(ch if ch.isprintable() else " " for ch in text)
+    return " ".join(text.split())[:_GIT_EVIDENCE_TEXT]
+
+
+def _git_phase(argv):
+    from reverse_agent.platform_v1 import repository_preparation
+    prefix = tuple(repository_preparation._PLANNER_GIT)
+    args = tuple(argv[len(prefix):]) if tuple(argv[:len(prefix)]) == prefix else ()
+    return _GIT_PHASES.get(args[:2], "other")
+
+
+class _GitFailureEvidence:
+    """Records only failing native Git facts; forwards every call unchanged."""
+
+    def __init__(self, private=()):
+        self.private = tuple(private)
+        self.items = []
+        self.dropped = 0
+        self._lock = threading.Lock()
+        self._start = time.monotonic()
+
+    def _record(self, argv, returncode, stderr, exc):
+        try:
+            item = {"phase": _git_phase(argv), "thread": threading.current_thread().name[:20],
+                    "ms": int((time.monotonic() - self._start) * 1000)}
+            if returncode is not None:
+                item["returncode"] = int(returncode)
+                item["stderr"] = _sanitize_git_text(stderr or "", self.private)
+            if exc is not None:
+                item["exception"] = type(exc).__name__
+                if exc.__cause__ is not None:
+                    item["cause"] = type(exc.__cause__).__name__
+                    item["cause_text"] = _sanitize_git_text(exc.__cause__, self.private)
+            with self._lock:
+                if len(self.items) < _GIT_EVIDENCE_ITEMS:
+                    self.items.append(item)
+                else:
+                    self.dropped += 1
+        except Exception:  # evidence capture must never alter the run
+            pass
+
+    def wrap(self, original):
+        def run_git(argv, *args, **kwargs):
+            try:
+                result = original(argv, *args, **kwargs)
+            except BaseException as exc:
+                self._record(argv, None, None, exc)
+                raise
+            if getattr(result, "returncode", 0):
+                self._record(argv, result.returncode, getattr(result, "stderr", ""), None)
+            return result
+        return run_git
+
+    def report(self):
+        with self._lock:
+            return "native git failures: " + json.dumps(
+                {"items": list(self.items), "dropped": self.dropped}, sort_keys=True)
+
+
+def test_git_failure_evidence_is_redacted_and_bounded(tmp_path):
+    evidence = _GitFailureEvidence(private=(tmp_path,))
+    secret = "token=abcdefgh12345678"
+    noisy = (f"fatal: Unable to create '{tmp_path / 'source' / '.git' / 'index.lock'}': File exists. "
+             f"{secret}\x00\x1b[31m " + "x" * 5000)
+
+    def original(argv, **_):
+        return subprocess.CompletedProcess(argv, 128, "", noisy)
+
+    run_git = evidence.wrap(original)
+    from reverse_agent.platform_v1 import repository_preparation
+    argv = [*repository_preparation._PLANNER_GIT, "worktree", "add", "--detach", str(tmp_path / "w"), "abc"]
+    for _ in range(_GIT_EVIDENCE_ITEMS + 3):
+        assert run_git(argv, cwd=tmp_path, timeout=1).returncode == 128  # result forwarded untouched
+    ok = subprocess.CompletedProcess(argv, 0, "", "progress")
+    assert evidence.wrap(lambda *_a, **_k: ok)(argv) is ok
+    assert len(evidence.items) == _GIT_EVIDENCE_ITEMS and evidence.dropped == 3
+    item = evidence.items[0]
+    assert item["phase"] == "worktree-add" and item["returncode"] == 128
+    assert len(item["stderr"]) <= _GIT_EVIDENCE_TEXT
+    assert "abcdefgh12345678" not in item["stderr"] and str(tmp_path) not in evidence.report()
+    assert "\x00" not in item["stderr"] and "\x1b" not in item["stderr"]
+    assert "index.lock" in item["stderr"]
+
+    boom = OSError("cannot spawn")
+    err = repository_preparation.ExecutorRuntimeError("repository_preparation_failed")
+    err.__cause__ = boom
+
+    def raising(*_a, **_k):
+        raise err
+
+    unknown = _GitFailureEvidence()
+    with pytest.raises(type(err)) as raised:
+        unknown.wrap(raising)(["git", "secret-subcommand", "private"])
+    assert raised.value is err
+    assert unknown.items[0]["phase"] == "other" and unknown.items[0]["cause"] == "OSError"
+    assert "secret-subcommand" not in unknown.report()
+
+
+@pytest.mark.parametrize("iteration", range(10))
+def test_concurrent_goals_have_distinct_workspaces(tmp_path, monkeypatch, iteration):
+    from reverse_agent.platform_v1 import codex_executor, repository_preparation
+    evidence = _GitFailureEvidence(private=(tmp_path,))
+    monkeypatch.setattr(repository_preparation, "_run_git", evidence.wrap(repository_preparation._run_git))
     goals, goal = _goals()
     other = goals.create({"objective": "Other", "repository": goal.repository,
                           "idempotency_key": "other", "executor_kind": "opencode",
@@ -412,15 +535,15 @@ def test_concurrent_goals_have_distinct_workspaces(tmp_path):
         try:
             barrier.wait(timeout=10)
         except threading.BrokenBarrierError:
-            pytest.fail(repr([planner.status(g.id) for g in (goal, other)]))
-        assert len(set(seen)) == 2 and all(path.exists() for path in seen)
+            pytest.fail(repr([planner.status(g.id) for g in (goal, other)]) + "; " + evidence.report())
+        assert len(set(seen)) == 2 and all(path.exists() for path in seen), evidence.report()
     finally:
         release.set()
         for worker in workers:
             worker.join(timeout=15)
-    assert all(not worker.is_alive() for worker in workers)
-    assert all(planner.status(g.id)["status"] == "PLANNED" for g in (goal, other))
-    assert all(not path.exists() for path in seen)
+    assert all(not worker.is_alive() for worker in workers), evidence.report()
+    assert all(planner.status(g.id)["status"] == "PLANNED" for g in (goal, other)), evidence.report()
+    assert all(not path.exists() for path in seen), evidence.report()
 
 
 def test_planner_start_recovers_crashed_workspace(tmp_path):
