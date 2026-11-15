@@ -1,5 +1,7 @@
 # E. Cost, usage attribution, observability and host self-protection
 
+> **Correction (2026-11-15 review of #1544):** `reverse_agent/model_access/magpie_settlement.py` and `reverse_agent/model_access/magpie_usage.py` exist. The second already reads Magpie request rows and attributes them by session or request id. Only `platform_v1/magpie_usage_ingest.py` is time-window based. See README item 2.
+
 Study date 2026-11-15. Checkout `F:/nerelan/.claude/worktrees/handover-docs-continue-9ae221` at `e0489d5a`, read-only. Defects covered: **D3**, **D6**, **D9**, with a small part of D1.
 
 ## 0. What Nerelan does today (the baseline being judged)

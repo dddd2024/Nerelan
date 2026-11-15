@@ -1,5 +1,7 @@
 # A. Multi-account / multi-key LLM pooling and gateways
 
+> **Correction (2026-11-15 review of #1544):** settling from Magpie rows should wire the existing reader in `reverse_agent/model_access/magpie_usage.py` into settlement rather than add a new one. See README item 2.
+
 Scope: account-level routing, quota and error handling (D1, D2, D3, D4 account side, D9).
 Checked 2026-11-15. Sources: web pages cited inline, plus a read-only look at the live Magpie
 gateway (`GET 127.0.0.1:3425/` reports version **0.1.4112**; the capability map was written on 0.1.4074) and the

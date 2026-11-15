@@ -1,5 +1,7 @@
 # D — Multi-agent orchestration and automated review loops
 
+> **Superseded in part (2026-11-15):** the per-goal soft spend ceiling ("Raise to continue") and the replacement of `window.max_retries` below conflict with the Owner decision of 2026-11-15 (#1538): provider account quota is the only budget, and `max_retries` semantics stay. See the README corrections.
+
 Study date 2026-11-15. Repository facts come from `gh api repos/<r>` and `/releases` on that date. The defects in scope are D10 (main), D4 (bounding unattended work after the Owner dropped window time, token and task caps) and D7 (task contract). D5 is covered only where it touches the review loop.
 
 ## 0. What Nerelan's loop does today (read from the checkout, head e0489d5a)

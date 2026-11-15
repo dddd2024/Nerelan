@@ -50,10 +50,19 @@ The plan below removes those, in this order.
    - **What:** extend `opencode_server_transport.py` to act on retry events by holding the account at `next` and ending the attempt early, then make it the default.
    - **Effect:** removes D1 and shrinks `opencode_executor.py` by roughly 1.1k lines.
    - **Issue:** extends #443.
-2. **Per-attempt Magpie gateway key plus settlement and refusal detection from Magpie request rows** (areas A, E).
+2. **Settle and detect refusals from Magpie request rows, through the existing reader, plus a per-attempt gateway key** (areas A, E).
    - **Why:** every Magpie row carries the session, status, error text, account, time to first token and cost. A refused request shows up within about 0.3 s.
-   - **What:** charge each attempt by its rows (fixes D3), end a refused attempt in seconds (backs up item 1) and get exact per-attempt cost (D9 measurement). A key with a token cap makes the per-attempt runaway guard a hard gateway limit, which fits the Owner decision of 2026-11-15 (#1538).
-   - **Before building:** check that rows carry the key id and cache tokens.
+   - **Existing code to build on:** `reverse_agent/model_access/magpie_usage.py` (555 lines, #1342/#1170). It already reads `GET /v1/magpie/usage/requests`, parses `caller_key_id` and the cache-token fields, and attributes rows to a task only by a positive session or request-id match (`correlate_task_usage`). It is used by `cost_report.py` and `magpie_wait.py`. `reverse_agent/model_access/magpie_settlement.py` (386 lines) exists but only tests import it.
+   - **What is missing:**
+     - the window charge in `control_store.py` does not consume this reader;
+     - `platform_v1/magpie_usage_ingest.py` matches by time window and only for `codex`/`claude_code`, so OpenCode attempts are never matched;
+     - attempts carry no per-attempt gateway key.
+   - **What:** wire `magpie_usage` and `magpie_settlement` into attempt settlement and refusal detection, and retire the time-window ingest; do not add a second reader. The results:
+     - each attempt is charged by its rows (fixes D3);
+     - a refused attempt ends in seconds (backs up item 1);
+     - per-attempt cost is exact (D9 measurement).
+     A per-attempt key with a token cap makes the per-attempt runaway guard a hard gateway limit, which fits the Owner decision of 2026-11-15 (#1538).
+   - **Before building:** check live that rows carry `callerKeyId` and the cache-token counts (the parser already reads them).
    - **Issue:** #1531.
 3. **One table-driven upstream error classifier**, copying the designs of new-api, one-api and LiteLLM (area A).
    - **What:** classify rate limit, quota exhausted, credits/402, auth, model gone and overload. Holds use the upstream reset time. Credits and auth stay disabled until a probe succeeds, so `pool_verifier` stops re-probing dead 402/403 bindings.
@@ -88,21 +97,28 @@ The plan below removes those, in this order.
 
 ### P2: shrink the custom engine (D5, D9, D4 window coupling)
 
-9. **Spike DBOS Transact as the goal-level engine** (area B).
+9. **Spike DBOS Transact as the goal-level engine** (area B). Adopting it after the spike is an R2 dependency change.
    - **What it is:** MIT licence, in-process, a SQLite system database, no server.
    - **What:** model plan → implement → review → repair, with its round limit, as workflows. Unfinished workflows resume on launch.
    - **Effect:** replaces SQL status derivation (`refresh_goal_status`, `runnable_tasks`), the claim and rebind logic, coordinator sweeps and most of the `durable_execution` lease and resume code. Those are the source of D5, the redeploy strand (#1515) and window stranding.
    - **Gaps:** no idle timeout (item 5 covers it) and no supervisor (item 8). Windows is undocumented, so the spike must prove Windows and the existing SQLite store first.
    - **Issue:** new, as a spike with explicit go/no-go criteria.
 10. **Route by Magpie groups instead of single accounts** (area A).
-    - **What:** enable `account_routing=magpie` after the verification already required by the Owner decision of 2026-11-14. Map tiers to `auto/<model>` or Nerelan-owned groups. Set `groupFirstToken`, `refusalRetries` and `retryAfterCap`.
+    - **What:** enable `account_routing=magpie` (the switch was introduced under the Owner decision of 2026-11-04). The Owner answered in the 2026-11-14 handoff document ("Nerelan 崩溃根因、调度失败与 Magpie 对照交接", section 待 Owner 决定): it may be turned on once verified. The verification: a refused account fails over within its Magpie group, Nerelan sets no hold of its own, and usage stays attributed to the task. That answer is not yet recorded on GitHub. Map tiers to `auto/<model>` or Nerelan-owned groups. Set `groupFirstToken`, `refusalRetries` and `retryAfterCap`.
     - **Effect:** shrinks account holds in `model_router.py` and `quota_guard.py` and the `pool_verifier.py` sweep. Removes D9 lock-in.
     - **Gap:** Magpie has no mid-stream idle timeout; items 1 and 4 cover it.
     - **Issue:** #1533, #1170.
 11. **Per-model cache pricing in the cost-equivalent unit** (area E).
     - **What:** the 0.1 cache-read weight from #1504 Part 1 becomes per-model ratios from the vendored models.dev snapshot. Magpie-reported `cost_usd` wins over computed values. Reports include interrupted and retired attempts.
     - **Issue:** #1504.
-12. **Dependency upgrades:** LangGraph 1.0.10 → 1.2.x (`TimeoutPolicy` idle timeouts, `RunControl.request_drain()` on redeploy) for the in-task team graph; OpenCode 1.19 → 2.x (caps `retry-after` at 15 min; config keys move under `settings`). Both are R2 dependency changes. Only take them if item 9 does not supersede LangGraph's role.
+12. **Dependency upgrades (R2):**
+    - OpenCode 1.19 → 2.x: caps `retry-after` at 15 minutes, but config keys move under `settings`. Independent of item 9; weigh it against item 1.
+    - LangGraph 1.0.10 → 1.2.x: `TimeoutPolicy` idle timeouts, and `RunControl.request_drain()` on redeploy, for the in-task team graph. Take it only if item 9 does not take over LangGraph's role.
+
+## Corrections to the area reports
+
+- Report E says `magpie_settlement.py` was "not found" and describes the attribution as time-window only. Both are wrong. `reverse_agent/model_access/magpie_settlement.py` and `reverse_agent/model_access/magpie_usage.py` exist (item 2), and only `platform_v1/magpie_usage_ingest.py` is time-window based. Report A's "settle from Magpie rows" action is new work only where it wires in that existing reader.
+- Report D's per-goal soft spend ceiling with "Raise to continue", and its replacement of `window.max_retries`, are **superseded** by the Owner decision of 2026-11-15 (#1538, governance PR #1539). Under that decision, provider account quota is the only budget, and the per-attempt runaway guard plus the existing `max_retries` semantics (decision 2026-11-12 B) stay. This plan therefore omits them. Report D's "no progress" stop is kept as an optional, off-by-default runaway guard.
 
 ## What stays Nerelan's own
 
@@ -116,7 +132,7 @@ Langfuse (needs Postgres, ClickHouse, Redis and S3), Temporal (a second server),
 
 ## Open facts to verify before building
 
-- Do Magpie request rows carry the gateway key id and cache-token counts? (items 2, 11)
+- Are `callerKeyId` and the cache-token counts populated in live Magpie rows? The parser in `model_access/magpie_usage.py` already reads both fields. (items 2, 11)
 - Does OpenCode's `setCacheKey` reach the upstream request body through Magpie? (item 4; one relay capture)
 - Magpie `tries` was set on only 1 of 500 rows. Is its in-request failover evidence reliable? (item 10)
 - DBOS on Windows with the existing SQLite file. (item 9)
