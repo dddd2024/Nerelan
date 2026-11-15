@@ -1687,8 +1687,13 @@ class OpenCodeExecutor:
 
         root_path = Path(workspace_root)
         root_path.mkdir(parents=True, exist_ok=True)
-        prepared = self.prepare_worktree_once(
-            task_id, root_path, event_callback
+        from .workspace_dependencies import (
+            prepare_workspace_with_dependencies,
+            task_dependency_plan,
+        )
+        prepared = prepare_workspace_with_dependencies(
+            self, task_id, root_path, event_callback,
+            plan=task_dependency_plan(store, task_id), store=store,
         )
         role_context = RoleContext(
             role="executor",
@@ -2554,6 +2559,9 @@ class OpenCodeExecutor:
         task_id: str,
         root_path: Path,
         event_callback: ExecutorCallback | None,
+        *,
+        dependencies: Any = None,
+        dependency_store: Any = None,
     ) -> PreparedWorkspaceContext:
         """Prepare exactly one linked worktree for shared sequential use.
 
@@ -2562,9 +2570,16 @@ class OpenCodeExecutor:
         passed into ``execute_role_prepared`` for planner, coder, and
         reviewer so all three roles reuse the same CLI resolution and
         binding setup.
+
+        ``dependencies`` is an optional host-owned
+        :class:`~reverse_agent.platform_v1.workspace_dependencies.DependencyPlan`.
+        When present, the shared preparation step provisions the workspace's
+        Node dependencies from the base commit's lockfile before any role runs,
+        so the agent can execute the tests it was asked to write (#1503).
         """
         worktree, base_sha = self._prepare_linked_worktree(
-            task_id, root_path, event_callback
+            task_id, root_path, event_callback,
+            dependencies=dependencies, dependency_store=dependency_store,
         )
         execution_id = "exec-%s" % task_id
         cli_path, is_cmd = resolve_opencode_cli(self._opencode_exe)
@@ -2723,20 +2738,26 @@ class OpenCodeExecutor:
         task_id: str,
         root_path: Path,
         event_callback: ExecutorCallback | None,
+        *,
+        dependencies: Any = None,
+        dependency_store: Any = None,
     ) -> tuple[Path, str]:
         if self._repo_dir_explicit:
             return self._prepare_real_linked_worktree(
-                task_id, root_path, event_callback
+                task_id, root_path, event_callback,
+                dependencies=dependencies, dependency_store=dependency_store,
             )
         return self._prepare_test_worktree(
             task_id, root_path, event_callback
         )
 
-    def _prepare_real_linked_worktree(self, task_id, root_path, event_callback):
+    def _prepare_real_linked_worktree(self, task_id, root_path, event_callback, *,
+                                      dependencies=None, dependency_store=None):
         from .repository_preparation import prepare_linked_worktree
         return prepare_linked_worktree(
             task_id, root_path, event_callback,
             repo_dir_value=self._repo_dir, base_ref=self._base_ref,
+            dependencies=dependencies, dependency_store=dependency_store,
         )
 
     def _prepare_test_worktree(

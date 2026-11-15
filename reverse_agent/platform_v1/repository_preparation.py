@@ -26,10 +26,19 @@ def assert_pristine_workspace(root):
     if status.returncode or status.stdout:
         raise ExecutorRuntimeError("workspace_preexisting_changes")
 
-def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_value, base_ref):
+def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_value, base_ref,
+                             dependencies=None, dependency_store=None):
     if not isinstance(task_id,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}",task_id):
         raise ExecutorRuntimeError("task_id_invalid")
-    """Create a real linked Git worktree from the configured source repo."""
+    """Create a real linked Git worktree from the configured source repo.
+
+    ``dependencies`` is an optional host-owned
+    :class:`~reverse_agent.platform_v1.workspace_dependencies.DependencyPlan`.
+    When present, the workspace's Node dependencies are provisioned from the
+    base commit's lockfile before the caller starts any executor role, so the
+    agent can run the tests it was asked to write (#1503). ``dependency_store``
+    is the evidence sink for that install.
+    """
     if not repo_dir_value:
         _emit(event_callback, task_id, {
             "type": "EXECUTOR_FINISHED",
@@ -151,7 +160,49 @@ def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_valu
     if dest.as_posix() not in list_proc.stdout and str(dest) not in list_proc.stdout:
         raise ExecutorRuntimeError("worktree_not_registered")
 
+    if dependencies:
+        # The workspace is verified; the agent's own edits have not started
+        # yet, so the install still comes from the base commit's lockfile.
+        _provision_dependencies(dest, dependencies, dependency_store, event_callback,
+                                task_id, base_sha)
+
     return dest, base_sha
+
+
+def _provision_dependencies(dest, dependencies, dependency_store, event_callback,
+                            task_id, base_sha):
+    """Install the workspace's Node dependencies and record the proof.
+
+    The install happens before any executor role runs, so the agent can
+    execute the tests it was asked to write. A failure is a host fault: the
+    caller blocks the step instead of charging the model a retry.
+    """
+    from .workspace_dependencies import (
+        DependencyPlan,
+        WorkspaceDependencyError,
+        provision_workspace_dependencies,
+    )
+    if not isinstance(dependencies, DependencyPlan):
+        raise ExecutorRuntimeError("workspace_dependency_plan_invalid")
+    plan = DependencyPlan(directories=dependencies.directories,
+                          lockfiles=dict(dependencies.lockfiles),
+                          base_commit=dependencies.base_commit or base_sha)
+    try:
+        provision_workspace_dependencies(
+            dependency_store, task_id, plan, Path(dest),
+            lockfile_source="base",
+        )
+    except WorkspaceDependencyError as exc:
+        _emit(event_callback, task_id, {
+            "type": "EXECUTOR_FINISHED",
+            "title": "workspace dependencies unavailable",
+            "description": exc.code,
+            "metadata": {"failure_classification": "blocked",
+                         "detail": exc.code},
+        })
+        raise ExecutorRuntimeError(exc.code) from None
+    except Exception:
+        raise ExecutorRuntimeError("workspace_dependencies_unavailable") from None
 
 
 def _planner_path(path):

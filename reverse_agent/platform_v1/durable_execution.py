@@ -44,6 +44,7 @@ from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
 from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
 from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
+from .workspace_dependencies import prepare_workspace_with_dependencies, task_dependency_plan
 
 
 # ---------------------------------------------------------------------------
@@ -1139,9 +1140,9 @@ class DurableExecutionService:
                     self.store, lease.run_id, task_id,
                     lease.owner, lease.epoch,
                 )
-                prepared = executor.prepare_worktree_once(
-                    task_id, Path(workspace_root),
-                    prepared_cb
+                prepared = prepare_workspace_with_dependencies(
+                    executor, task_id, Path(workspace_root), prepared_cb,
+                    plan=task_dependency_plan(self.store, task_id), store=self.store,
                 )
                 from .contract_recovery import restore_failed_tree
                 restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)
@@ -2009,9 +2010,9 @@ class DurableExecutionService:
                 self.store, lease.run_id, task_id,
                 lease.owner, lease.epoch,
             )
-            prepared = executor.prepare_worktree_once(
-                task_id, Path(workspace_root),
-                prepared_cb
+            prepared = prepare_workspace_with_dependencies(
+                executor, task_id, Path(workspace_root), prepared_cb,
+                plan=task_dependency_plan(self.store, task_id), store=self.store,
             )
             from .contract_recovery import restore_failed_tree
             restore_failed_tree(self.store, task_id, worktree=prepared.worktree, lease=lease)

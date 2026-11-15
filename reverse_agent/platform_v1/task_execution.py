@@ -44,6 +44,7 @@ from .task_runtime import (
     LocalValidationRunner,
     load_host_validation_contract,
 )
+from .workspace_dependencies import prepare_workspace_with_dependencies, task_dependency_plan
 
 
 @dataclass(frozen=True)
@@ -554,8 +555,9 @@ class TaskExecutionService:
 
         self.store.transition_to(task_id, "PREPARING_WORKSPACE")
         try:
-            prepared = executor.prepare_worktree_once(
-                task_id, Path(workspace_root), self._store_event_callback
+            prepared = prepare_workspace_with_dependencies(
+                executor, task_id, Path(workspace_root), self._store_event_callback,
+                plan=task_dependency_plan(self.store, task_id), store=self.store,
             )
         except ExecutorRuntimeError as exc:
             self.store.classify_failure(
@@ -1146,7 +1148,10 @@ class TaskExecutionService:
         if recovery_input(task) is not None:
             from .opencode_executor import RoleContext
             executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
-            prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+            prepared = prepare_workspace_with_dependencies(
+                executor, task.id, Path(workspace_root), self._store_event_callback,
+                plan=task_dependency_plan(self.store, task.id), store=self.store,
+            )
             restore_failed_tree(self.store, task.id, worktree=prepared.worktree)
             result = executor.execute_role_prepared(prepared, self.store,
                 role_context=RoleContext("executor", task.id, prepared.worktree),
@@ -1155,7 +1160,10 @@ class TaskExecutionService:
             from .task_runtime import ExecutorResult
             try:
                 executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
-                prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+                prepared = prepare_workspace_with_dependencies(
+                    executor, task.id, Path(workspace_root), self._store_event_callback,
+                    plan=task_dependency_plan(self.store, task.id), store=self.store,
+                )
             except Exception as exc:
                 raise ExecutorRuntimeError("artifact_input_preparation_failed") from exc
             result = ExecutorResult(success=True, validation_exit_code=-1, validation_command_id="",

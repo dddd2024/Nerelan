@@ -275,13 +275,15 @@ class CodexExecutor:
         if self._readiness_probe(cli) != "managed_login_ready":
             raise ExecutorRuntimeError(self._e("managed_login_unavailable"))
 
-    def prepare_worktree_once(self, task_id, root_path, event_callback=None):
+    def prepare_worktree_once(self, task_id, root_path, event_callback=None, *,
+                              dependencies=None, dependency_store=None):
         cli = self._resolve_cli()
         self._require_ready(cli)
         if not re.fullmatch(r"[0-9a-f]{40}", self._base_ref):
             raise ExecutorRuntimeError(self._e("requires_exact_base_sha"))
         worktree, base = prepare_linked_worktree(task_id, Path(root_path), event_callback,
-            repo_dir_value=self._repo_dir, base_ref=self._base_ref)
+            repo_dir_value=self._repo_dir, base_ref=self._base_ref,
+            dependencies=dependencies, dependency_store=dependency_store)
         prepared = CodexPreparedContext(worktree, base, f"exec-{task_id}", cli, self.KIND)
         _emit(event_callback, task_id, {"type": "WORKSPACE_READY", "title": f"{self.LABEL} workspace ready",
             "description": "Isolated workspace bound to approved base", "metadata": {
@@ -320,9 +322,16 @@ class CodexExecutor:
 
     def execute(self, task_id, store, *, workspace_root="", event_callback=None):
         from .opencode_executor import RoleContext
+        from .workspace_dependencies import (
+            prepare_workspace_with_dependencies,
+            task_dependency_plan,
+        )
         if not workspace_root:
             raise ExecutorRuntimeError("workspace_root_required")
-        prepared = self.prepare_worktree_once(task_id, Path(workspace_root), event_callback)
+        prepared = prepare_workspace_with_dependencies(
+            self, task_id, Path(workspace_root), event_callback,
+            plan=task_dependency_plan(store, task_id), store=store,
+        )
         return self.execute_role_prepared(prepared, store,
             role_context=RoleContext("executor", task_id, prepared.worktree), event_callback=event_callback)
 

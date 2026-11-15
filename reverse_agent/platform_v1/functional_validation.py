@@ -366,7 +366,8 @@ def _evaluate_expected_red(check: Mapping[str, Any], observed: Mapping[str, Any]
             "unexpected_failures": unexpected, "expected_red_met": met}
 
 
-def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
+def _run_check(check: Mapping[str, str], root: Path, *,
+               dependencies: Any = None) -> dict[str, Any]:
     profile = check["profile_id"]
     missing = _missing_targets([check], root)
     if missing:
@@ -412,12 +413,58 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
             env.update(NPM_CONFIG_USERCONFIG=str(config_root / "user.npmrc"),
                        NPM_CONFIG_GLOBALCONFIG=str(config_root / "global.npmrc"),
                        NPM_CONFIG_CACHE=str(config_root / "cache"))
+            # The check runs against installed dependencies (#1503). When the
+            # agent changed the lockfile, the workspace is re-provisioned from
+            # the agent's own lockfile before the suite runs.
+            _ensure_check_dependencies(check, root, dependencies)
         result = _run_process(check, argv, cwd, env)
         tail = result.pop("_output_tail")
         result["test_report"] = _test_report(report_kind, report, tail)
         if result["timed_out"]:
             result["test_report"]["accepted"] = False
         return result
+
+
+def _ensure_check_dependencies(check: Mapping[str, Any], root: Path, dependencies: Any) -> None:
+    """Install the check's Node dependencies when the workspace lacks them.
+
+    The preparation step already installed the base commit's lockfile. If the
+    agent changed ``package-lock.json``, the installed tree no longer matches
+    what the check would run against, so it is re-provisioned from the
+    agent's lockfile and the re-provisioning is recorded.
+    """
+    from .workspace_dependencies import (
+        DependencyPlan,
+        WorkspaceDependencyError,
+        provision_workspace_dependencies,
+    )
+    if dependencies is None:
+        return
+    directory = check.get("working_directory", ".")
+    target = root.joinpath(*PurePosixPath(directory).parts)
+    lockfile = target / "package-lock.json"
+    if not lockfile.is_file():
+        raise TaskStoreError("functional_workspace_dependencies_unavailable")
+    digest = hashlib.sha256(lockfile.read_bytes()).hexdigest()
+    installed = getattr(dependencies, "installed", None) or {}
+    node_modules = target / "node_modules"
+    if installed.get(directory) == digest and node_modules.is_dir():
+        # The preparation install still matches the workspace's lockfile.
+        return
+    store = getattr(dependencies, "store", None)
+    task_id = getattr(dependencies, "task_id", "")
+    lease = getattr(dependencies, "lease", None)
+    if store is None or not task_id:
+        raise TaskStoreError("functional_workspace_dependencies_unavailable")
+    try:
+        provision_workspace_dependencies(
+            store, task_id,
+            DependencyPlan(directories=(directory,), lockfiles={directory: digest},
+                           base_commit=getattr(dependencies, "base_commit", "")),
+            root, lease=lease, lockfile_source="workspace",
+        )
+    except WorkspaceDependencyError as exc:
+        raise TaskStoreError("functional_workspace_dependencies_unavailable") from exc
 
 
 def _failure_item(case: Any, problem: Any) -> dict[str, str]:
@@ -554,7 +601,8 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
             "output_truncated": output_size[0] > OUTPUT_LIMIT, "_output_tail": bytes(retained)}
 
 
-def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str) -> dict[str, Any] | None:
+def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str,
+                        dependencies: Any = None) -> dict[str, Any] | None:
     contract = load_contract(task)
     if contract is None:
         return None
@@ -594,7 +642,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             result["missing_targets"] = missing
             raise TaskStoreError("\n".join(f"functional_target_missing:{path}" for path in missing))
         for check in contract["checks"]:
-            observed = _run_check(check, root)
+            observed = _run_check(check, root, dependencies=dependencies)
             if "expected_failures" in check:
                 observed.update(_evaluate_expected_red(check, observed))
                 result["checks"].append(observed)
@@ -679,6 +727,34 @@ def public_hygiene(hygiene: Mapping[str, Any]) -> dict[str, Any]:
             "observation_digest": digest(hygiene)}
 
 
+def _dependency_context(store: Any, task: Any, base_commit: str, lease: Any,
+                        checks: Sequence[Mapping[str, Any]] = ()) -> Any:
+    """What the check needs to keep the workspace's Node install current.
+
+    A plan without Node checks yields no context, and the check never runs
+    npm (#1503). A plan with Node checks always yields one, so a workspace
+    whose preparation install is missing still gets its dependencies before
+    the suite runs.
+    """
+    from .workspace_dependencies import (
+        DependencyContext,
+        dependency_directories,
+        installed_lockfile_digests,
+    )
+    try:
+        digests = installed_lockfile_digests(task)
+    except (TypeError, ValueError, AttributeError):
+        digests = {}
+    try:
+        directories = dependency_directories(checks or ())
+    except TaskStoreError:
+        directories = ()
+    if not directories:
+        return None
+    return DependencyContext(store=store, task_id=getattr(task, "id", ""), lease=lease,
+                             installed=digests, base_commit=base_commit)
+
+
 def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_commit: str = "",
                         execution_id: str = "", lease: Any = None) -> tuple[str, int, str, str]:
     """Run the approved oracle, or legacy hygiene, and persist fenced proof.
@@ -752,9 +828,12 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
                     and previous.get("head_before") == git_output(Path(worktree), "rev-parse", "HEAD")):
                 return FUNCTIONAL_COMMAND_ID, 0 if previous["passed"] else 1, previous["reason"], digest(previous)
         return FUNCTIONAL_COMMAND_ID, 1, "check_timeout", ""
+    dependency_context = _dependency_context(store, task, base_commit, lease,
+                                            contract["checks"])
     result = validate_functional(task, worktree=worktree,
                                  base_commit=base_commit,
-                                 execution_id=execution_id or task.execution_id)
+                                 execution_id=execution_id or task.execution_id,
+                                 dependencies=dependency_context)
     assert result is not None
     result["run_id"] = lease.run_id if lease is not None else ""
     result["lease_epoch"] = lease.epoch if lease is not None else None
@@ -788,7 +867,8 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
                                              document=result, lease=lease)
             if prior is None and safe:
                 result = validate_functional(task, worktree=worktree, base_commit=base_commit,
-                                             execution_id=execution_id or task.execution_id)
+                                             execution_id=execution_id or task.execution_id,
+                                             dependencies=dependency_context)
                 result["run_id"] = lease.run_id if lease is not None else ""
                 result["lease_epoch"] = lease.epoch if lease is not None else None
     identity = digest(result)
