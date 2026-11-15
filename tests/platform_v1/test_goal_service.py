@@ -638,6 +638,8 @@ def test_goal_fit_plan_detail_use_host_account_estimator_without_reservations(mo
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
     from tests.platform_v1.test_quota_reservation import quota_evidence
     store, control, _, goals = _services()
+    clock = [100.0]
+    monkeypatch.setattr(goal_service_module.time, "monotonic", lambda: clock[0])
     host = object.__new__(CombinedTrustedHost)
     host._task_store = store
     host._control_store = control
@@ -672,6 +674,8 @@ def test_goal_fit_plan_detail_use_host_account_estimator_without_reservations(mo
     assert detail["account_accounting"] == {}
     assert before == {t: [tuple(r) for r in store._conn.execute("SELECT * FROM " + t)] for t in tables}
     store._conn.execute("DELETE FROM platform_quota_observations")
+    # External evidence is refreshed after the short detail-cache TTL.
+    clock[0] += goal_service_module.GOAL_FORECAST_TTL_SECONDS
     assert goals.detail(goal.id)["quota_fit"]["status"] == "UNKNOWN"
 
 
@@ -684,6 +688,7 @@ def test_goal_fit_default_unknown_is_explicit():
 
 
 def test_goal_forecast_router_does_not_discover_refresh_or_probe(monkeypatch, tmp_path):
+    from pathlib import Path
     from tests.platform_v1.test_model_router import fixture_host
     from reverse_agent.platform_v1.goal_service import PlannedTask
     host = fixture_host(monkeypatch, tmp_path)
@@ -699,8 +704,22 @@ def test_goal_forecast_router_does_not_discover_refresh_or_probe(monkeypatch, tm
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
     monkeypatch.setattr(host, "_routing_availability",
                         CombinedTrustedHost._routing_availability.__get__(host))
+    reads = []
+    read_text = Path.read_text
+    def counted_read(path, *args, **kwargs):
+        if path.name == "model_availability.json":
+            reads.append(path)
+        return read_text(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "read_text", counted_read)
     decision = host._resolve_task_model(PlannedTask("T1", "Forecast", "Implement", difficulty=3), forecast=True)
     assert decision["binding_ref"] in {"cheap", "mid", "strong"}
+    assert len(reads) == 1
+    reads.clear()
+    goal = goals.create({"objective": "Forecast multiple tasks", "idempotency_key": "availability-once",
+                         "orchestration_mode": "agent_team"})
+    host._goal_quota_fit(goal, [PlannedTask("T1", "First", "Implement", difficulty=3),
+                                PlannedTask("T2", "Second", "Implement", difficulty=3)])
+    assert len(reads) == 1
     assert not hasattr(host, "_availability_cache")
     assert store._conn.execute("SELECT COUNT(*) FROM platform_quota_admissions").fetchone()[0] == 0
 
@@ -758,5 +777,86 @@ def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock(
     assert [item["quota_fit"] for item in goals.list()] == [None]
     assert [item["quota_fit"] for item in goals.list_page()["goals"]] == [None]
     assert seen == []
-    assert goals.detail(goal.id)["quota_fit"] == {"status": "ok"}
+    fit = goals.detail(goal.id)["quota_fit"]
+    assert fit["status"] == "ok"
+    assert isinstance(fit["computed_at"], float)
     assert seen == [False]
+
+
+def test_goal_detail_forecast_cache_ttl_revision_and_response_isolation(monkeypatch):
+    _, _, _, goals = _services()
+    clock = [100.0]
+    monkeypatch.setattr(goal_service_module.time, "monotonic", lambda: clock[0])
+    goal = goals.create({"objective": "Cached detail", "idempotency_key": "cached-detail"})
+    goals.plan(goal.id, expected_revision=goal.revision)
+    seen = []
+    def forecaster(goal, tasks):
+        seen.append((goal.id, goal.revision))
+        return {"status": "ok", "accounts": {"fixture": {"count": len(seen)}}}
+    goals.quota_forecaster = forecaster
+    first = goals.detail(goal.id)["quota_fit"]
+    for _ in range(20):
+        assert goals.detail(goal.id)["quota_fit"] == first
+    assert seen == [(goal.id, goal.revision)]
+    first["accounts"]["fixture"]["count"] = -1
+    assert goals.detail(goal.id)["quota_fit"]["accounts"]["fixture"]["count"] == 1
+    clock[0] += goal_service_module.GOAL_FORECAST_TTL_SECONDS
+    assert goals.detail(goal.id)["quota_fit"]["accounts"]["fixture"]["count"] == 2
+    goals.control_store._conn.execute("UPDATE platform_goals SET revision = revision + 1 WHERE id = ?", (goal.id,))
+    assert goals.detail(goal.id)["quota_fit"]["accounts"]["fixture"]["count"] == 3
+    assert seen[-1] == (goal.id, goal.revision + 1)
+    other = goals.create({"objective": "Other goal", "idempotency_key": "other-cached-detail"})
+    goals.plan(other.id, expected_revision=other.revision)
+    seen.clear()  # Planning forecasts are intentionally independent of detail caching.
+    goals.detail(other.id)
+    assert seen == [(other.id, other.revision)]
+
+
+def test_overlapping_goal_detail_polls_do_not_wait_or_duplicate_forecasts(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Slow forecast", "idempotency_key": "slow-forecast"})
+    goals.plan(goal.id, expected_revision=goal.revision)
+    started, release = Event(), Event()
+    calls = []
+    clock = [100.0]
+    monkeypatch.setattr(goal_service_module.time, "monotonic", lambda: clock[0])
+    def forecaster(goal, tasks):
+        calls.append(goal.revision)
+        started.set()
+        assert release.wait(5)
+        return {"status": "ok", "generation": len(calls)}
+    goals.quota_forecaster = forecaster
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        for generation in (1, 2):
+            started.clear()
+            release.clear()
+            refresh = pool.submit(goals.detail, goal.id)
+            try:
+                assert started.wait(5)
+                for _ in range(10):
+                    response = pool.submit(goals.detail, goal.id).result(timeout=2)
+                    if generation == 1:
+                        assert response["quota_fit"] is None
+                    else:
+                        assert response["quota_fit"] == previous
+                assert len(calls) == generation
+            finally:
+                release.set()
+            previous = refresh.result(timeout=2)["quota_fit"]
+            assert previous["generation"] == generation
+            clock[0] += goal_service_module.GOAL_FORECAST_TTL_SECONDS
+
+
+def test_goal_detail_forecast_failure_allows_retry():
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Retry forecast", "idempotency_key": "retry-forecast"})
+    goals.plan(goal.id, expected_revision=goal.revision)
+    def failed(goal, tasks):
+        raise RuntimeError("forecast failed")
+    goals.quota_forecaster = failed
+    with pytest.raises(RuntimeError, match="forecast failed"):
+        goals.detail(goal.id)
+    goals.quota_forecaster = lambda goal, tasks: {"status": "recovered"}
+    assert goals.detail(goal.id)["quota_fit"]["status"] == "recovered"
