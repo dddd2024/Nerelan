@@ -1564,6 +1564,52 @@ class PlatformControlStore:
                     "delegation_slot_id": row["delegation_slot_id"],
                     "authority": json.loads(row["policy_authority_json"])}
 
+    def _run_host_sql_admission(self, callback: Callable[[str], None], window_id: str) -> None:
+        """Keep a trusted SQL callback inside its caller's transaction."""
+        def deny_callback_tx(action, operation, _name, _database, _source):
+            if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        self._conn.set_authorizer(deny_callback_tx)
+        # An implicit rollback must not let subsequent statements autocommit.
+        self._conn.set_progress_handler(lambda: 0 if self._conn.in_transaction else 1, 1)
+        try:
+            callback(window_id)
+        finally:
+            self._conn.set_progress_handler(None, 0)
+            self._conn.set_authorizer(None)
+        if not self._conn.in_transaction:
+            raise TaskStoreError("host_atomic_admission_committed_early")
+
+    def append_owner_window_goals(self, window_id: str, goal_ids: tuple[str, ...],
+                                  callback: Callable[[str], None]) -> AutonomousWindowRecord:
+        """Append only the confirmed Goals, retaining the run and its existing work."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                window = self.get_window(window_id)
+                if not window.continuous or not self._window_current_locked(window_id):
+                    raise TaskStoreError("window_not_active")
+                before = {goal.id: goal for goal in self.list_window_goals(window_id)}
+                self._run_host_sql_admission(callback, window_id)
+                after = {goal.id: goal for goal in self.list_window_goals(window_id)}
+                if (self.get_window(window_id) != window or set(after) != set(before) | set(goal_ids)
+                        or any(after.get(key) != value for key, value in before.items())
+                        or not self._window_current_locked(window_id)):
+                    raise TaskStoreError("owner_window_scope_changed")
+                for goal_id in goal_ids:
+                    if after[goal_id].status != "RUNNING" or not self.list_goal_tasks(goal_id):
+                        raise TaskStoreError("owner_window_goal_binding_missing")
+                    if not self._owner_window_receipt_locked(window_id, goal_id):
+                        raise TaskStoreError("owner_window_receipt_missing")
+                self._conn.commit()
+            except BaseException as exc:
+                self._conn.rollback()
+                if isinstance(exc, TaskStoreError) or not isinstance(exc, Exception):
+                    raise
+                raise TaskStoreError("continuous_admission_failed") from exc
+        return self.get_window(window_id)
+
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
                         _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
@@ -1780,24 +1826,7 @@ class PlatformControlStore:
                     # A trusted callback still must not COMMIT, ROLLBACK or run
                     # executescript (which implicitly COMMITs). Enforce this
                     # at SQLite's transaction authorizer, not after-the-fact.
-                    def deny_callback_tx(action, operation, _name, _database, _source):
-                        if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
-                            return sqlite3.SQLITE_DENY
-                        return sqlite3.SQLITE_OK
-                    self._conn.set_authorizer(deny_callback_tx)
-                    # INSERT OR ROLLBACK/trigger RAISE(ROLLBACK) can end SQLite's
-                    # transaction without an explicit COMMIT/ROLLBACK opcode.
-                    # Abort subsequent SQL VM instructions before they can
-                    # autocommit on the now-unprotected connection.
-                    self._conn.set_progress_handler(
-                        lambda: 0 if self._conn.in_transaction else 1, 1)
-                    try:
-                        _host_sql_admit(window_id)
-                    finally:
-                        self._conn.set_progress_handler(None, 0)
-                        self._conn.set_authorizer(None)
-                    if not self._conn.in_transaction:
-                        raise TaskStoreError("host_atomic_admission_committed_early")
+                    self._run_host_sql_admission(_host_sql_admit, window_id)
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
                     if owner_window:
@@ -1911,9 +1940,11 @@ class PlatformControlStore:
             # Keep an in-flight or uncertain claim on its window until reconciled.
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status='BLOCKED', "
-                "stop_reason='window_task_budget_exhausted', updated_at=? "
+                "stop_reason=CASE WHEN max_tasks>0 AND tasks_started>=max_tasks "
+                "THEN 'window_task_budget_exhausted' ELSE 'window_token_budget_exhausted' END, updated_at=? "
                 "WHERE status='ACTIVE' AND confirmation_mode=? AND expires_at<>'' "
-                "AND max_tasks>0 AND tasks_started>=max_tasks AND NOT EXISTS "
+                "AND ((max_tasks>0 AND tasks_started>=max_tasks) OR "
+                "(max_token_units>0 AND observed_token_units>=max_token_units)) AND NOT EXISTS "
                 "(SELECT 1 FROM platform_coordinator_claims c WHERE c.window_id=platform_autonomous_windows.id "
                 "AND c.status='ACTIVE')", (_utc_now(), OWNER_WINDOW_MODE))
             self._conn.execute(

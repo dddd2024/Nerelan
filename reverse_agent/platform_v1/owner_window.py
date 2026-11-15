@@ -614,17 +614,7 @@ class OwnerWindowAdmission:
                 active = host._control_store.active_window()
                 if continuous and active and active.continuous and active.id == envelope["window_id"]:
                     # Append Goals with the same atomic approval/receipt/launch callback.
-                    conn = host._control_store._conn
-                    conn.execute("BEGIN IMMEDIATE")
-                    try:
-                        if not host._control_store._window_current_locked(active.id):
-                            raise TaskStoreError("window_not_active")
-                        sql_admit(active.id)
-                        conn.execute("COMMIT")
-                    except BaseException:
-                        conn.execute("ROLLBACK")
-                        raise
-                    return host._control_store.get_window(active.id)
+                    return host._control_store.append_owner_window_goals(active.id, goal_ids, sql_admit)
                 return host._control_store.activate_window(
                     envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
                     _host_expected_goal_ids=goal_ids)

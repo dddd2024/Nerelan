@@ -127,6 +127,58 @@ class TestContinuousRun:
         with pytest.raises(TaskStoreError, match="continuous_run_requires_owner_admission"):
             setup.host._control_store.activate_window({"continuous": True}, confirmation="ACTIVATE")
 
+    def test_token_exhaustion_allows_continuous_start_but_keeps_live_claims(self, setup):
+        first = setup.planned("tokens", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,), max_token_units=100)
+        control = setup.host._control_store
+        task = control.list_goal_tasks(first.id)[0]["task_id"]
+        control.claim_task(window_id=old.id, task_id=task, owner="test", lease_ms=10000)
+        setup.db._conn.execute("UPDATE platform_autonomous_windows SET observed_token_units=100 WHERE id=?", (old.id,))
+        assert control.active_window().id == old.id
+        # A settled claim has no unknown remote outcome left to isolate.
+        setup.db._conn.execute("UPDATE platform_coordinator_claims SET status='COMPLETE' WHERE task_id=?", (task,))
+        assert control.active_window() is None
+        assert control.get_window(old.id).stop_reason == "window_token_budget_exhausted"
+        second = setup.planned("continuous", "codex", "pinned")
+        assert self.start(setup, second).continuous
+
+    def test_adopted_task_rejects_a_binding_only_in_the_source_pool(self, setup):
+        first = setup.planned("source", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,))
+        control = setup.host._control_store
+        control.stop_window(old.id, reason="window_task_budget_exhausted")
+        setup.host._store.upsert_binding({"binding_id": "free", "name": "Free", "connection_id": "gateway",
+            "executor_id": "opencode", "model_id": "token-sensenova/glm-test", "enabled": False})
+        second = setup.planned("target", "codex", "pinned")
+        target = self.start(setup, second)
+        assert control.adopt_standing_goals(target.id)[0]["status"] == "REBOUND"
+        task = setup.db.get_task(control.list_goal_tasks(first.id)[0]["task_id"])
+        assert task.policy_ref == old.policy_id
+        with pytest.raises(ExecutorRuntimeError, match="outside_confirmed_pool"):
+            _require_owner_window_pool(setup.db, task, RESOLVED["free"], task.policy_ref)
+
+    @pytest.mark.parametrize("escape", ["commit", "rollback", "executescript"])
+    def test_append_cannot_escape_its_transaction(self, setup, monkeypatch, escape):
+        first = setup.planned("first", "codex", "pinned")
+        window = self.start(setup, first)
+        second = setup.planned("second", "codex", "pinned")
+        original = setup.host._goal_service._launch
+        def escape_after_launch(goal_id, **kwargs):
+            original(goal_id, **kwargs)
+            if escape == "executescript":
+                setup.db._conn.executescript("SELECT 1;")
+            else:
+                getattr(setup.db._conn, escape)()
+            raise RuntimeError("injected")
+        monkeypatch.setattr(setup.host._goal_service, "_launch", escape_after_launch)
+        with pytest.raises(TaskStoreError):
+            self.start(setup, second)
+        control = setup.host._control_store
+        assert control.get_goal(second.id).status == "PLANNED"
+        assert control.list_goal_tasks(second.id) == ()
+        assert [g.id for g in control.list_window_goals(window.id)] == [first.id]
+        assert not setup.db._conn.in_transaction
+
 
 # Filled per test from the real resolver over the fixture store, so the pool the
 # Owner approves and the resolution dispatch checks come from the same code.
