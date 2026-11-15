@@ -997,6 +997,46 @@ class GoalService:
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved
 
+    def _discarded_without_usage(self, attempt: Any, observations: Sequence[Any]) -> bool:
+        """A failed attempt that called no model and whose tree no attempt ever used.
+
+        Such an attempt authored nothing the reviewer will see: no model answered
+        it (an executor that exited before its first request) and its tree never
+        reached a later attempt. Requiring a model identity for it would make
+        every later review of the step impossible (#1504, 2026-11-14).
+
+        ``AttemptDisposition`` alone is not proof: it keeps its first value, and a
+        contract miss recorded ``discarded`` when the retry budget ran out can be
+        carried forward later when budget returns (PR #1536 review). Every carry
+        binds ``ContractFixup`` evidence naming its ``source_task_id`` on the
+        successor, so any such binding anywhere keeps this attempt an author.
+        Anything else - usage observed, a reused or unknown disposition, or a
+        non-FAILED status - stays an author and must prove its models.
+        """
+        execution_id = getattr(attempt, "execution_id", "")
+        attempt_id = getattr(attempt, "id", "")
+        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+                or not attempt_id or not hasattr(attempt, "evidence_refs")):
+            return False
+        from .artifact_handoff import _load_evidence
+        from .contract_recovery import FIXUP
+        try:
+            record = _load_evidence(attempt, "AttemptDisposition", execution_id)
+        except (TaskStoreError, ValueError, TypeError, KeyError):
+            return False
+        if not isinstance(record, dict) or record.get("disposition") != "discarded":
+            return False
+        for (detail,) in self.store._conn.execute(
+                "SELECT detail FROM task_evidence WHERE category = ? AND instr(detail, ?) > 0",
+                (FIXUP, attempt_id)).fetchall():
+            try:
+                carried = json.loads(detail)
+            except (TypeError, ValueError):
+                return False  # unreadable carry evidence naming this attempt: stay strict
+            if not isinstance(carried, dict) or carried.get("source_task_id") == attempt_id:
+                return False
+        return True
+
     def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask], *,
                         require_frozen: bool = False) -> dict[str, Any]:
         """Resolve authors from execution facts, retaining replaced attempts."""
@@ -1033,6 +1073,8 @@ class GoalService:
                                      tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
                                      tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
                                            for ref in attempt.evidence_refs)))
+                if self._discarded_without_usage(attempt, observations):
+                    continue
                 recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):
