@@ -1179,18 +1179,29 @@ class PlatformControlStore:
         # their QUEUED tasks claimed (2026-11-15, #1530/#1521 goals).
         current = {str(link["task_id"]): link for link in links}
         revision = int(links[0]["goal_revision"])
-        repair_of = {
-            str(row["reason"]).split(":", 1)[1]: str(row["to_task_id"])
-            for row in self.list_task_escalations(goal_id)
-            if int(row["goal_revision"]) == revision
-            and str(row["reason"]).startswith("model_review_repair:")
-        }
+        escalations = [row for row in self.list_task_escalations(goal_id)
+                       if int(row["goal_revision"]) == revision]
+        # The repair may itself be replaced later (an Owner retry, a quota or
+        # routing retry): those steps continue the same producer chain, so the
+        # review waits on whichever attempt now holds the producer's link.
+        repair_holder = {}
+        for row in escalations:
+            if not str(row["reason"]).startswith("model_review_repair:"):
+                continue
+            plan_task_id, step = row["plan_task_id"], int(row["step"])
+            chain = {str(row["to_task_id"])} | {
+                str(later["to_task_id"]) for later in escalations
+                if later["plan_task_id"] == plan_task_id and int(later["step"]) > step}
+            holder = next((task_id for task_id, link in current.items()
+                           if link["plan_task_id"] == plan_task_id and task_id in chain), None)
+            if holder is not None:
+                repair_holder[str(row["reason"]).split(":", 1)[1]] = holder
         awaiting_repair = {
             task_id for task_id, link in current.items()
             if link["status"] == "FAILED"
             and link["failure_classification"] == "model_review_rejected"
-            and repair_of.get(task_id) in current
-            and current[repair_of[task_id]]["status"] not in {"FAILED", "BLOCKED", "CANCELLED"}
+            and task_id in repair_holder
+            and current[repair_holder[task_id]]["status"] not in {"FAILED", "BLOCKED", "CANCELLED"}
         }
         statuses = {str(link["status"]) for task_id, link in current.items()
                     if task_id not in awaiting_repair}
