@@ -1071,10 +1071,11 @@ def test_crash_reuses_reservation_and_completion_is_exactly_once():
             epoch=epoch_two, result="replay",
         )
     budget = control.window_budget_summary(window.id)
-    assert budget["observed_token_units"] == 50
+    # #1504 cost-equivalent units: 30 + 10 + 5 + 5 * 0.1 = 45.5, rounded to 46.
+    assert budget["observed_token_units"] == 46
     assert budget["observed_cost_micro_units"] == 1000
     assert budget["reserved_token_units"] == 0
-    assert budget["remaining_token_units"] == 50
+    assert budget["remaining_token_units"] == 54
     assert control._conn.execute(
         "SELECT COUNT(*) AS c FROM platform_usage_charges"
     ).fetchone()["c"] == 1
