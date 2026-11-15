@@ -4,7 +4,7 @@ Operating entry for `dddd2024/Nerelan` under **Governance v2.1 — lean controll
 
 ## Repository purpose
 
-Nerelan is a local-first governed multi-Agent development platform: persistent goals, bounded autonomous windows, reusable planning/execution adapters, deterministic checks, independent review and controlled publication. Keep custom authority, risk, budgets and evidence handling thin; reuse mature runtimes rather than copying them. The adapter layer is `reverse_agent/platform_v1/`; product boundaries are in [the reference](docs/agents/governance-reference.md#product-boundaries).
+Nerelan is a local-first governed multi-Agent development platform: persistent goals, Owner-started continuous runs bounded by real account quotas, reusable planning/execution adapters, deterministic checks, independent review and controlled publication. Keep custom authority, risk, budgets and evidence handling thin; reuse mature runtimes rather than copying them. The adapter layer is `reverse_agent/platform_v1/`; product boundaries are in [the reference](docs/agents/governance-reference.md#product-boundaries).
 
 The ultimate goal is a platform that, inside pre-authorized bounds, lands independently verified changes without per-PR human ceremony. This repository dogfoods that model.
 
@@ -79,6 +79,8 @@ Prefer the platform's own Goal/Task execution for concrete, well-scoped work, an
 An Owner-authorized development goal covers ordinary R1 implementation, focused tests, independent review orchestration and controlled landing within its stated bounds; do not ask for permission again at each PR or normal agent handoff. R2 still needs an identified Owner decision and explicit independent confirmation that controls are not weakened beyond it. R3 follows the bounded-grant rules above. If one provider is unavailable, use another already authorized compatible adapter where available; do not widen account permissions or spend bounds to obtain capacity.
 
 An Owner-activated window may carry a **standing renewal** policy (Owner decision 2026-10-21, #1310 D): when it expires by time, the host activates a successor with identical bounds (at most 7 days each, never past the policy's `renew_until`, at most 90 days after activation) and moves unfinished goals into it. Stopping a window or revoking the policy ends renewal immediately. Details: [standing windows](docs/agents/governance-reference.md#standing-windows).
+
+**Continuous run** (Owner decision 2026-11-15, #1538): an Owner-activated window may run with no expiry, token budget or task cap until the Owner stops it, admitting new and stranded goals as it goes. The remaining limits are provider account quotas, a per-attempt runaway guard, concurrency and, when paid API is on, a money cap. Review, CI, landing and R2/R3 rules are unchanged. Details: [continuous run](docs/agents/governance-reference.md#continuous-run).
 
 ## Test commands
 
