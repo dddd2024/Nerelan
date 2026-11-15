@@ -1421,7 +1421,8 @@ def owner_window_request(payload: Any) -> dict[str, Any]:
     goal_ids, capabilities = payload.get("goal_ids"), payload.get("capabilities")
     hours = payload.get("hours")
     integers = ("max_tasks", "max_concurrent", "max_retries", "max_token_units", "max_cost_micro_units")
-    if (not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
+    if (type(payload.get("continuous", False)) is not bool
+            or not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
             or not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities)
             or isinstance(hours, bool) or not isinstance(hours, (int, float))
             or not -1e6 < hours < 1e6  # a huge integer must not overflow float() into a 500
@@ -1431,6 +1432,7 @@ def owner_window_request(payload: Any) -> dict[str, Any]:
             or any(payload.get(key, 0) < 0 for key in integers)):
         raise TaskStoreError("owner_window_request_invalid")
     return {"goal_ids": goal_ids, "hours": float(hours), "capabilities": capabilities,
+            **({"continuous": True} if payload.get("continuous") else {}),
             **{key: int(payload.get(key, 0)) for key in integers}}
 
 

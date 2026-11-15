@@ -28,8 +28,8 @@ class TestParse:
         ("修复 #1350、#1285、#1336，跑一天", [1350, 1285, 1336], "day"),
         ("https://github.com/owner/repo/issues/7 和 #8 试跑", [7, 8], "trial"),
         ("把 #9 做完，跑一周", [9], "week"),
-        ("Fix #3 and #3 again", [3], "day"),
-        ("整理一下 README 的安装说明", [], "day"),
+        ("Fix #3 and #3 again", [3], "continuous"),
+        ("整理一下 README 的安装说明", [], "continuous"),
     ])
     def test_issue_references_and_preset(self, text, numbers, preset):
         parsed = parse(text, REPO)
@@ -55,7 +55,7 @@ class TestPresets:
         values = presets(None)
         assert {name: (p["hours"], p["max_concurrent"], p["max_retries"], p["max_token_units"])
                 for name, p in values.items()} == {
-            "trial": (2, 1, 1, 300_000), "day": (24, 1, 2, 2_000_000), "week": (168, 2, 2, 10_000_000)}
+            "continuous": (0, 3, 2, 0), "trial": (2, 1, 1, 300_000), "day": (24, 1, 2, 2_000_000), "week": (168, 2, 2, 10_000_000)}
 
     def test_owner_overrides_change_only_known_numbers(self, tmp_path):
         (tmp_path / "owner_window_presets.json").write_text(json.dumps({"day": {"hours": 12}}), encoding="utf-8")
@@ -101,7 +101,9 @@ class TestDraft:
         reader, _ = issues()
         service = QuickStart(setup.host._goal_service, issue_reader=reader)
         first = service.draft("fix #1", REPO)
-        admit(setup.host, tuple(first["request"]["goal_ids"]))
+        goal = setup.host._control_store.get_goal(first["goals"][0]["id"])
+        # This tests draft reuse, independent of model availability at admission.
+        setup.db._conn.execute("UPDATE platform_goals SET window_id='previous-run', status='RUNNING' WHERE id=?", (goal.id,))
         again = service.draft("fix #1", REPO)
         assert again["goals"][0]["id"] != first["goals"][0]["id"] and again["goals"][0]["status"] == "PLANNED"
 

@@ -45,6 +45,7 @@ function tokens(value: number) {
 
 function boundsText(card: OwnerWindowCard) {
   const r = card.request;
+  if (r.continuous) return `持续运行，直到你停止 · 同时 ${r.max_concurrent} 个任务`;
   const hours = r.hours >= 48 ? `${Math.round(r.hours / 24)} 天` : `${r.hours} 小时`;
   return [`时长 ${hours}`, `最多 ${r.max_tasks} 个任务`, `每步最多重试 ${r.max_retries} 次`, `同时 ${r.max_concurrent} 个`,
     r.max_token_units ? `Token 上限 ${tokens(r.max_token_units)}` : "Token 不设上限"].join(" · ");
@@ -71,7 +72,7 @@ export function scopeMatchesGoal(report: OwnerWindowPreflightResult | undefined,
 function terminalCommand(card: OwnerWindowCard) {
   const r = card.request;
   return ["python -m reverse_agent.platform_v1.owner_window", ...r.goal_ids.map((id) => `--goal ${id}`),
-    `--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`, `--max-concurrent ${r.max_concurrent}`,
+    ...(r.continuous ? ["--continuous"] : [`--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`]), `--max-concurrent ${r.max_concurrent}`,
     `--max-retries ${r.max_retries}`, ...r.capabilities.map((capability) => `--capability ${capability}`),
     ...(r.max_token_units ? [`--max-token-units ${r.max_token_units}`] : [])].join(" ");
 }
@@ -84,6 +85,7 @@ function terminalCommand(card: OwnerWindowCard) {
  */
 export function StartCard({ goal }: { goal: PlatformGoal }) {
   const [preset, setPreset] = useState("");
+  const [concurrency, setConcurrency] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -92,7 +94,10 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     queryFn: () => fetchOwnerWindowCard([goal.id], preset),
     staleTime: 30_000, retry: false,
   });
-  const card = cardQuery.data;
+  const rawCard = cardQuery.data;
+  const card = rawCard && concurrency !== null ? {
+    ...rawCard, request: { ...rawCard.request, max_concurrent: concurrency },
+  } : rawCard;
   const preflightQuery = useQuery<OwnerWindowPreflightResult>({
     queryKey: ["owner-window-preflight", goal.id, goal.revision, card?.preset, card?.request],
     queryFn: () => preflightOwnerWindow(card!.request),
@@ -131,7 +136,7 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     <section data-testid="start-card" aria-label="开始执行" className="mt-6 rounded-2xl border border-ra-border bg-ra-light/30 p-4">
       <h3 className="text-sm font-medium text-ra-text">开始执行</h3>
       <p className="mt-1 text-xs text-ra-text-secondary">
-        选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。
+        {card?.request.continuous ? "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户。" : "选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。"}
       </p>
 
       {cardQuery.isError ? (
@@ -140,7 +145,7 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
 
       {card ? (
         <>
-          <div role="radiogroup" aria-label="执行窗口" className="mt-3 flex flex-wrap gap-2">
+          {!card.request.continuous && <div role="radiogroup" aria-label="执行窗口" className="mt-3 flex flex-wrap gap-2">
             {Object.entries(card.presets).map(([name, values]) => (
               <button key={name} type="button" role="radio" aria-checked={card.preset === name}
                 data-testid={`start-preset-${name}`}
@@ -150,7 +155,16 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
                 {values.label ?? name}
               </button>
             ))}
-          </div>
+          </div>}
+          {card.request.continuous && <label className="mt-3 flex items-center gap-2 text-sm text-ra-text-secondary">
+            同时执行
+            <select aria-label="同时执行的任务数" value={card.request.max_concurrent}
+              onChange={(event) => setConcurrency(Number(event.target.value))}
+              className="rounded border border-ra-border bg-ra-base px-2 py-1">
+              {Array.from({ length: 8 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+            个任务
+          </label>}
           <p data-testid="start-bounds" className="mt-2 text-xs text-ra-text-secondary">{boundsText(card)}</p>
         </>
       ) : cardQuery.isPending ? (
@@ -192,7 +206,7 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
               计划刚被修改过，页面上的计划还不是主机检查的那一版：正在刷新，刷新后再开始。
             </p>
           ) : null}
-          {report.scope?.pool?.length ? (
+          {!card?.request.continuous && report.scope?.pool?.length ? (
             <div data-testid="start-pool" className="text-xs text-ra-text-secondary">
               <p>本窗口可以用这些模型（{report.scope.pool.length} 个），执行时会在其中挑选：</p>
               <ul className="mt-1 space-y-0.5">
@@ -209,7 +223,7 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
               ) : null}
             </div>
           ) : null}
-          {report.preview.length > 0 ? (
+          {!card?.request.continuous && report.preview.length > 0 ? (
             <details className="text-xs text-ra-text-tertiary">
               <summary className="cursor-pointer select-none hover:text-ra-text-secondary">每一步预计用的模型（{report.preview.length}）</summary>
               <ul className="mt-1 space-y-0.5" data-testid="start-preview">

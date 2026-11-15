@@ -688,11 +688,11 @@ class GoalService:
         with self.store._lock:
             window = self.control_store.get_window(window_id)
             active = self.store._conn.execute("SELECT id FROM platform_autonomous_windows WHERE status='ACTIVE' "
-                "AND julianday(starts_at)<=julianday('now') AND julianday(expires_at)>julianday('now') "
+                "AND julianday(starts_at)<=julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now')) "
                 "ORDER BY created_at DESC LIMIT 1").fetchone()
             return bool(active and active["id"] == window_id and goal.window_id == window_id
                 and goal.status in {"RUNNING", "BLOCKED"} and goal.repository in window.repositories
-                and window.tasks_started < window.max_tasks)
+                and (window.continuous or window.tasks_started < window.max_tasks))
 
     def _commit_initial_selection(self, goal: Any, plan: PlannedTask, task_id: str, event_id: str,
                                   decision: Mapping[str, Any], authors: Mapping[str, Any], autonomy: Any) -> bool:
@@ -919,7 +919,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             return ()
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         return tuple(self._reroute_quota_held(goal, planned))
@@ -1163,7 +1163,7 @@ class GoalService:
                 goal = self.control_store.get_goal(goal_id)
                 active = self.store._conn.execute(
                     "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
-                    "AND julianday(starts_at) <= julianday('now') AND julianday(expires_at) > julianday('now')",
+                    "AND julianday(starts_at) <= julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                     (goal.window_id,)).fetchone()
                 if goal.orchestration_mode != "agent_team" or not active:
                     if owns_transaction:
@@ -1292,7 +1292,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')",
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                 (window.id,)).fetchone():
             return repairs
         history = self.control_store.list_task_escalations(goal_id)
@@ -1586,7 +1586,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id) if goal.window_id else None
         if window is None or window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             options["reason"] = "owner_retry_no_active_window"
             return options
         history = self.control_store.list_task_escalations(goal_id)
@@ -1622,7 +1622,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             raise TaskStoreError("owner_retry_no_active_window")
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         plan_task = planned.get(plan_task_id)

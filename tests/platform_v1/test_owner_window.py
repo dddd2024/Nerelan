@@ -20,6 +20,167 @@ from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 ALL = ("execute_task", "resume_task", "reconcile_task", "validate_task")
 
 
+class TestContinuousRun:
+    def start(self, setup, *goals):
+        return admit(setup.host, tuple(g.id for g in goals), continuous=True,
+                     hours=0, max_tasks=0, max_token_units=0, max_concurrent=3)[0]
+
+    def test_no_expiry_or_task_token_stop_and_usage_remains_recorded(self, setup):
+        goal = setup.planned("long", "codex", "pinned", tasks=13)
+        window = self.start(setup, goal)
+        control = setup.host._control_store
+        assert window.continuous and window.expires_at == "" and window.max_tasks == 0
+        assert control.active_window(now="2099-01-01T00:00:00Z").id == window.id
+        setup.db._conn.execute("UPDATE platform_autonomous_windows SET tasks_started=12, observed_token_units=90000000 WHERE id=?", (window.id,))
+        last = control.list_goal_tasks(goal.id)[-1]["task_id"]
+        epoch, claimed = control.claim_task(window_id=window.id, task_id=last, owner="test", lease_ms=1000)
+        assert epoch == 1 and claimed.tasks_started == 13 and claimed.observed_token_units == 90000000
+
+    def test_append_goal_preserves_running_claim_and_window_counters(self, setup):
+        first = setup.planned("first", "codex", "pinned")
+        window = self.start(setup, first)
+        control = setup.host._control_store
+        task = control.list_goal_tasks(first.id)[0]["task_id"]
+        control.claim_task(window_id=window.id, task_id=task, owner="test", lease_ms=10000)
+        second = setup.planned("second", "codex", "pinned")
+        admission = setup.host._owner_window_admission
+        request = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2, capabilities=ALL, continuous=True)
+        report = admission.preflight([second.id], **request)
+        assert report["ok"], report
+        appended = admission.admit_from_card([second.id], card_digest=report["card_digest"], **request)
+        assert appended.id == window.id and appended.tasks_started == 1
+        assert control.get_goal(second.id).window_id == window.id
+        assert setup.db._conn.execute("SELECT status FROM platform_coordinator_claims WHERE task_id=?", (task,)).fetchone()[0] == "ACTIVE"
+
+    def test_stop_is_final_for_this_run(self, setup):
+        first = setup.planned("stop", "codex", "pinned")
+        window = self.start(setup, first)
+        control = setup.host._control_store
+        control.stop_window(window.id)
+        assert control.active_window() is None
+        task = control.list_goal_tasks(first.id)[0]["task_id"]
+        with pytest.raises(TaskStoreError, match="window_not_active"):
+            control.claim_task(window_id=window.id, task_id=task, owner="test", lease_ms=1000)
+
+    def test_stale_append_card_cannot_restart_a_stopped_run(self, setup):
+        first = setup.planned("first", "codex", "pinned")
+        window = self.start(setup, first)
+        second = setup.planned("second", "codex", "pinned")
+        admission = setup.host._owner_window_admission
+        request = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2, capabilities=ALL, continuous=True)
+        report = admission.preflight([second.id], **request)
+        setup.host._control_store.stop_window(window.id)
+        with pytest.raises(TaskStoreError, match="owner_window_scope_changed"):
+            admission.admit_from_card([second.id], card_digest=report["card_digest"], **request)
+        assert setup.host._control_store.active_window() is None
+
+    def test_continuous_run_still_enforces_account_quota_and_concurrency(self, setup):
+        goal = setup.planned("quota", "codex", "pinned", tasks=4)
+        window = self.start(setup, goal)
+        control = setup.host._control_store
+        tasks = control.list_goal_tasks(goal.id)
+        now = datetime.now(timezone.utc).timestamp()
+        evidence = {"account_ref": "account", "source": "official", "observed_at": now, "state": "OBSERVED",
+                    "windows": [{"window": name, "used_percent": 100, "resets_at": now + 3600}
+                                for name in ("five_hour", "weekly")]}
+        control.prepare_quota_admission(task_id=tasks[0]["task_id"], binding_ref="pinned", account_ref="account",
+            evidence=evidence, need={"windows": {name: {"p80": 1} for name in ("five_hour", "weekly")}})
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
+            control.claim_task(window_id=window.id, task_id=tasks[0]["task_id"], owner="test", lease_ms=10000)
+        assert control.get_window(window.id).tasks_started == 0
+        for task in tasks[1:]:
+            control.claim_task(window_id=window.id, task_id=task["task_id"], owner="test", lease_ms=10000)
+        extra = setup.planned("extra", "codex", "pinned")
+        self.start(setup, extra)
+        with pytest.raises(TaskStoreError, match="window_wip_limit_reached"):
+            control.claim_task(window_id=window.id, task_id=control.list_goal_tasks(extra.id)[0]["task_id"], owner="test", lease_ms=10000)
+
+    def test_continuous_run_survives_read_only_restart_preflight_without_granting_dispatch(self, setup):
+        from reverse_agent.platform_v1.startup_preflight import WindowState, assess_boot_readiness
+        goal = setup.planned("reboot", "codex", "pinned")
+        window = self.start(setup, goal)
+        report = assess_boot_readiness(windows=[WindowState(window.id, "ACTIVE", window.starts_at, "", OWNER_WINDOW_MODE)],
+                                      claims=[], task_counts={"QUEUED": 1}, now=datetime.now(timezone.utc))
+        assert report["state"] == "READY_FOR_HOST_RECONCILIATION" and not report["dispatch_permitted"]
+
+    @pytest.mark.parametrize("stopped", [False, True])
+    def test_adoption_keeps_tasks_but_respects_owner_stop(self, setup, stopped):
+        first = setup.planned("stranded", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,))
+        control = setup.host._control_store
+        links = control.list_goal_tasks(first.id)
+        control.stop_window(old.id, reason="owner_stopped" if stopped else "window_task_budget_exhausted")
+        second = setup.planned("new", "codex", "pinned")
+        window = self.start(setup, second)
+        outcomes = control.adopt_standing_goals(window.id)
+        if stopped:
+            assert outcomes == () and control.get_goal(first.id).window_id == old.id
+        else:
+            assert outcomes[0]["status"] == "REBOUND"
+            assert control.get_goal(first.id).window_id == window.id
+            assert control.list_goal_tasks(first.id) == links
+            task = setup.db.get_task(links[0]["task_id"])
+            _require_owner_window_pool(setup.db, task, RESOLVED["pinned"], task.policy_ref)
+            control.check_strict_task_admission(window.id, task.id)
+
+    def test_untrusted_activation_cannot_request_continuous(self, setup):
+        with pytest.raises(TaskStoreError, match="continuous_run_requires_owner_admission"):
+            setup.host._control_store.activate_window({"continuous": True}, confirmation="ACTIVATE")
+
+    @pytest.mark.parametrize("observed", [95, 100])
+    def test_token_exhaustion_allows_continuous_start_but_keeps_live_claims(self, setup, observed):
+        first = setup.planned("tokens", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,), max_token_units=100)
+        control = setup.host._control_store
+        task = control.list_goal_tasks(first.id)[0]["task_id"]
+        control.claim_task(window_id=old.id, task_id=task, owner="test", lease_ms=10000)
+        setup.db._conn.execute("UPDATE platform_autonomous_windows SET observed_token_units=? WHERE id=?", (observed, old.id))
+        assert control.active_window().id == old.id
+        # A settled claim has no unknown remote outcome left to isolate.
+        setup.db._conn.execute("UPDATE platform_coordinator_claims SET status='COMPLETE' WHERE task_id=?", (task,))
+        assert control.active_window() is None
+        assert control.get_window(old.id).stop_reason == "window_token_budget_exhausted"
+        second = setup.planned("continuous", "codex", "pinned")
+        assert self.start(setup, second).continuous
+
+    def test_adopted_task_rejects_a_binding_only_in_the_source_pool(self, setup):
+        first = setup.planned("source", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,))
+        control = setup.host._control_store
+        control.stop_window(old.id, reason="window_task_budget_exhausted")
+        setup.host._store.upsert_binding({"binding_id": "free", "name": "Free", "connection_id": "gateway",
+            "executor_id": "opencode", "model_id": "token-sensenova/glm-test", "enabled": False})
+        second = setup.planned("target", "codex", "pinned")
+        target = self.start(setup, second)
+        assert control.adopt_standing_goals(target.id)[0]["status"] == "REBOUND"
+        task = setup.db.get_task(control.list_goal_tasks(first.id)[0]["task_id"])
+        assert task.policy_ref == old.policy_id
+        with pytest.raises(ExecutorRuntimeError, match="outside_confirmed_pool"):
+            _require_owner_window_pool(setup.db, task, RESOLVED["free"], task.policy_ref)
+
+    @pytest.mark.parametrize("escape", ["commit", "rollback", "executescript"])
+    def test_append_cannot_escape_its_transaction(self, setup, monkeypatch, escape):
+        first = setup.planned("first", "codex", "pinned")
+        window = self.start(setup, first)
+        second = setup.planned("second", "codex", "pinned")
+        original = setup.host._goal_service._launch
+        def escape_after_launch(goal_id, **kwargs):
+            original(goal_id, **kwargs)
+            if escape == "executescript":
+                setup.db._conn.executescript("SELECT 1;")
+            else:
+                getattr(setup.db._conn, escape)()
+            raise RuntimeError("injected")
+        monkeypatch.setattr(setup.host._goal_service, "_launch", escape_after_launch)
+        with pytest.raises(TaskStoreError):
+            self.start(setup, second)
+        control = setup.host._control_store
+        assert control.get_goal(second.id).status == "PLANNED"
+        assert control.list_goal_tasks(second.id) == ()
+        assert [g.id for g in control.list_window_goals(window.id)] == [first.id]
+        assert not setup.db._conn.in_transaction
+
+
 # Filled per test from the real resolver over the fixture store, so the pool the
 # Owner approves and the resolution dispatch checks come from the same code.
 RESOLVED: dict = {}
@@ -716,15 +877,15 @@ class TestCardRequest:
         a = setup.planned("a", "codex", "pinned", tasks=2)
         admission = setup.host._owner_window_admission
         card = admission.card_request([a.id])
-        assert card["preset"] == "day" and set(card["presets"]) >= {"trial", "day", "week"}
+        assert card["preset"] == "continuous" and set(card["presets"]) >= {"trial", "day", "week"}
         assert card["confirmation"] == "ui"
         request = dict(card["request"])
         assert request.pop("goal_ids") == [a.id]
-        assert request["max_tasks"] == 2 * (1 + request["max_retries"]) and request["max_cost_micro_units"] == 0
+        assert request["continuous"] is True and request["max_tasks"] == 0 and request["max_token_units"] == 0
         report = admission.preflight([a.id], **request)
         assert report["ok"] is True
         window = admission.admit_from_card([a.id], card_digest=report["card_digest"], **request)
-        assert window.status == "ACTIVE"
+        assert window.status == "ACTIVE" and window.continuous
 
     def test_a_named_preset_changes_the_bounds(self, setup):
         a = setup.planned("a", "codex", "pinned")

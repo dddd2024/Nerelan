@@ -24,6 +24,11 @@ function status(active: PlatformWindow | null = window, progress: string | null 
 }
 
 describe("UnattendedStatus", () => {
+  it("shows continuous execution without an expiry countdown", () => {
+    render(<UnattendedStatus status={status({ ...window, continuous: true, expires_at: "" })} now={now} />);
+    expect(screen.getByRole("status")).toHaveTextContent("持续运行中 · 已结束 2 个任务");
+    expect(screen.getByRole("status")).not.toHaveTextContent("剩");
+  });
   it("renders nothing when no window is active or recently stopped", () => {
     const { container } = render(<UnattendedStatus status={status(null)} now={now} />);
     expect(screen.queryByRole("status")).toBeNull();

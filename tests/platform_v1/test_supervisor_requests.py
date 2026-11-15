@@ -42,7 +42,8 @@ class TestPresetBounds:
         assert request["max_concurrent"] == values["max_concurrent"]
         assert request["max_retries"] == values["max_retries"]
         assert request["max_token_units"] == values["max_token_units"]
-        assert request["max_tasks"] == 2 * (1 + values["max_retries"])
+        assert request["max_tasks"] == (0 if values.get("continuous") else 2 * (1 + values["max_retries"]))
+        assert request.get("continuous", False) == values.get("continuous", False)
         assert request["max_cost_micro_units"] == 0
 
     @pytest.mark.parametrize("preset", ["", "month", None, 3])
