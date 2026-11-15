@@ -28,6 +28,7 @@ from threading import RLock
 from typing import Any, Mapping, Sequence
 
 from .history_pagination import decode_cursor, encode_cursor, page_limit
+from .usage_ledger import cost_equivalent_units
 
 
 TASK_STATUS_ORDER = (
@@ -1693,27 +1694,33 @@ class TaskStore:
             ).fetchone()
             if row is None:
                 return dict(zero)
-            usage = self._conn.execute(
-                "SELECT COUNT(*) AS observation_count, "
-                "COALESCE(SUM(CASE WHEN status <> 'OBSERVED' THEN 1 ELSE 0 END), 0) "
-                "AS unknown_count, "
-                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
-                "COALESCE(input_units, 0) + COALESCE(output_units, 0) + "
-                "COALESCE(reasoning_units, 0) + COALESCE(cache_read_units, 0) + "
-                "COALESCE(cache_write_units, 0) ELSE 0 END), 0) AS token_units, "
-                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
-                "COALESCE(cost_micro_units, 0) ELSE 0 END), 0) AS cost_units "
-                "FROM task_usage_observations WHERE task_id = ? AND window_id = ?",
+            usage_rows = self._conn.execute(
+                "SELECT status, source_kind, input_units, output_units, "
+                "reasoning_units, cache_read_units, cache_write_units, "
+                "cost_micro_units FROM task_usage_observations "
+                "WHERE task_id = ? AND window_id = ?",
                 (task_id, str(row["window_id"])),
-            ).fetchone()
+            ).fetchall()
+            # #1504: the in-run check uses the same cost-equivalent units as the
+            # final reservation reconciliation, so stream enforcement and the
+            # settled charge agree on one budget unit.
+            observed_tokens = 0
+            observed_cost = 0
+            unknown_count = 0
+            for usage in usage_rows:
+                if usage["status"] != "OBSERVED":
+                    unknown_count += 1
+                    continue
+                observed_tokens += cost_equivalent_units(usage) or 0
+                observed_cost += int(usage["cost_micro_units"] or 0)
             return {
                 "token_units": int(row["reserved_token_units"]),
                 "cost_micro_units": int(row["reserved_cost_micro_units"]),
                 "claim_epoch": int(row["epoch"]),
-                "observed_token_units": int(usage["token_units"]),
-                "observed_cost_micro_units": int(usage["cost_units"]),
-                "unknown_observation_count": int(usage["unknown_count"]),
-                "observation_count": int(usage["observation_count"]),
+                "observed_token_units": int(observed_tokens),
+                "observed_cost_micro_units": int(observed_cost),
+                "unknown_observation_count": int(unknown_count),
+                "observation_count": len(usage_rows),
             }
 
     def active_quota_reservation(self, task_id: str) -> dict[str, Any] | None:
