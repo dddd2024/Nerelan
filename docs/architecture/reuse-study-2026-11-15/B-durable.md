@@ -45,12 +45,12 @@ Scope: D4, D5, D6, plus the timeout side of D1 and D8. Checkout read: `reverse_a
 - **D1/D8:** a run cap exists (step `timeout_seconds`), but **no idle or heartbeat timeout** was found in the docs, so the stall clock stays custom or comes from LangGraph `TimeoutPolicy`.
 - **Fit risks:**
   - It adds a second sqlite file beside TaskStore. Nerelan's receipts, budgets and governance must remain in TaskStore, so steps must write there idempotently, keyed on the DBOS workflow and step ID.
-  - Agent CLI attempts are at-least-once on recovery. That matches Nerelan's existing UNKNOWN-reservation rule, but each attempt must check `durable_workspace` before redoing work.
+  - Agent CLI steps are at-least-once on recovery. That does **not** satisfy Nerelan's external-operation contract by itself: a PENDING journal entry or unknown remote completion must remain parked, never automatically replayed. A workflow id or retained workspace does not deduplicate a remote CLI/reviewer call. Retain TaskStore operation identities, journal checks, lease epochs and fencing until equivalent behavior is proved.
   - Workflow code must be deterministic across replays, with all I/O in steps.
   - It is a new dependency with SQLAlchemy and migrations.
 - **Verdict:** **REPLACE (staged, after a spike)**:
-  - **Delete:** the goal/claim derivation in `control_store.py` (`runnable_tasks`, `refresh_goal_status`, `claim_task`/`_claim_task_locked`/`renew_claim`/`retire_stale_claims`/`claim_holds`, `rebind_goal_to_window`, roughly 1.2k lines); `unattended_coordinator.py`'s claim loop, `_sweep_escalations` and `_reroute_held` (most of its 1.0k lines); the escalation bookkeeping in `goal_service.py` (`_repair_rejected_reviews`, `escalate_failed_tasks`, `_reroute_quota_held`; the policy stays as plain functions); and the lease, fencing and resume machinery in `durable_execution.py` (`acquire_lease`, `heartbeat_lease`, `recover_lease`, `_resume_*`, `reconcile_expired_runs`; probably 2–3k lines).
-  - **Keep:** budgets, quota reservations, receipts, landing and governance.
+  - **Candidates after the spike:** SQL goal-status derivation, dependency scheduling and escalation bookkeeping in `control_store.py`, `unattended_coordinator.py` and `goal_service.py`. The spike must prove crash-before-dispatch, crash-after-remote-call-before-recording, stale lease ownership, cancellation and unknown-completion behavior before replacing corresponding claim, fencing or resume controls. No deletion is justified solely by DBOS workflow recovery.
+  - **Keep:** TaskStore external-operation journals, UNKNOWN isolation, lease fencing, account-quota reservations, receipts, landing and governance until equivalent protections pass those tests. Continuous Owner windows follow #1538; delegated/trusted-policy bounds remain unchanged.
   - **Cost:** a 1–2 week spike to put one goal type end to end through DBOS, then a migration of several weeks. No new process and no Postgres. The ops burden is one more sqlite file plus DBOS migrations.
 
 ## 3. Temporal (server + Python SDK)

@@ -52,16 +52,17 @@ The plan below removes those, in this order.
    - **Issue:** extends #443.
 2. **Settle and detect refusals from Magpie request rows, through the existing reader, plus a per-attempt gateway key** (areas A, E).
    - **Why:** every Magpie row carries the session, status, error text, account, time to first token and cost. A refused request shows up within about 0.3 s.
-   - **Existing code to build on:** `reverse_agent/model_access/magpie_usage.py` (555 lines, #1342/#1170). It already reads `GET /v1/magpie/usage/requests`, parses `caller_key_id` and the cache-token fields, and attributes rows to a task only by a positive session or request-id match (`correlate_task_usage`). It is used by `cost_report.py` and `magpie_wait.py`. `reverse_agent/model_access/magpie_settlement.py` (386 lines) exists but only tests import it.
+   - **Existing code to build on:** `reverse_agent/model_access/magpie_usage.py` (555 lines, #1342/#1170). It already reads `GET /v1/magpie/usage/requests`, parses `caller_key_id` and the cache-token fields, and attributes rows to a task only by a positive session or request-id match (`correlate_task_usage`). Both it and `reverse_agent/model_access/magpie_settlement.py` (386 lines) currently have test callers only. `cost_report.py` and `magpie_wait.py` use the separate `platform_v1/magpie_usage_ingest.py`.
    - **What is missing:**
      - the window charge in `control_store.py` does not consume this reader;
      - `platform_v1/magpie_usage_ingest.py` matches by time window and only for `codex`/`claude_code`, so OpenCode attempts are never matched;
      - attempts carry no per-attempt gateway key.
    - **What:** wire `magpie_usage` and `magpie_settlement` into attempt settlement and refusal detection, and retire the time-window ingest; do not add a second reader. The results:
-     - each attempt is charged by its rows (fixes D3);
+     - usage is attributed only through positive attempt/session/request identity, deduplicated request ids and complete settled coverage;
      - a refused attempt ends in seconds (backs up item 1);
-     - per-attempt cost is exact (D9 measurement).
-     A per-attempt key with a token cap makes the per-attempt runaway guard a hard gateway limit, which fits the Owner decision of 2026-11-15 (#1538).
+     - measured token usage and Magpie's estimated equivalent money remain separate from observed provider credit debit (D9 measurement).
+     Missing, capped, partial, late or in-flight evidence stays UNKNOWN/PARTIAL; a refusal or no rows alone never proves zero usage. A zero settlement needs positive identity, complete settled coverage and explicit zero-usage evidence. Preserve historical records and holds until reconciliation justifies a change. `magpie_settlement.py` keeps its exclusive-account-interval and evidenced-conversion requirements; do not replace them with a sum of request prices.
+     A per-attempt key with a token cap could enforce the per-attempt runaway guard (#1538). Actual gateway-key issuance is a credential operation (R3), requiring an explicit covering Owner instruction; this study grants none.
    - **Before building:** check live that rows carry `callerKeyId` and the cache-token counts (the parser already reads them).
    - **Issue:** #1531.
 3. **One table-driven upstream error classifier**, copying the designs of new-api, one-api and LiteLLM (area A).
@@ -100,16 +101,16 @@ The plan below removes those, in this order.
 9. **Spike DBOS Transact as the goal-level engine** (area B). Adopting it after the spike is an R2 dependency change.
    - **What it is:** MIT licence, in-process, a SQLite system database, no server.
    - **What:** model plan → implement → review → repair, with its round limit, as workflows. Unfinished workflows resume on launch.
-   - **Effect:** replaces SQL status derivation (`refresh_goal_status`, `runnable_tasks`), the claim and rebind logic, coordinator sweeps and most of the `durable_execution` lease and resume code. Those are the source of D5, the redeploy strand (#1515) and window stranding.
+   - **Effect to test:** replace SQL goal-status derivation and scheduling. Retain TaskStore journals, lease fencing and resume guards until equivalent protections pass crash-before/after-dispatch and stale-owner tests. A DBOS workflow id does not deduplicate an external CLI or reviewer call; unknown completion remains parked and must not be replayed automatically.
    - **Gaps:** no idle timeout (item 5 covers it) and no supervisor (item 8). Windows is undocumented, so the spike must prove Windows and the existing SQLite store first.
    - **Issue:** new, as a spike with explicit go/no-go criteria.
 10. **Route by Magpie groups instead of single accounts** (area A).
-    - **What:** enable `account_routing=magpie` (the switch was introduced under the Owner decision of 2026-11-04). The Owner answered in the 2026-11-14 handoff document ("Nerelan 崩溃根因、调度失败与 Magpie 对照交接", section 待 Owner 决定): it may be turned on once verified. The verification: a refused account fails over within its Magpie group, Nerelan sets no hold of its own, and usage stays attributed to the task. That answer is not yet recorded on GitHub. Map tiers to `auto/<model>` or Nerelan-owned groups. Set `groupFirstToken`, `refusalRetries` and `retryAfterCap`.
+    - **What:** evaluate `account_routing=magpie` (the switch was introduced under the Owner decision of 2026-11-04). Follow `MAGPIE_CAPABILITY_MAP.md` section 1.2: verify failover from a refused account within its group, delegation of account holds, and positive task usage attribution before enabling it. An earlier handoff reports conditional Owner approval, but the source decision is not available here; that report is background, not an operational grant. Map tiers to `auto/<model>` or Nerelan-owned groups and test `groupFirstToken`, `refusalRetries` and `retryAfterCap` within separately authorized live-operation scope.
     - **Effect:** shrinks account holds in `model_router.py` and `quota_guard.py` and the `pool_verifier.py` sweep. Removes D9 lock-in.
     - **Gap:** Magpie has no mid-stream idle timeout; items 1 and 4 cover it.
     - **Issue:** #1533, #1170.
 11. **Per-model cache pricing in the cost-equivalent unit** (area E).
-    - **What:** the 0.1 cache-read weight from #1504 Part 1 becomes per-model ratios from the vendored models.dev snapshot. Magpie-reported `cost_usd` wins over computed values. Reports include interrupted and retired attempts.
+    - **What:** the 0.1 cache-read weight from #1504 Part 1 becomes per-model ratios from the vendored models.dev snapshot. Prefer attributed Magpie prices within the equivalent-money estimate, without treating them as observed provider debit. Reports include interrupted and retired attempts and retain missing coverage explicitly.
     - **Issue:** #1504.
 12. **Dependency upgrades (R2):**
     - OpenCode 1.19 → 2.x: caps `retry-after` at 15 minutes, but config keys move under `settings`. Independent of item 9; weigh it against item 1.
@@ -117,7 +118,7 @@ The plan below removes those, in this order.
 
 ## Corrections to the area reports
 
-- Report E says `magpie_settlement.py` was "not found" and describes the attribution as time-window only. Both are wrong. `reverse_agent/model_access/magpie_settlement.py` and `reverse_agent/model_access/magpie_usage.py` exist (item 2), and only `platform_v1/magpie_usage_ingest.py` is time-window based. Report A's "settle from Magpie rows" action is new work only where it wires in that existing reader.
+- The existing identity-based reader and settlement module are test-only (item 2); the production ingest uses time windows. Areas A and E now preserve partial/unknown attribution and distinguish estimated money from provider debit. Area B's DBOS spike must preserve external-operation journals and fencing before replacing their equivalents.
 - Report D's per-goal soft spend ceiling with "Raise to continue", and its replacement of `window.max_retries`, are **superseded** by the Owner decision of 2026-11-15 (#1538, governance PR #1539). Under that decision, provider account quota is the only budget, and the per-attempt runaway guard plus the existing `max_retries` semantics (decision 2026-11-12 B) stay. This plan therefore omits them. Report D's "no progress" stop is kept as an optional, off-by-default runaway guard.
 
 ## What stays Nerelan's own
