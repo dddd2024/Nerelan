@@ -159,6 +159,11 @@ class AutonomousWindowRecord:
     confirmation_mode: str = ""
     instance_id: str = ""
 
+    @property
+    def continuous(self) -> bool:
+        # Empty expiry is issued only by the atomic Owner admission path.
+        return self.confirmation_mode == OWNER_WINDOW_MODE and self.expires_at == ""
+
 
 @dataclass(frozen=True)
 class OperationReceipt:
@@ -1113,7 +1118,7 @@ class PlatformControlStore:
             # exclude tasks past their own attempt limit before taking the slice.
             # The claim transaction rechecks both counters before spending.
             rows = self._conn.execute(
-                "SELECT l.task_id, t.status, w.tasks_started < w.max_tasks AS fresh_budget, "
+                "SELECT l.task_id, t.status, ((w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') OR w.tasks_started < w.max_tasks) AS fresh_budget, "
                 "w.retries_used < w.max_retries AS retry_budget "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
@@ -1311,7 +1316,7 @@ class PlatformControlStore:
     def _window_current_locked(self, window_id: str) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
-            "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?)",
+            "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?))",
             (window_id, _utc_now_precise(), _utc_now_precise())).fetchone()
         return row is not None
 
@@ -1335,10 +1340,33 @@ class PlatformControlStore:
         if self.is_strict_owner_window(window):
             # Strict Owner windows bind exactly one natively admitted Goal.
             raise TaskStoreError("rebind_strict_window_unsupported")
-        if self.is_owner_window(window):
+        if self.is_owner_window(window) and not window.continuous:
             # Owner windows run exactly the Goals the Owner confirmed; nothing moves in.
             # Moving out after expiry stays possible, as for any other window.
             raise TaskStoreError("rebind_owner_window_unsupported")
+        adoption_evidence = None
+        if window.continuous:
+            if (not self.is_owner_window(old) or old.stop_reason not in {
+                    "window_expired", "window_task_budget_exhausted", "window_token_budget_exhausted"}):
+                raise TaskStoreError("continuous_adoption_not_exhausted")
+            source = self._conn.execute(
+                "SELECT evidence_json FROM platform_operation_receipts WHERE window_id=? AND subject_id=? "
+                "AND operation_type=? AND confirmation_mode=? AND decision='allowed'",
+                (old.id, goal.id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
+            target = self._conn.execute(
+                "SELECT evidence_json FROM platform_operation_receipts WHERE window_id=? "
+                "AND operation_type=? AND confirmation_mode=? AND decision='allowed' ORDER BY created_at,id LIMIT 1",
+                (window.id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchone()
+            if len(source) != 1 or target is None:
+                raise TaskStoreError("owner_window_receipt_missing")
+            previous = json.loads(source[0]["evidence_json"])
+            current = json.loads(target["evidence_json"])
+            pool = [entry for entry in previous["approved_pool"] if entry in current["approved_pool"]]
+            if any(self.task_store.get_task(link["task_id"]).binding_ref not in {
+                    entry["binding_ref"] for entry in pool} for link in self.list_goal_tasks(goal.id)):
+                raise TaskStoreError("continuous_adoption_binding_outside_pool")
+            adoption_evidence = {**previous, "approved_pool": pool, "from_window_id": old.id,
+                                 "to_window_id": window.id, "reason": "continuous_run_adoption"}
         if goal.repository not in window.repositories:
             raise TaskStoreError("rebind_window_repository_mismatch")
         links = self.list_goal_tasks(goal.id)
@@ -1382,7 +1410,7 @@ class PlatformControlStore:
         queued = sum(1 for item in planned if item["status"] == "QUEUED")
         interrupted = len(planned) - queued
         tasks_remaining = window.max_tasks - window.tasks_started
-        if queued > tasks_remaining or (interrupted and tasks_remaining < 1):
+        if not window.continuous and (queued > tasks_remaining or (interrupted and tasks_remaining < 1)):
             raise TaskStoreError("rebind_window_task_budget_insufficient")
         if interrupted > window.max_retries - window.retries_used:
             raise TaskStoreError("rebind_window_retry_budget_insufficient")
@@ -1417,6 +1445,14 @@ class PlatformControlStore:
             (window.id, _utc_now(), goal.id, old.id))
         if moved.rowcount != 1:
             raise TaskStoreError("goal_not_rebindable")
+        if adoption_evidence is not None:
+            receipt = self.append_receipt(
+                window_id=window.id, operation_type=OWNER_WINDOW_RECEIPT, capability="execute_task",
+                repository=goal.repository, subject_id=goal.id, decision="allowed",
+                reason="continuous_run_adoption", input_payload={"from_window_id": old.id, "goal_id": goal.id},
+                result=sha256_json(adoption_evidence))
+            self._conn.execute("UPDATE platform_operation_receipts SET evidence_json=?, confirmation_mode=? WHERE id=?",
+                               (canonical_json(adoption_evidence), OWNER_WINDOW_MODE, receipt.id))
         self.append_receipt(
             window_id=window.id, operation_type="goal_window_rebind", capability="not_applicable",
             repository=goal.repository, subject_id=goal.id, decision="allowed", reason=reason,
@@ -1547,6 +1583,9 @@ class PlatformControlStore:
         if _host_preserve_claim_windows and _host_sql_admit is None:
             raise TaskStoreError("host_atomic_admission_required")
         owner_window = _host_expected_goal_ids is not None
+        continuous = payload.get("continuous", False)
+        if type(continuous) is not bool or (continuous and not owner_window):
+            raise TaskStoreError("continuous_run_requires_owner_admission")
         if owner_window:
             # Owner-confirmed multi-Goal window (owner_window.OwnerWindowAdmission).
             # Same transaction discipline as the single-Task path; wider, still
@@ -1559,7 +1598,9 @@ class PlatformControlStore:
                     or any(type(g) is not str or not g.strip() for g in _host_expected_goal_ids)):
                 raise TaskStoreError("host_atomic_admission_invalid")
             capabilities_requested = payload.get("capabilities", ())
-            if (type(payload.get("max_tasks")) is not int or not 1 <= payload["max_tasks"] <= 100
+            if (type(payload.get("max_tasks")) is not int
+                    or not (payload["max_tasks"] == 0 if continuous else 1 <= payload["max_tasks"] <= 100)
+                    or (continuous and payload.get("max_token_units", 0) != 0)
                     or type(payload.get("max_concurrent_tasks")) is not int
                     or not 1 <= payload["max_concurrent_tasks"] <= 8
                     or type(payload.get("max_retries")) is not int or not 0 <= payload["max_retries"] <= 5
@@ -1589,14 +1630,16 @@ class PlatformControlStore:
                 # Python also accepts week dates that SQLite treats as NULL.
                 canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)"
                 if not (re.fullmatch(canonical_time, str(payload["starts_at"]))
-                        and re.fullmatch(canonical_time, str(payload["expires_at"]))):
+                        and (payload["expires_at"] == "" if continuous
+                             else re.fullmatch(canonical_time, str(payload["expires_at"])))):
                     raise ValueError
                 starts = datetime.fromisoformat(str(payload["starts_at"]).replace("Z", "+00:00"))
-                expires = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
+                expires = (datetime.max.replace(tzinfo=timezone.utc) if continuous else
+                           datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00")))
                 clock = datetime.now(timezone.utc)
                 if (starts.tzinfo is None or expires.tzinfo is None
                         or not starts <= clock + timedelta(seconds=5)
-                        or not clock < expires <= clock + longest
+                        or (not continuous and not clock < expires <= clock + longest)
                         or not starts < expires):
                     raise ValueError
             except (KeyError, ValueError, TypeError) as exc:
@@ -1637,7 +1680,7 @@ class PlatformControlStore:
                         raise TaskStoreError("host_atomic_window_expired")
                     sql_dates = cur.execute("SELECT julianday(?), julianday(?)",
                                             (str(payload["starts_at"]), str(payload["expires_at"]))).fetchone()
-                    if sql_dates is None or sql_dates[0] is None or sql_dates[1] is None:
+                    if sql_dates is None or sql_dates[0] is None or (not continuous and sql_dates[1] is None):
                         raise TaskStoreError("host_atomic_window_time_invalid")
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
@@ -1675,7 +1718,7 @@ class PlatformControlStore:
                     return record
                 active = cur.execute(
                     "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                    "AND (? = 0 OR julianday(expires_at) > julianday('now')) LIMIT 1",
+                    "AND (? = 0 OR ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))) LIMIT 1",
                     (int(_host_preserve_claim_windows),)
                 ).fetchone()
                 if active is not None:
@@ -1798,7 +1841,7 @@ class PlatformControlStore:
                         "UPDATE platform_autonomous_windows SET updated_at = updated_at "
                         "WHERE id = ? AND status = 'ACTIVE' "
                         "AND julianday(starts_at) <= julianday('now') "
-                        "AND julianday(expires_at) > julianday('now')",
+                        "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                         (window_id,),
                     )
                     if updated.rowcount != 1:
@@ -1864,6 +1907,15 @@ class PlatformControlStore:
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
         current = now or _utc_now_precise()
         with self._lock:
+            # Old bounded Owner runs must state why they cannot admit the next task.
+            # Keep an in-flight or uncertain claim on its window until reconciled.
+            self._conn.execute(
+                "UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                "stop_reason='window_task_budget_exhausted', updated_at=? "
+                "WHERE status='ACTIVE' AND confirmation_mode=? AND expires_at<>'' "
+                "AND max_tasks>0 AND tasks_started>=max_tasks AND NOT EXISTS "
+                "(SELECT 1 FROM platform_coordinator_claims c WHERE c.window_id=platform_autonomous_windows.id "
+                "AND c.status='ACTIVE')", (_utc_now(), OWNER_WINDOW_MODE))
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? "
                 "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
@@ -1875,7 +1927,7 @@ class PlatformControlStore:
             )
             row = self._conn.execute(
                 "SELECT * FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?) ORDER BY created_at DESC LIMIT 1",
+                "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?)) ORDER BY created_at DESC LIMIT 1",
                 (current, current),
             ).fetchone()
             return self._row_to_window(row) if row is not None else None
@@ -1970,10 +2022,18 @@ class PlatformControlStore:
         """Move RUNNING goals stranded on earlier windows of the same standing policy."""
         window = self.get_window(window_id)
         policy = self.standing_window(window.policy_id)
-        if policy is None or policy["status"] != "ACTIVE":
+        if not window.continuous and (policy is None or policy["status"] != "ACTIVE"):
             return ()
         with self._lock:
-            rows = self._conn.execute(
+            if window.continuous:
+                rows = self._conn.execute(
+                    "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                    "WHERE g.status='RUNNING' AND w.id<>? AND w.confirmation_mode=? "
+                    "AND w.status IN ('EXPIRED','BLOCKED','STOPPED') "
+                    "AND w.stop_reason IN ('window_expired','window_task_budget_exhausted','window_token_budget_exhausted') "
+                    "ORDER BY g.created_at", (window.id, OWNER_WINDOW_MODE)).fetchall()
+            else:
+                rows = self._conn.execute(
                 "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id = g.window_id "
                 "WHERE g.status='RUNNING' AND w.policy_id=? AND w.id<>? AND w.status='EXPIRED' "
                 "AND w.stop_reason='window_expired' ORDER BY g.created_at", (window.policy_id, window.id)).fetchall()
@@ -1981,7 +2041,7 @@ class PlatformControlStore:
         for row in rows:
             try:
                 outcomes.append(self.rebind_goal_to_window(row["id"], window_id=window.id,
-                                                           reason="standing_window_adoption"))
+                                                           reason="continuous_run_adoption" if window.continuous else "standing_window_adoption"))
             except TaskStoreError as exc:
                 # In-flight or held work is retried on a later tick, never forced.
                 outcomes.append({"goal_id": row["id"], "status": "DEFERRED", "reason": str(exc)})
@@ -2126,7 +2186,8 @@ class PlatformControlStore:
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
             self.check_strict_task_admission(window_id, task_id)
-            if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+            continuous = self._row_to_window(window).continuous
+            if not continuous and datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
@@ -2157,7 +2218,7 @@ class PlatformControlStore:
             if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
-            elif not completion_recovery and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
+            elif not completion_recovery and not continuous and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)

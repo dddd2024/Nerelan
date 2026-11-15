@@ -826,7 +826,7 @@ class CombinedTrustedHost:
             authority = self._control_store.window_policy_binding(goal.window_id).get("authority", {})
             return (window.status == "ACTIVE"
                     and authority.get("model_call_limit") != 0 and authority.get("provider_call_limit") != 0
-                    and datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time())
+                    and (window.continuous or datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time()))
         except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
             return False
 

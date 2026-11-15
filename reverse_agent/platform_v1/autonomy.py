@@ -231,6 +231,7 @@ def window_to_dict(window: AutonomousWindowRecord) -> dict[str, Any]:
     payload = asdict(window)
     payload["repositories"] = list(window.repositories)
     payload["capabilities"] = list(window.capabilities)
+    payload["continuous"] = window.continuous
     return payload
 
 
@@ -514,7 +515,7 @@ class AutonomyService:
         return {
             "window": window_to_dict(window),
             "budget": {
-                "tasks_remaining": max(0, window.max_tasks - window.tasks_started),
+                "tasks_remaining": None if window.continuous else max(0, window.max_tasks - window.tasks_started),
                 "retries_remaining": max(0, window.max_retries - window.retries_used),
                 "wip_limit": window.max_concurrent_tasks,
                 **usage_budget,
