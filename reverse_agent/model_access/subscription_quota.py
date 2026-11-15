@@ -24,7 +24,7 @@ import time
 from typing import Any, Iterable, Mapping
 
 _TAIL_BYTES = 2 * 1024 * 1024
-_MAX_FILES = 12
+_MAX_FILES = 64
 _MAX_AGE_SECONDS = 8 * 24 * 3600
 _CLAUDE_WINDOWS = {"five_hour": "five_hour", "seven_day": "weekly"}
 
@@ -79,7 +79,7 @@ def codex_rate_limits(event: Mapping[str, Any], observed_at: str | None, *, now:
     return result
 
 
-def _latest_token_count(path: Path) -> tuple[dict[str, Any], str | None] | None:
+def _latest_token_count(path: Path, *, now: float) -> tuple[dict[str, Any], str | None] | None:
     with path.open("rb") as handle:
         handle.seek(0, os.SEEK_END)
         size = handle.tell()
@@ -93,9 +93,16 @@ def _latest_token_count(path: Path) -> tuple[dict[str, Any], str | None] | None:
         except (UnicodeDecodeError, ValueError, RecursionError):
             continue
         payload = entry.get("payload") if isinstance(entry, dict) else None
-        if isinstance(payload, dict) and payload.get("type") == "token_count" and payload.get("rate_limits"):
+        limits = payload.get("rate_limits") if isinstance(payload, dict) and payload.get("type") == "token_count" else None
+        # Empty window metadata is not proof of current available quota.
+        if isinstance(limits, dict) and any(isinstance(limits.get(k), dict) for k in ("primary", "secondary")):
+            from .quota_forecast import parse_time
             stamp = entry.get("timestamp")
-            return payload, stamp if isinstance(stamp, str) and len(stamp) <= 40 else None
+            at = parse_time(stamp)
+            # A clock-skewed future record must not hide an earlier actual
+            # account observation in the *same* Codex session file.
+            if at is not None and at <= now + 60:
+                return payload, stamp
     return None
 
 
@@ -111,13 +118,24 @@ def read_codex_quota(codex_home: str | os.PathLike[str] | None = None, *, now: f
                        key=lambda p: p.stat().st_mtime, reverse=True)[:_MAX_FILES]
     except OSError:
         return unknown("codex_sessions_unreadable")
+    from .quota_forecast import parse_time
+
+    # File mtime is a scanner bound, NOT the account observation clock. Other
+    # sessions may be modified after an older quota event, so select the most
+    # recent provider-stamped window across bounded eligible files.
+    latest: tuple[dict[str, Any], str | None] | None = None
+    latest_at = -1.0
     for path in files:
         try:
-            found = _latest_token_count(path)
+            found = _latest_token_count(path, now=now)
         except OSError:
             continue
         if found:
-            return codex_rate_limits(found[0], found[1], now=now)
+            at = parse_time(found[1])
+            if at is not None and at <= now + 60 and at > latest_at:
+                latest, latest_at = found, at
+    if latest is not None:
+        return codex_rate_limits(latest[0], latest[1], now=now)
     return unknown("no_recent_codex_rate_limits")
 
 
