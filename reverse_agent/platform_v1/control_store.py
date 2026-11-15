@@ -1961,6 +1961,14 @@ class PlatformControlStore:
                 "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?)) ORDER BY created_at DESC LIMIT 1",
                 (current, current),
             ).fetchone()
+            if (row is not None and row["confirmation_mode"] == OWNER_WINDOW_MODE and row["expires_at"]
+                    and self._new_reservation_denial(row) == "window_token_budget_exhausted"
+                    and self._conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE window_id=? "
+                        "AND status='ACTIVE' LIMIT 1", (row["id"],)).fetchone() is None):
+                self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                    "stop_reason='window_token_budget_exhausted', updated_at=? WHERE id=? AND status='ACTIVE'",
+                    (_utc_now(), row["id"]))
+                return None
             return self._row_to_window(row) if row is not None else None
 
     def stop_window(self, window_id: str, *, reason: str = "owner_stopped") -> AutonomousWindowRecord:

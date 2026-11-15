@@ -296,7 +296,9 @@ class OwnerWindowAdmission:
         # The model-control routes refresh OpenCode login sessions on read; the pool
         # reads the store directly under the lock, so refresh once here, before it.
         host._refresh_external_session_auth(False, None)
-        now = datetime.now(timezone.utc)
+        # SQLite's current clock is millisecond precision on Windows. Floor both
+        # envelope boundaries so sub-millisecond rounding cannot start it in the future.
+        now = datetime.now(timezone.utc).replace(microsecond=0)
         # Times are fixed before the prompt; reading time spends the window.
         envelope = {"window_id": "owner-" + secrets.token_hex(16),
                     "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,

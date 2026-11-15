@@ -127,13 +127,14 @@ class TestContinuousRun:
         with pytest.raises(TaskStoreError, match="continuous_run_requires_owner_admission"):
             setup.host._control_store.activate_window({"continuous": True}, confirmation="ACTIVATE")
 
-    def test_token_exhaustion_allows_continuous_start_but_keeps_live_claims(self, setup):
+    @pytest.mark.parametrize("observed", [95, 100])
+    def test_token_exhaustion_allows_continuous_start_but_keeps_live_claims(self, setup, observed):
         first = setup.planned("tokens", "codex", "pinned")
         old, _ = admit(setup.host, (first.id,), max_token_units=100)
         control = setup.host._control_store
         task = control.list_goal_tasks(first.id)[0]["task_id"]
         control.claim_task(window_id=old.id, task_id=task, owner="test", lease_ms=10000)
-        setup.db._conn.execute("UPDATE platform_autonomous_windows SET observed_token_units=100 WHERE id=?", (old.id,))
+        setup.db._conn.execute("UPDATE platform_autonomous_windows SET observed_token_units=? WHERE id=?", (observed, old.id))
         assert control.active_window().id == old.id
         # A settled claim has no unknown remote outcome left to isolate.
         setup.db._conn.execute("UPDATE platform_coordinator_claims SET status='COMPLETE' WHERE task_id=?", (task,))
