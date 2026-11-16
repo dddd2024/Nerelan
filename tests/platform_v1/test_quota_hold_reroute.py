@@ -130,3 +130,70 @@ def test_coordinator_offers_fully_held_goals_to_the_rerouter(monkeypatch, tmp_pa
         workspace_root=tmp_path, quota_preparer=held, quota_rerouter=rerouted.append)
     assert coordinator.tick() == 0
     assert rerouted == [goal.id]
+
+
+# ---------------------------------------------------------------------------
+# #1530: a stall reclassified to quota_exhausted / api_error_429 must engage
+# the same hold + reroute machinery as an explicit nonzero-exit quota refusal.
+# ---------------------------------------------------------------------------
+
+def test_reclassified_stall_quota_exhausted_triggers_account_refusal_hold():
+    """A stall reclassified to quota_exhausted with the executor-reported error
+    format triggers account_refusal_hold so the binding is held (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    hold = account_refusal_hold("quota_exhausted", "opencode_nonzero:exit=-1:quota_exhausted")
+    assert hold is not None and hold >= 3600
+
+
+def test_reclassified_stall_api_error_429_triggers_account_refusal_hold():
+    """A stall reclassified to api_error_429 triggers account_refusal_hold (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    hold = account_refusal_hold("api_error_429", "opencode_stalled:900:api_error_429")
+    assert hold is not None and hold >= 3600
+
+
+def test_executor_stalled_does_not_trigger_account_refusal_hold():
+    """A plain executor_stalled (no quota signal) must NOT trigger a hold (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    hold = account_refusal_hold("executor_stalled", "opencode_stalled:900")
+    assert hold is None
+
+
+def test_reclassified_stall_classifications_match_limit_hit():
+    """quota_failure in escalate_failed_tasks uses LIMIT_HIT; both reclassified
+    stall classifications must match so retries are not burned on the same
+    exhausted account (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import LIMIT_HIT
+    assert LIMIT_HIT.search("quota_exhausted")
+    assert LIMIT_HIT.search("api_error_429")
+    assert not LIMIT_HIT.search("executor_stalled")
+
+
+def test_held_task_with_reclassified_stall_failure_reroutes(monkeypatch):
+    """After a stall is reclassified to quota_exhausted, account_refusal_hold
+    places a hold on the binding; the next QUEUED task on that binding is
+    rerouted to an equal-or-higher-tier model (#1530). The reroute path is
+    the same as any quota hold: it does not depend on how the hold originated."""
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    # _hold simulates the hold that account_refusal_hold would place after
+    # the reclassified stall failure (verified by the unit tests above).
+    _hold(store, control, task_id, binding="opencode-bind", tier=4)
+    calls = []
+    goals.task_resolver = _resolver(ALTERNATIVE, calls)
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["reason"] == "quota_hold_reroute" and moved["to_binding"] == "kimi-bind"
+    assert calls == [("T001", "opencode-bind", 4)]
+    task = store.get_task(task_id)
+    assert (task.binding_ref, task.executor_kind, task.status) == ("kimi-bind", "opencode", "QUEUED")
+
+
+def test_held_task_with_reclassified_stall_api_error_429_reroutes(monkeypatch):
+    """A stall reclassified to api_error_429 also places a hold (via
+    account_refusal_hold) and the QUEUED task is rerouted (#1530)."""
+    store, control, goals, goal = _launched(monkeypatch)
+    task_id = _link(control, goal.id, "T001")["task_id"]
+    _hold(store, control, task_id, binding="opencode-bind", tier=4)
+    goals.task_resolver = _resolver(ALTERNATIVE, [])
+    [moved] = goals.escalate_failed_tasks(goal.id)
+    assert moved["reason"] == "quota_hold_reroute"

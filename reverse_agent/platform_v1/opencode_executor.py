@@ -1924,6 +1924,14 @@ class OpenCodeExecutor:
             # timeout semantics (failure_classification, usage UNKNOWN,
             # cleanup uncertainty) are intentionally NOT altered.
             partial_events, _malformed = self._parse_json_lines(stdout)
+            # A stall with a 429/quota signal in the pre-silence partial output
+            # is reclassified so the hold/reroute machinery engages instead of
+            # burning retries on the same exhausted account (#1530).
+            stall_quota_signal = (
+                _classify_stall_quota_signal(partial_events, stderr) if stalled else None
+            )
+            if stall_quota_signal is not None:
+                timeout_class = stall_quota_signal
             partial_evidence = _build_executor_evidence(
                 partial_events,
                 exit_code=-1,
@@ -1967,13 +1975,24 @@ class OpenCodeExecutor:
 
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
-                "title": "OpenCode stalled" if stalled else "OpenCode timeout",
-                "description": ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
-                                if stalled else "OpenCode CLI exceeded timeout"),
+                "title": (
+                    "OpenCode stall reclassified: %s" % stall_quota_signal
+                    if stall_quota_signal
+                    else "OpenCode stalled" if stalled
+                    else "OpenCode timeout"
+                ),
+                "description": (
+                    "Stall reclassified: upstream 429/quota signal in partial output"
+                    if stall_quota_signal
+                    else ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
+                          if stalled else "OpenCode CLI exceeded timeout")
+                ),
                 "metadata": {
                     "execution_id": execution_id,
                     "timeout": self._timeout,
                     "stall_seconds": executor_stall_seconds() if stalled else None,
+                    "stall_reclassified": bool(stall_quota_signal),
+                    "stall_quota_signal": stall_quota_signal,
                     "failure_classification": timeout_class,
                     "role": role_context.role,
                     "cleanup_confirmed": cleanup_confirmed,
@@ -1989,7 +2008,16 @@ class OpenCodeExecutor:
             changed_files = _collect_changed_files(worktree) if cleanup_confirmed else []
             error = "opencode_timeout:%s" % self._timeout
             if stalled:
-                error = "opencode_stalled:%s" % int(executor_stall_seconds() or 0)
+                if stall_quota_signal == "quota_exhausted":
+                    # Match _EXECUTOR_REPORTED_EXHAUSTION so account_refusal_hold
+                    # grants the longer plan-exhaustion hold (#1530).
+                    error = "opencode_nonzero:exit=-1:quota_exhausted"
+                elif stall_quota_signal == "api_error_429":
+                    error = "opencode_stalled:%d:api_error_429" % int(
+                        executor_stall_seconds() or 0
+                    )
+                else:
+                    error = "opencode_stalled:%s" % int(executor_stall_seconds() or 0)
             if not cleanup_confirmed:
                 error = "opencode_timeout:cleanup_unconfirmed:%s" % self._timeout
             return ExecutorResult(
@@ -3783,6 +3811,48 @@ _MODEL_UNAVAILABLE_RE = re.compile(
     r"\b(model[_ -]?not[_ -]?(?:found|available|supported)|model[_ -]?unavailable|invalid[_ -]?model|model[_ -]?does[_ -]?not[_ -]?exist)\b",
     re.IGNORECASE,
 )
+
+# During a stall OpenCode writes nothing to stdout, but the pre-silence partial
+# events or stderr may carry the upstream 429/quota refusal that caused it.
+# These patterns scan stderr text (unstructured) for the same signals that
+# _classify_exit detects in structured error payloads.
+_STALL_STDERR_429_RE = re.compile(r"\b429\b")
+_STALL_STDERR_RATE_LIMIT_RE = re.compile(
+    r"\b(rate[_ -]?limit|too[_ -]?many[_ -]?requests)\b",
+    re.IGNORECASE,
+)
+
+
+def _classify_stall_quota_signal(
+    events_raw: list[dict[str, Any]],
+    stderr: str,
+) -> str | None:
+    """When a stall is observed, check partial output for a 429/quota signal.
+
+    OpenCode goes silent while it waits out a provider 429 (once for an hour).
+    Without this check the stall surfaces as ``executor_stalled`` after
+    ``DEFAULT_STALL_SECONDS`` (900 s): no hold is placed and retries are
+    burned on the same exhausted account (#1530). When the partial stdout
+    events or stderr carry a 429/quota signal, return the classification
+    (``quota_exhausted`` or ``api_error_429``) so the hold/reroute
+    machinery engages instead. Returns ``None`` when no quota signal is
+    found and the stall should stay ``executor_stalled``.
+    """
+    for payload in _extract_error_payloads(events_raw):
+        status = _pick_error_status(payload)
+        text = _pick_error_str(payload)
+        if status == 429:
+            if _QUOTA_EXHAUSTED_RE.search(text):
+                return "quota_exhausted"
+            return "api_error_429"
+        if _QUOTA_EXHAUSTED_RE.search(text):
+            return "quota_exhausted"
+    if stderr:
+        if _QUOTA_EXHAUSTED_RE.search(stderr):
+            return "quota_exhausted"
+        if _STALL_STDERR_429_RE.search(stderr) or _STALL_STDERR_RATE_LIMIT_RE.search(stderr):
+            return "api_error_429"
+    return None
 
 
 # ---------------------------------------------------------------------------
