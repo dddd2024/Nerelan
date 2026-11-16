@@ -1,6 +1,6 @@
 # OpenClaw：跨对话源码深拆归档（2026-11-16）
 
-**原研究上游：** [`openclaw/openclaw@02dc185`](https://github.com/openclaw/openclaw/commit/02dc185)，本次在该历史提交验证了源码/文档存在。  
+**原研究上游：** [`openclaw/openclaw@02dc185`](https://github.com/openclaw/openclaw/commit/02dc185)，本次在该历史提交验证了源码/文档存在。
 **状态：** `HISTORICAL_CHAT_STUDY + SOURCE_SPOTCHECKED / NOT_RUNTIME_TESTED`。旧对话静态源码研究，没有找到同名独立 GitHub 研究 Issue/PR，不能用别的实施 Issue 证明已做专项归档。研究总入口 [#1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 可核实的结构
