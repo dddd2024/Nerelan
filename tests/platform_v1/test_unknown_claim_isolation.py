@@ -83,7 +83,6 @@ def test_retention_receipt_and_actual_scheduler(isolated, monkeypatch, tmp_path)
     retained(host._task_store._conn, before)
     with pytest.raises(TaskStoreError, match="unknown_claim_task_held"):
         control.claim_task(window_id=old_window.id, task_id=old, owner="forbidden", lease_ms=10000)
-    assert not control.can_complete_host_claim(window_id=old_window.id, task_id=old)
     for method in (control.complete_task_claim, control.abandon_task_claim):
         with pytest.raises(TaskStoreError, match="unknown_claim_task_held"):
             method(window_id=old_window.id, task_id=old, owner="original", epoch=7,

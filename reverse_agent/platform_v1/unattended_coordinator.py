@@ -18,7 +18,7 @@ from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .run_store import TaskStore, TaskStoreError
 from .task_execution import TaskExecutionService
-from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
+from .task_runtime import ExecutorRouter
 from reverse_agent.architecture.contracts import (
     WorkerAssignment,
     WorkerExecutionResult,
@@ -349,7 +349,6 @@ class UnattendedCoordinator:
                 self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
         claimed: dict[str, int] = {}
         held: list[str] = []
-        recovered = 0
         retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
@@ -370,23 +369,7 @@ class UnattendedCoordinator:
             task = self.store.get_task(task_id)
             if self._stop.is_set():
                 break
-            if (self.control_store.is_strict_owner_window(window)
-                    and task.status in {"READY_FOR_REVIEW", "FAILED"}):
-                # Result-only recovery is not admission to validate_task. The
-                # store rechecks identity and evidence atomically and finalizes
-                # the original epoch/reservation without invoking any executor.
-                try:
-                    self.control_store.complete_persisted_host_claim(
-                        window_id=window.id, task_id=task_id)
-                except TaskStoreError as exc:
-                    self._last_error = str(exc)
-                    continue
-                recovered += 1
-                self._executions += 1
-                continue
-            operation = task_operation(task)
-            if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
-                operation = "resume_task"
+            operation = "resume_task" if task.status in {"INTERRUPTED", "QUOTA_WAIT"} else "execute_task"
             if not self.autonomy.authorize(
                 window_id=window.id,
                 operation=operation,
@@ -438,7 +421,7 @@ class UnattendedCoordinator:
             # runs for it: offer the held tasks to the rerouter here.
             self._reroute_held(held)
         if not claimed:
-            return recovered
+            return 0
         if not self._begin_dispatch(background=background):
             self._abandon_claimed_before_dispatch(
                 window_id=window.id,
@@ -449,9 +432,9 @@ class UnattendedCoordinator:
         if background:
             # The poller never blocks on a slow graph invocation. A later tick
             # can claim a *different* task up to the persisted window WIP cap.
-            return recovered + (len(claimed) if self._launch_background_batch(window.id, claimed) else 0)
+            return len(claimed) if self._launch_background_batch(window.id, claimed) else 0
         try:
-            return recovered + self._execute_claimed_batch(window_id=window.id, claimed=claimed)
+            return self._execute_claimed_batch(window_id=window.id, claimed=claimed)
         finally:
             self._finish_dispatch()
 
@@ -596,27 +579,20 @@ class UnattendedCoordinator:
             try:
                 attempt_elapsed = None
                 stored = self.store.get_task(task_id)
-                if stored.status in {"READY_FOR_REVIEW", "FAILED"} and self.control_store.can_complete_host_claim(
-                    window_id=window_id, task_id=task_id
-                ):
-                    # Host-check claims were scoped by the retired delegated
-                    # policy authority (#1575); they cannot be finalized now.
-                    raise TaskStoreError("delegated_policy_authority_unavailable")
-                else:
-                    # Resume can reuse checkpoints or only validate, without
-                    # executing the routed account. Only time fresh attempts.
-                    collect_timing = (stored.status == "QUEUED"
-                                      and os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1")
-                    started = self._attempt_timestamp() if collect_timing else None
-                    outcome = self._execute_with_claim_renewal(window_id, task_id, epoch)
-                    if collect_timing:
-                        finished = self._attempt_timestamp()
-                        if (started is not None and finished is not None and finished >= started
-                                and math.isfinite(finished - started)):
-                            attempt_elapsed = finished - started
-                        else:
-                            self._last_error = "attempt_timing_unavailable"
-                            _logger.warning("attempt_timing_unavailable task=%s epoch=%s", task_id, epoch)
+                # Resume can reuse checkpoints without executing the routed
+                # account. Only time fresh attempts.
+                collect_timing = (stored.status == "QUEUED"
+                                  and os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1")
+                started = self._attempt_timestamp() if collect_timing else None
+                outcome = self._execute_with_claim_renewal(window_id, task_id, epoch)
+                if collect_timing:
+                    finished = self._attempt_timestamp()
+                    if (started is not None and finished is not None and finished >= started
+                            and math.isfinite(finished - started)):
+                        attempt_elapsed = finished - started
+                    else:
+                        self._last_error = "attempt_timing_unavailable"
+                        _logger.warning("attempt_timing_unavailable task=%s epoch=%s", task_id, epoch)
                 final = self.store.get_task(task_id)
                 success = bool(getattr(outcome, "success", True)) and final.status in {
                     "READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"
@@ -925,10 +901,6 @@ class UnattendedCoordinator:
         if self.task_executor is not None:
             return self.task_executor(task_id)
         task = self.store.get_task(task_id)
-        if load_host_validation_contract(task) is not None:
-            # Approved host checks needed the retired delegated policy
-            # authority (#1575). This precedes all model-oriented dispatch.
-            raise TaskStoreError("delegated_policy_authority_unavailable")
         durable_identity_available = bool(
             self.execution_authority_sha.strip() and self.planning_sha.strip()
         )
