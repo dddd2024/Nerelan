@@ -1,7 +1,7 @@
 # Cline / Roo：跨对话研究归档（2026-11-16）
 
-**历史范围**：Cline Plugin / Hooks / MCP / Agent 执行状态与恢复；Roo 被作为相关分叉与比较对象讨论。**没有找到 Roo 独立冻结版本和本轮可验证的 Roo 专项源码证据**，本页不把 Cline 机制自动归属 Roo。  
-**历史上游 Cline SHA：** 未保留。**本次归档补核源码**：[`cline/cline@0eeb32315ee28e5cd80c879ba16bc96eecf17dfe`](https://github.com/cline/cline/commit/0eeb32315ee28e5cd80c879ba16bc96eecf17dfe)（**不能冒充历史源码版本**）。  
+**历史范围**：Cline Plugin / Hooks / MCP / Agent 执行状态与恢复；Roo 被作为相关分叉与比较对象讨论。**没有找到 Roo 独立冻结版本和本轮可验证的 Roo 专项源码证据**，本页不把 Cline 机制自动归属 Roo。
+**历史上游 Cline SHA：** 未保留。**本次归档补核源码**：[`cline/cline@0eeb32315ee28e5cd80c879ba16bc96eecf17dfe`](https://github.com/cline/cline/commit/0eeb32315ee28e5cd80c879ba16bc96eecf17dfe)（**不能冒充历史源码版本**）。
 **状态：** `HISTORICAL_CHAT_STUDY / ARCHIVE_TIME_SOURCE_SPOTCHECK / NO_RUNTIME_VALIDATION`。已有 [11/15 横向执行器报告](../../reuse-study-2026-11-15/C-runtimes.md)，但未核实 Cline/Roo 专项 PR/Issue。归档于 [研究 Hub #1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 核查路径与模块
