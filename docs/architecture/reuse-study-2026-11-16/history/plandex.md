@@ -1,7 +1,7 @@
 # Plandex：跨对话研究归档（2026-11-16）
 
-**历史来源：** 其他对话已做 Plan/Branch/Changes/Tree-sitter/回滚的源码级研究，但**原研究上游 SHA 未保留**。  
-**本次补核上游：** [`plandex-ai/plandex@e2d772072efadbe41d2946d97d79be55532dbab5`](https://github.com/plandex-ai/plandex/commit/e2d772072efadbe41d2946d97d79be55532dbab5)，**这是归档时的独立源码快照，不得冒称旧对话冻结版本**。  
+**历史来源：** 其他对话已做 Plan/Branch/Changes/Tree-sitter/回滚的源码级研究，但**原研究上游 SHA 未保留**。
+**本次补核上游：** [`plandex-ai/plandex@e2d772072efadbe41d2946d97d79be55532dbab5`](https://github.com/plandex-ai/plandex/commit/e2d772072efadbe41d2946d97d79be55532dbab5)，**这是归档时的独立源码快照，不得冒称旧对话冻结版本**。
 **状态：** `HISTORICAL_CHAT_STUDY / ARCHIVE_TIME_SOURCE_SPOTCHECK / NOT_RUNTIME_TESTED`。没有核实到本项目原有的独立研究 PR/Issue，参见研究 Hub [#1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 已复核的上游源码
