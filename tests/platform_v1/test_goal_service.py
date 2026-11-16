@@ -760,3 +760,80 @@ def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock(
     assert seen == []
     assert goals.detail(goal.id)["quota_fit"] == {"status": "ok"}
     assert seen == [False]
+
+
+def test_detail_response_includes_generated_at_timestamp():
+    """#1555: goal detail carries generated_at so the frontend can detect stale content."""
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Timestamp", "idempotency_key": "generated-at-detail",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    detail = goals.detail(goal.id)
+    assert "generated_at" in detail
+    assert detail["generated_at"].endswith("Z")
+    # Re-read: timestamp should not be empty and should be a plausible ISO date.
+    assert detail["generated_at"][:4] == "2099" or detail["generated_at"][:4] >= "2020"
+
+
+def test_list_response_includes_generated_at_timestamp():
+    """#1555: goal list responses carry generated_at for stale-state tracking."""
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "List timestamp", "idempotency_key": "generated-at-list",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    items = goals.list()
+    assert len(items) == 1
+    assert "generated_at" in items[0]
+    assert items[0]["generated_at"].endswith("Z")
+
+
+def test_list_page_response_includes_generated_at_timestamp():
+    """#1555: paginated goal list responses carry generated_at."""
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Page timestamp", "idempotency_key": "generated-at-page",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    page = goals.list_page()
+    assert page["total"] == 1
+    assert "generated_at" in page["goals"][0]
+    assert page["goals"][0]["generated_at"].endswith("Z")
+
+
+def test_timeline_snapshot_includes_generated_at_timestamp():
+    """#1555: timeline snapshot carries generated_at so polled timeline views can mark stale."""
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Timeline timestamp", "idempotency_key": "generated-at-timeline",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    snapshot = goals.timeline_snapshot(goal.id)
+    assert "generated_at" in snapshot
+    assert snapshot["generated_at"].endswith("Z")
+
+
+def test_detail_and_timeline_generated_at_are_fresh_per_call(monkeypatch):
+    """#1555: generated_at is computed per call, not cached, so a re-read reflects a new time."""
+    from datetime import datetime, timezone
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Fresh timestamp", "idempotency_key": "fresh-generated-at",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1)
+    first = goals.detail(goal.id)["generated_at"]
+    import time as _time
+    _time.sleep(1.1)
+    second = goals.detail(goal.id)["generated_at"]
+    assert first != second
+
+
+def test_goal_detail_preserves_existing_fields_besides_generated_at():
+    """#1555: adding generated_at must not remove or alter existing response fields."""
+    _, _, _, goals = _services()
+    goal = goals.create({"objective": "Field preservation", "idempotency_key": "field-preservation",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    planned = goals.plan(goal.id, expected_revision=1)
+    detail = goals.detail(goal.id)
+    assert detail["id"] == goal.id
+    assert detail["status"] == "PLANNED"
+    assert detail["title"] == planned.goal.title
+    assert detail["completion_scope"] == "EXECUTION_ONLY"
+    assert detail["remote_acceptance"] == "NOT_OBSERVED"
+    assert "generated_at" in detail

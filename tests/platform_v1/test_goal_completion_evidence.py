@@ -1,6 +1,7 @@
 """Goal truth over real HTTP/Git/pytest/SQLite; model/binding are local doubles."""
 from contextlib import contextmanager
 import json
+import re
 import sqlite3
 import threading
 from http.server import ThreadingHTTPServer
@@ -103,7 +104,13 @@ def test_http_goal_evidence_uses_real_implementation_tests_and_reopens(
     reopened = TaskStore(store.db_path)
     try:
         reopened_goals = GoalService(store=reopened, control_store=PlatformControlStore(reopened))
-        assert json.loads(json.dumps(reopened_goals.detail(goal.id))) == published
+        reread = json.loads(json.dumps(reopened_goals.detail(goal.id)))
+        # generated_at is per-read response metadata (#1555), not goal evidence:
+        # the evidence contract is everything else, which must survive reopen exactly.
+        read_times = reread.pop("generated_at"), published.pop("generated_at")
+        assert all(re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", value) for value in read_times)
+        assert read_times[0] >= read_times[1]
+        assert reread == published
     finally:
         reopened._conn.close()
 
