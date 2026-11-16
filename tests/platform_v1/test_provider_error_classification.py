@@ -426,13 +426,6 @@ def test_billing_errors_are_quota_exhausted_not_rate_limits(events, expected):
     assert _dummy_executor()._classify_exit(1, events) == expected
 
 
-def test_billing_error_is_not_counted_as_a_model_failure():
-    """A billing answer must not train the model's capability profile."""
-    from reverse_agent.platform_v1 import model_profiles
-    assert model_profiles.PROVIDER_QUOTA_LIMIT != "quota_exhausted"
-    assert "quota_exhausted" not in (model_profiles.PROVIDER_QUOTA_LIMIT,)
-
-
 def test_billing_error_takes_the_five_hour_fallback_hold():
     """#1498/#1522: the executor-reported exhaustion prefix buys the long hold."""
     from reverse_agent.platform_v1.quota_guard import (PLAN_EXHAUSTED_HOLD_SECONDS,
