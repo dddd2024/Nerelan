@@ -129,9 +129,8 @@ def test_router_refusing_the_pin_is_refused(case, monkeypatch):
 
 
 def test_retry_route_is_wired_and_refuses_with_a_reason(task_server):
-    from test_task_service import _enable_legacy_window_fixture, _req
+    from test_task_service import _req
     base, server = task_server
-    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "Retry over HTTP", "repository": "dddd2024/reverse-agent",
         "idempotency_key": "http-goal-owner-retry-v1", "executor_kind": "deterministic_fixture",

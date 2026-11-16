@@ -653,6 +653,14 @@ def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, pol
     try:
         with store._lock:
             window = store._conn.execute(
+                "SELECT w.id,w.confirmation_mode FROM platform_goal_task_links l "
+                "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                "WHERE l.task_id=?", (task.id,)).fetchone()
+            # Adoption keeps frozen task contracts, including their policy_ref.
+            # Enforce the current Owner receipt rather than the source's wider pool.
+            if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
+                window = store._conn.execute(
                 "SELECT id, confirmation_mode FROM platform_autonomous_windows "
                 "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1", (policy_ref,)).fetchone()
             if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:

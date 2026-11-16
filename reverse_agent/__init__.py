@@ -1,17 +1,5 @@
-__all__ = [
-    "advanced_solvers",
-    "dynamic_templates",
-    "evidence",
-    "gui",
-    "harness",
-    "models",
-    "pipeline",
-    "probes",
-    "profiles",
-    "reporter",
-    "sample_solver",
-    "skills",
-    "strategies",
-    "tool_runners",
-    "transforms",
-]
+"""Nerelan: local-first governed multi-Agent development platform.
+
+The product lives in ``reverse_agent.platform_v1``; the legacy reverse-engineering
+modules and v1 governance code were deleted in #1575 (last held at commit a7b62777).
+"""

@@ -17,7 +17,7 @@ from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .run_store import TaskStore, TaskStoreError
-from .task_execution import TaskExecutionService, TaskExecutionOutcome
+from .task_execution import TaskExecutionService
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
 from reverse_agent.architecture.contracts import (
     WorkerAssignment,
@@ -333,16 +333,6 @@ class UnattendedCoordinator:
         except TaskStoreError as exc:
             self._last_error = f"standing_adoption_failed:{exc}"
         self._advance_landing(window)
-        if getattr(self.autonomy, "delegated_mode", False) and "approve_goal" in window.capabilities:
-            from .goal_service import GoalService
-            try:
-                self.autonomy.admit_goals(self.goals if self.goals is not None else
-                    GoalService(store=self.store, control_store=self.control_store), window_id=window.id)
-            except TaskStoreError as exc:
-                self._last_error = str(exc)
-                return 0
-            if self._stop.is_set():
-                return 0
         with self._lifecycle_lock:
             # Bound admission *before* claiming: old graph batches continue
             # running and still occupy slots even if newer tasks arrive.
@@ -609,15 +599,9 @@ class UnattendedCoordinator:
                 if stored.status in {"READY_FOR_REVIEW", "FAILED"} and self.control_store.can_complete_host_claim(
                     window_id=window_id, task_id=task_id
                 ):
-                    # The previous producer already persisted the checker and
-                    # terminal Task, but died before completing its original
-                    # admission claim. Finalize that exact effect, never dispatch.
-                    self.autonomy.check_task_scope(task_id, "validate_task")
-                    outcome = TaskExecutionOutcome(task_id=task_id, execution_id=stored.execution_id,
-                        success=stored.status == "READY_FOR_REVIEW" and stored.validation_exit_code == 0,
-                        validation_command_id=stored.validation_command_id,
-                        validation_exit_code=int(stored.validation_exit_code),
-                        failure_classification=stored.failure_classification, failure_detail=stored.failure_detail)
+                    # Host-check claims were scoped by the retired delegated
+                    # policy authority (#1575); they cannot be finalized now.
+                    raise TaskStoreError("delegated_policy_authority_unavailable")
                 else:
                     # Resume can reuse checkpoints or only validate, without
                     # executing the routed account. Only time fresh attempts.
@@ -942,34 +926,9 @@ class UnattendedCoordinator:
             return self.task_executor(task_id)
         task = self.store.get_task(task_id)
         if load_host_validation_contract(task) is not None:
-            # Reuse durable TaskStore leases and checkpoints. This branch must
-            # precede all model-oriented durable dispatch and binding access.
-            self.autonomy.check_task_scope(task_id, "validate_task")
-            durable = self._durable_service()
-            durable._assert_trusted_identity_for_execute()
-            if task.status == "INTERRUPTED":
-                with self.store._lock:
-                    row = self.store._conn.execute(
-                        "SELECT run_id FROM durable_runs WHERE task_id = ? ORDER BY created_at DESC LIMIT 1",
-                        (task_id,)).fetchone()
-                if row is None:
-                    raise TaskStoreError("host_validation_resume_run_missing")
-                lease = self.store._recover_durable_lease(row["run_id"], self.owner,
-                    expiry_ms=durable.expiry_ms, require_interrupted=True)
-            else:
-                lease = durable._acquire_or_find_lease(task_id, self.owner, "", self.workspace_root)
-            from .durable_execution import _HeartbeatContext
-            heartbeat = _HeartbeatContext(store=self.store, run_id=lease.run_id, owner=lease.owner,
-                epoch=lease.epoch, expiry_ms=durable.expiry_ms,
-                heartbeat_window_ms=durable.heartbeat_window_ms)
-            outcome = heartbeat.heartbeat_during(lambda: TaskExecutionService(
-                store=self.store, router=self.router).execute_host_validation(task_id, lease=lease))
-            # An unfinished producer retains its original expiring lease so
-            # reconciliation can observe the abandoned Run after an exception
-            # or abrupt exit. Only a durable terminal result releases ownership.
-            if self.store.get_task(task_id).status in {"READY_FOR_REVIEW", "FAILED", "BLOCKED", "CANCELLED"}:
-                self.store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
-            return outcome
+            # Approved host checks needed the retired delegated policy
+            # authority (#1575). This precedes all model-oriented dispatch.
+            raise TaskStoreError("delegated_policy_authority_unavailable")
         durable_identity_available = bool(
             self.execution_authority_sha.strip() and self.planning_sha.strip()
         )

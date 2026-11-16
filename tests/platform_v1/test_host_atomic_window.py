@@ -76,13 +76,10 @@ def test_replay_never_skips_host_sql_admission(store):
     assert control.list_windows() == (original,)
 
 
-def test_invalid_callback_and_delegated_mix_rejected_without_writes(store):
+def test_invalid_callback_rejected_without_writes(store):
     _, control = store
     with pytest.raises(TaskStoreError, match="host_atomic_admission_invalid"):
         control.activate_window(_payload(), confirmation="ACTIVATE", _host_sql_admit="forged")
-    with pytest.raises(TaskStoreError, match="host_atomic_admission_invalid"):
-        control.activate_window(_payload(), confirmation="ACTIVATE",
-                                _host_sql_admit=lambda _: None, _trusted_binding={"any": "binding"})
     assert control.list_windows() == ()
 
 

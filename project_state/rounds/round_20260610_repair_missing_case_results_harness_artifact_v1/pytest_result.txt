@@ -1,5 +1,0 @@
-```json pytest_result_summary
-{"schema_version": 1, "decision_id": "decision_20260610_repair_missing_case_results_harness_artifact_v1", "report_id": "report_20260610_repair_missing_case_results_harness_artifact_v1", "round_id": "round_20260610_repair_missing_case_results_harness_artifact_v1", "generated_at": "2026-06-10T08:12:28Z", "status": "PASSED", "tests_ran": ["python -m reverse_agent.project_state build", "python -m reverse_agent.project_state status --state-dir project_state", "python -m reverse_agent.project_state lint-decision --state-dir project_state", "python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q"]}
-```
-
-163 passed in 38.65s

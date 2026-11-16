@@ -1,4 +1,3 @@
-import fnmatch
 import ast
 import os
 import re
@@ -11,9 +10,6 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
-# Governance v2 replaced the live State Gate; these contracts cover the archived
-# v1 workflow that the Path A / Path B library is designed around.
-STATE_GATE_PATH = WORKFLOWS_DIR.parents[1] / "docs" / "agents" / "legacy-state-gate-v1.yml"
 CI_PATH = WORKFLOWS_DIR / "ci.yml"
 FRONTEND_PLAYWRIGHT_PATH = WORKFLOWS_DIR / "frontend-playwright.yml"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
@@ -110,43 +106,6 @@ def test_diagnostic_workflow_preserves_exit_and_publishes_evidence() -> None:
     assert 'path: ci-diagnostic.xml' in content
     assert "if: always() && steps.repository_diagnostic.outcome != 'skipped'" in content
 
-STATE_GATE_GATEWAYS = [
-    "project_state/**",
-    ".github/workflows/**",
-    ".codex-skills/**",
-    "docs/prompts/**",
-    "reverse_agent/control_plane/**",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "reverse_agent/decision_preflight.py",
-    "reverse_agent/post_final_evidence_sync.py",
-    "reverse_agent/mainline_landing.py",
-    "reverse_agent/project_ci.py",
-    "reverse_agent/project_jobs.py",
-    "reverse_agent/github_remote_verifier.py",
-    "reverse_agent/architecture/report_truth.py",
-]
-
-PRODUCT_SOURCE_SAMPLES = [
-    "reverse_agent/platform_v1/task_service.py",
-]
-
-PRODUCT_TEST_SAMPLES = [
-    "tests/platform_v1/test_task_service.py",
-]
-
-GOVERNANCE_SAMPLES = [
-    "reverse_agent/control_plane/transition.py",
-    "reverse_agent/project_gate.py",
-    "project_state/decision_packet.md",
-    ".github/workflows/ci.yml",
-]
-
-
-def _read_state_gate() -> str:
-    return STATE_GATE_PATH.read_text(encoding="utf-8")
-
-
 def _read_ci() -> str:
     return CI_PATH.read_text(encoding="utf-8")
 
@@ -154,183 +113,6 @@ def _read_ci() -> str:
 def _read_pyproject() -> dict:
     with PYPROJECT_PATH.open("rb") as handle:
         return tomllib.load(handle)
-
-
-def _extract_event_block(content: str, event_name: str) -> str | None:
-    lines = content.splitlines()
-    start = None
-    start_indent = None
-    for i, line in enumerate(lines):
-        if line.startswith(f"  {event_name}:"):
-            start = i
-            start_indent = len(line) - len(line.lstrip(" "))
-            break
-    if start is None:
-        return None
-    block_lines = [lines[start]]
-    for j in range(start + 1, len(lines)):
-        line = lines[j]
-        if not line.strip():
-            block_lines.append(line)
-            continue
-        indent = len(line) - len(line.lstrip(" "))
-        if indent <= start_indent and line.strip() and not line.strip().startswith("#"):
-            break
-        block_lines.append(line)
-    return "\n".join(block_lines)
-
-
-def _extract_paths_from_block(block: str) -> list[str]:
-    paths = []
-    for line in block.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- "):
-            match = re.match(r'^-\s*["\']?(.*?)["\']?\s*$', stripped)
-            if match:
-                paths.append(match.group(1))
-    return paths
-
-
-def _path_matches(patterns: list[str], path: str) -> bool:
-    for pattern in patterns:
-        if fnmatch.fnmatch(path, pattern):
-            return True
-    return False
-
-
-def test_state_gate_push_event_has_paths_filter() -> None:
-    content = _read_state_gate()
-    push_block = _extract_event_block(content, "push")
-    assert push_block is not None
-    paths = _extract_paths_from_block(push_block)
-    assert paths, "push event block must contain paths filter"
-    for required in STATE_GATE_GATEWAYS:
-        assert required in paths, f"push.paths missing: {required}"
-
-
-def test_state_gate_pull_request_event_has_no_paths_filter() -> None:
-    content = _read_state_gate()
-    pr_block = _extract_event_block(content, "pull_request")
-    assert pr_block is not None
-    for line in pr_block.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("paths:"):
-            pytest.fail(
-                "pull_request event block must NOT contain paths filter; "
-                "State Gate must run on all PRs to maintain Path-A reachability"
-            )
-
-
-def test_state_gate_push_no_broad_product_paths() -> None:
-    content = _read_state_gate()
-    assert "reverse_agent/**" not in content
-    assert "tests/**" not in content
-
-
-def test_state_gate_pull_request_target_bootstrap_job_present() -> None:
-    content = _read_state_gate()
-    assert "pull_request_target:" in content
-    assert "bootstrap-authority:" in content
-
-
-def test_state_gate_has_distinct_non_skipped_landing_context() -> None:
-    """Draft checks must not satisfy the Ready-stage required context."""
-
-    content = _read_state_gate()
-    start = content.index("  landing-state-gate:")
-    end = content.index("\n  bootstrap-authority:", start)
-    block = content[start:end]
-    header = block.split("    steps:", 1)[0]
-
-    assert "name: >-" in header
-    assert "'landing-state-gate'" in header
-    assert "'landing-state-gate-draft-inert'" in header
-    assert "github.event.action == 'converted_to_draft'" in header
-    assert "github.event.pull_request.draft == false" in header
-    assert "    if: github.event_name == 'pull_request'" in header
-    assert "    if: github.event.pull_request.draft == false" not in header
-
-    assert "Invalidate converted-to-Draft landing context" in block
-    assert "exit 1" in block
-    assert "steps.landing_control_plane.outputs.mode == 'path_a_r1'" in block
-    assert "steps.landing_control_plane.outputs.mode == 'transition'" in block
-    assert 'path-a-r1-gate --event-path "$GITHUB_EVENT_PATH"' in block
-    assert 'transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in block
-
-
-def test_state_gate_mode_detection_fails_before_writing_output() -> None:
-    """A detector failure must not be hidden by a successful echo command."""
-
-    content = _read_state_gate()
-    expected_assignment = (
-        'mode="$(python -m reverse_agent.project_gate control-plane-mode '
-        '--state-dir project_state --event-path "$GITHUB_EVENT_PATH")"'
-    )
-    expected_output = 'echo "mode=$mode" >> "$GITHUB_OUTPUT"'
-
-    for marker in (
-        "      - name: Detect control-plane mode",
-        "      - name: Detect landing control-plane mode",
-    ):
-        block = content.split(marker, 1)[1].split("      - name:", 1)[0]
-        assert "run: |" in block
-        assert expected_assignment in block
-        assert expected_output in block
-        assert block.index(expected_assignment) < block.index(expected_output)
-        assert 'run: echo "mode=$(python' not in block
-        assert '\\"$GITHUB_EVENT_PATH\\"' not in block
-
-
-def test_state_gate_transition_preflight_receives_event_path_and_github_read_context() -> None:
-    """The transition step must carry the PR event and bounded GitHub env."""
-
-    content = _read_state_gate()
-    marker = "      - name: Transition preflight"
-    assert marker in content
-    block = content.split(marker, 1)[1].split("      - name:", 1)[0]
-    assert 'GITHUB_TOKEN: ${{ github.token }}' in block
-    assert 'GITHUB_REPOSITORY: ${{ github.repository }}' in block
-    assert 'transition-preflight --state-dir project_state --event-path "$GITHUB_EVENT_PATH"' in block
-
-
-def test_state_gate_product_source_path_does_not_match() -> None:
-    content = _read_state_gate()
-    push_block = _extract_event_block(content, "push")
-    pr_block = _extract_event_block(content, "pull_request")
-    push_paths = _extract_paths_from_block(push_block)
-    pr_paths = _extract_paths_from_block(pr_block)
-    for sample in PRODUCT_SOURCE_SAMPLES:
-        assert not _path_matches(push_paths, sample), (
-            f"product source {sample} must NOT trigger push State Gate"
-        )
-        assert not _path_matches(pr_paths, sample), (
-            f"product source {sample} must NOT trigger pull_request State Gate"
-        )
-
-
-def test_state_gate_product_test_path_does_not_match() -> None:
-    content = _read_state_gate()
-    push_block = _extract_event_block(content, "push")
-    pr_block = _extract_event_block(content, "pull_request")
-    push_paths = _extract_paths_from_block(push_block)
-    pr_paths = _extract_paths_from_block(pr_block)
-    for sample in PRODUCT_TEST_SAMPLES:
-        assert not _path_matches(push_paths, sample), (
-            f"product test {sample} must NOT trigger push State Gate"
-        )
-        assert not _path_matches(pr_paths, sample), (
-            f"product test {sample} must NOT trigger pull_request State Gate"
-        )
-
-
-def test_state_gate_governance_paths_do_match() -> None:
-    content = _read_state_gate()
-    push_block = _extract_event_block(content, "push")
-    push_paths = _extract_paths_from_block(push_block)
-    for sample in GOVERNANCE_SAMPLES:
-        assert _path_matches(push_paths, sample), (
-            f"governance path {sample} must trigger push State Gate"
-        )
 
 
 def test_ci_platform_v1_blocking_gate_present() -> None:
@@ -423,25 +205,6 @@ def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_relay_file() -> None
         for n in deselected
         if n.endswith("test_task3c_v6_production_relay.py")
     ), "relay-file deselections must be exact node IDs, not whole-file"
-
-
-def test_ci_platform_v1_blocking_gate_does_not_broad_ignore_merge_intent_file() -> None:
-    content = _read_ci()
-    cmd = _extract_platform_v1_blocking_command(content)
-    assert cmd is not None
-    deselected = _extract_deselected_nodes(cmd)
-    merge_intent_file_deselects = [
-        n for n in deselected
-        if n.startswith("tests/platform_v1/test_merge_intent.py")
-    ]
-    assert merge_intent_file_deselects == []
-    assert "tests/platform_v1/test_merge_intent.py" not in deselected, (
-        "must not broad-ignore test_merge_intent.py"
-    )
-    for node in merge_intent_file_deselects:
-        assert "::" in node, (
-            f"merge-intent deselection must be an exact node ID, got {node!r}"
-        )
 
 
 def test_ci_repository_wide_diagnostic_nonblocking() -> None:
@@ -596,8 +359,6 @@ def test_frontend_playwright_workflow_contract() -> None:
         assert provider_url not in content
 
 
-DECISION_PREFLIGHT_PATH = WORKFLOWS_DIR / "decision-preflight.yml"
-
 # The single exact-product-head resolver shared by every history-sensitive
 # workflow.  For pull_request events the checked-out ref is the PR product
 # head (github.event.pull_request.head.sha), never the synthetic merge ref
@@ -632,12 +393,8 @@ def _checkout_has_persist_credentials_false(content: str) -> bool:
 
 @pytest.mark.parametrize(
     "workflow_path",
-    [
-        STATE_GATE_PATH,
-        DECISION_PREFLIGHT_PATH,
-        CI_PATH,
-    ],
-    ids=["state-gate", "decision-preflight", "ci"],
+    [CI_PATH],
+    ids=["ci"],
 )
 def test_history_sensitive_workflow_checkout_uses_exact_product_head(
     workflow_path: Path,
@@ -661,12 +418,8 @@ def test_history_sensitive_workflow_checkout_uses_exact_product_head(
 
 @pytest.mark.parametrize(
     "workflow_path",
-    [
-        STATE_GATE_PATH,
-        DECISION_PREFLIGHT_PATH,
-        CI_PATH,
-    ],
-    ids=["state-gate", "decision-preflight", "ci"],
+    [CI_PATH],
+    ids=["ci"],
 )
 def test_history_sensitive_workflow_checkout_falls_back_to_github_sha(
     workflow_path: Path,
@@ -683,12 +436,8 @@ def test_history_sensitive_workflow_checkout_falls_back_to_github_sha(
 
 @pytest.mark.parametrize(
     "workflow_path",
-    [
-        STATE_GATE_PATH,
-        DECISION_PREFLIGHT_PATH,
-        CI_PATH,
-    ],
-    ids=["state-gate", "decision-preflight", "ci"],
+    [CI_PATH],
+    ids=["ci"],
 )
 def test_history_sensitive_workflow_never_uses_synthetic_merge_ref(
     workflow_path: Path,
@@ -706,12 +455,8 @@ def test_history_sensitive_workflow_never_uses_synthetic_merge_ref(
 
 @pytest.mark.parametrize(
     "workflow_path",
-    [
-        STATE_GATE_PATH,
-        DECISION_PREFLIGHT_PATH,
-        CI_PATH,
-    ],
-    ids=["state-gate", "decision-preflight", "ci"],
+    [CI_PATH],
+    ids=["ci"],
 )
 def test_history_sensitive_workflow_checkout_disables_persisted_credentials(
     workflow_path: Path,
@@ -721,26 +466,6 @@ def test_history_sensitive_workflow_checkout_disables_persisted_credentials(
     assert _checkout_has_persist_credentials_false(content), (
         f"{workflow_path.name} checkout must set persist-credentials: false"
     )
-
-
-def test_decision_preflight_keeps_required_checks() -> None:
-    """F regression 5: the Decision Preflight workflow retains transition
-    lint / command-plan / preflight steps (no weakening of required checks)."""
-    content = DECISION_PREFLIGHT_PATH.read_text(encoding="utf-8")
-    assert "transition-lint --state-dir project_state" in content
-    assert "transition-command-plan --state-dir project_state" in content
-    assert "transition-preflight --state-dir project_state" in content
-    assert "transition-preflight --state-dir project_state --event-path" in content
-
-
-def test_state_gate_keeps_target_base_and_exact_head_checks() -> None:
-    """F regression 6: State Gate retains history-sensitive validation steps
-    (decision chronology, exact-head, base drift) after the checkout fix."""
-    content = _read_state_gate()
-    assert "transition-preflight" in content
-    assert "control-plane-mode" in content
-    # The checkout fix must not remove the path-a / transition dispatch.
-    assert "path-a-r1-gate" in content or "path_a_r1" in content
 
 
 FRONTEND_VISUAL_BASELINES_PATH = WORKFLOWS_DIR / "frontend-visual-baselines.yml"
