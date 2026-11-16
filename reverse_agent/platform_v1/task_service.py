@@ -43,7 +43,6 @@ from .task_runtime import (
 )
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
-from .authority_adapter import AuthorityBundleError, load_policy_authority
 from .task_runtime import load_host_validation_contract
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
@@ -529,11 +528,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, self.agent_policy.get(segments[3]))
                 return
             if segments == ["api", "windows", "policy"]:
-                try:
-                    template = self.autonomy_service.policy_template()
-                except TaskStoreError:
-                    template = {"available": False, "reason": "trusted_policy_unavailable"}
-                self._send_json(HTTPStatus.OK, template)
+                # The delegated policy authority is retired (#1575); the
+                # renderer reads this as "use the Owner window".
+                self._send_json(HTTPStatus.OK, {"available": False, "reason": "trusted_policy_unavailable"})
                 return
             if len(segments) == 4 and segments[:2] == ["api", "windows"] and segments[3] == "receipts":
                 limit, cursor = parse_history_query(urlsplit(self.path).query)
@@ -906,16 +903,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 # Native session possession authenticates the client, not a human
                 # selection. No host-native Goal confirmation channel exists yet.
                 # Do not accept renderer assertions (including ACTIVATE) as proof.
-                if not self.autonomy_service.delegated_mode:
-                    # Renderer assertions cannot authenticate an Owner choice.
-                    # Reject before JSON parsing; incomplete framed bodies
-                    # must not turn this policy denial into a timeout/500.
-                    self._discard_bounded_request_body()
-                    raise TaskStoreError("owner_selection_confirmation_unavailable")
-                payload = self._read_json()
-                window = self.autonomy_service.activate_policy(payload)
-                self._send_json(HTTPStatus.CREATED, window_to_dict(window))
-                return
+                # Reject before JSON parsing; incomplete framed bodies must not
+                # turn this policy denial into a timeout/500.
+                self._discard_bounded_request_body()
+                raise TaskStoreError("owner_selection_confirmation_unavailable")
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "windows"]
@@ -1132,30 +1123,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
         task = self.store.get_task(task_id)
         contract = load_host_validation_contract(task)
         if contract is None:
-            # With a pinned authority, autonomous-window tasks run only as approved
-            # host tasks. The default owner launch keeps main's direct execution.
-            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
-                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
-                self._discard_bounded_request_body()
-                raise TaskStoreError("direct_execution_requires_approved_host_task")
             return False
-        try:
-            self.autonomy_service.check_task_scope(task_id, "validate_task")
-        except Exception:
-            self._discard_bounded_request_body()
-            raise
-        if resume:
-            # This selected policy grants zero retries; the coordinator owns
-            # original live handles and durable recovery admission.
-            self._discard_bounded_request_body()
-            raise TaskStoreError("delegated_policy_retry_not_granted")
-        coordinator = getattr(self, "coordinator", None)
-        if coordinator is None:
-            self._discard_bounded_request_body()
-            raise TaskStoreError("host_check_coordinator_unavailable")
-        coordinator.tick()
-        self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(task_id)))
-        return True
+        # Approved host checks were scoped by the retired delegated policy
+        # authority (#1575); a task that still carries one cannot run.
+        self._discard_bounded_request_body()
+        raise TaskStoreError("delegated_policy_authority_unavailable")
 
     def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
@@ -1581,66 +1553,14 @@ def _handler_factory(
 
 def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
                          capabilities: CapabilityRegistry) -> AutonomyService:
-    raw = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "")
-    try:
-        pins = json.loads(raw) if raw else None
-    except ValueError:
-        pins = {}
-    source_dir = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_REPO_DIR", "") or os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-
-    def authority_loader():
-        if not isinstance(pins, dict):
-            raise AuthorityBundleError("invalid_policy_host_pins")
-        return load_policy_authority(repo_dir=source_dir, pins=dict(pins),
-            database_path=store.db_path, host_instance_id=pins.get("host_instance_id", ""))
-
-    def task_scope(task_id: str) -> Mapping[str, Any]:
-        task = store.get_task(task_id)
-        contract = load_host_validation_contract(task)
-        if contract is None:
-            raise TaskStoreError("approved_host_contract_required")
-        goal_id = control.goal_id_for_task(task_id)
-        goal = control.get_goal(goal_id)
-        links = [link for link in control.list_goal_tasks(goal_id) if link["task_id"] == task_id]
-        window = control.get_window(contract["window_id"])
-        if (len(links) != 1 or contract["goal_id"] != goal.id
-                or contract["goal_revision"] != goal.revision
-                or contract["goal_artifact_digest"] != goal.artifact_digest
-                or contract["goal_idempotency_key"] != goal.idempotency_key
-                or contract["plan_task_id"] != links[0]["plan_task_id"]
-                or goal.window_id != window.id or goal.repository != task.repository
-                or task.policy_ref != window.id or task.permission_profile != "AUTONOMOUS_WINDOW"
-                or contract["policy_digest"] != window.policy_digest):
-            raise TaskStoreError("approved_host_goal_link_mismatch")
-        planned = [item for item in goal.tasks if item.get("id") == contract["plan_task_id"]]
-        if (len(planned) != 1 or planned[0].get("capability") != "validate_task"
-                or planned[0].get("validation_command_id") != "git_diff_check"):
-            raise TaskStoreError("approved_host_plan_mismatch")
-        return contract
-
-    service = AutonomyService(control_store=control, capabilities=capabilities,
-        authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
-    # Trusted-policy enforcement applies when the host pins a delegated authority;
-    # Owner HTTP activation separately requires a host-native confirmation channel.
-    service.require_trusted_policy = bool(raw)
-    return service
+    # Owner windows are the only authority; the delegated policy-authority
+    # mode (REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON) was retired in #1575.
+    return AutonomyService(control_store=control, capabilities=capabilities)
 
 
 def _instance_metadata(store: TaskStore, autonomy: AutonomyService | None = None) -> dict[str, str]:
     digest = hashlib.sha256(os.path.normcase(os.path.abspath(store.db_path)).encode("utf-8")).hexdigest()[:12]
-    metadata = {"id": f"workspace-{digest}", "kind": "workspace"}
-    try:
-        pins = json.loads(os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "null"))
-        if autonomy is not None and autonomy.delegated_mode and isinstance(pins, dict) and os.path.normcase(os.path.abspath(pins.get("database_path", ""))) == os.path.normcase(os.path.abspath(store.db_path)):
-            identity = pins.get("host_instance_id", "")
-            if isinstance(identity, str) and re.fullmatch(r"[A-Za-z0-9._:-]{3,160}", identity):
-                authority = autonomy._authority()
-                if authority.binding.get("host_instance_id") != identity:
-                    raise TaskStoreError("instance_authority_mismatch")
-                metadata = {"id": identity, "kind": "acceptance"}
-    except (ValueError, TypeError, TaskStoreError, OSError):
-        pass
-    return metadata
+    return {"id": f"workspace-{digest}", "kind": "workspace"}
 
 
 def validate_bind_host(host: str) -> str:

@@ -31,7 +31,6 @@ def authenticated_server(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "get_task", forbidden)
     monkeypatch.setattr(router, "dispatch_execute", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate", forbidden)
-    monkeypatch.setattr(handler.autonomy_service, "activate_policy", forbidden)
     monkeypatch.setattr(handler.goal_service, "rebind", forbidden)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True

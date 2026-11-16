@@ -7,7 +7,7 @@ from reverse_agent.platform_v1.run_read_model import RunReadModel
 from reverse_agent.platform_v1.run_store import TaskStore
 from test_contract_miss_fixup import case  # noqa: F401 (fixture)
 from test_goal_functional_checks import goal_checks  # noqa: F401 (fixture)
-from test_task_service import _enable_legacy_window_fixture, _req, _synthetic_window, task_server  # noqa: F401
+from test_task_service import _req, _synthetic_window, task_server  # noqa: F401
 
 
 def test_public_events_skip_evidence_never_return_raw_log_and_are_bounded():
@@ -60,7 +60,6 @@ def test_timeline_strings_attempts_in_order_with_their_reasons(case):
 
 def test_timeline_endpoint_serves_the_goal_and_404s_unknown(task_server):
     base, server = task_server
-    _enable_legacy_window_fixture(server)
     store = server.RequestHandlerClass.store
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "Timeline over HTTP", "repository": "dddd2024/reverse-agent",
