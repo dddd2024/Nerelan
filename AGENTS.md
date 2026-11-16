@@ -92,4 +92,4 @@ Use the checks relevant to the change. CI `baseline` runs the focused suites in 
 
 ## Legacy governance
 
-Path A / Path B, Decision packets, command plans and transition preflight were the v1 process. They are not required for changes to this repository, and their code was removed from `main` under Owner decision D1 (2026-11-10; #1575); it is preserved on branch `archive/legacy-v1-20261116`. History and semantics: [legacy-governance-v1](docs/agents/legacy-governance-v1.md).
+Path A / Path B, Decision packets, command plans and transition preflight were the v1 process. They are not required for changes to this repository, and their code was removed from `main` under Owner decision D1 (2026-11-10; #1575); it was deleted as no longer needed and remains only in Git history (last held at commit a7b62777). History and semantics: [legacy-governance-v1](docs/agents/legacy-governance-v1.md).

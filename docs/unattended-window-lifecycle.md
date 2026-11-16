@@ -38,4 +38,4 @@ isolation, provider-free startup, independent acceptance and landing controls
 remain in force.
 # Delegated Goal admission (retired)
 
-The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code is on the archive branch `archive/legacy-v1-20261116`.
+The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code was deleted; it remains only in Git history (a7b62777).

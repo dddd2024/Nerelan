@@ -14,8 +14,8 @@ returns ``FIXTURE_VALIDATED`` (exit 41) when all checks pass — never
 ``ACCEPTED`` or the live-success exit code.
 
 The v1 ``evaluate-live-acceptance`` command, which loaded a Path A Authority
-Bundle from ``project_state/``, was retired with v1 governance (#1575); it
-lives on the archive branch ``archive/legacy-v1-20261116``.
+Bundle from ``project_state/``, was deleted with v1 governance in #1575 (last held
+at commit a7b62777).
 """
 
 from __future__ import annotations
