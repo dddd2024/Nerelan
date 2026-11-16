@@ -42,6 +42,11 @@ describe("request failure evidence", () => {
     expect(JSON.stringify(failure)).not.toContain("PRIVATE_PROXY");
   });
 
+  it.each([400, 404, 409])("does not retry a non-JSON HTTP%s refusal", async (status) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("<html>refused</html>", { status })));
+    await expect(fetchGoal("refused")).rejects.toMatchObject({ status, errorClass: "invalid_response", retryable: false });
+  });
+
   it("classifies cancellation while reading the body and preserves auth failures", async () => {
     const response = new Response();
     vi.spyOn(response, "text").mockRejectedValue(new DOMException("obsolete", "AbortError"));
@@ -103,6 +108,21 @@ describe("goal reads", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1); });
     expect(hook.result.current.data?.status).toBe("COMPLETED");
     expect(hook.result.current.error).toBeNull();
+    client.clear();
+  });
+
+  it("stops polling a non-JSON rejection while retaining the cached completed goal", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async () => new Response("<html>missing</html>", { status: 404 }));
+    vi.stubGlobal("fetch", fetch);
+    const client = new QueryClient();
+    client.setQueryData(["goals", "missing"], { id: "missing", status: "COMPLETED" });
+    const hook = mount(client, "missing");
+    act(() => { void client.invalidateQueries({ queryKey: ["goals", "missing"] }); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.data?.status).toBe("COMPLETED");
+    expect(hook.result.current.error).toMatchObject({ status: 404, retryable: false });
     client.clear();
   });
 

@@ -125,8 +125,7 @@ def test_public_health_is_only_explicit_readiness_boolean(authenticated_server):
     port, _, _, actions, store = authenticated_server
     before = store._conn.total_changes
     status, data, _ = request(port, "GET", "/api/health")
-    assert status == 200 and data["ready"] is True
-    assert "instance" in data and "generated_at" in data
+    assert status == 200 and data == {"ready": True}
     assert not actions and store._conn.total_changes == before
 
 
@@ -137,7 +136,7 @@ def test_unconfigured_handler_has_no_unauthenticated_compatibility_mode(tmp_path
     thread.start()
     try:
         assert request(server.server_address[1], "GET", "/api/tasks", capability=TOKEN)[0] == 401
-        assert request(server.server_address[1], "GET", "/api/health")[1]["ready"] is True
+        assert request(server.server_address[1], "GET", "/api/health")[1] == {"ready": True}
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
 

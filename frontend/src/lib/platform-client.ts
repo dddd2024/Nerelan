@@ -1196,7 +1196,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     try {
       payload = text ? JSON.parse(text) : {};
     } catch {
-      throw new PlatformClientError(response.status, "invalid_response", "invalid_response", true, diagnostics());
+      throw new PlatformClientError(response.status, "invalid_response", "invalid_response", response.ok || response.status >= 500, diagnostics());
     }
     if (!response.ok) {
       const code = typeof payload?.error === "string" && /^[A-Za-z0-9_.:-]{1,160}$/.test(payload.error)

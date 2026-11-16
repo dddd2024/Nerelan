@@ -3170,17 +3170,12 @@ def test_request_id_is_unique_per_request(task_server):
     assert h1["x-nerelan-request-id"] != h2["x-nerelan-request-id"]
 
 
-def test_health_endpoint_reports_instance_and_generated_at(task_server):
-    """#1555: /api/health lets the frontend distinguish a live host from a dead one."""
+def test_public_health_remains_only_a_readiness_boolean(task_server):
+    """Instance metadata stays behind the authenticated status route."""
     base, server = task_server
     status, body, _ = _req_full(base, "GET", "/api/health")
     assert status == 200
-    assert body["ready"] is True
-    assert "id" in body["instance"]
-    assert body["instance"]["kind"] in {"workspace", "acceptance"}
-    assert "generated_at" in body
-    # ISO 8601 UTC timestamp ending with Z.
-    assert body["generated_at"].endswith("Z")
+    assert body == {"ready": True}
 
 
 def test_503_busy_error_class_distinguishes_overload_from_host_down(task_server, monkeypatch):

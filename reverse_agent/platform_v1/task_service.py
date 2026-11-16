@@ -128,11 +128,6 @@ def _new_request_id() -> str:
     return hashlib.sha256(os.urandom(16)).hexdigest()[:16]
 
 
-def _utc_now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 class _EventView:
     """Attribute-access wrapper around an event dict for uniform response formatting."""
 
@@ -439,11 +434,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not self._check_origin():
             return
         if self.path.split("?", 1)[0] == "/api/health":
-            self._send_json(HTTPStatus.OK, {
-                "ready": True,
-                "instance": _instance_metadata(self.store, self.autonomy_service),
-                "generated_at": _utc_now_iso(),
-            })
+            self._send_json(HTTPStatus.OK, {"ready": True})
             return
         if not self._check_local_client():
             return
