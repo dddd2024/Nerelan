@@ -222,12 +222,16 @@ def test_PROVIDER_QUOTA_LIMIT_classification_is_not_capability_evidence():
     store._conn.close()
 
 
-def test_account_quota_and_provider_quota_are_not_interchangeable():
+@pytest.mark.parametrize("detail", ["", "message=quota exhausted; previous status=402",
+                                         "status=4020 message=quota exhausted"])
+def test_account_quota_and_provider_quota_are_not_interchangeable(detail):
     from reverse_agent.platform_v1.quota_guard import ACCOUNT_LIMIT, LIMIT_HIT
     store = TaskStore(":memory:")
     _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
     _task(store, "glm", "FAILED", "provider_quota_limit", tokens=300)
-    _task(store, "glm", "FAILED", "quota_exhausted")
+    exhausted = _task(store, "glm", "FAILED", "quota_exhausted")
+    store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, exhausted.id))
+    store._conn.commit()
     profile = compute_agent_profiles(store)["glm"]
     # Only the account's own answer counts as a rate limit, and it keeps its own kind.
     assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (2, 1, 1)
@@ -235,3 +239,41 @@ def test_account_quota_and_provider_quota_are_not_interchangeable():
     assert profile["provider_quota_limited"] == 1
     assert not ACCOUNT_LIMIT.search("provider_quota_limit") and not LIMIT_HIT.search("provider_quota_limit")
     store._conn.close()
+
+
+@pytest.mark.parametrize("status,message", [
+    (402, "OpenRouter: Insufficient credits. This account never purchased credits"),
+    (429, "WorkBuddy AI: Credits exhausted. Please purchase add-on packs"),
+    (402, "Payment required"),
+])
+def test_billing_error_is_not_counted_as_a_model_failure(status, message):
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor, _bounded_error_diagnostic
+
+    events = [{"type": "error", "error": {"name": "APIError", "data": {
+        "statusCode": status, "message": message}}}]
+    classification = OpenCodeExecutor(model_id="fixture/model")._classify_exit(1, events)
+    assert classification == "quota_exhausted"
+    detail = "opencode_nonzero:exit=1:quota_exhausted " + _bounded_error_diagnostic(events)
+    store = TaskStore(":memory:")
+    try:
+        _task(store, "billing", "READY_FOR_REVIEW", tokens=100)
+        for tokens in (40, None):
+            refused = _task(store, "billing", "FAILED", classification, tokens=tokens)
+            store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, refused.id))
+            store._conn.execute(
+                "INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                "VALUES (?, ?, 'MODEL_SELECTED', '2026-11-16T08:00:00Z', '', '', '', ?)",
+                (f"sel-{refused.id}", refused.id,
+                 '{"kind":"code","difficulty":3,"content_class":"private"}'))
+        store._conn.commit()
+        profile = compute_agent_profiles(store)["billing"]
+        assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+        assert profile["success_rate"] == 1.0
+        assert profile["failure_kinds"] == {} and profile["rate_limited"] == 0
+        assert profile["content_attempts"] == {"code": {"attempts": 1, "refusals": 0}}
+        assert "task_buckets" not in profile
+        assert profile["observed_tokens"] == 140  # missing usage is not guessed
+        assert profile["billing_refused"] == 2
+        assert store._conn.execute("SELECT COUNT(*) FROM tasks WHERE status='FAILED'").fetchone()[0] == 2
+    finally:
+        store._conn.close()
