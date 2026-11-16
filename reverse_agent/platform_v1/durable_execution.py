@@ -42,7 +42,7 @@ from .repository_workspace import (
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
-from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
+from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation, validation_failure_outcome
 from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
 from .workspace_dependencies import prepare_workspace_with_dependencies, task_dependency_plan
 
@@ -1404,6 +1404,8 @@ class DurableExecutionService:
             exec_result.validation_exit_code = code
             exec_result.validation_output_digest = identity
             exec_result.error = detail
+            if code != 0:
+                exec_result.failure_classification = validation_failure_outcome(detail)[1]
         if not exec_result.success:
             # Provider detail follows this trusted executor prefix; its
             # arbitrary text must not override the typed failure class.
@@ -1439,7 +1441,10 @@ class DurableExecutionService:
             )
             self.store._fenced_terminalize(
                 lease.run_id, task_id,
-                terminal_status="FAILED",
+                # A validation-time dependency outage is BLOCKED (#1503).
+                terminal_status=(validation_failure_outcome(exec_result.error)[0]
+                                 if exec_result.validation_command_id == FUNCTIONAL_COMMAND_ID
+                                 else "FAILED"),
                 validation_command_id=exec_result.validation_command_id,
                 validation_exit_code=exec_result.validation_exit_code,
                 validation_output_digest=exec_result.validation_output_digest,
@@ -1558,13 +1563,15 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -1574,7 +1581,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
@@ -1878,13 +1885,15 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -1894,7 +1903,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
@@ -2317,13 +2326,15 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -2333,7 +2344,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
@@ -2452,14 +2463,16 @@ class DurableExecutionService:
                 review = "READY_FOR_REVIEW_FIXTURE" if task.executor_kind == "deterministic_fixture" else "READY_FOR_REVIEW"
                 self.store._fenced_transition_to(lease.run_id, task_id, review, lease.owner, lease.epoch)
             else:
-                self.store._fenced_terminalize(lease.run_id, task_id, terminal_status="FAILED",
+                terminal_status, classification = validation_failure_outcome(reason)
+                self.store._fenced_terminalize(lease.run_id, task_id, terminal_status=terminal_status,
                     validation_command_id=FUNCTIONAL_COMMAND_ID, validation_exit_code=code,
                     validation_output_digest=run.validation_output_digest,
-                    failure_classification="deterministic_validation_failure", failure_detail=reason,
+                    failure_classification=classification, failure_detail=reason,
                     owner=lease.owner, epoch=lease.epoch)
         return TaskExecutionOutcome(task_id=task_id, execution_id=run.execution_id, success=passed,
             validation_command_id=FUNCTIONAL_COMMAND_ID, validation_exit_code=code,
-            failure_classification="" if passed else "deterministic_validation_failure", failure_detail=reason)
+            failure_classification="" if passed else validation_failure_outcome(reason)[1],
+            failure_detail=reason)
 
     def _build_executor_kwargs(self, task: Any) -> dict[str, Any]:
         kwargs: dict[str, Any] = {}
@@ -3798,13 +3811,15 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -3814,7 +3829,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
@@ -4223,13 +4238,15 @@ class DurableExecutionService:
                 validation_exit_code=val_exit,
             )
 
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -4239,7 +4256,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 
@@ -4306,13 +4323,15 @@ class DurableExecutionService:
                 validation_command_id=val_command_id,
                 validation_exit_code=val_exit,
             )
+        # A dependency outage during validation keeps its host-fault class (#1503).
+        terminal_status, classification = validation_failure_outcome(val_output)
         self.store._fenced_terminalize(
             lease.run_id, task_id,
-            terminal_status="FAILED",
+            terminal_status=terminal_status,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
             validation_output_digest=val_digest,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
             owner=lease.owner, epoch=lease.epoch,
         )
@@ -4322,7 +4341,7 @@ class DurableExecutionService:
             success=False,
             validation_command_id=val_command_id,
             validation_exit_code=val_exit,
-            failure_classification="deterministic_validation_failure",
+            failure_classification=classification,
             failure_detail=val_output or f"{val_command_id} exit={val_exit}",
         )
 

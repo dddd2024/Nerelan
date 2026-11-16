@@ -9,15 +9,23 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
+import sys
+import time
 from types import SimpleNamespace
 
 import pytest
 
+import test_goal_functional_checks as goal_fixture
+from test_goal_functional_checks import goal_checks  # noqa: F401 - fixture
+from test_functional_execution import LocalImplementation, durable, ordinary
 from reverse_agent.platform_v1 import functional_validation as fv
 from reverse_agent.platform_v1 import workspace_dependencies as wd
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
+from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 
 
 def git(root: Path, *args: str) -> str:
@@ -429,26 +437,339 @@ def test_the_install_leaves_the_workspace_tree_unchanged(repository, monkeypatch
 # ---------------------------------------------------------------------------
 
 
-def test_the_check_reuses_the_preparation_install(repository, monkeypatch):
-    """A workspace whose lockfile did not change is not reinstalled."""
+# A stand-in "vitest": the genuine runner (what npm ci installs) reports the
+# agent's test file honestly; the agent-planted one always reports a pass.
+_GENUINE_VITEST = """
+import sys
+from pathlib import Path
+out = next(a.split("=", 1)[1] for a in sys.argv if a.startswith("--outputFile="))
+failing = "FAIL" in Path("sum.test.txt").read_text(encoding="utf-8")
+case = '<testcase classname="sum" name="adds"><failure message="boom">boom</failure></testcase>' if failing else '<testcase classname="sum" name="adds"/>'
+Path(out).write_text('<testsuite tests="1">' + case + '</testsuite>', encoding="utf-8")
+"""
+_POISONED_VITEST = """
+import sys
+from pathlib import Path
+out = next(a.split("=", 1)[1] for a in sys.argv if a.startswith("--outputFile="))
+Path(out).write_text('<testsuite tests="1"><testcase classname="sum" name="adds"/></testsuite>', encoding="utf-8")
+"""
+# "npm test": runs whatever node_modules/.bin/vitest.py the workspace holds.
+_FAKE_NPM = """
+import runpy, sys
+sys.argv = ["vitest", *sys.argv[1:]]
+runpy.run_path("node_modules/.bin/vitest.py", run_name="__main__")
+"""
+
+
+def _genuine_install(calls):
+    """A fake npm ci: records whether node_modules existed, then installs fresh."""
+
+    def install(command, cwd, env, timeout):
+        modules = Path(cwd) / "node_modules"
+        calls.append({"command": list(command), "had_node_modules":
+                      modules.exists() or wd._is_link(modules)})
+        (modules / ".bin").mkdir(parents=True)
+        (modules / ".bin" / "vitest.py").write_text(_GENUINE_VITEST, encoding="utf-8")
+        (modules / "vitest").mkdir()
+        (modules / "vitest" / "index.js").write_text("genuine", encoding="utf-8")
+        return {"exit_code": 0, "timed_out": False, "duration_ms": 1,
+                "output_digest": "0" * 64, "output_bytes": 0, "cleanup": "confirmed"}
+
+    return install
+
+
+def _make_dir_link(link: Path, target: Path) -> None:
+    if os.name == "nt":
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                       check=True, capture_output=True)
+    else:
+        link.symlink_to(target, target_is_directory=True)
+
+
+@pytest.mark.parametrize("state", ["tampered_shim", "tampered_dependency_source",
+                                   "partial_install", "missing_install"])
+def test_the_check_never_trusts_the_agent_writable_install(repository, monkeypatch, tmp_path, state):
+    """#1557 review P1: an unchanged lockfile plus an existing node_modules is not proof.
+
+    The preparation install is recorded with the same lockfile digest the
+    workspace still has; the agent then tampers with the ignored tree. The
+    check must install afresh, so nothing the agent left behind survives.
+    """
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                        root, runner=_genuine_install([]))
+    modules = root / "frontend" / "node_modules"
+    if state == "tampered_shim":
+        (modules / ".bin" / "vitest.py").write_text(_POISONED_VITEST, encoding="utf-8")
+    elif state == "tampered_dependency_source":
+        (modules / "vitest" / "index.js").write_text("poisoned", encoding="utf-8")
+    elif state == "partial_install":
+        (modules / ".bin" / "vitest.py").unlink()
+    else:
+        shutil.rmtree(modules)
+
+    calls: list[dict] = []
+    monkeypatch.setattr(wd, "_run_install", _genuine_install(calls))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    # The digest the old fast path trusted still matches the workspace lockfile.
+    assert context.installed["frontend"] == hashlib.sha256(b"lock-v1").hexdigest()
+    fv._ensure_check_dependencies(checks[0], root, context)
+
+    assert len(calls) == 1 and calls[0]["had_node_modules"] is False
+    assert (modules / ".bin" / "vitest.py").read_text(encoding="utf-8") == _GENUINE_VITEST
+    assert (modules / "vitest" / "index.js").read_text(encoding="utf-8") == "genuine"
+    entry = json.loads(wd.dependency_evidence(store.get_task(task.id))[-1]["detail"])["directories"][0]
+    assert entry["fresh_install"] is True and entry["lockfile_source"] == "workspace"
+    assert entry["previous_lockfile_digest"] == entry["lockfile_digest"]
+
+
+def test_a_poisoned_runner_cannot_make_a_failing_test_pass(repository, monkeypatch, tmp_path):
+    """The reviewer's counterexample end to end through the real _run_check."""
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "npm.py").write_text(_FAKE_NPM, encoding="utf-8")
+    monkeypatch.setattr(fv, "_resolved_argv", lambda profile: [sys.executable, str(tools / "npm.py")])
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                        root, runner=_genuine_install([]))
+    # The agent adds a failing test and swaps in a runner that only reports a pass.
+    (root / "frontend" / "sum.test.txt").write_text("FAIL", encoding="utf-8")
+    (root / "frontend" / "node_modules" / ".bin" / "vitest.py").write_text(
+        _POISONED_VITEST, encoding="utf-8")
+    poisoned = fv._run_check(checks[0], root)  # without host provisioning
+    assert poisoned["test_report"]["accepted"] is True, "fixture must reproduce the attack"
+    (root / "frontend" / "node_modules" / ".bin" / "vitest.py").write_text(
+        _POISONED_VITEST, encoding="utf-8")
+
+    monkeypatch.setattr(wd, "_run_install", _genuine_install([]))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    observed = fv._run_check(checks[0], root, dependencies=context)
+
+    assert observed["test_report"]["failed"] == 1
+    assert observed["test_report"]["accepted"] is False
+
+
+def test_a_node_modules_junction_is_removed_not_followed(repository, monkeypatch, tmp_path):
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    outside = tmp_path / "outside-modules"
+    outside.mkdir()
+    (outside / "sentinel.txt").write_text("keep", encoding="utf-8")
+    _make_dir_link(root / "frontend" / "node_modules", outside)
+
+    calls: list[dict] = []
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    monkeypatch.setattr(wd, "_run_install", _genuine_install(calls))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    fv._ensure_check_dependencies(checks[0], root, context)
+
+    assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "keep"
+    assert not (outside / ".bin").exists()
+    assert calls[0]["had_node_modules"] is False
+    modules = root / "frontend" / "node_modules"
+    assert not wd._is_link(modules) and (modules / ".bin" / "vitest.py").is_file()
+
+
+@pytest.mark.parametrize("source", ["base", "workspace"])
+def test_a_linked_target_directory_is_refused_before_any_write(repository, tmp_path, source):
+    """#1557 review: lexical containment followed a junction outside the workspace."""
     root, base, store, task = repository
     _freeze(store, task, [{"profile_id": "npm_test", "working_directory": "frontend"}], base)
     plan = wd.task_dependency_plan(store, task.id)
-    calls: list[dict] = []
-    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
-    monkeypatch.setattr(wd, "_run_install",
-                        lambda command, cwd, env, timeout: _fake_runner(calls)(
-                            command, cwd, env, timeout))
-    wd.provision_workspace_dependencies(
-        store, task.id, plan, root, runner=_fake_runner([]))
-    (root / "frontend" / "node_modules").mkdir(exist_ok=True)
+    outside = tmp_path / "outside-frontend"
+    outside.mkdir()
+    (outside / "package.json").write_text("{}", encoding="utf-8")
+    (outside / "package-lock.json").write_text("external-sentinel", encoding="utf-8")
+    shutil.rmtree(root / "frontend")
+    _make_dir_link(root / "frontend", outside)
 
-    context = fv._dependency_context(store, store.get_task(task.id), base, None,
-                                     [{"profile_id": "npm_test", "working_directory": "frontend"}])
-    assert context is not None
-    fv._ensure_check_dependencies(
-        {"profile_id": "npm_test", "working_directory": "frontend"}, root, context)
+    calls: list[dict] = []
+    with pytest.raises(wd.WorkspaceDependencyError) as caught:
+        wd.provision_workspace_dependencies(store, task.id, plan, root,
+                                            runner=_fake_runner(calls), lockfile_source=source)
+    assert caught.value.code == wd.PATH_UNTRUSTED_CODE
     assert calls == []
+    assert (outside / "package-lock.json").read_text(encoding="utf-8") == "external-sentinel"
+
+
+def test_a_linked_lockfile_is_refused(repository, tmp_path):
+    root, base, store, task = repository
+    _freeze(store, task, [{"profile_id": "npm_test", "working_directory": "frontend"}], base)
+    outside = tmp_path / "outside-lock.json"
+    outside.write_text("external-sentinel", encoding="utf-8")
+    lockfile = root / "frontend" / "package-lock.json"
+    lockfile.unlink()
+    try:
+        lockfile.symlink_to(outside)
+    except OSError as exc:  # WinError 1314 without the symlink privilege
+        pytest.skip(f"file symlinks unavailable: {exc}")
+    calls: list[dict] = []
+    with pytest.raises(wd.WorkspaceDependencyError) as caught:
+        wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                            root, runner=_fake_runner(calls))
+    assert caught.value.code == wd.PATH_UNTRUSTED_CODE
+    assert calls == [] and outside.read_text(encoding="utf-8") == "external-sentinel"
+
+
+@pytest.mark.parametrize("where", ["frontend", "."])
+def test_a_project_npmrc_is_refused_before_installing(repository, monkeypatch, where):
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    (root / where / ".npmrc").write_text("registry=https://example.invalid/\n", encoding="utf-8")
+    calls: list[dict] = []
+    with pytest.raises(wd.WorkspaceDependencyError) as caught:
+        wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                            root, runner=_fake_runner(calls))
+    assert caught.value.code == wd.PROJECT_CONFIG_CODE and calls == []
+
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    monkeypatch.setattr(wd, "_run_install", _fake_runner(calls))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    with pytest.raises(TaskStoreError, match="functional_npm_project_config_unsupported"):
+        fv._ensure_check_dependencies(checks[0], root, context)
+    assert calls == []
+
+
+def test_an_agent_deleted_lockfile_is_not_an_infrastructure_fault(repository, monkeypatch):
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    (root / "frontend" / "package-lock.json").unlink()
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    with pytest.raises(TaskStoreError) as caught:
+        fv._ensure_check_dependencies(checks[0], root, context)
+    reason = str(caught.value)
+    assert reason == "functional_workspace_dependency_lockfile_invalid"
+    assert fv.validation_failure_outcome(reason) == ("FAILED", "deterministic_validation_failure")
+
+
+# ---------------------------------------------------------------------------
+# The install's process tree (#1557 review P1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("parent_waits", [True, False])
+def test_install_timeout_ends_the_whole_process_tree(tmp_path, parent_waits):
+    marker = tmp_path / "descendant-survived.txt"
+    child = ("import time; from pathlib import Path; time.sleep(3); "
+             "Path('descendant-survived.txt').write_text('escaped')")
+    script = ("import subprocess,sys,time; subprocess.Popen([sys.executable,'-c'," + repr(child) + "]); "
+              + ("time.sleep(30)" if parent_waits else "sys.exit(0)"))
+    started = time.monotonic()
+    observed = wd._run_install([sys.executable, "-c", script], tmp_path,
+                               fv._environment(tmp_path), 1)
+    assert observed["timed_out"] is True and observed["cleanup"] == "confirmed"
+    assert time.monotonic() - started < 8
+    time.sleep(3.5)
+    assert not marker.exists(), "an install descendant outlived the timeout"
+
+
+def test_a_timed_out_install_records_a_bounded_host_fault(repository, monkeypatch):
+    root, base, store, task = repository
+    _freeze(store, task, [{"profile_id": "npm_test", "working_directory": "frontend"}], base)
+    monkeypatch.setattr(wd, "_npm_argv", lambda: [sys.executable, "-c", "import time; time.sleep(30)"])
+    started = time.monotonic()
+    with pytest.raises(wd.WorkspaceDependencyError) as caught:
+        wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                            root, timeout=1)
+    assert time.monotonic() - started < 8
+    assert caught.value.code == wd.DEPENDENCY_FAILURE_CODE
+    entry = json.loads(wd.dependency_evidence(store.get_task(task.id))[-1]["detail"])["directories"][0]
+    assert entry["timed_out"] is True and entry["cleanup"] == "confirmed"
+
+
+def test_unconfirmed_install_cleanup_is_never_an_ordinary_failure(repository, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import _interrupted_preparation
+
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+
+    def drain_incomplete(*args, **kwargs):
+        raise TaskStoreError("functional_output_drain_incomplete")
+
+    monkeypatch.setattr(fv, "run_owned_process", drain_incomplete)
+    with pytest.raises(wd.WorkspaceDependencyError) as caught:
+        wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id), root)
+    assert caught.value.code == wd.DEPENDENCY_CLEANUP_CODE
+    document = json.loads(wd.dependency_evidence(store.get_task(task.id))[-1]["detail"])
+    assert document["failure"] == wd.DEPENDENCY_CLEANUP_CODE
+    assert document["directories"][0]["cleanup"] == "unknown"
+
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    with pytest.raises(TaskStoreError) as raised:
+        fv._ensure_check_dependencies(checks[0], root, context)
+    assert str(raised.value) == fv.DEPENDENCY_CLEANUP_REASON
+    assert fv.validation_failure_outcome(fv.DEPENDENCY_CLEANUP_REASON) == ("FAILED", "cleanup_unconfirmed")
+    # A preparation-time cleanup uncertainty is not retried as an interrupted preparation.
+    failed = SimpleNamespace(id=task.id, status="BLOCKED",
+                             failure_detail="worktree_preparation_failed:" + wd.DEPENDENCY_CLEANUP_CODE)
+    assert _interrupted_preparation(store, failed) is False
+
+
+# ---------------------------------------------------------------------------
+# Validation-time install failures stay host faults end to end (#1557 review P2)
+# ---------------------------------------------------------------------------
+
+
+class _DependencyAwareImplementation(LocalImplementation):
+    def prepare_worktree_once(self, task_id, workspace_root, callback=None, *,
+                              dependencies=None, dependency_store=None):
+        return super().prepare_worktree_once(task_id, workspace_root, callback)
+
+
+@pytest.mark.parametrize("engine", ["ordinary", "durable"])
+def test_a_validation_time_install_failure_blocks_without_spending_retries(
+        goal_checks, tmp_path, monkeypatch, engine):
+    root, _, store, control, *_ = goal_checks
+    _frontend_project(root)
+    git(root, "add", "--", "frontend")
+    git(root, "commit", "-q", "-m", "frontend workspace")
+    base = git(root, "rev-parse", "HEAD")
+    fixture = (root, base, *goal_checks[2:])
+    monkeypatch.setattr(goal_fixture, "planned_check", lambda task_id="T001", directory=".": {
+        "id": task_id, "title": "Implement value two", "instruction": "Make value equal two",
+        "validation_checks": [{"profile_id": "npm_test", "working_directory": "frontend"}]})
+    launched = goal_fixture.launch_checks(fixture)
+    task_id = control.list_goal_tasks(launched.id)[0]["task_id"]
+    executor = _DependencyAwareImplementation(root, base, "value = 2\n")
+    router = ExecutorRouter()
+    router.replace("opencode", lambda **kwargs: executor)
+    monkeypatch.setattr(fv, "_resolved_argv", lambda profile: [sys.executable, "-c", "pass"])
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    calls: list[dict] = []
+    # The registry is unreachable when validation re-installs.
+    monkeypatch.setattr(wd, "_run_install", _fake_runner(calls, exit_code=1))
+
+    service = durable(store, router) if engine == "durable" else ordinary(store, router)
+    method = service.execute_durable_single if engine == "durable" else service.execute
+    outcome = method(task_id, workspace_root=str(tmp_path / "worktrees"))
+
+    assert outcome.success is False
+    assert len(calls) == 1
+    task = store.get_task(task_id)
+    assert task.status == "BLOCKED"
+    assert task.failure_classification == "blocked"
+    assert task.failure_detail == fv.DEPENDENCY_UNAVAILABLE_REASON
+    assert outcome.failure_classification == "blocked"
+    result = json.loads([row for row in task.evidence_refs
+                         if row.get("category") == fv.RESULT_CATEGORY][-1]["detail"])
+    assert result["reason"] == fv.DEPENDENCY_UNAVAILABLE_REASON
+    assert result["failure_kind"] == "infrastructure"
+    install = json.loads(wd.dependency_evidence(task)[-1]["detail"])
+    assert install["status"] == "FAILED" and install["directories"][0]["lockfile_source"] == "workspace"
+    # The agent's artifact is preserved for a later run.
+    assert (executor.prepared.worktree / "app.py").read_text(encoding="utf-8") == "value = 2\n"
 
 
 def test_the_check_reprovisions_when_the_agent_changed_the_lockfile(repository, monkeypatch):

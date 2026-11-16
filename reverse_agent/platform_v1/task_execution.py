@@ -973,9 +973,11 @@ class TaskExecutionService:
                 detail=val_output,
                 raw_json_digest=val_digest,
             )
-            self.store.transition_to(task_id, "FAILED")
+            from .functional_validation import validation_failure_outcome
+            # A dependency outage during validation is a host fault (#1503).
+            terminal_status, classification = validation_failure_outcome(val_output)
+            self.store.transition_to(task_id, terminal_status)
             success = False
-            classification = "deterministic_validation_failure"
             failure_detail = val_output or f"{val_command_id} exit={val_exit}"
             self.store.add_event(
                 task_id,
@@ -1195,7 +1197,9 @@ class TaskExecutionService:
                             if event.type == "MODEL_SELECTED"), "code")
             self._store_event_callback(task.id, {"type": "MODEL_REFUSED", "title": "Model declined task",
                                                 "metadata": {"content_class": content}})
-        from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
+        from .functional_validation import (
+            CONTRACT_CATEGORY, prepared_base, run_task_validation, validation_failure_outcome,
+        )
         hygiene_failure = (result.validation_command_id == "git_diff_check"
                            and result.validation_exit_code != 0
                            and result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"})
@@ -1211,7 +1215,9 @@ class TaskExecutionService:
             result.success = code == 0
             if code != 0:
                 result.error = output or "functional_check_failed"
-                result.failure_classification = "deterministic_validation_failure"
+                # A dependency outage during validation stays a host fault
+                # ("blocked": BLOCKED, never escalated or charged) (#1503).
+                result.failure_classification = validation_failure_outcome(output)[1]
         self.store.set_changed_files(task.id, result.changed_files)
         self.store.set_validation_result(
             task.id,

@@ -425,46 +425,74 @@ def _run_check(check: Mapping[str, str], root: Path, *,
         return result
 
 
-def _ensure_check_dependencies(check: Mapping[str, Any], root: Path, dependencies: Any) -> None:
-    """Install the check's Node dependencies when the workspace lacks them.
+# Validation could not run because the host could not provision the check's
+# Node dependencies (#1503). That is an infrastructure fault, not evidence
+# about the agent's change: the task is BLOCKED and spends no max_retries.
+DEPENDENCY_UNAVAILABLE_REASON = "functional_workspace_dependencies_unavailable"
+# The install's process tree could not be confirmed gone; never retried
+# automatically while a descendant may still be running.
+DEPENDENCY_CLEANUP_REASON = "functional_workspace_dependencies_cleanup_unconfirmed"
+INFRASTRUCTURE_REASONS = frozenset({DEPENDENCY_UNAVAILABLE_REASON, DEPENDENCY_CLEANUP_REASON})
 
-    The preparation step already installed the base commit's lockfile. If the
-    agent changed ``package-lock.json``, the installed tree no longer matches
-    what the check would run against, so it is re-provisioned from the
-    agent's lockfile and the re-provisioning is recorded.
+
+def validation_failure_outcome(reason: Any) -> tuple[str, str]:
+    """(terminal status, failure classification) for a failed host validation.
+
+    Every validation terminalization path, ordinary and durable, uses this so a
+    dependency outage during validation keeps its host-fault semantics end to
+    end instead of becoming ``deterministic_validation_failure`` (#1503).
+    """
+    reason = str(reason or "")
+    if reason == DEPENDENCY_CLEANUP_REASON:
+        return "FAILED", "cleanup_unconfirmed"
+    if reason == DEPENDENCY_UNAVAILABLE_REASON:
+        return "BLOCKED", "blocked"
+    return "FAILED", "deterministic_validation_failure"
+
+
+def _ensure_check_dependencies(check: Mapping[str, Any], root: Path, dependencies: Any) -> None:
+    """Give the check a freshly installed dependency tree before it runs.
+
+    ``node_modules`` is ignored by Git and the agent can write it, so neither
+    an unchanged lockfile digest nor an existing directory proves that the
+    test runner the check would execute is the one the lockfile pins. The
+    host therefore never reuses the tree the agent ran with: it removes
+    ``node_modules`` (without following links) and runs ``npm ci`` from the
+    workspace's lockfile, which is part of the reviewed artifact, with a
+    private configuration and cache. Nothing the agent left behind in
+    ``node_modules`` survives into the check.
     """
     from .workspace_dependencies import (
+        DEPENDENCY_CLEANUP_CODE,
+        DEPENDENCY_FAILURE_CODE,
         DependencyPlan,
         WorkspaceDependencyError,
+        normalize_dependency_directory,
         provision_workspace_dependencies,
     )
     if dependencies is None:
         return
-    directory = check.get("working_directory", ".")
-    target = root.joinpath(*PurePosixPath(directory).parts)
-    lockfile = target / "package-lock.json"
-    if not lockfile.is_file():
-        raise TaskStoreError("functional_workspace_dependencies_unavailable")
-    digest = hashlib.sha256(lockfile.read_bytes()).hexdigest()
-    installed = getattr(dependencies, "installed", None) or {}
-    node_modules = target / "node_modules"
-    if installed.get(directory) == digest and node_modules.is_dir():
-        # The preparation install still matches the workspace's lockfile.
-        return
     store = getattr(dependencies, "store", None)
     task_id = getattr(dependencies, "task_id", "")
-    lease = getattr(dependencies, "lease", None)
     if store is None or not task_id:
-        raise TaskStoreError("functional_workspace_dependencies_unavailable")
+        raise TaskStoreError(DEPENDENCY_UNAVAILABLE_REASON)
+    directory = normalize_dependency_directory(check.get("working_directory", "."))
     try:
         provision_workspace_dependencies(
             store, task_id,
-            DependencyPlan(directories=(directory,), lockfiles={directory: digest},
+            DependencyPlan(directories=(directory,), lockfiles={},
                            base_commit=getattr(dependencies, "base_commit", "")),
-            root, lease=lease, lockfile_source="workspace",
+            root, lease=getattr(dependencies, "lease", None), lockfile_source="workspace",
+            previous_digests=getattr(dependencies, "installed", None) or {},
         )
     except WorkspaceDependencyError as exc:
-        raise TaskStoreError("functional_workspace_dependencies_unavailable") from exc
+        if exc.code == DEPENDENCY_CLEANUP_CODE:
+            raise TaskStoreError(DEPENDENCY_CLEANUP_REASON) from exc
+        if exc.code == DEPENDENCY_FAILURE_CODE:
+            raise TaskStoreError(DEPENDENCY_UNAVAILABLE_REASON) from exc
+        # Untrusted paths or project configuration are properties of the
+        # agent's tree, not an outage: an ordinary failed validation.
+        raise TaskStoreError("functional_" + exc.code) from exc
 
 
 def _failure_item(case: Any, problem: Any) -> dict[str, str]:
@@ -540,8 +568,18 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     return result
 
 
-def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict[str, str]) -> dict[str, Any]:
-    profile = check["profile_id"]
+def run_owned_process(argv: list[str], cwd: Path, env: dict[str, str], timeout: float) -> dict[str, Any]:
+    """Run one host-owned child whose whole process tree the host bounds.
+
+    On Windows the child starts suspended and joins a kill-on-close Job object
+    before it runs, so every descendant dies when the Job closes; elsewhere it
+    leads its own process group, which is killed as a group. Output is drained
+    on a bounded reader. ``cleanup`` is ``"confirmed"`` when the tree is gone
+    and the reader reached EOF; if the reader is still alive after cleanup a
+    descendant may still hold the pipe, and ``functional_output_drain_incomplete``
+    is raised instead of reporting an ordinary result. Functional checks and
+    the workspace dependency install (#1503) share this runner.
+    """
     started = time.monotonic()
     job = _WindowsJob() if os.name == "nt" else None
     try:
@@ -577,7 +615,7 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
     reader.start()
     timed_out = False
     try:
-        proc.wait(timeout=_CATALOG[profile]["timeout_seconds"])
+        proc.wait(timeout=timeout)
         reader.join(timeout=2)
         if reader.is_alive():
             timed_out = True
@@ -595,10 +633,17 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
             proc.stdout.close()
     if reader.is_alive():
         raise TaskStoreError("functional_output_drain_incomplete")
-    return {**check, "argv": argv, "argv_digest": digest(argv), "exit_code": proc.returncode,
-            "timed_out": timed_out, "duration_ms": round((time.monotonic() - started) * 1000),
+    return {"exit_code": proc.returncode, "timed_out": timed_out,
+            "duration_ms": round((time.monotonic() - started) * 1000),
             "output_digest": output_hash.hexdigest(), "output_bytes": output_size[0],
-            "output_truncated": output_size[0] > OUTPUT_LIMIT, "_output_tail": bytes(retained)}
+            "output_truncated": output_size[0] > OUTPUT_LIMIT, "cleanup": "confirmed",
+            "_output_tail": bytes(retained)}
+
+
+def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict[str, str]) -> dict[str, Any]:
+    observed = run_owned_process(argv, cwd, env, _CATALOG[check["profile_id"]]["timeout_seconds"])
+    observed.pop("cleanup", None)
+    return {**check, "argv": argv, "argv_digest": digest(argv), **observed}
 
 
 def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str,
@@ -692,6 +737,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             "target_mismatch" if reason.startswith("functional_target_missing:") else
             "patch_hygiene" if reason == "functional_patch_hygiene_failed" else
             "check_timeout" if reason == "check_timeout" else
+            "infrastructure" if reason in INFRASTRUCTURE_REASONS else
             "expected_red" if reason.startswith(("expected_red_missing:", "expected_red_unexpected:")) else
             "capability_failure" if reason == "functional_check_failed" and any(
                 (check.get("test_report") or {}).get("failed", 0) for check in result["checks"])

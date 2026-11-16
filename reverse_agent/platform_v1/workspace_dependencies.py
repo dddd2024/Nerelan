@@ -12,7 +12,15 @@ This module is the single place where that gap is closed:
 * the install runs **from the base commit's lockfile**, not from the agent's
   tree, so the agent cannot influence what the host installs before it starts;
 * the install is bounded (timeout, sanitized environment, ``--ignore-scripts``,
-  ``--no-audit``, ``--no-fund``) and recorded as its own evidence row;
+  ``--no-audit``, ``--no-fund``) and recorded as its own evidence row; it runs
+  under the functional checks' owned process-tree runner, so the timeout ends
+  every descendant, not only the direct child;
+* every install starts from an empty ``node_modules`` (removed without
+  following links), so functional validation never trusts a dependency tree
+  the agent could have modified;
+* the target directory, its lockfile and ``package.json`` must be real paths
+  inside the workspace (no symlink or junction component), and a project
+  ``.npmrc`` is refused exactly as the functional npm check refuses it;
 * a failed install is a **host fault** (``workspace_dependencies_unavailable``),
   never a model failure, so it does not spend ``max_retries``.
 """
@@ -25,14 +33,21 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
-import time
+import tempfile
 from typing import Any, Callable, Mapping, Sequence
 
 from .run_store import TaskStoreError
 
 DEPENDENCY_CATEGORY = "WorkspaceDependencies"
 DEPENDENCY_FAILURE_CODE = "workspace_dependencies_unavailable"
+# The install's process tree could not be confirmed gone (#1557 review).
+DEPENDENCY_CLEANUP_CODE = "workspace_dependencies_cleanup_unconfirmed"
+# Properties of the workspace tree, not of the host: refused before installing.
+PATH_UNTRUSTED_CODE = "workspace_dependency_path_untrusted"
+PROJECT_CONFIG_CODE = "npm_project_config_unsupported"
+LOCKFILE_INVALID_CODE = "workspace_dependency_lockfile_invalid"
 DEPENDENCY_LABEL = "workspace_dependencies"
 LOCKFILE_NAME = "package-lock.json"
 # npm's own default ceiling is generous; the host bounds it more tightly so a
@@ -77,11 +92,11 @@ class DependencyPlan:
 
 @dataclass(frozen=True, slots=True)
 class DependencyContext:
-    """What the functional check needs to keep a workspace's install current.
+    """What the functional check needs to install a workspace's dependencies.
 
-    ``installed`` maps a directory to the lockfile digest the last install
-    used, so the check can tell whether the agent changed the lockfile and
-    the installed tree has to be refreshed.
+    ``installed`` maps a directory to the lockfile digest the last recorded
+    install used. It only annotates the check's fresh-install evidence (did
+    the agent change the lockfile?); it is never a reason to reuse a tree.
     """
 
     store: Any = None
@@ -159,41 +174,6 @@ def dependency_plan_from_checks(
                           lockfiles={}, base_commit=base_commit)
 
 
-def build_dependency_plan(
-    checks: Sequence[Mapping[str, Any]],
-    worktree: Path,
-    *,
-    base_commit: str = "",
-) -> DependencyPlan:
-    """Resolve the directories and lockfile digests a workspace needs.
-
-    A directory that carries a lockfile at the base commit is included even
-    when no check profile names it, so a repository that ships a Node
-    workspace always gets its dependencies installed.
-    """
-    directories = list(dependency_directories(checks))
-    for check in checks or ():
-        if not isinstance(check, Mapping):
-            continue
-        directory = normalize_dependency_directory(check.get("working_directory", "."))
-        if directory in directories:
-            continue
-        if (worktree.joinpath(*PurePosixPath(directory).parts) / LOCKFILE_NAME).is_file():
-            directories.append(directory)
-    lockfiles: dict[str, str] = {}
-    for directory in directories:
-        relative = LOCKFILE_NAME if directory == "." else f"{directory}/{LOCKFILE_NAME}"
-        payload = _git_blob(worktree, base_commit, relative)
-        if payload is None:
-            payload_path = worktree.joinpath(*PurePosixPath(directory).parts) / LOCKFILE_NAME
-            if payload_path.is_file() and payload_path.stat().st_size <= MAX_LOCKFILE_BYTES:
-                payload = payload_path.read_bytes()
-        if payload is not None:
-            lockfiles[directory] = _sha256_bytes(payload)
-    return DependencyPlan(directories=tuple(directories), lockfiles=lockfiles,
-                          base_commit=base_commit)
-
-
 def _npm_argv() -> list[str]:
     """Resolve the npm CLI the same way the functional oracle resolves it."""
     npm = shutil.which("npm")
@@ -233,21 +213,99 @@ def _install_environment(root: Path, config_dir: Path) -> dict[str, str]:
 
 def _run_install(argv: list[str], cwd: Path, env: dict[str, str],
                  timeout: int) -> dict[str, Any]:
-    started = time.monotonic()
+    """Run ``npm ci`` under the functional checks' owned process-tree runner.
+
+    A Windows kill-on-close Job object (or a POSIX process group) owns npm and
+    every descendant, so the timeout bounds the whole tree and output draining
+    cannot outlive it. If the tree cannot be confirmed gone the install is not
+    an ordinary failure: ``workspace_dependencies_cleanup_unconfirmed``.
+    """
+    from .functional_validation import run_owned_process
     try:
-        completed = subprocess.run(
-            argv, cwd=str(cwd), stdin=subprocess.DEVNULL, capture_output=True,
-            timeout=timeout, check=False, env=env,
-        )
-    except subprocess.TimeoutExpired:
-        return {"exit_code": -1, "timed_out": True, "duration_ms": (time.monotonic() - started) * 1000,
-                "output_digest": "", "output_bytes": 0}
+        observed = run_owned_process(argv, cwd, env, timeout)
+    except WorkspaceDependencyError:
+        raise
+    except TaskStoreError as exc:
+        raise WorkspaceDependencyError(DEPENDENCY_CLEANUP_CODE, detail=str(exc)) from exc
     except (OSError, subprocess.SubprocessError) as exc:
         raise WorkspaceDependencyError(detail=type(exc).__name__) from exc
-    output = completed.stdout or b""
-    return {"exit_code": completed.returncode, "timed_out": False,
-            "duration_ms": round((time.monotonic() - started) * 1000),
-            "output_digest": _sha256_bytes(output), "output_bytes": len(output)}
+    observed.pop("_output_tail", None)
+    return observed
+
+
+def _is_link(path: Path) -> bool:
+    """A symlink or any reparse point (including a Windows junction)."""
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        return False
+    return (stat.S_ISLNK(status.st_mode)
+            or bool(getattr(status, "st_file_attributes", 0)
+                    & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)))
+
+
+def _trusted_target(root: Path, directory: str) -> tuple[Path, Path]:
+    """The real install directory, refusing any indirection out of the workspace.
+
+    Every component from the workspace root to the target, and the target's
+    lockfile and ``package.json``, must be a real entry (no symlink or
+    junction), and the resolved target must lie inside the resolved root. A
+    project ``.npmrc`` between the target and the root is refused, as the
+    functional npm check refuses it, without reading its contents.
+    """
+    try:
+        real_root = Path(root).resolve(strict=True)
+    except OSError as exc:
+        raise WorkspaceDependencyError(PATH_UNTRUSTED_CODE, detail="root_missing") from exc
+    current = real_root
+    for part in (() if directory == "." else PurePosixPath(directory).parts):
+        current = current / part
+        if _is_link(current):
+            raise WorkspaceDependencyError(PATH_UNTRUSTED_CODE, detail=f"link:{directory}")
+    if not current.is_dir():
+        raise WorkspaceDependencyError(PATH_UNTRUSTED_CODE, detail=f"directory_missing:{directory}")
+    resolved = current.resolve(strict=True)
+    if (os.path.normcase(str(resolved)) != os.path.normcase(str(current))
+            or not resolved.is_relative_to(real_root)):
+        raise WorkspaceDependencyError(PATH_UNTRUSTED_CODE, detail=f"outside:{directory}")
+    for name in (LOCKFILE_NAME, "package.json"):
+        if _is_link(current / name):
+            raise WorkspaceDependencyError(PATH_UNTRUSTED_CODE, detail=f"link:{name}")
+    for folder in (current, *current.parents):
+        if not folder.is_relative_to(real_root):
+            break
+        config = folder / ".npmrc"
+        if _is_link(config) or config.exists():
+            raise WorkspaceDependencyError(PROJECT_CONFIG_CODE)
+    return real_root, current
+
+
+def _clear_node_modules(target: Path) -> None:
+    """Remove ``node_modules`` so the install never reuses an agent-writable tree.
+
+    A link or junction is removed itself, never followed; a real directory is
+    removed with ``shutil.rmtree``, which does not follow nested junctions.
+    """
+    modules = target / "node_modules"
+
+    def writable(function: Any, path: str, _exc: BaseException) -> None:
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+
+    try:
+        if _is_link(modules):
+            try:
+                os.unlink(modules)
+            except OSError:
+                os.rmdir(modules)
+        elif modules.is_dir():
+            shutil.rmtree(modules, onexc=writable)
+        elif modules.exists():
+            modules.unlink()
+    except OSError as exc:
+        raise WorkspaceDependencyError(detail=f"node_modules_not_removed:{type(exc).__name__}") from exc
+    if _is_link(modules) or modules.exists():
+        raise WorkspaceDependencyError(detail="node_modules_not_removed")
 
 
 def _record(store: Any, task_id: str, document: Mapping[str, Any], *, lease: Any = None) -> None:
@@ -273,6 +331,7 @@ def provision_workspace_dependencies(
     runner: Callable[..., dict[str, Any]] | None = None,
     timeout: int = INSTALL_TIMEOUT_SECONDS,
     lockfile_source: str = "base",
+    previous_digests: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Install the Node dependencies a workspace needs and record the proof.
 
@@ -284,59 +343,79 @@ def provision_workspace_dependencies(
         not consulted, so it cannot influence what the host installs before
         it starts (#1503).
     ``"workspace"``
-        the lockfile currently in the workspace. This is the functional-check
-        step: when the agent changed ``package-lock.json``, the check
-        re-provisions from the agent's own lockfile and records that it did.
+        the lockfile currently in the workspace (part of the reviewed
+        artifact). This is the functional-check step, which always installs
+        afresh: the tree the agent ran with is never trusted.
 
-    ``npm ci`` is used, so the installed tree is exactly what the lockfile
-    pins and lifecycle scripts never run.
+    Each install first removes ``node_modules`` and then runs ``npm ci``, so
+    the installed tree is exactly what the lockfile pins, and lifecycle
+    scripts never run. ``previous_digests`` (the last recorded install per
+    directory) only annotates the evidence; it is never a reason to skip.
 
-    Raises ``WorkspaceDependencyError`` when the install fails: the caller
-    treats that as a blocked host fault, not a model failure.
+    Raises ``WorkspaceDependencyError``: ``workspace_dependencies_unavailable``
+    for a failed install (a blocked host fault, not a model failure),
+    ``workspace_dependencies_cleanup_unconfirmed`` when the install's process
+    tree could not be confirmed gone, and the path/config codes when the
+    workspace tree is not trusted for installation.
     """
     if not plan or not plan.directories:
         return {"status": "NOT_REQUIRED", "directories": []}
     if lockfile_source not in {"base", "workspace"}:
         raise WorkspaceDependencyError(detail="lockfile_source_invalid")
+    previous = dict(previous_digests or {})
     root = Path(worktree)
     argv = _npm_argv()
     results: list[dict[str, Any]] = []
-    import tempfile
     with tempfile.TemporaryDirectory(prefix="nerelan-workspace-deps-") as temporary:
         config_dir = Path(temporary) / "npm-config"
         config_dir.mkdir()
         env = _install_environment(root, config_dir)
         for directory in plan.directories:
-            target = root.joinpath(*PurePosixPath(directory).parts)
-            if not target.is_dir() or not target.is_relative_to(root):
-                raise WorkspaceDependencyError(detail="directory_missing")
+            real_root, target = _trusted_target(root, directory)
             lockfile = target / LOCKFILE_NAME
             if lockfile_source == "base":
-                restored = _restore_base_lockfile(root, plan.base_commit, directory)
+                restored = _restore_base_lockfile(real_root, plan.base_commit, directory, target)
                 if restored is None:
                     raise WorkspaceDependencyError(detail="lockfile_missing")
             elif not lockfile.is_file():
-                # Nothing pins the dependency set; npm ci cannot run and the
-                # check would fail with an opaque "not recognized" message.
-                raise WorkspaceDependencyError(detail="lockfile_missing")
+                # Nothing pins the dependency set; npm ci cannot run. In the
+                # workspace this is the agent's tree, not a host outage.
+                raise WorkspaceDependencyError(LOCKFILE_INVALID_CODE, detail="lockfile_missing")
             if lockfile.stat().st_size > MAX_LOCKFILE_BYTES:
-                raise WorkspaceDependencyError(detail="lockfile_too_large")
+                raise WorkspaceDependencyError(LOCKFILE_INVALID_CODE, detail="lockfile_too_large")
             package = target / "package.json"
             if package.is_file() and package.stat().st_size > MAX_PACKAGE_BYTES:
-                raise WorkspaceDependencyError(detail="package_too_large")
+                raise WorkspaceDependencyError(LOCKFILE_INVALID_CODE, detail="package_too_large")
+            digest = _sha256_bytes(lockfile.read_bytes())
+            _clear_node_modules(target)
             command = [*argv, "--ignore-scripts", "--no-audit", "--no-fund"]
-            observed = (runner(command, target, env, timeout) if runner is not None
-                        else _run_install(command, target, env, timeout))
             entry = {
                 "directory": directory,
-                "lockfile_digest": _sha256_bytes(lockfile.read_bytes()),
+                "lockfile_digest": digest,
                 "lockfile_source": lockfile_source,
-                "exit_code": observed.get("exit_code"),
-                "timed_out": bool(observed.get("timed_out")),
-                "duration_ms": observed.get("duration_ms"),
-                "output_digest": observed.get("output_digest", ""),
-                "output_bytes": observed.get("output_bytes", 0),
+                "previous_lockfile_digest": previous.get(directory, ""),
+                "fresh_install": True,
             }
+            try:
+                observed = (runner(command, target, env, timeout) if runner is not None
+                            else _run_install(command, target, env, timeout))
+            except WorkspaceDependencyError as exc:
+                if exc.code != DEPENDENCY_CLEANUP_CODE:
+                    raise
+                entry.update(exit_code=None, timed_out=True, cleanup="unknown")
+                results.append(entry)
+                _record(store, task_id, {"status": "FAILED", "directories": results,
+                                         "failure": DEPENDENCY_CLEANUP_CODE,
+                                         "failed_directory": directory}, lease=lease)
+                raise
+            entry.update(
+                exit_code=observed.get("exit_code"),
+                timed_out=bool(observed.get("timed_out")),
+                duration_ms=observed.get("duration_ms"),
+                output_digest=observed.get("output_digest", ""),
+                output_bytes=observed.get("output_bytes", 0),
+                cleanup=observed.get("cleanup", "not_reported"),
+            )
             results.append(entry)
             if entry["timed_out"] or entry["exit_code"] != 0:
                 document = {"status": "FAILED", "directories": results,
@@ -349,8 +428,9 @@ def provision_workspace_dependencies(
     return document
 
 
-def _restore_base_lockfile(root: Path, base_commit: str, directory: str) -> bytes | None:
-    """Put the base commit's lockfile back into the workspace.
+def _restore_base_lockfile(root: Path, base_commit: str, directory: str,
+                           target: Path) -> bytes | None:
+    """Put the base commit's lockfile back into the (already trusted) target.
 
     The workspace preparation step installs from the base commit's lockfile,
     never from whatever the agent's tree carries, so the dependency set the
@@ -362,9 +442,7 @@ def _restore_base_lockfile(root: Path, base_commit: str, directory: str) -> byte
     payload = _git_blob(root, base_commit, relative)
     if payload is None:
         return None
-    target = root.joinpath(*PurePosixPath(directory).parts) / LOCKFILE_NAME
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(payload)
+    (target / LOCKFILE_NAME).write_bytes(payload)
     return payload
 
 
@@ -378,9 +456,9 @@ def dependency_evidence(task: Any) -> list[Mapping[str, Any]]:
 def installed_lockfile_digests(task: Any) -> dict[str, str]:
     """The lockfile digest each directory was last installed from.
 
-    The functional check compares this with the workspace's current lockfile
-    to learn whether the agent changed it and the installed tree has to be
-    refreshed (#1503).
+    The functional check records this next to its own fresh install, so the
+    evidence shows whether the agent changed the lockfile (#1503). It is not
+    proof that the installed tree is intact and is never used to skip one.
     """
     digests: dict[str, str] = {}
     for row in dependency_evidence(task):
