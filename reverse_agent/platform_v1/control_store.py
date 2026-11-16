@@ -15,7 +15,6 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import base64
 from typing import Any, Callable, Mapping, Sequence
 
@@ -1505,53 +1504,6 @@ class PlatformControlStore:
 
     # Autonomous windows and receipts ---------------------------------
 
-    def activate_policy_window(self, payload: Mapping[str, Any], *, authority: Mapping[str, Any]) -> AutonomousWindowRecord:
-        """Trusted service entry; policy/slot creation shares the existing transaction."""
-        from .autonomy import validate_canonical_policy, policy_digest, goal_admission_snapshots
-        policy = validate_canonical_policy(payload.get("canonical_policy"))
-        provenance = payload.get("confirmation_provenance")
-        if (not isinstance(authority, Mapping) or not isinstance(provenance, Mapping)
-                or payload.get("confirmation_mode") != "DELEGATED_CONTROLLER"
-                or provenance.get("personally_human") is not False
-                or provenance.get("confirmation_mode") != "DELEGATED_CONTROLLER"
-                or payload.get("policy_digest_sha256") != policy_digest(policy)
-                or authority.get("policy_digest_sha256") != policy_digest(policy)
-                or authority.get("policy") != policy
-                or authority.get("max_real_window_activations") != 1
-                or authority.get("database_path") is None
-                or Path(str(authority["database_path"])).resolve() != Path(self.task_store.db_path).resolve()):
-            raise TaskStoreError("trusted_policy_store_binding_invalid")
-        for name in ("policy_id", "policy_revision", "window_id", "delegation_slot_id"):
-            if payload.get(name) != authority.get(name):
-                raise TaskStoreError("trusted_policy_store_identity_mismatch")
-        expected = {"owner_identity": authority.get("controller_identity"),
-                    "starts_at": datetime.fromisoformat(policy["autonomousWindow"]["startsAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "expires_at": datetime.fromisoformat(policy["autonomousWindow"]["expiresAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "max_tasks": authority.get("max_tasks"), "max_retries": authority.get("max_retries"),
-                    "max_concurrent_tasks": authority.get("max_concurrent_tasks")}
-        admissions = goal_admission_snapshots(authority)
-        allowed_operations = ("approve_goal", "validate_task") if admissions else ("validate_task",)
-        if admissions and (type(authority.get("max_tasks")) is not int or authority["max_tasks"] != len(admissions)):
-            raise TaskStoreError("trusted_policy_store_goal_allowance_mismatch")
-        if (any(payload.get(key) != value for key, value in expected.items())
-                or tuple(payload.get("repositories", ())) != (policy["repository"],)
-                or tuple(payload.get("capabilities", ())) != allowed_operations
-                or tuple(authority.get("allowed_operations", ())) != allowed_operations
-                or not isinstance(authority.get("delegation_slot_id"), str)
-                or not authority["delegation_slot_id"]
-                or type(authority.get("max_real_window_activations")) is not int):
-            raise TaskStoreError("trusted_policy_store_scope_mismatch")
-        for name in ("controller_identity", "decision_id", "decision_content_sha256", "decision_commit_sha",
-                     "command_plan_sha256", "upper_proposal_sha256", "host_instance_id", "delegation_slot_id"):
-            if provenance.get(name) != authority.get(name):
-                raise TaskStoreError("trusted_policy_store_provenance_mismatch")
-        binding = {"canonical_policy": policy, "policy_digest_sha256": policy_digest(policy),
-                   "confirmation_mode": "DELEGATED_CONTROLLER", "confirmation_provenance": dict(provenance),
-                   "delegation_slot_id": authority["delegation_slot_id"], "authority": dict(authority)}
-        base_payload = {key: value for key, value in payload.items() if key not in {
-            "canonical_policy", "policy_digest_sha256", "confirmation_mode", "confirmation_provenance", "delegation_slot_id"}}
-        return self.activate_window(base_payload, confirmation="DELEGATED_CONTROLLER", _trusted_binding=binding)
-
     def window_policy_binding(self, window_id: str) -> dict[str, Any]:
         with self._lock:
             row = self._conn.execute("SELECT * FROM platform_autonomous_windows WHERE id = ?", (window_id,)).fetchone()
@@ -1611,7 +1563,6 @@ class PlatformControlStore:
         return self.get_window(window_id)
 
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
-                        _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
                         _host_preserve_claim_windows: bool = False,
                         _host_expected_goal_id: str | None = None,
@@ -1636,7 +1587,7 @@ class PlatformControlStore:
             # Owner-confirmed multi-Goal window (owner_window.OwnerWindowAdmission).
             # Same transaction discipline as the single-Task path; wider, still
             # hard-bounded envelope. The single-Task path below is unchanged.
-            if (_host_sql_admit is None or _host_expected_goal_id is not None or _trusted_binding is not None
+            if (_host_sql_admit is None or _host_expected_goal_id is not None
                     or _host_preserve_claim_windows or not callable(_host_sql_admit)
                     or not isinstance(_host_expected_goal_ids, tuple)
                     or not 1 <= len(_host_expected_goal_ids) <= OWNER_WINDOW_MAX_GOALS
@@ -1660,7 +1611,7 @@ class PlatformControlStore:
                 raise TaskStoreError("host_atomic_window_scope_invalid")
         if _host_sql_admit is not None:
             if not owner_window and (
-                    _trusted_binding is not None or not callable(_host_sql_admit)
+                    not callable(_host_sql_admit)
                     or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
                 raise TaskStoreError("host_atomic_admission_invalid")
             if not owner_window and (
@@ -1693,23 +1644,22 @@ class PlatformControlStore:
         elif _host_expected_goal_id is not None:
             raise TaskStoreError("host_atomic_admission_invalid")
         standing = payload.get("standing_renewal")
-        if standing is not None and (_trusted_binding is not None or _host_sql_admit is not None):
+        if standing is not None and _host_sql_admit is not None:
             raise TaskStoreError("standing_window_requires_owner_activation")
-        if _standing_renewal and (standing is None or _trusted_binding is not None or _host_sql_admit is not None):
+        if _standing_renewal and (standing is None or _host_sql_admit is not None):
             raise TaskStoreError("standing_renewal_invalid")
-        expected = ("DELEGATED_CONTROLLER" if _trusted_binding
-                    else "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE")
+        expected = "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE"
         if confirmation.strip() != expected:
             raise TaskStoreError("owner_activation_confirmation_required")
-        digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
+        digest = sha256_json(payload)
         window_id = str(payload.get("window_id") or _id("window"))
         now = _utc_now()
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
         capabilities = tuple(str(v) for v in payload.get("capabilities", ()))
         adopted = payload.get("adopt_unfinished_goals") or ()
         if adopted:
-            # Explicit Owner listing only; host-native and delegated windows never adopt.
-            if (_host_sql_admit is not None or _trusted_binding is not None
+            # Explicit Owner listing only; host-native windows never adopt.
+            if (_host_sql_admit is not None
                     or not isinstance(adopted, (list, tuple)) or len(adopted) > 100
                     or any(type(goal_id) is not str or not goal_id.strip() for goal_id in adopted)
                     or len(set(adopted)) != len(adopted)):
@@ -1746,13 +1696,6 @@ class PlatformControlStore:
                 if existing is not None:
                     if existing["policy_digest"] != digest:
                         raise TaskStoreError("policy_revision_conflict")
-                    if _trusted_binding and (
-                        existing["delegation_slot_id"] != _trusted_binding["delegation_slot_id"]
-                        or existing["policy_authority_json"] != canonical_json(_trusted_binding["authority"])
-                        or existing["confirmation_provenance_json"] != canonical_json(_trusted_binding["confirmation_provenance"])
-                        or existing["canonical_policy_json"] != canonical_json(_trusted_binding["canonical_policy"])
-                    ):
-                        raise TaskStoreError("policy_revision_authority_conflict")
                     # A host admission must never silently re-use a previous
                     # window without executing its Goal transaction.
                     if _host_sql_admit is not None:
@@ -1805,14 +1748,6 @@ class PlatformControlStore:
                         now,
                     ),
                 )
-                if _trusted_binding:
-                    cur.execute(
-                        "UPDATE platform_autonomous_windows SET canonical_policy_json = ?, canonical_policy_digest = ?, "
-                        "confirmation_mode = ?, confirmation_provenance_json = ?, delegation_slot_id = ?, policy_authority_json = ? WHERE id = ?",
-                        (canonical_json(_trusted_binding["canonical_policy"]), _trusted_binding["policy_digest_sha256"],
-                         _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
-                         _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
-                    )
                 if standing is not None and not _standing_renewal:
                     # The Owner's activation approves the standing policy once.
                     cur.execute(

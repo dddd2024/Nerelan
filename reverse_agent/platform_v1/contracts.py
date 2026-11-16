@@ -23,7 +23,8 @@ from typing import Any, Sequence
 MAX_ATTEMPTS = 2  # at most one bounded retry; the third attempt is rejected
 
 # Module-private sentinel required to construct live evidence.
-# Only evidence_adapter._create_trusted_evidence() may import and use this.
+# No live collector remains in main: the v1 Path A collector that held it was
+# retired in #1575 (deleted; last held at a7b62777), so live evidence cannot be built.
 _LIVE_FACTORY_TOKEN = object()
 
 VALID_ACCEPTANCE_STATUSES = frozenset({
@@ -395,8 +396,8 @@ class ExecutionEvidence:
             raise ValueError(f"invalid_collection_mode:{self.collection_mode}")
         # F27: live mode requires the module-private trusted factory token.
         # This prevents external callers from constructing acceptance-grade
-        # live evidence directly. Only evidence_adapter._create_trusted_evidence
-        # imports _LIVE_FACTORY_TOKEN and passes it.
+        # live evidence directly. No product module passes _LIVE_FACTORY_TOKEN
+        # since the v1 live collector was retired (#1575).
         if self.collection_mode == "live" and self._factory_token is not _LIVE_FACTORY_TOKEN:
             raise ValueError("live_mode_requires_trusted_factory")
 
@@ -583,13 +584,11 @@ class ExecutionEvidence:
         ci_checks: tuple[dict[str, Any], ...] = (),
         collected_at: str = "",
     ) -> ExecutionEvidence:
-        """DEPRECATED: use ``evidence_adapter._create_trusted_evidence``.
+        """DEPRECATED.
 
         F27: This public factory can no longer produce acceptance-grade live
         evidence. It returns fixture evidence (``collection_mode=fixture``,
-        ``provenance=caller_asserted``) regardless of caller intent. Only
-        ``evidence_adapter._create_trusted_evidence`` imports the module-private
-        ``_LIVE_FACTORY_TOKEN`` and can construct live evidence.
+        ``provenance=caller_asserted``) regardless of caller intent.
         """
 
         return cls(

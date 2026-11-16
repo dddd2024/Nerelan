@@ -4,7 +4,6 @@ import ast
 import sys
 from pathlib import Path
 
-import reverse_agent.control_plane
 import reverse_agent.platform_v1
 from reverse_agent.platform_v1.repository_preparation import _run_git
 
@@ -29,7 +28,6 @@ def test_run_git_survives_non_utf8_child_output(tmp_path: Path) -> None:
 def test_text_mode_subprocess_calls_declare_decode_errors() -> None:
     package_dirs = [
         Path(reverse_agent.platform_v1.__file__).parent,
-        Path(reverse_agent.control_plane.__file__).parent,
     ]
     violations: list[str] = []
 

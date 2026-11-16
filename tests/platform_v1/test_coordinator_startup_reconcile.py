@@ -3,10 +3,56 @@ import time
 
 import pytest
 
+from datetime import datetime, timedelta, timezone
+
+from reverse_agent.platform_v1.autonomy import AutonomyService
+from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.durable_execution import DurableExecutionService
-from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
+from reverse_agent.platform_v1.goal_service import GoalService
+from reverse_agent.platform_v1.run_store import TaskStore
+from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
+from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
 from test_native_host_socket_smoke import _isolated_host
-from test_unattended_coordinator import _real_checker_fixture
+
+
+def _owner_fixture(tmp_path, *, fail_dispatch=False):
+    """Owner window, one provider-free fixture Task and a durable coordinator."""
+    store = TaskStore(str(tmp_path / "coordinator.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "startup-reconcile", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 5, "max_retries": 0, "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({"objective": "Startup reconcile fixture", "idempotency_key": "startup-reconcile-goal",
+                         "executor_kind": "deterministic_fixture", "orchestration_mode": "single"})
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "only", "instruction": "do it"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    dispatches = []
+
+    class CountingExecutor:
+        def execute(self, task_id, task_store, *, workspace_root="", event_callback=None):
+            dispatches.append(task_id)
+            if fail_dispatch:
+                pytest.fail("fixture executor dispatched after failed startup reconciliation")
+            return ExecutorResult(success=True, validation_exit_code=0, validation_command_id="git_diff_check",
+                                  validation_output_digest="startup-fixture", validation_output_summary="ok",
+                                  changed_files=[], execution_id=f"exec-{task_id}")
+
+    router = ExecutorRouter()
+    router.replace("deterministic_fixture", lambda **_: CountingExecutor())
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=router,
+                                        workspace_root=tmp_path / "workspaces",
+                                        execution_authority_sha="a" * 64, planning_sha="b" * 64)
+    return store, control, window, task_id, coordinator, dispatches
 
 
 def _deny_startup_reconcile(patcher):
@@ -70,16 +116,7 @@ def test_explicit_read_only_reconcile_preserves_diagnostic_behavior(tmp_path, mo
 
 def test_failed_startup_reconcile_keeps_manual_ticks_inert(tmp_path, monkeypatch):
     """A failed startup reconcile must block every manual dispatch mode (#1347)."""
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(
-        tmp_path, monkeypatch
-    )
-    dispatches = []
-
-    def observed_run(self, **kwargs):
-        dispatches.append(kwargs["task_id"])
-        pytest.fail("actual checker dispatched after failed startup reconciliation")
-
-    monkeypatch.setattr(LocalValidationRunner, "run", observed_run)
+    store, control, window, task_id, coordinator, dispatches = _owner_fixture(tmp_path, fail_dispatch=True)
     try:
         with monkeypatch.context() as denied:
             _deny_startup_reconcile(denied)
@@ -120,17 +157,7 @@ def test_failed_startup_reconcile_keeps_manual_ticks_inert(tmp_path, monkeypatch
 
 def test_failed_startup_reconcile_recovers_on_a_later_successful_start(tmp_path, monkeypatch):
     """The denial is scoped to the failed activation, not permanent (#1347)."""
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(
-        tmp_path, monkeypatch
-    )
-    dispatches = []
-    original_run = LocalValidationRunner.run
-
-    def observed_run(self, **kwargs):
-        dispatches.append(kwargs["task_id"])
-        return original_run(self, **kwargs)
-
-    monkeypatch.setattr(LocalValidationRunner, "run", observed_run)
+    store, control, window, task_id, coordinator, dispatches = _owner_fixture(tmp_path)
     try:
         with monkeypatch.context() as denied:
             _deny_startup_reconcile(denied)
@@ -153,7 +180,7 @@ def test_failed_startup_reconcile_recovers_on_a_later_successful_start(tmp_path,
                and time.monotonic() < deadline):
             time.sleep(0.05)
         final = store.get_task(task_id)
-        assert final.status == "READY_FOR_REVIEW" and final.validation_exit_code == 0
+        assert final.status in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"} and final.validation_exit_code == 0
         assert dispatches == [task_id]
         assert (
             control.get_window(window.id).tasks_started,
@@ -173,21 +200,11 @@ def test_failed_startup_reconcile_recovers_on_a_later_successful_start(tmp_path,
 
 def test_pre_start_manual_tick_before_any_start_still_dispatches(tmp_path, monkeypatch):
     """Provider-free direct ticks keep working; gating is armed by a failed start."""
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(
-        tmp_path, monkeypatch
-    )
-    dispatches = []
-    original_run = LocalValidationRunner.run
-
-    def observed_run(self, **kwargs):
-        dispatches.append(kwargs["task_id"])
-        return original_run(self, **kwargs)
-
-    monkeypatch.setattr(LocalValidationRunner, "run", observed_run)
+    store, control, window, task_id, coordinator, dispatches = _owner_fixture(tmp_path)
     try:
         assert coordinator.tick() == 1
         assert dispatches == [task_id]
-        assert store.get_task(task_id).status == "READY_FOR_REVIEW"
+        assert store.get_task(task_id).status in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}
         assert control.get_window(window.id).tasks_started == 1
         # A coordinator that never started stays inert on its own.
         assert coordinator._thread is None

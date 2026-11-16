@@ -292,27 +292,6 @@ def test_native_recovery_uses_frozen_launch_base_not_a_new_repository_head(launc
     assert task(case).executor_kind == "codex" and task(case).branch == BASE
 
 
-def test_external_authority_revocation_is_evaluated_inside_the_write_transaction(launch, monkeypatch):
-    case = launch()
-    case.state["available"] = True
-    case.clock[0] += 61
-    original = case.goals.task_resolver
-    def select_then_revoke(plan, **kwargs):
-        result = original(plan, **kwargs)
-        case.autonomy.require_trusted_policy = True
-        return result
-    case.goals.task_resolver = select_then_revoke
-    checked = []
-    def revoked():
-        checked.append(case.store._conn.in_transaction)
-        raise TaskStoreError("authority_revoked")
-    monkeypatch.setattr(case.autonomy, "_authority", revoked)
-    assert case.coordinator.tick() == 0
-    assert checked == [True]
-    assert task(case).status == "BLOCKED" and task(case).binding_ref == ""
-    assert case.control.get_window(case.window.id).tasks_started == 0
-
-
 def test_stop_during_resolver_io_prevents_committing_the_choice(launch):
     case = launch()
     original = case.goals.task_resolver
@@ -376,18 +355,6 @@ def test_unknown_author_usage_does_not_become_permission_to_activate_review(laun
     case.goals.reconsider_initial_models(case.window.id, autonomy=case.autonomy)
     assert task(case, "R").status == "BLOCKED" and len(case.calls) == before
     assert case.store.list_usage_observations(author.id)[0].status == "UNKNOWN"
-
-
-def test_delegated_admission_uses_the_hosts_existing_goal_service(launch, monkeypatch):
-    case = launch()
-    monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED")
-    monkeypatch.setattr(type(case.autonomy), "delegated_mode", property(lambda self: True))
-    case.store._conn.execute("UPDATE platform_autonomous_windows SET capabilities_json=? WHERE id=?",
-        (json.dumps(["execute_task", "validate_task", "approve_goal"]), case.window.id))
-    seen = []
-    monkeypatch.setattr(case.autonomy, "admit_goals", lambda service, **kwargs: seen.append(service))
-    case.coordinator.tick()
-    assert seen == [case.goals]
 
 
 def test_two_independent_store_connections_cannot_reactivate_twice(launch, tmp_path):
@@ -497,25 +464,6 @@ def test_contract_base_cannot_be_overridden_by_changing_only_the_wait_marker(lau
     assert task(case, "A").status == "BLOCKED" and task(case, "R").status == "BLOCKED"
 
 
-def test_real_delegated_checker_admission_retains_configured_service_and_zero_probe_intent(tmp_path, monkeypatch):
-    from tests.platform_v1.test_delegated_goal_admission import system
-    store, control, goals, autonomy, authority, coordinator = system(tmp_path, monkeypatch, count=1)
-    coordinator.goals = goals
-    calls = []
-    original = goals._launch
-    def tracked(*args, **kwargs):
-        calls.append(kwargs)
-        return original(*args, **kwargs)
-    monkeypatch.setattr(goals, "_launch", tracked)
-    try:
-        assert coordinator.tick() == 1
-        assert len(calls) == 1 and calls[0]["probe_availability"] is False
-        assert control.get_window("admission-window").tasks_started == 1
-        assert control.get_window("admission-window").unknown_observation_count == 0
-    finally:
-        store._conn.close()
-
-
 @pytest.mark.parametrize("bad", [None, {}, {"version": True}, {"version": 2}, {"retry_at": float("nan")}, {"task_id": "other"}])
 def test_invalid_marker_never_becomes_authority_to_queue_work(launch, bad):
     case = launch()
@@ -602,10 +550,8 @@ def test_malformed_successful_routes_park_without_dispatch(launch, invalid):
 def test_an_unmarked_idle_goal_does_not_load_policy_or_probe_routes(launch, monkeypatch):
     case = launch()
     case.store._conn.execute("UPDATE tasks SET failure_detail='{}' WHERE id=?", (task(case).id,))
-    loaded = []
-    monkeypatch.setattr(case.autonomy, "_check_window_authority", lambda window_id: loaded.append(window_id))
     case.clock[0] += 100
-    assert case.coordinator.tick() == 0 and loaded == [] and len(case.calls) == 1
+    assert case.coordinator.tick() == 0 and len(case.calls) == 1
 
 
 def test_recursive_author_recovery_obeys_the_same_resolver_limit(launch):

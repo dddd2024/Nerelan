@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
-
 import pytest
 
-from reverse_agent.architecture.authority import planning_reference_can_authorize
-from reverse_agent.architecture.contracts import AuthorizationRequirement, GitHubWorkItem, PlanningReference, WorkflowIdentity, stable_json
+from reverse_agent.architecture.contracts import AuthorizationRequirement, GitHubWorkItem, PlanningReference, WorkflowIdentity
 from reverse_agent.architecture.risk import WorkflowRoute
 
 
@@ -17,15 +14,6 @@ def _planning_payload() -> dict[str, object]:
         "digest": "a" * 64,
         "summary": "Bounded architecture context",
     }
-
-
-def test_planning_reference_serialization_is_stable_and_non_authoritative() -> None:
-    reference = PlanningReference.from_mapping(_planning_payload())
-    encoded = stable_json(reference.to_dict())
-    assert encoded == stable_json(json.loads(encoded))
-    assert PlanningReference.from_mapping(json.loads(encoded)) == reference
-    assert reference.to_dict()["command_authority"] is False
-    assert planning_reference_can_authorize(reference) is False
 
 
 def test_planning_reference_rejects_command_authority_and_bad_digest() -> None:
