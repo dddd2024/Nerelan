@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| Graphiti（2026-11-16 源码专项） | `getzep/graphiti` | 中：跨 Goal 长期记忆、时态事实、Graph+Keyword 检索 | 源码研究；按来源/有效期借鉴，不默认集成 | 研究 [#1612](https://github.com/dddd2024/Nerelan/issues/1612)；Draft PR（待创建）；时态记忆/ChangeSet/恢复反例 | TaskStore/上下文投影已有，Graphiti 引入 LLM/Embedding/图库及默认 Telemetry；MCP 参考服务不具备生产认证授权 | #296/#1267 的净成本与准确性测试、数据隔离/零外发验证通过后 | 2026-11-16 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
