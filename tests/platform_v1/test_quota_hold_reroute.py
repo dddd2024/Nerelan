@@ -130,3 +130,96 @@ def test_coordinator_offers_fully_held_goals_to_the_rerouter(monkeypatch, tmp_pa
         workspace_root=tmp_path, quota_preparer=held, quota_rerouter=rerouted.append)
     assert coordinator.tick() == 0
     assert rerouted == [goal.id]
+
+
+# --- #1596: liveness cool-down on a stalled binding, derived from its attempt rows -------
+
+from datetime import datetime, timezone  # noqa: E402
+
+from reverse_agent.platform_v1 import quota_guard  # noqa: E402
+
+NOW = 1_800_000_000.0
+MIN = 60
+
+
+def _stall(at):
+    return {"status": "FAILED", "failure_classification": "executor_stalled", "at": at}
+
+
+def _ok(at):
+    return {"status": "READY_FOR_REVIEW", "failure_classification": "", "at": at}
+
+
+def test_one_stall_cools_the_binding_down_for_the_base_time_then_expires():
+    hold = quota_guard.liveness_cooldown([_stall(NOW - 5 * MIN)], now=NOW)
+    assert hold["reason"] == "liveness_cooldown" and hold["stalls"] == 1
+    assert hold["seconds"] == quota_guard.LIVENESS_COOLDOWN_SECONDS == 15 * MIN
+    assert hold["until"] == NOW + 10 * MIN
+    assert quota_guard.liveness_cooldown([_stall(NOW - 5 * MIN)], now=NOW + 10 * MIN) is None  # expired
+
+
+def test_repeated_stalls_lengthen_the_cooldown_up_to_the_cap():
+    seconds = [quota_guard.liveness_cooldown([_stall(NOW - i) for i in range(n)], now=NOW)["seconds"]
+               for n in range(1, 7)]
+    assert seconds == [15 * MIN, 30 * MIN, 60 * MIN, 120 * MIN, 120 * MIN, 120 * MIN]
+    assert quota_guard.LIVENESS_COOLDOWN_MAX_SECONDS == 120 * MIN
+
+
+def test_a_success_clears_earlier_stalls_and_other_failures_do_not_count():
+    assert quota_guard.liveness_cooldown([_ok(NOW - MIN), _stall(NOW - 2 * MIN)], now=NOW) is None
+    # A stall after the success counts alone; the stalls before it are cleared.
+    hold = quota_guard.liveness_cooldown([_stall(NOW - MIN), _ok(NOW - 2 * MIN), _stall(NOW - 3 * MIN)], now=NOW)
+    assert hold["stalls"] == 1
+    other = {"status": "FAILED", "failure_classification": "deterministic_validation_failure", "at": NOW - MIN}
+    assert quota_guard.liveness_cooldown([other], now=NOW) is None
+    assert quota_guard.liveness_cooldown([other, _stall(NOW - 2 * MIN)], now=NOW)["stalls"] == 1
+    # Stalls older than the look-back are history, not a reason to grow the cool-down.
+    old = NOW - quota_guard.LIVENESS_LOOKBACK_SECONDS - 1
+    assert quota_guard.liveness_cooldown([_stall(NOW - MIN), _stall(old)], now=NOW)["stalls"] == 1
+
+
+def _iso(at):
+    return datetime.fromtimestamp(at, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def test_host_hold_comes_from_task_rows_and_routes_other_goals_away(monkeypatch, tmp_path):
+    """No second ledger: the hold is read from the binding's attempts, like a limit-hit hold."""
+    from test_model_router import fixture_host
+    from reverse_agent.platform_v1 import trusted_host
+    from reverse_agent.platform_v1.goal_service import PlannedTask
+    from reverse_agent.platform_v1.run_store import TaskStore
+    host = fixture_host(monkeypatch, tmp_path)
+    monkeypatch.delattr(host, "_quota_check")  # the real check, with the real hold
+    monkeypatch.setattr(host, "_limit_hit_until", lambda connection, binding=None: None)
+    host._task_store = TaskStore(":memory:")
+    clock = {"now": NOW}
+    monkeypatch.setattr(trusted_host.time, "time", lambda: clock["now"])
+
+    def attempt(binding, status, classification, at):
+        task = host._task_store.create_task(title="attempt", binding_ref=binding, executor_kind="opencode")
+        host._task_store._conn.execute(
+            "UPDATE tasks SET status=?, failure_classification=?, updated_at=? WHERE id=?",
+            (status, classification, _iso(at), task.id))
+        host._task_store._conn.commit()
+
+    task = PlannedTask("T009", "another goal", "i", difficulty=2)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    attempt("cheap", "FAILED", "executor_stalled", NOW - MIN)
+    verdict = host._quota_check(host._store.get_binding_public("cheap"))
+    assert verdict["decision"] == "switch" and verdict["reason"] == "liveness_cooldown"
+    assert verdict["until"] == _iso(NOW - MIN + 15 * MIN) and verdict["stalls"] == 1
+    # Another goal now avoids the cooling binding and the decision records why.
+    result = host._resolve_task_model(task)
+    assert result["binding_ref"] != "cheap"
+    assert any(row["binding_id"] == "cheap" and row["filter"] == "liveness_cooldown"
+               for row in result["excluded_candidates"])
+    # It expires on the fake clock ...
+    clock["now"] = NOW + 15 * MIN
+    assert host._quota_check(host._store.get_binding_public("cheap")) is None
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    # ... and a successful attempt on the binding clears a fresh one at once.
+    attempt("cheap", "FAILED", "executor_stalled", NOW + 15 * MIN)
+    assert host._quota_check(host._store.get_binding_public("cheap"))["reason"] == "liveness_cooldown"
+    attempt("cheap", "READY_FOR_REVIEW", "", NOW + 15 * MIN + 1)
+    clock["now"] = NOW + 15 * MIN + 2
+    assert host._quota_check(host._store.get_binding_public("cheap")) is None

@@ -627,7 +627,7 @@ class CombinedTrustedHost:
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
-                            probe_availability: bool = True) -> dict[str, Any]:
+                            probe_availability: bool = True, avoid_bindings: Sequence[str] = ()) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -778,7 +778,8 @@ class CombinedTrustedHost:
                                 author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=1.0 if forecast else random.random(),
-                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner))
+                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
+                                avoid_bindings=tuple(avoid_bindings))
             decision["context_packet_reservation"] = 16384 + 256
             return decision
         except ValueError as exc:
@@ -1167,6 +1168,12 @@ class CombinedTrustedHost:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
                 return {"decision": "switch", "reason": "limit_hit", "window": None,
                         "until": datetime.fromtimestamp(until, timezone.utc).isoformat().replace("+00:00", "Z")}
+            cooling = self._liveness_cooldown(binding)
+            if cooling is not None:
+                # A recent stall on this binding (#1596): other bindings first, this one only as a fallback.
+                return {"decision": "switch", "reason": "liveness_cooldown", "window": None,
+                        "stalls": cooling["stalls"], "cooldown_seconds": cooling["seconds"],
+                        "until": datetime.fromtimestamp(cooling["until"], timezone.utc).isoformat().replace("+00:00", "Z")}
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
             need, source = typical_need(records, binding, self._store.list_bindings_public())
             verdict = check(connection, {connection.get("executor_provider_id"): self._account_quota(connection)}, need)
@@ -1207,6 +1214,25 @@ class CombinedTrustedHost:
         account = connection.get("account_ref") or connection.get("connection_id")
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
         return _usable_quota(account, candidates)
+
+    def _liveness_cooldown(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
+        """The binding's active liveness cool-down, derived from its own attempt rows (#1596)."""
+        from .quota_guard import LIVENESS_LOOKBACK_SECONDS, liveness_cooldown
+        now = time.time()
+        since = datetime.fromtimestamp(now - LIVENESS_LOOKBACK_SECONDS, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = self._task_store._conn.execute(
+            "SELECT status, failure_classification, failure_at, updated_at FROM tasks "
+            "WHERE binding_ref = ? AND updated_at >= ? AND status IN ('FAILED', 'READY_FOR_REVIEW') "
+            "ORDER BY updated_at DESC LIMIT 50", (binding["binding_id"], since)).fetchall()
+        attempts = []
+        for row in rows:
+            try:
+                at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError, AttributeError):
+                continue
+            attempts.append({"status": row["status"], "failure_classification": row["failure_classification"], "at": at})
+        attempts.sort(key=lambda item: item["at"], reverse=True)
+        return liveness_cooldown(attempts, now=now)
 
     def _limit_hit_until(self, connection: Mapping[str, Any],
                          binding: Mapping[str, Any] | None = None) -> float | None:

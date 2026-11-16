@@ -535,3 +535,71 @@ def test_prior_higher_tier_not_capped_by_low_difficulty_measured():
     assert decision['binding_ref'] == 'm4-free'
     assert decision['tier'] == 4
     assert not decision['underpowered']
+
+
+# --- #1596: a stalled binding is avoided for its step and cooled down pool-wide ---------
+
+COOLING = {"decision": "switch", "reason": "liveness_cooldown", "until": "2026-11-16T10:15:00Z", "stalls": 1}
+
+
+def test_stalled_step_prefers_another_upstream_then_the_same_upstream():
+    pool = [candidate("m3", "minimax/m3", account_ref="magpie"),
+            candidate("m3-fast", "minimax/m3-fast", account_ref="magpie"),
+            candidate("glm", "zai/glm-5.3", account_ref="magpie", cost="subscription")]
+    result = choose(pool, avoid_bindings=("m3",))
+    # Same tier, pricier, but a different upstream account than the one that stalled.
+    assert result["binding_ref"] == "glm"
+    assert result["liveness"]["avoided_bindings"] == ["m3"]
+    assert result["liveness"]["avoided_upstreams"] == ["magpie|minimax"]
+    assert result["liveness"]["fallback"] is False
+    filters = {row["binding_id"]: row["filter"] for row in result["excluded_candidates"]}
+    assert filters == {"m3": "liveness_step_avoided", "m3-fast": "liveness_same_upstream"}
+    # Without another upstream, a sibling on the same upstream still beats the stalled binding.
+    result = choose(pool[:2], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3-fast" and result["liveness"]["fallback"] is False
+
+
+def test_another_goal_skips_a_cooling_binding_while_it_lasts():
+    pool = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3", cost="subscription")]
+    result = choose(pool)
+    assert result["binding_ref"] == "other" and result["reason"] == "cheapest_qualifying"
+    [row] = [row for row in result["excluded_candidates"] if row["binding_id"] == "m3"]
+    assert row["filter"] == "liveness_cooldown" and row["retry_at"] is not None
+    # Expired (no cooling verdict): the cheaper binding is chosen again.
+    pool[0]["quota"] = None
+    assert choose(pool)["binding_ref"] == "m3"
+
+
+def test_only_stalled_or_cooling_bindings_fall_back_with_an_explicit_reason():
+    stalled = [candidate("m3", "glm-5.3", quota=COOLING)]
+    result = choose(stalled, avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3" and result["reason"] == "liveness_same_binding_fallback"
+    assert result["liveness"]["fallback"] is True
+    result = choose(stalled + [candidate("cool", "glm-5.3", quota=COOLING)], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "cool" and result["reason"] == "liveness_cooling_fallback"
+    assert choose(stalled)["reason"] == "liveness_cooling_fallback"
+
+
+def test_liveness_never_trades_away_capability_or_a_pin():
+    pool = [candidate("strong", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=5, avoid_bindings=("strong",))
+    # The only qualifying binding is the stalled one: it is retried rather than an underpowered model.
+    assert result["binding_ref"] == "strong" and result["liveness"]["fallback"] is True
+    assert not result["underpowered"]
+    pinned = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3")]
+    assert choose(pinned, pin="m3")["binding_ref"] == "m3"
+
+
+def test_host_router_skips_a_binding_cooling_after_a_stall(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    monkeypatch.setattr(host, "_quota_check", lambda b: COOLING if b["binding_id"] == "cheap" else None)
+    task = PlannedTask("T001", "t", "i", difficulty=2)
+    result = host._resolve_task_model(task)
+    assert result["binding_ref"] != "cheap"
+    assert {"binding_id": "cheap", "model_id": "flash-lite", "filter": "liveness_cooldown"}.items() <= next(
+        row for row in result["excluded_candidates"] if row["binding_id"] == "cheap").items()
+    # A stalled step avoids its own binding even when no cool-down is recorded yet.
+    monkeypatch.setattr(host, "_quota_check", lambda b: None)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    result = host._resolve_task_model(task, avoid_bindings=("cheap",))
+    assert result["binding_ref"] != "cheap" and result["liveness"]["avoided_bindings"] == ["cheap"]

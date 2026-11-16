@@ -760,3 +760,121 @@ def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock(
     assert seen == []
     assert goals.detail(goal.id)["quota_fit"] == {"status": "ok"}
     assert seen == [False]
+
+
+# --- #1596: a stalled attempt retries on another binding; host termination resumes ------
+
+from test_contract_miss_fixup import case, destination, git, wrong_tree  # noqa: E402,F401 (fixture)
+from test_goal_functional_checks import goal_checks  # noqa: E402,F401 (fixture)
+import reverse_agent.platform_v1.contract_recovery as recovery  # noqa: E402
+
+STALLED = "executor_stalled"
+
+
+def _now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _fail_stalled(store, task, root, *, classification=STALLED, age=None):
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="Workspace ready",
+                    metadata={"execution_id": task.execution_id, "workspace": str(root)})
+    store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected", description="fixture",
+                    metadata={"binding_ref": task.binding_ref, "reason": "fixture", "context_window": 128000})
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification=?, failure_detail=?, "
+                        "updated_at=? WHERE id=?", (classification, "opencode_stalled:900", age or _now(), task.id))
+    store._conn.commit()
+
+
+def _stall_resolver(calls, choice):
+    def resolve(plan_task, *, goal, failed_binding="", failed_tier=None, avoid_bindings=(), **kwargs):
+        calls.append({"failed_binding": failed_binding, "avoid_bindings": tuple(avoid_bindings)})
+        if isinstance(choice, Exception):
+            raise choice
+        return dict(choice)
+    return resolve
+
+
+OTHER_BINDING = {"binding_ref": "other-upstream", "executor_kind": "opencode", "model_id": "zai/glm-5.3",
+                 "tier": 3, "reason": "cheapest_qualifying", "context_window": 128000,
+                 "liveness": {"avoided_bindings": ["local-test-binding"], "fallback": False}}
+
+
+def test_stalled_step_retries_at_once_on_another_binding_with_the_retained_tree(case, tmp_path):
+    root, base, store, control, service, goal, _, task = case
+    wrong_tree(root)
+    _fail_stalled(store, task, root)  # just failed: a same-binding retry would still be backing off
+    calls = []
+    service.task_resolver = _stall_resolver(calls, OTHER_BINDING)
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{goal_service_module.HOST_RETRY_REASON}:{STALLED}:rerouted"
+    assert calls == [{"failed_binding": "", "avoid_bindings": (task.binding_ref,)}]
+    retry = store.get_task(step["to_task_id"])
+    assert (retry.binding_ref, retry.executor_kind) == ("other-upstream", "opencode")
+    # Still a free, not-the-model's-fault retry inside the shared per-step cap.
+    history = control.list_task_escalations(goal.id)
+    assert goal_service_module._free_retries_used(history, "T001") == 1
+    assert goal_service_module._routing_retries_spent(history) == 0
+    events = store.get_events(retry.id)
+    note = next(e for e in events if e.title == "Retry on another binding after a stall")
+    assert note.metadata["liveness_retry"] == "rerouted" and note.metadata["from_binding"] == task.binding_ref
+    assert any(e.type == "MODEL_SELECTED" and e.metadata.get("binding_ref") == "other-upstream" for e in events)
+    # The retained tree moves with the step, although the binding changed.
+    assert recovery.recovery_input(retry)["source_task_id"] == task.id
+    dest = destination(case, tmp_path)
+    recovery.restore_failed_tree(store, retry.id, worktree=dest)
+    assert (dest / "wrong_name.py").exists()
+    assert git(dest, "rev-parse", "HEAD") == base
+
+
+def test_a_second_stall_avoids_every_binding_the_step_stalled_on(case, monkeypatch):
+    root, _, store, control, service, goal, _, task = case
+    _fail_stalled(store, task, root)
+    calls = []
+    service.task_resolver = _stall_resolver(calls, OTHER_BINDING)
+    [step] = service.escalate_failed_tasks(goal.id)
+    _fail_stalled(store, store.get_task(step["to_task_id"]), root)
+    service.task_resolver = _stall_resolver(calls, dict(OTHER_BINDING, binding_ref="third"))
+    [step2] = service.escalate_failed_tasks(goal.id)
+    assert calls[-1]["avoid_bindings"] == ("other-upstream", task.binding_ref)
+    assert store.get_task(step2["to_task_id"]).binding_ref == "third"
+
+
+@pytest.mark.parametrize("choice,note", [
+    (dict(OTHER_BINDING, binding_ref="local-test-binding"), "no_eligible_binding"),
+    (dict(OTHER_BINDING, binding_ref="cooling", liveness={"fallback": True}), "only_cooling_bindings"),
+    (TaskStoreError("no_runnable_model"), "selection_failed:no_runnable_model"),
+    (None, "no_router"),
+])
+def test_no_alternative_retries_the_same_binding_after_backoff_and_says_why(case, monkeypatch, choice, note):
+    root, _, store, _, service, goal, _, task = case
+    _fail_stalled(store, task, root)
+    calls = []
+    service.task_resolver = None if choice is None else _stall_resolver(calls, choice)
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()  # backing off
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+    assert len(calls) == (0 if choice is None else 1)  # looked once, not on every tick
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{goal_service_module.HOST_RETRY_REASON}:{STALLED}:no_alternative"
+    retry = store.get_task(step["to_task_id"])
+    assert (retry.binding_ref, retry.executor_kind) == (task.binding_ref, task.executor_kind)
+    status = next(e for e in store.get_events(retry.id) if e.title == "Retry on the same binding after a stall")
+    assert status.metadata["liveness_retry"] == "no_alternative" and status.metadata["liveness_detail"] == note
+    assert note in status.description
+
+
+def test_host_termination_still_resumes_the_same_model_without_routing(case):
+    root, _, store, _, service, goal, _, task = case
+    _fail_stalled(store, task, root, classification=goal_service_module.EXECUTOR_TERMINATED,
+                  age="2000-01-01T00:00:00Z")
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("a stopped agent resumes on its own binding")
+    service.task_resolver = forbidden
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{goal_service_module.HOST_RETRY_REASON}:{goal_service_module.EXECUTOR_TERMINATED}"
+    retry = store.get_task(step["to_task_id"])
+    assert (retry.binding_ref, retry.executor_kind) == (task.binding_ref, task.executor_kind)
+    assert not any("stall" in e.title for e in store.get_events(retry.id))
