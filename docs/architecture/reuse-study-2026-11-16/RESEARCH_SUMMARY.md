@@ -40,6 +40,24 @@ Cline/Roo、Pi/pi-mono、Letta Code、Plandex、OpenClaw、Continue、Deep Agent
 
 这些名字应标记为 `TOUCHED_OR_DISCUSSSED / PROVENANCE_PENDING`，**不得**因为本表没有单独报告就重新研究同一模块；先复查旧聊天、GitHub Issues/PR、提交历史与最近上游变更，确定真正新增问题。
 
+### D. 其他对话中的**实际深度研究**：已补核心结论，但源证据待核验
+
+以下是此前多个 Nerelan 对话中已经讨论的**具体机制**，不等于重新开展了本轮固定 SHA 的源码核查，也不代表有独立研究 PR。此前汇总仅列名称，遗漏其研究内容；本小节用于阻止后续误判为从未研究。记录状态统一标为 `HISTORICAL_CHAT_STUDY / PROVENANCE_PENDING`，除非找到上游 commit、文档/Issue 与正式审查记录。
+
+| 项目 | 其他对话中实际研究的模块/结论 | 与本轮六项互补的复用方向 | GitHub 证据状态 |
+|---|---|---|---|
+| **Cline / Roo** | 执行器扩展、Hooks、插件与事件流；不取代 Nerelan 的中央调度 | 可以借鉴适配器事件/Hook 能力，但 Host 仍控制权限 | 11/15 [横向执行器报告](../reuse-study-2026-11-15/C-runtimes.md) 已覆盖；聊天级专项结论未逐条固化 |
+| **Pi / pi-mono** | Agent Loop、RPC、`steer/follow_up`、Session Tree、Extensions、Tool Search、Durable Session | 首选薄适配为另一个 Executor；借鉴会话树、实时控制和工具能力协商，不复制第二套主 Agent Loop | 其他对话明确深拆，部分对话曾称已关联 GitHub，但**本汇总尚未核实独立专项路径/Issue** |
+| **Letta Code** | MemFS / 长期记忆、Reflection、分层上下文、跨 Agent 经验、Worktree | 借鉴有来源、可回溯的跨执行器经验记忆；TaskStore 是权威且需验证防污染 | 其他对话有多次深拆；本次未定位到独立 GitHub 专项报告 |
+| **Plandex** | Plan Version、Pending Changes、Tree-sitter 符号地图、变更回退 | 先实验受控的代码结构地图和“待验证修改集”记录，不移植整套 Plan Manager | 其他对话深拆；本次未定位专项报告 |
+| **OpenClaw** | Harness 能力协商、按需插件 Manifest、Plugin Generation、执行授权快照 | 借鉴插件激活/隔离和 Executor Capability Contract；不让它替代 Owner Policy | 其他对话深拆；本次未定位专项报告 |
+| **Hermes Agent** | 持久 Goal/Kanban、依赖、交接、验收、Skill 生命周期 | 借鉴任务等待、恢复、验收与上下文引用；不复制另一套调度器 | 其他对话曾称已有 GitHub 审计，**具体文件/Issue 尚未核实** |
+| **OpenCode / OpenHands / Codex** | 原生重试/事件、Subagent/Tools、工作区、SDK/执行器恢复 | 归入现有 Harness×Model #1527，不等同于独立完成所有安全实测 | OpenCode/OpenHands/Codex 在 11/15 [横向报告](../reuse-study-2026-11-15/C-runtimes.md) 中已有来源；更深聊天结论待配对 |
+| **Goose / Continue / Aider / mini-SWE-agent / Gemini CLI** | 曾作为执行器或 Harness 候选比较，部分有源码/架构级讨论 | 新增研究前先核查已研究过的子模块/插件接口、模型路由及恢复场景 | 部分已有横向报告，**单独专项证据待逐项核对** |
+| **Orchestrator.inc / Deep Agents / Pydantic AI / FastMCP / Qwen Code** | 其他聊天曾涉及架构、框架、工具/Agent 扩展，但本次没有足够完整的项目级记录可逐项还原 | 暂不据此产生实施结论；先核实原始研究范围，再决定是否补源代码级研究 | `HISTORICAL_MENTION / SCOPE_NOT_RECONCILED` |
+
+**对“是否已经整合”的准确回答：** 已把可恢复的旧对话**项目+核心模块+初步复用判断**补进本汇总，但**没有完成全部旧聊天原始证据的逐条归档**。待补字段包括原研究对话链接、对应源码 SHA、读过的函数/代码路径、可证伪试验、是否已有 GitHub 审计/Issue 与最新上游变化。不得将 `HISTORICAL_CHAT_STUDY` 统计为六项已经正式留痕的 `STATIC_SOURCE_REVIEW`。
+
 ## 2. 模块级决策：Nerelan 应该“抄什么”
 
 表中“借鉴”是设计证据或未来对照实验；目前没有从本轮六份源码报告获得正式运行效果证明。
