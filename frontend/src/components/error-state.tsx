@@ -1,10 +1,12 @@
 import { AlertCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 interface ErrorStateProps {
   title?: string;
   error?: unknown;
   onRetry?: () => void;
+  children?: ReactNode;
 }
 
 /**
@@ -17,6 +19,7 @@ export function ErrorState({
   title = "出现错误",
   error,
   onRetry,
+  children,
 }: ErrorStateProps) {
   const message =
     error instanceof Error
@@ -38,6 +41,7 @@ export function ErrorState({
       {message ? (
         <p className="text-xs text-ra-text-tertiary">{message}</p>
       ) : null}
+      {children}
       {onRetry ? (
         <button
           type="button"

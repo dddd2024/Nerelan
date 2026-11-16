@@ -24,7 +24,7 @@ const RETRY_ERRORS: Record<string, string> = {
 
 function retryError(error: unknown): string {
   if (error instanceof PlatformClientError) {
-    return RETRY_ERRORS[error.code] ?? httpErrorMessage(error.status, error.code);
+    return RETRY_ERRORS[error.code] ?? httpErrorMessage(error.status, error.code, error.errorClass);
   }
   return "没能重试，请检查 Nerelan 是否在运行。";
 }

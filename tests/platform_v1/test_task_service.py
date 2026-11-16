@@ -195,7 +195,9 @@ def test_default_launch_denies_owner_activation_without_human_confirmation(produ
         "max_concurrent_tasks": 2, "max_tasks": 20, "max_retries": 1, "confirmation": "ACTIVATE",
     })
     assert status == 409, window
-    assert window == {"error": "owner_selection_confirmation_unavailable"}
+    assert window["error"] == "owner_selection_confirmation_unavailable"
+    assert window["error_class"] == "conflict"
+    assert window["retryable"] is False
     assert server.RequestHandlerClass.control_store.active_window() is None
 
 
@@ -218,7 +220,7 @@ def test_owner_activation_partial_body_rejected_before_json_parse(production_pol
         }))
         response = conn.getresponse()
         assert response.status == 409
-        assert json.loads(response.read()) == {"error": "owner_selection_confirmation_unavailable"}
+        assert json.loads(response.read())["error"] == "owner_selection_confirmation_unavailable"
         assert time.monotonic() - start < 3
         assert handler.store._conn.total_changes == before
         assert handler.control_store.active_window() is None
@@ -296,7 +298,7 @@ def test_history_http_traverses_151_records_and_retains_exact_detail(task_server
     assert status == 200 and detail[key] == ids[-1]
     other = "runs" if kind == "goals" else "goals"
     status, error = _req(base, "GET", f"/api/{other}?{query}")
-    assert status == 400 and error == {"error": "invalid_history_pagination"}
+    assert status == 400 and error["error"] == "invalid_history_pagination"
 
 
 @pytest.mark.parametrize("kind", ["goals", "runs"])
@@ -307,7 +309,7 @@ def test_history_http_rejects_invalid_and_ambiguous_pagination(task_server, kind
         "limit=1&limit=2", "cursor=", "cursor=bad!", "cursor=a&cursor=b",
     ):
         status, error = _req(base, "GET", f"/api/{kind}?{query}")
-        assert status == 400 and error == {"error": "invalid_history_pagination"}
+        assert status == 400 and error["error"] == "invalid_history_pagination"
 
 
 def _ordered_sqlite_race(first, second):
@@ -999,7 +1001,7 @@ def test_queue_cancel_http_rejects_non_empty_or_non_object_body(task_server, bod
     else:
         status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel", body)
     assert status == 400
-    assert payload == {"error": "cancel_request_must_be_empty"}
+    assert payload["error"] == "cancel_request_must_be_empty"
 
 
 def test_queue_cancel_http_is_fail_closed_for_active_status_and_unknown_run(task_server) -> None:
@@ -1012,15 +1014,13 @@ def test_queue_cancel_http_is_fail_closed_for_active_status_and_unknown_run(task
     server.RequestHandlerClass.store.set_state(task_id, "RUNNING")
     status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
     assert status == 409
-    assert payload == {
-        "error": "queue_cancel_unavailable",
-        "reason_code": "STATUS_NOT_CANCELLABLE",
-    }
+    assert payload["error"] == "queue_cancel_unavailable"
+    assert payload["reason_code"] == "STATUS_NOT_CANCELLABLE"
     assert server.RequestHandlerClass.store.get_task(task_id).status == "RUNNING"
 
     status, payload = _req(base, "POST", "/api/runs/missing-run/cancel")
     assert status == 404
-    assert payload == {"error": "run_not_found"}
+    assert payload["error"] == "run_not_found"
 
 
 @pytest.mark.parametrize(
@@ -1061,10 +1061,8 @@ def test_queue_cancel_rejects_any_historical_execution_evidence(
 
     status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
     assert status == 409
-    assert payload == {
-        "error": "queue_cancel_unavailable",
-        "reason_code": "EXECUTION_HISTORY_PRESENT",
-    }
+    assert payload["error"] == "queue_cancel_unavailable"
+    assert payload["reason_code"] == "EXECUTION_HISTORY_PRESENT"
     assert server.RequestHandlerClass.store.get_task(task_id).status == "QUEUED"
 
 
@@ -1090,10 +1088,8 @@ def test_queue_cancel_rejects_durable_run_even_with_queued_status(task_server) -
     )
     status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
     assert status == 409
-    assert payload == {
-        "error": "queue_cancel_unavailable",
-        "reason_code": "EXECUTION_HISTORY_PRESENT",
-    }
+    assert payload["error"] == "queue_cancel_unavailable"
+    assert payload["reason_code"] == "EXECUTION_HISTORY_PRESENT"
     assert store._get_durable_run(lease.run_id).run_id == lease.run_id
     assert store.get_task(task_id).status == "QUEUED"
 
@@ -1136,10 +1132,8 @@ def test_durable_first_blocks_cancel_without_representing_stop(task_server) -> N
     )
     status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
     assert status == 409
-    assert payload == {
-        "error": "queue_cancel_unavailable",
-        "reason_code": "STATUS_NOT_CANCELLABLE",
-    }
+    assert payload["error"] == "queue_cancel_unavailable"
+    assert payload["reason_code"] == "STATUS_NOT_CANCELLABLE"
     assert store.get_task(task_id).status == "PREPARING_WORKSPACE"
     assert store._get_durable_run(lease.run_id).run_id == lease.run_id
 
@@ -1217,7 +1211,7 @@ def test_queue_cancel_event_failure_rolls_back_status_and_event(task_server, mon
     monkeypatch.setattr(store, "_append_event", fail_event)
     status, payload = _req(base, "POST", f"/api/runs/{task_id}/cancel")
     assert status == 500
-    assert payload == {"error": "queue_cancel_failed"}
+    assert payload["error"] == "queue_cancel_failed"
     assert store.get_task(task_id).status == "QUEUED"
     after_events = store._conn.execute(
         "SELECT COUNT(*) AS c FROM task_events WHERE task_id = ?", (task_id,)
@@ -1280,7 +1274,9 @@ def test_origin_fail_closed(task_server) -> None:
     base, _ = task_server
     status, body = _req(base, "GET", "/api/tasks", origin="https://evil.example")
     assert status == 403
-    assert body == {"error": "forbidden"}
+    assert body["error"] == "forbidden"
+    assert body["error_class"] == "forbidden"
+    assert body["retryable"] is False
 
 
 def test_missing_title_rejected(task_server) -> None:
@@ -2958,7 +2954,11 @@ def test_surplus_polls_of_a_list_are_refused_instead_of_queueing(task_server, mo
         assert entered.acquire(timeout=10)
     try:
         status, body = _req(base_url, "GET", "/api/tasks")
-        assert (status, body) == (503, {"error": "busy", "retry": True})
+        assert status == 503
+        assert body["error"] == "busy"
+        assert body["retry"] is True
+        assert body["error_class"] == "busy"
+        assert body["retryable"] is True
         # Other endpoints and unpolled paths are unaffected.
         assert _req(base_url, "GET", "/api/health")[0] == 200
         assert _req(base_url, "GET", "/api/goals")[0] == 200
@@ -2968,3 +2968,221 @@ def test_surplus_polls_of_a_list_are_refused_instead_of_queueing(task_server, mo
             worker.join(timeout=10)
     assert results == [200] * task_service._POLLED_IN_FLIGHT
     assert _req(base_url, "GET", "/api/tasks")[0] == 200
+
+
+def _req_full(base_url: str, method: str, path: str, body=None, origin=None):
+    """Like _req but also returns response headers for correlation checks."""
+    host, port = base_url.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=10)
+    headers = {
+        "Accept": "application/json",
+        "Origin": origin or "http://localhost:5173",
+    }
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        body = json.dumps(body).encode()
+    conn.request(method, path, body=body, headers=client_headers(headers))
+    resp = conn.getresponse()
+    data = resp.read()
+    resp_headers = {k.lower(): v for k, v in resp.getheaders()}
+    return resp.status, json.loads(data.decode()) if data else None, resp_headers
+
+
+def test_goal_detail_response_carries_request_correlation_headers(task_server):
+    """#1555: every JSON response carries a request id and elapsed time."""
+    base, _ = task_server
+    _, _, headers = _req_full(base, "GET", "/api/health")
+    assert "x-nerelan-request-id" in headers
+    assert len(headers["x-nerelan-request-id"]) >= 8
+    assert "x-nerelan-elapsed-ms" in headers
+    elapsed = int(headers["x-nerelan-elapsed-ms"])
+    assert elapsed >= 0
+    assert headers["access-control-expose-headers"] == "X-Nerelan-Request-Id, X-Nerelan-Elapsed-Ms"
+
+
+def test_slow_goal_read_reports_request_timing_while_health_stays_available(task_server, monkeypatch):
+    import time
+
+    base, server = task_server
+    handler = server.RequestHandlerClass
+    assert handler.goal_service is not None
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_detail(goal_id):
+        started.set()
+        assert release.wait(2)
+        return {"id": goal_id}
+
+    monkeypatch.setattr(handler.goal_service, "detail", slow_detail)
+    observed = []
+    worker = threading.Thread(target=lambda: observed.append(_req_full(base, "GET", "/api/goals/slow")))
+    worker.start()
+    try:
+        assert started.wait(2)
+        status, _, health_headers = _req_full(base, "GET", "/api/health")
+        assert status == 200
+        time.sleep(0.05)  # isolated service latency, not a claim about the live host
+    finally:
+        release.set()
+        worker.join(timeout=3)
+    assert not worker.is_alive()
+    status, body, headers = observed[0]
+    assert status == 200 and body["id"] == "slow"
+    assert int(headers["x-nerelan-elapsed-ms"]) >= 50
+    assert headers["x-nerelan-request-id"] != health_headers["x-nerelan-request-id"]
+
+
+def test_request_id_is_unique_per_request(task_server):
+    """#1555: two sequential requests get different correlation ids."""
+    base, _ = task_server
+    _, _, h1 = _req_full(base, "GET", "/api/health")
+    _, _, h2 = _req_full(base, "GET", "/api/health")
+    assert h1["x-nerelan-request-id"] != h2["x-nerelan-request-id"]
+
+
+def test_public_health_remains_only_a_readiness_boolean(task_server):
+    """Instance metadata stays behind the authenticated status route."""
+    base, server = task_server
+    status, body, _ = _req_full(base, "GET", "/api/health")
+    assert status == 200
+    assert body == {"ready": True}
+
+
+def test_503_busy_error_class_distinguishes_overload_from_host_down(task_server, monkeypatch):
+    """#1555: a 503 busy must say error_class=busy, not a generic server-down."""
+    from reverse_agent.platform_v1 import task_service
+    base, server = task_server
+    handler = server.RequestHandlerClass
+    entered, release = threading.Semaphore(0), threading.Event()
+    original = handler._list_tasks_response
+
+    def slow(self):
+        entered.release()
+        release.wait(10)
+        return original(self)
+
+    monkeypatch.setattr(handler, "_list_tasks_response", slow)
+    workers = [threading.Thread(target=lambda: _req(base, "GET", "/api/tasks"))
+               for _ in range(task_service._POLLED_IN_FLIGHT)]
+    for w in workers:
+        w.start()
+    for _ in workers:
+        assert entered.acquire(timeout=10)
+    try:
+        status, body = _req(base, "GET", "/api/tasks")
+        assert status == 503
+        assert body["error"] == "busy"
+        assert body["error_class"] == "busy"
+        assert body["retryable"] is True
+        # The host is still alive: health returns 200.
+        assert _req(base, "GET", "/api/health")[0] == 200
+    finally:
+        release.set()
+        for w in workers:
+            w.join(timeout=10)
+
+
+def test_404_error_class_is_not_found_and_not_retryable(task_server):
+    """#1555: a missing goal is not_found, not 'cannot reach service'."""
+    base, _ = task_server
+    status, body = _req(base, "GET", "/api/goals/nonexistent-goal-id")
+    assert status == 404
+    assert body["error"] == "goal not found"
+    assert body["error_class"] == "not_found"
+    assert body["retryable"] is False
+
+
+def test_401_error_class_is_auth_and_not_retryable(task_server):
+    """#1555: a missing client credential is auth failure, not service-down."""
+    base, _ = task_server
+    # Send a request without the X-Nerelan-Client-Capability header.
+    host, port = base.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=10)
+    conn.request("GET", "/api/tasks", headers={"Accept": "application/json",
+                                               "Origin": "http://localhost:5173"})
+    resp = conn.getresponse()
+    body = json.loads(resp.read())
+    conn.close()
+    assert resp.status == 401
+    assert body["error_class"] == "auth"
+    assert body["retryable"] is False
+
+
+def test_500_error_class_is_server_error_and_retryable(task_server, monkeypatch):
+    """#1555: an internal failure is server_error (retryable), not service-down."""
+    base, server = task_server
+    handler = server.RequestHandlerClass
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("synthetic internal failure")
+
+    monkeypatch.setattr(handler, "_list_tasks_response", boom)
+    status, body = _req(base, "GET", "/api/tasks")
+    assert status == 500
+    assert body["error"] == "internal task service error"
+    assert body["error_class"] == "server_error"
+    assert body["retryable"] is True
+
+
+def test_goal_detail_endpoint_is_polled_to_prevent_storms(task_server, monkeypatch):
+    """#1555: concurrent goal-detail reads are bounded so poll storms cannot pile up."""
+    from reverse_agent.platform_v1 import task_service
+    base, server = task_server
+    handler = server.RequestHandlerClass
+    control = handler.control_store
+    goal = control.create_goal(title="Polled detail", objective="test", repository="owner/repo",
+                               idempotency_key="polled-detail-goal")
+    entered, release = threading.Semaphore(0), threading.Event()
+    original = handler.goal_service.detail
+
+    def slow_detail(goal_id):
+        entered.release()
+        release.wait(10)
+        return original(goal_id)
+
+    monkeypatch.setattr(handler.goal_service, "detail", slow_detail)
+    workers = [threading.Thread(target=lambda: _req(base, "GET", f"/api/goals/{goal.id}"))
+               for _ in range(task_service._POLLED_IN_FLIGHT)]
+    for w in workers:
+        w.start()
+    for _ in workers:
+        assert entered.acquire(timeout=10)
+    try:
+        status, body = _req(base, "GET", f"/api/goals/{goal.id}")
+        assert status == 503
+        assert body["error_class"] == "busy"
+        assert body["retryable"] is True
+        # The health endpoint is unaffected: the host is still alive.
+        assert _req(base, "GET", "/api/health")[0] == 200
+    finally:
+        release.set()
+        for w in workers:
+            w.join(timeout=10)
+
+
+def test_goal_detail_response_includes_generated_at_for_stale_detection(task_server):
+    """#1555: goal responses include generated_at so the frontend can mark stale content."""
+    base, server = task_server
+    control = server.RequestHandlerClass.control_store
+    goal = control.create_goal(title="Generated at", objective="test", repository="owner/repo",
+                               idempotency_key="generated-at-goal")
+    status, body = _req(base, "GET", f"/api/goals/{goal.id}")
+    assert status == 200
+    assert "generated_at" in body
+    assert body["generated_at"].endswith("Z")
+
+
+def test_forbidden_response_carries_error_class(task_server):
+    """#1555: a cross-origin rejection is forbidden, not a generic failure."""
+    base, _ = task_server
+    host, port = base.replace("http://", "").split(":", 1)
+    conn = http.client.HTTPConnection(host, int(port), timeout=10)
+    conn.request("GET", "/api/tasks", headers={"Accept": "application/json",
+                                               "Origin": "https://external.example"})
+    resp = conn.getresponse()
+    body = json.loads(resp.read())
+    conn.close()
+    assert resp.status == 403
+    assert body["error_class"] == "forbidden"
+    assert body["retryable"] is False

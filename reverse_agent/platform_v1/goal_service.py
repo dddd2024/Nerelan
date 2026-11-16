@@ -40,6 +40,11 @@ _INITIAL_WAIT = "initial_resource_wait"
 INITIAL_MODEL_RECHECK_SECONDS = 60.0
 
 
+def _goal_generated_at() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _initial_resource_wait(decision: Mapping[str, Any]) -> dict[str, Any] | None:
     """Host-owned opt-in marker, never a general retry of model refusal/failure."""
     if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
@@ -1826,6 +1831,7 @@ class GoalService:
         response, goal = self._locked_snapshot(goal_id)
         if forecast and goal.tasks:
             response["quota_fit"] = self._quota_fit(goal, self._normalize_tasks(goal.tasks))
+        response["generated_at"] = _goal_generated_at()
         return response
 
     def _locked_snapshot(self, goal_id: str) -> tuple[dict[str, Any], GoalRecord]:
