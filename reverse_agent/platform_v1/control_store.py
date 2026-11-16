@@ -15,13 +15,13 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import base64
 from typing import Any, Callable, Mapping, Sequence
 
 from .run_store import TERMINAL_STATUSES, TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
 from .repository_workspace import normalize_github_origin, normalize_repository_identity
+from .usage_ledger import cost_equivalent_units
 
 
 GOAL_STATES = frozenset(
@@ -157,6 +157,11 @@ class AutonomousWindowRecord:
     canonical_policy_digest: str = ""
     confirmation_mode: str = ""
     instance_id: str = ""
+
+    @property
+    def continuous(self) -> bool:
+        # Empty expiry is issued only by the atomic Owner admission path.
+        return self.confirmation_mode == OWNER_WINDOW_MODE and self.expires_at == ""
 
 
 @dataclass(frozen=True)
@@ -1112,7 +1117,7 @@ class PlatformControlStore:
             # exclude tasks past their own attempt limit before taking the slice.
             # The claim transaction rechecks both counters before spending.
             rows = self._conn.execute(
-                "SELECT l.task_id, t.status, w.tasks_started < w.max_tasks AS fresh_budget, "
+                "SELECT l.task_id, t.status, ((w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') OR w.tasks_started < w.max_tasks) AS fresh_budget, "
                 "w.retries_used < w.max_retries AS retry_budget "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
@@ -1172,8 +1177,41 @@ class PlatformControlStore:
         links = self.list_goal_tasks(goal_id)
         if not links:
             return self.get_goal(goal_id)
-        statuses = {str(link["status"]) for link in links}
-        if statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+        # A rejected model review whose producer repair is still alive is not a
+        # blocker: the repair must run and the review is then refreshed. Counting
+        # it as BLOCKED stranded every repair, because only RUNNING goals have
+        # their QUEUED tasks claimed (2026-11-15, #1530/#1521 goals).
+        current = {str(link["task_id"]): link for link in links}
+        revision = int(links[0]["goal_revision"])
+        escalations = [row for row in self.list_task_escalations(goal_id)
+                       if int(row["goal_revision"]) == revision]
+        # The repair may itself be replaced later (an Owner retry, a quota or
+        # routing retry): those steps continue the same producer chain, so the
+        # review waits on whichever attempt now holds the producer's link.
+        repair_holder = {}
+        for row in escalations:
+            if not str(row["reason"]).startswith("model_review_repair:"):
+                continue
+            plan_task_id, step = row["plan_task_id"], int(row["step"])
+            chain = {str(row["to_task_id"])} | {
+                str(later["to_task_id"]) for later in escalations
+                if later["plan_task_id"] == plan_task_id and int(later["step"]) > step}
+            holder = next((task_id for task_id, link in current.items()
+                           if link["plan_task_id"] == plan_task_id and task_id in chain), None)
+            if holder is not None:
+                repair_holder[str(row["reason"]).split(":", 1)[1]] = holder
+        awaiting_repair = {
+            task_id for task_id, link in current.items()
+            if link["status"] == "FAILED"
+            and link["failure_classification"] == "model_review_rejected"
+            and task_id in repair_holder
+            and current[repair_holder[task_id]]["status"] not in {"FAILED", "BLOCKED", "CANCELLED"}
+        }
+        statuses = {str(link["status"]) for task_id, link in current.items()
+                    if task_id not in awaiting_repair}
+        if awaiting_repair and statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
+            status = "RUNNING"  # the repaired artifact still needs its refreshed review
+        elif statuses <= {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
             status = "COMPLETED"
         elif statuses & {"FAILED", "BLOCKED", "CANCELLED"}:
             status = "BLOCKED"
@@ -1277,7 +1315,7 @@ class PlatformControlStore:
     def _window_current_locked(self, window_id: str) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
-            "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?)",
+            "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?))",
             (window_id, _utc_now_precise(), _utc_now_precise())).fetchone()
         return row is not None
 
@@ -1301,10 +1339,33 @@ class PlatformControlStore:
         if self.is_strict_owner_window(window):
             # Strict Owner windows bind exactly one natively admitted Goal.
             raise TaskStoreError("rebind_strict_window_unsupported")
-        if self.is_owner_window(window):
+        if self.is_owner_window(window) and not window.continuous:
             # Owner windows run exactly the Goals the Owner confirmed; nothing moves in.
             # Moving out after expiry stays possible, as for any other window.
             raise TaskStoreError("rebind_owner_window_unsupported")
+        adoption_evidence = None
+        if window.continuous:
+            if (not self.is_owner_window(old) or old.stop_reason not in {
+                    "window_expired", "window_task_budget_exhausted", "window_token_budget_exhausted"}):
+                raise TaskStoreError("continuous_adoption_not_exhausted")
+            source = self._conn.execute(
+                "SELECT evidence_json FROM platform_operation_receipts WHERE window_id=? AND subject_id=? "
+                "AND operation_type=? AND confirmation_mode=? AND decision='allowed'",
+                (old.id, goal.id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
+            target = self._conn.execute(
+                "SELECT evidence_json FROM platform_operation_receipts WHERE window_id=? "
+                "AND operation_type=? AND confirmation_mode=? AND decision='allowed' ORDER BY created_at,id LIMIT 1",
+                (window.id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchone()
+            if len(source) != 1 or target is None:
+                raise TaskStoreError("owner_window_receipt_missing")
+            previous = json.loads(source[0]["evidence_json"])
+            current = json.loads(target["evidence_json"])
+            pool = [entry for entry in previous["approved_pool"] if entry in current["approved_pool"]]
+            if any(self.task_store.get_task(link["task_id"]).binding_ref not in {
+                    entry["binding_ref"] for entry in pool} for link in self.list_goal_tasks(goal.id)):
+                raise TaskStoreError("continuous_adoption_binding_outside_pool")
+            adoption_evidence = {**previous, "approved_pool": pool, "from_window_id": old.id,
+                                 "to_window_id": window.id, "reason": "continuous_run_adoption"}
         if goal.repository not in window.repositories:
             raise TaskStoreError("rebind_window_repository_mismatch")
         links = self.list_goal_tasks(goal.id)
@@ -1348,7 +1409,7 @@ class PlatformControlStore:
         queued = sum(1 for item in planned if item["status"] == "QUEUED")
         interrupted = len(planned) - queued
         tasks_remaining = window.max_tasks - window.tasks_started
-        if queued > tasks_remaining or (interrupted and tasks_remaining < 1):
+        if not window.continuous and (queued > tasks_remaining or (interrupted and tasks_remaining < 1)):
             raise TaskStoreError("rebind_window_task_budget_insufficient")
         if interrupted > window.max_retries - window.retries_used:
             raise TaskStoreError("rebind_window_retry_budget_insufficient")
@@ -1383,6 +1444,14 @@ class PlatformControlStore:
             (window.id, _utc_now(), goal.id, old.id))
         if moved.rowcount != 1:
             raise TaskStoreError("goal_not_rebindable")
+        if adoption_evidence is not None:
+            receipt = self.append_receipt(
+                window_id=window.id, operation_type=OWNER_WINDOW_RECEIPT, capability="execute_task",
+                repository=goal.repository, subject_id=goal.id, decision="allowed",
+                reason="continuous_run_adoption", input_payload={"from_window_id": old.id, "goal_id": goal.id},
+                result=sha256_json(adoption_evidence))
+            self._conn.execute("UPDATE platform_operation_receipts SET evidence_json=?, confirmation_mode=? WHERE id=?",
+                               (canonical_json(adoption_evidence), OWNER_WINDOW_MODE, receipt.id))
         self.append_receipt(
             window_id=window.id, operation_type="goal_window_rebind", capability="not_applicable",
             repository=goal.repository, subject_id=goal.id, decision="allowed", reason=reason,
@@ -1435,53 +1504,6 @@ class PlatformControlStore:
 
     # Autonomous windows and receipts ---------------------------------
 
-    def activate_policy_window(self, payload: Mapping[str, Any], *, authority: Mapping[str, Any]) -> AutonomousWindowRecord:
-        """Trusted service entry; policy/slot creation shares the existing transaction."""
-        from .autonomy import validate_canonical_policy, policy_digest, goal_admission_snapshots
-        policy = validate_canonical_policy(payload.get("canonical_policy"))
-        provenance = payload.get("confirmation_provenance")
-        if (not isinstance(authority, Mapping) or not isinstance(provenance, Mapping)
-                or payload.get("confirmation_mode") != "DELEGATED_CONTROLLER"
-                or provenance.get("personally_human") is not False
-                or provenance.get("confirmation_mode") != "DELEGATED_CONTROLLER"
-                or payload.get("policy_digest_sha256") != policy_digest(policy)
-                or authority.get("policy_digest_sha256") != policy_digest(policy)
-                or authority.get("policy") != policy
-                or authority.get("max_real_window_activations") != 1
-                or authority.get("database_path") is None
-                or Path(str(authority["database_path"])).resolve() != Path(self.task_store.db_path).resolve()):
-            raise TaskStoreError("trusted_policy_store_binding_invalid")
-        for name in ("policy_id", "policy_revision", "window_id", "delegation_slot_id"):
-            if payload.get(name) != authority.get(name):
-                raise TaskStoreError("trusted_policy_store_identity_mismatch")
-        expected = {"owner_identity": authority.get("controller_identity"),
-                    "starts_at": datetime.fromisoformat(policy["autonomousWindow"]["startsAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "expires_at": datetime.fromisoformat(policy["autonomousWindow"]["expiresAt"].replace("Z", "+00:00")).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
-                    "max_tasks": authority.get("max_tasks"), "max_retries": authority.get("max_retries"),
-                    "max_concurrent_tasks": authority.get("max_concurrent_tasks")}
-        admissions = goal_admission_snapshots(authority)
-        allowed_operations = ("approve_goal", "validate_task") if admissions else ("validate_task",)
-        if admissions and (type(authority.get("max_tasks")) is not int or authority["max_tasks"] != len(admissions)):
-            raise TaskStoreError("trusted_policy_store_goal_allowance_mismatch")
-        if (any(payload.get(key) != value for key, value in expected.items())
-                or tuple(payload.get("repositories", ())) != (policy["repository"],)
-                or tuple(payload.get("capabilities", ())) != allowed_operations
-                or tuple(authority.get("allowed_operations", ())) != allowed_operations
-                or not isinstance(authority.get("delegation_slot_id"), str)
-                or not authority["delegation_slot_id"]
-                or type(authority.get("max_real_window_activations")) is not int):
-            raise TaskStoreError("trusted_policy_store_scope_mismatch")
-        for name in ("controller_identity", "decision_id", "decision_content_sha256", "decision_commit_sha",
-                     "command_plan_sha256", "upper_proposal_sha256", "host_instance_id", "delegation_slot_id"):
-            if provenance.get(name) != authority.get(name):
-                raise TaskStoreError("trusted_policy_store_provenance_mismatch")
-        binding = {"canonical_policy": policy, "policy_digest_sha256": policy_digest(policy),
-                   "confirmation_mode": "DELEGATED_CONTROLLER", "confirmation_provenance": dict(provenance),
-                   "delegation_slot_id": authority["delegation_slot_id"], "authority": dict(authority)}
-        base_payload = {key: value for key, value in payload.items() if key not in {
-            "canonical_policy", "policy_digest_sha256", "confirmation_mode", "confirmation_provenance", "delegation_slot_id"}}
-        return self.activate_window(base_payload, confirmation="DELEGATED_CONTROLLER", _trusted_binding=binding)
-
     def window_policy_binding(self, window_id: str) -> dict[str, Any]:
         with self._lock:
             row = self._conn.execute("SELECT * FROM platform_autonomous_windows WHERE id = ?", (window_id,)).fetchone()
@@ -1494,8 +1516,53 @@ class PlatformControlStore:
                     "delegation_slot_id": row["delegation_slot_id"],
                     "authority": json.loads(row["policy_authority_json"])}
 
+    def _run_host_sql_admission(self, callback: Callable[[str], None], window_id: str) -> None:
+        """Keep a trusted SQL callback inside its caller's transaction."""
+        def deny_callback_tx(action, operation, _name, _database, _source):
+            if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+        self._conn.set_authorizer(deny_callback_tx)
+        # An implicit rollback must not let subsequent statements autocommit.
+        self._conn.set_progress_handler(lambda: 0 if self._conn.in_transaction else 1, 1)
+        try:
+            callback(window_id)
+        finally:
+            self._conn.set_progress_handler(None, 0)
+            self._conn.set_authorizer(None)
+        if not self._conn.in_transaction:
+            raise TaskStoreError("host_atomic_admission_committed_early")
+
+    def append_owner_window_goals(self, window_id: str, goal_ids: tuple[str, ...],
+                                  callback: Callable[[str], None]) -> AutonomousWindowRecord:
+        """Append only the confirmed Goals, retaining the run and its existing work."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                window = self.get_window(window_id)
+                if not window.continuous or not self._window_current_locked(window_id):
+                    raise TaskStoreError("window_not_active")
+                before = {goal.id: goal for goal in self.list_window_goals(window_id)}
+                self._run_host_sql_admission(callback, window_id)
+                after = {goal.id: goal for goal in self.list_window_goals(window_id)}
+                if (self.get_window(window_id) != window or set(after) != set(before) | set(goal_ids)
+                        or any(after.get(key) != value for key, value in before.items())
+                        or not self._window_current_locked(window_id)):
+                    raise TaskStoreError("owner_window_scope_changed")
+                for goal_id in goal_ids:
+                    if after[goal_id].status != "RUNNING" or not self.list_goal_tasks(goal_id):
+                        raise TaskStoreError("owner_window_goal_binding_missing")
+                    if not self._owner_window_receipt_locked(window_id, goal_id):
+                        raise TaskStoreError("owner_window_receipt_missing")
+                self._conn.commit()
+            except BaseException as exc:
+                self._conn.rollback()
+                if isinstance(exc, TaskStoreError) or not isinstance(exc, Exception):
+                    raise
+                raise TaskStoreError("continuous_admission_failed") from exc
+        return self.get_window(window_id)
+
     def activate_window(self, payload: Mapping[str, Any], *, confirmation: str,
-                        _trusted_binding: Mapping[str, Any] | None = None,
                         _host_sql_admit: Callable[[str], None] | None = None,
                         _host_preserve_claim_windows: bool = False,
                         _host_expected_goal_id: str | None = None,
@@ -1513,11 +1580,14 @@ class PlatformControlStore:
         if _host_preserve_claim_windows and _host_sql_admit is None:
             raise TaskStoreError("host_atomic_admission_required")
         owner_window = _host_expected_goal_ids is not None
+        continuous = payload.get("continuous", False)
+        if type(continuous) is not bool or (continuous and not owner_window):
+            raise TaskStoreError("continuous_run_requires_owner_admission")
         if owner_window:
             # Owner-confirmed multi-Goal window (owner_window.OwnerWindowAdmission).
             # Same transaction discipline as the single-Task path; wider, still
             # hard-bounded envelope. The single-Task path below is unchanged.
-            if (_host_sql_admit is None or _host_expected_goal_id is not None or _trusted_binding is not None
+            if (_host_sql_admit is None or _host_expected_goal_id is not None
                     or _host_preserve_claim_windows or not callable(_host_sql_admit)
                     or not isinstance(_host_expected_goal_ids, tuple)
                     or not 1 <= len(_host_expected_goal_ids) <= OWNER_WINDOW_MAX_GOALS
@@ -1525,7 +1595,9 @@ class PlatformControlStore:
                     or any(type(g) is not str or not g.strip() for g in _host_expected_goal_ids)):
                 raise TaskStoreError("host_atomic_admission_invalid")
             capabilities_requested = payload.get("capabilities", ())
-            if (type(payload.get("max_tasks")) is not int or not 1 <= payload["max_tasks"] <= 100
+            if (type(payload.get("max_tasks")) is not int
+                    or not (payload["max_tasks"] == 0 if continuous else 1 <= payload["max_tasks"] <= 100)
+                    or (continuous and payload.get("max_token_units", 0) != 0)
                     or type(payload.get("max_concurrent_tasks")) is not int
                     or not 1 <= payload["max_concurrent_tasks"] <= 8
                     or type(payload.get("max_retries")) is not int or not 0 <= payload["max_retries"] <= 5
@@ -1539,7 +1611,7 @@ class PlatformControlStore:
                 raise TaskStoreError("host_atomic_window_scope_invalid")
         if _host_sql_admit is not None:
             if not owner_window and (
-                    _trusted_binding is not None or not callable(_host_sql_admit)
+                    not callable(_host_sql_admit)
                     or type(_host_expected_goal_id) is not str or not _host_expected_goal_id.strip()):
                 raise TaskStoreError("host_atomic_admission_invalid")
             if not owner_window and (
@@ -1555,14 +1627,16 @@ class PlatformControlStore:
                 # Python also accepts week dates that SQLite treats as NULL.
                 canonical_time = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?(?:Z|\+00:00)"
                 if not (re.fullmatch(canonical_time, str(payload["starts_at"]))
-                        and re.fullmatch(canonical_time, str(payload["expires_at"]))):
+                        and (payload["expires_at"] == "" if continuous
+                             else re.fullmatch(canonical_time, str(payload["expires_at"])))):
                     raise ValueError
                 starts = datetime.fromisoformat(str(payload["starts_at"]).replace("Z", "+00:00"))
-                expires = datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00"))
+                expires = (datetime.max.replace(tzinfo=timezone.utc) if continuous else
+                           datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00")))
                 clock = datetime.now(timezone.utc)
                 if (starts.tzinfo is None or expires.tzinfo is None
                         or not starts <= clock + timedelta(seconds=5)
-                        or not clock < expires <= clock + longest
+                        or (not continuous and not clock < expires <= clock + longest)
                         or not starts < expires):
                     raise ValueError
             except (KeyError, ValueError, TypeError) as exc:
@@ -1570,23 +1644,22 @@ class PlatformControlStore:
         elif _host_expected_goal_id is not None:
             raise TaskStoreError("host_atomic_admission_invalid")
         standing = payload.get("standing_renewal")
-        if standing is not None and (_trusted_binding is not None or _host_sql_admit is not None):
+        if standing is not None and _host_sql_admit is not None:
             raise TaskStoreError("standing_window_requires_owner_activation")
-        if _standing_renewal and (standing is None or _trusted_binding is not None or _host_sql_admit is not None):
+        if _standing_renewal and (standing is None or _host_sql_admit is not None):
             raise TaskStoreError("standing_renewal_invalid")
-        expected = ("DELEGATED_CONTROLLER" if _trusted_binding
-                    else "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE")
+        expected = "STANDING_RENEWAL" if _standing_renewal else "ACTIVATE"
         if confirmation.strip() != expected:
             raise TaskStoreError("owner_activation_confirmation_required")
-        digest = str(_trusted_binding["policy_digest_sha256"]) if _trusted_binding else sha256_json(payload)
+        digest = sha256_json(payload)
         window_id = str(payload.get("window_id") or _id("window"))
         now = _utc_now()
         repositories = tuple(str(v) for v in payload.get("repositories", ()))
         capabilities = tuple(str(v) for v in payload.get("capabilities", ()))
         adopted = payload.get("adopt_unfinished_goals") or ()
         if adopted:
-            # Explicit Owner listing only; host-native and delegated windows never adopt.
-            if (_host_sql_admit is not None or _trusted_binding is not None
+            # Explicit Owner listing only; host-native windows never adopt.
+            if (_host_sql_admit is not None
                     or not isinstance(adopted, (list, tuple)) or len(adopted) > 100
                     or any(type(goal_id) is not str or not goal_id.strip() for goal_id in adopted)
                     or len(set(adopted)) != len(adopted)):
@@ -1603,7 +1676,7 @@ class PlatformControlStore:
                         raise TaskStoreError("host_atomic_window_expired")
                     sql_dates = cur.execute("SELECT julianday(?), julianday(?)",
                                             (str(payload["starts_at"]), str(payload["expires_at"]))).fetchone()
-                    if sql_dates is None or sql_dates[0] is None or sql_dates[1] is None:
+                    if sql_dates is None or sql_dates[0] is None or (not continuous and sql_dates[1] is None):
                         raise TaskStoreError("host_atomic_window_time_invalid")
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', "
@@ -1623,13 +1696,6 @@ class PlatformControlStore:
                 if existing is not None:
                     if existing["policy_digest"] != digest:
                         raise TaskStoreError("policy_revision_conflict")
-                    if _trusted_binding and (
-                        existing["delegation_slot_id"] != _trusted_binding["delegation_slot_id"]
-                        or existing["policy_authority_json"] != canonical_json(_trusted_binding["authority"])
-                        or existing["confirmation_provenance_json"] != canonical_json(_trusted_binding["confirmation_provenance"])
-                        or existing["canonical_policy_json"] != canonical_json(_trusted_binding["canonical_policy"])
-                    ):
-                        raise TaskStoreError("policy_revision_authority_conflict")
                     # A host admission must never silently re-use a previous
                     # window without executing its Goal transaction.
                     if _host_sql_admit is not None:
@@ -1641,7 +1707,7 @@ class PlatformControlStore:
                     return record
                 active = cur.execute(
                     "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                    "AND (? = 0 OR julianday(expires_at) > julianday('now')) LIMIT 1",
+                    "AND (? = 0 OR ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))) LIMIT 1",
                     (int(_host_preserve_claim_windows),)
                 ).fetchone()
                 if active is not None:
@@ -1682,14 +1748,6 @@ class PlatformControlStore:
                         now,
                     ),
                 )
-                if _trusted_binding:
-                    cur.execute(
-                        "UPDATE platform_autonomous_windows SET canonical_policy_json = ?, canonical_policy_digest = ?, "
-                        "confirmation_mode = ?, confirmation_provenance_json = ?, delegation_slot_id = ?, policy_authority_json = ? WHERE id = ?",
-                        (canonical_json(_trusted_binding["canonical_policy"]), _trusted_binding["policy_digest_sha256"],
-                         _trusted_binding["confirmation_mode"], canonical_json(_trusted_binding["confirmation_provenance"]),
-                         _trusted_binding["delegation_slot_id"], canonical_json(_trusted_binding["authority"]), window_id),
-                    )
                 if standing is not None and not _standing_renewal:
                     # The Owner's activation approves the standing policy once.
                     cur.execute(
@@ -1703,24 +1761,7 @@ class PlatformControlStore:
                     # A trusted callback still must not COMMIT, ROLLBACK or run
                     # executescript (which implicitly COMMITs). Enforce this
                     # at SQLite's transaction authorizer, not after-the-fact.
-                    def deny_callback_tx(action, operation, _name, _database, _source):
-                        if action == sqlite3.SQLITE_TRANSACTION and operation in {"COMMIT", "ROLLBACK"}:
-                            return sqlite3.SQLITE_DENY
-                        return sqlite3.SQLITE_OK
-                    self._conn.set_authorizer(deny_callback_tx)
-                    # INSERT OR ROLLBACK/trigger RAISE(ROLLBACK) can end SQLite's
-                    # transaction without an explicit COMMIT/ROLLBACK opcode.
-                    # Abort subsequent SQL VM instructions before they can
-                    # autocommit on the now-unprotected connection.
-                    self._conn.set_progress_handler(
-                        lambda: 0 if self._conn.in_transaction else 1, 1)
-                    try:
-                        _host_sql_admit(window_id)
-                    finally:
-                        self._conn.set_progress_handler(None, 0)
-                        self._conn.set_authorizer(None)
-                    if not self._conn.in_transaction:
-                        raise TaskStoreError("host_atomic_admission_committed_early")
+                    self._run_host_sql_admission(_host_sql_admit, window_id)
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
                     if owner_window:
@@ -1764,7 +1805,7 @@ class PlatformControlStore:
                         "UPDATE platform_autonomous_windows SET updated_at = updated_at "
                         "WHERE id = ? AND status = 'ACTIVE' "
                         "AND julianday(starts_at) <= julianday('now') "
-                        "AND julianday(expires_at) > julianday('now')",
+                        "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                         (window_id,),
                     )
                     if updated.rowcount != 1:
@@ -1830,6 +1871,17 @@ class PlatformControlStore:
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
         current = now or _utc_now_precise()
         with self._lock:
+            # Old bounded Owner runs must state why they cannot admit the next task.
+            # Keep an in-flight or uncertain claim on its window until reconciled.
+            self._conn.execute(
+                "UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                "stop_reason=CASE WHEN max_tasks>0 AND tasks_started>=max_tasks "
+                "THEN 'window_task_budget_exhausted' ELSE 'window_token_budget_exhausted' END, updated_at=? "
+                "WHERE status='ACTIVE' AND confirmation_mode=? AND expires_at<>'' "
+                "AND ((max_tasks>0 AND tasks_started>=max_tasks) OR "
+                "(max_token_units>0 AND observed_token_units>=max_token_units)) AND NOT EXISTS "
+                "(SELECT 1 FROM platform_coordinator_claims c WHERE c.window_id=platform_autonomous_windows.id "
+                "AND c.status='ACTIVE')", (_utc_now(), OWNER_WINDOW_MODE))
             self._conn.execute(
                 "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? "
                 "WHERE status = 'ACTIVE' AND julianday(expires_at) <= julianday(?) "
@@ -1841,9 +1893,17 @@ class PlatformControlStore:
             )
             row = self._conn.execute(
                 "SELECT * FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                "AND julianday(starts_at) <= julianday(?) AND julianday(expires_at) > julianday(?) ORDER BY created_at DESC LIMIT 1",
+                "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?)) ORDER BY created_at DESC LIMIT 1",
                 (current, current),
             ).fetchone()
+            if (row is not None and row["confirmation_mode"] == OWNER_WINDOW_MODE and row["expires_at"]
+                    and self._new_reservation_denial(row) == "window_token_budget_exhausted"
+                    and self._conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE window_id=? "
+                        "AND status='ACTIVE' LIMIT 1", (row["id"],)).fetchone() is None):
+                self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                    "stop_reason='window_token_budget_exhausted', updated_at=? WHERE id=? AND status='ACTIVE'",
+                    (_utc_now(), row["id"]))
+                return None
             return self._row_to_window(row) if row is not None else None
 
     def stop_window(self, window_id: str, *, reason: str = "owner_stopped") -> AutonomousWindowRecord:
@@ -1936,10 +1996,18 @@ class PlatformControlStore:
         """Move RUNNING goals stranded on earlier windows of the same standing policy."""
         window = self.get_window(window_id)
         policy = self.standing_window(window.policy_id)
-        if policy is None or policy["status"] != "ACTIVE":
+        if not window.continuous and (policy is None or policy["status"] != "ACTIVE"):
             return ()
         with self._lock:
-            rows = self._conn.execute(
+            if window.continuous:
+                rows = self._conn.execute(
+                    "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                    "WHERE g.status='RUNNING' AND w.id<>? AND w.confirmation_mode=? "
+                    "AND w.status IN ('EXPIRED','BLOCKED','STOPPED') "
+                    "AND w.stop_reason IN ('window_expired','window_task_budget_exhausted','window_token_budget_exhausted') "
+                    "ORDER BY g.created_at", (window.id, OWNER_WINDOW_MODE)).fetchall()
+            else:
+                rows = self._conn.execute(
                 "SELECT g.id FROM platform_goals g JOIN platform_autonomous_windows w ON w.id = g.window_id "
                 "WHERE g.status='RUNNING' AND w.policy_id=? AND w.id<>? AND w.status='EXPIRED' "
                 "AND w.stop_reason='window_expired' ORDER BY g.created_at", (window.policy_id, window.id)).fetchall()
@@ -1947,7 +2015,7 @@ class PlatformControlStore:
         for row in rows:
             try:
                 outcomes.append(self.rebind_goal_to_window(row["id"], window_id=window.id,
-                                                           reason="standing_window_adoption"))
+                                                           reason="continuous_run_adoption" if window.continuous else "standing_window_adoption"))
             except TaskStoreError as exc:
                 # In-flight or held work is retried on a later tick, never forced.
                 outcomes.append({"goal_id": row["id"], "status": "DEFERRED", "reason": str(exc)})
@@ -2092,7 +2160,8 @@ class PlatformControlStore:
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
             self.check_strict_task_admission(window_id, task_id)
-            if datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+            continuous = self._row_to_window(window).continuous
+            if not continuous and datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET status = 'EXPIRED', stop_reason = 'window_expired', updated_at = ? WHERE id = ?",
                     (_utc_now(), window_id),
@@ -2123,7 +2192,7 @@ class PlatformControlStore:
             if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
-            elif not completion_recovery and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
+            elif not completion_recovery and not continuous and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
@@ -2561,13 +2630,17 @@ class PlatformControlStore:
                 cost_micro_units = 0
                 if not usage_unknown:
                     for observation in observations:
-                        token_units += sum(
-                            int(observation[key] or 0)
-                            for key in (
-                                "input_units", "output_units", "reasoning_units",
-                                "cache_read_units", "cache_write_units",
-                            )
-                        )
+                        # #1504: the window is charged in cost-equivalent units
+                        # (cache reads at 0.1, cache writes at 1.25), so a cached
+                        # route no longer burns the budget like fresh input. The
+                        # raw counters stay untouched in the observations.
+                        units = cost_equivalent_units(observation)
+                        if units is None:
+                            usage_unknown = True
+                            unknown_count = max(1, unknown_count)
+                            token_units = 0
+                            break
+                        token_units += units
                         cost_micro_units += int(observation["cost_micro_units"] or 0)
                 for observation in observations:
                     cur.execute(
@@ -2658,8 +2731,12 @@ class PlatformControlStore:
                 if free_route:
                     values[0] = values[1] = 0
                 elif owner_charge:
-                    partial_tokens = sum(int(observation[key] or 0) for observation in observations for key in (
-                        "input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units"))
+                    # The same weighted unit as the charge above, so a partial
+                    # reading and the reservation compare like with like.
+                    partial_tokens = sum(
+                        cost_equivalent_units(observation, unknown_as_zero=True) or 0
+                        for observation in observations
+                    )
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
                     values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
                     values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)

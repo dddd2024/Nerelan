@@ -33,11 +33,13 @@ MAX_ISSUE_BODY_CHARS = 12_000
 CAPABILITIES = ("execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr")
 
 PRESETS: dict[str, dict[str, Any]] = {
+    "continuous": {"label": "持续运行", "hours": 0, "max_concurrent": 3, "max_retries": 2,
+                   "max_token_units": 0, "continuous": True},
     "trial": {"label": "试跑", "hours": 2, "max_concurrent": 1, "max_retries": 1, "max_token_units": 300_000},
     "day": {"label": "一天", "hours": 24, "max_concurrent": 1, "max_retries": 2, "max_token_units": 2_000_000},
     "week": {"label": "一周", "hours": 168, "max_concurrent": 2, "max_retries": 2, "max_token_units": 10_000_000},
 }
-DEFAULT_PRESET = "day"
+DEFAULT_PRESET = "continuous"
 # Owner decision 2026-11-10 (D4): review goes to a stronger model than ordinary
 # implementation. The router admits only reviewers whose capability tier is at least
 # the task's difficulty, so the template asks for one tier above the implement task.
@@ -94,8 +96,10 @@ def presets(state_dir: str | Path | None = None) -> dict[str, dict[str, Any]]:
 
 def window_request(preset: Mapping[str, Any], goal_ids: list[str], *, tasks: int) -> dict[str, Any]:
     """The Owner window request a preset describes; Draft PRs only, paid API excluded by the pool."""
+    continuous = preset.get("continuous") is True
     return {"goal_ids": goal_ids, "hours": float(preset["hours"]),
-            "max_tasks": max(tasks, 1) * (1 + int(preset["max_retries"])),
+            **({"continuous": True} if continuous else {}),
+            "max_tasks": 0 if continuous else max(tasks, 1) * (1 + int(preset["max_retries"])),
             "max_concurrent": int(preset["max_concurrent"]), "max_retries": int(preset["max_retries"]),
             "capabilities": [c for c in CAPABILITIES if c in OWNER_WINDOW_CAPABILITIES],
             "max_token_units": int(preset["max_token_units"]), "max_cost_micro_units": 0}

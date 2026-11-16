@@ -243,6 +243,7 @@ export interface PlatformTaskAttempt {
 }
 
 export interface PlatformWindow {
+  continuous?: boolean;
   id: string;
   policy_id: string;
   policy_revision?: number;
@@ -1595,6 +1596,7 @@ export interface QuickStartDraftGoal {
 }
 
 export interface QuickStartWindowRequest {
+  continuous?: boolean;
   goal_ids: string[];
   hours: number;
   max_tasks: number;
@@ -1651,6 +1653,7 @@ export interface OwnerWindowPreflightResult {
 }
 
 export interface OwnerWindowPreflightRequest {
+  continuous?: boolean;
   goal_ids: string[];
   hours: number;
   max_tasks: number;
@@ -1678,6 +1681,7 @@ export interface OwnerWindowCard {
 }
 
 const MOCK_PRESETS: Record<string, OwnerWindowPreset> = {
+  continuous: { label: "持续运行", hours: 0, max_concurrent: 3, max_retries: 2, max_token_units: 0 },
   trial: { label: "试跑", hours: 2, max_concurrent: 1, max_retries: 1, max_token_units: 300_000 },
   day: { label: "一天", hours: 24, max_concurrent: 1, max_retries: 2, max_token_units: 2_000_000 },
   week: { label: "一周", hours: 168, max_concurrent: 2, max_retries: 2, max_token_units: 10_000_000 },
@@ -1685,12 +1689,13 @@ const MOCK_PRESETS: Record<string, OwnerWindowPreset> = {
 
 export async function fetchOwnerWindowCard(goalIds: string[], preset = ""): Promise<OwnerWindowCard> {
   if (isMock()) {
-    const chosen = preset || "day";
+    const chosen = preset || "continuous";
     const values = MOCK_PRESETS[chosen];
     if (!values) throw new PlatformClientError(409, "owner_window_preset_invalid");
     const tasks = goalIds.reduce((sum, id) => sum + (mockGoals.find((goal) => goal.id === id)?.tasks.length ?? 0), 0);
     return { preset: chosen, presets: MOCK_PRESETS, confirmation: "ui", request: {
-      goal_ids: goalIds, hours: values.hours, max_tasks: Math.max(tasks, 1) * (1 + values.max_retries),
+      goal_ids: goalIds, hours: values.hours, max_tasks: chosen === "continuous" ? 0 : Math.max(tasks, 1) * (1 + values.max_retries),
+      ...(chosen === "continuous" ? { continuous: true } : {}),
       max_concurrent: values.max_concurrent, max_retries: values.max_retries,
       capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
       max_token_units: values.max_token_units, max_cost_micro_units: 0,
@@ -1714,6 +1719,10 @@ export async function activateOwnerWindow(activation: OwnerWindowPreflightReques
       if (!goal || goal.status !== "PLANNED") throw new PlatformClientError(409, `owner_window_goal_not_admissible:${goalId}`);
     }
     activation.goal_ids.forEach((goalId) => __launchMockGoal(goalId));
+    mockWindow.continuous = activation.continuous ?? false;
+    mockWindow.expires_at = activation.continuous ? "" : new Date(Date.now() + activation.hours * 3_600_000).toISOString();
+    mockWindow.max_tasks = activation.max_tasks;
+    mockWindow.max_token_units = activation.max_token_units ?? 0;
     return { ...mockWindow };
   }
   return request<PlatformWindow>("/api/owner-window/activate", {

@@ -66,11 +66,56 @@ def availability_error(value: str) -> str | None:
     return next((marker.replace(' ', '_') for marker in UNAVAILABLE_MARKERS if marker in text or marker.replace(' ', '_') in text), None)
 
 
-def observation(*, now: float, success: bool = False, error: str = '') -> dict[str, Any]:
-    reason = availability_error(error)
-    return {'state': 'AVAILABLE' if success else 'UNAVAILABLE' if reason else 'TRANSIENT',
-            'reason': 'verified_request' if success else reason or 'transient_error',
-            'observed_at': now, 'expires_at': now + (86400 if success or reason else 300)}
+# A billing answer that says the account has no credits to spend is not a
+# transient state: the upstream stays unpaid until somebody buys credits. The
+# binding is UNAVAILABLE for a week, so routing stops offering that upstream's
+# paid models instead of re-paying for the same refusal every few hours
+# (#1525).
+NO_CREDITS = 'no_credits'
+NO_CREDITS_TTL_SECONDS = 7 * 86400
+# Wording that names an absent or spent credit balance and asks for a purchase.
+_NO_CREDITS_RE = re.compile(
+    r"\b(?:insufficient|exhausted|depleted|spent|exceeded|empty|lacking)\s+credits?\b"
+    r"|\bcredits?\s+(?:are\s+|is\s+|have\s+been\s+|has\s+been\s+)?(?:exhausted|depleted|exceeded|used\s+up|spent|gone|empty)\b"
+    r"|\b(?:no|without)\s+credits?\s+(?:remaining|left|available)\b"
+    r"|\b(?:out\s+of|ran\s+out\s+of|not\s+enough)\s+credits?\b"
+    r"|\bnever\s+purchased\s+credits?\b"
+    r"|\b(?:insufficient|exhausted|depleted)\s+balance\b"
+    r"|\bbalance\s+(?:is\s+|has\s+been\s+)?(?:insufficient|exhausted|depleted|too\s+low)\b"
+    r"|\bpurchase\s+(?:add[-\s]?on\s+)?(?:packs?|credits?)\b",
+    re.IGNORECASE,
+)
+
+
+def no_credits_error(value: str) -> str | None:
+    """``NO_CREDITS`` when a provider answer says the account has no credits left.
+
+    This is a billing state, not a rate limit and not an entitlement probe: the
+    same upstream answers again until credits are bought, so the binding is held
+    UNAVAILABLE instead of being retried on every dispatch.
+    """
+    text = value or ''
+    return NO_CREDITS if _NO_CREDITS_RE.search(text) else None
+
+
+def observation(*, now: float, success: bool = False, error: str = '',
+                state: str | None = None, reason: str | None = None,
+                ttl_seconds: float | None = None) -> dict[str, Any]:
+    marker = None if success else availability_error(error)
+    if success:
+        resolved_state, resolved_reason = 'AVAILABLE', 'verified_request'
+    elif state is not None:
+        resolved_state = state
+        resolved_reason = reason or 'transient_error'
+    else:
+        resolved_state = 'UNAVAILABLE' if marker else 'TRANSIENT'
+        resolved_reason = marker or 'transient_error'
+    if ttl_seconds is None:
+        # A verified request and a durable unavailability last a day; an
+        # unexplained failure lasts minutes.
+        ttl_seconds = 86400 if success or marker else 300
+    return {'state': resolved_state, 'reason': resolved_reason,
+            'observed_at': now, 'expires_at': now + ttl_seconds}
 
 
 class AvailabilityCache:

@@ -1,9 +1,0 @@
-# Execution Report
-
-- decision_id: decision_20260721_architecture_spine_trusted_execution_cutover_rework_v1
-- round_id: round_20260721_architecture_spine_trusted_execution_cutover_rework_v1
-- head_sha: 76575aa17f03dddaa4b5ef8752695998cd244971
-- base_sha: 54f7cf693f3435ab0d78b8c16533e7b9e6d83b9f
-- internally_consistent: True
-- subject_tree_digest: ff855417c8b86adf94ae6a47d5162ad981a662122cb1b60e481a1fd31d45ca14
-- subject_diff_digest: e7d58c8e4e4e8a30b718abd005b6e798a300962c43cfdcefe52f3b1bc8caac35

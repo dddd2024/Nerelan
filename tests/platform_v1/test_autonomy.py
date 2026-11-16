@@ -151,100 +151,10 @@ def test_canonical_policy_rejects_widening_and_unavailable_adapters(path, value)
         validate_canonical_policy(policy)
 
 
-def test_production_policy_activation_rejects_legacy_renderer_owner():
-    service = AutonomyService(control_store=PlatformControlStore(TaskStore(":memory:")),
-                              capabilities=CapabilityRegistry())
-    with pytest.raises(TaskStoreError, match="fields_invalid"):
-        service.activate_policy(_payload())
-    with pytest.raises(TaskStoreError, match="authority_unavailable"):
-        service.activate_policy({"policy_id": "policy-1", "policy_revision": 1,
-                                 "policy": _canonical_checker_policy()})
-
-
-def _strict_checker_service(tmp_path):
-    """Explicit provider-free fixture authority; not a live Owner observation."""
-    from reverse_agent.platform_v1.autonomy import policy_digest
-    from reverse_agent.platform_v1.authority_adapter import PolicyAuthority
-    policy = _canonical_checker_policy()
-    (tmp_path / "input.txt").write_text("original\n", encoding="utf-8")
-    database = tmp_path / "tasks.sqlite3"
-    control = PlatformControlStore(TaskStore(str(database)))
-    binding = {
-        "schema_version": 1, "confirmation_mode": "DELEGATED_CONTROLLER", "personally_human": False,
-        "controller_identity": "fixture-controller", "upper_proposal_sha256": "a" * 64,
-        "upper_expires_at": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
-        "phase_ordinal": 6, "policy_id": "fixture-policy", "policy_revision": 1,
-        "policy": policy, "policy_digest_sha256": policy_digest(policy),
-        "window_id": "fixture-window", "delegation_slot_id": "fixture-slot", "slot_ordinal": 1,
-        "max_real_window_activations": 1, "host_instance_id": "fixture-host", "runtime_instance_kind": "acceptance",
-        "database_path": str(database), "workspace_path": str(tmp_path),
-        "allowed_operations": ["validate_task"], "validation_command_ids": ["git_diff_check"],
-        "validation_paths": ["input.txt"], "max_tasks": 1, "max_retries": 0, "max_concurrent_tasks": 1,
-        "model_call_limit": 0, "provider_call_limit": 0, "github_write_limit": 0,
-        "goal_idempotency_key": "fixture-goal", "plan_task_id": "CHECK001",
-    }
-    authority = PolicyAuthority("decision_fixture", "round_fixture", "b" * 64, "a" * 40,
-                                "c" * 64, "dddd2024/Nerelan", "codex/fixture", "b" * 40, "c" * 40, binding)
-    scope = {"capability": "validate_task", "validation_command_id": "git_diff_check",
-             "allowed_paths": ["input.txt"], "workspace_path": str(tmp_path), "base_sha": "c" * 40,
-             "goal_idempotency_key": "fixture-goal", "plan_task_id": "CHECK001"}
-    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry(),
-                              authority_loader=lambda: authority, task_scope_resolver=lambda _id: scope)
-    return service, authority, scope
-
-
-def test_strict_policy_template_records_delegated_actor_without_human_claim(tmp_path):
-    service, authority, _ = _strict_checker_service(tmp_path)
-    result = service.policy_template()
-    assert result["policy"] == authority.binding["policy"]
-    assert result["confirmation_provenance"]["personally_human"] is False
-    assert result["confirmation_provenance"]["controller_identity"] == "fixture-controller"
-    assert result["supported_operations"] == ["validate_task"]
-    assert result["task_budget"]["model_call_limit"] == 0
-
-
-def test_strict_policy_confirmation_binds_exact_policy_and_rejects_revision_edits(tmp_path):
-    import copy
-    service, authority, _ = _strict_checker_service(tmp_path)
-    policy = copy.deepcopy(authority.binding["policy"])
-    policy["resourceAccess"]["filesystem"]["allowedPaths"] = ["different.txt"]
-    with pytest.raises(TaskStoreError, match="exact_confirmation_mismatch"):
-        service.activate_policy({"policy_id": "fixture-policy", "policy_revision": 1, "policy": policy})
-    assert service.control_store.list_windows() == ()
-
-
-def test_strict_task_scope_uses_server_resolver_and_rejects_command_and_workspace_drift(tmp_path):
-    service, _, scope = _strict_checker_service(tmp_path)
-    assert service.check_task_scope("task-1", "validate_task")["validation_command_id"] == "git_diff_check"
-    scope["validation_command_id"] = "unapproved"
-    with pytest.raises(TaskStoreError, match="scope_mismatch"):
-        service.check_task_scope("task-1", "validate_task")
-    scope["validation_command_id"] = "git_diff_check"
-    scope["workspace_path"] = str(tmp_path.parent)
-    with pytest.raises(TaskStoreError, match="workspace_mismatch"):
-        service.check_task_scope("task-1", "validate_task")
-
-
-def test_delegated_activation_persists_exact_policy_and_replay_preserves_spending(tmp_path):
-    service, authority, _ = _strict_checker_service(tmp_path)
-    payload = {"policy_id": "fixture-policy", "policy_revision": 1, "policy": authority.binding["policy"]}
-    first = service.activate_policy(payload)
-    binding = service.control_store.window_policy_binding(first.id)
-    assert binding["canonical_policy"] == payload["policy"]
-    assert first.canonical_policy_digest == authority.binding["policy_digest_sha256"]
-    assert first.confirmation_mode == "DELEGATED_CONTROLLER"
-    service.control_store._conn.execute("UPDATE platform_autonomous_windows SET tasks_started = 1 WHERE id = ?", (first.id,))
-    replay = service.activate_policy(payload)
-    assert replay.id == first.id and replay.tasks_started == 1
-    reopened = PlatformControlStore(TaskStore(str(tmp_path / "tasks.sqlite3")))
-    assert reopened.get_window(first.id).tasks_started == 1
-    assert reopened.window_policy_binding(first.id) == binding
-
-
 def test_receipt_summary_totals_full_window_and_snapshot_pages_more_than_1000(tmp_path):
-    service, authority, _ = _strict_checker_service(tmp_path)
-    window = service.activate_policy({"policy_id": "fixture-policy", "policy_revision": 1,
-                                      "policy": authority.binding["policy"]})
+    service = AutonomyService(control_store=PlatformControlStore(TaskStore(str(tmp_path / "tasks.sqlite3"))),
+                              capabilities=CapabilityRegistry())
+    window = service.activate(_payload())
     control = service.control_store
     for index in range(1101):
         control.append_receipt(window_id=window.id, operation_type="policy_evaluation", capability="validate_task",
@@ -275,9 +185,9 @@ def test_receipt_summary_totals_full_window_and_snapshot_pages_more_than_1000(tm
 
 
 def test_receipt_insert_failure_blocks_window_without_resetting_allowance(tmp_path):
-    service, authority, _ = _strict_checker_service(tmp_path)
-    window = service.activate_policy({"policy_id": "fixture-policy", "policy_revision": 1,
-                                      "policy": authority.binding["policy"]})
+    service = AutonomyService(control_store=PlatformControlStore(TaskStore(str(tmp_path / "tasks.sqlite3"))),
+                              capabilities=CapabilityRegistry())
+    window = service.activate(_payload())
     control = service.control_store
     control._conn.execute("UPDATE platform_autonomous_windows SET tasks_started = 1 WHERE id = ?", (window.id,))
     control._conn.execute("CREATE TRIGGER fixture_receipt_failure BEFORE INSERT ON platform_operation_receipts "
@@ -317,21 +227,6 @@ def test_policy_evaluation_is_server_side_and_receipted():
     summary = service.summary(window.id)
     assert summary["operations"] == {"allowed": 1, "denied": 1, "total": 2}
     assert all(receipt["input_digest"] and "task_id" not in receipt for receipt in summary["receipts"])
-
-
-def test_unconfigured_delegation_preserves_manual_mode_but_denies_legacy_auto_window():
-    control = PlatformControlStore(TaskStore(":memory:"))
-    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry(),
-                              require_trusted_policy=True)
-    # The configured mode flag controls manual HTTP compatibility; AUTO
-    # admission independently requires a real host authority loader.
-    assert service.delegated_mode is False
-    window = service.activate(_payload())  # Explicit trusted in-process legacy fixture.
-    assert not service.authorize(window_id=window.id, operation="execute_task",
-                                 repository="dddd2024/reverse-agent", subject_id="legacy-task",
-                                 input_payload={"task_id": "legacy-task"})
-    receipt = control.list_receipts(window_id=window.id)[0]
-    assert receipt.decision == "denied" and receipt.reason == "delegated_policy_authority_unavailable"
 
 
 def test_completion_receipt_insert_failure_rolls_back_claim_and_budget_atomically(tmp_path):

@@ -73,8 +73,234 @@ class _NoRedirect(HTTPRedirectHandler):
         raise OpenCodeServerTransportError("server_redirect_forbidden")
 
 
+class _DeadlineReader:
+    """File-like wrapper that arms a socket for every underlying read.
+
+    ``HTTPResponse`` parses chunk framing with buffered ``readline`` calls below
+    ``read1``, so one relative socket timeout can be extended by a peer that
+    dribbles bytes inside a chunk-size or extension line.  Recompute the
+    remaining absolute deadline before every underlying read instead.
+    """
+
+    def __init__(self, fp: Any, sock: Any, deadline: Callable[[], float]) -> None:
+        self._fp = fp
+        self._sock = sock
+        self._deadline = deadline
+        self.pending = bytearray()
+
+    def _arm(self) -> None:
+        remaining = self._deadline() - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError
+        if self._sock is not None:
+            self._sock.settimeout(remaining)
+
+    def _read1(self, size: int) -> bytes:
+        if self.pending:
+            take = len(self.pending) if size < 0 else min(size, len(self.pending))
+            chunk = bytes(self.pending[:take])
+            del self.pending[:take]
+            return chunk
+        self._arm()
+        return self._fp.read1(size)
+
+    def _fill(self, size: int) -> bytes:
+        """Read fresh bytes from the underlying stream into ``pending``.
+
+        ``_read1`` drains ``pending`` first, so a caller that wants to grow
+        ``pending`` must bypass it and read the underlying stream directly.
+        """
+
+        self._arm()
+        return self._fp.read1(size)
+
+    def read1(self, size: int = -1) -> bytes:
+        if size == 0:
+            return b""
+        return self._read1(size)
+
+    def read(self, size: int = -1) -> bytes:
+        if size is None or size < 0:
+            chunks: list[bytes] = []
+            while True:
+                chunk = self._read1(-1)
+                if not chunk:
+                    return b"".join(chunks)
+                chunks.append(chunk)
+        chunks = []
+        remaining = size
+        while remaining > 0:
+            chunk = self._read1(remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+    def readline(self, size: int = -1) -> bytes:
+        limit = size if size is not None and size >= 0 else None
+        while True:
+            end = self.pending.find(b"\n")
+            if end >= 0:
+                take = end + 1 if limit is None else min(end + 1, limit)
+                line = bytes(self.pending[:take])
+                del self.pending[:take]
+                return line
+            if limit is not None and len(self.pending) >= limit:
+                line = bytes(self.pending[:limit])
+                del self.pending[:limit]
+                return line
+            # Keep the consumed bytes: HTTPResponse parses the chunk-size
+            # and chunk-extension lines through this call, so dropping the
+            # read result loses the framing and the payload.  Read the
+            # underlying stream directly, because ``_read1`` drains
+            # ``pending`` first and would only re-insert the same bytes.
+            chunk = self._fill(4096)
+            if not chunk:
+                break
+            self.pending.extend(chunk)
+        take = len(self.pending) if limit is None else min(limit, len(self.pending))
+        line = bytes(self.pending[:take])
+        del self.pending[:take]
+        return line
+
+    def readinto(self, buffer: Any) -> int:
+        data = self.read(len(buffer))
+        buffer[: len(data)] = data
+        return len(data)
+
+    def peek(self, size: int = -1) -> bytes:
+        if size >= 0:
+            while len(self.pending) < size:
+                # Read the underlying stream directly.  ``_read1`` drains
+                # ``pending`` first, so reusing it here would remove and
+                # re-insert the same bytes forever without ever arming the
+                # deadline or reaching the socket.
+                chunk = self._fill(4096)
+                if not chunk:
+                    break
+                self.pending.extend(chunk)
+            return bytes(self.pending[:size])
+        return bytes(self.pending)
+
+    def close(self) -> None:
+        self._fp.close()
+
+    def flush(self) -> None:
+        flush = getattr(self._fp, "flush", None)
+        if flush is not None:
+            flush()
+
+    def readable(self) -> bool:
+        return True
+
+
+class _DeadlineSSEStream:
+    """Read bounded SSE lines without extending a deadline on partial bytes."""
+
+    def __init__(self, response: Any) -> None:
+        self.response = response
+        self.pending = bytearray()
+        self.deadline = 0.0
+        self._reader: _DeadlineReader | None = None
+        fp = getattr(response, "fp", None)
+        sock = getattr(getattr(fp, "raw", None), "_sock", None)
+        if callable(getattr(fp, "read1", None)) and sock is not None:
+            self._reader = _DeadlineReader(fp, sock, lambda: self.deadline)
+            response.fp = self._reader
+
+    def readline(self, limit: int) -> bytes:
+        while b"\n" not in self.pending and len(self.pending) < limit:
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError
+            if self._reader is None:
+                sock = getattr(getattr(getattr(self.response, "fp", None), "raw", None), "_sock", None)
+                if sock is not None:
+                    sock.settimeout(remaining)
+            # HTTPResponse.read1 returns after at most one buffered/raw read;
+            # readline could wait forever on a peer dribbling an unfinished line.
+            chunk = self.response.read1(min(65536, limit - len(self.pending)))
+            if not chunk:
+                break
+            self.pending.extend(chunk)
+        end = self.pending.find(b"\n")
+        size = min(limit, end + 1 if end >= 0 else len(self.pending))
+        line = bytes(self.pending[:size])
+        del self.pending[:size]
+        return line
+
+    def close(self) -> None:
+        self.response.close()
+
+
+MAX_RECENT_USAGE_MESSAGES = 512
+PROGRESS_FILTER_BYTES = 64 * 1024
+
+
+class _ProgressFilter:
+    """Fixed-size Bloom filter for identity/state pairs, never evicted.
+
+    A false positive can withhold a progress refresh, never invent progress.
+    Usage delivery must stay separate: this filter cannot discard accounting.
+    """
+
+    def __init__(self) -> None:
+        self.bits = bytearray(PROGRESS_FILTER_BYTES)
+
+    def remember(self, key: str, state: str) -> bool:
+        digest = hashlib.sha256((key + "\0" + state).encode("utf-8")).digest()
+        positions = [int.from_bytes(digest[offset:offset + 8], "big") % (len(self.bits) * 8)
+                     for offset in range(0, 32, 8)]
+        fresh = any(not self.bits[bit // 8] & (1 << (bit % 8)) for bit in positions)
+        for bit in positions:
+            self.bits[bit // 8] |= 1 << (bit % 8)
+        return fresh
+
+
 def _safe_digest(value: str, prefix: str) -> str:
     return prefix + hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _remember_recent_usage(memory: dict[str, str], key: str, state: str) -> bool:
+    """Skip exact recent usage repeats; the ledger owns durable deduplication."""
+
+    if memory.get(key) == state:
+        return False
+    if key not in memory and len(memory) >= MAX_RECENT_USAGE_MESSAGES:
+        memory.pop(next(iter(memory)))
+    memory[key] = state
+    return True
+
+
+def _state_digest(value: Any) -> str:
+    return _safe_digest(json.dumps(value, sort_keys=True), "state-")
+
+
+def _part_progress(part: Mapping[str, Any]) -> tuple[str, str] | None:
+    part_type = part.get("type")
+    if part_type not in {"text", "reasoning", "tool"}:
+        return None
+    raw_id = part.get("id")
+    if not isinstance(raw_id, str) or not raw_id:
+        raw_id = part.get("partID")
+    if not isinstance(raw_id, str) or not raw_id:
+        raw_id = part.get("part_id")
+    identity = raw_id if isinstance(raw_id, str) and raw_id else _state_digest(part)
+    return _safe_digest(identity, "part-"), _state_digest(part)
+
+
+def _message_progress(info: Mapping[str, Any], completed: Mapping[str, Any]) -> tuple[str, str]:
+    raw_id = info.get("id")
+    identity = raw_id if isinstance(raw_id, str) and raw_id else _state_digest(info)
+    state = _state_digest(
+        {
+            "completed": completed.get("completed"),
+            "cost": info.get("cost"),
+            "tokens": info.get("tokens"),
+        }
+    )
+    return _safe_digest(identity, "message-"), state
 
 
 def _validate_child_id(value: Any, name: str) -> str:
@@ -146,11 +372,13 @@ class OpenCodeServerClient:
         username: str,
         password: str,
         timeout: float,
+        idle_timeout: float = 900.0,
     ) -> None:
         self.base_url = _validate_loopback_base_url(base_url)
         if not username or not password:
             raise OpenCodeServerTransportError("server_basic_auth_required")
         self.timeout = max(0.1, float(timeout))
+        self.idle_timeout = max(0.1, float(idle_timeout))
         token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
         self._authorization = f"Basic {token}"
         self._opener = build_opener(_NoRedirect())
@@ -164,12 +392,13 @@ class OpenCodeServerClient:
             raise OpenCodeServerTransportError("server_version_invalid")
         return version
 
-    def create_session(self, *, directory: str, title: str) -> str:
+    def create_session(self, *, directory: str, title: str, timeout: float | None = None) -> str:
         payload = self._json_request(
             "POST",
             "/session",
             query={"directory": directory},
             body={"title": title[:128]},
+            timeout=timeout,
         )
         if not isinstance(payload, Mapping):
             raise OpenCodeServerTransportError("session_create_invalid")
@@ -190,6 +419,7 @@ class OpenCodeServerClient:
         provider_id: str,
         model_id: str,
         agent: str,
+        timeout: float | None = None,
     ) -> None:
         body: dict[str, Any] = {
             "parts": [{"type": "text", "text": prompt}],
@@ -204,20 +434,22 @@ class OpenCodeServerClient:
             query={"directory": directory},
             body=body,
             expected_status=204,
+            timeout=timeout,
         )
 
-    def abort(self, *, directory: str, session_id: str) -> bool:
+    def abort(self, *, directory: str, session_id: str, timeout: float | None = None) -> bool:
         payload = self._json_request(
             "POST",
             f"/session/{quote(session_id, safe='')}/abort",
             query={"directory": directory},
+            timeout=timeout,
         )
         return payload is True
 
     def dispose(self, *, directory: str) -> bool:
         try:
             payload = self._json_request(
-                "POST", "/instance/dispose", query={"directory": directory}
+                "POST", "/instance/dispose", query={"directory": directory}, timeout=min(2.0, self.timeout)
             )
         except OpenCodeServerTransportError:
             return False
@@ -341,14 +573,15 @@ class OpenCodeServerClient:
 
         deadline = time.monotonic() + self.timeout
         version = self.health(timeout=self._remaining(deadline))
-        stream = self._open_sse(directory=directory, timeout=self._remaining(deadline))
+        stream = _DeadlineSSEStream(self._open_sse(
+            directory=directory, timeout=min(self.idle_timeout, self._remaining(deadline))))
         session_id = ""
         usage_count = 0
         try:
             first = self._read_sse_event(stream, deadline)
             if first.get("type") != "server.connected":
                 raise OpenCodeServerTransportError("server_connected_event_missing")
-            session_id = self.create_session(directory=directory, title=title)
+            session_id = self.create_session(directory=directory, title=title, timeout=self._remaining(deadline))
             self.prompt_async(
                 directory=directory,
                 session_id=session_id,
@@ -356,13 +589,30 @@ class OpenCodeServerClient:
                 provider_id=provider_id,
                 model_id=model_id,
                 agent=agent,
+                timeout=self._remaining(deadline),
             )
+            progress_deadline = time.monotonic() + self.idle_timeout
+            progress = _ProgressFilter()
+            seen_messages: dict[str, str] = {}
             while True:
-                event = self._read_sse_event(stream, deadline)
+                event = self._read_sse_event(stream, min(deadline, progress_deadline))
                 event_type = event.get("type")
                 properties = event.get("properties")
                 if not isinstance(properties, Mapping):
                     continue
+                now = time.monotonic()
+                if now >= min(deadline, progress_deadline):
+                    raise OpenCodeServerTransportError("server_event_timeout")
+                # Session-bound content and tool transitions are useful progress.
+                # Keepalives, server.connected and other sessions never refresh it.
+                part = properties.get("part")
+                if event_type == "message.part.delta" and properties.get("sessionID") == session_id:
+                    if properties.get("field") in {"text", "reasoning"} and isinstance(properties.get("delta"), str) and properties["delta"]:
+                        progress_deadline = now + self.idle_timeout
+                elif event_type == "message.part.updated" and isinstance(part, Mapping) and part.get("sessionID") == session_id:
+                    update = _part_progress(part)
+                    if update is not None and progress.remember(*update):
+                        progress_deadline = now + self.idle_timeout
                 if event_type == "message.updated":
                     info = properties.get("info")
                     if not isinstance(info, Mapping):
@@ -372,12 +622,17 @@ class OpenCodeServerClient:
                     completed = info.get("time")
                     if not isinstance(completed, Mapping) or not completed.get("completed"):
                         continue
+                    update = _message_progress(info, completed)
+                    if progress.remember(*update):
+                        progress_deadline = now + self.idle_timeout
+                    if not _remember_recent_usage(seen_messages, *update):
+                        continue
                     projected = _usage_projection(info)
                     usage_count += 1
                     if usage_observer(projected):
                         try:
                             confirmed = self.abort(
-                                directory=directory, session_id=session_id
+                                directory=directory, session_id=session_id, timeout=min(2.0, self.timeout)
                             )
                         except OpenCodeServerTransportError:
                             confirmed = False
@@ -414,6 +669,19 @@ class OpenCodeServerClient:
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
                     )
+        except OpenCodeServerTransportError as exc:
+            if str(exc) != "server_event_timeout" or not session_id:
+                raise
+            classification = "server_role_deadline_exceeded" if time.monotonic() >= deadline else "server_stream_stalled"
+            try:
+                confirmed = self.abort(directory=directory, session_id=session_id, timeout=min(2.0, self.timeout))
+            except OpenCodeServerTransportError:
+                confirmed = False
+            return ServerTransportResult(
+                success=False, failure_classification=classification,
+                abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
+                server_version=version, session_digest=_safe_digest(session_id, "session-"),
+                usage_event_count=usage_count)
         finally:
             try:
                 stream.close()
@@ -443,6 +711,8 @@ class OpenCodeServerClient:
             if self._remaining(deadline) <= 0:
                 raise OpenCodeServerTransportError("server_event_timeout")
             try:
+                if isinstance(stream, _DeadlineSSEStream):
+                    stream.deadline = deadline
                 line = stream.readline(MAX_SSE_EVENT_BYTES + 1)
             except (TimeoutError, OSError) as exc:
                 raise OpenCodeServerTransportError("server_event_timeout") from exc
@@ -504,10 +774,11 @@ class OpenCodeServerClient:
         query: Mapping[str, str],
         body: Mapping[str, Any],
         expected_status: int,
+        timeout: float | None = None,
     ) -> None:
         request = self._request(method, path, query=query, body=body, accept="application/json")
         try:
-            response = self._opener.open(request, timeout=self.timeout)
+            response = self._opener.open(request, timeout=timeout or self.timeout)
             with response:
                 if response.status != expected_status:
                     raise OpenCodeServerTransportError("server_http_status_invalid")

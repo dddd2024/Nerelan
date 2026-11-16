@@ -28,6 +28,7 @@ from threading import RLock
 from typing import Any, Mapping, Sequence
 
 from .history_pagination import decode_cursor, encode_cursor, page_limit
+from .usage_ledger import cost_equivalent_units
 
 
 TASK_STATUS_ORDER = (
@@ -230,6 +231,127 @@ class InvalidTransitionError(TaskStoreError):
     """Raised when a requested status transition is not allowed."""
 
 
+class _LockedCursor:
+    """A cursor whose every SQLite step holds the owning store's lock.
+
+    ``fetch*`` steps the statement too, so it needs the lock as much as
+    ``execute`` does: ``sqlite3`` releases the GIL inside ``sqlite3_step``.
+    """
+
+    __slots__ = ("_cursor", "_lock")
+
+    def __init__(self, cursor: sqlite3.Cursor, lock: RLock) -> None:
+        self._cursor = cursor
+        self._lock = lock
+
+    def execute(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.execute(*args, **kwargs)
+        return self
+
+    def executemany(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.executemany(*args, **kwargs)
+        return self
+
+    def executescript(self, *args: Any, **kwargs: Any) -> "_LockedCursor":
+        with self._lock:
+            self._cursor.executescript(*args, **kwargs)
+        return self
+
+    def fetchone(self) -> Any:
+        with self._lock:
+            return self._cursor.fetchone()
+
+    def fetchmany(self, *args: Any, **kwargs: Any) -> list[Any]:
+        with self._lock:
+            return self._cursor.fetchmany(*args, **kwargs)
+
+    def fetchall(self) -> list[Any]:
+        with self._lock:
+            return self._cursor.fetchall()
+
+    def close(self) -> None:
+        with self._lock:
+            self._cursor.close()
+
+    def __iter__(self):
+        while True:
+            with self._lock:
+                row = self._cursor.fetchone()
+            if row is None:
+                return
+            yield row
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._cursor, name)
+
+
+class _LockedConnection:
+    """The one shared TaskStore connection, serialized by the store's lock.
+
+    The connection is opened with ``check_same_thread=False`` and is reached
+    from HTTP handlers, dispatchers and executor threads, many of them through
+    ``store._conn`` directly rather than a locked store method. ``sqlite3``
+    is not safe for concurrent use of one connection: unserialized use
+    returned rows with swapped/NULL values in a stress test and crashed the
+    host natively in ``_json.scanstring_unicode`` (#1528). Taking the store's
+    re-entrant lock here covers every caller, including future ones.
+    """
+
+    __slots__ = ("_raw", "_lock")
+
+    def __init__(self, raw: sqlite3.Connection, lock: RLock) -> None:
+        object.__setattr__(self, "_raw", raw)
+        object.__setattr__(self, "_lock", lock)
+
+    def execute(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.execute(*args, **kwargs), self._lock)
+
+    def executemany(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.executemany(*args, **kwargs), self._lock)
+
+    def executescript(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.executescript(*args, **kwargs), self._lock)
+
+    def cursor(self, *args: Any, **kwargs: Any) -> _LockedCursor:
+        with self._lock:
+            return _LockedCursor(self._raw.cursor(*args, **kwargs), self._lock)
+
+    def __getattr__(self, name: str) -> Any:
+        attribute = getattr(self._raw, name)
+        if not callable(attribute):
+            return attribute
+        lock = self._lock
+
+        def locked(*args: Any, **kwargs: Any) -> Any:
+            with lock:
+                return attribute(*args, **kwargs)
+
+        return locked
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._raw, name, value)
+
+    def __enter__(self) -> "_LockedConnection":
+        self._lock.acquire()
+        try:
+            self._raw.__enter__()
+        except BaseException:
+            self._lock.release()
+            raise
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        try:
+            return self._raw.__exit__(*exc)
+        finally:
+            self._lock.release()
+
+
 def _with_store_lock(method):
     """Serialize one shared SQLite connection without covering executors.
 
@@ -327,15 +449,16 @@ class TaskStore:
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self._path = db_path
-        self._conn = sqlite3.connect(
+        raw = sqlite3.connect(
             db_path if db_path != ":memory:" else "",
             uri=(db_path == ":memory:"),
             isolation_level=None,
             check_same_thread=False,
         )
-        self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        raw.row_factory = sqlite3.Row
+        raw.execute("PRAGMA journal_mode=WAL")
         self._lock = RLock()
+        self._conn = _LockedConnection(raw, self._lock)
         self._init_schema()
 
     # ------------------------------------------------------------------
@@ -1571,27 +1694,33 @@ class TaskStore:
             ).fetchone()
             if row is None:
                 return dict(zero)
-            usage = self._conn.execute(
-                "SELECT COUNT(*) AS observation_count, "
-                "COALESCE(SUM(CASE WHEN status <> 'OBSERVED' THEN 1 ELSE 0 END), 0) "
-                "AS unknown_count, "
-                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
-                "COALESCE(input_units, 0) + COALESCE(output_units, 0) + "
-                "COALESCE(reasoning_units, 0) + COALESCE(cache_read_units, 0) + "
-                "COALESCE(cache_write_units, 0) ELSE 0 END), 0) AS token_units, "
-                "COALESCE(SUM(CASE WHEN status = 'OBSERVED' THEN "
-                "COALESCE(cost_micro_units, 0) ELSE 0 END), 0) AS cost_units "
-                "FROM task_usage_observations WHERE task_id = ? AND window_id = ?",
+            usage_rows = self._conn.execute(
+                "SELECT status, source_kind, input_units, output_units, "
+                "reasoning_units, cache_read_units, cache_write_units, "
+                "cost_micro_units FROM task_usage_observations "
+                "WHERE task_id = ? AND window_id = ?",
                 (task_id, str(row["window_id"])),
-            ).fetchone()
+            ).fetchall()
+            # #1504: the in-run check uses the same cost-equivalent units as the
+            # final reservation reconciliation, so stream enforcement and the
+            # settled charge agree on one budget unit.
+            observed_tokens = 0
+            observed_cost = 0
+            unknown_count = 0
+            for usage in usage_rows:
+                if usage["status"] != "OBSERVED":
+                    unknown_count += 1
+                    continue
+                observed_tokens += cost_equivalent_units(usage) or 0
+                observed_cost += int(usage["cost_micro_units"] or 0)
             return {
                 "token_units": int(row["reserved_token_units"]),
                 "cost_micro_units": int(row["reserved_cost_micro_units"]),
                 "claim_epoch": int(row["epoch"]),
-                "observed_token_units": int(usage["token_units"]),
-                "observed_cost_micro_units": int(usage["cost_units"]),
-                "unknown_observation_count": int(usage["unknown_count"]),
-                "observation_count": int(usage["observation_count"]),
+                "observed_token_units": int(observed_tokens),
+                "observed_cost_micro_units": int(observed_cost),
+                "unknown_observation_count": int(unknown_count),
+                "observation_count": len(usage_rows),
             }
 
     def active_quota_reservation(self, task_id: str) -> dict[str, Any] | None:
@@ -2703,7 +2832,8 @@ class TaskStore:
                     "JOIN platform_autonomous_windows w ON w.id=c.window_id "
                     "JOIN platform_goal_task_links l ON l.task_id=c.task_id "
                     "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision AND g.window_id=w.id "
-                    "WHERE w.status='ACTIVE' AND julianday(w.expires_at)>julianday('now') AND g.status='RUNNING' "
+                    "WHERE w.status='ACTIVE' AND ((w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') "
+                    "OR julianday(w.expires_at)>julianday('now')) AND g.status='RUNNING' "
                     "AND c.task_id=? AND c.owner=? AND c.status='ACTIVE' AND c.expires_at_ms>? AND r.state='ACTIVE' AND r.binding_ref=(SELECT binding_ref FROM tasks WHERE id=c.task_id)",
                     (row["task_id"], lease_owner, _utc_now_ms())).fetchone()
                 if len(paused) != 1 or claim is None or row["task_status"] != "INTERRUPTED":
