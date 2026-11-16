@@ -11,6 +11,7 @@
 | 约 30 个成熟组件，五个领域（账户、持久执行、Agent Runtime、编排、成本） | 2026-11-15 | 横向 + 部分源码级 | [reuse-study-2026-11-15](reuse-study-2026-11-15/README.md) | 先复用 Magpie/现有执行器，避免第二套状态与用量账本 | 见各分报告 |
 | Paperclip（Adapter / Heartbeat / Workspace / Accounting / Plugin） | 2026-11-16 | 专项源码级 | [Paperclip 报告](reuse-study-2026-11-16/paperclip.md) · [#1562](https://github.com/dddd2024/Nerelan/issues/1562) | 只借鉴薄契约、工作区回传收据、队列公平性和证据处理，不引入第二套平台 | 未运行 |
 | Mastra（ModelSelection / Processor / Workflow / HITL / Evals / MCP） | 2026-11-16 | 专项源码级 | [Mastra 报告](reuse-study-2026-11-16/mastra.md) · [#1564](https://github.com/dddd2024/Nerelan/issues/1564) | 借鉴路由弃权、模型视图只读压缩、恢复审计和实验数据；不替代 Python 控制面 | 未运行 |
+| Composio（工具账户 / Session / MCP / 审批 / 付费工具） | 2026-11-16 | 专项源码级 | [Composio 报告](reuse-study-2026-11-16/composio.md) · [#1567](https://github.com/dddd2024/Nerelan/issues/1567) | 借鉴外部工具授权范围、协议漏口防护与部分副作用收据；不替代 Magpie/宿主权限 | 未运行 |
 
 ## 已知先前研究 / 待核对与补录
 
@@ -37,4 +38,4 @@
 
 ## 当前状态
 
-Paperclip 报告由 [#1562](https://github.com/dddd2024/Nerelan/issues/1562) 与 Draft PR [#1563](https://github.com/dddd2024/Nerelan/pull/1563) 跟踪。Mastra 研究由 [#1564](https://github.com/dddd2024/Nerelan/issues/1564) 跟踪，Mastra PR 基于 Paperclip 的研究分支创建以复用此索引，**属于依赖 #1563 的堆叠 Draft PR**。两个研究在通过各自 CI、独立评审并合并前均不视为 main 已正式收录。
+当前研究文档按前序尚未合并的索引依赖排列：Paperclip [PR #1563](https://github.com/dddd2024/Nerelan/pull/1563) → Mastra [PR #1565](https://github.com/dddd2024/Nerelan/pull/1565) → Composio（本轮 Draft PR，见 [#1567](https://github.com/dddd2024/Nerelan/issues/1567)）。本轮分支以 Mastra 分支为基底，只提交 Composio 增量。**它是研究留痕的堆叠 PR，不代表前序分支或本轮内容已经被独立审查或合入 main。**待前序 PR 合入后需以当前 main 重新核对差异、调整 PR base，并通过各自 CI、独立评审后才能合并；不允许借堆叠绕过合并门禁。
