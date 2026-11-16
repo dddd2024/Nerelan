@@ -63,7 +63,7 @@ def test_stable_task_store_http_history_survives_worktree_change_and_rotates_pri
     from reverse_agent.platform_v1.control_store import PlatformControlStore
     from reverse_agent.platform_v1.task_service import _instance_metadata
     from reverse_agent.platform_v1.trusted_host import _make_task_store
-    for key in ("REVERSE_AGENT_TASK_DB_PATH", "REVERSE_AGENT_TASK_DB_DIR", "REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON"):
+    for key in ("REVERSE_AGENT_TASK_DB_PATH", "REVERSE_AGENT_TASK_DB_DIR"):
         monkeypatch.delenv(key, raising=False)
     a, b = tmp_path / "checkout-a", tmp_path / "checkout-b"
     a.mkdir(); b.mkdir()
@@ -153,20 +153,9 @@ def _req(base_url: str, method: str, path: str, body=None, origin=None):
     return resp.status, json.loads(data.decode()) if data else None
 
 
-def _enable_legacy_window_fixture(server):
-    """Only old lifecycle fixtures use the in-process activation adapter.
-
-    Production HTTP still invokes activate_policy and never accepts this old
-    Owner/ACTIVATE shape. This adapter does not prove delegated authority.
-    """
-    service = server.RequestHandlerClass.autonomy_service
-    service.activate_policy = service.activate
-
-
 @pytest.fixture
-def production_policy_server(tmp_path, monkeypatch):
+def production_policy_server(tmp_path):
     from http.server import ThreadingHTTPServer
-    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
     store = TaskStore(str(tmp_path / "production-policy.sqlite3"))
     router = ExecutorRouter()
     handler = _handler_factory(store, router, allowed_origin="http://localhost:5173",
@@ -237,47 +226,8 @@ def test_owner_activation_partial_body_rejected_before_json_parse(production_pol
         conn.close()
 
 
-def test_pinned_authority_never_falls_back_to_owner_activation(production_policy_server, monkeypatch):
-    from reverse_agent.platform_v1.task_service import _configured_autonomy
-    base, server = production_policy_server
-    handler = server.RequestHandlerClass
-    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
-    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
-    assert handler.autonomy_service.delegated_mode and handler.autonomy_service.require_trusted_policy
-    now = datetime.now(timezone.utc)
-    status, body = _req(base, "POST", "/api/windows/activate", {
-        "policy_id": "owner-ui-test", "policy_revision": 1, "owner_identity": "local-owner",
-        "starts_at": (now - timedelta(seconds=1)).isoformat(),
-        "expires_at": (now + timedelta(hours=2)).isoformat(),
-        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
-        "max_concurrent_tasks": 1, "max_tasks": 1, "max_retries": 0, "confirmation": "ACTIVATE",
-    })
-    assert status == 409, body
-    assert handler.control_store.active_window() is None
-
-
-def test_production_direct_execute_cannot_bypass_missing_goal_authority(production_policy_server, monkeypatch):
-    from reverse_agent.platform_v1.task_service import _configured_autonomy
-    base, server = production_policy_server
-    handler = server.RequestHandlerClass
-    # A configured delegated host must never fall back to the ordinary fixture
-    # execution path when its pin is malformed or the Task lacks Goal authority.
-    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
-    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
-    task = handler.store.create_task(title="Unbound task", executor_kind="deterministic_fixture")
-    def forbidden(**unused):
-        pytest.fail("Unapproved direct request reached executor")
-    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
-    before = handler.store._conn.total_changes
-    status, body = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
-    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
-    assert handler.store.get_task(task.id).status == "QUEUED"
-    assert handler.store._conn.total_changes == before
-
-
 def test_production_manual_fixture_execution_remains_available_without_delegated_pins(production_policy_server):
     base, server = production_policy_server
-    assert server.RequestHandlerClass.autonomy_service.authority_loader is None
     status, created = _req(base, "POST", "/api/tasks", {
         "title": "Ordinary manual fixture", "executor_kind": "deterministic_fixture",
         "permission_profile": "ASK_FOR_APPROVAL"})
@@ -289,28 +239,9 @@ def test_production_manual_fixture_execution_remains_available_without_delegated
     assert server.RequestHandlerClass.control_store.active_window() is None
 
 
-def test_pinned_autonomous_task_cannot_use_manual_fallback(production_policy_server, monkeypatch):
-    from reverse_agent.platform_v1.task_service import _configured_autonomy
-    base, server = production_policy_server
-    handler = server.RequestHandlerClass
-    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
-    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
-    task = handler.store.create_task(title="Unbound autonomous task", executor_kind="deterministic_fixture",
-                                    permission_profile="AUTONOMOUS_WINDOW", policy_ref="caller-policy")
-    def forbidden(**kwargs):
-        pytest.fail("Autonomous request without pins reached manual executor")
-    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
-    before = handler.store._conn.total_changes
-    status, refused = _req(base, "POST", f"/api/tasks/{task.id}/execute", {})
-    assert status == 409 and refused == {"error": "direct_execution_requires_approved_host_task"}
-    assert handler.store.get_task(task.id).status == "QUEUED"
-    assert handler.store._conn.total_changes == before
-
-
 def test_same_database_reopen_preserves_history_and_instance_without_path_disclosure(tmp_path, monkeypatch):
     from reverse_agent.platform_v1.task_service import _instance_metadata
     from reverse_agent.platform_v1.control_store import PlatformControlStore
-    monkeypatch.delenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", raising=False)
     path = str(tmp_path / "persistent.sqlite3")
     first = TaskStore(path)
     control = PlatformControlStore(first)
@@ -482,7 +413,6 @@ def test_platform_accounts_reports_no_source_without_a_monitor(task_server) -> N
 
 def test_platform_status_capabilities_and_goal_window_flow(task_server) -> None:
     base, server = task_server
-    _enable_legacy_window_fixture(server)
     status, platform = _req(base, "GET", "/api/platform/status")
     assert status == 200
     assert platform["service"] == "reverse-agent-platform-v2"
@@ -2682,7 +2612,6 @@ def test_roadmap_phase_lifecycle_and_derived_status_over_http(task_server) -> No
 
 def test_agent_runs_listing_and_detail_over_http(task_server) -> None:
     base, server = task_server
-    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "runs goal",
         "idempotency_key": "runs-http-1",
@@ -2753,7 +2682,6 @@ def test_new_read_model_routes_fail_closed_on_unknown_paths(task_server) -> None
 
 def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
     base, server = task_server
-    _enable_legacy_window_fixture(server)
     store = server.RequestHandlerClass.store
 
     status, goal = _req(base, "POST", "/api/goals", {
@@ -2805,7 +2733,6 @@ def test_goal_http_list_and_detail_converge_on_task_status(task_server) -> None:
 
 
 def _launch_http_goal(base, goal_key_suffix, server):
-    _enable_legacy_window_fixture(server)
     status, goal = _req(base, "POST", "/api/goals", {
         "objective": "HTTP convergence " + goal_key_suffix,
         "repository": "dddd2024/reverse-agent",
@@ -2921,62 +2848,6 @@ def test_goal_http_cancel_endpoint_converges_without_cascade(task_server) -> Non
     assert links[other.id] == "QUEUED"
     assert server.RequestHandlerClass.store.get_task(task_id).status == "CANCELLED"
     assert server.RequestHandlerClass.store.get_task(other.id).status == "QUEUED"
-
-
-@pytest.mark.parametrize("action", ["execute", "resume"])
-def test_host_admission_rejection_reads_bounded_body_without_parsing_or_execution(production_policy_server, monkeypatch, action):
-    from reverse_agent.platform_v1.task_service import _configured_autonomy
-    base, server = production_policy_server
-    handler = server.RequestHandlerClass
-    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
-    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
-    task = handler.store.create_task(title="reject raw body before execution", executor_kind="deterministic_fixture")
-    discarded = []
-    original_discard = handler._discard_bounded_request_body
-
-    def observe_discard(request):
-        original_discard(request)
-        discarded.append(True)
-
-    def forbidden(*args, **kwargs):
-        pytest.fail("rejected request must not parse JSON or construct/dispatch an executor")
-
-    monkeypatch.setattr(handler, "_discard_bounded_request_body", observe_discard)
-    monkeypatch.setattr(handler, "_read_json", forbidden)
-    monkeypatch.setattr(handler.router, "create_executor", forbidden)
-    monkeypatch.setattr(handler.router, "dispatch_execute", forbidden)
-    before = handler.store._conn.total_changes
-    status, body = _req(base, "POST", f"/api/tasks/{task.id}/{action}", {})
-    assert status == 409 and body == {"error": "direct_execution_requires_approved_host_task"}
-    assert discarded == [True]
-    assert handler.store._conn.total_changes == before
-    assert handler.store.get_task(task.id).status == "QUEUED"
-    assert handler.store._conn.execute("SELECT count(*) FROM durable_runs").fetchone()[0] == 0
-
-
-def test_host_admission_partial_body_timeout_still_returns_rejection(production_policy_server, monkeypatch):
-    import time
-    from reverse_agent.platform_v1.task_service import _configured_autonomy
-    base, server = production_policy_server
-    handler = server.RequestHandlerClass
-    monkeypatch.setenv("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "{}")
-    handler.autonomy_service = _configured_autonomy(handler.store, handler.control_store, handler.capability_registry)
-    task = handler.store.create_task(title="bounded wait for rejected body", executor_kind="deterministic_fixture")
-    host, port = base.replace("http://", "").split(":", 1)
-    conn = http.client.HTTPConnection(host, int(port), timeout=3)
-    before = handler.store._conn.total_changes
-    try:
-        start = time.monotonic()
-        conn.request("POST", f"/api/tasks/{task.id}/execute", body=b"{", headers=client_headers({
-            "Content-Length": "2", "Origin": "http://localhost:5173",
-        }))
-        response = conn.getresponse()
-        assert response.status == 409
-        assert json.loads(response.read()) == {"error": "direct_execution_requires_approved_host_task"}
-        assert time.monotonic() - start < 3
-        assert handler.store._conn.total_changes == before
-    finally:
-        conn.close()
 
 
 @pytest.mark.parametrize("command,lengths,transfer", [

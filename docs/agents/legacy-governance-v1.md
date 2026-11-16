@@ -1,6 +1,8 @@
 # Legacy governance v1 (archived)
 
-> Archived 2026-10-11 when the Owner adopted Governance v2 (see [AGENTS.md](../../AGENTS.md) and [the current reference](governance-reference.md)). Kept for history and because the Path A / Path B library code remains part of the product. It is no longer required for changes to this repository.
+> Archived 2026-10-11 when the Owner adopted Governance v2 (see [AGENTS.md](../../AGENTS.md) and [the current reference](governance-reference.md)). It is no longer required for changes to this repository and is kept for history only.
+>
+> Owner decision D1 (2026-11-10) moved the v1 code out of `main` (#1575): `reverse_agent/project_gate.py`, `project_state*.py`, `control_plane/`, `decision_preflight.py`, `post_final_evidence_sync.py`, `mainline_landing.py`, the `project_state/` directory, the `decision-preflight.yml` workflow and their tests now live only on the archive branch `archive/legacy-v1-20261116` (the last `main` commit that held them, a7b62777). The commands and paths below refer to that branch.
 
 Former companion to AGENTS.md, not new execution authority. Read the section for the current action; do not preload the whole document for a small edit. The existing approval, risk, validation and landing predicates are unchanged.
 
