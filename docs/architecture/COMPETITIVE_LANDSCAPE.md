@@ -26,6 +26,14 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
 
+## 复用基础设施专项深拆（2026-11-16）
+
+| 项目 | 正式研究与原有权威 | 复用判断 | 状态 |
+|---|---|---|---|
+| Kubernetes SIG Apps Agent Sandbox | [源码审计](reuse-study-2026-11-16/agent-sandbox.md) · [研究 #1569](https://github.com/dddd2024/Nerelan/issues/1569) · [沙箱能力规划 #299](https://github.com/dddd2024/Nerelan/issues/299) | 仅对有现成可信 Kubernetes 的环境考虑作为可选 Sandbox 后端；借鉴 UID/Generation、Router 身份授权、网络策略、回收证据与 Warm Pool 成本模型；不要求 Windows 本地产品安装 Kubernetes | STATIC_SOURCE_REVIEW · 尚未安装/验证 |
+
+该专项是 #299 已提过的开源候选的**源码级增量**，不是新沙箱实现主线或已实测方案。统一研究索引目前仍在前序 Draft PR 中，待其独立合并后再对齐，不另建平行索引。
+
 ## 职责划分
 
 | 能力 | 归属 | 理由 |
