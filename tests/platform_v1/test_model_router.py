@@ -625,3 +625,34 @@ def test_host_router_skips_a_binding_cooling_after_a_stall(monkeypatch, tmp_path
     assert host._resolve_task_model(task)["binding_ref"] == "cheap"
     result = host._resolve_task_model(task, avoid_bindings=("cheap",))
     assert result["binding_ref"] != "cheap" and result["liveness"]["avoided_bindings"] == ["cheap"]
+
+
+def test_stall_retry_never_moves_below_the_stalled_tier_when_nothing_qualifies():
+    # Difficulty 5: nothing qualifies. The stalled tier-3 binding is the strongest present.
+    pool = [candidate("mid", "glm-5.3"), candidate("weak", "flash-lite")]
+    for stall_tier in (3, 0):
+        result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=stall_tier)
+        assert result["binding_ref"] == "mid" and result["liveness"]["fallback"] is True
+    result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=3)
+    assert {"binding_id": "weak", "model_id": "flash-lite", "filter": "stall_tier_floor"} in result["excluded_candidates"]
+
+
+def test_an_escalated_stall_keeps_its_tier():
+    # Plan difficulty 1, but the step was escalated to a tier-5 model that then stalled.
+    pool = [candidate("opus", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=1, avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "opus" and result["reason"] == "liveness_same_binding_fallback"
+    # Another tier-5 binding is a real alternative; a tier-2 one never is.
+    result = choose(pool + [candidate("sonnet", "sonnet", "subscription")], difficulty=1,
+                    avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "sonnet" and result["liveness"]["fallback"] is False
+
+
+def test_host_router_uses_the_stalled_bindings_tier_when_none_is_recorded(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    task = PlannedTask("T001", "t", "i", difficulty=1)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    # "strong" (tier 5) stalled with no recorded tier: the floor is its own measured tier.
+    result = host._resolve_task_model(task, avoid_bindings=("strong",))
+    assert result["binding_ref"] == "strong" and result["liveness"]["stall_tier"] == 5
+    assert host._resolve_task_model(task, avoid_bindings=("strong",), stall_tier=2)["binding_ref"] == "cheap"

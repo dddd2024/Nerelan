@@ -176,7 +176,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  allow_paid: bool = False, quota_buffer: float = .10,
                  account_feedback: Mapping[str, Any] | None = None,
                  weekly_pace: Mapping[str, Any] | None = None,
-                 avoid_bindings: Sequence[str] = (), avoid_upstreams: Sequence[str] = ()) -> dict[str, Any]:
+                 avoid_bindings: Sequence[str] = (), avoid_upstreams: Sequence[str] = (),
+                 stall_tier: int = 0) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -185,7 +186,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     The injected uniform draw gives easy tasks a default 10% exploration rate.
     Liveness (#1596) is a preference, not a filter: a binding in a stall cool-down, or
     one this step stalled on (``avoid_bindings``), is chosen only when no qualifying
-    alternative exists, and then the decision says so.
+    alternative exists, and then the decision says so. ``stall_tier`` is the stalled
+    attempt's tier: a stall retry never goes below it.
     """
     if type(quota_buffer) not in (int, float) or not 0 <= quota_buffer <= 1:
         raise ValueError("invalid_quota_buffer")
@@ -391,19 +393,31 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
         raise error
     liveness_fallback = False
-    if any(c["liveness_rank"] for c in ranked):
-        # Compare among qualifying candidates first: liveness never trades away capability.
-        best = min(c["liveness_rank"] for c in ([c for c in ranked if c["tier"] >= difficulty] or ranked))
+    if stall_tier or any(c["liveness_rank"] for c in ranked):
+        # Tier rules first: liveness only orders candidates at or above the floor (the
+        # task's difficulty and, for a stall retry, the stalled attempt's tier). When none
+        # reaches it, only the strongest tier present competes, so a stall never moves a
+        # step to a weaker model than the one that stalled.
+        floor = max(difficulty, stall_tier)
+        top = max(c["tier"] for c in ranked)
+        eligible = {c["binding_id"] for c in ranked if c["tier"] >= floor} or {
+            c["binding_id"] for c in ranked if c["tier"] == top}
+        best = min(c["liveness_rank"] for c in ranked if c["binding_id"] in eligible)
+        kept = []
         for item in ranked:
-            if item["liveness_rank"] > best and item["binding_id"] != pin:
-                exclusion = {"binding_id": item["binding_id"], "model_id": item["model_id"],
-                             "filter": ("liveness_step_avoided", "liveness_cooldown", "liveness_same_upstream")[
-                                 (LIVENESS_AVOIDED, LIVENESS_COOLING, LIVENESS_SAME_UPSTREAM).index(item["liveness_rank"])]}
-                if item["liveness_rank"] == LIVENESS_COOLING:
-                    from .quota_guard import parse_time
-                    exclusion["retry_at"] = parse_time((item.get("quota") or {}).get("until"))
-                excluded.append(exclusion)
-        ranked = [c for c in ranked if c["liveness_rank"] <= best or c["binding_id"] == pin]
+            below_floor = bool(stall_tier) and item["binding_id"] not in eligible
+            if item["binding_id"] == pin or (item["liveness_rank"] <= best and not below_floor):
+                kept.append(item)
+                continue
+            exclusion = {"binding_id": item["binding_id"], "model_id": item["model_id"],
+                         "filter": "stall_tier_floor" if below_floor else
+                         ("liveness_step_avoided", "liveness_cooldown", "liveness_same_upstream")[
+                             (LIVENESS_AVOIDED, LIVENESS_COOLING, LIVENESS_SAME_UPSTREAM).index(item["liveness_rank"])]}
+            if exclusion["filter"] == "liveness_cooldown":
+                from .quota_guard import parse_time
+                exclusion["retry_at"] = parse_time((item.get("quota") or {}).get("until"))
+            excluded.append(exclusion)
+        ranked = kept
         liveness_fallback = best >= LIVENESS_COOLING
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
     if pin and pinned is None and not refused_models:
@@ -489,8 +503,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "characteristics": chosen["characteristics"],
             **({"downgrade_fallback": True} if downgrade_fallback else {}),
             **({"liveness": {"avoided_bindings": list(avoid_bindings), "avoided_upstreams": sorted(avoid_upstreams),
-                             "rank": chosen["liveness_rank"], "fallback": liveness_fallback}}
-               if avoid_bindings or avoid_upstreams or liveness_fallback else {})}
+                             "rank": chosen["liveness_rank"], "fallback": liveness_fallback,
+                             "stall_tier": stall_tier}}
+               if avoid_bindings or avoid_upstreams or liveness_fallback or stall_tier else {})}
 
 
 def prior_characteristics(model: str) -> dict[str, Any]:

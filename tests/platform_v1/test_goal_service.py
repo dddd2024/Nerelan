@@ -880,6 +880,40 @@ def test_host_termination_still_resumes_the_same_model_without_routing(case):
     assert not any("stall" in e.title for e in store.get_events(retry.id))
 
 
+def test_stall_reroute_floor_is_the_strongest_tier_the_step_was_routed_at(case):
+    root, _, store, _, service, goal, _, task = case
+    _fail_stalled(store, task, root)
+    store.add_event(task.id, event_type="MODEL_SELECTED", title="Escalated", description="fixture",
+                    metadata={"binding_ref": task.binding_ref, "tier": 5, "reason": "escalation_higher_tier"})
+    seen = []
+
+    def resolve(plan_task, *, goal, avoid_bindings=(), stall_tier=None, **kwargs):
+        seen.append(stall_tier)
+        return dict(OTHER_BINDING, tier=5)
+    service.task_resolver = resolve
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert seen == [5] and step["reason"].endswith(":rerouted")
+
+
+def test_backoff_memory_is_dropped_once_the_step_moves_on(case, monkeypatch):
+    root, _, store, _, service, goal, _, task = case
+    _fail_stalled(store, task, root)
+    calls = []
+    service.task_resolver = _stall_resolver(calls, dict(OTHER_BINDING, binding_ref=task.binding_ref))
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert service._stall_routes_checked == {task.id: goal.id}
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"].endswith(":no_alternative")
+    service.escalate_failed_tasks(goal.id)  # the stalled attempt is no longer the step's failed link
+    assert service._stall_routes_checked == {}
+    # The memory is bounded even if goals never come back to prune it.
+    monkeypatch.setattr(goal_service_module, "STALL_ROUTES_CHECKED_LIMIT", 2)
+    service._stall_routes_checked.update({"a": "g1", "b": "g1", "c": "g1"})
+    service._prune_stall_routes(goal.id)
+    assert list(service._stall_routes_checked) == ["b", "c"]
+
+
 def test_detail_response_includes_generated_at_timestamp():
     """#1555: goal detail carries generated_at so the frontend can detect stale content."""
     _, _, _, goals = _services()

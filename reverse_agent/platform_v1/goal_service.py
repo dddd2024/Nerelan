@@ -186,6 +186,7 @@ HOST_RETRY_REASON = "host_retry"
 # keeps the same-model resume.
 STALL_REROUTED = "rerouted"
 STALL_NO_ALTERNATIVE = "no_alternative"
+STALL_ROUTES_CHECKED_LIMIT = 1024
 OWNER_RETRY_REASON = "owner_retry"
 
 
@@ -830,6 +831,27 @@ class GoalService:
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         return tuple(self._reroute_quota_held(goal, planned))
 
+    @property
+    def _stall_routes_checked(self) -> dict[str, str]:
+        """Stalled attempts already looked at during their backoff: task id -> goal id."""
+        return self.__dict__.setdefault("_stall_routes_checked_map", {})
+
+    def _prune_stall_routes(self, goal_id: str) -> None:
+        """Forget this goal's stalled attempts that are no longer its failed current links.
+
+        The service lives as long as the host; an attempt leaves the map as soon as
+        its step moves on, and the map never holds more than a bounded number of ids.
+        """
+        checked = self._stall_routes_checked
+        if not checked:
+            return
+        current = {link["task_id"] for link in self.control_store.list_goal_tasks(goal_id)
+                   if link["status"] == "FAILED"}
+        for task_id in [t for t, g in checked.items() if g == goal_id and t not in current]:
+            del checked[task_id]
+        while len(checked) > STALL_ROUTES_CHECKED_LIMIT:
+            del checked[next(iter(checked))]  # oldest first; forgetting only means one more look
+
     def _stall_reroute(self, plan_task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask],
                        failed: Any, history: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any] | None, str]:
         """Another eligible binding for a stalled step, or None with the reason (#1596).
@@ -842,6 +864,7 @@ class GoalService:
             return None, "no_router"
         from .quota_guard import LIVENESS_STALL_CLASSES
         avoided = [failed.binding_ref]
+        attempts = [failed]
         for row in history:
             if row["plan_task_id"] != plan_task.id or not row.get("from_task_id"):
                 continue
@@ -849,10 +872,17 @@ class GoalService:
                 attempt = self.store.get_task(row["from_task_id"])
             except TaskStoreError:
                 continue
+            attempts.append(attempt)
             if attempt.failure_classification in LIVENESS_STALL_CLASSES and attempt.binding_ref not in avoided:
                 avoided.append(attempt.binding_ref)
+        # The floor is the strongest tier this step was routed at: a stall never undoes an
+        # escalation or moves the retained tree to a weaker model (#1596 review).
+        tiers = [event.metadata.get("tier") for attempt in attempts for event in self.store.get_events(attempt.id)
+                 if event.type == "MODEL_SELECTED" and event.metadata.get("binding_ref") == attempt.binding_ref]
+        tiers = [tier for tier in tiers if type(tier) is int and 1 <= tier <= 5]
         try:
             decision = self.task_resolver(plan_task, goal=goal, avoid_bindings=tuple(avoided),
+                                          stall_tier=max(tiers) if tiers else None,
                                           **self._review_authors(plan_task, goal, planned))
         except TaskStoreError as exc:
             return None, f"selection_failed:{exc}"
@@ -1238,6 +1268,7 @@ class GoalService:
         history = self.control_store.list_task_escalations(goal_id)
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         outcomes = list(repairs)
+        self._prune_stall_routes(goal_id)
         if self.task_resolver is not None:
             outcomes.extend(self._reroute_quota_held(goal, planned))
         for link in self.control_store.list_goal_tasks(goal_id):
@@ -1297,12 +1328,14 @@ class GoalService:
                     failed_at = _parse_utc(failed.updated_at)
                     wait = TRANSIENT_BACKOFF_SECONDS * (2 ** transient)
                     in_backoff = failed_at is not None and time.time() < failed_at + wait
-                    checked = self.__dict__.setdefault("_stall_routes_checked", set())
+                    checked = self._stall_routes_checked
                     if stalled and (not in_backoff or failed.id not in checked):
                         # Another binding needs no backoff; look once on first sight and
-                        # once more when the same-binding backoff is over.
-                        checked.add(failed.id)
+                        # once more when the same-binding backoff is over. A found route
+                        # is not remembered: if it is not taken now, the next tick looks again.
                         stall_route, stall_note = self._stall_reroute(plan_task, goal, planned, failed, history)
+                        if stall_route is None:
+                            checked[failed.id] = goal.id
                     if in_backoff and stall_route is None:
                         continue  # backoff; a later tick retries without spending budget
                     if stalled:
