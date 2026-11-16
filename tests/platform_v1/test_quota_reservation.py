@@ -234,7 +234,7 @@ def test_settlement_restart_replay_and_failed_spend(tmp_path, monkeypatch):
     task, epoch = measured_claim(store, control, window, 2)
     control.abandon_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, reason="cancelled")
     row = dict(store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone())
-    assert row["observed_token_units"] == 6
+    assert row["observed_token_units"] == 4
     assert json.loads(row["settlement_json"])["actual_windows"] == {"five_hour": 2, "weekly": 1}
     reopened = TaskStore(str(tmp_path / "settlement.sqlite3"))
     recovered = control_store.PlatformControlStore(reopened)
@@ -245,7 +245,7 @@ def test_settlement_restart_replay_and_failed_spend(tmp_path, monkeypatch):
     assert summary["reserved"]["five_hour"] == 10
     assert summary["actual"]["five_hour"] == 2
     assert summary["estimate_error"]["five_hour"] == -8
-    assert recovered.get_window(window.id).observed_token_units == 6
+    assert recovered.get_window(window.id).observed_token_units == 4
 
 
 def test_incomplete_observation_stays_unknown(tmp_path, monkeypatch):
@@ -272,7 +272,7 @@ def test_retry_charges_each_observation_once(tmp_path, monkeypatch):
     append_measurement(store, task, 2, f"obs-{task.id}")
     append_measurement(store, task, 3, "retry-observation")
     control.complete_task_claim(window_id=window.id, task_id=task.id, owner="retry", epoch=retry, result="done")
-    assert control.get_window(window.id).observed_token_units == 15
+    assert control.get_window(window.id).observed_token_units == 10
     assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 2
 
 

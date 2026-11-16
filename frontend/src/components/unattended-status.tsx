@@ -46,7 +46,7 @@ export function UnattendedStatus({ status, now: fixedNow, quietWhenRunning = fal
     )}>
       {active && !coordinatorStopped
         // tasks_completed counts finished claims, failed ones included: "已结束", never "完成".
-        ? `执行窗口运行中 · 剩 ${left} · 已结束 ${window.tasks_completed} 个任务`
+        ? window.continuous ? `持续运行中 · 已结束 ${window.tasks_completed} 个任务` : `执行窗口运行中 · 剩 ${left} · 已结束 ${window.tasks_completed} 个任务`
         : `执行窗口已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。需要继续时在目标页重试，或开一个新窗口。`}
       {/* Progress only matters while the window can still make some. */}
       {active && !coordinatorStopped && (stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`

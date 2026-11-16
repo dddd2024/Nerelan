@@ -103,39 +103,16 @@ forwarding and an actual broker's bounded failure exit with parent stdin open.
 These checks do not establish actual browser lifecycle acceptance or prove that
 shared dependency state was unchanged during that original attempt.
 
-## Bounded delegated checker
+## Delegated checker (retired)
 
-The native browser identity admits HTTP requests; it does not confirm a policy.
-When the host pins a delegated authority, production window activation accepts
-exactly `policy_id`, `policy_revision` and the complete canonical `policy`
-returned by `GET /api/windows/policy`. Without pins (the default launcher run),
-`GET /api/windows/policy` reports `trusted_policy_unavailable` and the
-launcher-authenticated local owner confirms a bounded window instead
-(`confirmation: "ACTIVATE"`), as before #1117.
-The host obtains immutable Decision, candidate-head and command-plan pins from
-the owner-controlled `REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON` environment,
-never from Vite variables, browser storage or the HTTP body. Missing or changed
-authority disables activation and autonomous dispatch. Confirmation provenance
-identifies the delegated controller and explicitly records `personally_human=false`.
+The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code was deleted; it remains only in Git history (a7b62777). `GET /api/windows/policy` always reports `trusted_policy_unavailable`, and `POST /api/windows/activate` refuses with `owner_selection_confirmation_unavailable`; Owner windows are activated through the host-native confirmation path.
 
-The supported delegated adapter is one standalone `validate_task` with command
-ID `git_diff_check`, bound to the approved Goal idempotency key, plan task,
-candidate head, instance, workspace and exact paths. It bypasses bindings and
-model execution, reuses durable TaskStore leases/checkpoints, and records
-`host_validation`, `model_execution_skipped=true` and `PATCH_HYGIENE`.
-Patch hygiene does not prove functional acceptance or implementation by a model.
-Filesystem writes, network, credentials and publication adapters are unavailable
-under this policy; unsupported selected capabilities fail closed.
-
-Windows, full canonical policies, delegation slots, claims and operation receipts
-remain in the existing TaskStore SQLite database. Replays preserve spending and
-terminal windows. Receipt totals use all stored rows; cursor pages retain a
-stable history snapshot. The status response exposes a safe instance ID and
-whether it is a workspace or an acceptance instance, without exposing its path.
-An isolated acceptance database has independent history. It must not be presented
-as proof that an existing workspace's tasks disappeared, nor silently merged with
-that workspace. Configure `REVERSE_AGENT_TASK_DB_PATH` consistently for either
-host entrypoint, or retain the combined host's existing DB-directory setting.
+Windows, claims and operation receipts remain in the existing TaskStore SQLite
+database. Replays preserve spending and terminal windows. Receipt totals use all
+stored rows; cursor pages retain a stable history snapshot. The status response
+exposes a safe workspace instance ID without exposing its path. Configure
+`REVERSE_AGENT_TASK_DB_PATH` consistently for either host entrypoint, or retain
+the combined host's existing DB-directory setting.
 
 Fixture reopen checks verify durable records independently of real browser
 acceptance. A saved SQLite file alone does not prove a successful server restart;

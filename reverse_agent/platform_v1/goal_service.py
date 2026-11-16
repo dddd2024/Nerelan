@@ -379,108 +379,6 @@ class GoalService:
             goal_id, expected_revision=expected_revision, policy_ref=policy_ref
         )
 
-    def admit_delegated(self, *, window_id: str, authority: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
-        """One SQLite commit covers delegated approval, enqueue and receipt.
-
-        The trusted host supplies PolicyAuthority. No renderer API accepts it.
-        Snapshot cardinality bounds admissions; task claims still charge the
-        original window execution allowance independently.
-        """
-        from .autonomy import AutonomyService, bound_goal_admission, goal_admission_snapshots
-        from .control_store import sha256_json
-        goal_id = str(snapshot.get("goal_id", ""))
-        with self.store._lock:
-            conn = self.store._conn
-            conn.execute("BEGIN IMMEDIATE")
-            try:
-                binding = authority.binding
-                if dict(snapshot) not in goal_admission_snapshots(binding) or "approve_goal" not in binding["allowed_operations"]:
-                    raise TaskStoreError("delegated_goal_outside_scope")
-                window = self.control_store.get_window(window_id)
-                persisted = self.control_store.window_policy_binding(window_id)
-                expected_authority = {**binding, "decision_id": authority.decision_id,
-                    "round_id": authority.round_id, "decision_content_sha256": authority.decision_content_sha256,
-                    "decision_commit_sha": authority.decision_commit_sha,
-                    "command_plan_sha256": authority.command_plan_sha256, "head_sha": authority.head_sha,
-                    "base_sha": authority.base_sha, "branch": authority.branch}
-                if (window.id != binding["window_id"] or window.status != "ACTIVE"
-                        or "approve_goal" not in window.capabilities
-                        or window.confirmation_mode != "DELEGATED_CONTROLLER"
-                        or persisted["authority"] != expected_authority
-                        or persisted["policy_digest_sha256"] != binding["policy_digest_sha256"]):
-                    raise TaskStoreError("delegated_goal_window_binding_mismatch")
-                from datetime import datetime, timezone
-                now = datetime.now(timezone.utc)
-                if not AutonomyService._parse_time(window.starts_at) <= now < AutonomyService._parse_time(window.expires_at):
-                    raise TaskStoreError("delegated_goal_window_expired")
-                goal = self.control_store.get_goal(goal_id)
-                bound_goal_admission(binding, goal)
-                if goal.repository != authority.repository or goal.repository not in window.repositories:
-                    raise TaskStoreError("delegated_goal_repository_mismatch")
-                payload = {"snapshot": dict(snapshot), "decision_content_sha256": authority.decision_content_sha256,
-                           "controller_identity": binding["controller_identity"], "personally_human": False}
-                prior = conn.execute(
-                    "SELECT * FROM platform_operation_receipts WHERE window_id = ? AND operation_type = 'goal_admission' "
-                    "AND subject_id = ? AND decision = 'allowed'", (window_id, goal_id)).fetchone()
-                if prior is not None:
-                    if prior["input_digest"] != sha256_json(payload) or goal.window_id != window_id:
-                        raise TaskStoreError("delegated_goal_replay_conflict")
-                    conn.execute("COMMIT")
-                    return {"goal_id": goal_id, "admitted": True, "replayed": True}
-                if goal.status != "PLANNED" or goal.window_id not in {"", window_id}:
-                    raise TaskStoreError("delegated_goal_not_planned")
-                planned = tuple(self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))
-                if (len(planned) != 1 or planned[0].id != binding["plan_task_id"]
-                        or planned[0].capability != "validate_task" or planned[0].validation_command_id != "git_diff_check"
-                        or planned[0].dependencies or planned[0].validation_checks):
-                    raise TaskStoreError("delegated_goal_task_scope_mismatch")
-                spent = conn.execute(
-                    "SELECT COUNT(*) FROM platform_operation_receipts WHERE window_id = ? "
-                    "AND operation_type = 'goal_admission' AND decision = 'allowed'", (window_id,)).fetchone()[0]
-                if spent >= len(goal_admission_snapshots(binding)) or window.tasks_started >= window.max_tasks:
-                    raise TaskStoreError("delegated_goal_budget_exhausted")
-                self.control_store.approve_goal(goal_id, expected_revision=goal.revision, policy_ref=window.policy_id)
-                self._launch(goal_id, expected_revision=goal.revision, window_id=window_id, probe_availability=False)
-                self.control_store.append_receipt(
-                    window_id=window_id, operation_type="goal_admission", capability="approve_goal",
-                    repository=goal.repository, subject_id=goal_id, decision="allowed",
-                    reason="exact_delegated_goal_snapshot", input_payload=payload,
-                    external_id=goal_id, result="APPROVED_AND_ENQUEUED")
-                conn.execute("COMMIT")
-                return {"goal_id": goal_id, "admitted": True, "replayed": False}
-            except BaseException as exc:
-                conn.execute("ROLLBACK")
-                if isinstance(exc, TaskStoreError) and str(exc) == "receipt_persistence_failed":
-                    # Keep the window hard stop even though the admission rolled back.
-                    conn.execute("UPDATE platform_autonomous_windows SET status = 'BLOCKED', "
-                                 "stop_reason = 'receipt_persistence_failed' WHERE id = ?", (window_id,))
-                    raise
-                if not isinstance(exc, TaskStoreError):
-                    raise
-                # Record each stable denial once, so polling does not manufacture
-                # progress or consume unbounded receipt storage.
-                reason = str(exc)
-                identity = sha256_json({"snapshot": dict(snapshot), "reason": reason})
-                conn.execute("BEGIN IMMEDIATE")
-                try:
-                    previous = conn.execute(
-                        "SELECT id FROM platform_operation_receipts WHERE window_id = ? "
-                        "AND operation_type = 'goal_admission' AND subject_id = ? AND decision = 'denied' "
-                        "AND input_digest = ?", (window_id, goal_id, identity)).fetchone()
-                    if previous is None:
-                        self.control_store.append_receipt(
-                            window_id=window_id, operation_type="goal_admission", capability="approve_goal",
-                            repository=authority.repository, subject_id=goal_id, decision="denied", reason=reason,
-                            input_payload={"snapshot": dict(snapshot), "reason": reason})
-                    conn.execute("COMMIT")
-                except BaseException as denial_error:
-                    conn.execute("ROLLBACK")
-                    if isinstance(denial_error, TaskStoreError) and str(denial_error) == "receipt_persistence_failed":
-                        conn.execute("UPDATE platform_autonomous_windows SET status = 'BLOCKED', "
-                                     "stop_reason = 'receipt_persistence_failed' WHERE id = ?", (window_id,))
-                    raise
-                return {"goal_id": goal_id, "admitted": False, "replayed": previous is not None, "reason": reason}
-
     def amend(
         self, goal_id: str, *, expected_revision: int, objective: str,
         repository: str | None = None, executor_kind: str | None = None,
@@ -692,11 +590,11 @@ class GoalService:
         with self.store._lock:
             window = self.control_store.get_window(window_id)
             active = self.store._conn.execute("SELECT id FROM platform_autonomous_windows WHERE status='ACTIVE' "
-                "AND julianday(starts_at)<=julianday('now') AND julianday(expires_at)>julianday('now') "
+                "AND julianday(starts_at)<=julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now')) "
                 "ORDER BY created_at DESC LIMIT 1").fetchone()
             return bool(active and active["id"] == window_id and goal.window_id == window_id
                 and goal.status in {"RUNNING", "BLOCKED"} and goal.repository in window.repositories
-                and window.tasks_started < window.max_tasks)
+                and (window.continuous or window.tasks_started < window.max_tasks))
 
     def _commit_initial_selection(self, goal: Any, plan: PlannedTask, task_id: str, event_id: str,
                                   decision: Mapping[str, Any], authors: Mapping[str, Any], autonomy: Any) -> bool:
@@ -722,7 +620,6 @@ class GoalService:
                 if task.policy_ref != window.policy_id or plan.capability not in window.capabilities:
                     self.store._conn.execute("ROLLBACK")
                     return False
-                autonomy._check_window_authority(goal.window_id)
                 selected = bool(decision.get("binding_ref"))
                 metadata = dict(decision)
                 metadata.pop(_INITIAL_WAIT, None)
@@ -767,7 +664,7 @@ class GoalService:
         if (os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1" or self.task_resolver is None
                 or getattr(autonomy, "control_store", None) is not self.control_store):
             return ()
-        selected, checked, authority_checked = [], 0, False
+        selected, checked = [], 0
         for goal in self.control_store.list_window_goals(window_id):
             if checked >= limit:
                 break
@@ -780,7 +677,7 @@ class GoalService:
                      if int(row["goal_revision"]) == goal.revision}
             visited = set()
             def reconsider(plan_id):
-                nonlocal checked, authority_checked
+                nonlocal checked
                 if plan_id in visited or plan_id not in links or checked >= limit:
                     return
                 visited.add(plan_id)
@@ -802,9 +699,6 @@ class GoalService:
                         authors = self._review_authors(plan, goal, planned, require_frozen=True)
                 except TaskStoreError:
                     return  # no author identity is guessed from an unbound source
-                if not authority_checked:
-                    autonomy._check_window_authority(window_id)
-                    authority_checked = True
                 checked += 1
                 try:
                     arguments = {key: value for key, value in authors.items() if key != "_initial_author_snapshot"}
@@ -923,7 +817,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             return ()
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         return tuple(self._reroute_quota_held(goal, planned))
@@ -1001,6 +895,46 @@ class GoalService:
                           "from_binding": task.binding_ref, "to_binding": decision["binding_ref"]})
         return moved
 
+    def _discarded_without_usage(self, attempt: Any, observations: Sequence[Any]) -> bool:
+        """A failed attempt that called no model and whose tree no attempt ever used.
+
+        Such an attempt authored nothing the reviewer will see: no model answered
+        it (an executor that exited before its first request) and its tree never
+        reached a later attempt. Requiring a model identity for it would make
+        every later review of the step impossible (#1504, 2026-11-14).
+
+        ``AttemptDisposition`` alone is not proof: it keeps its first value, and a
+        contract miss recorded ``discarded`` when the retry budget ran out can be
+        carried forward later when budget returns (PR #1536 review). Every carry
+        binds ``ContractFixup`` evidence naming its ``source_task_id`` on the
+        successor, so any such binding anywhere keeps this attempt an author.
+        Anything else - usage observed, a reused or unknown disposition, or a
+        non-FAILED status - stays an author and must prove its models.
+        """
+        execution_id = getattr(attempt, "execution_id", "")
+        attempt_id = getattr(attempt, "id", "")
+        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+                or not attempt_id or not hasattr(attempt, "evidence_refs")):
+            return False
+        from .artifact_handoff import _load_evidence
+        from .contract_recovery import FIXUP
+        try:
+            record = _load_evidence(attempt, "AttemptDisposition", execution_id)
+        except (TaskStoreError, ValueError, TypeError, KeyError):
+            return False
+        if not isinstance(record, dict) or record.get("disposition") != "discarded":
+            return False
+        for (detail,) in self.store._conn.execute(
+                "SELECT detail FROM task_evidence WHERE category = ? AND instr(detail, ?) > 0",
+                (FIXUP, attempt_id)).fetchall():
+            try:
+                carried = json.loads(detail)
+            except (TypeError, ValueError):
+                return False  # unreadable carry evidence naming this attempt: stay strict
+            if not isinstance(carried, dict) or carried.get("source_task_id") == attempt_id:
+                return False
+        return True
+
     def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask], *,
                         require_frozen: bool = False) -> dict[str, Any]:
         """Resolve authors from execution facts, retaining replaced attempts."""
@@ -1037,6 +971,8 @@ class GoalService:
                                      tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
                                      tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
                                            for ref in attempt.evidence_refs)))
+                if self._discarded_without_usage(attempt, observations):
+                    continue
                 recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
                     for event in self.store.get_events(task_id):
@@ -1125,7 +1061,7 @@ class GoalService:
                 goal = self.control_store.get_goal(goal_id)
                 active = self.store._conn.execute(
                     "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND status = 'ACTIVE' "
-                    "AND julianday(starts_at) <= julianday('now') AND julianday(expires_at) > julianday('now')",
+                    "AND julianday(starts_at) <= julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                     (goal.window_id,)).fetchone()
                 if goal.orchestration_mode != "agent_team" or not active:
                     if owns_transaction:
@@ -1254,7 +1190,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')",
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                 (window.id,)).fetchone():
             return repairs
         history = self.control_store.list_task_escalations(goal_id)
@@ -1552,7 +1488,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id) if goal.window_id else None
         if window is None or window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             options["reason"] = "owner_retry_no_active_window"
             return options
         history = self.control_store.list_task_escalations(goal_id)
@@ -1588,7 +1524,7 @@ class GoalService:
         window = self.control_store.get_window(goal.window_id)
         if window.status != "ACTIVE" or not self.store._conn.execute(
                 "SELECT 1 FROM platform_autonomous_windows WHERE id = ? AND julianday(starts_at) <= julianday('now') "
-                "AND julianday(expires_at) > julianday('now')", (window.id,)).fetchone():
+                "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             raise TaskStoreError("owner_retry_no_active_window")
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         plan_task = planned.get(plan_task_id)

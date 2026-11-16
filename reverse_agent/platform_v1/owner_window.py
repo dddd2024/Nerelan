@@ -143,7 +143,15 @@ class OwnerWindowAdmission:
         """Persisted truth for the prompt and for the in-transaction recheck."""
         host = self._host
         control = host._control_store
-        if control.claim_holds()["live"]:
+        current = control.active_window()
+        appending = bool(envelope.get("continuous") and current and current.continuous
+                         and current.id == envelope["window_id"])
+        held = control.claim_holds()["live"]
+        if appending:
+            held -= control._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
+                (current.id,)).fetchone()[0]
+        if held > 0:
             raise TaskStoreError("owner_window_old_active_claims_hold")
         goals = [control.get_goal(goal_id) for goal_id in goal_ids]
         repositories = {goal.repository for goal in goals}
@@ -159,9 +167,11 @@ class OwnerWindowAdmission:
                 if task.get("capability", "execute_task") not in envelope["capabilities"]:
                     raise TaskStoreError(f"owner_window_capability_missing:{goal.id}")
             task_count += len(goal.tasks)
-        if task_count > envelope["max_tasks"]:
+        if not envelope.get("continuous") and task_count > envelope["max_tasks"]:
             raise TaskStoreError("owner_window_max_tasks_below_planned_tasks")
         repository = repositories.pop()
+        if appending and repository not in current.repositories:
+            raise TaskStoreError("owner_window_requires_one_repository")
         workspace = resolve_repository_workspace(repository)
         if workspace.repository != repository:
             raise TaskStoreError("owner_window_repository_changed")
@@ -181,14 +191,16 @@ class OwnerWindowAdmission:
         env = scope["envelope"]
         lines = ["Nerelan: activate an autonomous window over exactly these Goals", "",
                  f"Repository:     {scope['repository']}",
-                 f"Workspace:      {scope['workspace']}  (base {scope['base_sha'][:12]})",
-                 f"Window:         {env['starts_at']} -> {env['expires_at']}",
-                 f"Limits:         {env['max_tasks']} tasks, {env['max_concurrent_tasks']} at a time, "
-                 f"{env['max_retries']} retries",
-                 f"Capabilities:   {', '.join(env['capabilities'])}",
-                 f"Budget caps:    tokens {env['max_token_units'] or 'none'}, "
-                 f"cost {env['max_cost_micro_units'] or 'none'}",
-                 f"Paid API:       {scope['paid_api']}", "", f"Goals ({len(scope['goals'])}):"]
+                 f"Workspace:      {scope['workspace']}  (base {scope['base_sha'][:12]})"]
+        if env.get("continuous"):
+            lines += ["Run:            until Owner stops", f"Concurrency:    {env['max_concurrent_tasks']}",
+                      f"Retries:        {env['max_retries']}", f"Cost cap:       {env['max_cost_micro_units'] or 'none'}"]
+        else:
+            lines += [f"Window:         {env['starts_at']} -> {env['expires_at']}",
+                      f"Limits:         {env['max_tasks']} tasks, {env['max_concurrent_tasks']} at a time, {env['max_retries']} retries",
+                      f"Budget caps:    tokens {env['max_token_units'] or 'none'}, cost {env['max_cost_micro_units'] or 'none'}"]
+        lines += [f"Capabilities:   {', '.join(env['capabilities'])}",
+                  f"Paid API:       {scope['paid_api']}", "", f"Goals ({len(scope['goals'])}):"]
         for goal in scope["goals"]:
             lines += [f"- {goal['id']} rev {goal['revision']}  {goal['executor_kind']}/{goal['orchestration_mode']}"
                       f"{'  pinned ' + goal['binding_ref'] if goal['binding_ref'] else '  routed'}",
@@ -255,21 +267,26 @@ class OwnerWindowAdmission:
 
     def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
                  max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
-                 max_cost_micro_units: int = 0) -> tuple[tuple[str, ...], dict[str, Any]]:
+                 max_cost_micro_units: int = 0, continuous: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
         """Validate the request and fix the envelope; binds discovered models first."""
         host = self._host
         goal_ids = tuple(goal_ids)
         if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
                 or any(not isinstance(g, str) or not _GOAL_ID.fullmatch(g) for g in goal_ids)):
             raise TaskStoreError("owner_window_goals_invalid")
-        if not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+        if type(continuous) is not bool:
+            raise TaskStoreError("owner_window_mode_invalid")
+        if not continuous and not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
             raise TaskStoreError("owner_window_duration_invalid")
         # Same ranges as the command line, so a preflight never reports ok for a request
         # that activation would refuse.
-        if not 1 <= max_tasks <= 100 or not 1 <= max_concurrent <= 8 or not 0 <= max_retries <= 5:
+        if (not (max_tasks == 0 if continuous else 1 <= max_tasks <= 100)
+                or not 1 <= max_concurrent <= 8 or not 0 <= max_retries <= 5):
             raise TaskStoreError("owner_window_limits_invalid")
         if max_token_units < 0 or max_cost_micro_units < 0:
             raise TaskStoreError("owner_window_budget_invalid")
+        if continuous and (hours != 0 or max_token_units != 0):
+            raise TaskStoreError("continuous_run_has_window_bounds")
         capabilities = tuple(dict.fromkeys(capabilities))
         if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
             raise TaskStoreError("owner_window_capabilities_invalid")
@@ -279,12 +296,14 @@ class OwnerWindowAdmission:
         # The model-control routes refresh OpenCode login sessions on read; the pool
         # reads the store directly under the lock, so refresh once here, before it.
         host._refresh_external_session_auth(False, None)
-        now = datetime.now(timezone.utc)
+        # SQLite's current clock is millisecond precision on Windows. Floor both
+        # envelope boundaries so sub-millisecond rounding cannot start it in the future.
+        now = datetime.now(timezone.utc).replace(microsecond=0)
         # Times are fixed before the prompt; reading time spends the window.
         envelope = {"window_id": "owner-" + secrets.token_hex(16),
                     "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
                     "owner_identity": f"os-user:{getpass.getuser()}",
-                    "starts_at": _utc(now), "expires_at": _utc(now + timedelta(hours=hours)),
+                    "starts_at": _utc(now), "expires_at": "" if continuous else _utc(now + timedelta(hours=hours)),
                     "repositories": [], "capabilities": list(capabilities),
                     "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
                     "max_retries": max_retries, "max_token_units": max_token_units,
@@ -294,6 +313,18 @@ class OwnerWindowAdmission:
                     "per_task_token_reservation": max_token_units // max(max_tasks, 1),
                     "per_task_cost_reservation": max_cost_micro_units // max(max_tasks, 1),
                     "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
+        if continuous:
+            envelope["continuous"] = True
+            active = host._control_store.active_window()
+            if active and active.continuous:
+                if (active.max_concurrent_tasks != max_concurrent or active.max_retries != max_retries
+                        or active.capabilities != capabilities or active.max_cost_micro_units != max_cost_micro_units):
+                    raise TaskStoreError("continuous_run_settings_changed")
+                for key in envelope:
+                    if hasattr(active, key):
+                        envelope[key] = getattr(active, key)
+                envelope["window_id"] = active.id
+                envelope["append_to_window"] = active.id
         return goal_ids, envelope
 
     @staticmethod
@@ -309,7 +340,7 @@ class OwnerWindowAdmission:
         envelope = {key: value for key, value in raw.items()
                     if key not in {"window_id", "policy_id", "starts_at", "expires_at", "owner_identity"}}
         # The window's length is a bound the card shows; its clock times are per request.
-        envelope["duration_seconds"] = round((
+        envelope["duration_seconds"] = 0 if raw.get("continuous") else round((
             datetime.fromisoformat(raw["expires_at"].replace("Z", "+00:00"))
             - datetime.fromisoformat(raw["starts_at"].replace("Z", "+00:00"))).total_seconds())
         return sha256_json({**{key: value for key, value in scope.items()
@@ -442,6 +473,12 @@ class OwnerWindowAdmission:
         with host._task_store._lock, host._store._lock:
             holds = control.claim_holds()
             held = holds["live"]
+            active = control.active_window()
+            if envelope.get("continuous") and active and active.continuous and active.id == envelope["window_id"]:
+                own = control._conn.execute(
+                    "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
+                    (active.id,)).fetchone()[0]
+                held = max(0, held - own)
             add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
                 f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
             if holds["stale"]:
@@ -486,6 +523,7 @@ class OwnerWindowAdmission:
                     "starts_at", "expires_at", "capabilities", "max_tasks", "max_concurrent_tasks",
                     "max_retries", "max_token_units", "max_cost_micro_units")},
                 "paid_api": scope["paid_api"]}
+            result["scope"]["envelope"]["continuous"] = bool(env.get("continuous"))
             result["card_digest"] = self.card_digest(scope)
             result["confirmation"] = self.confirmation_mode()
         result["ok"] = all(check["ok"] for check in checks)
@@ -494,7 +532,7 @@ class OwnerWindowAdmission:
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[..., bool],
               max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal",
-              requested_by: str = "") -> Any:
+              requested_by: str = "", continuous: bool = False) -> Any:
         if surface not in _MECHANISMS:
             raise TaskStoreError("owner_window_surface_invalid")
         if not self._lock.acquire(blocking=False):
@@ -504,7 +542,7 @@ class OwnerWindowAdmission:
             goal_ids, envelope = self._prepare(
                 goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
                 max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
-                max_cost_micro_units=max_cost_micro_units)
+                max_cost_micro_units=max_cost_micro_units, continuous=continuous)
             deadline = time.monotonic() + CONFIRM_SECONDS
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_ids[0])
@@ -575,6 +613,10 @@ class OwnerWindowAdmission:
 
             with host._task_store._lock, host._store._lock:
                 validate()
+                active = host._control_store.active_window()
+                if continuous and active and active.continuous and active.id == envelope["window_id"]:
+                    # Append Goals with the same atomic approval/receipt/launch callback.
+                    return host._control_store.append_owner_window_goals(active.id, goal_ids, sql_admit)
                 return host._control_store.activate_window(
                     envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
                     _host_expected_goal_ids=goal_ids)
@@ -600,8 +642,9 @@ def terminal_confirm(text: str, code: str, *, stdin: Any = None, stdout: Any = N
 def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("--goal", action="append", required=True, metavar="GOAL_ID")
-    parser.add_argument("--hours", type=float, required=True)
-    parser.add_argument("--max-tasks", type=int, required=True)
+    parser.add_argument("--continuous", action="store_true")
+    parser.add_argument("--hours", type=float, default=0)
+    parser.add_argument("--max-tasks", type=int, default=0)
     parser.add_argument("--max-concurrent", type=int, default=1)
     parser.add_argument("--max-retries", type=int, default=0)
     parser.add_argument("--capability", action="append", required=True,
@@ -612,14 +655,17 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     if (len(args.goal) > OWNER_WINDOW_MAX_GOALS or len(set(args.goal)) != len(args.goal)
             or any(not _GOAL_ID.fullmatch(g) for g in args.goal)):
         parser.error("--goal values must be distinct Goal IDs")
-    if not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+    if not args.continuous and not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
         parser.error("--hours must be above 0 and at most 168")
-    if not 1 <= args.max_tasks <= 100 or not 1 <= args.max_concurrent <= 8 or not 0 <= args.max_retries <= 5:
+    if (not (args.max_tasks == 0 if args.continuous else 1 <= args.max_tasks <= 100)
+            or not 1 <= args.max_concurrent <= 8 or not 0 <= args.max_retries <= 5):
         parser.error("limits out of range")
     if "execute_task" not in args.capability:
         parser.error("--capability execute_task is required")
     if args.max_token_units < 0 or args.max_cost_micro_units < 0:
         parser.error("budget caps must not be negative")
+    if args.continuous and (args.hours or args.max_token_units):
+        parser.error("continuous runs have no window duration or token cap")
     return args
 
 
@@ -630,7 +676,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "goal_ids": tuple(args.goal), "hours": args.hours, "max_tasks": args.max_tasks,
         "max_concurrent": args.max_concurrent, "max_retries": args.max_retries,
         "capabilities": tuple(args.capability), "max_token_units": args.max_token_units,
-        "max_cost_micro_units": args.max_cost_micro_units, "confirm": terminal_confirm})
+        "max_cost_micro_units": args.max_cost_micro_units, "continuous": args.continuous, "confirm": terminal_confirm})
 
 
 if __name__ == "__main__":

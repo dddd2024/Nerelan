@@ -65,6 +65,13 @@ from .local_client_session import LocalClientSession
 from .remote_jobs import configured_broker
 
 
+
+def _upstream_namespace(binding: Mapping[str, Any] | None) -> str:
+    """The upstream a gateway binding routes to: ``trae-cn`` for ``trae-cn/glm-5.2``, else ""."""
+    model = str((binding or {}).get("model_id") or "")
+    return model.split("/", 1)[0].lower() if "/" in model else ""
+
+
 class CombinedTrustedHost:
     """One-process host for Model Control + Task API + credential relay."""
 
@@ -819,7 +826,7 @@ class CombinedTrustedHost:
             authority = self._control_store.window_policy_binding(goal.window_id).get("authority", {})
             return (window.status == "ACTIVE"
                     and authority.get("model_call_limit") != 0 and authority.get("provider_call_limit") != 0
-                    and datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time())
+                    and (window.continuous or datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time()))
         except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
             return False
 
@@ -840,7 +847,8 @@ class CombinedTrustedHost:
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
                               history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
-        from .model_availability import AvailabilityCache, observation, native_owner_account
+        from .model_availability import (AvailabilityCache, NO_CREDITS, NO_CREDITS_TTL_SECONDS,
+                                          no_credits_error, observation, native_owner_account)
         cache = getattr(self, "_availability_cache", None)
         if cache is None:
             path = getattr(self._store, "_state_path", None)
@@ -871,6 +879,14 @@ class CombinedTrustedHost:
             # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
             elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
                 cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
+            # A billing refusal (402 "Insufficient credits", 429 "Credits exhausted")
+            # is not a rate limit: the upstream stays unpaid until credits are
+            # bought, so the binding is UNAVAILABLE for a week instead of being
+            # re-offered on every dispatch (#1525).
+            elif row["status"] == "FAILED" and no_credits_error(row["failure_detail"] or ""):
+                cache.remember(binding, connection, observation(
+                    now=at, state="UNAVAILABLE", reason=NO_CREDITS,
+                    ttl_seconds=NO_CREDITS_TTL_SECONDS))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))
@@ -1146,7 +1162,7 @@ class CombinedTrustedHost:
                 if isolation.get("skip"):
                     return {"decision": "switch", "reason": "account_quarantined",
                             "window": None, "retry_at": isolation["retry_at"]}
-            until = self._limit_hit_until(connection)
+            until = self._limit_hit_until(connection, binding)
             if until is not None:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
                 return {"decision": "switch", "reason": "limit_hit", "window": None,
@@ -1192,7 +1208,8 @@ class CombinedTrustedHost:
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
         return _usable_quota(account, candidates)
 
-    def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
+    def _limit_hit_until(self, connection: Mapping[str, Any],
+                         binding: Mapping[str, Any] | None = None) -> float | None:
         """When a run on this account last failed for quota, and the account has not reset since."""
         from .quota_guard import account_refusal_hold, limit_hit_until
         # A recorded account is shared by every connection naming it; an unbound login is only itself.
@@ -1200,8 +1217,16 @@ class CombinedTrustedHost:
         connections = {c["connection_id"] for c in self._store.list_connections_public()
                        if c.get("account_ref") == account} if account else set()
         connections.add(connection.get("connection_id"))
-        bindings = [b["binding_id"] for b in self._store.list_bindings_public()
-                    if b["connection_id"] in connections]
+        candidates = [b for b in self._store.list_bindings_public() if b["connection_id"] in connections]
+        from .resource_allowances import gateway_connection
+        namespace = _upstream_namespace(binding) if binding is not None and not account else ""
+        if namespace and gateway_connection(connection):
+            # The local Magpie gateway fronts many upstream accounts behind one connection.
+            # One upstream's refusal holds only that upstream's models, never the whole
+            # gateway (2026-11-14: one 429 on workbuddy held all ~169 Magpie models for an
+            # hour). Any other connection is one account, whatever its model ids look like.
+            candidates = [b for b in candidates if _upstream_namespace(b) == namespace]
+        bindings = [b["binding_id"] for b in candidates]
         if not bindings:
             return None
         now = time.time()
