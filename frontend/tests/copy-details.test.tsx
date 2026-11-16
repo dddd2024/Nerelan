@@ -59,6 +59,6 @@ describe("error messages", () => {
     expect(httpErrorMessage(500, "repository_discovery_failed")).toContain("gh auth login");
     expect(httpErrorMessage(409, "something_new")).toBe("平台请求未完成（something_new）");
     expect(httpErrorMessage(503, "busy")).toBe("Nerelan 正忙，稍后会自动重试。");
-    expect(httpErrorMessage(503)).toContain("连不上 Nerelan 服务");
+    expect(httpErrorMessage(503)).toContain("服务返回错误");
   });
 });

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchGoal,
+  PlatformClientError,
   fetchGoalTimeline,
   retryGoalStep,
   fetchGoals,
@@ -68,7 +69,12 @@ const GOAL_FINISHED = new Set(["COMPLETED", "SUCCEEDED", "CANCELLED", "FAILED", 
  * slower poll; without it the cached goal kept naming an old attempt while the
  * timeline moved on (2026-11-14, #1521). Only a finished goal stops polling.
  */
-export function goalRefetchInterval(status: string | undefined): number | false {
+export function goalReadRetryDelay(attempt: number): number {
+  return Math.min(30_000, Math.round(5_000 * 2 ** Math.min(attempt, 3) * (1 + Math.random() * 0.2)));
+}
+
+export function goalRefetchInterval(status: string | undefined, failures = 0): number | false {
+  if (failures > 0) return goalReadRetryDelay(failures - 1);
   if (status === "RUNNING") return 2_500;
   return status && GOAL_FINISHED.has(status) ? false : 10_000;
 }
@@ -76,14 +82,21 @@ export function goalRefetchInterval(status: string | undefined): number | false 
 export function useGoal(goalId: string | undefined) {
   return useQuery({
     queryKey: ["goals", goalId],
-    queryFn: async () => {
-      const goal = await fetchGoal(goalId ?? "");
+    queryFn: async ({ signal }) => {
+      const goal = await fetchGoal(goalId ?? "", signal);
       if (goal.id !== goalId) throw new Error("未找到请求的目标。");
       return goal;
     },
     enabled: Boolean(goalId),
     staleTime: 1_500,
-    refetchInterval: (query) => goalRefetchInterval((query.state.data as { status?: string } | undefined)?.status),
+    retry: (failures, error) => failures < 2 && error instanceof PlatformClientError && error.retryable,
+    retryDelay: goalReadRetryDelay,
+    refetchInterval: (query) => {
+      if (query.state.error instanceof PlatformClientError && !query.state.error.retryable) return false;
+      return goalRefetchInterval((query.state.data as { status?: string } | undefined)?.status,
+        query.state.error ? Math.max(1, query.state.fetchFailureCount) : 0);
+    },
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

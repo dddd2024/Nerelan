@@ -12,6 +12,7 @@ import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDra
 import { cn } from "@/lib/cn";
 import { recentGoals } from "@/components/sidebar";
 import { GOAL_TONE_DOT, GOAL_TONE_TEXT, goalState, goalTitle, issueRef } from "@/lib/goal-view";
+import { PlatformClientError } from "@/lib/platform-client";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -22,16 +23,27 @@ function relativeTime(value: string) {
 }
 
 function ReadFeedback({ query, label }: {
-  query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+  query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; dataUpdatedAt?: number; refetch: () => unknown };
   label: string;
 }) {
   if (query.isPending) return <LoadingState label={`正在加载${label}…`} />;
   if (!query.isError) return null;
+  const failure = query.error instanceof PlatformClientError ? query.error : undefined;
+  if (failure?.errorClass === "cancelled") return null;
   return <ErrorState
     title={query.data === undefined ? `${label}加载失败` : `${label}更新失败，显示上次内容`}
     error={query.error}
     onRetry={() => void query.refetch()}
-  />;
+  >
+    {query.dataUpdatedAt ? <p className="text-xs">上次成功更新：{new Date(query.dataUpdatedAt).toLocaleTimeString()}。</p> : null}
+    {failure?.retryable && <p className="text-xs">{label === "目标详情" ? "页面会在 30 秒内自动重试；当前内容会保留。" : "可稍后重试；当前内容会保留。"}</p>}
+    {failure?.diagnostics && <details className="text-xs">
+      <summary>请求详情</summary>
+      <p>{failure.diagnostics.method} {failure.diagnostics.route} · {failure.diagnostics.elapsedMs} 毫秒 · HTTP {failure.status || "未收到响应"}</p>
+      {failure.diagnostics.requestId && <p>请求编号：{failure.diagnostics.requestId}</p>}
+      {failure.diagnostics.serverElapsedMs !== undefined && <p>服务处理：{failure.diagnostics.serverElapsedMs} 毫秒</p>}
+    </details>}
+  </ErrorState>;
 }
 
 const RECENT_GOAL_LIMIT = 5;

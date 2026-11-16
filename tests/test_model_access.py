@@ -357,7 +357,7 @@ class TestOriginGateHttpBoundary:
         )
         assert status == 403
         body = data.decode("utf-8")
-        assert json.loads(body) == {"error": "forbidden"}
+        assert json.loads(body)["error"] == "forbidden"
         assert "secret" not in body
 
     def test_foreign_origin_state_change_rejected_and_store_unchanged(

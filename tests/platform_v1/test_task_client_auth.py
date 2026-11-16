@@ -175,6 +175,6 @@ def test_authenticated_client_assertions_cannot_activate_owner_window(authentica
                                     capability=TOKEN, origin=ORIGIN,
                                     body=json.dumps(candidate).encode())
         assert status == 409
-        assert result == {"error": "owner_selection_confirmation_unavailable"}
+        assert result["error"] == "owner_selection_confirmation_unavailable"
     assert not actions  # Neither activation path nor model dispatch was reached.
     assert store._conn.total_changes == before

@@ -67,7 +67,7 @@ describe("Goal history journey", () => {
     first.unmount();
     mount(url);
     expect(await screen.findByRole("heading", { name: "History Goal 150" })).toBeInTheDocument();
-    expect(client.fetchGoal).toHaveBeenCalledWith("history-goal-150");
+    expect(client.fetchGoal).toHaveBeenCalledWith("history-goal-150", expect.any(AbortSignal));
     expect(fetch).not.toHaveBeenCalled();
   });
 
