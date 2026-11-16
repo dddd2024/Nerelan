@@ -1,6 +1,6 @@
 # Letta Code：跨对话研究归档（2026-11-16）
 
-**原研究版本：** [`letta-ai/letta-code@eadef1c`](https://github.com/letta-ai/letta-code/commit/eadef1c)；历史对话记录版本 `0.34.63`。  
+**原研究版本：** [`letta-ai/letta-code@eadef1c`](https://github.com/letta-ai/letta-code/commit/eadef1c)；历史对话记录版本 `0.34.63`。
 **状态：** `HISTORICAL_CHAT_STUDY + SOURCE_SPOTCHECKED / NOT_RUNTIME_TESTED`。旧对话没有可核查的独立研究 Issue/PR；本文是重新入库，不代表插件代码运行或新功能实施。主入口 [#1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 能与上游源码对应的历史结论
