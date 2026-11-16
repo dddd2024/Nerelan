@@ -104,6 +104,16 @@ class _DeadlineReader:
         self._arm()
         return self._fp.read1(size)
 
+    def _fill(self, size: int) -> bytes:
+        """Read fresh bytes from the underlying stream into ``pending``.
+
+        ``_read1`` drains ``pending`` first, so a caller that wants to grow
+        ``pending`` must bypass it and read the underlying stream directly.
+        """
+
+        self._arm()
+        return self._fp.read1(size)
+
     def read1(self, size: int = -1) -> bytes:
         if size == 0:
             return b""
@@ -140,9 +150,15 @@ class _DeadlineReader:
                 line = bytes(self.pending[:limit])
                 del self.pending[:limit]
                 return line
-            chunk = self._read1(-1)
+            # Keep the consumed bytes: HTTPResponse parses the chunk-size
+            # and chunk-extension lines through this call, so dropping the
+            # read result loses the framing and the payload.  Read the
+            # underlying stream directly, because ``_read1`` drains
+            # ``pending`` first and would only re-insert the same bytes.
+            chunk = self._fill(4096)
             if not chunk:
                 break
+            self.pending.extend(chunk)
         take = len(self.pending) if limit is None else min(limit, len(self.pending))
         line = bytes(self.pending[:take])
         del self.pending[:take]
@@ -156,7 +172,11 @@ class _DeadlineReader:
     def peek(self, size: int = -1) -> bytes:
         if size >= 0:
             while len(self.pending) < size:
-                chunk = self._read1(4096)
+                # Read the underlying stream directly.  ``_read1`` drains
+                # ``pending`` first, so reusing it here would remove and
+                # re-insert the same bytes forever without ever arming the
+                # deadline or reaching the socket.
+                chunk = self._fill(4096)
                 if not chunk:
                     break
                 self.pending.extend(chunk)
@@ -214,19 +234,40 @@ class _DeadlineSSEStream:
         self.response.close()
 
 
-MAX_TRACKED_PROGRESS = 512
+MAX_RECENT_USAGE_MESSAGES = 512
+PROGRESS_FILTER_BYTES = 64 * 1024
+
+
+class _ProgressFilter:
+    """Fixed-size Bloom filter for identity/state pairs, never evicted.
+
+    A false positive can withhold a progress refresh, never invent progress.
+    Usage delivery must stay separate: this filter cannot discard accounting.
+    """
+
+    def __init__(self) -> None:
+        self.bits = bytearray(PROGRESS_FILTER_BYTES)
+
+    def remember(self, key: str, state: str) -> bool:
+        digest = hashlib.sha256((key + "\0" + state).encode("utf-8")).digest()
+        positions = [int.from_bytes(digest[offset:offset + 8], "big") % (len(self.bits) * 8)
+                     for offset in range(0, 32, 8)]
+        fresh = any(not self.bits[bit // 8] & (1 << (bit % 8)) for bit in positions)
+        for bit in positions:
+            self.bits[bit // 8] |= 1 << (bit % 8)
+        return fresh
 
 
 def _safe_digest(value: str, prefix: str) -> str:
     return prefix + hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _remember_progress(memory: dict[str, str], key: str, state: str) -> bool:
-    """Record one bounded identity/state and report whether it is new."""
+def _remember_recent_usage(memory: dict[str, str], key: str, state: str) -> bool:
+    """Skip exact recent usage repeats; the ledger owns durable deduplication."""
 
     if memory.get(key) == state:
         return False
-    if key not in memory and len(memory) >= MAX_TRACKED_PROGRESS:
+    if key not in memory and len(memory) >= MAX_RECENT_USAGE_MESSAGES:
         memory.pop(next(iter(memory)))
     memory[key] = state
     return True
@@ -551,7 +592,7 @@ class OpenCodeServerClient:
                 timeout=self._remaining(deadline),
             )
             progress_deadline = time.monotonic() + self.idle_timeout
-            seen_parts: dict[str, str] = {}
+            progress = _ProgressFilter()
             seen_messages: dict[str, str] = {}
             while True:
                 event = self._read_sse_event(stream, min(deadline, progress_deadline))
@@ -570,7 +611,7 @@ class OpenCodeServerClient:
                         progress_deadline = now + self.idle_timeout
                 elif event_type == "message.part.updated" and isinstance(part, Mapping) and part.get("sessionID") == session_id:
                     update = _part_progress(part)
-                    if update is not None and _remember_progress(seen_parts, *update):
+                    if update is not None and progress.remember(*update):
                         progress_deadline = now + self.idle_timeout
                 if event_type == "message.updated":
                     info = properties.get("info")
@@ -581,10 +622,12 @@ class OpenCodeServerClient:
                     completed = info.get("time")
                     if not isinstance(completed, Mapping) or not completed.get("completed"):
                         continue
-                    if not _remember_progress(seen_messages, *_message_progress(info, completed)):
+                    update = _message_progress(info, completed)
+                    if progress.remember(*update):
+                        progress_deadline = now + self.idle_timeout
+                    if not _remember_recent_usage(seen_messages, *update):
                         continue
                     projected = _usage_projection(info)
-                    progress_deadline = now + self.idle_timeout
                     usage_count += 1
                     if usage_observer(projected):
                         try:

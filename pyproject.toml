@@ -14,7 +14,7 @@ test = ["pytest>=8,<9"]
 
 [tool.setuptools.packages.find]
 include = ["reverse_agent*"]
-exclude = ["tests*", "project_state*", "docs*"]
+exclude = ["tests*", "docs*"]
 
 [tool.setuptools.package-data]
 "reverse_agent.platform_v1" = ["calibration_suite_v1.json"]

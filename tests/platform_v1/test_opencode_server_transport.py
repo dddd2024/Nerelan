@@ -15,10 +15,11 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from reverse_agent.platform_v1.opencode_server_transport import (
+    _DeadlineReader,
+    _DeadlineSSEStream,
     OpenCodeServerClient,
     OpenCodeServerTransportError,
     ServerTransportResult,
-    _DeadlineSSEStream,
     run_managed_server_role,
 )
 
@@ -191,7 +192,7 @@ def _client(base_url: str) -> OpenCodeServerClient:
     )
 
 
-def _timed_role(monkeypatch, chunks, *, timeout=100, idle_timeout=5, abort_result=True):
+def _timed_role(monkeypatch, chunks, *, timeout=100, idle_timeout=5, abort_result=True, usage_observer=None):
     """A fake clock and one-read response exercise the production SSE reader."""
     from types import SimpleNamespace
     import reverse_agent.platform_v1.opencode_server_transport as transport
@@ -235,7 +236,7 @@ def _timed_role(monkeypatch, chunks, *, timeout=100, idle_timeout=5, abort_resul
     monkeypatch.setattr(client, "abort", abort)
     def run():
         return client.run_role(directory=".", title="test", prompt="PROMPT_SENTINEL", provider_id="p",
-                               model_id="m", agent="", usage_observer=lambda _: False)
+                               model_id="m", agent="", usage_observer=usage_observer or (lambda _: False))
     return run, response, calls, clock
 
 
@@ -277,6 +278,64 @@ def test_repeated_identical_tool_update_is_not_fresh_progress(monkeypatch):
         (4, _event("message.part.updated", tool)), (3, b": keepalive\n\n")])
     assert run().failure_classification == "server_stream_stalled" and clock[0] == 9
     assert stream.closed and len(calls) == 1
+
+
+@pytest.mark.parametrize("kind", ["part", "message"])
+def test_replay_beyond_recent_identity_capacity_cannot_extend_idle(monkeypatch, kind):
+    def event(index):
+        if kind == "part":
+            return _event("message.part.updated", {"part": {
+                "id": f"tool-{index}", "sessionID": "session-exact", "type": "tool",
+                "state": {"status": "running"}}})
+        properties = _usage_event()["properties"]
+        properties["info"]["id"] = f"message-{index}"
+        return _event("message.updated", properties)
+
+    events = [event(index) for index in range(513)]
+    chunks = [(0, _event("server.connected"))]
+    chunks += [(0.001, data) for data in events] + [(0.05, data) for data in events]
+    chunks.append((0.01, _event("session.idle", {"sessionID": "session-exact"})))
+    run, stream, calls, clock = _timed_role(monkeypatch, chunks, idle_timeout=0.1)
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == pytest.approx(0.613)
+    assert stream.closed and len(calls) == 1
+
+
+def test_new_and_updated_tools_keep_progress_beyond_recent_identity_capacity(monkeypatch):
+    def update(index, state):
+        return _event("message.part.updated", {"part": {
+            "id": f"tool-{index}", "sessionID": "session-exact", "type": "tool",
+            "state": {"status": state}}})
+
+    chunks = [(0, _event("server.connected"))]
+    chunks += [(0.04, update(index, "running")) for index in range(1024)]
+    chunks += [(0.04, update(index, "completed")) for index in range(1024)]
+    chunks.append((0.04, _event("session.idle", {"sessionID": "session-exact"})))
+    run, stream, calls, _ = _timed_role(monkeypatch, chunks, idle_timeout=0.1)
+    assert run().success
+    assert stream.closed and calls == []
+
+
+@pytest.mark.parametrize("stop", [False, True])
+def test_saturated_progress_filter_stays_bounded_without_losing_usage(monkeypatch, stop):
+    import reverse_agent.platform_v1.opencode_server_transport as transport
+
+    progress = transport._ProgressFilter()
+    size = len(progress.bits)
+    progress.bits[:] = b"\xff" * size  # worst-case false positives are conservative
+    monkeypatch.setattr(transport, "_ProgressFilter", lambda: progress)
+    observed = []
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (4, _event("message.updated", _usage_event()["properties"])),
+        (4, _event("session.idle", {"sessionID": "session-exact"})),
+    ], usage_observer=lambda info: observed.append(info) or stop)
+    result = run()
+    assert result.failure_classification == ("stream_budget_abort_confirmed" if stop else "server_stream_stalled")
+    assert clock[0] == (4 if stop else 5)
+    assert result.usage_event_count == len(observed) == 1
+    assert stream.closed and len(calls) == 1
+    assert len(progress.bits) == size == transport.PROGRESS_FILTER_BYTES
 
 
 def test_dribbled_partial_sse_line_cannot_extend_idle_deadline(monkeypatch):
@@ -374,6 +433,157 @@ def test_absolute_deadline_holds_below_real_chunked_framing() -> None:
         finally:
             client_sock.close()
         responder.join(timeout=2.0)
+
+
+def _chunked_socketpair(
+    *, split_chunk_header: bool = False, chunk_extension: bool = False
+) -> tuple[socket.socket, socket.socket, Thread]:
+    """Open a real socketpair that serves one complete chunked SSE body."""
+
+    client_sock, peer_sock = socket.socketpair()
+    body = b'data: {"type":"server.connected","properties":{}}\n\n'
+
+    def serve() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+            size = b"%x" % len(body)
+            if chunk_extension:
+                size += b";chunk-ext=1"
+            if split_chunk_header:
+                # Deliver the chunk-size line across two reads so the
+                # framing line is only complete after a second read.
+                peer_sock.sendall(size[:1])
+                time.sleep(0.05)
+                peer_sock.sendall(size[1:] + b"\r\n")
+            else:
+                peer_sock.sendall(size + b"\r\n")
+            peer_sock.sendall(body + b"\r\n")
+            peer_sock.sendall(b"0\r\n\r\n")
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    thread = Thread(target=serve, daemon=True)
+    thread.start()
+    return client_sock, peer_sock, thread
+
+
+def _read_chunked_line(client_sock: socket.socket, peer_sock: socket.socket) -> bytes:
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        stream.deadline = time.monotonic() + 5.0
+        return stream.readline(1024)
+    finally:
+        response.close()
+        client_sock.close()
+
+
+def test_healthy_chunked_response_is_not_reported_as_incomplete_read() -> None:
+    """A complete chunked session must not fail as IncompleteRead(0 bytes)."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair()
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_chunk_size_line_split_across_reads_is_reassembled() -> None:
+    """A chunk-size line delivered in two reads must still frame the body."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair(split_chunk_header=True)
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_chunk_extension_line_does_not_break_framing() -> None:
+    """A chunk-extension line must be stripped, not treated as payload."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair(chunk_extension=True)
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_peek_with_partial_pending_reads_forward_and_arms_deadline() -> None:
+    """peek() must not spin on the bytes it already holds."""
+
+    class FakeStream:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def read1(self, size: int) -> bytes:
+            self.calls += 1
+            if self.calls > 2:
+                raise TimeoutError("no more data")
+            return b"ab"
+
+    class FakeSocket:
+        def __init__(self) -> None:
+            self.timeouts: list[float] = []
+
+        def settimeout(self, value: float) -> None:
+            self.timeouts.append(value)
+
+    stream = FakeStream()
+    sock = FakeSocket()
+    reader = _DeadlineReader(stream, sock, lambda: time.monotonic() + 5.0)
+    reader.pending.extend(b"xy")
+
+    with pytest.raises(TimeoutError):
+        reader.peek(4096)
+
+    # The held bytes survive, the underlying stream was actually read and
+    # the loop terminated instead of re-inserting the same bytes forever.
+    assert bytes(reader.pending[:2]) == b"xy"
+    assert stream.calls > 1
+    # Every read below the deadline armed the socket with the remaining
+    # absolute budget instead of extending it.
+    assert sock.timeouts
+    assert all(0 < value <= 5.0 for value in sock.timeouts)
+
+
+def test_peek_raises_when_the_absolute_deadline_has_passed() -> None:
+    class EmptyStream:
+        def read1(self, size: int) -> bytes:
+            raise AssertionError("an expired deadline must not reach the socket")
+
+    reader = _DeadlineReader(EmptyStream(), None, lambda: time.monotonic() - 1.0)
+    reader.pending.extend(b"partial")
+
+    with pytest.raises(TimeoutError):
+        reader.peek(4096)
+
+
+def test_peek_returns_pending_bytes_when_the_stream_is_exhausted() -> None:
+    class EmptyStream:
+        def read1(self, size: int) -> bytes:
+            return b""
+
+    reader = _DeadlineReader(EmptyStream(), None, lambda: time.monotonic() + 5.0)
+    reader.pending.extend(b"partial")
+
+    assert reader.peek(4096) == b"partial"
+    assert bytes(reader.pending) == b"partial"
 
 
 def test_server_client_runs_exact_session_and_projects_usage(tmp_path) -> None:

@@ -826,7 +826,7 @@ class CombinedTrustedHost:
             authority = self._control_store.window_policy_binding(goal.window_id).get("authority", {})
             return (window.status == "ACTIVE"
                     and authority.get("model_call_limit") != 0 and authority.get("provider_call_limit") != 0
-                    and datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time())
+                    and (window.continuous or datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time()))
         except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
             return False
 
@@ -847,7 +847,8 @@ class CombinedTrustedHost:
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
                               history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
-        from .model_availability import AvailabilityCache, observation, native_owner_account
+        from .model_availability import (AvailabilityCache, NO_CREDITS, NO_CREDITS_TTL_SECONDS,
+                                          no_credits_error, observation, native_owner_account)
         cache = getattr(self, "_availability_cache", None)
         if cache is None:
             path = getattr(self._store, "_state_path", None)
@@ -878,6 +879,14 @@ class CombinedTrustedHost:
             # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
             elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
                 cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
+            # A billing refusal (402 "Insufficient credits", 429 "Credits exhausted")
+            # is not a rate limit: the upstream stays unpaid until credits are
+            # bought, so the binding is UNAVAILABLE for a week instead of being
+            # re-offered on every dispatch (#1525).
+            elif row["status"] == "FAILED" and no_credits_error(row["failure_detail"] or ""):
+                cache.remember(binding, connection, observation(
+                    now=at, state="UNAVAILABLE", reason=NO_CREDITS,
+                    ttl_seconds=NO_CREDITS_TTL_SECONDS))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))

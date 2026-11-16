@@ -1,5 +1,7 @@
 # P0 #1207: human selection trust gap (bounded increment)
 
+> The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code was deleted; it remains only in Git history (a7b62777). References to delegated activation below are historical.
+
 Audited base: `59c0ec8e8f23207ddd2648ed022d466d117560a2` (Draft #1210).
 This increment disables HTTP Owner window activation. It does not restore
 human-approved execution, introduce a receipt issuer, or retrofit historical

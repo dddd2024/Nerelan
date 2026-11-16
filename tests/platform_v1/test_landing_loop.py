@@ -107,7 +107,7 @@ def test_claim_exclusive_across_connections_and_retry_fenced(tmp_path, monkeypat
     assert len(store.landing_receipts(identity)) == 3
 
 
-@pytest.mark.parametrize("restriction", ["repository", "missing", "stopped", "expired", "trusted"])
+@pytest.mark.parametrize("restriction", ["repository", "missing", "stopped", "expired"])
 def test_denied_authority_has_no_adapter_calls(tmp_path, restriction):
     store, window, state, fake, loop = setup_loop(
         tmp_path / "tasks.sqlite3",
@@ -117,8 +117,6 @@ def test_denied_authority_has_no_adapter_calls(tmp_path, restriction):
         store.stop_window(window.id)
     if restriction == "expired":
         store._conn.execute("UPDATE platform_autonomous_windows SET expires_at='2000-01-01T00:00:00Z'")
-    if restriction == "trusted":
-        loop.autonomy.require_trusted_policy = True
     with pytest.raises(TaskStoreError, match="landing_denied"):
         loop.claim(state["identity"], "merge", window_id=window.id)
     assert not fake.calls

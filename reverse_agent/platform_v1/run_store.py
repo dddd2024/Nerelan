@@ -2832,7 +2832,8 @@ class TaskStore:
                     "JOIN platform_autonomous_windows w ON w.id=c.window_id "
                     "JOIN platform_goal_task_links l ON l.task_id=c.task_id "
                     "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision AND g.window_id=w.id "
-                    "WHERE w.status='ACTIVE' AND julianday(w.expires_at)>julianday('now') AND g.status='RUNNING' "
+                    "WHERE w.status='ACTIVE' AND ((w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') "
+                    "OR julianday(w.expires_at)>julianday('now')) AND g.status='RUNNING' "
                     "AND c.task_id=? AND c.owner=? AND c.status='ACTIVE' AND c.expires_at_ms>? AND r.state='ACTIVE' AND r.binding_ref=(SELECT binding_ref FROM tasks WHERE id=c.task_id)",
                     (row["task_id"], lease_owner, _utc_now_ms())).fetchone()
                 if len(paused) != 1 or claim is None or row["task_status"] != "INTERRUPTED":

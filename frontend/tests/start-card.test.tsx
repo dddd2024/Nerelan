@@ -32,6 +32,24 @@ beforeEach(() => {
 });
 
 describe("start card", () => {
+  it("starts a continuous run with concurrency and no window caps or presets", async () => {
+    const continuous = { ...CARD, preset: "continuous", request: { ...CARD.request,
+      continuous: true, hours: 0, max_tasks: 0, max_token_units: 0, max_concurrent: 3 } };
+    vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(continuous);
+    const preflight = vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue(PASS);
+    const activate = vi.spyOn(client, "activateOwnerWindow").mockResolvedValue({} as never);
+    renderWithProviders(<StartCard goal={GOAL} />);
+    expect(await screen.findByTestId("start-bounds")).toHaveTextContent("持续运行，直到你停止 · 同时 3 个任务");
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("start-pool")).not.toBeInTheDocument();
+    expect(screen.getByTestId("start-bounds")).not.toHaveTextContent("Token");
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "同时执行的任务数" }), "4");
+    await waitFor(() => expect(preflight).toHaveBeenLastCalledWith({ ...continuous.request, max_concurrent: 4 }));
+    await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("start-button"));
+    await waitFor(() => expect(activate).toHaveBeenCalledWith({ ...continuous.request, max_concurrent: 4 }, PASS.card_digest));
+  });
+
   it("shows the bounds and each step's model, and starts with the card digest", async () => {
     vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(CARD);
     vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue(PASS);
