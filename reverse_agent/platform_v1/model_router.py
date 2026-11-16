@@ -400,7 +400,16 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         # step to a weaker model than the one that stalled.
         floor = max(difficulty, stall_tier)
         top = max(c["tier"] for c in ranked)
-        eligible = {c["binding_id"] for c in ranked if c["tier"] >= floor} or {
+        eligible = set()
+        if failed_model and not refused_models:
+            # A capability retry must still reach the models escalation needs: a higher
+            # tier first, then a distinct model at the failed tier. A cooling one among
+            # them is ranked lower, never removed in favour of the model that just failed.
+            eligible = {c["binding_id"] for c in ranked if c["tier"] > failed_tier} or {
+                c["binding_id"] for c in ranked if c["tier"] == failed_tier
+                and model_identity(c["model_id"]) != model_identity(failed_model)}
+            floor = max(floor, failed_tier)
+        eligible = eligible or {c["binding_id"] for c in ranked if c["tier"] >= floor} or {
             c["binding_id"] for c in ranked if c["tier"] == top}
         best = min(c["liveness_rank"] for c in ranked if c["binding_id"] in eligible)
         kept = []
@@ -477,7 +486,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     if artifact_review and chosen["tier"] < difficulty:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
-    if liveness_fallback and not pinned:
+    if liveness_fallback and not pinned and not (failed_model and not refused_models):
+        # A capability retry keeps its escalation reason; the liveness block records the fallback.
         reason = ("liveness_same_binding_fallback" if chosen["liveness_rank"] == LIVENESS_AVOIDED
                   else "liveness_cooling_fallback")
     if chosen["unproven"] and difficulty >= 3:

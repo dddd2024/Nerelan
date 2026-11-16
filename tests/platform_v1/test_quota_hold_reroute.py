@@ -298,7 +298,7 @@ def test_a_stall_cools_its_whole_upstream_like_a_limit_hit_hold(monkeypatch, tmp
 
 
 def test_cooldown_reads_the_task_table_once_per_routing_pass(monkeypatch, tmp_path):
-    """~170 bindings and ~20k task rows: one indexed query, well under 50 ms."""
+    """~170 bindings and ~20k task rows: one indexed query, well under 250 ms."""
     import time as real_time
     host, _ = _stall_host(monkeypatch, tmp_path)
     connections = [{"connection_id": f"c{i}", "base_url": f"https://{i}.invalid"} for i in range(17)]
@@ -331,7 +331,7 @@ def test_cooldown_reads_the_task_table_once_per_routing_pass(monkeypatch, tmp_pa
     finally:
         conn.set_trace_callback(None)
     assert len(queries) == 1
-    assert elapsed < .05, elapsed
+    assert elapsed < .25, elapsed  # generous for shared CI; the one-query assertion is the guard
     assert len(holds) == 170 and any(holds)
     plan = " ".join(str(r[-1]) for r in conn.execute(
         "EXPLAIN QUERY PLAN SELECT binding_ref FROM tasks WHERE updated_at >= 'x' "

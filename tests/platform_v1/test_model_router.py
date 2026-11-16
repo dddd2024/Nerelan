@@ -656,3 +656,25 @@ def test_host_router_uses_the_stalled_bindings_tier_when_none_is_recorded(monkey
     result = host._resolve_task_model(task, avoid_bindings=("strong",))
     assert result["binding_ref"] == "strong" and result["liveness"]["stall_tier"] == 5
     assert host._resolve_task_model(task, avoid_bindings=("strong",), stall_tier=2)["binding_ref"] == "cheap"
+
+
+def test_a_cooling_higher_tier_is_still_the_escalation_target():
+    # Review probe (#1601): kimi-k3 (tier 4) failed for capability; opus (tier 5) is only cooling.
+    pool = [candidate("failed", "kimi-k3"), candidate("big", "opus", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "big" and result["reason"] == "escalation_higher_tier"
+    assert result["liveness"]["fallback"] is True
+    # Same tier: a cooling distinct model still beats repeating the model that failed.
+    pool = [candidate("failed", "kimi-k3"), candidate("peer", "deepseek-v4-pro", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "peer" and result["reason"] == "retry_different_model"
+
+
+def test_escalation_prefers_a_clean_higher_tier_over_a_cooling_one():
+    pool = [candidate("failed", "kimi-k3"), candidate("cool", "opus", quota=COOLING),
+            candidate("clean", "sonnet", "paid_api")]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    # Pricier, but not cooling: the cooling tier-5 binding is ranked after it.
+    assert result["binding_ref"] == "clean" and result["reason"] == "escalation_higher_tier"
+    assert any(row["binding_id"] == "cool" and row["filter"] == "liveness_cooldown"
+               for row in result["excluded_candidates"])
