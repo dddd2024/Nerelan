@@ -1,8 +1,8 @@
 # Microsoft Agent Framework — workflow recovery, MCP ownership and context integrity
 
-**Research date:** 2026-11-16  
-**Status:** `STATIC_SOURCE_REVIEW / NOT_INSTALLED / NOT_BENCHMARKED / DOCS_ONLY / NO_IMPLEMENTATION_AUTHORITY`  
-**Canonical research Issue:** [#1608](https://github.com/dddd2024/Nerelan/issues/1608)  
+**Research date:** 2026-11-16
+**Status:** `STATIC_SOURCE_REVIEW / NOT_INSTALLED / NOT_BENCHMARKED / DOCS_ONLY / NO_IMPLEMENTATION_AUTHORITY`
+**Canonical research Issue:** [#1608](https://github.com/dddd2024/Nerelan/issues/1608)
 **Research hub and anti-duplication owner:** [#1576](https://github.com/dddd2024/Nerelan/issues/1576)
 
 ## Scope and exact source versions
