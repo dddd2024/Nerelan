@@ -717,8 +717,7 @@ class TestFixtureLiveBoundary:
     def test_create_live_produces_fixture_evidence_f27(self) -> None:
         """F27: create_live is deprecated and produces fixture evidence only.
 
-        Only evidence_adapter._create_trusted_evidence can produce live
-        evidence by passing the module-private _LIVE_FACTORY_TOKEN.
+        Live evidence needs the module-private _LIVE_FACTORY_TOKEN.
         """
         evidence = ExecutionEvidence.create_live(
             execution_id="exec-1",
