@@ -1146,30 +1146,73 @@ function materializeMockGoalRuns(goal: PlatformGoal) {
   mockRuns.unshift(...generated);
 }
 
+export interface RequestDiagnostics {
+  method: string;
+  route: string;
+  elapsedMs: number;
+  requestId?: string;
+  serverElapsedMs?: number;
+}
+
 export class PlatformClientError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly errorClass: string;
+  readonly retryable: boolean;
+  readonly diagnostics?: Readonly<RequestDiagnostics>;
 
-  constructor(status: number, code: string) {
-    super(httpErrorMessage(status, code));
+  constructor(status: number, code: string, errorClass = "", retryable?: boolean, diagnostics?: RequestDiagnostics) {
+    super(httpErrorMessage(status, code, errorClass));
     this.name = "PlatformClientError";
     this.status = status;
     this.code = code;
+    this.errorClass = errorClass;
+    this.retryable = status === 401 || status === 403 || errorClass === "cancelled" ? false : (retryable ?? status >= 500);
+    this.diagnostics = diagnostics;
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
-  });
-  const text = await response.text();
-  const payload = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
-  if (!response.ok) {
-    const code = typeof payload.error === "string" ? payload.error : "platform_request_failed";
-    throw new PlatformClientError(response.status, code);
+  const started = performance.now();
+  let response: Response | undefined;
+  const diagnostics = (): RequestDiagnostics => {
+    const requestId = response?.headers.get("X-Nerelan-Request-Id") ?? "";
+    const elapsed = response?.headers.get("X-Nerelan-Elapsed-Ms");
+    const serverElapsed = elapsed && /^\d{1,8}$/.test(elapsed) ? Number(elapsed) : undefined;
+    return {
+      method: (init?.method ?? "GET").toUpperCase(), route: path.split("?")[0].slice(0, 240),
+      elapsedMs: Math.max(0, Math.round(performance.now() - started)),
+      requestId: /^[a-f0-9]{16,64}$/.test(requestId) ? requestId : undefined,
+      serverElapsedMs: serverElapsed,
+    };
+  };
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
+    });
+    const text = await response.text();
+    let payload: T & { error?: string; error_class?: string; retryable?: boolean };
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      throw new PlatformClientError(response.status, "invalid_response", "invalid_response", true, diagnostics());
+    }
+    if (!response.ok) {
+      const code = typeof payload?.error === "string" && /^[A-Za-z0-9_.:-]{1,160}$/.test(payload.error)
+        ? payload.error : "platform_request_failed";
+      const errorClass = typeof payload?.error_class === "string" && /^[a-z_]{1,64}$/.test(payload.error_class) ? payload.error_class : "";
+      const retryable = typeof payload?.retryable === "boolean" ? payload.retryable : response.status >= 500;
+      throw new PlatformClientError(response.status, code, errorClass, retryable, diagnostics());
+    }
+    return payload;
+  } catch (error) {
+    if (error instanceof PlatformClientError) throw error;
+    const name = error instanceof Error || error instanceof DOMException ? error.name : "";
+    if (name === "AbortError") throw new PlatformClientError(response?.status ?? 0, "aborted", "cancelled", false, diagnostics());
+    if (name === "TimeoutError") throw new PlatformClientError(response?.status ?? 0, "timeout", "timeout", true, diagnostics());
+    throw new PlatformClientError(response?.status ?? 0, "network_error", "network_error", true, diagnostics());
   }
-  return payload;
 }
 
 function mockAccountPool(): AccountPool {
@@ -1366,9 +1409,9 @@ function mockGoalTimeline(goalId: string): PlatformGoalTimeline {
   };
 }
 
-export async function fetchGoal(goalId: string): Promise<PlatformGoal> {
+export async function fetchGoal(goalId: string, signal?: AbortSignal): Promise<PlatformGoal> {
   if (isMock()) return mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
-  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`);
+  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`, { signal });
 }
 
 export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKey: string): Promise<PlatformGoal> {

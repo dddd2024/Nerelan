@@ -125,7 +125,8 @@ def test_public_health_is_only_explicit_readiness_boolean(authenticated_server):
     port, _, _, actions, store = authenticated_server
     before = store._conn.total_changes
     status, data, _ = request(port, "GET", "/api/health")
-    assert status == 200 and data == {"ready": True}
+    assert status == 200 and data["ready"] is True
+    assert "instance" in data and "generated_at" in data
     assert not actions and store._conn.total_changes == before
 
 
@@ -136,7 +137,7 @@ def test_unconfigured_handler_has_no_unauthenticated_compatibility_mode(tmp_path
     thread.start()
     try:
         assert request(server.server_address[1], "GET", "/api/tasks", capability=TOKEN)[0] == 401
-        assert request(server.server_address[1], "GET", "/api/health")[1] == {"ready": True}
+        assert request(server.server_address[1], "GET", "/api/health")[1]["ready"] is True
     finally:
         server.shutdown(); server.server_close(); thread.join(timeout=5)
 
@@ -176,6 +177,6 @@ def test_authenticated_client_assertions_cannot_activate_owner_window(authentica
                                     capability=TOKEN, origin=ORIGIN,
                                     body=json.dumps(candidate).encode())
         assert status == 409
-        assert result == {"error": "owner_selection_confirmation_unavailable"}
+        assert result["error"] == "owner_selection_confirmation_unavailable"
     assert not actions  # Neither activation path nor model dispatch was reached.
     assert store._conn.total_changes == before

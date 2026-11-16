@@ -91,9 +91,46 @@ _GOVERNANCE_MISSING = object()
 _POLLED_IN_FLIGHT = 4
 _POLLED_SLOTS = {
     path: BoundedSemaphore(_POLLED_IN_FLIGHT)
-    for path in ("/api/goals", "/api/runs", "/api/tasks", "/api/platform/status", "/api/goals/*/timeline")
+    for path in ("/api/goals", "/api/goals/*", "/api/runs", "/api/tasks",
+                 "/api/platform/status", "/api/goals/*/timeline")
 }
 _TIMELINE_PATH = re.compile(r"^/api/goals/[^/]+/timeline$")
+_GOAL_DETAIL_PATH = re.compile(r"^/api/goals/[^/]+$")
+
+_ERROR_CLASS_FOR_STATUS: dict[int, str] = {
+    400: "bad_request",
+    401: "auth",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    500: "server_error",
+    502: "server_unavailable",
+    503: "service_unavailable",
+    504: "gateway_timeout",
+}
+
+
+def _error_class(status: int, payload: Mapping[str, Any]) -> str:
+    if status == 503 and payload.get("error") == "busy":
+        return "busy"
+    return _ERROR_CLASS_FOR_STATUS.get(status, "unknown")
+
+
+def _is_retryable(status: int, payload: Mapping[str, Any]) -> bool:
+    if status == 503 and payload.get("error") == "busy":
+        return True
+    if status >= 500:
+        return True
+    return False
+
+
+def _new_request_id() -> str:
+    return hashlib.sha256(os.urandom(16)).hexdigest()[:16]
+
+
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class _EventView:
@@ -359,6 +396,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
     def setup(self) -> None:
         super().setup()
         self.connection.settimeout(5.0)
+        self._request_started_at = time.monotonic()
+        self._request_id = _new_request_id()
+
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -376,7 +416,13 @@ class _TaskHandler(BaseHTTPRequestHandler):
         # than the polling interval, requests must not queue up behind the store
         # lock and starve task execution: surplus polls are refused at once.
         path = urlsplit(self.path).path.rstrip("/")
-        slot = _POLLED_SLOTS.get("/api/goals/*/timeline" if _TIMELINE_PATH.match(path) else path)
+        if _TIMELINE_PATH.match(path):
+            slot_key = "/api/goals/*/timeline"
+        elif _GOAL_DETAIL_PATH.match(path):
+            slot_key = "/api/goals/*"
+        else:
+            slot_key = path
+        slot = _POLLED_SLOTS.get(slot_key)
         if slot is None:
             self._do_get()
             return
@@ -393,7 +439,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
         if not self._check_origin():
             return
         if self.path.split("?", 1)[0] == "/api/health":
-            self._send_json(HTTPStatus.OK, {"ready": True})
+            self._send_json(HTTPStatus.OK, {
+                "ready": True,
+                "instance": _instance_metadata(self.store, self.autonomy_service),
+                "generated_at": _utc_now_iso(),
+            })
             return
         if not self._check_local_client():
             return
@@ -1334,6 +1384,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
         return payload
 
     def _send_json(self, status: HTTPStatus, payload: object) -> None:
+        if isinstance(payload, dict) and int(status) >= 400:
+            status_int = int(status)
+            if "error_class" not in payload:
+                payload = {**payload, "error_class": _error_class(status_int, payload)}
+            if "retryable" not in payload:
+                payload = {**payload, "retryable": _is_retryable(status_int, payload)}
         body = json.dumps(
             payload, ensure_ascii=False, default=str, separators=(",", ":")
         ).encode("utf-8")
@@ -1341,6 +1397,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        request_id = getattr(self, "_request_id", "")
+        if request_id:
+            self.send_header("X-Nerelan-Request-Id", request_id)
+        started_at = getattr(self, "_request_started_at", None)
+        if started_at is not None:
+            self.send_header("X-Nerelan-Elapsed-Ms", str(int((time.monotonic() - started_at) * 1000)))
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         try:
@@ -1349,13 +1411,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             pass
 
     def _send_forbidden(self) -> None:
-        body = b'{"error":"forbidden"}'
-        self.send_response(HTTPStatus.FORBIDDEN)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
 
     def _check_origin(self) -> bool:
         origin = self.headers.get("Origin")
@@ -1411,6 +1467,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin and origin == self.allowed_origin:
             self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Expose-Headers", "X-Nerelan-Request-Id, X-Nerelan-Elapsed-Ms")
             self.send_header("Vary", "Origin")
 
 

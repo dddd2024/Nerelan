@@ -181,7 +181,7 @@ def test_http_doctor_route_is_read_only_structured_and_origin_fail_closed(tmp_pa
 
         forbidden_status, forbidden = _request(base, origin="http://evil.example")
         assert forbidden_status == 403
-        assert forbidden == {"error": "forbidden"}
+        assert forbidden["error"] == "forbidden"
     finally:
         server.shutdown()
         server.server_close()
