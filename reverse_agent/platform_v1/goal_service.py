@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import EXECUTOR_TERMINATED, transient_overload
+from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED, transient_overload
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -26,7 +26,7 @@ from .repository_workspace import (
     RepositoryWorkspaceError,
     resolve_repository_workspace,
 )
-from .run_store import TaskStore, TaskStoreError
+from .run_store import TaskStore, TaskStoreError, _utc_now
 from .functional_validation import (
     freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
 )
@@ -177,9 +177,11 @@ _MAX_ATTEMPTS_SHOWN = 10
 # Owner decision 2026-11-12 B: failures the host classifies as not the model's
 # fault retry on the same model, at most MAX_TRANSIENT_RETRIES per plan step,
 # and never consume the window's max_retries (task count and tokens still apply).
-HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED})
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
 HOST_RETRY_REASON = "host_retry"
 OWNER_RETRY_REASON = "owner_retry"
+# An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
+OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
 
 
 def _non_model_reason(reason: Any) -> bool:
@@ -217,6 +219,45 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]]) -> int:
 
 
 REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
+
+# Receipts that prove an external call settled; anything else (PENDING, UNKNOWN,
+# a state this code does not know) may still be running or have run remotely.
+_SETTLED_EXTERNAL_STATES = ("SUCCESS", "RECONCILED")
+
+
+def _unresolved_external_operations(conn: Any, task_id: str) -> list[dict[str, Any]]:
+    """External calls of ``task_id`` with no settled receipt (#1515)."""
+    return [dict(row) for row in conn.execute(
+        "SELECT operation_id, operation_key, state FROM durable_external_operations "
+        "WHERE task_id = ? AND state NOT IN (?, ?) ORDER BY created_at, operation_id",
+        (task_id, *_SETTLED_EXTERNAL_STATES)).fetchall()]
+
+
+def _stranded_source_refusal(conn: Any, task_id: str) -> str:
+    """Why an interrupted or redeploy-closed attempt cannot be replaced yet, or "" (#1515).
+
+    A replacement runs under a new task id, so nothing would fence it from a call
+    the old attempt left unresolved: a live durable lease or coordinator claim
+    means the old run may still be executing, and an unsettled external operation
+    means its call may still be running or have completed remotely. All of these
+    hold the step; uncertainty is never bypassed by starting a fresh attempt.
+    """
+    now_ms = int(time.time() * 1000)
+    if conn.execute("SELECT 1 FROM durable_runs WHERE task_id = ? AND lease_owner != '' "
+                    "AND lease_expiry_ms > ? LIMIT 1", (task_id, now_ms)).fetchone() is not None:
+        return "lease_live"
+    if conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE' "
+                    "AND expires_at_ms > ? LIMIT 1", (task_id, now_ms)).fetchone() is not None:
+        return "claim_live"
+    if _unresolved_external_operations(conn, task_id):
+        return "external_operation_unresolved"
+    return ""
+
+
+def _stranded_source(task: Any) -> bool:
+    """An attempt a redeploy or restart stopped mid-run, whose calls may be unresolved."""
+    return task.status == "INTERRUPTED" or (task.status == "FAILED"
+                                            and task.failure_classification == HOST_VERSION_CHANGED)
 
 
 def _interrupted_dispatch(store: Any, failed: Any) -> bool:
@@ -995,6 +1036,38 @@ class GoalService:
             result["_initial_author_snapshot"] = tuple(sorted(snapshot))
         return result
 
+    def _stranded_operation_hold(self, task: Any) -> bool:
+        """True when a redeploy-closed attempt left an external call unresolved (#1515).
+
+        The step stays parked with one typed hold event per distinct operation set;
+        no replacement attempt is scheduled until the call is reconciled. If that
+        event cannot be recorded, nothing new is scheduled either.
+        """
+        if not _stranded_source(task):
+            return False
+        with self.store._lock:
+            pending = _unresolved_external_operations(self.store._conn, task.id)
+        if not pending:
+            return False
+        hold = ",".join(f"{row['operation_id']}:{row['state']}" for row in pending)
+        description = (f"host_version_retry_held: external operation(s) {hold} of {task.execution_id} are not "
+                       f"settled and may still be running or have completed remotely; task status remains "
+                       f"{task.status}/{task.failure_classification or 'unclassified'}; no replacement attempt "
+                       "is scheduled automatically; reconcile the operation first")
+        try:
+            if not any(event.type == "MODEL_SELECTION_FAILED"
+                       and event.metadata.get("reason") == "external_operation_unresolved"
+                       and event.metadata.get("hold") == hold for event in self.store.get_events(task.id)):
+                self.store.add_event(task.id, event_type="MODEL_SELECTION_FAILED",
+                                     title="Retry held: external call unresolved", description=description,
+                                     metadata={"reason": "external_operation_unresolved", "hold": hold,
+                                               "task_status": task.status,
+                                               "failure_classification": task.failure_classification})
+        except Exception as exc:
+            raise TaskStoreError(f"external_operation_hold_unrecorded:{task.id}: {type(exc).__name__}; "
+                                 "no replacement scheduled") from exc
+        return True
+
     def _review_intent_hold(self, task: Any, plan_task: PlannedTask | None) -> bool:
         """True when a review execution's reviewer call may still be outstanding (#1191).
 
@@ -1213,6 +1286,8 @@ class GoalService:
                 continue  # other BLOCKED tasks are policy/blockers and never escalate
             if _explicit_cleanup_uncertainty(failed):
                 continue
+            if self._stranded_operation_hold(failed):
+                continue  # a redeploy-closed attempt's unresolved call is never retried under a new id
             if self._review_intent_hold(failed, plan_task):
                 continue  # FAILED over an unresolved reviewer call never authorizes a second call
             from .contract_recovery import failed_snapshot, KINDS, FIXUP, record_attempt_disposition
@@ -1422,6 +1497,8 @@ class GoalService:
                 # Events reach the context packet; evidence detail does not.
                 cause = ("The machine stopped your previous attempt (shutdown or closed console)"
                          if failed.failure_classification == EXECUTOR_TERMINATED
+                         else "The host was redeployed while your previous attempt ran"
+                         if failed.failure_classification == HOST_VERSION_CHANGED
                          else "Your previous attempt stopped producing output" if host_failure
                          else "The provider was at capacity")
                 self.store.add_event(task.id, event_type="VALIDATED",
@@ -1531,9 +1608,17 @@ class GoalService:
             raise TaskStoreError("owner_retry_step_not_found")
         if plan_task.validation_command_id:
             raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
-        if link["status"] not in {"FAILED", "BLOCKED"}:
+        # INTERRUPTED is Owner-retryable when nothing of the old run can still be
+        # live or unresolved: a redeploy can strand an in-flight run whose durable
+        # resume then refuses on the old code identity (#1515).
+        if link["status"] not in {"FAILED", "BLOCKED", "INTERRUPTED"}:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
+        if _stranded_source(failed):
+            with self.store._lock:
+                refusal = _stranded_source_refusal(self.store._conn, failed.id)
+            if refusal:
+                raise TaskStoreError(f"owner_retry_{refusal}")
         if _explicit_cleanup_uncertainty(failed):
             raise TaskStoreError("owner_retry_cleanup_unconfirmed")  # the host skips these too
         if self._review_intent_hold(failed, plan_task):
@@ -1585,10 +1670,34 @@ class GoalService:
                 current = next((row for row in self.control_store.list_goal_tasks(goal_id)
                                 if row["plan_task_id"] == plan_task_id
                                 and int(row["goal_revision"]) == goal.revision), None)
+                source = self.store.get_task(failed.id)
                 if (current is None or current["task_id"] != failed.id
-                        or current["status"] not in {"FAILED", "BLOCKED"}
+                        or current["status"] not in {"FAILED", "BLOCKED", "INTERRUPTED"}
+                        or source.status != failed.status
                         or self.control_store.get_goal(goal_id).revision != goal.revision):
                     raise TaskStoreError("owner_retry_step_not_stopped")
+                if _stranded_source(source):
+                    # Re-checked inside the write transaction: a resume or call that
+                    # started while routing ran cannot be overtaken by the new attempt.
+                    refusal = _stranded_source_refusal(self.store._conn, source.id)
+                    if refusal:
+                        raise TaskStoreError(f"owner_retry_{refusal}")
+                if source.status == "INTERRUPTED":
+                    # Close the stranded attempt in the same transaction, conditional on
+                    # it still being INTERRUPTED, so it is never resumed beside its replacement.
+                    now = _utc_now()
+                    closed = self.store._conn.execute(
+                        "UPDATE tasks SET status = 'FAILED', failure_classification = ?, failure_detail = ?, "
+                        "failure_at = ?, updated_at = ? WHERE id = ? AND status = 'INTERRUPTED'",
+                        (OWNER_RETRY_SUPERSEDED, "interrupted attempt superseded by an Owner retry",
+                         now, now, source.id)).rowcount
+                    if closed != 1:
+                        raise TaskStoreError("owner_retry_step_not_stopped")
+                    self.store._append_event(
+                        task_id=source.id, event_type="EXECUTOR_FINISHED", title="Interrupted attempt superseded",
+                        description=f"failure_classification={OWNER_RETRY_SUPERSEDED}", raw_log="",
+                        metadata={"failure_classification": OWNER_RETRY_SUPERSEDED, "reason": OWNER_RETRY_REASON})
+                    failed = self.store.get_task(source.id)
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 task = self.store.create_task(
                     title=self._execution_title(goal, plan_task), repository=goal.repository,

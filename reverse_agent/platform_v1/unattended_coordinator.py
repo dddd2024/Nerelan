@@ -16,8 +16,9 @@ from typing import Any, Callable
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService, DurableResumeError
-from .run_store import TaskStore, TaskStoreError
-from .task_execution import TaskExecutionService
+from .model_availability import HOST_VERSION_CHANGED
+from .run_store import TaskStore, TaskStoreError, _utc_now
+from .task_execution import TaskExecutionOutcome, TaskExecutionService
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
 from reverse_agent.architecture.contracts import (
     WorkerAssignment,
@@ -30,6 +31,10 @@ _logger = logging.getLogger(__name__)
 
 
 TaskExecutor = Callable[[str], Any]
+
+# Durable resume refusals that mean only the host's code identity changed under
+# the run (a redeploy), never that the run itself is untrustworthy (#1515).
+_HOST_VERSION_REFUSALS = ("authority_sha_mismatch:", "planning_sha_mismatch:")
 
 # Upper bound on any idle wait: a new goal, claim or receipt must never wait
 # longer than this for the next poll, even if a quota window resets in hours.
@@ -129,6 +134,9 @@ class UnattendedCoordinator:
         # another task. Epoch ownership keeps old finally blocks from erasing
         # the retry's active marker.
         self._active_task_epochs: dict[str, int] = {}
+        # The (window, epoch) of the claim the current worker thread executes
+        # under, so a state change it makes can be fenced against that claim.
+        self._claim_local = threading.local()
         self._worker_thread_ids: set[int] = set()
         self._manual_tick_active = False
         self._manual_tick_idle = threading.Event()
@@ -565,9 +573,11 @@ class UnattendedCoordinator:
 
         thread = threading.Thread(target=renew, name="coordinator-claim-renewal", daemon=True)
         thread.start()
+        self._claim_local.claim = (window_id, task_id, epoch)
         try:
             return self._execute_task(task_id)
         finally:
+            self._claim_local.claim = None
             stopped.set()
             thread.join()
 
@@ -630,7 +640,9 @@ class UnattendedCoordinator:
                     result=result,
                     **({"attempt_elapsed_seconds": attempt_elapsed} if attempt_elapsed is not None else {}),
                 )
-                self._report_account_feedback(final, success=success)
+                if final.failure_classification != HOST_VERSION_CHANGED:
+                    # A redeploy-closed attempt is a host fault, not account evidence (#1515).
+                    self._report_account_feedback(final, success=success)
                 return WorkerExecutionResult(
                     worker_id=assignment.worker_id,
                     task_id=task_id,
@@ -947,8 +959,10 @@ class UnattendedCoordinator:
                 raise TaskStoreError("quota_resume_authority_revoked")
             self.control_store.check_strict_task_admission(window.id, task_id)
             if task.orchestration_mode == "single":
-                return durable.resume_single(task_id=task_id, lease_owner=self.owner)
-            return durable.resume_sequential_team(task_id=task_id, lease_owner=self.owner)
+                return self._resume_interrupted_durable(
+                    task_id, lambda tid: durable.resume_single(task_id=tid, lease_owner=self.owner))
+            return self._resume_interrupted_durable(
+                task_id, lambda tid: durable.resume_sequential_team(task_id=tid, lease_owner=self.owner))
         if task.orchestration_mode == "single":
             return durable.execute_durable_single(
                 task_id=task_id, workspace_root=self.workspace_root, lease_owner=self.owner
@@ -966,3 +980,105 @@ class UnattendedCoordinator:
             execution_authority_sha=self.execution_authority_sha,
             planning_sha=self.planning_sha,
         )
+
+    def _resume_interrupted_durable(self, task_id: str, resume: Callable[[str], Any]) -> Any:
+        """Resume an INTERRUPTED durable run, recovering a redeploy strand (#1515).
+
+        A redeploy changes the host's code identity, so the authority/planning SHA
+        recorded when the run started no longer matches and the durable resume
+        refuses. That refusal is correct (a run is never resumed under new code),
+        but it must close the attempt instead of stranding it: the task becomes
+        FAILED ``host_version_changed``, a host fault that the normal retry path
+        recovers without spending ``max_retries``. Other refusals still raise.
+        """
+        observed = self._latest_durable_run_identity(task_id)
+        try:
+            return resume(task_id)
+        except DurableResumeError as exc:
+            if not str(exc).startswith(_HOST_VERSION_REFUSALS):
+                raise
+            self._fail_redeploy_stranded_task(task_id, detail=str(exc)[:220], observed=observed)
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id="",
+                validation_exit_code=-1,
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
+    def _latest_durable_run_identity(self, task_id: str) -> tuple[str, str, int] | None:
+        with self.store._lock:
+            row = self.store._conn.execute(
+                "SELECT run_id, lease_owner, lease_epoch FROM durable_runs WHERE task_id = ? "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
+        return None if row is None else (row["run_id"], row["lease_owner"], int(row["lease_epoch"]))
+
+    def _fail_redeploy_stranded_task(self, task_id: str, *, detail: str,
+                                     observed: tuple[str, str, int] | None) -> None:
+        """Close a redeploy-stranded INTERRUPTED task as FAILED ``host_version_changed``.
+
+        One ``BEGIN IMMEDIATE`` transaction re-validates every identity the close
+        depends on and then writes status, failure fields and the event together:
+        this coordinator's claim (owner, epoch, window) is still ACTIVE and live,
+        the task is still INTERRUPTED, and the durable run is the one observed
+        before the resume with the same lease owner/epoch and no live lease. A
+        successor that resumed, claimed or re-leased the task in between fails a
+        check and nothing is written; the stale handler raises instead, so the
+        worker abandons only its own claim.
+        """
+        claim = getattr(self._claim_local, "claim", None)
+        if claim is None or claim[1] != task_id:
+            raise TaskStoreError(f"host_version_close_unfenced:{task_id}")
+        window_id, _, epoch = claim
+        store = self.store
+        with store._lock:
+            conn = store._conn
+            if conn.in_transaction:
+                raise TaskStoreError(f"host_version_close_nested_transaction:{task_id}")
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                reason = self._redeploy_close_refusal(conn, task_id, window_id=window_id, epoch=epoch,
+                                                      observed=observed)
+                if reason:
+                    raise TaskStoreError(f"host_version_close_fenced:{task_id}:{reason}")
+                now = _utc_now()
+                changed = conn.execute(
+                    "UPDATE tasks SET status = 'FAILED', failure_classification = ?, failure_detail = ?, "
+                    "failure_at = ?, updated_at = ? WHERE id = ? AND status = 'INTERRUPTED'",
+                    (HOST_VERSION_CHANGED, detail, now, now, task_id)).rowcount
+                if changed != 1:
+                    raise TaskStoreError(f"host_version_close_fenced:{task_id}:task_not_interrupted")
+                store._append_event(
+                    task_id=task_id, event_type="EXECUTOR_FINISHED", title="Executor failed",
+                    description=f"failure_classification={HOST_VERSION_CHANGED}",
+                    metadata={"failure_classification": HOST_VERSION_CHANGED, "detail": detail,
+                              "claim_epoch": epoch, "run_id": observed[0] if observed else ""})
+                conn.execute("COMMIT")
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+
+    def _redeploy_close_refusal(self, conn: Any, task_id: str, *, window_id: str, epoch: int,
+                                observed: tuple[str, str, int] | None) -> str:
+        now_ms = int(time.time() * 1000)
+        claim = conn.execute(
+            "SELECT window_id, owner, epoch, status, expires_at_ms FROM platform_coordinator_claims "
+            "WHERE task_id = ?", (task_id,)).fetchone()
+        if (claim is None or claim["status"] != "ACTIVE" or claim["owner"] != self.owner
+                or int(claim["epoch"]) != epoch or claim["window_id"] != window_id
+                or int(claim["expires_at_ms"]) <= now_ms):
+            return "claim_not_current"
+        task = conn.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if task is None or task["status"] != "INTERRUPTED":
+            return "task_not_interrupted"
+        run = conn.execute(
+            "SELECT run_id, lease_owner, lease_epoch, lease_expiry_ms FROM durable_runs WHERE task_id = ? "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
+        if observed is None or run is None or (run["run_id"], run["lease_owner"], int(run["lease_epoch"])) != observed:
+            return "durable_run_changed"
+        if run["lease_owner"] and int(run["lease_expiry_ms"]) > now_ms:
+            return "durable_lease_live"
+        return ""

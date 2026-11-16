@@ -36,6 +36,9 @@ OVERLOADED = "provider_overloaded"
 # (STATUS_CONTROL_C_EXIT). The agent did not fail; the machine stopped it.
 EXTERNAL_TERMINATION_EXIT_CODES = frozenset({0x40010004, 0xC000013A})
 EXECUTOR_TERMINATED = "executor_terminated"
+# A redeploy changed the host's code under an in-flight run: its durable resume
+# refuses the old authority/planning identity (#1515). A host fault, not the model's.
+HOST_VERSION_CHANGED = "host_version_changed"
 
 
 def external_termination(exit_code: int) -> bool:
