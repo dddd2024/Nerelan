@@ -765,28 +765,92 @@ def test_goal_lists_skip_the_forecast_and_detail_runs_it_outside_the_store_lock(
     assert seen == [False]
 
 
-def test_owner_retry_recovers_an_interrupted_step_after_a_redeploy_strand(case):
-    """#1515: an INTERRUPTED step is Owner-retryable, not refused as not-stopped.
-
-    A redeploy can strand an in-flight task as INTERRUPTED with a stale authority
-    SHA whose durable resume then refuses; the Owner must be able to abandon it
-    and start a fresh attempt instead of being blocked on a resume that will fail.
-    """
-    _, _, store, control, service, goal, _window, task = case
-    store._conn.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task.id,))
+def _strand(store, task, *, status="INTERRUPTED", classification="", lease_ms=1, operation_state=None):
+    """A redeploy-stranded attempt: its durable run, lease and (optionally) an external call (#1515)."""
+    now = "2026-11-14T06:00:00Z"
+    store._conn.execute(
+        "INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_owner, lease_epoch, "
+        "lease_expiry_ms, recovery_classification, created_at, updated_at) "
+        "VALUES (?, ?, ?, '', 'old-host', 1, ?, 'orphan_stale_lease', ?, ?)",
+        (f"run-{task.id}", task.id, task.execution_id, lease_ms, now, now))
+    if operation_state is not None:
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+            "idempotency_key, request_digest, state, created_at, updated_at) "
+            "VALUES (?, ?, ?, 'opencode_dispatch', ?, 'digest', ?, ?, ?)",
+            (f"op-{task.id}", f"run-{task.id}", task.id, f"idem-{task.id}", operation_state, now, now))
+    store._conn.execute("UPDATE tasks SET status=?, failure_classification=?, updated_at=? WHERE id=?",
+                        (status, classification, "2000-01-01T00:00:00Z", task.id))
     store._conn.commit()
-    result = service.owner_retry(
-        goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+
+
+def test_owner_retry_recovers_an_interrupted_step_after_a_redeploy_strand(case):
+    """#1515: an INTERRUPTED step with no live lease, claim or unresolved call is Owner-retryable,
+    and the stranded attempt is closed in the same transaction so it never runs beside the retry."""
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, operation_state="SUCCESS")
+    result = service.owner_retry(goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
     assert result["reason"] == goal_service_module.OWNER_RETRY_REASON
     assert result["from_task_id"] == task.id
     retry = store.get_task(result["to_task_id"])
-    assert retry.status not in {"FAILED", "BLOCKED", "INTERRUPTED"}
-    [row] = control.list_task_escalations(goal.id)
-    assert row["reason"] == goal_service_module.OWNER_RETRY_REASON
-    assert row["from_task_id"] == task.id and row["to_task_id"] == retry.id
-    # The plan link moved on; the stranded task is no longer the current step.
+    assert retry.status == "QUEUED"
     [link] = control.list_goal_tasks(goal.id)
     assert link["task_id"] == retry.id
+    source = store.get_task(task.id)
+    assert source.status == "FAILED"
+    assert source.failure_classification == goal_service_module.OWNER_RETRY_SUPERSEDED
+
+
+def test_owner_retry_refuses_an_interrupted_step_with_a_live_lease(case):
+    """#1515: with a live lease the old run may still be executing, so the Owner retry is refused."""
+    import time as _time
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, lease_ms=int(_time.time() * 1000) + 600000)
+    count = store.count_tasks()
+    with pytest.raises(TaskStoreError, match="owner_retry_lease_live"):
+        service.owner_retry(goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+    assert store.count_tasks() == count and store.get_task(task.id).status == "INTERRUPTED"
+
+
+@pytest.mark.parametrize("state", ["PENDING", "UNKNOWN"])
+@pytest.mark.parametrize("status,classification", [("INTERRUPTED", ""), ("FAILED", "host_version_changed")])
+def test_owner_retry_holds_a_stranded_step_whose_external_call_is_unresolved(case, state, status, classification):
+    """Review blocker on 952b366f: after the old lease expired, an unresolved call must not be
+    bypassed by a fresh QUEUED task under a new id; the plan link stays and nothing is replayed."""
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, status=status, classification=classification, operation_state=state)
+    count = store.count_tasks()
+    with pytest.raises(TaskStoreError, match="owner_retry_external_operation_unresolved"):
+        service.owner_retry(goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+    assert store.count_tasks() == count
+    [link] = control.list_goal_tasks(goal.id)
+    assert link["task_id"] == task.id
+    assert store.get_task(task.id).status == status
+    assert not control.list_task_escalations(goal.id)
+    [operation] = store._conn.execute("SELECT state FROM durable_external_operations WHERE task_id=?",
+                                      (task.id,)).fetchall()
+    assert operation["state"] == state
+
+
+def test_owner_retry_recheck_inside_the_transaction_holds_a_call_recorded_while_routing(case, monkeypatch):
+    """The unresolved-call check is repeated under the write lock: a call recorded after the first
+    check (while the model was being routed) still refuses the retry."""
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task)
+    resolver = service.roster_resolver
+
+    def routing_while_a_call_lands(role):
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+            "idempotency_key, request_digest, state, created_at, updated_at) VALUES "
+            "('late-op', ?, ?, 'opencode_dispatch', 'late-idem', 'digest', 'PENDING', 'x', 'x')",
+            (f"run-{task.id}", task.id))
+        return resolver(role)
+    monkeypatch.setattr(service, "roster_resolver", routing_while_a_call_lands)
+    count = store.count_tasks()
+    with pytest.raises(TaskStoreError, match="owner_retry_external_operation_unresolved"):
+        service.owner_retry(goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+    assert store.count_tasks() == count and store.get_task(task.id).status == "INTERRUPTED"
 
 
 def test_owner_retry_still_refuses_a_running_step(case):
@@ -796,3 +860,38 @@ def test_owner_retry_still_refuses_a_running_step(case):
         service.owner_retry(
             goal.id, "T001",
             expected_revision=service.control_store.get_goal(goal.id).revision)
+
+
+def test_host_version_changed_retries_without_spending_max_retries(case, monkeypatch):
+    """#1515: a redeploy-closed attempt is a host fault: the same model retries (decision B)
+    with no routing retries left, and it is not capability evidence."""
+    from reverse_agent.platform_v1 import model_profiles
+    _, _, store, control, service, goal, window, task = case
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries=0 WHERE id=?", (window.id,))
+    _strand(store, task, status="FAILED", classification="host_version_changed")
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    profile = model_profiles.compute_agent_profiles(store).get(task.binding_ref, {"attempts": 0, "failed": 0})
+    assert profile["attempts"] == 0 and profile["failed"] == 0
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "host_retry:host_version_changed"
+    retry = store.get_task(step["to_task_id"])
+    assert retry.binding_ref == task.binding_ref and retry.status == "QUEUED"
+    assert goal_service_module._routing_retries_spent(control.list_task_escalations(goal.id)) == 0
+
+
+@pytest.mark.parametrize("state", ["PENDING", "UNKNOWN"])
+def test_host_version_changed_with_an_unresolved_call_stays_parked(case, monkeypatch, state):
+    """No automatic replacement while the redeploy-closed attempt's call is unresolved:
+    one typed hold event, no new task, the plan link unchanged."""
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, status="FAILED", classification="host_version_changed", operation_state=state)
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+    [link] = control.list_goal_tasks(goal.id)
+    assert link["task_id"] == task.id
+    holds = [e for e in store.get_events(task.id)
+             if e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == "external_operation_unresolved"]
+    assert len(holds) == 1 and holds[0].metadata["hold"] == f"op-{task.id}:{state}"
