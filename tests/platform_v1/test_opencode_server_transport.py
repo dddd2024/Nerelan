@@ -435,6 +435,56 @@ def test_absolute_deadline_holds_below_real_chunked_framing() -> None:
         responder.join(timeout=2.0)
 
 
+def test_dribbled_chunk_extension_times_out_near_absolute_deadline() -> None:
+    """#1548/#1549 counterexample: one chunk-extension byte every 0.03 s.
+
+    Before the fix a per-read relative timeout let this peer hold a 0.1 s
+    absolute deadline open for about 0.366 s.  Each underlying read is now
+    armed with the remaining absolute budget, so the read stops near 0.1 s.
+    """
+
+    client_sock, peer_sock = socket.socketpair()
+    stop = Event()
+
+    def dribble() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+                b"40;ext="
+            )
+            for _ in range(100):
+                if stop.is_set():
+                    break
+                peer_sock.sendall(b"x")
+                time.sleep(0.03)
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    responder = Thread(target=dribble, daemon=True)
+    responder.start()
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        started = time.monotonic()
+        stream.deadline = started + 0.1
+        with pytest.raises(TimeoutError):
+            stream.readline(1024)
+        elapsed = time.monotonic() - started
+        assert 0.09 <= elapsed < 0.25, elapsed
+    finally:
+        stop.set()
+        try:
+            response.close()
+        finally:
+            client_sock.close()
+        responder.join(timeout=2.0)
+
+
 def _chunked_socketpair(
     *, split_chunk_header: bool = False, chunk_extension: bool = False
 ) -> tuple[socket.socket, socket.socket, Thread]:
