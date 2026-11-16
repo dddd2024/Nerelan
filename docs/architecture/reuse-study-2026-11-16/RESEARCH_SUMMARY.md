@@ -1,7 +1,7 @@
 # Nerelan 开源项目深度调研：统一汇总与复用决策（2026-11-16）
 
-> **统一研究总入口：** [GitHub Issue #1576](https://github.com/dddd2024/Nerelan/issues/1576)（CANONICAL_RESEARCH_HUB）  
-> **文档性质：** R1 研究/架构导航；不是实施批准、不是审查结果、不是证明某组件已在 Nerelan 运行。  
+> **统一研究总入口：** [GitHub Issue #1576](https://github.com/dddd2024/Nerelan/issues/1576)（CANONICAL_RESEARCH_HUB）
+> **文档性质：** R1 研究/架构导航；不是实施批准、不是审查结果、不是证明某组件已在 Nerelan 运行。
 > **依据：** 当前 `main` 已有 2026-11-15 [横向研究](../reuse-study-2026-11-15/README.md)，以及 2026-11-16 六份专项研究 Issue 和 Draft PR。**截至汇总核验，六个专项 PR 均 open/draft/not merged**。本汇总新增时也应保持 Draft 直到 CI 与独立评审通过。
 > **口径：** “调研过”≠“代码复用”≠“可重复实验确认”≠“功能已部署”。所有未做的测试必须写为未验证。
 
