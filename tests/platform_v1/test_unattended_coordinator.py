@@ -1271,3 +1271,148 @@ def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_pat
     # Recorded overlap: the later task started strictly before the earlier
     # task's recorded finish — impossible under serial dispatch.
     assert second_start < first_end, intervals
+
+
+
+
+def _redeploy_stranded(tmp_path, *, old_sha="old-authority-sha", old_planning="old-planning-sha",
+                       new_sha="new-authority-sha", new_planning="new-planning-sha"):
+    """An INTERRUPTED task whose durable run started under the pre-redeploy code (#1515)."""
+    store = TaskStore(str(tmp_path / "redeploy.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "redeploy", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({
+        "objective": "Survive a redeploy", "idempotency_key": "redeploy-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Work", "instruction": "Run"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    task = store.get_task(task_id)
+    store._acquire_durable_lease(
+        task_id=task_id, execution_id=task.execution_id, lease_owner="old-host",
+        execution_authority_sha=old_sha, planning_sha=old_planning, task_status="QUEUED",
+    )
+    # The host restarted (redeployed); the lease expired and the task is INTERRUPTED.
+    store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = 1 WHERE task_id = ?", (task_id,))
+    store.set_state(task_id, "INTERRUPTED")
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path / "workspaces",
+        execution_authority_sha=new_sha, planning_sha=new_planning, owner="new-host",
+    )
+    return store, control, coordinator, task_id
+
+
+def _claim_status(store, task_id):
+    row = store._conn.execute(
+        "SELECT status FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)).fetchone()
+    return None if row is None else row["status"]
+
+
+def test_redeploy_authority_mismatch_closes_the_attempt_as_host_version_changed(tmp_path):
+    """#1515: the resume keeps refusing on the old authority SHA, but the attempt is
+    closed as FAILED host_version_changed (a host fault) instead of being stranded."""
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert final.status == "FAILED"
+    assert final.failure_classification == "host_version_changed"
+    assert (final.failure_detail or "").startswith("authority_sha_mismatch:")
+    # The claim was settled through the normal completion path, not abandoned.
+    assert _claim_status(store, task_id) == "COMPLETE"
+    [event] = [e for e in store.get_events(task_id) if e.type == "EXECUTOR_FINISHED"]
+    assert event.metadata["failure_classification"] == "host_version_changed"
+    # The closed attempt is terminal; a second tick does not busy-loop it.
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "FAILED"
+
+
+def test_redeploy_planning_mismatch_is_also_a_host_version_change(tmp_path):
+    """#1515 names any version/identity mismatch: a changed planning SHA closes the attempt too."""
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", new_sha="same-sha")
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert final.status == "FAILED" and final.failure_classification == "host_version_changed"
+    assert (final.failure_detail or "").startswith("planning_sha_mismatch:")
+
+
+def test_redeploy_recovery_does_not_swallow_other_resume_refusals(tmp_path, monkeypatch):
+    """Only host-version refusals are recovered; any other resume refusal still strands as before."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", old_planning="same-sha", new_sha="same-sha", new_planning="same-sha")
+
+    def refuse(self, task_id, *, lease_owner="", **kwargs):
+        raise DurableResumeError("worktree_not_found:/gone")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", refuse)
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "INTERRUPTED"
+    assert _claim_status(store, task_id) != "ACTIVE"
+
+
+@pytest.mark.parametrize("successor", ["durable_resume", "claim_takeover", "re_leased"])
+def test_redeploy_close_is_fenced_against_a_successor_that_won_the_race(tmp_path, monkeypatch, successor):
+    """Review blocker on 952b366f: a successor that resumes, re-claims or re-runs the task
+    between the coordinator's read and its close must never be overwritten as FAILED."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    future_ms = int(time.time() * 1000) + 600000
+
+    def resume_then_lose_the_race(self, task_id, *, lease_owner="", **kwargs):
+        # The refusal is computed, then a successor wins before the close transaction.
+        if successor == "durable_resume":
+            store._conn.execute(
+                "UPDATE durable_runs SET lease_owner = 'successor', lease_epoch = lease_epoch + 1, "
+                "lease_expiry_ms = ? WHERE task_id = ?", (future_ms, task_id))
+            store._conn.execute("UPDATE tasks SET status = 'RUNNING' WHERE id = ?", (task_id,))
+        elif successor == "claim_takeover":
+            store._conn.execute(
+                "UPDATE platform_coordinator_claims SET owner = 'successor-host', epoch = epoch + 1 "
+                "WHERE task_id = ?", (task_id,))
+        else:
+            # Re-leased by another owner (one durable run per task), status not yet moved.
+            store._conn.execute(
+                "UPDATE durable_runs SET lease_owner = 'successor', lease_epoch = lease_epoch + 1, "
+                "lease_expiry_ms = ? WHERE task_id = ?", (future_ms, task_id))
+        raise DurableResumeError("authority_sha_mismatch:old-authority-sha!=new-authority-sha")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", resume_then_lose_the_race)
+    refusals = []
+    close = coordinator._fail_redeploy_stranded_task
+
+    def recording_close(*args, **kwargs):
+        try:
+            return close(*args, **kwargs)
+        except TaskStoreError as exc:
+            refusals.append(str(exc))
+            raise
+    monkeypatch.setattr(coordinator, "_fail_redeploy_stranded_task", recording_close)
+    assert coordinator.tick() == 0  # the stale handler wrote nothing and abandoned its own claim
+    final = store.get_task(task_id)
+    assert final.failure_classification != "host_version_changed"
+    assert final.status == ("RUNNING" if successor == "durable_resume" else "INTERRUPTED")
+    assert not [e for e in store.get_events(task_id)
+                if e.metadata.get("failure_classification") == "host_version_changed"]
+    assert refusals and refusals[0].startswith(f"host_version_close_fenced:{task_id}:"), refusals
+
+
+def test_redeploy_close_requires_the_callers_claim(tmp_path):
+    """The close is only made under the executing worker's own claim identity."""
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    with pytest.raises(TaskStoreError, match="host_version_close_unfenced"):
+        coordinator._fail_redeploy_stranded_task(task_id, detail="authority_sha_mismatch:x!=y",
+                                                 observed=coordinator._latest_durable_run_identity(task_id))
+    assert store.get_task(task_id).status == "INTERRUPTED"
