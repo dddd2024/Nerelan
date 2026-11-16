@@ -40,23 +40,22 @@ Cline/Roo、Pi/pi-mono、Letta Code、Plandex、OpenClaw、Continue、Deep Agent
 
 这些名字应标记为 `TOUCHED_OR_DISCUSSSED / PROVENANCE_PENDING`，**不得**因为本表没有单独报告就重新研究同一模块；先复查旧聊天、GitHub Issues/PR、提交历史与最近上游变更，确定真正新增问题。
 
-### D. 其他对话中的**实际深度研究**：已补核心结论，但源证据待核验
+### D. 其他对话的**历史研究完整导航**（已归档）
 
-以下是此前多个 Nerelan 对话中已经讨论的**具体机制**，不等于重新开展了本轮固定 SHA 的源码核查，也不代表有独立研究 PR。此前汇总仅列名称，遗漏其研究内容；本小节用于阻止后续误判为从未研究。记录状态统一标为 `HISTORICAL_CHAT_STUDY / PROVENANCE_PENDING`，除非找到上游 commit、文档/Issue 与正式审查记录。
+**[历史跨对话研究归档目录](history/INDEX.md)** 已单独补齐研究条目：六份逐项目历史档案（Cline/Roo、Pi、Letta Code、Plandex、OpenClaw、Hermes Agent）与 [13 项其它执行器/框架源码研究](history/other-runtime-frameworks.md)。各项目都有可恢复的旧对话范围、源码提交或本次核验快照、具体模块/路径、借鉴与拒绝、现有实施 Issue、证据等级和待验证反例。
 
-| 项目 | 其他对话中实际研究的模块/结论 | 与本轮六项互补的复用方向 | GitHub 证据状态 |
-|---|---|---|---|
-| **Cline / Roo** | 执行器扩展、Hooks、插件与事件流；不取代 Nerelan 的中央调度 | 可以借鉴适配器事件/Hook 能力，但 Host 仍控制权限 | 11/15 [横向执行器报告](../reuse-study-2026-11-15/C-runtimes.md) 已覆盖；聊天级专项结论未逐条固化 |
-| **Pi / pi-mono** | Agent Loop、RPC、`steer/follow_up`、Session Tree、Extensions、Tool Search、Durable Session | 首选薄适配为另一个 Executor；借鉴会话树、实时控制和工具能力协商，不复制第二套主 Agent Loop | 其他对话明确深拆，部分对话曾称已关联 GitHub，但**本汇总尚未核实独立专项路径/Issue** |
-| **Letta Code** | MemFS / 长期记忆、Reflection、分层上下文、跨 Agent 经验、Worktree | 借鉴有来源、可回溯的跨执行器经验记忆；TaskStore 是权威且需验证防污染 | 其他对话有多次深拆；本次未定位到独立 GitHub 专项报告 |
-| **Plandex** | Plan Version、Pending Changes、Tree-sitter 符号地图、变更回退 | 先实验受控的代码结构地图和“待验证修改集”记录，不移植整套 Plan Manager | 其他对话深拆；本次未定位专项报告 |
-| **OpenClaw** | Harness 能力协商、按需插件 Manifest、Plugin Generation、执行授权快照 | 借鉴插件激活/隔离和 Executor Capability Contract；不让它替代 Owner Policy | 其他对话深拆；本次未定位专项报告 |
-| **Hermes Agent** | 持久 Goal/Kanban、依赖、交接、验收、Skill 生命周期 | 借鉴任务等待、恢复、验收与上下文引用；不复制另一套调度器 | 其他对话曾称已有 GitHub 审计，**具体文件/Issue 尚未核实** |
-| **OpenCode / OpenHands / Codex** | 原生重试/事件、Subagent/Tools、工作区、SDK/执行器恢复 | 归入现有 Harness×Model #1527，不等同于独立完成所有安全实测 | OpenCode/OpenHands/Codex 在 11/15 [横向报告](../reuse-study-2026-11-15/C-runtimes.md) 中已有来源；更深聊天结论待配对 |
-| **Goose / Continue / Aider / mini-SWE-agent / Gemini CLI** | 曾作为执行器或 Harness 候选比较，部分有源码/架构级讨论 | 新增研究前先核查已研究过的子模块/插件接口、模型路由及恢复场景 | 部分已有横向报告，**单独专项证据待逐项核对** |
-| **Orchestrator.inc / Deep Agents / Pydantic AI / FastMCP / Qwen Code** | 其他聊天曾涉及架构、框架、工具/Agent 扩展，但本次没有足够完整的项目级记录可逐项还原 | 暂不据此产生实施结论；先核实原始研究范围，再决定是否补源代码级研究 | `HISTORICAL_MENTION / SCOPE_NOT_RECONCILED` |
+| 历史深入研究 | 逐项目 GitHub 归档 | 历史与源码证据 |
+|---|---|---|
+| Cline / Roo | [cline-roo.md](history/cline-roo.md) | Cline 新核旧稿缺失 SHA；Roo 独立版本未恢复 |
+| Pi / pi-mono | [pi.md](history/pi.md) | 原研究 `22fc026b`；JSONL RPC / `agent_settled` 真实源码已核 |
+| Letta Code | [letta-code.md](history/letta-code.md) | 原研究 `eadef1c`；Git Memory/Reflection/Handoff 文件已核 |
+| Plandex | [plandex.md](history/plandex.md) | 旧 SHA 丢失，本次用 `e2d77207` 补核，不冒称原版本 |
+| OpenClaw | [openclaw.md](history/openclaw.md) | 原研究 `02dc185`；Harness 能力、Manifest Activation 已核 |
+| Hermes Agent | [hermes-agent.md](history/hermes-agent.md) | 原研究 `e96221fa`；Kanban/Skills 已核；此前口头“GitHub 已保存”无实际旧 PR 证据 |
 
-**对“是否已经整合”的准确回答：** 已把可恢复的旧对话**项目+核心模块+初步复用判断**补进本汇总，但**没有完成全部旧聊天原始证据的逐条归档**。待补字段包括原研究对话链接、对应源码 SHA、读过的函数/代码路径、可证伪试验、是否已有 GitHub 审计/Issue 与最新上游变化。不得将 `HISTORICAL_CHAT_STUDY` 统计为六项已经正式留痕的 `STATIC_SOURCE_REVIEW`。
+13 项其他历史研究：OpenCode、Codex、OpenHands SDK、Gemini CLI、Goose、Continue、Aider、mini-SWE-agent、Qwen Code、Deep Agents、Pydantic AI、FastMCP、Orchestrator.inc。原 `block/goose` 已迁移 `aaif-goose/goose`；Orchestrator.inc 源码身份为 `OrchestratorInc/agent-orchestrator`，历史 SHA 均已验证。
+
+**准确证据等级：** 本目录已经将**可恢复**的旧研究内容归档为文档，但旧聊天完整逐字文本、稳定对话 URL、部分项目的原 SHA 或曾声称存在的独立研究 PR 无法据现有记录证明；已在各文件标注 `PROVENANCE_GAP`。这里的历史归档不是六份新独立源码 PR，也不计为实测或实现。
 
 ## 2. 模块级决策：Nerelan 应该“抄什么”
 
