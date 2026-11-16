@@ -15,9 +15,10 @@ This module is the single place where that gap is closed:
   ``--no-audit``, ``--no-fund``) and recorded as its own evidence row; it runs
   under the functional checks' owned process-tree runner, so the timeout ends
   every descendant, not only the direct child;
-* every install starts from an empty ``node_modules`` (removed without
-  following links), so functional validation never trusts a dependency tree
-  the agent could have modified;
+* every install first removes every ``node_modules`` in the workspace
+  (nested, ancestor or linked; links are unlinked, never followed) and
+  refuses an ignored ``package.json``, so functional validation never trusts
+  module-resolution state the agent could have left outside the diff;
 * the target directory, its lockfile and ``package.json`` must be real paths
   inside the workspace (no symlink or junction component), and a project
   ``.npmrc`` is refused exactly as the functional npm check refuses it;
@@ -48,6 +49,7 @@ DEPENDENCY_CLEANUP_CODE = "workspace_dependencies_cleanup_unconfirmed"
 PATH_UNTRUSTED_CODE = "workspace_dependency_path_untrusted"
 PROJECT_CONFIG_CODE = "npm_project_config_unsupported"
 LOCKFILE_INVALID_CODE = "workspace_dependency_lockfile_invalid"
+RESOLUTION_UNTRUSTED_CODE = "workspace_dependency_resolution_untrusted"
 DEPENDENCY_LABEL = "workspace_dependencies"
 LOCKFILE_NAME = "package-lock.json"
 # npm's own default ceiling is generous; the host bounds it more tightly so a
@@ -280,32 +282,91 @@ def _trusted_target(root: Path, directory: str) -> tuple[Path, Path]:
     return real_root, current
 
 
-def _clear_node_modules(target: Path) -> None:
-    """Remove ``node_modules`` so the install never reuses an agent-writable tree.
+def _remove_entry(path: Path) -> None:
+    """Remove one directory entry; a link or junction is unlinked, never followed.
 
-    A link or junction is removed itself, never followed; a real directory is
-    removed with ``shutil.rmtree``, which does not follow nested junctions.
+    A real directory is removed with ``shutil.rmtree``, which does not follow
+    nested links or junctions (Python 3.8+ on Windows).
     """
-    modules = target / "node_modules"
 
-    def writable(function: Any, path: str, _exc: BaseException) -> None:
-        os.chmod(path, stat.S_IWRITE)
-        function(path)
+    def writable(function: Any, name: str, _exc: BaseException) -> None:
+        os.chmod(name, stat.S_IWRITE)
+        function(name)
 
     try:
-        if _is_link(modules):
+        if _is_link(path):
             try:
-                os.unlink(modules)
+                os.unlink(path)
             except OSError:
-                os.rmdir(modules)
-        elif modules.is_dir():
-            shutil.rmtree(modules, onexc=writable)
-        elif modules.exists():
-            modules.unlink()
+                os.rmdir(path)
+        elif path.is_dir():
+            shutil.rmtree(path, onexc=writable)
+        elif path.exists():
+            path.unlink()
     except OSError as exc:
         raise WorkspaceDependencyError(detail=f"node_modules_not_removed:{type(exc).__name__}") from exc
-    if _is_link(modules) or modules.exists():
+    if _is_link(path) or path.exists():
         raise WorkspaceDependencyError(detail="node_modules_not_removed")
+
+
+def _clear_workspace_node_modules(root: Path) -> int:
+    """Remove every ``node_modules`` entry anywhere in the workspace.
+
+    Node and Vite resolve a bare import from the importing file's directory
+    upward, so an ignored ``node_modules`` nested below the check directory
+    (``frontend/src/node_modules``) or above it inside the workspace would
+    shadow the host's fresh install, and ``.gitignore`` keeps it out of the
+    reviewed diff (#1557 review on 3078fcbf). None of them is part of the
+    artifact, so all are removed before installing; the walk never descends
+    into a link or junction, and a linked ``node_modules`` is unlinked.
+    """
+    removed = 0
+    pending = [root]
+    while pending:
+        folder = pending.pop()
+        try:
+            entries = sorted(os.scandir(folder), key=lambda item: item.name)
+        except OSError as exc:
+            raise WorkspaceDependencyError(detail=f"workspace_scan_failed:{type(exc).__name__}") from exc
+        for entry in entries:
+            path = Path(entry.path)
+            if folder == root and entry.name == ".git":
+                continue
+            if entry.name == "node_modules":
+                _remove_entry(path)
+                removed += 1
+                continue
+            if _is_link(path):
+                continue
+            if entry.is_dir(follow_symlinks=False):
+                pending.append(path)
+    return removed
+
+
+def _refuse_ignored_package_manifests(root: Path) -> None:
+    """Refuse an ignored ``package.json`` the reviewed diff cannot show.
+
+    The nearest ``package.json`` decides a file's module type and its
+    ``imports``/``exports``/``main`` mappings, so an ignored manifest could
+    redirect module resolution without appearing in the artifact. Removing it
+    could silently change what the agent's code means, so the check is
+    refused instead, as an agent-caused validation failure (not an outage).
+    Runs after every ``node_modules`` has been removed.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--others", "--ignored",
+             "--exclude-standard"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise WorkspaceDependencyError(detail=f"ignored_scan_failed:{type(exc).__name__}") from exc
+    if completed.returncode:
+        raise WorkspaceDependencyError(detail="ignored_scan_failed")
+    for raw in completed.stdout.split(b"\0"):
+        name = raw.decode("utf-8", errors="replace")
+        if name and PurePosixPath(name).name.lower() == "package.json":
+            raise WorkspaceDependencyError(RESOLUTION_UNTRUSTED_CODE, detail=name[:200])
 
 
 def _record(store: Any, task_id: str, document: Mapping[str, Any], *, lease: Any = None) -> None:
@@ -372,6 +433,10 @@ def provision_workspace_dependencies(
         env = _install_environment(root, config_dir)
         for directory in plan.directories:
             real_root, target = _trusted_target(root, directory)
+            # Nothing the agent left in any node_modules, anywhere in the
+            # workspace, may shadow the fresh install (#1557 review).
+            cleared = _clear_workspace_node_modules(real_root)
+            _refuse_ignored_package_manifests(real_root)
             lockfile = target / LOCKFILE_NAME
             if lockfile_source == "base":
                 restored = _restore_base_lockfile(real_root, plan.base_commit, directory, target)
@@ -387,7 +452,6 @@ def provision_workspace_dependencies(
             if package.is_file() and package.stat().st_size > MAX_PACKAGE_BYTES:
                 raise WorkspaceDependencyError(LOCKFILE_INVALID_CODE, detail="package_too_large")
             digest = _sha256_bytes(lockfile.read_bytes())
-            _clear_node_modules(target)
             command = [*argv, "--ignore-scripts", "--no-audit", "--no-fund"]
             entry = {
                 "directory": directory,
@@ -395,6 +459,7 @@ def provision_workspace_dependencies(
                 "lockfile_source": lockfile_source,
                 "previous_lockfile_digest": previous.get(directory, ""),
                 "fresh_install": True,
+                "node_modules_removed": cleared,
             }
             try:
                 observed = (runner(command, target, env, timeout) if runner is not None

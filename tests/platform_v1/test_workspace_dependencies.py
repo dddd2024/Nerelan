@@ -577,6 +577,124 @@ def test_a_node_modules_junction_is_removed_not_followed(repository, monkeypatch
     assert not wd._is_link(modules) and (modules / ".bin" / "vitest.py").is_file()
 
 
+# A runner that resolves its assertion library the way Node and Vite resolve a
+# bare import: from the importing (test) file's directory upward.
+_RESOLVING_VITEST = """
+import runpy, sys
+from pathlib import Path
+out = next(a.split("=", 1)[1] for a in sys.argv if a.startswith("--outputFile="))
+test = Path("src/sum.test.txt")
+library = None
+for folder in (test.parent.resolve(), *test.parent.resolve().parents):
+    candidate = folder / "node_modules" / "chai" / "index.py"
+    if candidate.is_file():
+        library = runpy.run_path(str(candidate))
+        break
+failing = not library["verdict"](test.read_text(encoding="utf-8"))
+case = '<testcase classname="sum" name="adds"><failure message="boom">boom</failure></testcase>' if failing else '<testcase classname="sum" name="adds"/>'
+Path(out).write_text('<testsuite tests="1">' + case + '</testsuite>', encoding="utf-8")
+"""
+_GENUINE_CHAI = "def verdict(text):\n    return 'FAIL' not in text\n"
+_POISONED_CHAI = "def verdict(text):\n    return True\n"
+
+
+def _resolving_install(calls):
+    def install(command, cwd, env, timeout):
+        modules = Path(cwd) / "node_modules"
+        calls.append({"command": list(command)})
+        (modules / ".bin").mkdir(parents=True)
+        (modules / ".bin" / "vitest.py").write_text(_RESOLVING_VITEST, encoding="utf-8")
+        (modules / "chai").mkdir()
+        (modules / "chai" / "index.py").write_text(_GENUINE_CHAI, encoding="utf-8")
+        return {"exit_code": 0, "timed_out": False, "duration_ms": 1,
+                "output_digest": "0" * 64, "output_bytes": 0, "cleanup": "confirmed"}
+
+    return install
+
+
+def _plant_chai(folder: Path) -> None:
+    (folder / "chai").mkdir(parents=True)
+    (folder / "chai" / "index.py").write_text(_POISONED_CHAI, encoding="utf-8")
+
+
+@pytest.mark.parametrize("placement", ["nested", "deeply_nested", "nested_junction", "workspace_root"])
+def test_a_nested_node_modules_cannot_shadow_the_fresh_install(
+        repository, monkeypatch, tmp_path, placement):
+    """#1557 review on 3078fcbf: an ignored frontend/src/node_modules forged a pass.
+
+    Bare imports resolve from the importing file's directory upward, so a
+    planted node_modules below the check directory wins over the host's
+    install, and .gitignore keeps it out of the diff. Every node_modules in
+    the workspace is removed (a junction unlinked, never followed).
+    """
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "npm.py").write_text(_FAKE_NPM, encoding="utf-8")
+    monkeypatch.setattr(fv, "_resolved_argv", lambda profile: [sys.executable, str(tools / "npm.py")])
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    wd.provision_workspace_dependencies(store, task.id, wd.task_dependency_plan(store, task.id),
+                                        root, runner=_resolving_install([]))
+    source = root / "frontend" / "src"
+    source.mkdir()
+    (source / "sum.test.txt").write_text("FAIL", encoding="utf-8")
+    outside = tmp_path / "outside-modules"
+    planted = {"nested": source / "node_modules",
+               "deeply_nested": source / "deep" / "node_modules",
+               "nested_junction": source / "node_modules",
+               "workspace_root": root / "node_modules"}[placement]
+    if placement == "nested_junction":
+        _plant_chai(outside)
+        (outside / "sentinel.txt").write_text("keep", encoding="utf-8")
+        _make_dir_link(planted, outside)
+    else:
+        _plant_chai(planted)
+    if placement in {"nested", "deeply_nested"}:
+        ignored = git(root, "status", "--porcelain=v1", "--ignored", "--", str(planted))
+        assert ignored.startswith("!!"), "the planted tree must be ignored, i.e. outside the diff"
+    if placement in {"nested", "nested_junction"}:
+        attacked = fv._run_check(checks[0], root)  # no host provisioning: the attack works
+        assert attacked["test_report"]["accepted"] is True
+
+    calls: list[dict] = []
+    monkeypatch.setattr(wd, "_run_install", _resolving_install(calls))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    observed = fv._run_check(checks[0], root, dependencies=context)
+
+    assert len(calls) == 1
+    assert observed["test_report"]["failed"] == 1 and observed["test_report"]["accepted"] is False
+    assert not planted.exists() and not wd._is_link(planted)
+    if placement == "nested_junction":
+        assert (outside / "sentinel.txt").read_text(encoding="utf-8") == "keep"
+        assert (outside / "chai" / "index.py").is_file()
+    entry = json.loads(wd.dependency_evidence(store.get_task(task.id))[-1]["detail"])["directories"][0]
+    assert entry["node_modules_removed"] == 2  # the previous install and the planted tree
+
+
+def test_an_ignored_package_manifest_refuses_the_check(repository, monkeypatch):
+    """An ignored package.json could remap imports/exports/type outside the diff."""
+    root, base, store, task = repository
+    checks = [{"profile_id": "npm_test", "working_directory": "frontend"}]
+    _freeze(store, task, checks, base)
+    generated = root / "frontend" / "src" / "generated"
+    generated.mkdir(parents=True)
+    (generated / "package.json").write_text('{"imports": {"#chai": "./chai.js"}}', encoding="utf-8")
+    with (root / ".git" / "info" / "exclude").open("a", encoding="utf-8") as handle:
+        handle.write("frontend/src/generated/\n")
+    calls: list[dict] = []
+    monkeypatch.setattr(wd, "_npm_argv", lambda: ["npm", "ci"])
+    monkeypatch.setattr(wd, "_run_install", _fake_runner(calls))
+    context = fv._dependency_context(store, store.get_task(task.id), base, None, checks)
+    with pytest.raises(TaskStoreError) as caught:
+        fv._ensure_check_dependencies(checks[0], root, context)
+    reason = str(caught.value)
+    assert reason == "functional_workspace_dependency_resolution_untrusted"
+    assert calls == []
+    assert fv.validation_failure_outcome(reason) == ("FAILED", "deterministic_validation_failure")
+
+
 @pytest.mark.parametrize("source", ["base", "workspace"])
 def test_a_linked_target_directory_is_refused_before_any_write(repository, tmp_path, source):
     """#1557 review: lexical containment followed a junction outside the workspace."""
