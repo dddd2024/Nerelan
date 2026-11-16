@@ -1,6 +1,6 @@
 # Hermes Agent：跨对话源码深拆归档（2026-11-16）
 
-**历史记录版本：** `NousResearch/hermes-agent@e96221fa`（历史对话只保留该短 SHA，当前已用此 SHA 读取上游源码确认存在）。[源码提交](https://github.com/NousResearch/hermes-agent/commit/e96221fa)。  
+**历史记录版本：** `NousResearch/hermes-agent@e96221fa`（历史对话只保留该短 SHA，当前已用此 SHA 读取上游源码确认存在）。[源码提交](https://github.com/NousResearch/hermes-agent/commit/e96221fa)。
 **状态：** `HISTORICAL_CHAT_STUDY + SOURCE_SPOTCHECKED / NOT_RUNTIME_TESTED / PREVIOUS_GITHUB_AUDIT_UNVERIFIED`。**此前有助手说“已保存 GitHub 审计”但没有给出真实文件/Issue/PR，本次仓库文件/标题搜索也未定位专属条目，因此不能将它计为过去已经落库的研究。**本页是第一次可核查的本仓库专项档案之一。总入口 [#1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 冻结源码与历史研究恢复
