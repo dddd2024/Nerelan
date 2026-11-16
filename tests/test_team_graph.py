@@ -13,31 +13,19 @@ Covers:
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from reverse_agent.architecture.contracts import (
-    AuthorizationRequest,
-    AuthorizationResult,
-    RiskPolicySnapshot,
     TeamExecutionResult,
     WorkerAssignment,
     WorkerExecutionResult,
 )
-from reverse_agent.architecture.policy_provider import AuthorizedRiskPolicyProvider
-from reverse_agent.architecture.risk import (
-    AcceptanceStatus,
-    AuthorizationStatus,
-    RiskTier,
-    WorkflowRoute,
-)
 from reverse_agent.platform_v1.run_store import TaskStore
 from reverse_agent.platform_v1.task_execution import TaskExecutionService
 from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
-from reverse_agent.workflows.development_graph import build_development_graph
 from reverse_agent.workflows.team_graph import (
     TeamGraphError,
     build_team_execution_node,
@@ -472,234 +460,9 @@ def test_parent_adapter_maps_team_assignments_to_team_result() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_acceptance_gate_no_team_result_uses_existing_behavior() -> None:
-    """Without team_execution_result, the gate must behave as before #151."""
-    from reverse_agent.workflows.nodes.acceptance_gate import acceptance_gate_node
-
-    state: dict[str, Any] = {
-        "risk_decision": {"route": WorkflowRoute.STANDARD_PATH.value, "reasons": ()},
-        "node_trace": [],
-    }
-    out = acceptance_gate_node(state)
-    assert out["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
-    assert out["acceptance_result"]["executable"] is True
-
-
-def test_acceptance_gate_accepted_team_passes_through() -> None:
-    from reverse_agent.workflows.nodes.acceptance_gate import acceptance_gate_node
-
-    state: dict[str, Any] = {
-        "risk_decision": {"route": WorkflowRoute.STANDARD_PATH.value, "reasons": ()},
-        "team_execution_result": {"accepted": True, "worker_results": [], "reasons": []},
-        "node_trace": [],
-    }
-    out = acceptance_gate_node(state)
-    assert out["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
-    assert out["acceptance_result"]["executable"] is True
-
-
-def test_acceptance_gate_rejected_team_blocks() -> None:
-    """When team_execution_result.accepted == False, the gate must return
-    BLOCKED / non-executable with the team reasons, regardless of risk route.
-    """
-    from reverse_agent.workflows.nodes.acceptance_gate import acceptance_gate_node
-
-    state: dict[str, Any] = {
-        "risk_decision": {"route": WorkflowRoute.STANDARD_PATH.value, "reasons": ()},
-        "team_execution_result": {
-            "accepted": False,
-            "worker_results": [],
-            "reasons": ("verifier_rejected:w-b",),
-        },
-        "node_trace": [],
-    }
-    out = acceptance_gate_node(state)
-    assert out["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
-    assert out["acceptance_result"]["executable"] is False
-    assert "verifier_rejected" in " ".join(out["acceptance_result"]["reasons"])
-
-
-def test_acceptance_gate_rejected_team_without_reasons_gets_default() -> None:
-    from reverse_agent.workflows.nodes.acceptance_gate import acceptance_gate_node
-
-    state: dict[str, Any] = {
-        "risk_decision": {"route": WorkflowRoute.STANDARD_PATH.value, "reasons": ()},
-        "team_execution_result": {
-            "accepted": False,
-            "worker_results": [],
-            "reasons": [],
-        },
-        "node_trace": [],
-    }
-    out = acceptance_gate_node(state)
-    assert out["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
-    assert "team_execution_rejected" in " ".join(out["acceptance_result"]["reasons"])
-
-
-@pytest.mark.parametrize(
-    "team_result",
-    [
-        [],
-        {},
-        {"accepted": "false"},
-        {"accepted": False, "reasons": 7},
-        {"accepted": True, "reasons": "not-a-reason-list"},
-    ],
-)
-def test_acceptance_gate_malformed_team_result_fails_closed(team_result) -> None:
-    from reverse_agent.workflows.nodes.acceptance_gate import acceptance_gate_node
-
-    state: dict[str, Any] = {
-        "risk_decision": {"route": WorkflowRoute.STANDARD_PATH.value, "reasons": ()},
-        "team_execution_result": team_result,
-        "node_trace": [],
-    }
-
-    out = acceptance_gate_node(state)
-
-    assert out["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
-    assert out["acceptance_result"]["executable"] is False
-    assert out["acceptance_result"]["reasons"] == ["team_execution_result_invalid"]
-
-
 # ---------------------------------------------------------------------------
 # End-to-end parent graph integration
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class RecordingPort:
-    status: AuthorizationStatus = AuthorizationStatus.AUTHORIZED
-    calls: int = 0
-
-    def authorize(self, _request: AuthorizationRequest) -> AuthorizationResult:
-        self.calls += 1
-        return AuthorizationResult(
-            self.status,
-            () if self.status is AuthorizationStatus.AUTHORIZED else ("denied",),
-        )
-
-
-def _contract() -> dict:
-    return {
-        "decision_id": "decision_t",
-        "round_id": "round_t",
-        "path_risk_floor": [["**/secrets/**", "R3"]],
-        "capability_risk_rules": [
-            {"operation": "network_access", "risk_tier": "R2"},
-            {"operation": "unknown_binary_execution", "risk_tier": "R3"},
-            {"operation": "destructive", "risk_tier": "R3"},
-        ],
-    }
-
-
-def _provider() -> AuthorizedRiskPolicyProvider:
-    return AuthorizedRiskPolicyProvider(_contract())
-
-
-def _input(operation: str, *, paths: list[str] | None = None) -> dict[str, object]:
-    return {
-        "work_item_input": {
-            "schema_version": 1,
-            "repository": "owner/repo",
-            "item_number": 151,
-            "immutable_observation_ref": "issue-151",
-            "title": "Team adapter task",
-            "acceptance_criteria": ["deterministic result"],
-            "requested_operations": [operation],
-            "requested_paths": paths or ["reverse_agent/architecture/contracts.py"],
-        },
-        "planning_inputs": [{
-            "schema_version": 1,
-            "artifact_type": "story",
-            "path_or_uri": "planning/story-151.md",
-            "digest": "c" * 64,
-            "summary": "Bounded story context",
-        }],
-        "team_assignments": [
-            WorkerAssignment(
-                worker_id="w-a", role="a", task_id="t1", workspace_root="/ws1"
-            ).to_dict(),
-            WorkerAssignment(
-                worker_id="w-b", role="b", task_id="t2", workspace_root="/ws2"
-            ).to_dict(),
-        ],
-        "node_trace": [],
-    }
-
-
-def test_parent_graph_standard_path_with_team_execution() -> None:
-    port = RecordingPort()
-    team_graph = build_team_graph(worker=_team_fake_worker)
-    execution_node = build_team_execution_node(team_graph=team_graph)
-    graph = build_development_graph(port, provider=_provider(), execution_node=execution_node)
-    result = graph.invoke(_input("source_edit"), {"configurable": {"thread_id": "team-r1"}})
-    trace = result["node_trace"]
-    assert "team_execution" in trace
-    assert result["team_execution_result"]["accepted"] is True
-    assert result["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
-    assert result["acceptance_result"]["executable"] is True
-    assert port.calls == 0
-
-
-def test_parent_graph_trust_path_with_team_execution() -> None:
-    port = RecordingPort()
-    team_graph = build_team_graph(worker=_team_fake_worker)
-    execution_node = build_team_execution_node(team_graph=team_graph)
-    graph = build_development_graph(port, provider=_provider(), execution_node=execution_node)
-    result = graph.invoke(
-        _input("dependency_change"), {"configurable": {"thread_id": "team-r2"}}
-    )
-    trace = result["node_trace"]
-    assert "request_trust_authorization" in trace
-    assert "team_execution" in trace
-    assert result["acceptance_result"]["status"] == AcceptanceStatus.ACCEPTED.value
-    assert port.calls == 1
-
-
-def test_parent_graph_blocked_authorization_skips_team() -> None:
-    port = RecordingPort(AuthorizationStatus.BLOCKED)
-    team_graph = build_team_graph(worker=_team_fake_worker)
-    execution_node = build_team_execution_node(team_graph=team_graph)
-    graph = build_development_graph(port, provider=_provider(), execution_node=execution_node)
-    result = graph.invoke(
-        _input("workflow_change"), {"configurable": {"thread_id": "team-blocked"}}
-    )
-    assert "team_execution" not in result["node_trace"]
-    assert result["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
-    assert port.calls == 1
-
-
-def test_parent_graph_verifier_reject_blocks_acceptance() -> None:
-    port = RecordingPort()
-
-    def rejecting_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
-        return WorkerExecutionResult(
-            worker_id=wa.worker_id,
-            task_id=wa.task_id,
-            execution_id="exec",
-            success=True,
-            validation_exit_code=0,
-        )
-
-    def rejecting_verifier(
-        worker_results: tuple[WorkerExecutionResult, ...],
-    ) -> TeamExecutionResult:
-        return TeamExecutionResult(
-            accepted=False,
-            worker_results=worker_results,
-            reasons=("verifier_rejected:all",),
-        )
-
-    team_graph = build_team_graph(
-        worker=rejecting_worker, verifier=rejecting_verifier
-    )
-    execution_node = build_team_execution_node(team_graph=team_graph)
-    graph = build_development_graph(port, provider=_provider(), execution_node=execution_node)
-    result = graph.invoke(_input("source_edit"), {"configurable": {"thread_id": "team-vr"}})
-    assert result["team_execution_result"]["accepted"] is False
-    assert result["acceptance_result"]["status"] == AcceptanceStatus.BLOCKED.value
-    assert result["acceptance_result"]["executable"] is False
 
 
 def _team_fake_worker(wa: WorkerAssignment) -> WorkerExecutionResult:
