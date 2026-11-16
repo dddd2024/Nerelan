@@ -253,6 +253,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
               or "tool_use" in needs and metadata.get("tool_use") is False
               or "chinese" in needs and metadata.get("chinese") is False):
             reason = "modality"
+        elif candidate.get("availability", {}).get("reason") == "no_credits":
+            # A billing hold is not a quota window: it lasts until credits are
+            # bought, so it is reported as itself rather than as the generic
+            # quota exhaustion that the same failure also triggers (#1525).
+            reason = "availability:no_credits"
         elif quota.get("reason") == "account_quarantined":
             reason = "account_quarantined"
         elif quota.get("reason") in CONFIRMED_EXHAUSTION_REASONS | {"predicted_insufficient", "quota_capacity"}:

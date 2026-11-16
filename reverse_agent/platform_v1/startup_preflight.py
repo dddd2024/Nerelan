@@ -23,6 +23,11 @@ class WindowState:
     status: str
     starts_at: str
     expires_at: str
+    confirmation_mode: str = ""
+
+    @property
+    def continuous(self) -> bool:
+        return self.confirmation_mode == "OWNER_WINDOW" and self.expires_at == ""
 
 
 @dataclass(frozen=True)
@@ -78,7 +83,8 @@ def assess_boot_readiness(
                for k, v in task_counts.items()):
             raise ValueError("unknown_task_state")
         for w in windows:
-            start, end = _parse_time(w.starts_at), _parse_time(w.expires_at)
+            start = _parse_time(w.starts_at)
+            end = datetime.max.replace(tzinfo=timezone.utc) if w.continuous else _parse_time(w.expires_at)
             if start >= end:
                 raise ValueError("bad_window_boundary")
         active_claims = [c for c in claims if c.status == "ACTIVE"]
@@ -99,7 +105,7 @@ def assess_boot_readiness(
                 required_next_action="WAIT_FOR_OWNER_WINDOW")
         w = active[0]
         report["active_window_id"] = w.id
-        if not (_parse_time(w.starts_at) <= current < _parse_time(w.expires_at)):
+        if not (_parse_time(w.starts_at) <= current and (w.continuous or current < _parse_time(w.expires_at))):
             return report | dict(
                 state="HOLD_WINDOW_TIME_MISMATCH", reason="active_status_outside_time",
                 required_next_action="VERIFY_WINDOW_LIFECYCLE")
@@ -139,7 +145,7 @@ def inspect_task_store(db: str | Path, *, now: datetime | None = None) -> dict[s
         connection.execute("BEGIN")
         windows = [
             WindowState(*row) for row in connection.execute(
-                "SELECT id,status,starts_at,expires_at FROM platform_autonomous_windows")]
+                "SELECT id,status,starts_at,expires_at,confirmation_mode FROM platform_autonomous_windows")]
         claims = [
             ClaimState(*row) for row in connection.execute(
                 "SELECT task_id,window_id,status FROM platform_coordinator_claims")]

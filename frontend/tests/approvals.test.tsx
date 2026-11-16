@@ -112,8 +112,8 @@ describe("Approvals continuation page", () => {
     // Approving no longer exists as a separate step outside a delegated host.
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
 
-    await user.click(await screen.findByTestId("start-preset-week"));
-    await waitFor(() => expect(screen.getByTestId("start-bounds")).toHaveTextContent("时长 7 天"));
+    await waitFor(() => expect(screen.getByTestId("start-bounds")).toHaveTextContent("持续运行，直到你停止"));
+    expect(screen.queryByTestId("start-preset-week")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
     expect(screen.getByTestId("start-preflight")).toHaveTextContent("检查通过，可以开始。");
     await user.click(screen.getByTestId("start-button"));

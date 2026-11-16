@@ -60,6 +60,19 @@ export function useGoals() {
   });
 }
 
+const GOAL_FINISHED = new Set(["COMPLETED", "SUCCEEDED", "CANCELLED", "FAILED", "ARCHIVED"]);
+
+/**
+ * How often the goal detail refreshes. A stopped (BLOCKED) goal can be resumed
+ * from elsewhere (a supervisor retry, another window or tab), so it keeps a
+ * slower poll; without it the cached goal kept naming an old attempt while the
+ * timeline moved on (2026-11-14, #1521). Only a finished goal stops polling.
+ */
+export function goalRefetchInterval(status: string | undefined): number | false {
+  if (status === "RUNNING") return 2_500;
+  return status && GOAL_FINISHED.has(status) ? false : 10_000;
+}
+
 export function useGoal(goalId: string | undefined) {
   return useQuery({
     queryKey: ["goals", goalId],
@@ -70,10 +83,7 @@ export function useGoal(goalId: string | undefined) {
     },
     enabled: Boolean(goalId),
     staleTime: 1_500,
-    refetchInterval: (query) => {
-      const status = (query.state.data as { status?: string } | undefined)?.status;
-      return status === "RUNNING" ? 2_500 : false;
-    },
+    refetchInterval: (query) => goalRefetchInterval((query.state.data as { status?: string } | undefined)?.status),
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
