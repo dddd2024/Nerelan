@@ -1385,6 +1385,10 @@ class OwnedCliProcessResult:
     # Stopped because the CLI wrote nothing for ``stall_seconds`` (#1473), not
     # because the overall timeout ran out. ``timed_out`` is also True then.
     stalled: bool = False
+    # Stopped because a provider 429 error event was detected in streaming
+    # stdout (#1488), instead of waiting out the stall timer. ``timed_out``
+    # is also True then.
+    provider_429_detected: bool = False
 
 
 # A CLI that writes nothing for this long is stopped (#1473). OpenCode streams JSON
@@ -1446,8 +1450,25 @@ def _run_owned_cli_process(
     process_error: BaseException | None = None
     output_truncated = False
     stalled = False
+    provider_429_detected = False
     last_output = time.monotonic()
-    line_sink = _STDOUT_LINE_SINK.get()
+    _progress_sink = _STDOUT_LINE_SINK.get()
+    provider_429_event = threading.Event()
+
+    def _429_aware_sink(line: bytes) -> None:
+        if _progress_sink is not None:
+            try:
+                _progress_sink(line)
+            except Exception:
+                pass
+        try:
+            event = json.loads(line.decode("utf-8", errors="replace"))
+        except (ValueError, UnicodeDecodeError):
+            return
+        if detect_provider_429(event):
+            provider_429_event.set()
+
+    line_sink = _429_aware_sink
 
     def _deliver_lines(pending: bytearray, chunk: bytes) -> None:
         pending.extend(chunk)
@@ -1547,6 +1568,9 @@ def _run_owned_cli_process(
                 break
             except subprocess.TimeoutExpired:
                 pass
+            if provider_429_event.is_set():
+                timed_out = provider_429_detected = True
+                break
             if stall_seconds:
                 with lock:
                     silent = time.monotonic() - last_output
@@ -1616,6 +1640,7 @@ def _run_owned_cli_process(
         cleanup_confirmed=cleanup_confirmed,
         output_truncated=output_truncated,
         stalled=stalled,
+        provider_429_detected=provider_429_detected,
     )
 
 
@@ -1877,7 +1902,13 @@ class OpenCodeExecutor:
         timed_out = owned.timed_out
         cleanup_confirmed = owned.cleanup_confirmed
         stalled = bool(getattr(owned, "stalled", False))
-        timeout_class = "executor_stalled" if stalled else "timeout"
+        provider_429_detected = bool(getattr(owned, "provider_429_detected", False))
+        if provider_429_detected:
+            timeout_class = "api_error_429"
+        elif stalled:
+            timeout_class = "executor_stalled"
+        else:
+            timeout_class = "timeout"
 
         if timed_out:
             # Preserve bounded, sanitized partial diagnostics while keeping
@@ -1967,9 +1998,20 @@ class OpenCodeExecutor:
 
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
-                "title": "OpenCode stalled" if stalled else "OpenCode timeout",
-                "description": ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
-                                if stalled else "OpenCode CLI exceeded timeout"),
+                "title": (
+                    "OpenCode provider 429 detected"
+                    if provider_429_detected
+                    else "OpenCode stalled"
+                    if stalled
+                    else "OpenCode timeout"
+                ),
+                "description": (
+                    "Provider 429 error detected in streaming output; stopped early"
+                    if provider_429_detected
+                    else "OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
+                    if stalled
+                    else "OpenCode CLI exceeded timeout"
+                ),
                 "metadata": {
                     "execution_id": execution_id,
                     "timeout": self._timeout,
@@ -1982,13 +2024,16 @@ class OpenCodeExecutor:
                     "partial_text_items": len(partial_text_parts),
                     "output_truncated": owned.output_truncated,
                     "usage_accounting": "UNKNOWN",
+                    "provider_429_detected": provider_429_detected,
                 },
             })
             # Never collect/hash/snapshot worktree files while owned
             # descendants may still be mutating them.
             changed_files = _collect_changed_files(worktree) if cleanup_confirmed else []
             error = "opencode_timeout:%s" % self._timeout
-            if stalled:
+            if provider_429_detected:
+                error = "opencode_provider_429_detected"
+            elif stalled:
                 error = "opencode_stalled:%s" % int(executor_stall_seconds() or 0)
             if not cleanup_confirmed:
                 error = "opencode_timeout:cleanup_unconfirmed:%s" % self._timeout
@@ -3569,7 +3614,7 @@ def _pick_error_str(payload: dict[str, Any]) -> str:
 
 
 def _pick_error_status(payload: dict[str, Any]) -> int | None:
-    """Extract numeric HTTP statusCode/status_code from an error payload."""
+    """Extract numeric HTTP statusCode/status_code/status from an error payload."""
     if not isinstance(payload, dict):
         return None
     for k in ("statusCode", "status_code", "status"):
@@ -3583,6 +3628,28 @@ def _pick_error_status(payload: dict[str, Any]) -> int | None:
             if isinstance(v, int):
                 return v
     return None
+
+
+def detect_provider_429(event: Any) -> bool:
+    """True when a parsed OpenCode JSON line is a provider 429 error event.
+
+    Recognizes the same structured ``statusCode``/``status_code``/``status``
+    == 429 that ``_classify_exit`` scans for on the final event stream, using
+    the same error-payload extraction logic (``type`` ``error`` /
+    ``session.error`` or a direct ``error`` mapping, including one level down
+    in a ``data`` sub-dict). Non-error text, tool output, and other events
+    never match, so a line that merely mentions ``429`` in prose is not a
+    provider 429 signal. Used by the streaming drain thread to stop a CLI
+    that has already received a 429 instead of waiting out the stall timer.
+    """
+    if not isinstance(event, Mapping):
+        return False
+    kind = event.get("type")
+    error = event.get("error")
+    if kind not in ("error", "session.error") and not isinstance(error, Mapping):
+        return False
+    payload = error if isinstance(error, Mapping) else event
+    return _pick_error_status(payload) == 429
 
 
 # Allowlisted error-envelope fields retained in the bounded diagnostic. Body,
