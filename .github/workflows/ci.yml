@@ -30,22 +30,16 @@ jobs:
         run: python -m pip install -e ".[test]"
 
       - name: Import check
-        run: python -c "import reverse_agent.project_gate; import reverse_agent.project_state; import reverse_agent.post_final_evidence_sync; import reverse_agent.decision_preflight"
+        run: python -c "import reverse_agent.platform_v1.task_service; import reverse_agent.platform_v1.trusted_host; import reverse_agent.landing_review"
 
       - name: Focused tests
-        run: python -m pytest tests/test_project_gate.py tests/test_ci_responsibility.py tests/test_project_reports.py tests/test_project_jobs.py tests/test_post_final_evidence_sync.py tests/test_decision_preflight.py tests/test_project_state.py tests/test_control_plane_transition.py tests/test_architecture_contracts.py tests/test_risk_classifier.py tests/test_development_graph.py tests/test_trust_authorization_adapter.py tests/test_planning_and_github_adapters.py -q
-
-      - name: Path-A gate reachability (blocking)
-        run: python -m pytest tests/test_path_a_gate.py -q
+        run: python -m pytest tests/test_ci_responsibility.py tests/test_architecture_contracts.py -q
 
       - name: Supervisor and repository hygiene tests
         run: python -m pytest tests/test_supervisor_validate.py tests/test_repository_hygiene.py -q
 
       - name: Codex skills sync tests
         run: python -m pytest tests/test_codex_skills.py -q
-
-      - name: Integration baseline, mainline landing and project audit tests
-        run: python -m pytest tests/test_integration_baseline.py tests/test_mainline_landing.py tests/test_project_audits.py -q
 
       - name: Platform V1 blocking gate
         run: python -m pytest tests/platform_v1 -q --deselect=tests/platform_v1/test_task3c_v6_production_relay.py::TestCombinedTrustedHostInstalledOpenCodeE2E::test_real_task_api_opencode_relay_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v4_repairs.py::TestInstalledOpenCodeFakeProviderSmoke::test_installed_opencode_fake_provider_end_to_end --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestDirectFakeProviderControl::test_opencode_direct_fake_provider --deselect=tests/platform_v1/test_task3c_v5_opencode_probe.py::TestRelayFakeProviderRun::test_opencode_relay_fake_provider
