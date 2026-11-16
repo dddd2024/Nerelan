@@ -105,7 +105,7 @@ shared dependency state was unchanged during that original attempt.
 
 ## Delegated checker (retired)
 
-The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code is on the archive branch `archive/legacy-v1-20261116`. `GET /api/windows/policy` always reports `trusted_policy_unavailable`, and `POST /api/windows/activate` refuses with `owner_selection_confirmation_unavailable`; Owner windows are activated through the host-native confirmation path.
+The delegated policy-authority mode (`REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON`, `PolicyAuthority`, `activate_policy`) was retired in #1575 under Owner decision D1; Owner windows replaced it. Its code was deleted; it remains only in Git history (a7b62777). `GET /api/windows/policy` always reports `trusted_policy_unavailable`, and `POST /api/windows/activate` refuses with `owner_selection_confirmation_unavailable`; Owner windows are activated through the host-native confirmation path.
 
 Windows, claims and operation receipts remain in the existing TaskStore SQLite
 database. Replays preserve spending and terminal windows. Receipt totals use all

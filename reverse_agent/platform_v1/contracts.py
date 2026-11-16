@@ -24,7 +24,7 @@ MAX_ATTEMPTS = 2  # at most one bounded retry; the third attempt is rejected
 
 # Module-private sentinel required to construct live evidence.
 # No live collector remains in main: the v1 Path A collector that held it was
-# retired in #1575 (archive/legacy-v1-20261116), so live evidence cannot be built.
+# retired in #1575 (deleted; last held at a7b62777), so live evidence cannot be built.
 _LIVE_FACTORY_TOKEN = object()
 
 VALID_ACCEPTANCE_STATUSES = frozenset({
