@@ -1,7 +1,7 @@
 # Pi / pi-mono：跨对话研究归档（2026-11-16）
 
-**原研究定位：** Pi 是候选 Agent Executor/Harness，而不是 Nerelan 的第二个任务协调器或账本。  
-**历史对话研究版本：** `earendil-works/pi@22fc026b`（仓库原名 `badlogic/pi-mono` 曾有迁移/重定向）；本次在该 Git SHA 上复核了以下源码/文档路径。  
+**原研究定位：** Pi 是候选 Agent Executor/Harness，而不是 Nerelan 的第二个任务协调器或账本。
+**历史对话研究版本：** `earendil-works/pi@22fc026b`（仓库原名 `badlogic/pi-mono` 曾有迁移/重定向）；本次在该 Git SHA 上复核了以下源码/文档路径。
 **研究状态：** `HISTORICAL_CHAT_STUDY + SOURCE_SPOTCHECKED / NOT_RUNTIME_TESTED`。原聊天的可公开固定消息链接和完整对话原文不可从当前 GitHub 项目获取；不声称历史已有独立 Issue/PR。研究总入口 [#1576](https://github.com/dddd2024/Nerelan/issues/1576)。
 
 ## 复核过的源码/协议
