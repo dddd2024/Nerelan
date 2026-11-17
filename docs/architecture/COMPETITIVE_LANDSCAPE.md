@@ -20,6 +20,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Magpie | 本机 `F:\magpie` | 高：同服务账户切换、额度等待、请求重试 | 已复用，作为账户层 owner | 账户池、额度窗口、模型网关（`fetch_magpie_snapshot`） | 已是复用对象；Nerelan 只保留任务级能力匹配、周配速和授权边界 | 路由归属验收（见下）完成后，决定本地哪些路径降为 fallback | 2026-11-08 |
 | OpenBot | `CopilotKit/OpenBot` | 中高：隔离浏览器与文件环境、工具调用前后的权限网关、AG-UI | 研究可插拔执行层 | 无 | Beta 阶段，需要自带服务、数据库和执行环境；整套移植会让它接管任务状态 | 核心任务闭环通过后，评估把隔离浏览器作为可选工具，由宿主做权限决策 | 2026-11-08 |
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
+| MCP Inspector v2 | `modelcontextprotocol/inspector` | 中：MCP SDK 协议握手、tool schema、可组合测试服务器与崩溃用例、Skill/manifest 检验 | 只选测试模式（研究未实装） | [官方固定源码审计](reuse-study-2026-11-16/mcp-inspector-v2.md) / [#1650](https://github.com/dddd2024/Nerelan/issues/1650)；现有 capability_registry 只做元数据 | Web UI/mcpdo daemon/secret fallback 不是 Nerelan Host 授权；默认执行未知 server 或最新 npx 会扩大安全面 | #790 有真实 Connector 后，隔离的 provider-free 协议故障用例证明比直接使用官方 SDK 测试更有价值时 | 2026-11-17 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
