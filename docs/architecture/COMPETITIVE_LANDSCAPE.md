@@ -49,10 +49,10 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 
 | 仓库 | 来源查询 | 说明（仓库自述） |
 |---|---|---|
-| `savannahfeder/agentbox` | coding agent worktree | 桌面端并行运行多个 Claude Code / Codex，每个在独立 worktree |
+| `savannahfeder/agentbox` | coding agent worktree | **已固定源码审计（2026-11-17）**：[Issue #1637](https://github.com/dddd2024/Nerelan/issues/1637) / [报告](reuse-study-2026-11-16/agentbox.md)。GPL-3.0-or-later（禁直接代码复制，需先做许可评估）。BORROW_PATTERN：Harness “registered≠admitted”、用户实际看到的审批卡片 digest + Ed25519 签名/原动作核验、纯函数 Inbox、TaskID worktree clean/merged 回收、Git 事实 diff、可信 Host 串行发布。拒绝 worker 可写 JSONL 的 `source:founder` 冒充 Owner、`.env` 拷贝给不可信 Agent、单进程 `ship-handled.json` 作 exactly-once、第二套 Store 或 Electron runtime。静态调研，未装/未测。 |
 | `cosscom/shipyard` | coding agent worktree | 在开发机上运行编码 Agent：worktree、终端、编排、桌面应用 |
 | `wangmiaozero/pi-harness` | multi-agent coding orchestration | Pi Coding Agent 的运维超集：可观测性、治理、故障恢复、评测、多 Agent 编排 |
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+本雷达的 **Agentbox** 已完成固定版本源码静态审计（[#1637](https://github.com/dddd2024/Nerelan/issues/1637)、[报告](reuse-study-2026-11-16/agentbox.md)），本行仅在尚未合并的研究 Draft PR 上。其他候选的最新专项状态应查阅 [#1576 研究总索引](https://github.com/dddd2024/Nerelan/issues/1576) 及对应 Issues/PR，不应再把初始“尚未分诊”说明当作现状。
