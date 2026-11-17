@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import logging
 import math
 from pathlib import Path
 import re
@@ -38,6 +39,69 @@ GATEWAY_COST_CLASSES = {
     "codex": "subscription",
     "claude": "subscription",
 }
+
+# Magpie routing ids (Owner decision 2026-11-17, "route by Magpie group, not account"):
+# ``group/<id>`` names an Owner-created routing group whose members are several
+# accounts serving the same model, and ``auto/<id>`` names Magpie's auto-router.
+# The gateway fails over across members inside one request.
+ROUTING_GROUP_NAMESPACES = ("group", "auto")
+
+
+def routing_group_id(model_id: Any) -> str:
+    """``group/<id>`` or ``auto/<id>`` named by a model id, lower-cased, else "".
+
+    The id may carry one provider prefix (``magpie/group/<id>``), as a resolved
+    binding's model id does. ``openrouter/auto`` names no group.
+    """
+    if not isinstance(model_id, str):
+        return ""
+    model = model_id.strip().lower()
+    for candidate in (model, model.split("/", 1)[1] if "/" in model else ""):
+        head, _, rest = candidate.partition("/")
+        if head in ROUTING_GROUP_NAMESPACES and rest.strip("/"):
+            return candidate
+    return ""
+
+
+def upstream_namespace(model_id: Any) -> str:
+    """The upstream a gateway model id spends: ``trae-cn`` for ``trae-cn/glm-5.2``, else "".
+
+    A routing group is its own upstream (``group:<id>``): its members are separate
+    accounts, so one group's refusal or stall says nothing about another group or
+    about a single-account binding.
+    """
+    group = routing_group_id(model_id)
+    if group:
+        head, _, rest = group.partition("/")
+        return f"{head}:{rest}"
+    model = str(model_id or "")
+    return model.split("/", 1)[0].lower() if "/" in model else ""
+
+
+def parse_groups(raw: Any) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Valid Owner group declarations and the errors of the ignored ones.
+
+    Shape: ``{"group/<id>": {"identity": "<model>"}}``. A key must name a ``group/``
+    or ``auto/`` id and the identity must be a non-empty string. An invalid entry
+    is ignored (its group then stays undeclared, which review treats as never
+    independent) and reported, without discarding the rest of the file.
+    """
+    if raw is None:
+        return {}, []
+    if not isinstance(raw, Mapping):
+        return {}, ["invalid_model_routing_groups"]
+    groups: dict[str, dict[str, str]] = {}
+    errors: list[str] = []
+    for key, value in raw.items():
+        name = key.strip().lower() if isinstance(key, str) else ""
+        identity = value.get("identity") if isinstance(value, Mapping) else None
+        if (not name or not name.startswith(tuple(f"{n}/" for n in ROUTING_GROUP_NAMESPACES))
+                or routing_group_id(name) != name or not isinstance(identity, str) or not identity.strip()):
+            errors.append(f"invalid_model_routing_group:{key if isinstance(key, str) else type(key).__name__}")
+            continue
+        groups[name] = {"identity": identity.strip()}
+    return groups, errors
+
 
 # Weekly pacing for subscription accounts whose weekly allowance must last the
 # week (Owner requirement 2026-11-07): use may run ahead of elapsed time by
@@ -173,6 +237,11 @@ def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any]
     model = model_id.lower()
     if model.endswith((":free", "-free")):
         return "free"
+    if (connection.get("auth_method") == "none"
+            and model.startswith(tuple(f"{n}/" for n in ROUTING_GROUP_NAMESPACES))):
+        # A Magpie routing group or auto-router on the keyless gateway fails over
+        # across the Owner's own subscription accounts (2026-11-17), not a per-token route.
+        return "subscription"
     namespace = model.split("/", 1)[0]
     if namespace in GATEWAY_COST_CLASSES:
         return GATEWAY_COST_CLASSES[namespace]
@@ -187,7 +256,7 @@ def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any]
 
 
 def read_overrides(state_path: Path | None) -> dict[str, Any]:
-    """Owner-owned JSON beside setup state: {bindings/models/connections, reset_buffer}."""
+    """Owner-owned JSON beside setup state: {bindings/models/connections/groups, reset_buffer}."""
     if state_path is None:
         return {}
     path = Path(state_path).with_name("model_routing_overrides.json")
@@ -249,6 +318,11 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         raise ValueError("invalid_model_routing_overrides")
     if type(data.get("availability_probes", True)) is not bool:
         raise ValueError("invalid_model_routing_overrides")
+    groups, group_errors = parse_groups(data.get("groups"))
+    data["groups"] = groups
+    if group_errors:
+        data["group_errors"] = group_errors
+        logging.getLogger(__name__).warning("model_routing_overrides.json: ignored %s", ", ".join(group_errors))
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
             or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh"))

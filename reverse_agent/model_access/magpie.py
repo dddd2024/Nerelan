@@ -119,7 +119,8 @@ def parse_models(payload: Any) -> list[dict[str, Any]]:
             "native_endpoints": [endpoint for endpoint in item.get("native_endpoints", [])
                                  if isinstance(endpoint, str) and endpoint in {"/v1/responses", "/responses", "/v1/chat/completions", "/chat/completions", "responses", "chat/completions"}]
                 if isinstance(item.get("native_endpoints", []), list) else [],
-            "is_group": "/" not in model_id,
+            # A Magpie routing group or auto-router id, served by several member accounts.
+            "is_group": model_id.startswith(("group/", "auto/")),
         })
     return result
 

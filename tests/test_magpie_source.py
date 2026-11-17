@@ -42,9 +42,10 @@ def test_models():
     models = parse_models(envelope(
         {"id": "workbuddy/glm-5.2", "owned_by": "workbuddy", "display_name": "GLM",
          "reasoning": True, "context_window": 200000, "max_output_tokens": 32000},
-        {"id": "workbuddy-ai/model", "owned_by": "workbuddy-ai"}, {"id": "routing"}))
-    assert [m["provider"] for m in models] == ["workbuddy", "workbuddy-ai", None]
-    assert [m["is_group"] for m in models] == [False, False, True]
+        {"id": "workbuddy-ai/model", "owned_by": "workbuddy-ai"}, {"id": "routing"},
+        {"id": "group/nerelan-glm-5-3"}, {"id": "auto/glm-5.3"}))
+    assert [m["provider"] for m in models] == ["workbuddy", "workbuddy-ai", None, "group", "auto"]
+    assert [m["is_group"] for m in models] == [False, False, False, True, True]
     assert models[0]["context_window"] == 200000
     assert models[0]["reasoning"] is True
     assert parse_models("{") == []

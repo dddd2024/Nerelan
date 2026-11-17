@@ -88,7 +88,22 @@ def _post(base_url, body, headers):
     return json.loads(raw, object_pairs_hook=unique)
 
 
-def review(prompt, resolution, lease_provider):
+def group_member_served(selected, served, groups):
+    """A Magpie routing group answered from one of its members (Owner decision 2026-11-17).
+
+    Magpie may echo the group id (equal to the selection, checked by the caller) or
+    the member model that served. A member passes only when the selected group is
+    declared and the member has that same declared identity; another group, an
+    undeclared group or a different identity never passes.
+    """
+    from .model_router import model_identity
+    from .routing_inputs import routing_group_id
+    identity = model_identity(selected, groups)
+    return bool(routing_group_id(selected) and identity and not routing_group_id(served)
+                and model_identity(served, groups) == identity)
+
+
+def review(prompt, resolution, lease_provider, groups=None):
     validate_connection(resolution, lease_provider)
     lease = None
     try:
@@ -115,8 +130,10 @@ def review(prompt, resolution, lease_provider):
         if not isinstance(payload, dict):
             raise TaskStoreError("model_review_invalid_output")
         actual = payload.get("model")
-        if (not isinstance(actual, str) or not actual.strip()
-                or _normalize_model_id(resolution.provider_id, actual) != resolution.model_id):
+        if not isinstance(actual, str) or not actual.strip():
+            raise TaskStoreError("review_not_independent")
+        served = _normalize_model_id(resolution.provider_id, actual)
+        if served != resolution.model_id and not group_member_served(resolution.model_id, served, groups):
             raise TaskStoreError("review_not_independent")
         choices = payload.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:
@@ -133,7 +150,8 @@ def review(prompt, resolution, lease_provider):
         request_id = payload.get("id")
         if not isinstance(request_id, str) or not request_id.strip():
             raise TaskStoreError("model_review_invalid_output")
-        return {"response": text, "actual_models": [resolution.model_id], "request_id": request_id,
+        # A group's member echo is recorded as itself: the evidence names what served.
+        return {"response": text, "actual_models": [served], "request_id": request_id,
                 "quota_observations": []}
     except (TaskStoreError, ExecutorRuntimeError):
         raise

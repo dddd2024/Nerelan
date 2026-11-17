@@ -297,6 +297,21 @@ def test_a_stall_cools_its_whole_upstream_like_a_limit_hit_hold(monkeypatch, tmp
     assert host._liveness_cooldown(bindings[0]) is None
 
 
+def test_a_stall_on_one_magpie_group_cools_no_other_group_or_binding(monkeypatch, tmp_path):
+    """Owner decision 2026-11-17: each group/* id is its own upstream on the gateway."""
+    host, attempt = _stall_host(monkeypatch, tmp_path)
+    gateway = {"connection_id": "magpie", "base_url": "http://127.0.0.1:3425/v1", "auth_method": "none"}
+    bindings = [{"binding_id": "g-glm", "connection_id": "magpie", "model_id": "group/nerelan-glm-5-3"},
+                {"binding_id": "g-kimi", "connection_id": "magpie", "model_id": "group/nerelan-kimi"},
+                {"binding_id": "glm", "connection_id": "magpie", "model_id": "trae-cn/glm-5.3"}]
+    monkeypatch.delenv("REVERSE_AGENT_MAGPIE_URL", raising=False)
+    monkeypatch.setattr(host._store, "list_connections_public", lambda: [gateway])
+    monkeypatch.setattr(host._store, "list_bindings_public", lambda: bindings)
+    attempt("g-glm")
+    assert {b["binding_id"] for b in bindings if host._liveness_cooldown(b)} == {"g-glm"}
+    assert host._liveness_cooldown(bindings[0])["upstream"] == "gateway:magpie:group:nerelan-glm-5-3"
+
+
 def test_cooldown_reads_the_task_table_once_per_routing_pass(monkeypatch, tmp_path):
     """~170 bindings and ~20k task rows: one indexed query, well under 250 ms."""
     import time as real_time

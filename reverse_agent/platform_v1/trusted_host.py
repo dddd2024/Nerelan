@@ -67,9 +67,12 @@ from .remote_jobs import configured_broker
 
 
 def _upstream_namespace(binding: Mapping[str, Any] | None) -> str:
-    """The upstream a gateway binding routes to: ``trae-cn`` for ``trae-cn/glm-5.2``, else ""."""
-    model = str((binding or {}).get("model_id") or "")
-    return model.split("/", 1)[0].lower() if "/" in model else ""
+    """The upstream a gateway binding routes to: ``trae-cn`` for ``trae-cn/glm-5.2``, else "".
+
+    A Magpie routing group is its own upstream, ``group:<id>`` (2026-11-17).
+    """
+    from .routing_inputs import upstream_namespace
+    return upstream_namespace((binding or {}).get("model_id"))
 
 
 class CombinedTrustedHost:
@@ -151,6 +154,8 @@ class CombinedTrustedHost:
         self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
         self._store.magpie_status = self._magpie.status
         self._task_store = task_store
+        # Review evidence checks read the Owner's declared Magpie routing groups (2026-11-17).
+        self._task_store.routing_groups = self._routing_groups
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
         if claude_code_readiness_probe is not None:
@@ -748,7 +753,7 @@ class CombinedTrustedHost:
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                     refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                     reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
-                    weekly_pace=weekly_pace_config(owner))
+                    weekly_pace=weekly_pace_config(owner), groups=owner.get("groups", {}))
                 can_probe = True
             except ValueError:
                 can_probe = False
@@ -787,13 +792,26 @@ class CombinedTrustedHost:
                                 exploration_draw=1.0 if forecast else random.random(),
                                 account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
                                 avoid_bindings=tuple(avoid_bindings),
-                                stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0)
+                                stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
+                                groups=owner.get("groups", {}))
             decision["context_packet_reservation"] = 16384 + 256
+            if owner.get("group_errors"):
+                decision["group_errors"] = list(owner["group_errors"])
             return decision
         except ValueError as exc:
             error = TaskStoreError(str(exc))
             error.decision = getattr(exc, "decision", {"reason": str(exc)})
+            if owner.get("group_errors") and isinstance(error.decision, dict):
+                error.decision["group_errors"] = list(owner["group_errors"])
             raise error from exc
+
+    def _routing_groups(self) -> Mapping[str, Any]:
+        """The Owner's declared Magpie routing groups; unreadable overrides declare none."""
+        from .routing_inputs import read_overrides
+        try:
+            return read_overrides(getattr(self._store, "_state_path", None)).get("groups", {})
+        except ValueError:
+            return {}
 
     def _routing_paid_allowed(self, goal: Any, owner: Mapping[str, Any] | None = None) -> bool:
         # Owner configuration names a specific active window; a generic setting

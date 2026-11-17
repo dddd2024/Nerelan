@@ -994,9 +994,10 @@ class GoalService:
                                               failed_tier=held_tier, **self._review_authors(plan_task, goal, planned))
             except TaskStoreError:
                 continue
-            from .model_router import model_identity
+            from .model_router import model_identity, store_groups
+            groups = store_groups(self.store)
             same_model = bool(selected.get("model_id")) and model_identity(
-                str(decision.get("model_id") or "")) == model_identity(str(selected["model_id"]))
+                str(decision.get("model_id") or ""), groups) == model_identity(str(selected["model_id"]), groups)
             if (decision.get("binding_ref") in {"", task.binding_ref} or same_model
                     or decision.get("downgrade_fallback")
                     or type(decision.get("tier")) is not int or decision["tier"] < held_tier):
