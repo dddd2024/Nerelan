@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| MCP Registry | `modelcontextprotocol/registry` | 高：官方 MCP Server 公共目录、server.json、版本生命周期、发布者及包所有权验证、增量同步 | 借鉴只读发现与本地受信准入分层，不引入完整 Go/Postgres 注册中心 | [固定源码报告](reuse-study-2026-11-16/mcp-registry.md) / [#1674](https://github.com/dddd2024/Nerelan/issues/1674)；Nerelan 已有 metadata-only CapabilityRegistry、Owner grant、TaskStore 与 MCP Owner #790 | 官方登记不是本机执行授权；isLatest 可对应 deprecated；非 MCPB 包的 fileSha256 可选；增量同步须保留 deleted tombstones；源仓库 MIT→Apache2 许可转换，文档 CC-BY | 只读目录导入与固定摘要、沙箱、失效撤销通过离线测试且真实连接器设置效率提高时 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
