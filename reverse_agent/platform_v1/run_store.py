@@ -130,6 +130,48 @@ def _short_uuid() -> str:
     return uuid.uuid4().hex[:12]
 
 
+# A host restart that stopped workspace preparation before anything ran (2026-11-17).
+ORPHANED_PREPARATION = "orphaned_preparation"
+
+
+def pre_dispatch_interruption(conn: sqlite3.Connection, task: Any, *, now_ms: int | None = None,
+                              own_claim: bool = False) -> bool:
+    """True when nothing of the task's latest attempt was dispatched and nothing can still be live.
+
+    All must hold: the task is not a model review (a review calls its model without a
+    PRE_PLANNER checkpoint and resumes from an empty one); its latest durable run (if any)
+    has neither a prepared worktree nor an accepted checkpoint (the model only runs after
+    PRE_PLANNER is accepted); the task has no external-operation row at all; no durable lease
+    is live; and no ACTIVE coordinator claim is unexpired (``own_claim``: the caller's own
+    current claim is the only live one, checked by the caller's fence). Such an attempt can
+    be closed and replaced without risk of a second executor or a duplicated outside call.
+    """
+    from .artifact_handoff import model_review_input
+    try:
+        if model_review_input(task):
+            return False
+    except Exception:  # noqa: BLE001 - an unreadable contract is never treated as pre-dispatch
+        return False
+    task_id = task.id
+    now_ms = _utc_now_ms() if now_ms is None else now_ms
+    run = conn.execute(
+        "SELECT worktree_prepared_at, accepted_checkpoint FROM durable_runs WHERE task_id = ? "
+        "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
+    if run is not None and (run["worktree_prepared_at"] or run["accepted_checkpoint"]):
+        return False
+    if conn.execute("SELECT 1 FROM durable_external_operations WHERE task_id = ? LIMIT 1",
+                    (task_id,)).fetchone() is not None:
+        return False
+    if conn.execute("SELECT 1 FROM durable_runs WHERE task_id = ? AND lease_owner != '' "
+                    "AND lease_expiry_ms > ? LIMIT 1", (task_id, now_ms)).fetchone() is not None:
+        return False
+    if own_claim or conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                                 "AND name = 'platform_coordinator_claims'").fetchone() is None:
+        return True
+    return conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE task_id = ? AND status = 'ACTIVE' "
+                        "AND expires_at_ms > ? LIMIT 1", (task_id, now_ms)).fetchone() is None
+
+
 def _is_truthy_id(value: str | None) -> bool:
     return value is not None and value.strip() != ""
 
@@ -3263,6 +3305,48 @@ class TaskStore:
                     "RUNNING_FIXTURE", "VALIDATING",
                 ):
                     cur.execute("ROLLBACK")
+                    continue
+                try:
+                    pre_dispatch = (not orphaned and current_status == "PREPARING_WORKSPACE"
+                                    and pre_dispatch_interruption(cur.connection, self.get_task(task_id),
+                                                                  now_ms=now_ms))
+                except TaskStoreError:
+                    pre_dispatch = False  # unreadable: the INTERRUPTED path below, as before
+                if pre_dispatch:
+                    # A host restart stopped preparation before anything was dispatched
+                    # (2026-11-17): resume has no reconstruction path for such a run, so it
+                    # is closed as a host fault that the goal's retry path replaces.
+                    fenced = cur.execute(
+                        "UPDATE durable_runs SET recovery_classification = 'orphan_stale_lease', "
+                        "lease_owner = '', interrupted_at = ?, updated_at = ? "
+                        "WHERE run_id = ? AND lease_owner = ? AND lease_epoch = ? AND lease_expiry_ms < ? "
+                        "AND recovery_classification IN ('normal', 'orphan_stale_lease')",
+                        (_utc_now(), _utc_now(), run_id, row["lease_owner"], int(row["lease_epoch"]),
+                         now_ms)).rowcount
+                    closed = fenced and cur.execute(
+                        "UPDATE tasks SET status = 'FAILED', failure_classification = ?, failure_detail = ?, "
+                        "failure_at = ?, updated_at = ? WHERE id = ? AND status = 'PREPARING_WORKSPACE'",
+                        (ORPHANED_PREPARATION, ORPHANED_PREPARATION, _utc_now(), _utc_now(),
+                         task_id)).rowcount
+                    if not closed:
+                        cur.execute("ROLLBACK")
+                        continue
+                    cur.execute(
+                        "INSERT INTO task_events "
+                        "(id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (f"event-{task_id}-{_short_uuid()}", task_id, "EXECUTOR_FINISHED",
+                         _utc_now(), "Orphaned preparation failed",
+                         "lease expired before anything was dispatched", "",
+                         json_dumps_stable({"run_id": run_id, "failure_classification": ORPHANED_PREPARATION,
+                                            "previous_status": task_status,
+                                            "lease_owner": row["lease_owner"],
+                                            "lease_epoch": int(row["lease_epoch"])})),
+                    )
+                    cur.execute("COMMIT")
+                    records.append({"run_id": run_id, "task_id": task_id,
+                                    "previous_status": task_status,
+                                    "recovery_classification": ORPHANED_PREPARATION})
                     continue
                 if orphaned:
                     cur.execute(

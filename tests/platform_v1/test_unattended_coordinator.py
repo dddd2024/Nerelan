@@ -1364,6 +1364,84 @@ def test_redeploy_recovery_does_not_swallow_other_resume_refusals(tmp_path, monk
     assert _claim_status(store, task_id) != "ACTIVE"
 
 
+@pytest.mark.parametrize("trace", ["none", "worktree", "checkpoint", "external_operation"])
+def test_pre_dispatch_resume_refusal_closes_the_attempt_as_orphaned_preparation(tmp_path, monkeypatch, trace):
+    """2026-11-17: a run a restart stopped before PRE_PLANNER has nothing to reconstruct.
+    While nothing of it was dispatched the refusal closes the attempt, fenced like a
+    redeploy close; with any trace of dispatch the refusal still strands as before."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", old_planning="same-sha", new_sha="same-sha", new_planning="same-sha")
+    run_id = store._conn.execute("SELECT run_id FROM durable_runs WHERE task_id = ?", (task_id,)).fetchone()[0]
+    if trace == "worktree":
+        store._conn.execute("UPDATE durable_runs SET worktree_prepared_at = 'now' WHERE run_id = ?", (run_id,))
+    elif trace == "checkpoint":
+        store._conn.execute("UPDATE durable_runs SET accepted_checkpoint = 'PRE_PLANNER' WHERE run_id = ?", (run_id,))
+    elif trace == "external_operation":
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, idempotency_key, "
+            "request_digest, state, created_at, updated_at) VALUES ('op', ?, ?, 'k', 'i', 'd', 'SUCCESS', 'n', 'n')",
+            (run_id, task_id))
+    store._conn.commit()
+
+    def refuse(self, task_id, *, lease_owner="", **kwargs):
+        raise DurableResumeError(f"pre_pre_planner_no_reconstruction_path:{task_id}:accepted_checkpoint_empty_fail_closed")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", refuse)
+    feedback = []
+    monkeypatch.setattr(coordinator, "_report_account_feedback", lambda *a, **k: feedback.append(a))
+    if trace != "none":
+        assert coordinator.tick() == 0
+        assert store.get_task(task_id).status == "INTERRUPTED"
+        assert _claim_status(store, task_id) == "FAILED"
+        return
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert (final.status, final.failure_classification) == ("FAILED", "orphaned_preparation")
+    assert final.failure_detail.startswith("pre_pre_planner_no_reconstruction_path:")
+    assert _claim_status(store, task_id) == "COMPLETE"
+    [event] = [e for e in store.get_events(task_id) if e.type == "EXECUTOR_FINISHED"]
+    assert event.metadata["failure_classification"] == "orphaned_preparation"
+    assert feedback == []  # a host fault is not account evidence
+    assert coordinator.tick() == 0
+
+
+def test_free_host_resume_in_a_continuous_window_spends_no_retry(tmp_path):
+    """#1538 / decision B: re-claiming a host-interrupted task in a continuous window is not
+    gated by, and does not spend, retries_used; a resume that failed since, or a window
+    with an expiry, still is."""
+    store, control, _coordinator, task_id = _redeploy_stranded(tmp_path)
+    window = control.active_window()
+    store._conn.execute("UPDATE durable_runs SET recovery_classification = 'orphan_stale_lease' WHERE task_id = ?",
+                        (task_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET retries_used = max_retries WHERE id = ?", (window.id,))
+    store._conn.commit()
+    # A window with an expiry: exhausted retries gate the INTERRUPTED task as before.
+    assert task_id not in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    with pytest.raises(TaskStoreError, match="window_retry_budget_exhausted"):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+    goal_id = control.goal_id_for_task(task_id)
+    control.append_receipt(window_id=window.id, operation_type="owner_window_admission",
+                           capability="execute_task", repository="dddd2024/reverse-agent", subject_id=goal_id,
+                           decision="allowed", reason="test", input_payload={}, result="ok")
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute("UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? "
+                        "WHERE subject_id = ?", (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal_id))
+    store._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+                        (OWNER_WINDOW_MODE, window.id))
+    store._conn.commit()
+    assert control.get_window(window.id).continuous
+    assert task_id in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    before = control.get_window(window.id)
+    epoch, after = control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+    assert (after.retries_used, after.tasks_started) == (before.retries_used, before.tasks_started)
+    # That resume fails and abandons its claim: the next re-claim is a normal retry again.
+    control.abandon_task_claim(window_id=window.id, task_id=task_id, owner="new-host", epoch=epoch,
+                               reason="resume_refused")
+    assert task_id not in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    with pytest.raises(TaskStoreError, match="window_retry_budget_exhausted"):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+
+
 @pytest.mark.parametrize("successor", ["durable_resume", "claim_takeover", "re_leased"])
 def test_redeploy_close_is_fenced_against_a_successor_that_won_the_race(tmp_path, monkeypatch, successor):
     """Review blocker on 952b366f: a successor that resumes, re-claims or re-runs the task

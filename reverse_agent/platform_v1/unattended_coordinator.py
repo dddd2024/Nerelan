@@ -17,7 +17,7 @@ from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .model_availability import HOST_VERSION_CHANGED
-from .run_store import TaskStore, TaskStoreError, _utc_now
+from .run_store import ORPHANED_PREPARATION, TaskStore, TaskStoreError, _utc_now, pre_dispatch_interruption
 from .task_execution import TaskExecutionOutcome, TaskExecutionService
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
 from reverse_agent.architecture.contracts import (
@@ -35,6 +35,11 @@ TaskExecutor = Callable[[str], Any]
 # Durable resume refusals that mean only the host's code identity changed under
 # the run (a redeploy), never that the run itself is untrustworthy (#1515).
 _HOST_VERSION_REFUSALS = ("authority_sha_mismatch:", "planning_sha_mismatch:")
+# A durable resume refusal for a run interrupted before PRE_PLANNER: nothing was
+# dispatched, so there is nothing to reconstruct (2026-11-17).
+_PRE_DISPATCH_REFUSAL = "pre_pre_planner_no_reconstruction_path:"
+# Host faults, never evidence about the account or model that was routed.
+_HOST_CLOSED_CLASSES = frozenset({HOST_VERSION_CHANGED, ORPHANED_PREPARATION})
 
 # Upper bound on any idle wait: a new goal, claim or receipt must never wait
 # longer than this for the next poll, even if a quota window resets in hours.
@@ -220,6 +225,12 @@ class UnattendedCoordinator:
             )
         except Exception as exc:
             self._last_error = f"budget_reconcile_failed:{type(exc).__name__}"
+        try:
+            # Restart-stranded preparations become retryable host faults (2026-11-17).
+            reconciled.extend(f"orphaned_preparation:{task_id}"
+                              for task_id in self.control_store.recover_orphaned_preparations())
+        except Exception as exc:  # noqa: BLE001 - must never break reconciliation
+            self._last_error = f"orphaned_preparation_recovery_failed:{type(exc).__name__}"
         self._sweep_escalations()
         return tuple(reconciled)
 
@@ -640,8 +651,8 @@ class UnattendedCoordinator:
                     result=result,
                     **({"attempt_elapsed_seconds": attempt_elapsed} if attempt_elapsed is not None else {}),
                 )
-                if final.failure_classification != HOST_VERSION_CHANGED:
-                    # A redeploy-closed attempt is a host fault, not account evidence (#1515).
+                if final.failure_classification not in _HOST_CLOSED_CLASSES:
+                    # A redeploy- or restart-closed attempt is a host fault, not account evidence (#1515).
                     self._report_account_feedback(final, success=success)
                 return WorkerExecutionResult(
                     worker_id=assignment.worker_id,
@@ -989,15 +1000,27 @@ class UnattendedCoordinator:
         refuses. That refusal is correct (a run is never resumed under new code),
         but it must close the attempt instead of stranding it: the task becomes
         FAILED ``host_version_changed``, a host fault that the normal retry path
-        recovers without spending ``max_retries``. Other refusals still raise.
+        recovers without spending ``max_retries``.
+
+        A run a restart stopped before PRE_PLANNER has nothing to reconstruct and
+        resume refuses it (``pre_pre_planner_no_reconstruction_path``). While it is
+        still a pre-dispatch interruption (no prepared worktree, no accepted
+        checkpoint, no external-operation row) it is closed the same fenced way as
+        FAILED ``orphaned_preparation`` (2026-11-17). Other refusals still raise.
         """
         observed = self._latest_durable_run_identity(task_id)
         try:
             return resume(task_id)
         except DurableResumeError as exc:
-            if not str(exc).startswith(_HOST_VERSION_REFUSALS):
+            text = str(exc)
+            if text.startswith(_HOST_VERSION_REFUSALS):
+                classification = HOST_VERSION_CHANGED
+            elif text.startswith(_PRE_DISPATCH_REFUSAL) and self._still_pre_dispatch(task_id):
+                classification = ORPHANED_PREPARATION
+            else:
                 raise
-            self._fail_redeploy_stranded_task(task_id, detail=str(exc)[:220], observed=observed)
+            self._fail_redeploy_stranded_task(task_id, detail=text[:220], observed=observed,
+                                              classification=classification)
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id,
@@ -1016,9 +1039,15 @@ class UnattendedCoordinator:
                 "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
         return None if row is None else (row["run_id"], row["lease_owner"], int(row["lease_epoch"]))
 
+    def _still_pre_dispatch(self, task_id: str) -> bool:
+        with self.store._lock:
+            return pre_dispatch_interruption(self.store._conn, self.store.get_task(task_id), own_claim=True)
+
     def _fail_redeploy_stranded_task(self, task_id: str, *, detail: str,
-                                     observed: tuple[str, str, int] | None) -> None:
-        """Close a redeploy-stranded INTERRUPTED task as FAILED ``host_version_changed``.
+                                     observed: tuple[str, str, int] | None,
+                                     classification: str = HOST_VERSION_CHANGED) -> None:
+        """Close a redeploy-stranded INTERRUPTED task as FAILED ``host_version_changed``
+        (or, for a pre-dispatch interruption, ``orphaned_preparation``).
 
         One ``BEGIN IMMEDIATE`` transaction re-validates every identity the close
         depends on and then writes status, failure fields and the event together:
@@ -1029,32 +1058,38 @@ class UnattendedCoordinator:
         check and nothing is written; the stale handler raises instead, so the
         worker abandons only its own claim.
         """
+        prefix = "host_version" if classification == HOST_VERSION_CHANGED else classification
         claim = getattr(self._claim_local, "claim", None)
         if claim is None or claim[1] != task_id:
-            raise TaskStoreError(f"host_version_close_unfenced:{task_id}")
+            raise TaskStoreError(f"{prefix}_close_unfenced:{task_id}")
         window_id, _, epoch = claim
         store = self.store
         with store._lock:
             conn = store._conn
             if conn.in_transaction:
-                raise TaskStoreError(f"host_version_close_nested_transaction:{task_id}")
+                raise TaskStoreError(f"{prefix}_close_nested_transaction:{task_id}")
             conn.execute("BEGIN IMMEDIATE")
             try:
                 reason = self._redeploy_close_refusal(conn, task_id, window_id=window_id, epoch=epoch,
                                                       observed=observed)
+                if not reason and classification == ORPHANED_PREPARATION and not pre_dispatch_interruption(
+                        conn, store.get_task(task_id), own_claim=True):
+                    # Re-checked inside the write: a prepared worktree, an accepted
+                    # checkpoint or any external-operation row is never closed here.
+                    reason = "not_pre_dispatch"
                 if reason:
-                    raise TaskStoreError(f"host_version_close_fenced:{task_id}:{reason}")
+                    raise TaskStoreError(f"{prefix}_close_fenced:{task_id}:{reason}")
                 now = _utc_now()
                 changed = conn.execute(
                     "UPDATE tasks SET status = 'FAILED', failure_classification = ?, failure_detail = ?, "
                     "failure_at = ?, updated_at = ? WHERE id = ? AND status = 'INTERRUPTED'",
-                    (HOST_VERSION_CHANGED, detail, now, now, task_id)).rowcount
+                    (classification, detail, now, now, task_id)).rowcount
                 if changed != 1:
-                    raise TaskStoreError(f"host_version_close_fenced:{task_id}:task_not_interrupted")
+                    raise TaskStoreError(f"{prefix}_close_fenced:{task_id}:task_not_interrupted")
                 store._append_event(
                     task_id=task_id, event_type="EXECUTOR_FINISHED", title="Executor failed",
-                    description=f"failure_classification={HOST_VERSION_CHANGED}",
-                    metadata={"failure_classification": HOST_VERSION_CHANGED, "detail": detail,
+                    description=f"failure_classification={classification}",
+                    metadata={"failure_classification": classification, "detail": detail,
                               "claim_epoch": epoch, "run_id": observed[0] if observed else ""})
                 conn.execute("COMMIT")
             except BaseException:

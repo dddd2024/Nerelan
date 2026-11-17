@@ -26,7 +26,7 @@ from .repository_workspace import (
     RepositoryWorkspaceError,
     resolve_repository_workspace,
 )
-from .run_store import TaskStore, TaskStoreError, _utc_now
+from .run_store import ORPHANED_PREPARATION, TaskStore, TaskStoreError, _utc_now, pre_dispatch_interruption
 from .functional_validation import (
     freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
 )
@@ -302,7 +302,15 @@ def _interrupted_preparation(store: Any, failed: Any) -> bool:
 
     A restart while ``git worktree add`` runs leaves an unregistered directory and a
     BLOCKED task. No model ran, so a new task (with a new worktree path) is a plain retry.
+    A restart that stopped preparation before dispatch closes the task as FAILED
+    ``orphaned_preparation`` (2026-11-17); it retries the same way while nothing of it
+    can still be live or unresolved and it never prepared a worktree or accepted a
+    checkpoint.
     """
+    if failed.status == "FAILED" and failed.failure_classification == ORPHANED_PREPARATION:
+        with store._lock:
+            return (not _stranded_source_refusal(store._conn, failed.id)
+                    and pre_dispatch_interruption(store._conn, failed))
     if (failed.status != "BLOCKED"
             or not (failed.failure_detail or "").startswith("worktree_preparation_failed:")):
         return False
@@ -1429,6 +1437,12 @@ class GoalService:
             if failed.status == "BLOCKED" and not interrupted_preparation and not no_reply:
                 continue  # other BLOCKED tasks are policy/blockers and never escalate
             if _explicit_cleanup_uncertainty(failed):
+                continue
+            if (failed.status == "FAILED" and failed.failure_classification == ORPHANED_PREPARATION
+                    and not interrupted_preparation):
+                # A restart-closed preparation that may still be live, called out, prepared a
+                # worktree or accepted a checkpoint is never replaced automatically; it was
+                # not the model's failure either, so it never routes as one.
                 continue
             if self._stranded_operation_hold(failed):
                 continue  # a redeploy-closed attempt's unresolved call is never retried under a new id

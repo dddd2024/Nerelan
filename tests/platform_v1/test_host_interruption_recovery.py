@@ -209,3 +209,109 @@ def test_an_unchanged_stuck_goal_is_swept_at_most_every_repeat_interval(case, mo
     clock[0] += uc.SWEEP_REPEAT_SECONDS
     coordinator._sweep_escalations()
     assert seen == [goal.id, goal.id, goal.id]  # unchanged but due again
+
+
+# --- 2026-11-17: a restart during preparation, before anything was dispatched ------------
+
+def _stranded_preparation(store, control, window, task, *, claim_expired=True):
+    """The incident row: a dead owner's claim and an INTERRUPTED pre-dispatch durable run."""
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="dead-host", lease_ms=60_000)
+    now = int(time.time() * 1000)
+    if claim_expired:
+        store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms = ? WHERE task_id = ?",
+                            (now - 1000, task.id))
+    store._conn.execute(
+        "INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_owner, lease_epoch, "
+        "heartbeat_at_ms, lease_expiry_ms, recovery_classification, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (f"run-{task.id}", task.id, task.execution_id, "wt", "", 1, now - 600_000, now - 300_000,
+         "orphan_stale_lease", "2026-11-17T07:00:00Z", "2026-11-17T07:00:00Z"))
+    store._conn.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task.id,))
+    store._conn.commit()
+    return epoch
+
+
+def _orphaned(store, task):
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='orphaned_preparation', "
+                        "failure_detail='orphaned_preparation' WHERE id=?", (task.id,))
+    store._conn.commit()
+
+
+class TestOrphanedPreparation:
+    def test_escalation_retries_it_on_the_same_binding_without_spending_max_retries(self, case):
+        store, control, service, goal, window, task = case[2], case[3], case[4], case[5], case[6], case[-1]
+        store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 0 WHERE id = ?", (window.id,))
+        _orphaned(store, task)
+
+        def forbidden(*args, **kwargs):
+            raise AssertionError("a restart before dispatch is not a capability failure")
+        service.task_resolver = forbidden
+        [step] = service.escalate_failed_tasks(goal.id)
+        assert step["reason"] == f"{gs.HOST_RETRY_REASON}:interrupted"
+        retry = store.get_task(step["to_task_id"])
+        assert (retry.binding_ref, retry.executor_kind) == (task.binding_ref, task.executor_kind)
+        assert gs._routing_retries_spent(control.list_task_escalations(goal.id)) == 0
+
+    @pytest.mark.parametrize("trace", ["external_operation", "claim_live", "lease_live", "worktree", "checkpoint"])
+    def test_no_replacement_while_anything_of_the_attempt_may_remain(self, case, trace):
+        store, control, service, goal, window, task = case[2], case[3], case[4], case[5], case[6], case[-1]
+        _stranded_preparation(store, control, window, task, claim_expired=trace != "claim_live")
+        _orphaned(store, task)
+        run_id = f"run-{task.id}"
+        if trace == "external_operation":
+            store._conn.execute("INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+                                "idempotency_key, request_digest, state, created_at, updated_at) VALUES "
+                                "('op', ?, ?, 'k', 'i', 'd', 'SUCCESS', 'now', 'now')", (run_id, task.id))
+        elif trace == "lease_live":
+            store._conn.execute("UPDATE durable_runs SET lease_owner='other', lease_expiry_ms=? WHERE run_id=?",
+                                (int(time.time() * 1000) + 600_000, run_id))
+        elif trace == "worktree":
+            store._conn.execute("UPDATE durable_runs SET worktree_prepared_at='now' WHERE run_id=?", (run_id,))
+        elif trace == "checkpoint":
+            store._conn.execute("UPDATE durable_runs SET accepted_checkpoint='PRE_PLANNER' WHERE run_id=?", (run_id,))
+        store._conn.commit()
+        service.task_resolver = _resolver
+        assert service.escalate_failed_tasks(goal.id) == ()
+        assert control.list_goal_tasks(goal.id)[0]["task_id"] == task.id
+
+    def test_catch_up_closes_the_legacy_interrupted_row_and_settles_the_dead_claim(self, case):
+        store, control, service, goal, window, task = case[2], case[3], case[4], case[5], case[6], case[-1]
+        epoch = _stranded_preparation(store, control, window, task)
+        assert control.recover_orphaned_preparations() == (task.id,)
+        closed = store.get_task(task.id)
+        assert (closed.status, closed.failure_classification) == ("FAILED", "orphaned_preparation")
+        assert len([e for e in store.get_events(task.id) if e.title == "Orphaned preparation failed"]) == 1
+        claim = store._conn.execute("SELECT owner, epoch, status FROM platform_coordinator_claims WHERE task_id=?",
+                                    (task.id,)).fetchone()
+        assert dict(claim) == {"owner": "dead-host", "epoch": epoch, "status": "FAILED"}
+        reservation = store._conn.execute("SELECT state FROM platform_budget_reservations WHERE task_id=?",
+                                          (task.id,)).fetchone()
+        assert reservation["state"] == "UNKNOWN"  # never released or refunded
+        # Idempotent: nothing more to close or settle.
+        assert control.recover_orphaned_preparations() == ()
+        assert len([e for e in store.get_events(task.id) if e.title == "Orphaned preparation failed"]) == 1
+        # The goal now retries it as a host fault.
+        service.task_resolver = _resolver
+        [step] = service.escalate_failed_tasks(goal.id)
+        assert step["from_task_id"] == task.id and step["reason"] == f"{gs.HOST_RETRY_REASON}:interrupted"
+
+    @pytest.mark.parametrize("trace", ["claim_live", "external_operation", "worktree", "not_orphan_stale"])
+    def test_catch_up_leaves_anything_that_may_still_matter_interrupted(self, case, trace):
+        store, control, window, task = case[2], case[3], case[6], case[-1]
+        _stranded_preparation(store, control, window, task, claim_expired=trace != "claim_live")
+        run_id = f"run-{task.id}"
+        if trace == "external_operation":
+            store._conn.execute("INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+                                "idempotency_key, request_digest, state, created_at, updated_at) VALUES "
+                                "('op', ?, ?, 'k', 'i', 'd', 'PENDING', 'now', 'now')", (run_id, task.id))
+        elif trace == "worktree":
+            store._conn.execute("UPDATE durable_runs SET worktree_prepared_at='now' WHERE run_id=?", (run_id,))
+        elif trace == "not_orphan_stale":
+            store._conn.execute("UPDATE durable_runs SET recovery_classification='interrupted' WHERE run_id=?",
+                                (run_id,))
+        store._conn.commit()
+        assert control.recover_orphaned_preparations() == ()
+        assert store.get_task(task.id).status == "INTERRUPTED"
+        claim = store._conn.execute("SELECT status FROM platform_coordinator_claims WHERE task_id=?",
+                                    (task.id,)).fetchone()
+        assert claim["status"] == "ACTIVE"  # only claims of closed tasks are settled

@@ -512,8 +512,9 @@ def test_startup_stale_reconciliation_no_role_calls(tmp_path) -> None:
     )
     run_id = lease.run_id
 
+    # Past preparation (a pre-dispatch orphan closes FAILED orphaned_preparation instead).
     store._conn.execute(
-        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        "UPDATE durable_runs SET lease_expiry_ms = ?, worktree_prepared_at = 'prepared' WHERE run_id = ?",
         (int(time.time() * 1000) - 10000, run_id),
     )
 

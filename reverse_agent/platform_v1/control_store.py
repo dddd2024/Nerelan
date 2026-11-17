@@ -1101,6 +1101,29 @@ class PlatformControlStore:
                 "WHERE window_id = ? AND state = 'ACTIVE'", (window_id,),
             ))
 
+    # Claim states that a host, not a failed resume, left behind: a dead owner's
+    # claim (ACTIVE past expiry) or one a closed window retired.
+    _HOST_LEFT_CLAIM_STATES = frozenset({"ACTIVE", "RETIRED"})
+
+    def _free_host_resume_locked(self, *, continuous: bool, task_id: str, status: str,
+                                 claim_status: str | None) -> bool:
+        """A re-claim that neither spends nor is gated by the window's retries (#1538, decision B).
+
+        Only in a continuous window, only for an INTERRUPTED task whose latest durable run
+        the host reconciled after its lease expired (``orphan_stale_lease``), and only while
+        no resume of it has failed since: the task's claim is absent or one the host left
+        (see ``_HOST_LEFT_CLAIM_STATES``). A resume that fails abandons its claim as FAILED,
+        so a persistent refusal spends retries as before instead of re-claiming every tick.
+        """
+        if not continuous or status != "INTERRUPTED":
+            return False
+        if claim_status is not None and claim_status not in self._HOST_LEFT_CLAIM_STATES:
+            return False
+        run = self._conn.execute(
+            "SELECT recovery_classification FROM durable_runs WHERE task_id = ? "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
+        return run is not None and run["recovery_classification"] == "orphan_stale_lease"
+
     def runnable_tasks(
         self, window_id: str, *, limit: int = 100, respect_attempt_limits: bool = False,
         respect_reservation_limits: bool = False,
@@ -1118,7 +1141,9 @@ class PlatformControlStore:
             # The claim transaction rechecks both counters before spending.
             rows = self._conn.execute(
                 "SELECT l.task_id, t.status, ((w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') OR w.tasks_started < w.max_tasks) AS fresh_budget, "
-                "w.retries_used < w.max_retries AS retry_budget "
+                "w.retries_used < w.max_retries AS retry_budget, "
+                "(w.confirmation_mode='OWNER_WINDOW' AND w.expires_at='') AS continuous_window, "
+                "(SELECT c.status FROM platform_coordinator_claims c WHERE c.task_id = t.id) AS claim_status "
                 "FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
@@ -1161,9 +1186,13 @@ class PlatformControlStore:
                 ):
                     continue
                 # An interrupted checker may already have a completed result.
-                # Recovering that checkpoint spends no new attempt.
+                # Recovering that checkpoint spends no new attempt. A host-side
+                # interruption in a continuous run is not gated by retries at all.
                 needs_result_recovery = status in {"READY_FOR_REVIEW", "FAILED"} or (
                     respect_attempt_limits and status == "INTERRUPTED" and not row["retry_budget"]
+                    and not self._free_host_resume_locked(
+                        continuous=bool(row["continuous_window"]), task_id=row["task_id"],
+                        status=status, claim_status=row["claim_status"])
                 )
                 if needs_result_recovery and not self.can_complete_host_claim(
                         window_id=window_id, task_id=row["task_id"]):
@@ -1288,6 +1317,85 @@ class PlatformControlStore:
                     result=f"retired_for:{to_window_id}")
                 retired.append(row["task_id"])
         return tuple(retired)
+
+    def recover_orphaned_preparations(self, *, now_ms: int | None = None) -> tuple[str, ...]:
+        """Close pre-dispatch interruptions the active window holds, then settle dead claims (2026-11-17).
+
+        A host restart during workspace preparation used to leave the task INTERRUPTED
+        (``orphan_stale_lease``) with nothing to resume: durable resume has no
+        reconstruction path before PRE_PLANNER, and only FAILED/BLOCKED tasks escalate.
+        Each such task of the active window's goals is closed as FAILED
+        ``orphaned_preparation`` (a host fault the goal retries without spending
+        max_retries) in its own transaction, re-checked inside it: still INTERRUPTED,
+        latest run still ``orphan_stale_lease``, not held, ``_stranded_source_refusal``
+        empty and every pre-dispatch condition true. Afterwards the ACTIVE but expired
+        claim a dead owner left on any ``orphaned_preparation`` task is settled FAILED
+        under its own owner/epoch; an unexpired claim is never touched.
+        """
+        from .goal_service import _stranded_source_refusal
+        from .run_store import ORPHANED_PREPARATION, pre_dispatch_interruption
+        from .unknown_claim_isolation import held_task
+        window = self.active_window()
+        closed: list[str] = []
+        with self._lock:
+            now_ms = _utc_now_ms() if now_ms is None else now_ms
+            candidates = [] if window is None else [row["task_id"] for row in self._conn.execute(
+                "SELECT t.id AS task_id FROM platform_goals g "
+                "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
+                "JOIN tasks t ON t.id = l.task_id "
+                "WHERE g.window_id = ? AND t.status = 'INTERRUPTED' ORDER BY g.id, l.seq",
+                (window.id,)).fetchall()]
+            for task_id in candidates:
+                if self._conn.in_transaction:
+                    break
+                self._conn.execute("BEGIN IMMEDIATE")
+                try:
+                    run = self._conn.execute(
+                        "SELECT run_id, recovery_classification FROM durable_runs WHERE task_id = ? "
+                        "ORDER BY created_at DESC, rowid DESC LIMIT 1", (task_id,)).fetchone()
+                    task = self._conn.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                    if (task is None or task["status"] != "INTERRUPTED" or run is None
+                            or run["recovery_classification"] != "orphan_stale_lease"
+                            or held_task(self._conn, task_id)
+                            or _stranded_source_refusal(self._conn, task_id)
+                            or not pre_dispatch_interruption(self._conn, self.task_store.get_task(task_id),
+                                                             now_ms=now_ms)):
+                        self._conn.execute("ROLLBACK")
+                        continue
+                    now = _utc_now()
+                    changed = self._conn.execute(
+                        "UPDATE tasks SET status = 'FAILED', failure_classification = ?, failure_detail = ?, "
+                        "failure_at = ?, updated_at = ? WHERE id = ? AND status = 'INTERRUPTED'",
+                        (ORPHANED_PREPARATION, "interrupted before anything was dispatched", now, now,
+                         task_id)).rowcount
+                    if changed != 1:
+                        self._conn.execute("ROLLBACK")
+                        continue
+                    self.task_store._append_event(
+                        task_id=task_id, event_type="EXECUTOR_FINISHED", title="Orphaned preparation failed",
+                        description=f"failure_classification={ORPHANED_PREPARATION}",
+                        metadata={"failure_classification": ORPHANED_PREPARATION, "run_id": run["run_id"],
+                                  "previous_status": "INTERRUPTED"})
+                    self._conn.execute("COMMIT")
+                    closed.append(task_id)
+                except BaseException:
+                    self._conn.execute("ROLLBACK")
+                    raise
+            claims = self._conn.execute(
+                "SELECT c.task_id, c.window_id, c.owner, c.epoch FROM platform_coordinator_claims c "
+                "JOIN tasks t ON t.id = c.task_id WHERE c.status = 'ACTIVE' AND c.expires_at_ms <= ? "
+                "AND t.status = 'FAILED' AND t.failure_classification = ? ORDER BY c.task_id",
+                (now_ms, ORPHANED_PREPARATION)).fetchall()
+        for claim in claims:
+            try:
+                self._finalize_task_claim(
+                    window_id=claim["window_id"], task_id=claim["task_id"], owner=claim["owner"],
+                    epoch=int(claim["epoch"]), claim_status="FAILED", count_completion=False,
+                    receipt_reason="orphaned_preparation_claim_settled",
+                    receipt_result=f"dead_owner_claim_expired:{claim['owner']}"[:220])
+            except TaskStoreError:
+                continue  # held, fenced or awaiting a quota pause: the claim stays as it is
+        return tuple(closed)
 
     def rebind_goal_to_window(self, goal_id: str, *, window_id: str, reason: str = "owner_rebind") -> dict[str, Any]:
         """Move a stranded Goal's unfinished tasks under a new, explicitly activated window.
@@ -2189,14 +2297,17 @@ class PlatformControlStore:
             completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
             if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
+            existing = cur.execute(
+                "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            free_resume = not completion_recovery and self._free_host_resume_locked(
+                continuous=continuous, task_id=task_id, status=task["status"],
+                claim_status=None if existing is None else existing["status"])
+            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery and not free_resume:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
             elif not completion_recovery and not continuous and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
-            existing = cur.execute(
-                "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
-            ).fetchone()
             if existing is not None and existing["status"] == "ACTIVE" and int(existing["expires_at_ms"]) > now_ms:
                 raise TaskStoreError("task_already_claimed")
             epoch = int(existing["epoch"]) + 1 if existing is not None else 1
@@ -2320,6 +2431,8 @@ class PlatformControlStore:
                 cur.execute("UPDATE durable_runs SET recovery_classification='interrupted' WHERE task_id=? AND recovery_classification='quota_wait'", (task_id,))
             if completion_recovery:
                 pass  # Finish the original persisted result; no new task/retry spending.
+            elif free_resume:
+                pass  # A host-side interruption in a continuous run spends no retry (#1538, decision B).
             elif task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
