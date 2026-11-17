@@ -130,4 +130,5 @@ def test_binding_health_counts_outcomes_and_rate_limits():
     health = binding_health(store)
     pick = lambda stats: {key: stats[key] for key in ("ok", "failed", "rate_limited")}
     assert pick(health["coding-glm"]) == {"ok": 1, "failed": 0, "rate_limited": 0}
-    assert pick(health["coding-kimi"]) == {"ok": 0, "failed": 2, "rate_limited": 1}
+    # A rate limit is the account's answer: still shown, no longer a failure of the model.
+    assert pick(health["coding-kimi"]) == {"ok": 0, "failed": 1, "rate_limited": 1}

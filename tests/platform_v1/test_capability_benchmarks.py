@@ -321,7 +321,7 @@ def test_reviewed_initial_snapshot_is_valid_and_cited():
     assert rows and all(r['url'].startswith('https://') and r['variant'] and r['retrieved_at'] == '2026-10-20' for r in rows)
     # Families without verified numbers stay needs_benchmark.
     assert {x['family'] for x in cb.needs_benchmark(list(cb.SEED_FAMILIES), data)} == {
-        'claude-opus', 'claude-sonnet', 'codestral', 'agnes-3.0'}
+        'claude-opus', 'claude-sonnet', 'claude-sonnet-5-5', 'codestral', 'agnes-3.0'}
     priors = cb.compute_priors(data)
     assert priors['kimi-k3']['code']['confidence'] == 'high'
     assert priors['doubao-seed-code']['code']['confidence'] == 'low'  # one source only
@@ -339,6 +339,10 @@ def test_reviewed_initial_snapshot_is_valid_and_cited():
     # Different (smaller or unverified) models must not inherit a family's prior.
     ('trae-cn/glm-5.3-flash', None), ('workbuddy/glm-5.3-flash', None), ('workbuddy/kimi-k3-1', None),
     ('workbuddy/minimax-m3.1-flash', None), ('trae-cn/DeepSeek-V4-Flash', None),
+    # 2026-11-17: the Magpie Claude Pro id and the native Claude Code alias are one family;
+    # other Sonnet versions are other models.
+    ('claude/claude-sonnet-5-5', 'claude-sonnet-5-5'), ('sonnet', 'claude-sonnet-5-5'),
+    ('claude/claude-sonnet-5', None), ('claude/claude-sonnet-4-6', None),
 ])
 def test_live_magpie_ids_resolve_only_to_their_own_family(model, family):
     priors = cb.BenchmarkPriors(cb.read_snapshot(SNAPSHOT))
@@ -390,3 +394,20 @@ def test_high_difficulty_measured_does_not_fallback_to_prior_when_target_missing
     d = routing_capabilities.tier_detail('m4', profile_, 'code', 4, benchmarks=bench)
     assert d['tier'] == 5 and d['source'] == 'measured_with_prior'
     assert 'measured_off_target' not in d
+
+
+def test_sonnet_5_5_ids_share_one_prior_once_scores_exist():
+    import copy
+    data = copy.deepcopy(cb.read_snapshot(SNAPSHOT))
+    # Shipped without scores: both ids keep the unproven fallback, not a guessed tier.
+    shipped = cb.BenchmarkPriors(data)
+    for model in ('claude/claude-sonnet-5-5', 'sonnet'):
+        assert routing_capabilities.tier_detail(model, {}, 'code', 3, benchmarks=shipped)['source'] == 'prior'
+    # Fixture scores (not real numbers) only show that an Owner import reaches both ids.
+    data['families']['claude-sonnet-5-5']['scores'] = [
+        {'benchmark': 'swe_bench_verified', 'score': 99.0, 'source': 'vals.ai',
+         'url': 'https://www.vals.ai/benchmarks/swebench', 'retrieved_at': '2026-11-17', 'variant': 'fixture'}]
+    priors = cb.BenchmarkPriors(cb.validate_snapshot(data))
+    native = routing_capabilities.tier_detail('sonnet', {}, 'code', 3, benchmarks=priors)
+    gateway = routing_capabilities.tier_detail('claude/claude-sonnet-5-5', {}, 'code', 3, benchmarks=priors)
+    assert native == gateway and native['source'] == 'benchmark' and native['benchmark']['family'] == 'claude-sonnet-5-5'

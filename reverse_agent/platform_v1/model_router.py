@@ -129,15 +129,32 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     quota rules alone decide, unless ``require_fresh`` is set: then the account
     is held until a fresh reading shows where it stands.
     """
+    return weekly_pace_decision(candidate, now=now, pace=pace)[0]
+
+
+def weekly_pace_decision(candidate: Mapping[str, Any], *, now: float,
+                         pace: Mapping[str, Any] | None) -> tuple[float | None, str]:
+    """``weekly_pace_hold`` plus the cause of a hold, so an exclusion can name it.
+
+    Causes: ``no_fresh_gateway_quota`` / ``no_fresh_account_quota`` (``require_fresh``
+    with no usable reading; the host may name a narrower input cause such as
+    ``no_gateway_account`` or ``gateway_account_ambiguous``), ``weekly_reserve``
+    (only the reset frees it) and ``ahead_of_pace`` (free again at ``retry_at``).
+    """
     if not pace or not pace.get("enabled", False):
-        return None
+        return None, ""
     paced = (candidate.get("executor_id") in pace.get("executors", ())
              or candidate.get("paced_provider") in pace.get("providers", ()))
     if not paced or candidate.get("cost_class") != "subscription":
-        return None
+        return None, ""
     headroom, resets = candidate.get("weekly_headroom"), candidate.get("weekly_resets_at")
     if not all(type(v) in (int, float) and math.isfinite(v) for v in (headroom, resets)):
-        return float(now + UNKNOWN_PACE_RETRY_SECONDS) if pace.get("require_fresh") is True else None
+        if pace.get("require_fresh") is not True:
+            return None, ""
+        named = candidate.get("weekly_pace_input")
+        cause = (named if isinstance(named, str) and named.startswith(("no_", "gateway_account_", "gateway_quota_"))
+                 else "no_fresh_gateway_quota" if candidate.get("paced_provider") else "no_fresh_account_quota")
+        return float(now + UNKNOWN_PACE_RETRY_SECONDS), cause
     need = candidate.get("task_weekly_fraction")
     need = need if type(need) in (int, float) and math.isfinite(need) and need >= 0 else UNKNOWN_WEEKLY_NEED
     slack, reserve = float(pace.get("slack", .10)), float(pace.get("reserve", .10))
@@ -145,10 +162,10 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     elapsed = min(1., max(0., (now - start) / WEEK_SECONDS))
     demand = (1 - headroom) + need
     if demand <= min(1 - reserve, elapsed + slack):
-        return None
+        return None, ""
     if demand > 1 - reserve:
-        return float(resets)  # only the reset frees it
-    return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack))))
+        return float(resets), "weekly_reserve"  # only the reset frees it
+    return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack)))), "ahead_of_pace"
 
 
 # Most mirror reset events confirm a reset that already landed ("the reset has been
@@ -284,8 +301,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reset_observations.append({"binding_id": candidate["binding_id"], **reset})
         # A validated announced Codex reset already drains to reset_buffer (Owner rule,
         # #1248/#1281): allowance that the reset will void is not saved for later.
-        pace_hold = None if candidate["executor_id"] == "codex" and reset["drain"] else (
-            weekly_pace_hold(candidate, now=now, pace=weekly_pace))
+        pace_hold, pace_cause = (None, "") if candidate["executor_id"] == "codex" and reset["drain"] else (
+            weekly_pace_decision(candidate, now=now, pace=weekly_pace))
         reason = ""
         review_transport = ""
         if artifact_review:
@@ -375,6 +392,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                 exclusion["retry_at"] = quota.get("retry_at")
             elif reason == "weekly_pace":
                 exclusion["retry_at"] = pace_hold
+                exclusion["cause"] = pace_cause
+                if candidate.get("weekly_pace_input") == "gateway_reading_aged":
+                    exclusion["weekly_pace_input"] = "gateway_reading_aged"
             elif reason == "quota_exhausted":
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time(quota.get("until"))

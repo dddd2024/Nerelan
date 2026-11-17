@@ -39,6 +39,10 @@ EXECUTOR_TERMINATED = "executor_terminated"
 # A redeploy changed the host's code under an in-flight run: its durable resume
 # refuses the old authority/planning identity (#1515). A host fault, not the model's.
 HOST_VERSION_CHANGED = "host_version_changed"
+# Owner decision 2026-11-12 B: failures the host classifies as not the model's fault
+# (a stall with no output, an external kill, a redeploy under the run). Goal retries
+# and measured agent profiles both read this one definition.
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
 
 
 def external_termination(exit_code: int) -> bool:

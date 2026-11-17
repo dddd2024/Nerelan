@@ -690,6 +690,7 @@ class CombinedTrustedHost:
             # weekly allowance, so it is paced against that account's own windows.
             namespace = binding["model_id"].split("/", 1)[0] if "/" in binding["model_id"] else ""
             paced_provider = namespace if not native and namespace in paced_providers else ""
+            pace_input = ""
             try:
                 # Headroom comes from this connection's own account, never the provider summary,
                 # and only while that observation is fresh now (persisted forecast evidence ages too).
@@ -700,8 +701,10 @@ class CombinedTrustedHost:
                     quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
                                   if forecast else self._account_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
+                pace_input = str(quota_view.get("pace_input") or "")
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
                 windows = ()
+                pace_input = "gateway_quota_read_failed" if paced_provider else ""
             weekly_window = next((w for w in windows if w.get("window") in {"weekly", "7d", "week"}), {})
             short_window = next((w for w in windows if w.get("window") in {"5h", "five_hour", "five_hours"}), {})
             need = (quota or {}).get("need_units")
@@ -742,6 +745,8 @@ class CombinedTrustedHost:
                                "short_resets_at": short_reset,
                                "weekly_resets_at": reset_time(weekly_window),
                                "paced_provider": paced_provider,
+                               # Where the weekly figure came from, or why there is none.
+                               "weekly_pace_input": pace_input,
                                "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
@@ -1228,16 +1233,28 @@ class CombinedTrustedHost:
         return local + [q for q in observed if not _external_quota(q)]
 
     def _gateway_account_quota(self, provider: str) -> dict[str, Any]:
-        """The usable observation of the one Magpie account of ``provider``, or {}.
+        """The usable observation of the one Magpie account of ``provider``.
 
         No account, or more than one (the gateway may use either), gives no headroom
-        claim; with ``require_fresh`` pacing then holds the model.
+        claim; with ``require_fresh`` pacing then holds the model. Without windows the
+        view names why in ``pace_input``, so the hold can say so.
+
+        Magpie re-reads a subscription about every 13 minutes (median, Claude Pro on
+        2026-11-17; up to ~56), longer than the 600 s admission freshness. A weekly
+        window read up to ``GATEWAY_PACE_MAX_AGE_SECONDS`` ago still says where the week
+        stands: until the stated reset, use only grows, so an older reading can only
+        understate it, by at most that interval's spend, well inside the pacing slack.
         """
         quotas = self._subscription_quotas()
         refs = getattr(self, "_magpie_provider_accounts", {}).get(provider, ())
         if len(refs) != 1:
-            return {}
-        return _usable_quota(refs[0], _account_observations(quotas, refs[0]))
+            return {"windows": [], "pace_input": "no_gateway_account" if not refs else "gateway_account_ambiguous"}
+        usable = _usable_quota(refs[0], _account_observations(quotas, refs[0]))
+        if usable.get("windows"):
+            return usable
+        reading = getattr(self, "_magpie_account_readings", {}).get(refs[0])
+        paced = _gateway_pace_reading(reading, now=time.time())
+        return paced or dict(usable, windows=[], pace_input="no_fresh_gateway_quota")
 
     def _account_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
         """The usable observation of this connection's own account, or {} when there is none."""
@@ -1514,6 +1531,11 @@ class CombinedTrustedHost:
                         and isinstance(item.get("account_ref"), str) and item["account_ref"]):
                     providers.setdefault(item["provider"], []).append(item["account_ref"])
             self._magpie_provider_accounts = providers
+            # The parsed readings themselves, for weekly pacing of a gateway upstream.
+            self._magpie_account_readings = {
+                item["account_ref"]: item for item in accounts
+                if isinstance(item, Mapping) and isinstance(item.get("account_ref"), str) and item["account_ref"]
+                and refs.count(item["account_ref"]) == 1}
             for ref, quota in magpie_account_quotas(snapshot).items():
                 if refs.count(ref) == 1:
                     merged[_MAGPIE_ACCOUNT_KEY + ref] = quota
@@ -1914,6 +1936,42 @@ def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) 
         return {}
     selected = quota_reservation.observation(account, candidates, clock=time.time)
     return selected if selected["fresh"] else dict(selected, windows=[])
+
+
+# Weekly pacing of a Magpie gateway upstream accepts a reading up to this old (see
+# _gateway_account_quota); admission and the quota guard keep the 600 s contract.
+GATEWAY_PACE_MAX_AGE_SECONDS = 3600
+
+
+def _gateway_pace_reading(reading: Any, *, now: float) -> dict[str, Any] | None:
+    """A Magpie account reading at most GATEWAY_PACE_MAX_AGE_SECONDS old, as a quota view.
+
+    Only windows whose stated reset is still ahead are kept: until then usage only
+    grows, so every figure is a lower bound and any hold it starts is real. A reading
+    Magpie marked stale keeps its windows in ``cached_windows``; nothing older,
+    undated, errored or without windows is used.
+    """
+    if not isinstance(reading, Mapping) or reading.get("state") not in {"FRESH", "STALE"}:
+        return None
+    ref = reading.get("account_ref")
+    windows = reading.get("windows") or reading.get("cached_windows") or []
+    if not isinstance(ref, str) or not ref or not isinstance(windows, list) or not windows:
+        return None
+    from ..model_access.quota_forecast import parse_time
+    from ..model_access.subscription_quota import magpie_account_quotas
+    from . import quota_reservation
+    projected = magpie_account_quotas({"status": "available", "accounts": [
+        dict(reading, state="FRESH", windows=windows)]}, now=now).get(ref)
+    if projected is None:
+        return None
+    selected = quota_reservation.observation(ref, [projected], clock=lambda: now,
+                                             freshness=GATEWAY_PACE_MAX_AGE_SECONDS)
+    observed = parse_time(selected.get("observed_at"))
+    active = [window for window in selected["windows"] if not window.get("reset_passed")]
+    if not selected["fresh"] or observed is None or not active:
+        return None
+    return dict(selected, windows=active, pace_input="gateway_reading_aged",
+                reading_age_seconds=round(now - observed))
 
 
 def _utc_now() -> str:
