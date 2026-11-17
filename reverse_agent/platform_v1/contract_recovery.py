@@ -8,6 +8,7 @@ import subprocess
 from .artifact_handoff import _load_evidence
 from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene
 from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED
+from .quota_guard import LIVENESS_STALL_CLASSES
 from .run_store import TaskStoreError
 from reverse_agent.executor_neutral.core import _snapshot_workspace, safe_recovery_tree
 
@@ -183,7 +184,10 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
     original, current = load_contract(source), load_contract(task)
     if (binding.get("snapshot_digest") != digest(snapshot)
             or binding.get("task_id") != task.id or binding.get("execution_id") != task.execution_id
-            or task.binding_ref != source.binding_ref or task.executor_kind != source.executor_kind
+            # A stalled attempt's tree may continue on another binding (#1596); every other
+            # recovery stays with the agent that wrote the tree.
+            or (source.failure_classification not in LIVENESS_STALL_CLASSES
+                and (task.binding_ref != source.binding_ref or task.executor_kind != source.executor_kind))
             or original is None or current is None
             or {k: v for k, v in current.items() if k != "task_id"}
                != {k: v for k, v in original.items() if k != "task_id"}):
