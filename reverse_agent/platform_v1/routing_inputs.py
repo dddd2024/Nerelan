@@ -237,10 +237,14 @@ def binding_cost_class(binding: Mapping[str, Any], connection: Mapping[str, Any]
     model = model_id.lower()
     if model.endswith((":free", "-free")):
         return "free"
-    if (connection.get("auth_method") == "none"
-            and model.startswith(tuple(f"{n}/" for n in ROUTING_GROUP_NAMESPACES))):
-        # A Magpie routing group or auto-router on the keyless gateway fails over
-        # across the Owner's own subscription accounts (2026-11-17), not a per-token route.
+    declared = owner.get("groups") if isinstance(owner, Mapping) else None
+    if (connection.get("auth_method") == "none" and model.startswith("group/")
+            and isinstance(declared, Mapping)
+            and any(isinstance(name, str) and name.lower() == model for name in declared)):
+        # A routing group the Owner declared fails over across the Owner's own
+        # subscription accounts (2026-11-17). Undeclared groups and Magpie's own
+        # auto/<model> groups may include per-token members (e.g. OpenRouter), so
+        # they keep the paid default below until the Owner classifies them (#1661 review).
         return "subscription"
     namespace = model.split("/", 1)[0]
     if namespace in GATEWAY_COST_CLASSES:

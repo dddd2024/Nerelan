@@ -692,8 +692,13 @@ def test_a_keyless_gateway_group_is_selectable_at_its_default_cost():
     from reverse_agent.platform_v1.routing_inputs import binding_cost_class
     keyless = {"auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"}
     row = {"binding_id": "magpie-group-nerelan-glm-5-3", "model_id": "group/nerelan-glm-5-3"}
-    assert binding_cost_class(row, keyless, {}) == "subscription"
-    assert binding_cost_class({**row, "model_id": "auto/glm-5.3"}, keyless, {}) == "subscription"
+    declared = {"groups": {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}}
+    assert binding_cost_class(row, keyless, declared) == "subscription"
+    # #1661 review: an undeclared group and Magpie's own auto/<model> groups may hold
+    # per-token members (OpenRouter), so they keep the paid default with paid spend off.
+    assert binding_cost_class(row, keyless, {}) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "auto/glm-5.3"}, keyless, declared) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "group/other"}, keyless, declared) == "paid_api"
     # An explicit Owner override still wins; a keyed route is not the keyless gateway.
     assert binding_cost_class(row, keyless, {"models": {"group/nerelan-glm-5-3": "free"}}) == "free"
     assert binding_cost_class(row, keyless, {"bindings": {row["binding_id"]: {"cost_class": "paid_api"}}}) == "paid_api"
