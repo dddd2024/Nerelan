@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| Agent Zero | `agent0ai/agent-zero` | 高：全栈 AI Agent、插件安装/启停、Python 扩展钩子、细粒度工具策略、子 Agent、并行与记忆 | 借鉴插件与 Agent UX，不引入整套运行时 | [固定源码报告](reuse-study-2026-11-16/agent-zero.md) / [#1659](https://github.com/dddd2024/Nerelan/issues/1659)；本地已有只读 CapabilityRegistry、GoalService 和持久 TaskStore | 插件默认启用、工具策略缺省 allow；安装后立即执行 hook，扫描器不是所核查安装路径的阻断门；并行 job 是内存态，LLM 记忆合并先删除旧记录 | 当声明式 Pack/Agent profile/Host tool-time policy 能通过沙箱、安全、长跑恢复与真实完成任务成本评测时 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
