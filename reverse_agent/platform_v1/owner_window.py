@@ -94,6 +94,55 @@ def _store_transport(store: Any) -> Callable[[str, float, int], tuple[int, Any]]
     return transport
 
 
+def resolve_pool(model_store: Any, owner: Mapping[str, Any]
+                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """(pool entries, display rows, skipped) over the enabled bindings, as admission offers them."""
+    from .routing_inputs import binding_cost_class, weekly_pace_config
+    pace = weekly_pace_config(owner)
+    # Same validation and normalization as dispatch, but read from the store in
+    # this process: no HTTP to our own server (its handler needs the store lock we
+    # hold), no session refresh, no quota or login probe inside the transaction.
+    resolver = BindingResolver(transport=_store_transport(model_store))
+    connections = {c["connection_id"]: c for c in model_store.list_connections_public()}
+    pool, shown, skipped = [], [], []
+    for binding in sorted(model_store.list_bindings_public(), key=lambda b: b["binding_id"]):
+        if not binding.get("enabled"):
+            continue
+        connection = connections.get(binding.get("connection_id"), {})
+        cost = binding_cost_class(binding, connection, owner)
+        if cost == "paid_api":
+            skipped.append(f"{binding['binding_id']} (paid API)")
+            continue
+        try:
+            resolution = resolver.resolve(binding["binding_id"], task_executor=binding["executor_id"])
+        except Exception as exc:  # noqa: BLE001 - an unusable binding is simply not offered
+            skipped.append(f"{binding['binding_id']} ({type(exc).__name__})")
+            continue
+        entry = {"binding_ref": resolution.binding_ref, "model_id": resolution.model_id,
+                 "connection_id": resolution.connection_id, "executor_id": resolution.executor_id,
+                 "provider_id": resolution.provider_id, "auth_method": resolution.auth_method,
+                 "base_url": resolution.base_url}
+        pool.append(entry)
+        shown.append({"binding": entry["binding_ref"], "executor": entry["executor_id"],
+                      "model": entry["model_id"], "cost": cost,
+                      "weekly_paced": bool(pace.get("enabled") and entry["executor_id"] in pace.get("executors", ()))})
+    return pool, shown, skipped
+
+
+def live_pool(model_store: Any) -> list[dict[str, Any]]:
+    """The pool a continuous window's Goals use now (Owner decision 2026-11-17, #1667).
+
+    The bindings admission would offer at this moment, minus any the Owner
+    ``exclude``s in the routing overrides. Unreadable overrides raise ``ValueError``,
+    so a caller refuses rather than guesses.
+    """
+    from .routing_inputs import read_overrides
+    owner = read_overrides(getattr(model_store, "_state_path", None))
+    excluded = {ref for ref, override in owner.get("bindings", {}).items()
+                if isinstance(override, Mapping) and override.get("exclude") is True}
+    return [entry for entry in resolve_pool(model_store, owner)[0] if entry["binding_ref"] not in excluded]
+
+
 class OwnerWindowAdmission:
     """One typed Owner confirmation -> one atomic window over exactly these Goals."""
 
@@ -106,38 +155,9 @@ class OwnerWindowAdmission:
 
     def _pool(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         """Bindings a Task may run on, resolved exactly as dispatch resolves them."""
-        host = self._host
-        from .routing_inputs import binding_cost_class, read_overrides, weekly_pace_config
-        owner = read_overrides(getattr(host._store, "_state_path", None))
-        pace = weekly_pace_config(owner)
-        # Same validation and normalization as dispatch, but read from the store in
-        # this process: no HTTP to our own server (its handler needs the store lock we
-        # hold), no session refresh, no quota or login probe inside the transaction.
-        resolver = BindingResolver(transport=_store_transport(host._store))
-        connections = {c["connection_id"]: c for c in host._store.list_connections_public()}
-        pool, shown, skipped = [], [], []
-        for binding in sorted(host._store.list_bindings_public(), key=lambda b: b["binding_id"]):
-            if not binding.get("enabled"):
-                continue
-            connection = connections.get(binding.get("connection_id"), {})
-            cost = binding_cost_class(binding, connection, owner)
-            if cost == "paid_api":
-                skipped.append(f"{binding['binding_id']} (paid API)")
-                continue
-            try:
-                resolution = resolver.resolve(binding["binding_id"], task_executor=binding["executor_id"])
-            except Exception as exc:  # noqa: BLE001 - an unusable binding is simply not offered
-                skipped.append(f"{binding['binding_id']} ({type(exc).__name__})")
-                continue
-            entry = {"binding_ref": resolution.binding_ref, "model_id": resolution.model_id,
-                     "connection_id": resolution.connection_id, "executor_id": resolution.executor_id,
-                     "provider_id": resolution.provider_id, "auth_method": resolution.auth_method,
-                     "base_url": resolution.base_url}
-            pool.append(entry)
-            shown.append({"binding": entry["binding_ref"], "executor": entry["executor_id"],
-                          "model": entry["model_id"], "cost": cost,
-                          "weekly_paced": bool(pace.get("enabled") and entry["executor_id"] in pace.get("executors", ()))})
-        return pool, shown, skipped
+        from .routing_inputs import read_overrides
+        store = self._host._store
+        return resolve_pool(store, read_overrides(getattr(store, "_state_path", None)))
 
     def _scope(self, goal_ids: Sequence[str], envelope: dict[str, Any]) -> dict[str, Any]:
         """Persisted truth for the prompt and for the in-transaction recheck."""

@@ -1468,12 +1468,18 @@ class PlatformControlStore:
                 raise TaskStoreError("owner_window_receipt_missing")
             previous = json.loads(source[0]["evidence_json"])
             current = json.loads(target["evidence_json"])
-            pool = [entry for entry in previous["approved_pool"] if entry in current["approved_pool"]]
+            # The target runs until the Owner stops it, so it uses the live pool when the
+            # host provides one (Owner decision 2026-11-17, #1667); else both receipts' overlap.
+            from .window_pool import eligible_pool
+            pool, pool_source = eligible_pool(
+                self.task_store, [entry for entry in previous["approved_pool"] if entry in current["approved_pool"]],
+                continuous=True)
             if any(self.task_store.get_task(link["task_id"]).binding_ref not in {
                     entry["binding_ref"] for entry in pool} for link in self.list_goal_tasks(goal.id)):
                 raise TaskStoreError("continuous_adoption_binding_outside_pool")
             adoption_evidence = {**previous, "approved_pool": pool, "from_window_id": old.id,
-                                 "to_window_id": window.id, "reason": "continuous_run_adoption"}
+                                 "to_window_id": window.id, "reason": "continuous_run_adoption",
+                                 "pool_source": pool_source}
         if goal.repository not in window.repositories:
             raise TaskStoreError("rebind_window_repository_mismatch")
         links = self.list_goal_tasks(goal.id)

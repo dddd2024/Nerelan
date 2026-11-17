@@ -647,13 +647,16 @@ def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, pol
     """In an Owner window, the binding a Task runs on must be one the Owner was shown.
 
     Routing picks the binding per Task and may reroute on quota, so the Owner
-    confirms a pool, not one binding. Read-only guard, before any CLI launch.
+    confirms a pool, not one binding. A continuous window checks the live pool
+    instead (Owner decision 2026-11-17, #1667); the receipt must still exist.
+    Read-only guard, before any CLI launch.
     """
+    from .window_pool import eligible_pool
     from .control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
     try:
         with store._lock:
             window = store._conn.execute(
-                "SELECT w.id,w.confirmation_mode FROM platform_goal_task_links l "
+                "SELECT w.id,w.confirmation_mode,w.expires_at FROM platform_goal_task_links l "
                 "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision "
                 "JOIN platform_autonomous_windows w ON w.id=g.window_id "
                 "WHERE l.task_id=?", (task.id,)).fetchone()
@@ -661,7 +664,7 @@ def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, pol
             # Enforce the current Owner receipt rather than the source's wider pool.
             if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
                 window = store._conn.execute(
-                "SELECT id, confirmation_mode FROM platform_autonomous_windows "
+                "SELECT id, confirmation_mode, expires_at FROM platform_autonomous_windows "
                 "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1", (policy_ref,)).fetchone()
             if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
                 return
@@ -675,7 +678,8 @@ def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, pol
             raise ValueError("missing_or_ambiguous_receipt")
         if resolution is None:
             raise ValueError("no_binding")
-        pool = json.loads(rows[0]["evidence_json"])["approved_pool"]
+        pool, _source = eligible_pool(store, json.loads(rows[0]["evidence_json"])["approved_pool"],
+                                      continuous=window["expires_at"] == "")
         observed = {
             "binding_ref": resolution.binding_ref,
             "model_id": resolution.model_id,

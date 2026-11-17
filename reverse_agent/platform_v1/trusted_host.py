@@ -156,6 +156,8 @@ class CombinedTrustedHost:
         self._task_store = task_store
         # Review evidence checks read the Owner's declared Magpie routing groups (2026-11-17).
         self._task_store.routing_groups = self._routing_groups
+        # A continuous Owner window routes and dispatches from the live pool (#1667).
+        self._task_store.live_window_pool = self._live_window_pool
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
         if claude_code_readiness_probe is not None:
@@ -638,7 +640,7 @@ class CombinedTrustedHost:
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
-        from .model_router import capability, select_model
+        from .model_router import capability, select_model, served_model
         from .routing_inputs import read_overrides, weekly_pace_config
         from .routing_capabilities import read_capability_table
         try:
@@ -673,6 +675,11 @@ class CombinedTrustedHost:
                 chain_models.append(model)
                 chain_executors.append(by_id[binding_id]["executor_id"])
         candidates = []
+        window_pool = self._routing_window_pool(goal)
+        pool_refs = None
+        if window_pool is not None:
+            from .window_pool import pool_refs as _pool_refs
+            pool_refs = _pool_refs(window_pool["pool"])
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
         availability_history = self._routing_availability_history()
@@ -758,7 +765,8 @@ class CombinedTrustedHost:
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                     refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                     reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
-                    weekly_pace=weekly_pace_config(owner), groups=owner.get("groups", {}))
+                    weekly_pace=weekly_pace_config(owner), groups=owner.get("groups", {}),
+                    window_pool=pool_refs)
                 can_probe = True
             except ValueError:
                 can_probe = False
@@ -773,12 +781,13 @@ class CombinedTrustedHost:
         pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
         failed = by_id.get(failed_binding, {})
         tier = failed_tier if failed_tier is not None else (
-            capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
+            capability(served_model(failed.get("model_id", ""), owner.get("groups", {})), profiles.get(failed_binding, {}),
                        task.kind, task.difficulty)[0] if failed_binding else 0)
         if avoid_bindings and (type(stall_tier) is not int or not 1 <= stall_tier <= 5):
             # No recorded tier for the stalled attempt: its binding's own measured tier is the floor.
             from .routing_capabilities import tier_detail
-            stall_tier = max((tier_detail(by_id[ref]["model_id"], profiles.get(ref, {}), task.kind, task.difficulty,
+            stall_tier = max((tier_detail(served_model(by_id[ref]["model_id"], owner.get("groups", {})),
+                                          profiles.get(ref, {}), task.kind, task.difficulty,
                                           capability_table, owner.get("bindings", {}).get(ref, {}))["tier"]
                               for ref in avoid_bindings if ref in by_id), default=0)
         feedback = None
@@ -798,8 +807,11 @@ class CombinedTrustedHost:
                                 account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
                                 avoid_bindings=tuple(avoid_bindings),
                                 stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
-                                groups=owner.get("groups", {}))
+                                groups=owner.get("groups", {}), window_pool=pool_refs)
             decision["context_packet_reservation"] = 16384 + 256
+            if window_pool is not None:
+                decision["pool_source"] = window_pool["pool_source"]
+                decision["pool_size"] = len(pool_refs)
             if owner.get("group_errors"):
                 decision["group_errors"] = list(owner["group_errors"])
             return decision
@@ -808,7 +820,30 @@ class CombinedTrustedHost:
             error.decision = getattr(exc, "decision", {"reason": str(exc)})
             if owner.get("group_errors") and isinstance(error.decision, dict):
                 error.decision["group_errors"] = list(owner["group_errors"])
+            if window_pool is not None and isinstance(error.decision, dict):
+                error.decision["pool_source"] = window_pool["pool_source"]
+                error.decision["pool_size"] = len(pool_refs)
             raise error from exc
+
+    def _live_window_pool(self) -> list[dict[str, Any]]:
+        """Bindings a continuous Owner window's Goals may run on now (Owner decision 2026-11-17, #1667)."""
+        from .owner_window import live_pool
+        return live_pool(self._store)
+
+    def _routing_window_pool(self, goal: Any) -> dict[str, Any] | None:
+        """The pool routing must stay inside: the one dispatch will check, or None outside Owner windows.
+
+        A missing or unreadable admission receipt leaves routing unfiltered: dispatch
+        refuses that Task anyway, and an admission still being written has none yet.
+        """
+        from .window_pool import goal_window_pool
+        task_store = getattr(self, "_task_store", None)
+        if task_store is None or not goal or not getattr(goal, "window_id", "") or not getattr(goal, "id", ""):
+            return None
+        try:
+            return goal_window_pool(task_store, goal.id, goal.window_id)
+        except (ValueError, AttributeError):
+            return None
 
     def _routing_groups(self) -> Mapping[str, Any]:
         """The Owner's declared Magpie routing groups; unreadable overrides declare none."""
