@@ -22,6 +22,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
+| Arize Phoenix | `Arize-ai/phoenix` | 高：OTel Agent Trace、数据集实验、独立评分及成本估算 | 借鉴实验 Run/评分分离与缺失阶段恢复，优先复用 Apache-2.0 client/OTel 标准接口，不移植服务器 | [固定源码报告](reuse-study-2026-11-16/phoenix.md) / [#1672](https://github.com/dddd2024/Nerelan/issues/1672)；继续由 TaskStore/GoalService 做真实任务源、Magpie 做真实结算 | 主服务和 phoenix-evals 是 Elastic-2.0，client/otel 才是 Apache-2.0；错误 Run 替换会删旧自动评分；Span 价格是估算且自动跟踪有敏感数据风险 | 在无模型离线评估和真实 Agent×Model+成本实验中证明可解释性/评估恢复收益且许可隐私都通过时 | 2026-11-17 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
