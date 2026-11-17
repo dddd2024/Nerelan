@@ -807,3 +807,52 @@ def test_each_group_is_its_own_upstream():
     # A stall on one group marks neither another group nor a single binding as its upstream.
     assert result["liveness"]["avoided_upstreams"] == ["magpie|group:nerelan-glm-5-3"]
     assert _filters(result) == {"g1": "liveness_step_avoided"}
+
+
+def test_a_declared_group_is_judged_at_its_served_models_tier():
+    # glm-5.3 is tier 4 in this table; the group id itself has no entry.
+    table = {"glm-5.3": {"tiers": {"code": 4}}}
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    result = choose([group], difficulty=3, capability_table=table, profiles={}, groups=GROUPS)
+    assert result["tier"] == 4 and result["tier_source"] == "owner_table" and not result["underpowered"]
+    # Undeclared, the group keeps today's unproven prior.
+    result = choose([group], difficulty=3, capability_table=table, profiles={})
+    assert result["tier"] == 2 and result["tier_source"] == "prior"
+    assert choose([candidate("x", "group/other", "subscription")], difficulty=3, capability_table=table,
+                  profiles={}, groups=GROUPS)["tier"] == 2
+    # The measured profile stays keyed by the binding.
+    measured = {"magpie-group-nerelan-glm-5-3": {"task_buckets": {
+        "code:3": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}}
+    result = choose([group], difficulty=3, capability_table=table, profiles=measured, groups=GROUPS)
+    assert result["tier"] == 3 and result["tier_source"] == "measured"
+
+
+def test_window_pool_excludes_bindings_outside_it():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate("cheap", "flash-lite"), candidate("strong", "opus", "subscription")]
+    result = choose(pool, difficulty=3, window_pool={"strong"})
+    assert result["binding_ref"] == "strong"
+    assert _filters(result) == {"cheap": "outside_window_pool"}
+    assert result["excluded_summary"] == {"outside_window_pool": 1}
+    with pytest.raises(ModelSelectionError) as caught:
+        choose(pool, difficulty=3, window_pool={"strong"}, pin="cheap")
+    assert caught.value.decision["pin_filter"] == "outside_window_pool"
+    # No pool given (not an Owner window): nothing is filtered.
+    assert "outside_window_pool" not in choose(pool, difficulty=1)["excluded_summary"]
+
+
+def test_decision_summarizes_all_exclusions_and_hidden_ranked_candidates():
+    weak = [{**candidate(f"off-{i:02}", "flash-lite"), "enabled": False} for i in range(12)]
+    strong_off = {**candidate("zz-opus-off", "opus", "subscription"), "enabled": False}
+    paid = candidate("paid-sonnet", "sonnet", "paid_api")
+    ranked = [candidate(f"r{i}", model) for i, model in enumerate(
+        ("flash-lite", "gemini-flash", "glm-5.3", "kimi-k3", "deepseek-v4-pro", "gpt-6", "flash-lite"))]
+    result = choose([*weak, strong_off, paid, *ranked], difficulty=1, allow_paid=False)
+    assert result["excluded_summary"] == {"executor_fitness": 13, "paid_spend_disabled": 1}
+    # The 10-row cap keeps the strongest excluded bindings first.
+    shown = [row["binding_id"] for row in result["excluded_candidates"]]
+    assert len(shown) == 10 and set(shown[:2]) == {"zz-opus-off", "paid-sonnet"}
+    summary = result["ranked_summary"]
+    assert summary["count"] == 7 and summary["shown"] == len(result["candidates"]) == 5
+    assert sum(summary["hidden_tiers"].values()) == 2
+    assert all(isinstance(tier, str) for tier in summary["hidden_tiers"])

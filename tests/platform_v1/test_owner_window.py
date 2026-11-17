@@ -527,6 +527,96 @@ class TestDispatchPoolGuard:
         _require_owner_window_pool(setup.db, stored, None, "no-such-window")
 
 
+class TestLivePool:
+    """Owner decision 2026-11-17 (#1667): a continuous window uses the live binding pool."""
+
+    def admitted(self, setup, monkeypatch, *, continuous):
+        # A routed goal, so the real router (not a pin) chooses its model afterwards.
+        monkeypatch.setattr(setup.host._goal_service, "task_resolver", lambda item, *, goal=None, **kw: {
+            "executor_kind": "codex", "binding_ref": "pinned", "model_id": "gpt-test", "reason": "fixture_route"})
+        goals = setup.host._goal_service
+        goal = goals.create({"objective": "Live pool", "repository": "owner/repo", "idempotency_key": "live",
+                             "executor_kind": "opencode", "binding_ref": "", "orchestration_mode": "agent_team"})
+        goal = goals.plan(goal.id, expected_revision=goal.revision, tasks=[
+            {"id": "T", "title": "Task", "instruction": "Do it", "difficulty": 1}]).goal
+        bounds = (dict(continuous=True, hours=0, max_tasks=0, max_token_units=0) if continuous else {})
+        window, _ = admit(setup.host, (goal.id,), **bounds)
+        # Bound after admission, as the Magpie group bindings were on 2026-11-17.
+        setup.host._store.upsert_binding({"binding_id": "late", "name": "Late", "connection_id": "gateway",
+            "executor_id": "opencode", "model_id": "token-sensenova/glm-late", "enabled": True})
+        late = BindingResolver(transport=owner_window._store_transport(setup.host._store)).resolve(
+            "late", task_executor="opencode")
+        control = setup.host._control_store
+        goal = control.get_goal(goal.id)
+        task = setup.db.get_task(control.list_goal_tasks(goal.id)[0]["task_id"])
+        return goal, window, task, late
+
+    def route(self, setup, goal):
+        from reverse_agent.platform_v1.goal_service import PlannedTask
+        return setup.host._resolve_task_model(PlannedTask("T", "Task", "Do it", difficulty=1), goal=goal,
+                                              forecast=True, probe_availability=False)
+
+    def test_a_binding_added_after_admission_runs_in_a_continuous_window(self, setup, monkeypatch):
+        from reverse_agent.platform_v1.window_pool import goal_window_pool
+        goal, window, task, late = self.admitted(setup, monkeypatch, continuous=True)
+        _require_owner_window_pool(setup.db, task, late, task.policy_ref)
+        assert goal_window_pool(setup.db, goal.id, window.id)["pool_source"] == "live"
+        assert "late" in {e["binding_ref"] for e in setup.host._goal_service._owner_window_pool(goal, window.id)}
+        decision = self.route(setup, goal)
+        assert decision["pool_source"] == "live" and decision["pool_size"] == 3
+        assert "outside_window_pool" not in decision["excluded_summary"]
+        # The admission receipt keeps the pool confirmed then, as audit evidence.
+        evidence = json.loads(setup.db._conn.execute(
+            "SELECT evidence_json FROM platform_operation_receipts WHERE subject_id=? AND operation_type=?",
+            (goal.id, OWNER_WINDOW_RECEIPT)).fetchone()[0])
+        assert "late" not in {e["binding_ref"] for e in evidence["approved_pool"]}
+
+    def test_an_expiring_window_keeps_its_admission_pool(self, setup, monkeypatch):
+        from reverse_agent.platform_v1.window_pool import goal_window_pool
+        goal, window, task, late = self.admitted(setup, monkeypatch, continuous=False)
+        with pytest.raises(ExecutorRuntimeError, match="owner_window_binding_outside_confirmed_pool"):
+            _require_owner_window_pool(setup.db, task, late, task.policy_ref)
+        assert goal_window_pool(setup.db, goal.id, window.id)["pool_source"] == "admission"
+        assert "late" not in {e["binding_ref"] for e in setup.host._goal_service._owner_window_pool(goal, window.id)}
+        decision = self.route(setup, goal)
+        assert decision["pool_source"] == "admission" and decision["pool_size"] == 2
+        assert decision["binding_ref"] != "late"
+        assert {"binding_id": "late", "model_id": "token-sensenova/glm-late",
+                "filter": "outside_window_pool"} in decision["excluded_candidates"]
+
+    def test_an_owner_exclude_removes_a_binding_from_the_live_pool(self, setup, monkeypatch):
+        from reverse_agent.platform_v1 import routing_inputs
+        goal, window, task, late = self.admitted(setup, monkeypatch, continuous=True)
+        monkeypatch.setattr(routing_inputs, "read_overrides",
+                            lambda _path: {"bindings": {"late": {"exclude": True}}})
+        with pytest.raises(ExecutorRuntimeError, match="owner_window_binding_outside_confirmed_pool"):
+            _require_owner_window_pool(setup.db, task, late, task.policy_ref)
+        assert "late" not in {e["binding_ref"] for e in setup.host._goal_service._owner_window_pool(goal, window.id)}
+        decision = self.route(setup, goal)
+        assert decision["pool_source"] == "live" and decision["pool_size"] == 2
+        assert any(row["binding_id"] == "late" and row["filter"] == "outside_window_pool"
+                   for row in decision["excluded_candidates"])
+
+    def test_continuous_adoption_uses_the_live_pool(self, setup, monkeypatch):
+        goal, old, task, late = self.admitted(setup, monkeypatch, continuous=False)
+        control = setup.host._control_store
+        control.stop_window(old.id, reason="window_task_budget_exhausted")
+        target = TestContinuousRun().start(setup, setup.planned("target", "codex", "pinned"))
+        assert control.adopt_standing_goals(target.id)[0]["status"] == "REBOUND"
+        evidence = json.loads(setup.db._conn.execute(
+            "SELECT evidence_json FROM platform_operation_receipts WHERE subject_id=? AND window_id=? "
+            "AND operation_type=?", (goal.id, target.id, OWNER_WINDOW_RECEIPT)).fetchone()[0])
+        assert evidence["pool_source"] == "live" and "late" in {e["binding_ref"] for e in evidence["approved_pool"]}
+        _require_owner_window_pool(setup.db, task, late, task.policy_ref)
+
+    def test_a_disabled_binding_leaves_the_live_pool(self, setup, monkeypatch):
+        goal, window, task, late = self.admitted(setup, monkeypatch, continuous=True)
+        setup.host._store.upsert_binding({"binding_id": "late", "name": "Late", "connection_id": "gateway",
+            "executor_id": "opencode", "model_id": "token-sensenova/glm-late", "enabled": False})
+        with pytest.raises(ExecutorRuntimeError, match="owner_window_binding_outside_confirmed_pool"):
+            _require_owner_window_pool(setup.db, task, late, task.policy_ref)
+
+
 class TestCommandLine:
     def test_valid_arguments(self):
         args = owner_window.parse(["--goal", "g1", "--goal", "g2", "--hours", "24", "--max-tasks", "10",
