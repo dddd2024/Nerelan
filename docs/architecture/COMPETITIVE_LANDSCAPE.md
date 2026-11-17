@@ -50,9 +50,9 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | 仓库 | 来源查询 | 说明（仓库自述） |
 |---|---|---|
 | `savannahfeder/agentbox` | coding agent worktree | 桌面端并行运行多个 Claude Code / Codex，每个在独立 worktree |
-| `cosscom/shipyard` | coding agent worktree | 在开发机上运行编码 Agent：worktree、终端、编排、桌面应用 |
+| `cosscom/shipyard` | coding agent worktree | **已固定源码分诊（2026-11-17）**：[Issue #1627](https://github.com/dddd2024/Nerelan/issues/1627) / [研究报告](reuse-study-2026-11-16/shipyard.md)。优先借鉴 Turn ID/receiver-side idem、步骤 journal/UNKNOWN reentry、Agent capability signals、repo-config digest trust；拒绝无凭证 Shell 自动重试、webhook 仅凭 Header 即视作 exactly-once、无 sandbox 的高权限桌面 Plugin。MIT，未安装或复用源码。 |
 | `wangmiaozero/pi-harness` | multi-agent coding orchestration | Pi Coding Agent 的运维超集：可观测性、治理、故障恢复、评测、多 Agent 编排 |
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+本节 **Shipyard** 已完成固定版本静态源码分诊（[#1627](https://github.com/dddd2024/Nerelan/issues/1627)，[报告](reuse-study-2026-11-16/shipyard.md)）；其余雷达候选需逐项核对。**Pi-Harness** 的独立源码专项见 [#1625](https://github.com/dddd2024/Nerelan/issues/1625) / Docs-only [Draft PR #1626](https://github.com/dddd2024/Nerelan/pull/1626)，不表示其研究文档已经合入 main。
