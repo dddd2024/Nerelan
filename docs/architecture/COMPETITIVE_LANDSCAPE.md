@@ -53,6 +53,6 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `cosscom/shipyard` | coding agent worktree | 在开发机上运行编码 Agent：worktree、终端、编排、桌面应用 |
 | `wangmiaozero/pi-harness` | multi-agent coding orchestration | Pi Coding Agent 的运维超集：可观测性、治理、故障恢复、评测、多 Agent 编排 |
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
-| `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
+| `y5ez3g/facadecode` | multi-agent coding orchestration | **已固定源码审计（2026-11-17）**：[研究 Issue #1635](https://github.com/dddd2024/Nerelan/issues/1635) / [报告](reuse-study-2026-11-16/facadecode.md)。MIT（根目录与 extension/LICENSE.txt；其他第三方组件另核）；BORROW_PATTERN：版本化 CLI 能力、有效 Sandbox/Approval 事实、PTY owner generation fencing、接受前持久请求记录、草稿安全消息及 UNKNOWN 效果收据。REJECT：默认 YOLO（Codex/Claude 跳过沙箱和审批）、跨创建树控制终端、UI 离线 90s/5min 即杀长期 Agent、仅 1h dedup 当全局 exactly-once。静态分析，未安装/测试。 |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+本雷达的 **Facade Code** 已做固定源码静态审计（[#1635](https://github.com/dddd2024/Nerelan/issues/1635)、[报告](reuse-study-2026-11-16/facadecode.md)），其他项目是否已研究，请以 [总索引 #1576](https://github.com/dddd2024/Nerelan/issues/1576) 的最新增量评论与独立 Draft PR 为准；本分支变更**尚未合入 main**。
