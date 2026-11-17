@@ -187,6 +187,12 @@ HOST_RETRY_REASON = "host_retry"
 STALL_REROUTED = "rerouted"
 STALL_NO_ALTERNATIVE = "no_alternative"
 STALL_ROUTES_CHECKED_LIMIT = 1024
+# Continuous run (#1538, #1553): a window that runs until the Owner stops it never ends
+# a goal over provider or liveness failures (stall, host kill, overload, 429, quota).
+# Past the free per-step cap such a step keeps retrying, on another binding when one
+# is eligible, after a backoff that doubles up to this ceiling, and never spends
+# max_retries. Model-judging failures (checks, timeouts, refusals) keep their budget.
+PATIENT_BACKOFF_MAX_SECONDS = 2 * 3600
 OWNER_RETRY_REASON = "owner_retry"
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
@@ -204,12 +210,13 @@ def _free_retries_used(history: Sequence[Mapping[str, Any]], plan_task_id: str) 
     return sum(row["plan_task_id"] == plan_task_id and _non_model_reason(row.get("reason")) for row in history)
 
 
-def _routing_retries_spent(history: Sequence[Mapping[str, Any]]) -> int:
+def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: bool = False) -> int:
     """Escalations that spent the window's max_retries.
 
     Decision B: the first MAX_TRANSIENT_RETRIES non-model retries of each plan step
     are free; any beyond that cap spend max_retries like a model failure. Owner
     retries (decision A) never do. Task count and tokens still bound all of them.
+    In a continuous window (``patient``) no non-model retry ever spends max_retries.
     """
     free: dict[str, int] = {}
     spent = 0
@@ -218,6 +225,8 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]]) -> int:
         if reason == OWNER_RETRY_REASON:
             continue
         if _non_model_reason(reason):
+            if patient:
+                continue
             used = free.get(row["plan_task_id"], 0)
             free[row["plan_task_id"]] = used + 1
             if used < MAX_TRANSIENT_RETRIES:
@@ -921,14 +930,19 @@ class GoalService:
         tiers = [event.metadata.get("tier") for attempt in attempts for event in self.store.get_events(attempt.id)
                  if event.type == "MODEL_SELECTED" and event.metadata.get("binding_ref") == attempt.binding_ref]
         tiers = [tier for tier in tiers if type(tier) is int and 1 <= tier <= 5]
+        floor = max(tiers) if tiers else None
         try:
             decision = self.task_resolver(plan_task, goal=goal, avoid_bindings=tuple(avoided),
-                                          stall_tier=max(tiers) if tiers else None,
-                                          **self._review_authors(plan_task, goal, planned))
+                                          stall_tier=floor, **self._review_authors(plan_task, goal, planned))
         except TaskStoreError as exc:
             return None, f"selection_failed:{exc}"
         if not decision.get("binding_ref") or decision["binding_ref"] in avoided:
             return None, "no_eligible_binding"
+        tier = decision.get("tier")
+        if floor is not None and type(tier) is int and tier < floor:
+            # The router offers the strongest tier present when none reaches the floor
+            # (e.g. the stalled binding itself became unavailable): never a weaker model.
+            return None, "below_stall_tier"
         if (decision.get("liveness") or {}).get("fallback"):
             # Only bindings cooling down after their own stalls are left: another
             # stalling binding is no better than the one the retained tree came from.
@@ -1229,7 +1243,7 @@ class GoalService:
                                 and feedback["review_task_id"] == failed.id):
                             if self._review_intent_hold(failed, review_plan):
                                 continue
-                            if _routing_retries_spent(history) >= window.max_retries:
+                            if _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
                                 self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
                             base = self._approved_base(producer)
@@ -1280,7 +1294,7 @@ class GoalService:
                     producer = self.store.get_task(links[source_id]["task_id"])
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
-                    if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history) + 2 > window.max_retries:
+                    if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history, patient=window.continuous) + 2 > window.max_retries:
                         self.store.block_model_selection(failed.id, decision={"reason":
                             "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
                         continue
@@ -1395,16 +1409,25 @@ class GoalService:
             stall_route, stall_note = None, ""
             # One shared cap per plan step for every not-the-model's-fault retry (decision B).
             free_used = _free_retries_used(history, plan_task.id)
+            # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
+            patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
+            quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
+            if patient and quota_failure and not overloaded and not miss and failed.status == "FAILED":
+                failed_at = _parse_utc(failed.updated_at)
+                wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), PATIENT_BACKOFF_MAX_SECONDS)
+                if failed_at is not None and time.time() < failed_at + wait:
+                    continue  # the account's answer: wait, then route again; no budget spent
             if overloaded:
                 transient = free_used
-                if transient >= MAX_TRANSIENT_RETRIES:
+                if transient >= MAX_TRANSIENT_RETRIES and not patient:
                     overloaded = False  # persistent overload: ordinary routing may move on
                 else:
                     failed_at = _parse_utc(failed.updated_at)
-                    wait = TRANSIENT_BACKOFF_SECONDS * (2 ** transient)
+                    wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** transient), PATIENT_BACKOFF_MAX_SECONDS)
                     in_backoff = failed_at is not None and time.time() < failed_at + wait
                     checked = self._stall_routes_checked
-                    if stalled and (not in_backoff or failed.id not in checked):
+                    # Past the free cap every liveness class looks for another binding, not only stalls.
+                    if (stalled or patient) and (not in_backoff or failed.id not in checked):
                         # Another binding needs no backoff; look once on first sight and
                         # once more when the same-binding backoff is over. A found route
                         # is not remembered: if it is not taken now, the next tick looks again.
@@ -1413,7 +1436,7 @@ class GoalService:
                             checked[failed.id] = goal.id
                     if in_backoff and stall_route is None:
                         continue  # backoff; a later tick retries without spending budget
-                    if stalled:
+                    if stalled or (patient and host_failure):
                         transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}:"
                                             f"{STALL_REROUTED if stall_route is not None else STALL_NO_ALTERNATIVE}")
                     snapshot = None
@@ -1442,7 +1465,6 @@ class GoalService:
             refusal = failed.failure_classification == "MODEL_REFUSED"
             # Durable executors store "MODEL_UNAVAILABLE:<marker>" (#1460).
             unavailable = (failed.failure_classification or "").split(":", 1)[0] == "MODEL_UNAVAILABLE"
-            quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
             interrupted = interrupted_dispatch or interrupted_preparation
             if (not miss and not overloaded and not model_review and not refusal and not unavailable
                     and not quota_failure and not interrupted
@@ -1453,8 +1475,8 @@ class GoalService:
             # Decision B: only retries that judge the model spend max_retries; host faults,
             # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
             # All of them share the per-step cap; past it they spend max_retries too.
-            exempt = (overloaded or interrupted or quota_failure) and free_used < MAX_TRANSIENT_RETRIES
-            if not exempt and _routing_retries_spent(history) >= window.max_retries:
+            exempt = (overloaded or interrupted or quota_failure) and (patient or free_used < MAX_TRANSIENT_RETRIES)
+            if not exempt and _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
                     self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted",
@@ -1513,9 +1535,13 @@ class GoalService:
                         self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
                         self.control_store.refresh_goal_status(goal_id)
                         continue
-                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
-                                         title="Escalation model selection failed",
-                                         description=str(exc), metadata={"reason": str(exc)})
+                    events = self.store.get_events(failed.id)
+                    if not (patient and events and events[-1].type == "MODEL_SELECTION_FAILED"
+                            and events[-1].metadata.get("reason") == str(exc)):
+                        # A patient step re-routes on every tick after its backoff: one event per change.
+                        self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
+                                             title="Escalation model selection failed",
+                                             description=str(exc), metadata={"reason": str(exc)})
                     continue
                 target = (role, decision["executor_kind"], decision["binding_ref"])
             elif refusal:
@@ -1671,7 +1697,7 @@ class GoalService:
             options["reason"] = "owner_retry_no_active_window"
             return options
         history = self.control_store.list_task_escalations(goal_id)
-        options["routing_retries_left"] = max(0, window.max_retries - _routing_retries_spent(history))
+        options["routing_retries_left"] = max(0, window.max_retries - _routing_retries_spent(history, patient=window.continuous))
         options["automatic_retries_left"] = {
             str(item.get("id")): max(0, MAX_TRANSIENT_RETRIES - _free_retries_used(history, str(item.get("id"))))
             for item in goal.tasks if isinstance(item, Mapping)}
