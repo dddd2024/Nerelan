@@ -71,3 +71,138 @@ def test_past_the_cap_a_host_failure_needs_a_routing_retry(case, monkeypatch):
     count = store.count_tasks()
     assert service.escalate_failed_tasks(goal.id) == ()
     assert store.count_tasks() == count
+
+
+# Continuous run (#1538, #1553): provider/liveness failures never end a goal.
+
+def _continuous(store, window):
+    store._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', expires_at='' "
+                        "WHERE id=?", (window.id,))
+    store._conn.commit()
+
+
+def test_in_a_continuous_window_no_non_model_retry_spends_max_retries():
+    history = rows(*[("a", "transient_overload")] * 5, ("a", "failed:api_error_429"), ("a", "host_retry:executor_stalled"))
+    assert gs._routing_retries_spent(history) == 5
+    assert gs._routing_retries_spent(history, patient=True) == 0
+    # Model-judging retries still spend it.
+    assert gs._routing_retries_spent(rows(("a", "failed:deterministic_validation_failure"), ("a", "failed:timeout")),
+                                     patient=True) == 2
+
+
+def test_past_the_cap_a_continuous_window_keeps_retrying_a_host_failure(case, monkeypatch):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _no_routing_retries(store, window)
+    _continuous(store, window)
+    _fail_terminated(store, task, root)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    [step] = service.escalate_failed_tasks(goal.id)
+    # No router in this fixture: no alternative, so the same binding resumes after the backoff.
+    assert step["reason"] == f"{RETRY_REASON}:{gs.STALL_NO_ALTERNATIVE}"
+    assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
+
+
+def test_a_patient_retry_waits_for_its_doubling_backoff(case, monkeypatch):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    from datetime import datetime, timedelta, timezone
+    recent = (datetime.now(timezone.utc) - timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _fail_terminated(store, task, root, age=recent)  # 60 s ago; the first backoff is 120 s
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+
+
+def test_the_patient_backoff_doubles_to_a_ceiling(case, monkeypatch):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "PATIENT_BACKOFF_MAX_SECONDS", 30)
+    from datetime import datetime, timedelta, timezone
+    recent = (datetime.now(timezone.utc) - timedelta(seconds=60)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _fail_terminated(store, task, root, age=recent)  # past the 30 s ceiling, though under 120 s
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"].startswith(RETRY_REASON)
+
+
+def test_patient_quota_failure_retries_without_budget(case, monkeypatch):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _no_routing_retries(store, window)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+                        "failure_detail='opencode_nonzero:exit=1:api_error_429', updated_at='2000-01-01T00:00:00Z' "
+                        "WHERE id=?", (task.id,))
+    store._conn.commit()
+    service.task_resolver = lambda plan_task, *, goal, failed_binding="", **kw: {
+        "binding_ref": "other-account", "executor_kind": "opencode", "model_id": "zai/glm-5.3", "tier": 3,
+        "reason": "fixture", "context_window": 128000}
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert store.get_task(step["to_task_id"]).binding_ref == "other-account"
+
+
+def test_outside_a_continuous_window_a_quota_failure_past_the_cap_stops(case, monkeypatch):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _no_routing_retries(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+                        "failure_detail='x', updated_at='2000-01-01T00:00:00Z' WHERE id=?", (task.id,))
+    store._conn.commit()
+    service.task_resolver = lambda plan_task, *, goal, **kw: {"binding_ref": "other-account", "executor_kind": "opencode",
+                                                              "model_id": "m", "tier": 3, "reason": "f", "context_window": 1}
+    assert service.escalate_failed_tasks(goal.id) == ()
+
+
+def _seconds_ago(seconds):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def test_a_patient_reroute_still_waits_for_the_backoff(case, monkeypatch):
+    # #1619 review B1: a failure that repeats in seconds on every binding must not
+    # bounce between bindings on each tick.
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    calls = []
+
+    def resolve(plan_task, *, goal, **kwargs):
+        calls.append(kwargs)
+        return {"binding_ref": "other-binding", "executor_kind": "opencode", "model_id": "m", "tier": 3,
+                "reason": "fixture", "context_window": 128000}
+    service.task_resolver = resolve
+    _fail_terminated(store, task, root, age=_seconds_ago(5))
+    count = store.count_tasks()
+    for _ in range(3):
+        assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count and calls == []
+    # Once the backoff is over it moves to the other binding.
+    _fail_terminated(store, task, root, age=_seconds_ago(10_000))
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{RETRY_REASON}:{gs.STALL_REROUTED}"
+    assert store.get_task(step["to_task_id"]).binding_ref == "other-binding"
+
+
+def test_a_patient_interrupted_preparation_waits_for_the_backoff(case, monkeypatch):
+    # #1619 review B2: a preparation failure that repeats every time (full disk) is not retried each tick.
+    root, _, store, _, service, goal, window, task = case
+    _no_routing_retries(store, window)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    store._conn.execute("UPDATE tasks SET status='BLOCKED', failure_classification='blocked', "
+                        "failure_detail='worktree_preparation_failed:OSError: disk full', updated_at=? WHERE id=?",
+                        (_seconds_ago(5), task.id))
+    store._conn.commit()
+    count = store.count_tasks()
+    for _ in range(3):
+        assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count

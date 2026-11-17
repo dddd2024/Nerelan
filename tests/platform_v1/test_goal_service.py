@@ -898,6 +898,19 @@ def test_stall_reroute_floor_is_the_strongest_tier_the_step_was_routed_at(case):
     assert seen == [5] and step["reason"].endswith(":rerouted")
 
 
+def test_stall_reroute_never_accepts_a_model_below_the_stall_tier(case, monkeypatch):
+    # #1601 review (Codex P2): the stalled binding itself unavailable, only a weaker model left.
+    root, _, store, _, service, goal, _, task = case
+    _fail_stalled(store, task, root)
+    store.add_event(task.id, event_type="MODEL_SELECTED", title="Escalated", description="fixture",
+                    metadata={"binding_ref": task.binding_ref, "tier": 5, "reason": "escalation_higher_tier"})
+    service.task_resolver = lambda plan_task, *, goal, **kwargs: dict(OTHER_BINDING, tier=2)
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"].endswith(":no_alternative")
+    assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
+
+
 def test_backoff_memory_is_dropped_once_the_step_moves_on(case, monkeypatch):
     root, _, store, _, service, goal, _, task = case
     _fail_stalled(store, task, root)
