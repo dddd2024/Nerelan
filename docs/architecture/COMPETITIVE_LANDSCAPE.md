@@ -52,7 +52,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `savannahfeder/agentbox` | coding agent worktree | 桌面端并行运行多个 Claude Code / Codex，每个在独立 worktree |
 | `cosscom/shipyard` | coding agent worktree | 在开发机上运行编码 Agent：worktree、终端、编排、桌面应用 |
 | `wangmiaozero/pi-harness` | multi-agent coding orchestration | Pi Coding Agent 的运维超集：可观测性、治理、故障恢复、评测、多 Agent 编排 |
-| `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
+| `boadij/pi-herdsman` | multi-agent coding orchestration | **已固定源码审计（2026-11-17）**：[研究 Issue #1631](https://github.com/dddd2024/Nerelan/issues/1631) / [报告](reuse-study-2026-11-16/pi-herdsman.md)。Apache-2.0；BORROW_PATTERN：动态嵌套委派的准入、Manager 监督≠Lead/Agent 直接所有权、Manager 更替下 ProjectAssignment 独立授权、身份绑定与 peer 分阶段收据；拒绝把 Pi/herdr 运行时、permission 元数据、人工 lost 恢复、Pi 用量当作 Nerelan 的 TaskStore/Magpie/Host 权威。未安装/未测试。 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+本雷达的 **Pi Herdsman** 已完成本轮固定源码静态审计（[#1631](https://github.com/dddd2024/Nerelan/issues/1631)、[报告](reuse-study-2026-11-16/pi-herdsman.md)），只在本研究分支，**未合入 main**。其他项目的最新研究状态以 [研究总索引 #1576](https://github.com/dddd2024/Nerelan/issues/1576) 的后续评论和各自 Draft PR 为准，不能把初始“未分诊”段落视为当前状态。
