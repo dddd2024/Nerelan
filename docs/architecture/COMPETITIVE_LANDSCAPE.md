@@ -55,4 +55,10 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+本表是 **2026-11-08 的首次发现快照**，不是现在全部项目仍未分诊的状态。最新的固定源码专题、重复判断与待验证结论，以 [#1576 研究总索引](https://github.com/dddd2024/Nerelan/issues/1576) 和对应研究 Issue / Draft PR 为准。
+
+## 单项目深审补充：Goose（2026-11-17，研究分支）
+
+| 上游 | 归档与代码证据 | 对 Nerelan 的复用裁定 |
+|---|---|---|
+| [`aaif-goose/goose@eb4f412`](https://github.com/aaif-goose/goose/commit/eb4f41244801cd7e8135ddfc66f7d5582c0d5257)，曾用名 `block/goose`；Apache-2.0 | [Issue #1646](https://github.com/dddd2024/Nerelan/issues/1646) · [固定源码报告](reuse-study-2026-11-16/goose.md) · [研究总索引 #1576](https://github.com/dddd2024/Nerelan/issues/1576) | **BORROW_PATTERN**：会话 scoped MCP `McpLease` 固定工具目录/配置；extension hot-reload 仅影响下一次 lease、去重启动与缓存版本；工具元信息/Owner 名称绑定、并发 elicitation Call ID 消歧；`Deny > Ask > Allow` Inspector 组合，以及 permission file 的并发写保护。**REJECT**：让 Goose 的 `Auto` 覆盖 Nerelan Owner 禁止、把 Egress `LOG` 当阻断、把 Adversary/OSV/Inspector 失效放行当安全验证通过、让会话 MCP Lease 替代 TaskStore epoch/operation receipt。上游建议转官方 MCP Registry，不另建 Marketplace。**R1 静态源码调研；未安装、未运行测试、未实测成本或安全；不授权 direct reuse，未合并 main。** |
