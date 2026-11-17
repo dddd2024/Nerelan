@@ -35,11 +35,13 @@ def test_profile_reports_rates_durations_tokens_and_failure_kinds():
     _task(store, "glm", "FAILED", "provider_rate_limited:429")
     _task(store, "glm", "QUEUED")  # not finished: not an attempt
     profile = compute_agent_profiles(store)["glm"]
-    assert (profile["attempts"], profile["ok"], profile["failed"], profile["timeouts"], profile["rate_limited"]) == (4, 2, 2, 1, 1)
-    assert profile["success_rate"] == 0.5
+    # A rate limit is the account's answer: shown, but neither an attempt nor a failure.
+    assert (profile["attempts"], profile["ok"], profile["failed"], profile["timeouts"], profile["rate_limited"]) == (3, 2, 1, 1, 1)
+    assert profile["success_rate"] == 0.67
     assert profile["median_ok_seconds"] == 780 and profile["p90_ok_seconds"] == 840
     assert profile["median_ok_tokens"] == 2000
-    assert profile["failure_kinds"] == {"timeout": 1, "provider_rate_limited": 1}
+    assert profile["failure_kinds"] == {"timeout": 1}
+    assert profile["neutral_failures"] == {"quota_or_rate_limit": 1}
 
 
 def test_observed_tokens_total_every_finished_attempt_that_reported_them():
@@ -233,9 +235,10 @@ def test_account_quota_and_provider_quota_are_not_interchangeable(detail):
     store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, exhausted.id))
     store._conn.commit()
     profile = compute_agent_profiles(store)["glm"]
-    # Only the account's own answer counts as a rate limit, and it keeps its own kind.
-    assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (2, 1, 1)
-    assert profile["failure_kinds"] == {"quota_exhausted": 1}
+    # Only the account's own answer counts as a rate limit; like every quota answer it
+    # is availability evidence, never an attempt or a failure of the model.
+    assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (1, 0, 1)
+    assert profile["failure_kinds"] == {} and profile["neutral_failures"] == {"quota_or_rate_limit": 1}
     assert profile["provider_quota_limited"] == 1
     assert not ACCOUNT_LIMIT.search("provider_quota_limit") and not LIMIT_HIT.search("provider_quota_limit")
     store._conn.close()
@@ -277,3 +280,78 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
         assert store._conn.execute("SELECT COUNT(*) FROM tasks WHERE status='FAILED'").fetchone()[0] == 2
     finally:
         store._conn.close()
+
+
+@pytest.mark.parametrize("classification,detail,cause", [
+    ("executor_stalled", "opencode_stalled:900", "executor_stalled"),
+    ("executor_terminated", "", None),  # already skipped before any counting
+    ("host_version_changed", "", None),
+    ("orphaned_preparation", "interrupted before anything was dispatched", "orphaned_preparation"),
+    ("api_error_429", "", "quota_or_rate_limit"),
+    ("quota_exhausted:limit_hit", "", "quota_or_rate_limit"),
+    ("codex_usage_limit", "", "quota_or_rate_limit"),
+    ("model_review_abandoned_no_reply", "model_review_abandoned_no_reply:timeout: reviewer call op-1 ended with no reply",
+     "model_review_abandoned_no_reply"),
+    ("review_not_independent", "review_not_independent", "review_not_independent"),
+    ("ambiguous_external_operation", "external operation already recorded", "ambiguous_external_operation"),
+    ("executor_dispatch_failed", "executor_dispatch_failed", "executor_dispatch_failed"),
+    ("cleanup_unconfirmed", "opencode_cleanup_unconfirmed", "cleanup_unconfirmed"),
+    ("review_diff_too_large", "review_diff_too_large", "review_diff_too_large"),
+    ("codex_frame_limit_exceeded", "codex_frame_limit_exceeded", "codex_frame_limit_exceeded"),
+    ("claude_code_frame_limit_exceeded", "", "claude_code_frame_limit_exceeded"),
+    ("deterministic_validation_failure", "functional_base_mismatch", "functional_base_mismatch"),
+    ("deterministic_validation_failure", "functional_worktree_root_required", "functional_worktree_root_required"),
+    ("deterministic_validation_failure", "functional_contract_invalid_or_stale", "functional_contract_invalid_or_stale"),
+    ("deterministic_validation_failure", "functional_observation_failed:OSError", "functional_observation_failed"),
+])
+def test_host_and_quota_failures_are_neither_attempts_nor_failures(classification, detail, cause):
+    """Live 2026-11-17: stalls and the #1526 base mismatch demoted GLM-5.3 from tier 4 to 2."""
+    store = TaskStore(":memory:")
+    for _ in range(3):
+        _task(store, "glm", "READY_FOR_REVIEW")
+    for _ in range(3):
+        failed = _task(store, "glm", "FAILED", classification, tokens=200)
+        store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, failed.id))
+    store._conn.execute("INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "SELECT 'sel-' || id, id, 'MODEL_SELECTED', '', '', '', '', "
+                        "'{\"kind\": \"code\", \"difficulty\": 3}' FROM tasks")
+    store._conn.commit()
+    profile = compute_agent_profiles(store)["glm"]
+    assert (profile["attempts"], profile["ok"], profile["failed"]) == (3, 3, 0)
+    assert profile["failure_kinds"] == {} and profile["success_rate"] == 1.0
+    assert profile["task_buckets"]["code:3"]["attempts"] == 3
+    assert profile["content_attempts"] == {"code": {"attempts": 3, "refusals": 0}}
+    if cause is not None:
+        assert profile["neutral_failures"] == {cause: 3}
+        assert profile["observed_tokens"] == 600  # tokens spent are still counted
+    store._conn.close()
+
+
+@pytest.mark.parametrize("classification,detail,kind", [
+    ("deterministic_validation_failure", "functional_check_failed", "deterministic_validation_failure"),
+    ("deterministic_validation_failure", "functional_implementation_missing", "deterministic_validation_failure"),
+    # The patch the model left broke hygiene (e.g. test artifacts in the tree): its work.
+    ("deterministic_validation_failure", "functional_patch_hygiene_failed", "deterministic_validation_failure"),
+    # The model ended its turn without changing the product: its work.
+    ("codex_no_product_changes", "", "codex_no_product_changes"),
+    ("timeout", "opencode_timeout:3600", "timeout"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero", "executor_nonzero"),
+    ("codex_event_limit_exceeded", "", "codex_event_limit_exceeded"),
+    ("model_review_invalid_output", "", "model_review_invalid_output"),
+])
+def test_real_model_failures_still_count(classification, detail, kind):
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW")
+    failed = _task(store, "glm", "FAILED", classification)
+    store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, failed.id))
+    store._conn.commit()
+    profile = compute_agent_profiles(store)["glm"]
+    assert (profile["attempts"], profile["ok"], profile["failed"]) == (2, 1, 1)
+    assert profile["failure_kinds"] == {kind: 1} and "neutral_failures" not in profile
+    store._conn.close()
+
+
+def test_neutral_classes_reuse_the_host_definitions():
+    from reverse_agent.platform_v1 import goal_service, model_profiles, model_review
+    assert goal_service.HOST_RETRY_CLASSES is model_profiles.HOST_RETRY_CLASSES
+    assert model_review.ABANDONED_NO_REPLY in model_profiles.HOST_PLUMBING_CLASSES

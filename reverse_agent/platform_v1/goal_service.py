@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED, transient_overload
+from .model_availability import EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, transient_overload
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -178,7 +178,7 @@ _MAX_ATTEMPTS_SHOWN = 10
 # Owner decision 2026-11-12 B: failures the host classifies as not the model's
 # fault retry on the same model, at most MAX_TRANSIENT_RETRIES per plan step,
 # and never consume the window's max_retries (task count and tokens still apply).
-HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
+# HOST_RETRY_CLASSES (imported above) lives in model_availability; measured profiles share it.
 HOST_RETRY_REASON = "host_retry"
 # #1596: a stall (no output for the stall interval) is mostly a silent upstream refusal
 # or hang, not the machine stopping the agent. It is still a free retry that keeps the

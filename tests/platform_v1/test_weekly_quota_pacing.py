@@ -456,4 +456,101 @@ class TestGatewayAccounts:
         accounts = [w._account("claude-a", 10.0, weekly=5.0, provider="claude"),
                     w._account("claude-b", 10.0, weekly=5.0, provider="claude")]
         wiring, h = self.gateway_host(monkeypatch, accounts)
-        assert h.host._gateway_account_quota("claude") == {}
+        assert h.host._gateway_account_quota("claude") == {"windows": [], "pace_input": "gateway_account_ambiguous"}
+
+    # Live 2026-11-17: Magpie re-reads Claude Pro about every 13 minutes (up to ~56), so
+    # the 600 s admission freshness held every claude/* and codex/* gateway binding.
+    @staticmethod
+    def held(wiring, h, difficulty=3):
+        with pytest.raises(wiring.TaskStoreError) as caught:
+            wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=difficulty))
+        rows = caught.value.decision["excluded_candidates"]
+        assert [row["filter"] for row in rows] == ["weekly_pace"]
+        return rows[0]
+
+    @staticmethod
+    def week(account, *, used, reset_in):
+        import time as _time
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        for window in account.get("windows") or account.get("cached_windows"):
+            if window["name"] == "7 days":
+                window.update(used_percent=used, remaining_percent=100 - used,
+                              resets_at=w._iso(_time.time() + reset_in))
+        return account
+
+    @pytest.mark.parametrize("provider,model", [("claude", "claude/claude-sonnet-5-5"), ("codex", "codex/gpt-6.1-sol")])
+    def test_a_fresh_gateway_reading_lets_a_paced_binding_route(self, monkeypatch, provider, model):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        account = w._account(f"{provider}-acct", 10.0, weekly=5.0, provider=provider)
+        wiring, h = self.gateway_host(monkeypatch, [account], model=model)
+        decision = wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=2))
+        assert decision["binding_ref"] == "magpie-model"
+
+    def test_a_reading_older_than_admission_freshness_still_paces_the_week(self, monkeypatch):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        account = w._account("claude-acct", 10.0, weekly=5.0, provider="claude", age=1800)
+        # parse_quotas keeps a reading older than 15 minutes only as cached windows.
+        account.update(state="STALE", reason="stale_reading", cached_windows=account["windows"], windows=[])
+        wiring, h = self.gateway_host(monkeypatch, [account])
+        view = h.host._gateway_account_quota("claude")
+        assert view["pace_input"] == "gateway_reading_aged" and 1790 <= view["reading_age_seconds"] <= 1900
+        assert {window["window"] for window in view["windows"]} == {"five_hour", "weekly"}
+        decision = wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=2))
+        assert decision["binding_ref"] == "magpie-model"
+
+    def test_no_reading_within_the_pace_bound_holds_with_no_fresh_gateway_quota(self, monkeypatch):
+        import time as _time
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        from reverse_agent.platform_v1.trusted_host import GATEWAY_PACE_MAX_AGE_SECONDS
+        account = w._account("claude-acct", 10.0, weekly=5.0, provider="claude", age=GATEWAY_PACE_MAX_AGE_SECONDS + 120)
+        account.update(state="STALE", reason="stale_reading", cached_windows=account["windows"], windows=[])
+        wiring, h = self.gateway_host(monkeypatch, [account])
+        monkeypatch.setattr("reverse_agent.platform_v1.routing_inputs.read_overrides",
+                            lambda path: {"weekly_pace": {"require_fresh": True}})
+        row = self.held(wiring, h, difficulty=2)
+        assert row["cause"] == "no_fresh_gateway_quota"
+        assert _time.time() < row["retry_at"] <= _time.time() + 900
+
+    def test_no_gateway_account_is_named(self, monkeypatch):
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        other = w._account("trae-acct", 10.0, weekly=5.0, provider="trae-cn")
+        wiring, h = self.gateway_host(monkeypatch, [other])
+        monkeypatch.setattr("reverse_agent.platform_v1.routing_inputs.read_overrides",
+                            lambda path: {"weekly_pace": {"require_fresh": True}})
+        assert self.held(wiring, h, difficulty=2)["cause"] == "no_gateway_account"
+
+    def test_an_account_ahead_of_pace_holds_until_its_pace_catches_up(self, monkeypatch):
+        import time as _time
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        # Day one of the week (reset in six days) with half of it already spent.
+        account = self.week(w._account("claude-acct", 10.0, provider="claude"), used=50.0, reset_in=6 * 86400)
+        wiring, h = self.gateway_host(monkeypatch, [account])
+        row = self.held(wiring, h, difficulty=2)
+        from reverse_agent.platform_v1.model_router import UNKNOWN_WEEKLY_NEED
+        start = _time.time() + 6 * 86400 - WEEK_SECONDS
+        assert row["cause"] == "ahead_of_pace"
+        assert row["retry_at"] == pytest.approx(start + WEEK_SECONDS * (.5 + UNKNOWN_WEEKLY_NEED - .10), abs=120)
+
+    def test_an_account_past_its_reserve_holds_until_the_reset(self, monkeypatch):
+        import time as _time
+        from tests.platform_v1 import test_magpie_account_quota_wiring as w
+        account = self.week(w._account("codex-acct", 10.0, provider="codex"), used=98.0, reset_in=4 * 86400)
+        wiring, h = self.gateway_host(monkeypatch, [account], model="codex/gpt-6.1-sol")
+        row = self.held(wiring, h, difficulty=2)
+        assert row["cause"] == "weekly_reserve"
+        assert row["retry_at"] == pytest.approx(_time.time() + 4 * 86400, abs=120)
+
+
+def test_the_pace_decision_names_its_cause():
+    from reverse_agent.platform_v1.model_router import weekly_pace_decision
+    strict = {**PACE, "require_fresh": True}
+    native = paced(.5, .1)
+    native.update(weekly_headroom=None)
+    assert weekly_pace_decision(native, now=NOW, pace=strict) == (NOW + 900, "no_fresh_account_quota")
+    gateway = paced(.5, .1, executor="opencode", model="claude/claude-sonnet-5-5")
+    gateway.update(paced_provider="claude", weekly_headroom=None)
+    assert weekly_pace_decision(gateway, now=NOW, pace=strict)[1] == "no_fresh_gateway_quota"
+    gateway["weekly_pace_input"] = "gateway_account_ambiguous"
+    assert weekly_pace_decision(gateway, now=NOW, pace=strict)[1] == "gateway_account_ambiguous"
+    assert weekly_pace_decision(native, now=NOW, pace=PACE) == (None, "")  # not strict: no claim
+    assert weekly_pace_decision(paced(.5, .45), now=NOW, pace=PACE) == (None, "")

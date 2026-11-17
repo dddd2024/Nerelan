@@ -639,6 +639,13 @@
       ],
       "scores": []
     },
+    "claude-sonnet-5-5": {
+      "aliases": [
+        "claude-sonnet-5-5",
+        "sonnet"
+      ],
+      "scores": []
+    },
     "mistral-medium-3.5": {
       "aliases": [
         "mistral-medium-3.5"

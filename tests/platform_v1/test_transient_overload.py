@@ -128,7 +128,9 @@ def test_usage_limit_failure_keeps_quota_routing_and_profile_counting(case, mess
                         "failure_detail=?, updated_at='2000-01-01T00:00:00Z' WHERE id=?", (message, task.id))
     store._conn.commit()
     profile = model_profiles.compute_agent_profiles(store)[task.binding_ref]
-    assert profile.get("overloaded", 0) == 0 and profile["failed"] == 1
+    # Never overload; a usage limit is the account's answer: a rate limit, not a model failure.
+    assert profile.get("overloaded", 0) == 0 and profile["failed"] == 0 and profile["rate_limited"] == 1
+    assert profile["neutral_failures"] == {"quota_or_rate_limit": 1}
     steps = service.escalate_failed_tasks(goal.id)
     assert all(step["reason"] != "transient_overload" for step in steps)
     assert recovery.recovery_input(store.get_task(steps[0]["to_task_id"])) is None if steps else True

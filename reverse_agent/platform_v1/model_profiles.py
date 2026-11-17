@@ -16,9 +16,12 @@ import time
 from statistics import median
 from typing import Any
 
-from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED, no_credits_error, transient_overload
+from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, no_credits_error,
+                                 transient_overload)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
+from .quota_guard import LIMIT_HIT
+from .run_store import ORPHANED_PREPARATION
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
 # OpenCode's typed provider-side quota limit: capacity evidence, never a capability
@@ -27,6 +30,49 @@ PROVIDER_QUOTA_LIMIT = "provider_quota_limit"
 # OpenCode reports EXECUTOR_RUNNING; native CLIs start right after WORKSPACE_READY.
 _STARTS, _ENDS = ("EXECUTOR_RUNNING", "WORKSPACE_READY"), ("EXECUTOR_COMPLETED", "EXECUTOR_FINISHED")
 MIN_SAMPLES = 2
+
+# Failures that say nothing about what the model can do, so they are neither an
+# attempt nor a failure in its profile (the stored class names the cause):
+# - HOST_RETRY_CLASSES (goal decision B): a stall with no output, an external kill,
+#   a redeploy under the run. LIMIT_HIT: the account's quota/rate answer (429,
+#   rate/usage limit, quota_exhausted), which holds the account instead.
+# - ORPHANED_PREPARATION: interrupted before anything was dispatched.
+# - Plumbing the host owns: a reviewer call that ended with no reply, a review the
+#   router could not keep independent, a second dispatch the host refused, a failed
+#   dispatch, an unconfirmed cleanup, a diff too large for the reviewer's packet,
+#   and a CLI event line larger than the host's frame buffer (the frame limit is a
+#   transport bound, not a judgement of the turn; runaway turns hit the event limit).
+HOST_PLUMBING_CLASSES = frozenset({
+    ORPHANED_PREPARATION, "model_review_abandoned_no_reply", "review_not_independent",
+    "ambiguous_external_operation", "executor_dispatch_failed", "cleanup_unconfirmed",
+    "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded"})
+# Functional validation that failed before judging the model's patch: the attempt was
+# prepared on a base other than the contract's (#1526 host bug), outside the worktree
+# root, or the host could not read its own contract or observation.
+HOST_VALIDATION_DETAILS = frozenset({"functional_base_mismatch", "functional_worktree_root_required"})
+HOST_VALIDATION_PREFIXES = ("functional_contract_", "functional_observation_failed:", "host_validation_contract_")
+
+
+def neutral_failure(classification: str, detail: str) -> str:
+    """The host-side cause of a failure that is no capability evidence, or ''.
+
+    Model failures keep counting: a failed check, a missing implementation, a patch
+    that breaks hygiene, a turn that ended with no product change, a timeout.
+    """
+    classification = (classification or "").strip()
+    detail = (detail or "").strip()
+    lowered = classification.lower()
+    if lowered in HOST_RETRY_CLASSES or lowered in HOST_PLUMBING_CLASSES:
+        return lowered
+    if lowered.startswith("model_review_abandoned_no_reply"):
+        return "model_review_abandoned_no_reply"
+    if LIMIT_HIT.search(lowered):
+        return "quota_or_rate_limit"
+    if lowered == "deterministic_validation_failure":
+        head = detail.split("\n", 1)[0]
+        if head in HOST_VALIDATION_DETAILS or head.startswith(HOST_VALIDATION_PREFIXES):
+            return head.split(":", 1)[0]
+    return ""
 
 
 def _seconds(start: str, end: str) -> float | None:
@@ -126,6 +172,16 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             # Only the diagnostic's status field, not a quoted message, proves 402.
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             profile["billing_refused"] = profile.get("billing_refused", 0) + 1
+            continue
+        neutral = "" if status in OK_STATUSES else neutral_failure(classification, detail)
+        if neutral:
+            # Host, quota or plumbing failure: keep the tokens it spent and the cause,
+            # never an attempt or a failure of this model (nor a content/difficulty count).
+            profile["observed_tokens"] += tokens.get(row["id"], 0)
+            causes = profile.setdefault("neutral_failures", {})
+            causes[neutral] = causes.get(neutral, 0) + 1
+            if neutral == "quota_or_rate_limit":
+                profile["rate_limited"] += 1  # availability evidence, still shown
             continue
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}

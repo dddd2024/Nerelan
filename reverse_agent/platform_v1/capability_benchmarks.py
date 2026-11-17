@@ -70,6 +70,12 @@ SEED_FAMILIES: dict[str, list[str]] = {
     'gpt-4.1': ['gpt-4.1', 'copilot/gpt-4.1'],
     'claude-opus': ['claude-opus'],
     'claude-sonnet': ['claude-sonnet'],
+    # Magpie's claude/claude-sonnet-5-5 and the native Claude Code `sonnet` alias, which
+    # names the newest Sonnet (5.5 on 2026-11-17). No per-benchmark public score was
+    # retrievable on 2026-11-17 (Artificial Analysis shows only its composite index;
+    # Vals AI lists Sonnet 5, not 5.5), so the family stays needs_benchmark until the
+    # Owner imports one; both ids now resolve to it.
+    'claude-sonnet-5-5': ['claude-sonnet-5-5', 'sonnet'],
     'mistral-medium-3.5': ['mistral-medium-3.5'],
     'codestral': ['codestral'],
     'agnes-3.0': ['agnes-3.0'],
