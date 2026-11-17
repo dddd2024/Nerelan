@@ -19,7 +19,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Orca | `stablyai/orca` | 高：编码 Agent 工作台、Git worktree、Codex/Claude 多账户切换 | 借鉴 UI，独立试用 | 无 | 它的账户切换是人工选择；Nerelan 需要按任务、额度和能力自动选择并判断能否安全启动。与 Magpie 同时管理账户会造成归因不一致 | 它支持按任务自动选账户，或开放账户状态接口时 | 2026-11-08 |
 | Magpie | 本机 `F:\magpie` | 高：同服务账户切换、额度等待、请求重试 | 已复用，作为账户层 owner | 账户池、额度窗口、模型网关（`fetch_magpie_snapshot`） | 已是复用对象；Nerelan 只保留任务级能力匹配、周配速和授权边界 | 路由归属验收（见下）完成后，决定本地哪些路径降为 fallback | 2026-11-08 |
 | OpenBot | `CopilotKit/OpenBot` | 中高：隔离浏览器与文件环境、工具调用前后的权限网关、AG-UI | 研究可插拔执行层 | 无 | Beta 阶段，需要自带服务、数据库和执行环境；整套移植会让它接管任务状态 | 核心任务闭环通过后，评估把隔离浏览器作为可选工具，由宿主做权限决策 | 2026-11-08 |
-| Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
+| Rulesync | `dyoshikawa/rulesync` | 中：跨 Agent Rules / Skills / MCP / Hooks / Permissions 配置编译 | **已静态源码深审；仅借鉴模式**（[研究 #1629](https://github.com/dddd2024/Nerelan/issues/1629) / [报告](reuse-study-2026-11-16/rulesync.md)） | 暂无直接代码复用；建议借鉴共享文件字段所有权、生成 DAG、删除预览和语义损失表 | Nerelan Codex 的 `--ignore-user-config`、Claude 的 `--restricted` 使部分生成文件根本不被读；目标权限警告跳过不能代替 Host 拒绝，`AGENTS.md`/Owner 仍是权威 | 在真实受信 Executor 消费路径、权限等价性和配置不覆写测试通过后，小规模评估离线工具集成 | 2026-11-17 |
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
