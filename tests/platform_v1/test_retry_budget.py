@@ -159,3 +159,50 @@ def test_outside_a_continuous_window_a_quota_failure_past_the_cap_stops(case, mo
     service.task_resolver = lambda plan_task, *, goal, **kw: {"binding_ref": "other-account", "executor_kind": "opencode",
                                                               "model_id": "m", "tier": 3, "reason": "f", "context_window": 1}
     assert service.escalate_failed_tasks(goal.id) == ()
+
+
+def _seconds_ago(seconds):
+    from datetime import datetime, timedelta, timezone
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def test_a_patient_reroute_still_waits_for_the_backoff(case, monkeypatch):
+    # #1619 review B1: a failure that repeats in seconds on every binding must not
+    # bounce between bindings on each tick.
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    calls = []
+
+    def resolve(plan_task, *, goal, **kwargs):
+        calls.append(kwargs)
+        return {"binding_ref": "other-binding", "executor_kind": "opencode", "model_id": "m", "tier": 3,
+                "reason": "fixture", "context_window": 128000}
+    service.task_resolver = resolve
+    _fail_terminated(store, task, root, age=_seconds_ago(5))
+    count = store.count_tasks()
+    for _ in range(3):
+        assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count and calls == []
+    # Once the backoff is over it moves to the other binding.
+    _fail_terminated(store, task, root, age=_seconds_ago(10_000))
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{RETRY_REASON}:{gs.STALL_REROUTED}"
+    assert store.get_task(step["to_task_id"]).binding_ref == "other-binding"
+
+
+def test_a_patient_interrupted_preparation_waits_for_the_backoff(case, monkeypatch):
+    # #1619 review B2: a preparation failure that repeats every time (full disk) is not retried each tick.
+    root, _, store, _, service, goal, window, task = case
+    _no_routing_retries(store, window)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    store._conn.execute("UPDATE tasks SET status='BLOCKED', failure_classification='blocked', "
+                        "failure_detail='worktree_preparation_failed:OSError: disk full', updated_at=? WHERE id=?",
+                        (_seconds_ago(5), task.id))
+    store._conn.commit()
+    count = store.count_tasks()
+    for _ in range(3):
+        assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count

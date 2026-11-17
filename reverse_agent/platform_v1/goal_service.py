@@ -1412,11 +1412,15 @@ class GoalService:
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
-            if patient and quota_failure and not overloaded and not miss and failed.status == "FAILED":
+            if (patient and not overloaded and not miss
+                    and ((quota_failure and failed.status == "FAILED") or interrupted_dispatch or interrupted_preparation)):
+                # Quota answers and interrupted runs past the cap wait out the same doubling
+                # backoff from the attempt's last update, so no failure that repeats in
+                # seconds (e.g. a full disk at preparation) can retry on every tick.
                 failed_at = _parse_utc(failed.updated_at)
                 wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), PATIENT_BACKOFF_MAX_SECONDS)
-                if failed_at is not None and time.time() < failed_at + wait:
-                    continue  # the account's answer: wait, then route again; no budget spent
+                if failed_at is None or time.time() < failed_at + wait:
+                    continue  # wait, then route again; no budget spent
             if overloaded:
                 transient = free_used
                 if transient >= MAX_TRANSIENT_RETRIES and not patient:
@@ -1426,8 +1430,12 @@ class GoalService:
                     wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** transient), PATIENT_BACKOFF_MAX_SECONDS)
                     in_backoff = failed_at is not None and time.time() < failed_at + wait
                     checked = self._stall_routes_checked
-                    # Past the free cap every liveness class looks for another binding, not only stalls.
-                    if (stalled or patient) and (not in_backoff or failed.id not in checked):
+                    # Inside the free cap a stall may move to another binding at once (#1596).
+                    # Past it (continuous run) every liveness class may move, but only once its
+                    # backoff is over: a failure that repeats in seconds on each binding could
+                    # otherwise bounce between bindings on every tick.
+                    if ((stalled and not patient and (not in_backoff or failed.id not in checked))
+                            or (patient and not in_backoff)):
                         # Another binding needs no backoff; look once on first sight and
                         # once more when the same-binding backoff is over. A found route
                         # is not remembered: if it is not taken now, the next tick looks again.
@@ -1536,8 +1544,8 @@ class GoalService:
                         self.control_store.refresh_goal_status(goal_id)
                         continue
                     events = self.store.get_events(failed.id)
-                    if not (patient and events and events[-1].type == "MODEL_SELECTION_FAILED"
-                            and events[-1].metadata.get("reason") == str(exc)):
+                    last = next((e for e in reversed(events) if e.type == "MODEL_SELECTION_FAILED"), None)
+                    if not (patient and last is not None and last.metadata.get("reason") == str(exc)):
                         # A patient step re-routes on every tick after its backoff: one event per change.
                         self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
                                              title="Escalation model selection failed",
