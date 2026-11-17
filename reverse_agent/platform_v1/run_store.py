@@ -636,6 +636,11 @@ class TaskStore:
             self._conn.execute(
                 "ALTER TABLE tasks ADD COLUMN orchestration_mode TEXT NOT NULL DEFAULT 'single'"
             )
+        # Per-binding hold reads (limit-hit #1553, liveness #1596) and the recent-attempt
+        # scan stay index range reads as run history grows.
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tasks_binding_updated ON tasks(binding_ref, updated_at)")
+        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at)")
 
         # Backfill run_id + task_id for any pre-existing external ops rows.
         _ext_cols = {

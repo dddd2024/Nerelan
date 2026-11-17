@@ -627,7 +627,8 @@ class CombinedTrustedHost:
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
-                            probe_availability: bool = True) -> dict[str, Any]:
+                            probe_availability: bool = True, avoid_bindings: Sequence[str] = (),
+                            stall_tier: int | None = None) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -764,6 +765,12 @@ class CombinedTrustedHost:
         tier = failed_tier if failed_tier is not None else (
             capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
                        task.kind, task.difficulty)[0] if failed_binding else 0)
+        if avoid_bindings and (type(stall_tier) is not int or not 1 <= stall_tier <= 5):
+            # No recorded tier for the stalled attempt: its binding's own measured tier is the floor.
+            from .routing_capabilities import tier_detail
+            stall_tier = max((tier_detail(by_id[ref]["model_id"], profiles.get(ref, {}), task.kind, task.difficulty,
+                                          capability_table, owner.get("bindings", {}).get(ref, {}))["tier"]
+                              for ref in avoid_bindings if ref in by_id), default=0)
         feedback = None
         if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
             from .multi_account.dispatch import routing_feedback_snapshot
@@ -778,7 +785,9 @@ class CombinedTrustedHost:
                                 author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=1.0 if forecast else random.random(),
-                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner))
+                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
+                                avoid_bindings=tuple(avoid_bindings),
+                                stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0)
             decision["context_packet_reservation"] = 16384 + 256
             return decision
         except ValueError as exc:
@@ -1170,7 +1179,17 @@ class CombinedTrustedHost:
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
             need, source = typical_need(records, binding, self._store.list_bindings_public())
             verdict = check(connection, {connection.get("executor_provider_id"): self._account_quota(connection)}, need)
-            return verdict | {"need_source": source} if verdict else None
+            verdict = verdict | {"need_source": source} if verdict else None
+            if verdict is None or verdict.get("decision") in {"ok", "warn"}:
+                # A recent stall on this upstream (#1596) only ranks a binding the account can
+                # still serve; real exhaustion above keeps its own exclusion and refusal.
+                cooling = self._liveness_cooldown(binding)
+                if cooling is not None:
+                    return {"decision": "switch", "reason": "liveness_cooldown", "window": None,
+                            "stalls": cooling["stalls"], "cooldown_seconds": cooling["seconds"],
+                            "upstream": cooling["upstream"], "quota_verdict": verdict,
+                            "until": datetime.fromtimestamp(cooling["until"], timezone.utc).isoformat().replace("+00:00", "Z")}
+            return verdict
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
             return {"decision": "error", "reason": "quota_check_failed"}
 
@@ -1207,6 +1226,68 @@ class CombinedTrustedHost:
         account = connection.get("account_ref") or connection.get("connection_id")
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
         return _usable_quota(account, candidates)
+
+    def _liveness_upstream(self, binding: Mapping[str, Any],
+                           connections: Mapping[str, Mapping[str, Any]]) -> str:
+        """The upstream a stall cools down: the same identity as a limit-hit hold (#1522).
+
+        A Magpie gateway binding is its upstream namespace on that gateway; any other
+        binding is its recorded account, else its own connection.
+        """
+        from .resource_allowances import gateway_connection
+        connection = connections.get(binding.get("connection_id"), {})
+        account = connection.get("account_ref")
+        if account:
+            return f"account:{account}"
+        namespace = _upstream_namespace(binding)
+        if namespace and gateway_connection(connection):
+            return f"gateway:{binding.get('connection_id')}:{namespace}"
+        return f"connection:{binding.get('connection_id')}"
+
+    def _liveness_attempts(self) -> tuple[dict[str, str], dict[str, list[dict[str, Any]]]]:
+        """Recent stall/success rows grouped by upstream: one indexed query per store change.
+
+        Cached on the connection's change counter, so routing across every binding reads
+        the task table once, and a new stall or success is seen by the next routing call.
+        """
+        from .quota_guard import LIVENESS_LOOKBACK_SECONDS
+        conn = self._task_store._conn
+        key = conn.total_changes
+        cached = getattr(self, "_liveness_attempts_cache", None)
+        if cached is not None and cached[0] == key and time.monotonic() - cached[1] < 30:
+            return cached[2]
+        connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        upstreams = {b["binding_id"]: self._liveness_upstream(b, connections) for b in self._store.list_bindings_public()}
+        since = datetime.fromtimestamp(time.time() - LIVENESS_LOOKBACK_SECONDS,
+                                       timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in conn.execute(
+                "SELECT binding_ref, status, failure_classification, failure_at, updated_at FROM tasks "
+                "WHERE updated_at >= ? AND status IN ('FAILED', 'READY_FOR_REVIEW') AND binding_ref != ''",
+                (since,)).fetchall():
+            upstream = upstreams.get(row["binding_ref"])
+            if upstream is None:
+                continue
+            try:
+                at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError, AttributeError):
+                continue
+            grouped.setdefault(upstream, []).append(
+                {"status": row["status"], "failure_classification": row["failure_classification"], "at": at})
+        for attempts in grouped.values():
+            attempts.sort(key=lambda item: item["at"], reverse=True)
+        self._liveness_attempts_cache = (key, time.monotonic(), (upstreams, grouped))
+        return upstreams, grouped
+
+    def _liveness_cooldown(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
+        """The active liveness cool-down of the binding's upstream (#1596), or None."""
+        from .quota_guard import liveness_cooldown
+        upstreams, grouped = self._liveness_attempts()
+        upstream = upstreams.get(binding["binding_id"])
+        if upstream is None:
+            return None
+        hold = liveness_cooldown(grouped.get(upstream, ()), now=time.time())
+        return None if hold is None else hold | {"upstream": upstream}
 
     def _limit_hit_until(self, connection: Mapping[str, Any],
                          binding: Mapping[str, Any] | None = None) -> float | None:

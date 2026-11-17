@@ -67,6 +67,22 @@ UNKNOWN_WEEKLY_NEED = .03
 UNKNOWN_PACE_RETRY_SECONDS = 900
 
 
+def upstream_key(candidate: Mapping[str, Any]) -> str:
+    """The upstream account a candidate spends: its account plus a gateway namespace (#1596).
+
+    ``magpie/minimax/m3`` and ``magpie/minimax/m3-fast`` on one gateway account share the
+    ``minimax`` upstream; a model id without a namespace is its account alone.
+    """
+    model = str(candidate.get("model_id") or "")
+    namespace = model.split("/", 1)[0].lower() if "/" in model else ""
+    return f"{candidate.get('account_ref') or candidate.get('connection_id') or ''}|{namespace}"
+
+
+# Liveness preference (#1596), best first: another upstream, the same upstream, a
+# binding cooling down after a stall elsewhere, the binding this step just stalled on.
+LIVENESS_CLEAN, LIVENESS_SAME_UPSTREAM, LIVENESS_COOLING, LIVENESS_AVOIDED = range(4)
+
+
 def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
                      pace: Mapping[str, Any] | None) -> float | None:
     """When a paced subscription account may take this task again, or None if it may now.
@@ -159,13 +175,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  refusal_tier: int = 0, capability_table: Mapping[str, Any] | None = None,
                  allow_paid: bool = False, quota_buffer: float = .10,
                  account_feedback: Mapping[str, Any] | None = None,
-                 weekly_pace: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                 weekly_pace: Mapping[str, Any] | None = None,
+                 avoid_bindings: Sequence[str] = (), avoid_upstreams: Sequence[str] = (),
+                 stall_tier: int = 0) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
     Subscription cost ranges from 1 to 2 as headroom falls; paid API cost is 3.
     Pins override price/tier, while readiness, quota and review fitness still apply.
     The injected uniform draw gives easy tasks a default 10% exploration rate.
+    Liveness (#1596) is a preference, not a filter: a binding in a stall cool-down, or
+    one this step stalled on (``avoid_bindings``), is chosen only when no qualifying
+    alternative exists, and then the decision says so. ``stall_tier`` is the stalled
+    attempt's tier: a stall retry never goes below it.
     """
     if type(quota_buffer) not in (int, float) or not 0 <= quota_buffer <= 1:
         raise ValueError("invalid_quota_buffer")
@@ -174,6 +196,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     content = "security_simulation" if "security_simulation" in needs else kind
     now = time.time() if now is None else now
     ranked, excluded, reset_observations = [], [], []
+    # A binding this step stalled on also marks its upstream: siblings there likely hang too.
+    avoid_upstreams = {*avoid_upstreams, *(upstream_key(c) for c in candidates if c["binding_id"] in avoid_bindings)}
     artifact_review = (kind == "review" or role == "reviewer") and bool(author_models)
     if artifact_review and any(not isinstance(m, str) or not model_identity(m) for m in author_models):
         raise ModelSelectionError("review_not_independent", excluded=[])
@@ -349,6 +373,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
                            reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
                            score_breakdown=breakdown, refusal_risk=refusal_risk,
+                           liveness_rank=(LIVENESS_AVOIDED if candidate["binding_id"] in avoid_bindings
+                                          else LIVENESS_COOLING if quota.get("reason") == "liveness_cooldown"
+                                          else LIVENESS_SAME_UPSTREAM if upstream_key(candidate) in avoid_upstreams
+                                          else LIVENESS_CLEAN),
                            availability_rank=int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
                            score=[quota_penalty, adjusted, -(success if success is not None else -1),
                                   speed if speed is not None else float("inf")]))
@@ -364,6 +392,42 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                                     excluded=excluded, refusals=refused_models, pin=pin)
         error.decision["reset"] = reset_decision(reset_signal, now=now, buffer=reset_buffer, demand=False)
         raise error
+    liveness_fallback = False
+    if stall_tier or any(c["liveness_rank"] for c in ranked):
+        # Tier rules first: liveness only orders candidates at or above the floor (the
+        # task's difficulty and, for a stall retry, the stalled attempt's tier). When none
+        # reaches it, only the strongest tier present competes, so a stall never moves a
+        # step to a weaker model than the one that stalled.
+        floor = max(difficulty, stall_tier)
+        top = max(c["tier"] for c in ranked)
+        eligible = set()
+        if failed_model and not refused_models:
+            # A capability retry must still reach the models escalation needs: a higher
+            # tier first, then a distinct model at the failed tier. A cooling one among
+            # them is ranked lower, never removed in favour of the model that just failed.
+            eligible = {c["binding_id"] for c in ranked if c["tier"] > failed_tier} or {
+                c["binding_id"] for c in ranked if c["tier"] == failed_tier
+                and model_identity(c["model_id"]) != model_identity(failed_model)}
+            floor = max(floor, failed_tier)
+        eligible = eligible or {c["binding_id"] for c in ranked if c["tier"] >= floor} or {
+            c["binding_id"] for c in ranked if c["tier"] == top}
+        best = min(c["liveness_rank"] for c in ranked if c["binding_id"] in eligible)
+        kept = []
+        for item in ranked:
+            below_floor = bool(stall_tier) and item["binding_id"] not in eligible
+            if item["binding_id"] == pin or (item["liveness_rank"] <= best and not below_floor):
+                kept.append(item)
+                continue
+            exclusion = {"binding_id": item["binding_id"], "model_id": item["model_id"],
+                         "filter": "stall_tier_floor" if below_floor else
+                         ("liveness_step_avoided", "liveness_cooldown", "liveness_same_upstream")[
+                             (LIVENESS_AVOIDED, LIVENESS_COOLING, LIVENESS_SAME_UPSTREAM).index(item["liveness_rank"])]}
+            if exclusion["filter"] == "liveness_cooldown":
+                from .quota_guard import parse_time
+                exclusion["retry_at"] = parse_time((item.get("quota") or {}).get("until"))
+            excluded.append(exclusion)
+        ranked = kept
+        liveness_fallback = best >= LIVENESS_COOLING
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
     if pin and pinned is None and not refused_models:
         raise ModelSelectionError("review_not_independent" if artifact_review else "pinned_model_unavailable", excluded=excluded, pin=pin)
@@ -422,6 +486,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     if artifact_review and chosen["tier"] < difficulty:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
+    if liveness_fallback and not pinned and not (failed_model and not refused_models):
+        # A capability retry keeps its escalation reason; the liveness block records the fallback.
+        reason = ("liveness_same_binding_fallback" if chosen["liveness_rank"] == LIVENESS_AVOIDED
+                  else "liveness_cooling_fallback")
     if chosen["unproven"] and difficulty >= 3:
         reason = "prior_only_unproven"
     # JSON-safe evidence: unknown speed is null, never Infinity.
@@ -443,7 +511,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
             "tier_source": chosen["tier_source"], "tier_basis": chosen["tier_basis"], "reset_observations": reset_observations,
             "characteristics": chosen["characteristics"],
-            **({"downgrade_fallback": True} if downgrade_fallback else {})}
+            **({"downgrade_fallback": True} if downgrade_fallback else {}),
+            **({"liveness": {"avoided_bindings": list(avoid_bindings), "avoided_upstreams": sorted(avoid_upstreams),
+                             "rank": chosen["liveness_rank"], "fallback": liveness_fallback,
+                             "stall_tier": stall_tier}}
+               if avoid_bindings or avoid_upstreams or liveness_fallback or stall_tier else {})}
 
 
 def prior_characteristics(model: str) -> dict[str, Any]:

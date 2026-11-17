@@ -179,6 +179,14 @@ _MAX_ATTEMPTS_SHOWN = 10
 # and never consume the window's max_retries (task count and tokens still apply).
 HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
 HOST_RETRY_REASON = "host_retry"
+# #1596: a stall (no output for the stall interval) is mostly a silent upstream refusal
+# or hang, not the machine stopping the agent. It is still a free retry that keeps the
+# retained tree, but it moves to another binding when one is eligible; the stalled
+# binding cools down pool-wide (quota_guard.liveness_cooldown). EXECUTOR_TERMINATED
+# keeps the same-model resume.
+STALL_REROUTED = "rerouted"
+STALL_NO_ALTERNATIVE = "no_alternative"
+STALL_ROUTES_CHECKED_LIMIT = 1024
 OWNER_RETRY_REASON = "owner_retry"
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
@@ -864,6 +872,69 @@ class GoalService:
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         return tuple(self._reroute_quota_held(goal, planned))
 
+    @property
+    def _stall_routes_checked(self) -> dict[str, str]:
+        """Stalled attempts already looked at during their backoff: task id -> goal id."""
+        return self.__dict__.setdefault("_stall_routes_checked_map", {})
+
+    def _prune_stall_routes(self, goal_id: str) -> None:
+        """Forget this goal's stalled attempts that are no longer its failed current links.
+
+        The service lives as long as the host; an attempt leaves the map as soon as
+        its step moves on, and the map never holds more than a bounded number of ids.
+        """
+        checked = self._stall_routes_checked
+        if not checked:
+            return
+        current = {link["task_id"] for link in self.control_store.list_goal_tasks(goal_id)
+                   if link["status"] == "FAILED"}
+        for task_id in [t for t, g in checked.items() if g == goal_id and t not in current]:
+            del checked[task_id]
+        while len(checked) > STALL_ROUTES_CHECKED_LIMIT:
+            del checked[next(iter(checked))]  # oldest first; forgetting only means one more look
+
+    def _stall_reroute(self, plan_task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask],
+                       failed: Any, history: Sequence[Mapping[str, Any]]) -> tuple[dict[str, Any] | None, str]:
+        """Another eligible binding for a stalled step, or None with the reason (#1596).
+
+        Every binding this step stalled on is avoided; the router still prefers a
+        different upstream account, and offers a stalled or cooling binding only as
+        its last resort, which counts as no alternative.
+        """
+        if self.task_resolver is None:
+            return None, "no_router"
+        from .quota_guard import LIVENESS_STALL_CLASSES
+        avoided = [failed.binding_ref]
+        attempts = [failed]
+        for row in history:
+            if row["plan_task_id"] != plan_task.id or not row.get("from_task_id"):
+                continue
+            try:
+                attempt = self.store.get_task(row["from_task_id"])
+            except TaskStoreError:
+                continue
+            attempts.append(attempt)
+            if attempt.failure_classification in LIVENESS_STALL_CLASSES and attempt.binding_ref not in avoided:
+                avoided.append(attempt.binding_ref)
+        # The floor is the strongest tier this step was routed at: a stall never undoes an
+        # escalation or moves the retained tree to a weaker model (#1596 review).
+        tiers = [event.metadata.get("tier") for attempt in attempts for event in self.store.get_events(attempt.id)
+                 if event.type == "MODEL_SELECTED" and event.metadata.get("binding_ref") == attempt.binding_ref]
+        tiers = [tier for tier in tiers if type(tier) is int and 1 <= tier <= 5]
+        try:
+            decision = self.task_resolver(plan_task, goal=goal, avoid_bindings=tuple(avoided),
+                                          stall_tier=max(tiers) if tiers else None,
+                                          **self._review_authors(plan_task, goal, planned))
+        except TaskStoreError as exc:
+            return None, f"selection_failed:{exc}"
+        if not decision.get("binding_ref") or decision["binding_ref"] in avoided:
+            return None, "no_eligible_binding"
+        if (decision.get("liveness") or {}).get("fallback"):
+            # Only bindings cooling down after their own stalls are left: another
+            # stalling binding is no better than the one the retained tree came from.
+            return None, "only_cooling_bindings"
+        return decision, STALL_REROUTED
+
     def _reroute_quota_held(self, goal: Any, planned: Mapping[str, PlannedTask]) -> list[dict[str, Any]]:
         """A quota hold moves a never-started task to an equal-or-higher-tier model (#1313 D).
 
@@ -1270,6 +1341,7 @@ class GoalService:
         history = self.control_store.list_task_escalations(goal_id)
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         outcomes = list(repairs)
+        self._prune_stall_routes(goal_id)
         if self.task_resolver is not None:
             outcomes.extend(self._reroute_quota_held(goal, planned))
         for link in self.control_store.list_goal_tasks(goal_id):
@@ -1318,6 +1390,9 @@ class GoalService:
                 failed.failure_classification, failed.failure_detail))
             transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}" if host_failure
                                 else "transient_overload")
+            from .quota_guard import LIVENESS_STALL_CLASSES
+            stalled = host_failure and failed.failure_classification in LIVENESS_STALL_CLASSES
+            stall_route, stall_note = None, ""
             # One shared cap per plan step for every not-the-model's-fault retry (decision B).
             free_used = _free_retries_used(history, plan_task.id)
             if overloaded:
@@ -1327,8 +1402,20 @@ class GoalService:
                 else:
                     failed_at = _parse_utc(failed.updated_at)
                     wait = TRANSIENT_BACKOFF_SECONDS * (2 ** transient)
-                    if failed_at is not None and time.time() < failed_at + wait:
+                    in_backoff = failed_at is not None and time.time() < failed_at + wait
+                    checked = self._stall_routes_checked
+                    if stalled and (not in_backoff or failed.id not in checked):
+                        # Another binding needs no backoff; look once on first sight and
+                        # once more when the same-binding backoff is over. A found route
+                        # is not remembered: if it is not taken now, the next tick looks again.
+                        stall_route, stall_note = self._stall_reroute(plan_task, goal, planned, failed, history)
+                        if stall_route is None:
+                            checked[failed.id] = goal.id
+                    if in_backoff and stall_route is None:
                         continue  # backoff; a later tick retries without spending budget
+                    if stalled:
+                        transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}:"
+                                            f"{STALL_REROUTED if stall_route is not None else STALL_NO_ALTERNATIVE}")
                     snapshot = None
                     try:
                         from .contract_recovery import attempt_worktree, retain_interrupted_tree
@@ -1377,7 +1464,11 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
-            if miss or overloaded or interrupted_preparation:
+            if overloaded and stall_route is not None:
+                # A stall: the retained tree continues on the eligible binding the router chose (#1596).
+                decision = stall_route
+                target = (role, decision["executor_kind"], decision["binding_ref"])
+            elif miss or overloaded or interrupted_preparation:
                 # Contract misses, provider overload and a preparation the host broke are
                 # not capability failures: the same model retries, never a weaker one.
                 target = (role, failed.executor_kind, failed.binding_ref)
@@ -1501,6 +1592,20 @@ class GoalService:
                          if failed.failure_classification == HOST_VERSION_CHANGED
                          else "Your previous attempt stopped producing output" if host_failure
                          else "The provider was at capacity")
+                if stalled:
+                    # The status says where the stalled step went and why (#1596).
+                    self.store.add_event(
+                        task.id, event_type="VALIDATED",
+                        title=("Retry on another binding after a stall" if stall_route is not None
+                               else "Retry on the same binding after a stall"),
+                        description=(f"{failed.binding_ref} stalled; retrying on {binding_ref}"
+                                     if stall_route is not None else
+                                     f"{failed.binding_ref} stalled and no other binding is eligible "
+                                     f"({stall_note}); retrying it after backoff"),
+                        metadata={"source_task_id": failed.id, "from_binding": failed.binding_ref,
+                                  "binding_ref": binding_ref, "liveness_detail": stall_note,
+                                  "liveness_retry": STALL_REROUTED if stall_route is not None
+                                  else STALL_NO_ALTERNATIVE})
                 self.store.add_event(task.id, event_type="VALIDATED",
                                      title="Retry after the agent was stopped" if host_failure
                                      else "Retry after provider overload",

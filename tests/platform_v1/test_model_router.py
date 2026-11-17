@@ -557,3 +557,124 @@ def test_prior_higher_tier_not_capped_by_low_difficulty_measured():
     assert decision['binding_ref'] == 'm4-free'
     assert decision['tier'] == 4
     assert not decision['underpowered']
+
+
+# --- #1596: a stalled binding is avoided for its step and cooled down pool-wide ---------
+
+COOLING = {"decision": "switch", "reason": "liveness_cooldown", "until": "2026-11-16T10:15:00Z", "stalls": 1}
+
+
+def test_stalled_step_prefers_another_upstream_then_the_same_upstream():
+    pool = [candidate("m3", "minimax/m3", account_ref="magpie"),
+            candidate("m3-fast", "minimax/m3-fast", account_ref="magpie"),
+            candidate("glm", "zai/glm-5.3", account_ref="magpie", cost="subscription")]
+    result = choose(pool, avoid_bindings=("m3",))
+    # Same tier, pricier, but a different upstream account than the one that stalled.
+    assert result["binding_ref"] == "glm"
+    assert result["liveness"]["avoided_bindings"] == ["m3"]
+    assert result["liveness"]["avoided_upstreams"] == ["magpie|minimax"]
+    assert result["liveness"]["fallback"] is False
+    filters = {row["binding_id"]: row["filter"] for row in result["excluded_candidates"]}
+    assert filters == {"m3": "liveness_step_avoided", "m3-fast": "liveness_same_upstream"}
+    # Without another upstream, a sibling on the same upstream still beats the stalled binding.
+    result = choose(pool[:2], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3-fast" and result["liveness"]["fallback"] is False
+
+
+def test_another_goal_skips_a_cooling_binding_while_it_lasts():
+    pool = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3", cost="subscription")]
+    result = choose(pool)
+    assert result["binding_ref"] == "other" and result["reason"] == "cheapest_qualifying"
+    [row] = [row for row in result["excluded_candidates"] if row["binding_id"] == "m3"]
+    assert row["filter"] == "liveness_cooldown" and row["retry_at"] is not None
+    # Expired (no cooling verdict): the cheaper binding is chosen again.
+    pool[0]["quota"] = None
+    assert choose(pool)["binding_ref"] == "m3"
+
+
+def test_only_stalled_or_cooling_bindings_fall_back_with_an_explicit_reason():
+    stalled = [candidate("m3", "glm-5.3", quota=COOLING)]
+    result = choose(stalled, avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3" and result["reason"] == "liveness_same_binding_fallback"
+    assert result["liveness"]["fallback"] is True
+    result = choose(stalled + [candidate("cool", "glm-5.3", quota=COOLING)], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "cool" and result["reason"] == "liveness_cooling_fallback"
+    assert choose(stalled)["reason"] == "liveness_cooling_fallback"
+
+
+def test_liveness_never_trades_away_capability_or_a_pin():
+    pool = [candidate("strong", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=5, avoid_bindings=("strong",))
+    # The only qualifying binding is the stalled one: it is retried rather than an underpowered model.
+    assert result["binding_ref"] == "strong" and result["liveness"]["fallback"] is True
+    assert not result["underpowered"]
+    pinned = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3")]
+    assert choose(pinned, pin="m3")["binding_ref"] == "m3"
+
+
+def test_host_router_skips_a_binding_cooling_after_a_stall(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    monkeypatch.setattr(host, "_quota_check", lambda b: COOLING if b["binding_id"] == "cheap" else None)
+    task = PlannedTask("T001", "t", "i", difficulty=2)
+    result = host._resolve_task_model(task)
+    assert result["binding_ref"] != "cheap"
+    assert {"binding_id": "cheap", "model_id": "flash-lite", "filter": "liveness_cooldown"}.items() <= next(
+        row for row in result["excluded_candidates"] if row["binding_id"] == "cheap").items()
+    # A stalled step avoids its own binding even when no cool-down is recorded yet.
+    monkeypatch.setattr(host, "_quota_check", lambda b: None)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    result = host._resolve_task_model(task, avoid_bindings=("cheap",))
+    assert result["binding_ref"] != "cheap" and result["liveness"]["avoided_bindings"] == ["cheap"]
+
+
+def test_stall_retry_never_moves_below_the_stalled_tier_when_nothing_qualifies():
+    # Difficulty 5: nothing qualifies. The stalled tier-3 binding is the strongest present.
+    pool = [candidate("mid", "glm-5.3"), candidate("weak", "flash-lite")]
+    for stall_tier in (3, 0):
+        result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=stall_tier)
+        assert result["binding_ref"] == "mid" and result["liveness"]["fallback"] is True
+    result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=3)
+    assert {"binding_id": "weak", "model_id": "flash-lite", "filter": "stall_tier_floor"} in result["excluded_candidates"]
+
+
+def test_an_escalated_stall_keeps_its_tier():
+    # Plan difficulty 1, but the step was escalated to a tier-5 model that then stalled.
+    pool = [candidate("opus", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=1, avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "opus" and result["reason"] == "liveness_same_binding_fallback"
+    # Another tier-5 binding is a real alternative; a tier-2 one never is.
+    result = choose(pool + [candidate("sonnet", "sonnet", "subscription")], difficulty=1,
+                    avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "sonnet" and result["liveness"]["fallback"] is False
+
+
+def test_host_router_uses_the_stalled_bindings_tier_when_none_is_recorded(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    task = PlannedTask("T001", "t", "i", difficulty=1)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    # "strong" (tier 5) stalled with no recorded tier: the floor is its own measured tier.
+    result = host._resolve_task_model(task, avoid_bindings=("strong",))
+    assert result["binding_ref"] == "strong" and result["liveness"]["stall_tier"] == 5
+    assert host._resolve_task_model(task, avoid_bindings=("strong",), stall_tier=2)["binding_ref"] == "cheap"
+
+
+def test_a_cooling_higher_tier_is_still_the_escalation_target():
+    # Review probe (#1601): kimi-k3 (tier 4) failed for capability; opus (tier 5) is only cooling.
+    pool = [candidate("failed", "kimi-k3"), candidate("big", "opus", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "big" and result["reason"] == "escalation_higher_tier"
+    assert result["liveness"]["fallback"] is True
+    # Same tier: a cooling distinct model still beats repeating the model that failed.
+    pool = [candidate("failed", "kimi-k3"), candidate("peer", "deepseek-v4-pro", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "peer" and result["reason"] == "retry_different_model"
+
+
+def test_escalation_prefers_a_clean_higher_tier_over_a_cooling_one():
+    pool = [candidate("failed", "kimi-k3"), candidate("cool", "opus", quota=COOLING),
+            candidate("clean", "sonnet", "paid_api")]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    # Pricier, but not cooling: the cooling tier-5 binding is ranked after it.
+    assert result["binding_ref"] == "clean" and result["reason"] == "escalation_higher_tier"
+    assert any(row["binding_id"] == "cool" and row["filter"] == "liveness_cooldown"
+               for row in result["excluded_candidates"])
