@@ -1,9 +1,10 @@
 """ModelReview reviewer RPC intent journal (#1191): fake providers only.
 
 The reviewer call is reserved once per consumer execution in the accepted
-external-operation journal. Post-intent crashes, lost replies and post-reply
-persistence errors park the task as BLOCKED with the journal PENDING; they never
-call the reviewer twice. These are provider-free fakes and do not prove real
+external-operation journal. Post-intent crashes and post-reply persistence
+errors park the task as BLOCKED with the journal PENDING; they never call the
+reviewer twice. A call that ended with no reply settles as a failure and retries
+in a new execution (#1618). These are provider-free fakes and do not prove real
 reboot or billing behaviour.
 """
 from dataclasses import asdict
@@ -19,7 +20,7 @@ from test_model_review_execution import review_setup, run_review, evidence, REJE
 from test_model_review_toolless import toolless, run as run_toolless
 from test_functional_execution import durable
 from test_external_operation_invariants import _make_store, _leased_task, _record, _rows
-from reverse_agent.platform_v1 import model_review, durable_execution, artifact_handoff, model_review_transport as transport
+from reverse_agent.platform_v1 import goal_service, model_review, durable_execution, artifact_handoff, model_review_transport as transport
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStoreError
@@ -187,9 +188,9 @@ def test_saved_response_with_wrong_operation_kind_is_not_settled(harness, monkey
     assert len(snapshot["saved"]) == 1 and evidence(store, consumer) == snapshot["saved"]
 
 
-def test_lost_reply_after_provider_accepted_stays_pending(harness, monkeypatch):
-    if harness["kind"] == "toolless":
-        s = harness["state"]
+def lose_reply(h, monkeypatch):
+    if h["kind"] == "toolless":
+        s = h["state"]
         def accepted_then_timeout(handle, body):
             s["calls"].append(body)
             raise TimeoutError()
@@ -199,13 +200,61 @@ def test_lost_reply_after_provider_accepted_stays_pending(harness, monkeypatch):
             self.calls.append("reviewer")
             raise OSError("reply lost")
         monkeypatch.setattr(Reviewer, "execute_review_prepared", accepted_then_lost)
+
+
+def test_lost_reply_settles_failure_and_retries_as_non_model_retry(harness, monkeypatch):
+    # #1618: a read-only reviewer call with no reply has no effect to duplicate.
+    lose_reply(harness, monkeypatch)
+    store, consumer = harness["store"], harness["consumer"]
     result = harness["run"]()
-    assert_parked(harness, result)
-    assert harness["calls"]() == 1
-    assert [row["state"] for row in journal(harness["store"], harness["consumer"])] == ["PENDING"]
+    assert not result.success and result.failure_classification == model_review.ABANDONED_NO_REPLY, result
+    task = store.get_task(consumer)
+    assert task.status == "FAILED" and task.failure_classification == model_review.ABANDONED_NO_REPLY
+    cause = "timeout" if harness["kind"] == "toolless" else "OSError"
+    assert task.failure_detail.startswith(f"{model_review.ABANDONED_NO_REPLY}:{cause}:")
+    rows = journal(store, consumer)
+    assert [(row["state"], row["result_state"]) for row in rows] == [("RECONCILED", "failure")]
+    assert harness["calls"]() == 1 and not evidence(store, consumer)
     if harness["kind"] == "toolless":
         assert harness["state"]["released"] == [True]
-    assert_no_replacement(harness)
+    replacements, before, after = escalate(harness)
+    assert len(replacements) == 1 and after != before
+    assert replacements[0]["reason"] == f"host_retry:{model_review.ABANDONED_NO_REPLY}"
+    history = PlatformControlStore(store).list_task_escalations(
+        PlatformControlStore(store).goal_id_for_task(consumer))
+    assert goal_service._routing_retries_spent(history) == 0  # window max_retries untouched
+    replacement = store.get_task(replacements[0]["to_task_id"])
+    assert replacement.execution_id != task.execution_id and journal(store, replacement.id) == []
+
+
+def test_late_reply_after_no_reply_settlement_cannot_bind(harness, monkeypatch):
+    lose_reply(harness, monkeypatch)
+    store, consumer = harness["store"], harness["consumer"]
+    harness["run"]()
+    row, = journal(store, consumer)
+    # A reply saved later could only settle the receipt as success, which the
+    # terminal failure receipt refuses (surfaced as receipt_conflict, BLOCKED).
+    with pytest.raises(TaskStoreError, match="external_operation_terminal_conflict"):
+        store._reconcile_external_operation(operation_id=row["operation_id"], external_operation_id="late-reply",
+                                            result_state="success")
+    # Re-entering the settled execution never calls the reviewer or binds evidence.
+    with pytest.raises(durable_execution.DurableResumeError, match="no_active_durable_run"):
+        harness["service"]().resume_single(consumer)
+    assert harness["calls"]() == 1 and not evidence(store, consumer)
+    assert journal(store, consumer) == [row]
+
+
+def test_reply_received_but_usage_unsaved_stays_held(toolless, monkeypatch):
+    s = toolless
+    store = s["service"].store
+    def fail(*args, **kwargs):
+        raise TaskStoreError("synthetic_usage_write_failed")
+    monkeypatch.setattr(store, "append_usage_observation", fail)
+    result = run_toolless(s)
+    assert result.failure_classification == "model_review_completion_unknown", result
+    task = store.get_task(s["consumer"])
+    assert task.status == "BLOCKED" and "response_unsaved" in task.failure_detail
+    assert [row["state"] for row in journal(store, s["consumer"])] == ["PENDING"]
 
 
 def test_evidence_save_failure_after_reply_parks_without_replacement(harness, monkeypatch):

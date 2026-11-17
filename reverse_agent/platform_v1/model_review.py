@@ -32,6 +32,18 @@ KNOWN_CALL_FAILURES = frozenset({"model_review_invalid_output", "review_not_inde
     "model_review_connection_unsupported", "model_review_sandbox_unsupported"})
 # Receipt states that settle the reviewer call; any other row is unresolved.
 SETTLED_STATES = frozenset({"SUCCESS", "RECONCILED"})
+# A reviewer call is read-only and evidence binds only from a reply this host
+# saved, so a call that ended with no reply has no effect a replay could
+# duplicate; only tokens are lost (#1618). It settles as a failure and the
+# review retries as a non-model retry. Typed causes the call reports when no
+# reply reached the host; untyped exceptions raised by the call also qualify.
+ABANDONED_NO_REPLY = "model_review_abandoned_no_reply"
+NO_REPLY_CAUSES = frozenset({"timeout", "transport_error", "model_review_process_failed"})
+# Untyped causes a pre-#1618 BLOCKED detail may name for a call with no reply.
+# Other names may come from host writes after a reply arrived, so stay held.
+LEGACY_NO_REPLY_CAUSES = NO_REPLY_CAUSES | frozenset({"TimeoutError", "OSError", "ConnectionError",
+    "ConnectionResetError", "ConnectionAbortedError", "ConnectionRefusedError", "BrokenPipeError",
+    "URLError", "TimeoutExpired"})
 
 
 class CompletionUnknown(TaskStoreError):
@@ -419,6 +431,7 @@ def execute_review(service, task_id, workspace_root, lease):
                 ("binding_ref", "connection_id", "executor_id", "provider_id", "model_id", "auth_method")}
             operation = _claim_rpc_intent(store, task, lease, rpc_intent_digest(digest(request), binding_identity))
             _check_crash_seam("MODEL_REVIEW_AFTER_INTENT")
+            reply = None
             try:
                 if toolless:
                     from .model_review_transport import review
@@ -430,19 +443,30 @@ def execute_review(service, task_id, workspace_root, lease):
                         source_id=reply["request_id"], status="UNKNOWN")
                 else:
                     reply = executor.execute_review_prepared(prepared, store, task_id=task_id, prompt=prompt)
-            except (TaskStoreError, ExecutorRuntimeError) as exc:
-                if str(exc).split(":", 1)[0] not in KNOWN_CALL_FAILURES:
-                    raise CompletionUnknown(f"model_review_completion_unknown:{str(exc).split(':', 1)[0]}: "
+            except Exception as exc:
+                typed = isinstance(exc, (TaskStoreError, ExecutorRuntimeError))
+                cause = str(exc).split(":", 1)[0] if typed else type(exc).__name__
+                if typed and cause in KNOWN_CALL_FAILURES:
+                    store._reconcile_external_operation(operation_id=operation.operation_id,
+                        external_operation_id="", result_state="failure",
+                        run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
+                    raise
+                if reply is not None:
+                    # The reply reached the host but a host write after it failed.
+                    raise CompletionUnknown(f"model_review_completion_unknown:response_unsaved: reviewer call "
+                        f"{operation.operation_id} completed but its response was not saved ({cause}); "
+                        "journal stays PENDING, not replayed, reconcile manually") from exc
+                if typed and cause not in NO_REPLY_CAUSES:
+                    raise CompletionUnknown(f"model_review_completion_unknown:{cause}: "
                         f"reviewer call {operation.operation_id} may have completed remotely; journal "
                         "stays PENDING, not replayed, reconcile manually") from exc
+                # No reply reached the host: nothing can bind, so settle and let escalation retry.
                 store._reconcile_external_operation(operation_id=operation.operation_id,
                     external_operation_id="", result_state="failure",
                     run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
-                raise
-            except Exception as exc:
-                raise CompletionUnknown(f"model_review_completion_unknown:{type(exc).__name__}: "
-                    f"reviewer call {operation.operation_id} may have completed remotely; journal "
-                    "stays PENDING, not replayed, reconcile manually") from exc
+                raise TaskStoreError(f"{ABANDONED_NO_REPLY}:{cause}: reviewer call {operation.operation_id} "
+                    "ended with no reply; its read-only intent is settled as a failure and the review "
+                    "retries in a new execution") from exc
             _check_crash_seam("MODEL_REVIEW_AFTER_CALL")
             try:
                 if not isinstance(reply, dict):

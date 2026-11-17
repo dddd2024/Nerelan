@@ -64,6 +64,7 @@ from .artifact_handoff import (
     publication_blocker, published_plan_tasks, validate_plan_inputs,
 )
 from .task_runtime import HOST_VALIDATION_CONTRACT, ExecutorRuntimeError, load_host_validation_contract
+from .model_review import ABANDONED_NO_REPLY
 
 
 def _resolve_orchestration_mode(payload: Mapping[str, Any]) -> str:
@@ -219,6 +220,8 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]]) -> int:
 
 
 REFUSED_SECOND_DISPATCH = "external operation already recorded; refusing second dispatch"
+# Margin past the reviewer call timeout before a legacy no-reply review is settled (#1618).
+NO_REPLY_GRACE_SECONDS = 240
 
 # Receipts that prove an external call settled; anything else (PENDING, UNKNOWN,
 # a state this code does not know) may still be running or have run remotely.
@@ -1119,6 +1122,58 @@ class GoalService:
                                  "no replacement scheduled") from exc
         return True
 
+    def _abandoned_review_recovery(self, task: Any) -> bool:
+        """Settle a pre-#1618 review parked BLOCKED after its call ended with no reply.
+
+        Such a task holds ``model_review_completion_unknown:<cause>`` for a no-reply
+        cause over its own single PENDING reviewer intent and no bound review. Once
+        the call is surely over (intent older than the reviewer timeout plus a
+        margin) and no lease or claim still runs it, the intent is settled as a
+        failure exactly as the live path now does, with one event, and the review
+        retries like a live no-reply failure. Anything else stays held.
+        """
+        from . import model_review
+        from .model_review_transport import TIMEOUT_SECONDS
+        detail = task.failure_detail or ""
+        prefix = "model_review_completion_unknown:"
+        if task.status != "BLOCKED" or not detail.startswith(prefix):
+            return False
+        cause = detail[len(prefix):].split(":", 1)[0]
+        if (cause not in model_review.LEGACY_NO_REPLY_CAUSES
+                or "may have completed remotely; journal stays PENDING" not in detail):
+            return False  # response_unsaved, receipt_*, intent_* and unknown causes keep the hold
+        if any(row.get("category") == model_review.CATEGORY for row in task.evidence_refs):
+            return False
+        with self.store._lock:
+            rows = model_review._journal_rows(self.store, model_review.rpc_intent_key(task.execution_id))
+            others = self.store._conn.execute(
+                "SELECT COUNT(*) FROM durable_external_operations WHERE task_id = ?", (task.id,)).fetchone()[0]
+            refusal = _stranded_source_refusal(self.store._conn, task.id)
+        if (len(rows) != 1 or others != 1 or rows[0]["operation_key"] != model_review.RPC_OPERATION
+                or rows[0]["task_id"] != task.id or refusal not in {"", "external_operation_unresolved"}):
+            return False
+        row = rows[0]
+        recorded = any(event.type == "MODEL_SELECTION_FAILED"
+                       and event.metadata.get("reason") == model_review.ABANDONED_NO_REPLY
+                       and event.metadata.get("operation_id") == row["operation_id"]
+                       for event in self.store.get_events(task.id))
+        if row["state"] == "RECONCILED" and row["result_state"] == "failure":
+            return recorded  # settled by an earlier tick whose escalation did not complete
+        started = _parse_utc(row["created_at"])
+        if row["state"] != "PENDING" or started is None or time.time() < started + TIMEOUT_SECONDS + NO_REPLY_GRACE_SECONDS:
+            return False
+        if not recorded:  # the event comes first, so a failed settle is retried without a second event
+            self.store.add_event(task.id, event_type="MODEL_SELECTION_FAILED",
+                title="Review call settled: no reply received",
+                description=(f"{model_review.ABANDONED_NO_REPLY}:{cause}: reviewer call {row['operation_id']} for "
+                             f"{task.execution_id} ended with no reply and nothing was saved; its read-only intent "
+                             "is settled as a failure and the review retries in a new execution"),
+                metadata={"reason": model_review.ABANDONED_NO_REPLY, "operation_id": row["operation_id"],
+                          "cause": cause, "task_status": task.status})
+        self.store._reconcile_external_operation(operation_id=row["operation_id"], external_operation_id="",
+                                                 result_state="failure")
+        return True
+
     def _repair_rejected_reviews(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Atomically admit bounded repairs per producer/revision.
 
@@ -1282,7 +1337,10 @@ class GoalService:
             # Interrupted by the host (sleep, restart), not by the agent: retry in a new task.
             interrupted_dispatch = _interrupted_dispatch(self.store, failed)
             interrupted_preparation = _interrupted_preparation(self.store, failed)
-            if failed.status == "BLOCKED" and not interrupted_preparation:
+            # A reviewer call that ended with no reply retries like a host fault (#1618).
+            no_reply = ((failed.status == "FAILED" and (failed.failure_classification or "")
+                         == ABANDONED_NO_REPLY) or self._abandoned_review_recovery(failed))
+            if failed.status == "BLOCKED" and not interrupted_preparation and not no_reply:
                 continue  # other BLOCKED tasks are policy/blockers and never escalate
             if _explicit_cleanup_uncertainty(failed):
                 continue
@@ -1366,7 +1424,7 @@ class GoalService:
             # Decision B: only retries that judge the model spend max_retries; host faults,
             # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
             # All of them share the per-step cap; past it they spend max_retries too.
-            exempt = (overloaded or interrupted or quota_failure) and free_used < MAX_TRANSIENT_RETRIES
+            exempt = (overloaded or interrupted or quota_failure or no_reply) and free_used < MAX_TRANSIENT_RETRIES
             if not exempt and _routing_retries_spent(history) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
@@ -1377,7 +1435,7 @@ class GoalService:
             previous = [row for row in history if row["plan_task_id"] == plan_task.id]
             role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
             decision = None
-            if miss or overloaded or interrupted_preparation:
+            if miss or overloaded or interrupted_preparation or (no_reply and self.task_resolver is None):
                 # Contract misses, provider overload and a preparation the host broke are
                 # not capability failures: the same model retries, never a weaker one.
                 target = (role, failed.executor_kind, failed.binding_ref)
@@ -1406,9 +1464,11 @@ class GoalService:
                 try:
                     retry_args = {"refused_models": refused_models} if refused_models else {}
                     retry_args.update(self._review_authors(plan_task, goal, planned))
+                    # No reply says nothing about capability: route afresh, never up the ladder.
                     decision = self.task_resolver(plan_task, goal=goal,
-                                                  failed_binding="" if refusal or refused_models or unavailable else failed.binding_ref,
-                                                  failed_tier=failed_tier if not unavailable else 0, **retry_args)
+                                                  failed_binding="" if refusal or refused_models or unavailable or no_reply
+                                                  else failed.binding_ref,
+                                                  failed_tier=failed_tier if not (unavailable or no_reply) else 0, **retry_args)
                 except TaskStoreError as exc:
                     if str(exc) == "review_not_independent":
                         self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
@@ -1519,6 +1579,7 @@ class GoalService:
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             reason = ("contract_fixup" if miss else transient_reason if overloaded
                       else f"{HOST_RETRY_REASON}:interrupted" if interrupted
+                      else f"{HOST_RETRY_REASON}:{ABANDONED_NO_REPLY}" if no_reply
                       else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
