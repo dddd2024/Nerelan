@@ -20,7 +20,11 @@ from ..model_access.credential_relay import _normalize_model_id
 from .run_store import TaskStoreError
 from .task_runtime import ExecutorRuntimeError
 
-TIMEOUT_SECONDS = 60
+# One non-streaming request carries the whole frozen diff to a (often reasoning) model
+# and waits for the full JSON verdict. 60 s timed out on every real review on
+# 2026-11-17 (#1632); the durable heartbeat covers the call, so the bound only
+# needs to stop a call that will never answer. Same as the default executor timeout.
+TIMEOUT_SECONDS = 600
 MAX_RESPONSE_BYTES = 512 * 1024
 
 
