@@ -6,7 +6,7 @@ its tier is one lower. Exploration uses an injected draw (no hidden randomness).
 """
 from __future__ import annotations
 
-from typing import Any, Mapping, Sequence
+from typing import Any, Collection, Mapping, Sequence
 import math
 from types import SimpleNamespace
 
@@ -81,6 +81,25 @@ def model_identity(model: str, groups: Mapping[str, Any] | None = None) -> str:
         return _base_identity(declared)
     head, _, rest = group.partition("/")
     return _base_identity(rest) if head == "auto" and not routing_group_id(rest) else ""
+
+
+def served_model(model: str, groups: Mapping[str, Any] | None = None) -> str:
+    """The model id capability lookups use: a declared group's served model, else ``model``.
+
+    Only an Owner-declared ``group/``/``auto/`` id resolves; an undeclared one keeps
+    its own id, so its tier stays what it was before.
+    """
+    group = routing_group_id(model)
+    if not group:
+        return model
+    entry = (groups or {}).get(group)
+    if entry is None:
+        entry = next((value for key, value in (groups or {}).items()
+                      if isinstance(key, str) and key.strip().lower() == group), None)
+    declared = entry.get("identity") if isinstance(entry, Mapping) else None
+    if isinstance(declared, str) and declared.strip() and not routing_group_id(declared):
+        return declared.strip()
+    return model
 
 
 def store_groups(store: Any) -> Mapping[str, Any]:
@@ -213,7 +232,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  account_feedback: Mapping[str, Any] | None = None,
                  weekly_pace: Mapping[str, Any] | None = None,
                  avoid_bindings: Sequence[str] = (), avoid_upstreams: Sequence[str] = (),
-                 stall_tier: int = 0, groups: Mapping[str, Any] | None = None) -> dict[str, Any]:
+                 stall_tier: int = 0, groups: Mapping[str, Any] | None = None,
+                 window_pool: Collection[str] | None = None) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -225,7 +245,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     alternative exists, and then the decision says so. ``stall_tier`` is the stalled
     attempt's tier: a stall retry never goes below it.
     ``groups`` are the Owner's declared Magpie routing groups: every author, reviewer,
-    refusal and escalation comparison uses the model a group serves.
+    refusal and escalation comparison uses the model a group serves, and a declared
+    group's capability tier and priors are its served model's; the measured
+    profile stays keyed by binding.
+    ``window_pool``, when given, is the set of bindings the Goal's Owner window lets
+    it run on (#1667); any other candidate is excluded as ``outside_window_pool``.
     """
     def identity(model: str) -> str:
         return model_identity(model, groups)
@@ -250,7 +274,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     codex_authored = artifact_review and ("codex" in author_executors or any(
         c.get("executor_id") == "codex" and isinstance(c.get("model_id"), str)
         and identity(c["model_id"]) in authors for c in candidates))
+    excluded_tiers: dict[str, int] = {}
     for candidate in candidates:
+        if window_pool is not None and candidate["binding_id"] not in window_pool:
+            excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
+                             "filter": "outside_window_pool"})
+            continue
         if artifact_review and (not isinstance(candidate.get("model_id"), str)
                                 or not identity(candidate["model_id"])):
             excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
@@ -259,17 +288,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         profile = (profiles or {}).get(candidate["binding_id"], {})
         override = (overrides or {}).get(candidate["binding_id"], {})
         # Public metadata < measured evidence < explicit Owner values.
-        metadata = {**prior_characteristics(candidate["model_id"]),
+        # A declared routing group is judged as the model its members serve.
+        capability_model = served_model(candidate["model_id"], groups)
+        metadata = {**prior_characteristics(capability_model),
                     **{k: v for k, v in (candidate.get("metadata") or {}).items() if v is not None},
                     **{k: v for k, v in profile.items() if v is not None}, **override}
         window = metadata["context_window"]
         if type(window) not in (int, float) or isinstance(window, float) and not math.isfinite(window) or window <= 0:
-            window = prior_characteristics(candidate["model_id"])["context_window"]
+            window = prior_characteristics(capability_model)["context_window"]
         refusal = metadata.get("refusal_rates", {}).get(content)
         refusal_risk = .25 if refusal is None else max(0., min(1., refusal))
         quota = candidate.get("quota") or {}
         from .routing_capabilities import tier_detail
-        detail = tier_detail(candidate["model_id"], profile, kind, difficulty, capability_table, override)
+        detail = tier_detail(capability_model, profile, kind, difficulty, capability_table, override)
         tier, unproven, tier_source = detail["tier"], detail["unproven"], detail["source"]
         # The decision record cites benchmark sources and confidence (issue 1264).
         tier_basis = {key: detail[key] for key in ("benchmark", "prior_gap") if key in detail}
@@ -379,6 +410,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time(quota.get("until"))
             excluded.append(exclusion)
+            excluded_tiers[candidate["binding_id"]] = tier
             continue
         quota_penalty = int(quota.get("decision") in {"switch", "warn"})
         if (candidate["executor_id"] == "codex" and reset["drain"]
@@ -473,6 +505,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                 from .quota_guard import parse_time
                 exclusion["retry_at"] = parse_time((item.get("quota") or {}).get("until"))
             excluded.append(exclusion)
+            excluded_tiers[item["binding_id"]] = item["tier"]
         ranked = kept
         liveness_fallback = best >= LIVENESS_COOLING
     pinned = next((c for c in ranked if c["binding_id"] == pin), None)
@@ -546,6 +579,16 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     top = ranked[:5]
     if chosen not in top:
         top = [*top[:4], chosen]
+    shown = {item["binding_id"] for item in top}
+    hidden_tiers: dict[str, int] = {}
+    for item in ranked:
+        if item["binding_id"] not in shown:
+            hidden_tiers[str(item["tier"])] = hidden_tiers.get(str(item["tier"]), 0) + 1
+    excluded_summary: dict[str, int] = {}
+    for row in excluded:
+        excluded_summary[str(row.get("filter"))] = excluded_summary.get(str(row.get("filter")), 0) + 1
+    # Stronger excluded bindings first, so the 10-row cap keeps the ones worth explaining.
+    excluded = sorted(excluded, key=lambda row: -excluded_tiers.get(row.get("binding_id"), 0))
     evidence = [{key: item[key] for key in ("binding_id", "model_id", "executor_id", "availability", "tier", "tier_source", "tier_basis", "unproven",
                                             "cost_class", "cost", "quota_penalty", "success_rate", "speed", "score", "score_breakdown", "refusal_risk", "characteristics", "quota_headroom", "reset")}
                 | ({"resources": item["resources"]} if item.get("resources") else {})
@@ -554,7 +597,10 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             "model_id": chosen["model_id"], "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,
             "underpowered": chosen["tier"] < difficulty, "candidates": evidence,
             "context_need": context_need, "needs": list(needs), "content_class": content,
-            "excluded_candidates": excluded[:10], "reset": chosen["reset"],
+            "excluded_candidates": excluded[:10], "excluded_summary": excluded_summary,
+            "ranked_summary": {"count": len(ranked), "shown": len(top),
+                               "hidden_tiers": dict(sorted(hidden_tiers.items(), reverse=True))},
+            "reset": chosen["reset"],
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
             "tier_source": chosen["tier_source"], "tier_basis": chosen["tier_basis"], "reset_observations": reset_observations,
             "characteristics": chosen["characteristics"],

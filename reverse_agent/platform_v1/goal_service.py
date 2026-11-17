@@ -1748,22 +1748,17 @@ class GoalService:
         return tuple(outcomes)
 
     def _owner_window_pool(self, goal: Any, window_id: str) -> tuple[Mapping[str, Any], ...] | None:
-        """Pool entries the Owner confirmed for this Goal's window; None when it is not an Owner window."""
-        from .control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
-        with self.store._lock:
-            row = self.store._conn.execute(
-                "SELECT confirmation_mode FROM platform_autonomous_windows WHERE id = ?", (window_id,)).fetchone()
-            if row is None or row["confirmation_mode"] != OWNER_WINDOW_MODE:
-                return None
-            rows = self.store._conn.execute(
-                "SELECT evidence_json FROM platform_operation_receipts WHERE subject_id = ? AND window_id = ? "
-                "AND operation_type = ? AND decision = 'allowed' AND confirmation_mode = ?",
-                (goal.id, window_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
-        if len(rows) != 1:
-            raise TaskStoreError("owner_retry_window_receipt_invalid")
+        """Pool entries this Goal may run on in its window; None when it is not an Owner window.
+
+        The admission receipt's pool for a window with an expiry, the live pool for a
+        continuous one (Owner decision 2026-11-17, #1667).
+        """
+        from .window_pool import goal_window_pool
         try:
-            pool = json.loads(rows[0]["evidence_json"])["approved_pool"]
-            return tuple({**entry, "binding_ref": str(entry["binding_ref"])} for entry in pool)
+            found = goal_window_pool(self.store, goal.id, window_id)
+            if found is None:
+                return None
+            return tuple({**entry, "binding_ref": str(entry["binding_ref"])} for entry in found["pool"])
         except (ValueError, KeyError, TypeError) as exc:
             raise TaskStoreError("owner_retry_window_receipt_invalid") from exc
 
