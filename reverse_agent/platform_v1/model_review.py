@@ -250,6 +250,7 @@ def exact_diff(root, base, head):
 
 
 def review_authors(store, task, binding):
+    groups = model_router.store_groups(store)
     from .control_store import PlatformControlStore
     from .goal_service import GoalService
     control = PlatformControlStore(store)
@@ -272,30 +273,34 @@ def review_authors(store, task, binding):
                    if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
         for author_id in ids:
             observations = store.list_usage_observations(author_id)
-            observed = {model_router.model_identity(row.model_id) for row in observations if row.model_id}
+            observed = {model_router.model_identity(row.model_id, groups) for row in observations if row.model_id}
             author_task = store.get_task(author_id)
             if goals._discarded_without_usage(author_task, observations):
                 continue  # called no model and its tree was discarded: it authored nothing
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
             if author_task.executor_kind in {"codex", "claude_code"}:
-                reported = {model_router.model_identity(model)
+                reported = {model_router.model_identity(model, groups)
                     for event in store.get_events(author_id) if event.type == "EXECUTOR_COMPLETED"
                     for model in event.metadata.get("models", ()) if isinstance(model, str) and model.strip()}
                 if not reported or reported != observed:
                     raise TaskStoreError("review_not_independent")
             actual.update(observed)
-    if actual != {model_router.model_identity(model) for model in authors["author_models"]}:
+    if actual != {model_router.model_identity(model, groups) for model in authors["author_models"]}:
         raise TaskStoreError("review_not_independent")
     return goal, selected, tuple(sorted(actual))
 
 
-def require_independent(actual_models, selected_model, authors):
+def require_independent(actual_models, selected_model, authors, groups=None):
+    """The reviewer ran exactly the selected model, and that model authored nothing.
+
+    ``groups``: the Owner's declared Magpie routing groups; a group is the model it serves.
+    """
     if (not isinstance(selected_model, str) or not selected_model or not isinstance(actual_models, (list, tuple)) or not actual_models or not authors
             or any(not isinstance(model, str) or not model.strip() for model in actual_models)):
         raise TaskStoreError("review_not_independent")
-    actual = {model_router.model_identity(model) for model in actual_models}
-    if (actual != {model_router.model_identity(selected_model)}
+    actual = {model_router.model_identity(model, groups) for model in actual_models}
+    if (actual != {model_router.model_identity(selected_model, groups)}
             or actual.intersection(authors) or "" in actual):
         raise TaskStoreError("review_not_independent")
 
@@ -330,14 +335,20 @@ def verified_evidence(store, task, run, *, require_accept=True):
                 or row["status"] != "BOUND" or evidence["evidence_kind"] != "model_review"
                 or evidence["run_id"] != run.run_id or evidence["execution_id"] != task.execution_id
                 or evidence["input_digest"] != digest(binding) or evidence["binding_ref"] != task.binding_ref
-                or evidence["authors"] != list(authors) or not 1 <= evidence["lease_epoch"] <= run.lease_epoch
+                or not isinstance(evidence["authors"], list)
+                or any(not isinstance(author, str) for author in evidence["authors"])
+                # Identities saved before the version-separator rule (glm-5.2 -> glm-5-2,
+                # 2026-11-17) compare equal once normalized again; identity is idempotent.
+                or sorted({model_router.model_identity(author) for author in evidence["authors"]}) != list(authors)
+                or not 1 <= evidence["lease_epoch"] <= run.lease_epoch
                 or evidence["head"] != binding["producer"]["commit"]
                 or evidence["tree"] != binding["producer"]["tree"] or evidence["base"] != binding["base_commit"]
                 or evidence["head"] != run.worktree_head_sha or evidence["base"] != run.repository_base_sha
                 or evidence["response_digest"] != hashlib.sha256(evidence["response"].encode()).hexdigest()
                 or parse_response(evidence["response"]) != evidence["result"]):
             raise TaskStoreError("model_review_evidence_invalid")
-        require_independent(evidence["actual_models"], evidence["selected_model"], authors)
+        require_independent(evidence["actual_models"], evidence["selected_model"], authors,
+                            model_router.store_groups(store))
         if require_accept and evidence["result"]["verdict"] != "ACCEPT":
             raise TaskStoreError("model_review_rejected")
         if workspace_identity(Path(run.worktree_path)) != evidence["workspace_identity"]:
@@ -359,6 +370,7 @@ def execute_review(service, task_id, workspace_root, lease):
         if not artifacts.model_review_input(task) or binding is None:
             raise TaskStoreError("model_review_artifact_input_required")
         goal, planned, authors = review_authors(store, task, binding)
+        groups = model_router.store_groups(store)
         run = store._get_durable_run(lease.run_id)
         if task.status in {"FAILED", "BLOCKED", "CANCELLED"}:
             raise TaskStoreError("model_review_terminal_task_requires_new_execution")
@@ -376,7 +388,7 @@ def execute_review(service, task_id, workspace_root, lease):
             if (not resolution or resolution.binding_ref != task.binding_ref
                     or resolution.executor_id != task.executor_kind):
                 raise TaskStoreError("review_not_independent")
-            require_independent([selected_model], selected_model, authors)
+            require_independent([selected_model], selected_model, authors, groups)
             toolless = task.executor_kind != "codex"
             executor = None
             if toolless:
@@ -435,7 +447,7 @@ def execute_review(service, task_id, workspace_root, lease):
             try:
                 if toolless:
                     from .model_review_transport import review
-                    reply = review(prompt, resolution, service.lease_provider)
+                    reply = review(prompt, resolution, service.lease_provider, groups=groups)
                     reply.update(binding_ref=task.binding_ref, execution_id=task.execution_id)
                     store.append_usage_observation(task_id, observation_id=reply["request_id"],
                         execution_id=task.execution_id, role="reviewer", model_id=reply["actual_models"][0],
@@ -473,7 +485,7 @@ def execute_review(service, task_id, workspace_root, lease):
                     raise TaskStoreError("model_review_invalid_output")
                 if workspace_identity(root) != before:
                     raise TaskStoreError("model_review_input_mutation")
-                require_independent(reply.get("actual_models"), selected_model, authors)
+                require_independent(reply.get("actual_models"), selected_model, authors, groups)
                 if (reply.get("binding_ref") != task.binding_ref or not isinstance(reply.get("request_id"), str) or not reply.get("request_id")
                         or reply.get("execution_id") != task.execution_id):
                     raise TaskStoreError("review_not_independent")

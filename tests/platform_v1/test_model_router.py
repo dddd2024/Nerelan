@@ -678,3 +678,132 @@ def test_escalation_prefers_a_clean_higher_tier_over_a_cooling_one():
     assert result["binding_ref"] == "clean" and result["reason"] == "escalation_higher_tier"
     assert any(row["binding_id"] == "cool" and row["filter"] == "liveness_cooldown"
                for row in result["excluded_candidates"])
+
+
+# Magpie routing groups (Owner decision 2026-11-17, "route by Magpie group, not account").
+GROUPS = {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}
+
+
+def _filters(result):
+    return {row["binding_id"]: row["filter"] for row in result["excluded_candidates"]}
+
+
+def test_a_keyless_gateway_group_is_selectable_at_its_default_cost():
+    from reverse_agent.platform_v1.routing_inputs import binding_cost_class
+    keyless = {"auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"}
+    row = {"binding_id": "magpie-group-nerelan-glm-5-3", "model_id": "group/nerelan-glm-5-3"}
+    declared = {"groups": {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}}
+    assert binding_cost_class(row, keyless, declared) == "subscription"
+    # #1661 review: an undeclared group and Magpie's own auto/<model> groups may hold
+    # per-token members (OpenRouter), so they keep the paid default with paid spend off.
+    assert binding_cost_class(row, keyless, {}) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "auto/glm-5.3"}, keyless, declared) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "group/other"}, keyless, declared) == "paid_api"
+    # An explicit Owner override still wins; a keyed route is not the keyless gateway.
+    assert binding_cost_class(row, keyless, {"models": {"group/nerelan-glm-5-3": "free"}}) == "free"
+    assert binding_cost_class(row, keyless, {"bindings": {row["binding_id"]: {"cost_class": "paid_api"}}}) == "paid_api"
+    assert binding_cost_class(row, {"auth_method": "api_key"}, {}) == "paid_api"
+    pool = [candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription"),
+            candidate("paid", "gpt-6", "paid_api")]
+    result = choose(pool, allow_paid=False, groups=GROUPS)
+    assert result["binding_ref"] == "magpie-group-nerelan-glm-5-3"
+    assert _filters(result) == {"paid": "paid_spend_disabled"}
+
+
+def test_a_declared_group_has_the_identity_of_the_model_it_serves():
+    from reverse_agent.platform_v1.model_router import model_identity
+    assert model_identity("group/nerelan-glm-5-3", GROUPS) == model_identity("trae-cn/glm-5.3") == "glm-5-3"
+    assert model_identity("magpie/group/nerelan-glm-5-3", GROUPS) == "glm-5-3"
+    assert model_identity("group/NERELAN-GLM-5-3", GROUPS) == "glm-5-3"
+    # Undeclared: a group has no identity; an auto-router falls back to the model it names.
+    assert model_identity("group/nerelan-glm-5-3") == ""
+    assert model_identity("group/other", GROUPS) == ""
+    assert model_identity("auto/glm-5.3") == "glm-5-3"
+    assert model_identity("auto/group/x") == ""
+    assert model_identity("openrouter/auto") == "auto"
+
+
+def test_version_separators_compare_equal_without_merging_different_models():
+    from reverse_agent.platform_v1.model_router import model_identity
+    assert model_identity("glm-5.3") == model_identity("glm-5-3") == model_identity("zai/GLM-5.3:free")
+    assert model_identity("claude-3.5-sonnet") == model_identity("claude-3-5-sonnet")
+    for left, right in (("glm-5.3", "glm-5.2"), ("glm-5.3", "glm-5"), ("glm-5.3", "glm-53"),
+                        ("gpt-4.1", "gpt-41"), ("gpt-4.1-mini", "gpt-4.1"), ("qwen2.5-72b", "qwen2.5-7b"),
+                        ("v1.10", "v1.1"), ("model.v2", "model-v2")):
+        assert model_identity(left) != model_identity(right), (left, right)
+
+
+def test_a_declared_group_blocks_review_of_its_members_work_and_vice_versa():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    member = candidate("trae-glm", "trae-cn/glm-5.3", "subscription")
+    other = candidate("other", "kimi-k3", "subscription")
+    # The author ran on a member binding: the group serves the same model.
+    result = choose([group, other], kind="review", author_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    assert result["binding_ref"] == "other"
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "reviewer_is_author"
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([group], kind="review", author_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    # The author ran on the group: a member binding is not independent either.
+    result = choose([member, other], kind="review", author_models=["group/nerelan-glm-5-3"], groups=GROUPS)
+    assert result["binding_ref"] == "other" and _filters(result)["trae-glm"] == "reviewer_is_author"
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([member], kind="review", author_models=["group/nerelan-glm-5-3"], groups=GROUPS)
+    # The single-author path compares identities the same way.
+    result = choose([group, other], kind="review", author_model="glm-5-3", groups=GROUPS)
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "reviewer_is_author"
+
+
+def test_an_undeclared_group_is_never_independent():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    group = candidate("magpie-group-x", "group/x", "subscription")
+    other = candidate("other", "kimi-k3", "subscription")
+    result = choose([group, other], kind="review", author_models=["glm-5.3"])
+    assert result["binding_ref"] == "other" and _filters(result)["magpie-group-x"] == "review_identity_unknown"
+    result = choose([group, other], kind="review", author_model="glm-5.3")
+    assert _filters(result)["magpie-group-x"] == "review_identity_unknown"
+    for authors in ({"author_models": ["group/x"]}, {"author_model": "group/x"}):
+        with pytest.raises(ModelSelectionError, match="review_not_independent"):
+            choose([other], kind="review", **authors)
+    # Declaring another group does not declare this one.
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([other], kind="review", author_models=["group/x"], groups=GROUPS)
+
+
+def test_escalation_and_refusal_treat_a_group_as_the_model_it_serves():
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    member = candidate("trae-glm", "trae-cn/glm-5.3", "free")
+    other = candidate("other", "gemini-flash", "subscription")
+    tiers = {"magpie-group-nerelan-glm-5-3": {"tiers": {"code": 3}}}
+    # Same tier everywhere: the distinct-model retry skips the group serving the failed model.
+    result = choose([group, member, other], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3,
+                    overrides=tiers, groups=GROUPS)
+    assert result["binding_ref"] == "other" and result["reason"] == "retry_different_model"
+    # With only the group and the member left, the retry knows it is the same model.
+    result = choose([group, member], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3,
+                    overrides=tiers, groups=GROUPS)
+    assert result["reason"] == "retry_only_model"
+    # Without the declaration the group is not known to be the failed model.
+    result = choose([group, member], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3, overrides=tiers)
+    assert result["binding_ref"] == "magpie-group-nerelan-glm-5-3" and result["reason"] == "retry_different_model"
+    result = choose([group, other], refused_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    assert result["binding_ref"] == "other"
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "model_refused"
+
+
+def test_each_group_is_its_own_upstream():
+    from reverse_agent.platform_v1.model_router import upstream_key
+    from reverse_agent.platform_v1.routing_inputs import upstream_namespace
+    assert upstream_namespace("group/nerelan-glm-5-3") == "group:nerelan-glm-5-3"
+    assert upstream_namespace("magpie/group/nerelan-glm-5-3") == "group:nerelan-glm-5-3"
+    assert upstream_namespace("auto/glm-5.3") == "auto:glm-5.3"
+    assert upstream_namespace("trae-cn/glm-5.3") == "trae-cn"
+    assert upstream_namespace("openrouter/auto") == "openrouter"
+    assert upstream_key({"connection_id": "magpie", "model_id": "group/nerelan-glm-5-3"}) == "magpie|group:nerelan-glm-5-3"
+    pool = [candidate("g1", "group/nerelan-glm-5-3", account_ref="magpie"),
+            candidate("g2", "group/nerelan-kimi", "subscription", account_ref="magpie"),
+            candidate("m", "trae-cn/glm-5.3", "subscription", account_ref="magpie")]
+    result = choose(pool, avoid_bindings=("g1",), groups=GROUPS)
+    # A stall on one group marks neither another group nor a single binding as its upstream.
+    assert result["liveness"]["avoided_upstreams"] == ["magpie|group:nerelan-glm-5-3"]
+    assert _filters(result) == {"g1": "liveness_step_avoided"}

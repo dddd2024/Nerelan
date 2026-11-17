@@ -14,8 +14,9 @@ from . import model_review_transport
 from .run_store import TaskStoreError
 
 from .quota_guard import CONFIRMED_EXHAUSTION_REASONS
-from .routing_inputs import requirements, reset_decision
+from .routing_inputs import requirements, reset_decision, routing_group_id, upstream_namespace
 from .resource_allowances import urgency
+import re
 import time
 
 KINDS = frozenset({"code", "analysis", "writing", "research_design", "review"})
@@ -49,12 +50,47 @@ def capability(model: str, profile: Mapping[str, Any], kind: str, difficulty: in
     return tier, unproven
 
 
-def model_identity(model: str) -> str:
-    """Provider namespaces and free gateway suffixes do not make a new author."""
+# A dot between two digits is a version separator: "glm-5.3" and "glm-5-3" are one model.
+_VERSION_DOT = re.compile(r"(?<=\d)\.(?=\d)")
+
+
+def _base_identity(model: str) -> str:
     identity = model.strip().lower().rsplit("/", 1)[-1]
     while identity.endswith((":free", "-free")):
         identity = identity.removesuffix(":free").removesuffix("-free")
-    return identity
+    return _VERSION_DOT.sub("-", identity)
+
+
+def model_identity(model: str, groups: Mapping[str, Any] | None = None) -> str:
+    """Provider namespaces and free gateway suffixes do not make a new author.
+
+    A Magpie routing group (``group/<id>``, Owner decision 2026-11-17) is the model
+    its members serve, as the Owner declares it in the overrides ``groups`` section.
+    An undeclared ``group/`` id has no identity (""), so it can never be proven
+    independent of anything; an undeclared ``auto/<model>`` falls back to ``<model>``.
+    """
+    group = routing_group_id(model)
+    if not group:
+        return _base_identity(model)
+    entry = (groups or {}).get(group)
+    if entry is None:
+        entry = next((value for key, value in (groups or {}).items()
+                      if isinstance(key, str) and key.strip().lower() == group), None)
+    declared = entry.get("identity") if isinstance(entry, Mapping) else None
+    if isinstance(declared, str) and declared.strip() and not routing_group_id(declared):
+        return _base_identity(declared)
+    head, _, rest = group.partition("/")
+    return _base_identity(rest) if head == "auto" and not routing_group_id(rest) else ""
+
+
+def store_groups(store: Any) -> Mapping[str, Any]:
+    """The Owner's declared routing groups the host attached to a task store, or {}."""
+    provider = getattr(store, "routing_groups", None)
+    try:
+        groups = provider() if callable(provider) else {}
+    except Exception:  # noqa: BLE001 - unreadable declarations leave every group undeclared
+        return {}
+    return groups if isinstance(groups, Mapping) else {}
 
 
 WEEK_SECONDS = 7 * 86400
@@ -71,10 +107,10 @@ def upstream_key(candidate: Mapping[str, Any]) -> str:
     """The upstream account a candidate spends: its account plus a gateway namespace (#1596).
 
     ``magpie/minimax/m3`` and ``magpie/minimax/m3-fast`` on one gateway account share the
-    ``minimax`` upstream; a model id without a namespace is its account alone.
+    ``minimax`` upstream; a model id without a namespace is its account alone. A Magpie
+    routing group is keyed by its own id (``group:<id>``), never by the shared ``group``.
     """
-    model = str(candidate.get("model_id") or "")
-    namespace = model.split("/", 1)[0].lower() if "/" in model else ""
+    namespace = upstream_namespace(candidate.get("model_id"))
     return f"{candidate.get('account_ref') or candidate.get('connection_id') or ''}|{namespace}"
 
 
@@ -177,7 +213,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  account_feedback: Mapping[str, Any] | None = None,
                  weekly_pace: Mapping[str, Any] | None = None,
                  avoid_bindings: Sequence[str] = (), avoid_upstreams: Sequence[str] = (),
-                 stall_tier: int = 0) -> dict[str, Any]:
+                 stall_tier: int = 0, groups: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Pick from public binding metadata and precomputed quota observations.
 
     Scores prefer known availability/readiness, then quota, cost, success and speed.
@@ -188,7 +224,12 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     one this step stalled on (``avoid_bindings``), is chosen only when no qualifying
     alternative exists, and then the decision says so. ``stall_tier`` is the stalled
     attempt's tier: a stall retry never goes below it.
+    ``groups`` are the Owner's declared Magpie routing groups: every author, reviewer,
+    refusal and escalation comparison uses the model a group serves.
     """
+    def identity(model: str) -> str:
+        return model_identity(model, groups)
+
     if type(quota_buffer) not in (int, float) or not 0 <= quota_buffer <= 1:
         raise ValueError("invalid_quota_buffer")
     task_traits({"difficulty": difficulty, "kind": kind})
@@ -199,15 +240,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     # A binding this step stalled on also marks its upstream: siblings there likely hang too.
     avoid_upstreams = {*avoid_upstreams, *(upstream_key(c) for c in candidates if c["binding_id"] in avoid_bindings)}
     artifact_review = (kind == "review" or role == "reviewer") and bool(author_models)
-    if artifact_review and any(not isinstance(m, str) or not model_identity(m) for m in author_models):
+    if artifact_review and any(not isinstance(m, str) or not identity(m) for m in author_models):
         raise ModelSelectionError("review_not_independent", excluded=[])
-    authors = {model_identity(m) for m in (*author_models, author_model) if m}
+    authors = {identity(m) for m in (*author_models, author_model) if m}
+    reviewing = kind == "review" or role == "reviewer"
+    if reviewing and "" in authors:
+        # An undeclared routing group authored: nothing can be proven independent of it.
+        raise ModelSelectionError("review_not_independent", excluded=[])
     codex_authored = artifact_review and ("codex" in author_executors or any(
         c.get("executor_id") == "codex" and isinstance(c.get("model_id"), str)
-        and model_identity(c["model_id"]) in authors for c in candidates))
+        and identity(c["model_id"]) in authors for c in candidates))
     for candidate in candidates:
         if artifact_review and (not isinstance(candidate.get("model_id"), str)
-                                or not model_identity(candidate["model_id"])):
+                                or not identity(candidate["model_id"])):
             excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
                              "filter": "review_identity_unknown"})
             continue
@@ -310,13 +355,15 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "short_window_capacity"
         elif "security_simulation" in needs and refusal is not None and refusal >= .5:
             reason = "refusal_rate"
-        elif (kind == "review" or role == "reviewer") and model_identity(candidate["model_id"]) in authors:
+        elif reviewing and not identity(candidate["model_id"]):
+            reason = "review_identity_unknown"  # an undeclared routing group is never independent
+        elif reviewing and identity(candidate["model_id"]) in authors:
             reason = "reviewer_is_author"
         elif candidate.get("cost_class", "paid_api") == "paid_api" and not allow_paid:
             reason = "paid_spend_disabled"
         elif candidate.get("availability", {}).get("state") == "UNAVAILABLE":
             reason = "availability:" + candidate.get("availability", {}).get("reason", "unverified")
-        elif model_identity(candidate["model_id"]) in {model_identity(m) for m in refused_models}:
+        elif identity(candidate["model_id"]) in {identity(m) for m in refused_models}:
             reason = "model_refused"
         elif refused_models and tier < refusal_tier:
             reason = "refusal_retry_tier"
@@ -407,7 +454,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             # them is ranked lower, never removed in favour of the model that just failed.
             eligible = {c["binding_id"] for c in ranked if c["tier"] > failed_tier} or {
                 c["binding_id"] for c in ranked if c["tier"] == failed_tier
-                and model_identity(c["model_id"]) != model_identity(failed_model)}
+                and identity(c["model_id"]) != identity(failed_model)}
             floor = max(floor, failed_tier)
         eligible = eligible or {c["binding_id"] for c in ranked if c["tier"] >= floor} or {
             c["binding_id"] for c in ranked if c["tier"] == top}
@@ -444,7 +491,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         # Compare tiers before preferring a different model: a weaker distinct
         # model must never displace an eligible equal-or-higher one (#1280).
         def distinct(items):
-            return [c for c in items if model_identity(c["model_id"]) != model_identity(failed_model)]
+            return [c for c in items if identity(c["model_id"]) != identity(failed_model)]
         higher = [c for c in pool if c["tier"] > failed_tier]
         same = [c for c in pool if c["tier"] == failed_tier]
         if higher:
@@ -483,7 +530,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if failed_model and not pinned and reason != "underpowered" and not refused_models:
         reason = ("retry_lower_tier_fallback" if downgrade_fallback else
                   "escalation_higher_tier" if chosen["tier"] > failed_tier else
-                  "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
+                  "retry_different_model" if identity(chosen["model_id"]) != identity(failed_model) else "retry_only_model")
     if artifact_review and chosen["tier"] < difficulty:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
     if liveness_fallback and not pinned and not (failed_model and not refused_models):

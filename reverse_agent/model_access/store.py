@@ -1242,6 +1242,21 @@ class ModelProfileStore:
             return {"roles": roles, "role_order": list(AGENT_ROLES), "policy": dict(self._agent_policy),
                     "standins": {role: ids for role, ids in standins.items() if ids}}
 
+    def _roster_models_differ(self, reviewer_model: str, coder_model: str) -> bool:
+        """The reviewer's model is provably not the coder's, Magpie groups included (2026-11-17).
+
+        A declared routing group is the model it serves; an undeclared group has no
+        identity and so is never proven different from anything.
+        """
+        from ..platform_v1.model_router import model_identity
+        from ..platform_v1.routing_inputs import read_overrides
+        try:
+            groups = read_overrides(self._state_path).get("groups", {})
+        except ValueError:
+            groups = {}
+        reviewer, coder = model_identity(reviewer_model, groups), model_identity(coder_model, groups)
+        return bool(reviewer and coder and reviewer != coder and reviewer_model != coder_model)
+
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         """Legacy role hints, or explicit {binding_id, pin: True} task-route pins."""
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
@@ -1271,7 +1286,8 @@ class ModelProfileStore:
                 roster[role] = binding_id
             pins.intersection_update(roster)
             reviewer, coder = roster.get("reviewer"), roster.get("coder")
-            if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
+            if reviewer and coder and not self._roster_models_differ(
+                    self._bindings[reviewer].model_id, self._bindings[coder].model_id):
                 # Independent review needs a different underlying model, not just another label.
                 raise ValueError("agent_reviewer_must_differ_from_coder")
             policy_raw = payload.get("policy") if isinstance(payload, Mapping) else None

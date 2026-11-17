@@ -466,6 +466,29 @@ def test_a_gateway_refusal_holds_only_that_upstream(monkeypatch):
     assert host._quota_check(bindings["trae-glm"])["reason"] == "limit_hit"
 
 
+def test_a_refusal_on_one_magpie_group_holds_no_other_group_or_binding(monkeypatch):
+    """Owner decision 2026-11-17: every group/* id is its own upstream, not one shared "group"."""
+    host, connection, bindings = _gateway_host(monkeypatch)
+    for binding_id, model in (("group-glm", "group/nerelan-glm-5-3"), ("group-kimi", "group/nerelan-kimi"),
+                              ("auto-glm", "auto/glm-5.3")):
+        host._store.upsert_binding({"binding_id": binding_id, "name": binding_id, "connection_id": "gateway",
+                                    "executor_id": "opencode", "model_id": model, "enabled": True})
+    failed = host._task_store.create_task(title="t", repository="o/r", executor_kind="opencode",
+                                          binding_ref="group-glm")
+    host._task_store.classify_failure(failed.id, classification="api_error_429",
+                                      detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429")
+    bindings = {b["binding_id"]: b for b in host._store.list_bindings_public()}
+    assert host._limit_hit_until(connection, bindings["group-glm"]) is not None
+    assert host._limit_hit_until(connection, bindings["group-kimi"]) is None
+    assert host._limit_hit_until(connection, bindings["auto-glm"]) is None
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is None
+    # The earlier trae-cn refusal still holds only trae-cn models, never a group.
+    assert host._limit_hit_until(connection, bindings["trae-glm"]) is not None
+    connections = {connection["connection_id"]: connection}
+    assert host._liveness_upstream(bindings["group-glm"], connections) == "gateway:gateway:group:nerelan-glm-5-3"
+    assert host._liveness_upstream(bindings["group-kimi"], connections) == "gateway:gateway:group:nerelan-kimi"
+
+
 def test_a_recorded_account_still_holds_every_model_it_serves(monkeypatch):
     host, connection, bindings = _gateway_host(monkeypatch, account_ref="one-account")
     assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is not None

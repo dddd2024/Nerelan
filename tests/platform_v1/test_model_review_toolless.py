@@ -274,3 +274,56 @@ def test_gateway_chat_uses_the_proxy_free_opener(monkeypatch):
     monkeypatch.setattr(transport, "urlopen_direct", direct)
     assert transport.gateway_chat("http://127.0.0.1:3425/v1", {"model": "m"}) == {"id": "request"}
     assert used == [("http://127.0.0.1:3425/v1/chat/completions", None)]
+
+
+# Magpie routing groups (Owner decision 2026-11-17): the gateway may echo the group id
+# (seen live: model = "group/nerelan-failover-probe") or the member model that served.
+GROUPS = {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}, "group/other-glm": {"identity": "glm-5.3"}}
+
+
+def group_review(monkeypatch, echo, groups):
+    sent = []
+    def post(base_url, body, headers):
+        sent.append(body["model"])
+        return gateway_reply(model=echo)
+    monkeypatch.setattr(transport, "_post", post)
+    reply = transport.review("prompt", gateway(model_id="magpie/group/nerelan-glm-5-3"), None, groups=groups)
+    assert sent == ["group/nerelan-glm-5-3"]
+    return reply
+
+
+@pytest.mark.parametrize("groups", [GROUPS, None])
+def test_a_group_echo_passes_and_is_recorded_as_the_group(monkeypatch, groups):
+    reply = group_review(monkeypatch, "group/nerelan-glm-5-3", groups)
+    assert reply["actual_models"] == ["magpie/group/nerelan-glm-5-3"]
+    model_review.require_independent(reply["actual_models"], "magpie/group/nerelan-glm-5-3", ("kimi-k3",), GROUPS)
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        model_review.require_independent(reply["actual_models"], "magpie/group/nerelan-glm-5-3", ("glm-5-3",), GROUPS)
+    with pytest.raises(TaskStoreError, match="review_not_independent"):  # undeclared: never independent
+        model_review.require_independent(reply["actual_models"], "magpie/group/nerelan-glm-5-3", ("kimi-k3",))
+
+
+@pytest.mark.parametrize("echo", ["trae-cn/glm-5.3", "glm-5-3", "zai/GLM-5.3"])
+def test_a_member_echo_of_the_declared_identity_passes(monkeypatch, echo):
+    reply = group_review(monkeypatch, echo, GROUPS)
+    assert reply["actual_models"] == ["magpie/" + echo]  # the evidence names the member that served
+    model_review.require_independent(reply["actual_models"], "magpie/group/nerelan-glm-5-3", ("kimi-k3",), GROUPS)
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        model_review.require_independent(reply["actual_models"], "magpie/group/nerelan-glm-5-3", ("glm-5-3",), GROUPS)
+
+
+@pytest.mark.parametrize("echo,groups", [
+    ("trae-cn/kimi-k3", GROUPS),                # a different identity
+    ("glm-5.2", GROUPS),                        # a different version
+    ("group/other-glm", GROUPS),                # another group, even with the same identity
+    ("trae-cn/glm-5.3", None),                  # the group is undeclared
+    ("trae-cn/glm-5.3", {"group/nerelan-glm-5-3": {"identity": "kimi-k3"}})])
+def test_a_group_echo_of_anything_else_is_rejected(monkeypatch, echo, groups):
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        group_review(monkeypatch, echo, groups)
+
+
+def test_a_single_binding_never_accepts_a_member_style_echo(monkeypatch):
+    monkeypatch.setattr(transport, "_post", lambda *args: gateway_reply(model="trae-cn/glm-5.3"))
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        transport.review("prompt", gateway(model_id="magpie/zai/glm-5.3"), None, groups=GROUPS)
