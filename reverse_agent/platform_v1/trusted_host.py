@@ -2254,5 +2254,27 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
         host.stop()
 
 
+def _enable_crash_trace() -> None:
+    """Record each host start and dump Python stacks on a native crash (2026-11-18).
+
+    The host once ended between two observations with no log line and no Windows crash
+    report. ``faulthandler`` writes every thread's stack on an access violation or other
+    fatal error, so the next such exit says whether the process crashed (a dump follows
+    the start line) or was killed from outside (a start line with nothing after it).
+    """
+    import faulthandler
+    from datetime import datetime, timezone
+    directory = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "Nerelan"
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        stream = open(directory / "host_faults.log", "a", encoding="utf-8")  # kept open for faulthandler
+        stream.write(f"{datetime.now(timezone.utc).isoformat()} host start pid={os.getpid()}\n")
+        stream.flush()
+        faulthandler.enable(file=stream, all_threads=True)
+    except OSError:
+        pass  # a missing trace never stops the host
+
+
 if __name__ == "__main__":
+    _enable_crash_trace()
     run_combined_trusted_host()
