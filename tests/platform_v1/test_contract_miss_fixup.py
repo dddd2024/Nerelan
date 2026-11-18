@@ -57,7 +57,7 @@ def test_timeout_retains_observed_failures(host, monkeypatch):
     observed = {"profile_id": "python_pytest", "timed_out": True, "exit_code": -1,
                 "test_report": {"accepted": False, "passed": 1, "failed": 1,
                                 "failures": [{"test": "test_bad", "message": "assert False"}]}}
-    monkeypatch.setattr(fv, "_run_check", lambda *args: observed)
+    monkeypatch.setattr(fv, "_run_check", lambda *args, dependencies=None: observed)
     result = validate()
     # Observed failing tests make a timeout an ordinary capability failure.
     assert result["reason"] == "functional_check_failed"
@@ -257,9 +257,9 @@ def test_timeout_once_with_explicit_targets(case, monkeypatch, outcome):
     (root / "wrong_name.py").rename(root / "test_exact.py")
     original = validation._run_check
     calls = []
-    def check(spec, worktree):
+    def check(spec, worktree, *, dependencies=None):
         calls.append(spec)
-        observed = original(spec, worktree)
+        observed = original(spec, worktree, dependencies=dependencies)
         if len(calls) == 1 or outcome == "timeout":
             observed.update(timed_out=True, exit_code=-1)
             observed["test_report"].update(accepted=False)

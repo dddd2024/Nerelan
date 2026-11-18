@@ -44,6 +44,7 @@ from .task_runtime import (
     LocalValidationRunner,
     load_host_validation_contract,
 )
+from .workspace_dependencies import prepare_workspace_with_dependencies, task_dependency_plan
 
 
 @dataclass(frozen=True)
@@ -554,8 +555,9 @@ class TaskExecutionService:
 
         self.store.transition_to(task_id, "PREPARING_WORKSPACE")
         try:
-            prepared = executor.prepare_worktree_once(
-                task_id, Path(workspace_root), self._store_event_callback
+            prepared = prepare_workspace_with_dependencies(
+                executor, task_id, Path(workspace_root), self._store_event_callback,
+                plan=task_dependency_plan(self.store, task_id), store=self.store,
             )
         except ExecutorRuntimeError as exc:
             self.store.classify_failure(
@@ -971,9 +973,11 @@ class TaskExecutionService:
                 detail=val_output,
                 raw_json_digest=val_digest,
             )
-            self.store.transition_to(task_id, "FAILED")
+            from .functional_validation import validation_failure_outcome
+            # A dependency outage during validation is a host fault (#1503).
+            terminal_status, classification = validation_failure_outcome(val_output)
+            self.store.transition_to(task_id, terminal_status)
             success = False
-            classification = "deterministic_validation_failure"
             failure_detail = val_output or f"{val_command_id} exit={val_exit}"
             self.store.add_event(
                 task_id,
@@ -1146,7 +1150,10 @@ class TaskExecutionService:
         if recovery_input(task) is not None:
             from .opencode_executor import RoleContext
             executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
-            prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+            prepared = prepare_workspace_with_dependencies(
+                executor, task.id, Path(workspace_root), self._store_event_callback,
+                plan=task_dependency_plan(self.store, task.id), store=self.store,
+            )
             restore_failed_tree(self.store, task.id, worktree=prepared.worktree)
             result = executor.execute_role_prepared(prepared, self.store,
                 role_context=RoleContext("executor", task.id, prepared.worktree),
@@ -1155,7 +1162,10 @@ class TaskExecutionService:
             from .task_runtime import ExecutorResult
             try:
                 executor = self.router.create_executor(executor_kind=task.executor_kind, **executor_kwargs)
-                prepared = executor.prepare_worktree_once(task.id, Path(workspace_root), self._store_event_callback)
+                prepared = prepare_workspace_with_dependencies(
+                    executor, task.id, Path(workspace_root), self._store_event_callback,
+                    plan=task_dependency_plan(self.store, task.id), store=self.store,
+                )
             except Exception as exc:
                 raise ExecutorRuntimeError("artifact_input_preparation_failed") from exc
             result = ExecutorResult(success=True, validation_exit_code=-1, validation_command_id="",
@@ -1187,7 +1197,9 @@ class TaskExecutionService:
                             if event.type == "MODEL_SELECTED"), "code")
             self._store_event_callback(task.id, {"type": "MODEL_REFUSED", "title": "Model declined task",
                                                 "metadata": {"content_class": content}})
-        from .functional_validation import CONTRACT_CATEGORY, prepared_base, run_task_validation
+        from .functional_validation import (
+            CONTRACT_CATEGORY, prepared_base, run_task_validation, validation_failure_outcome,
+        )
         hygiene_failure = (result.validation_command_id == "git_diff_check"
                            and result.validation_exit_code != 0
                            and result.failure_classification in {"patch_hygiene_failed", "deterministic_validation_failure"})
@@ -1203,7 +1215,9 @@ class TaskExecutionService:
             result.success = code == 0
             if code != 0:
                 result.error = output or "functional_check_failed"
-                result.failure_classification = "deterministic_validation_failure"
+                # A dependency outage during validation stays a host fault
+                # ("blocked": BLOCKED, never escalated or charged) (#1503).
+                result.failure_classification = validation_failure_outcome(output)[1]
         self.store.set_changed_files(task.id, result.changed_files)
         self.store.set_validation_result(
             task.id,

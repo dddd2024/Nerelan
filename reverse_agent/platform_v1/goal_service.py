@@ -336,7 +336,10 @@ def _interrupted_preparation(store: Any, failed: Any) -> bool:
             return (not _stranded_source_refusal(store._conn, failed.id)
                     and pre_dispatch_interruption(store._conn, failed))
     if (failed.status != "BLOCKED"
-            or not (failed.failure_detail or "").startswith("worktree_preparation_failed:")):
+            or not (failed.failure_detail or "").startswith("worktree_preparation_failed:")
+            # A dependency install whose process tree may still be running is
+            # never retried automatically (#1503).
+            or "cleanup_unconfirmed" in (failed.failure_detail or "")):
         return False
     return store._conn.execute(
         "SELECT 1 FROM durable_external_operations WHERE task_id = ? LIMIT 1", (failed.id,)).fetchone() is None

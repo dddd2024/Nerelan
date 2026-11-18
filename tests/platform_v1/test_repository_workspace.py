@@ -653,7 +653,10 @@ class _SequentialFakeExecutor:
         self.executor_calls = 0
 
     def prepare_worktree_once(
-        self, task_id: str, workspace_root: Path, callback: Any = None
+        self,
+        task_id: str,
+        workspace_root: Path,
+        callback: Any = None,
     ) -> Any:
         worktree = Path(workspace_root) / f"wt-{task_id[-8:]}"
         worktree.mkdir(parents=True, exist_ok=True)

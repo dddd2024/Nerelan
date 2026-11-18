@@ -366,7 +366,8 @@ def _evaluate_expected_red(check: Mapping[str, Any], observed: Mapping[str, Any]
             "unexpected_failures": unexpected, "expected_red_met": met}
 
 
-def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
+def _run_check(check: Mapping[str, str], root: Path, *,
+               dependencies: Any = None) -> dict[str, Any]:
     profile = check["profile_id"]
     missing = _missing_targets([check], root)
     if missing:
@@ -412,12 +413,86 @@ def _run_check(check: Mapping[str, str], root: Path) -> dict[str, Any]:
             env.update(NPM_CONFIG_USERCONFIG=str(config_root / "user.npmrc"),
                        NPM_CONFIG_GLOBALCONFIG=str(config_root / "global.npmrc"),
                        NPM_CONFIG_CACHE=str(config_root / "cache"))
+            # The check runs against installed dependencies (#1503). When the
+            # agent changed the lockfile, the workspace is re-provisioned from
+            # the agent's own lockfile before the suite runs.
+            _ensure_check_dependencies(check, root, dependencies)
         result = _run_process(check, argv, cwd, env)
         tail = result.pop("_output_tail")
         result["test_report"] = _test_report(report_kind, report, tail)
         if result["timed_out"]:
             result["test_report"]["accepted"] = False
         return result
+
+
+# Validation could not run because the host could not provision the check's
+# Node dependencies (#1503). That is an infrastructure fault, not evidence
+# about the agent's change: the task is BLOCKED and spends no max_retries.
+DEPENDENCY_UNAVAILABLE_REASON = "functional_workspace_dependencies_unavailable"
+# The install's process tree could not be confirmed gone; never retried
+# automatically while a descendant may still be running.
+DEPENDENCY_CLEANUP_REASON = "functional_workspace_dependencies_cleanup_unconfirmed"
+INFRASTRUCTURE_REASONS = frozenset({DEPENDENCY_UNAVAILABLE_REASON, DEPENDENCY_CLEANUP_REASON})
+
+
+def validation_failure_outcome(reason: Any) -> tuple[str, str]:
+    """(terminal status, failure classification) for a failed host validation.
+
+    Every validation terminalization path, ordinary and durable, uses this so a
+    dependency outage during validation keeps its host-fault semantics end to
+    end instead of becoming ``deterministic_validation_failure`` (#1503).
+    """
+    reason = str(reason or "")
+    if reason == DEPENDENCY_CLEANUP_REASON:
+        return "FAILED", "cleanup_unconfirmed"
+    if reason == DEPENDENCY_UNAVAILABLE_REASON:
+        return "BLOCKED", "blocked"
+    return "FAILED", "deterministic_validation_failure"
+
+
+def _ensure_check_dependencies(check: Mapping[str, Any], root: Path, dependencies: Any) -> None:
+    """Give the check a freshly installed dependency tree before it runs.
+
+    ``node_modules`` is ignored by Git and the agent can write it, so neither
+    an unchanged lockfile digest nor an existing directory proves that the
+    test runner the check would execute is the one the lockfile pins. The
+    host therefore never reuses the tree the agent ran with: it removes
+    ``node_modules`` (without following links) and runs ``npm ci`` from the
+    workspace's lockfile, which is part of the reviewed artifact, with a
+    private configuration and cache. Nothing the agent left behind in
+    ``node_modules`` survives into the check.
+    """
+    from .workspace_dependencies import (
+        DEPENDENCY_CLEANUP_CODE,
+        DEPENDENCY_FAILURE_CODE,
+        DependencyPlan,
+        WorkspaceDependencyError,
+        normalize_dependency_directory,
+        provision_workspace_dependencies,
+    )
+    if dependencies is None:
+        return
+    store = getattr(dependencies, "store", None)
+    task_id = getattr(dependencies, "task_id", "")
+    if store is None or not task_id:
+        raise TaskStoreError(DEPENDENCY_UNAVAILABLE_REASON)
+    directory = normalize_dependency_directory(check.get("working_directory", "."))
+    try:
+        provision_workspace_dependencies(
+            store, task_id,
+            DependencyPlan(directories=(directory,), lockfiles={},
+                           base_commit=getattr(dependencies, "base_commit", "")),
+            root, lease=getattr(dependencies, "lease", None), lockfile_source="workspace",
+            previous_digests=getattr(dependencies, "installed", None) or {},
+        )
+    except WorkspaceDependencyError as exc:
+        if exc.code == DEPENDENCY_CLEANUP_CODE:
+            raise TaskStoreError(DEPENDENCY_CLEANUP_REASON) from exc
+        if exc.code == DEPENDENCY_FAILURE_CODE:
+            raise TaskStoreError(DEPENDENCY_UNAVAILABLE_REASON) from exc
+        # Untrusted paths or project configuration are properties of the
+        # agent's tree, not an outage: an ordinary failed validation.
+        raise TaskStoreError("functional_" + exc.code) from exc
 
 
 def _failure_item(case: Any, problem: Any) -> dict[str, str]:
@@ -493,8 +568,18 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     return result
 
 
-def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict[str, str]) -> dict[str, Any]:
-    profile = check["profile_id"]
+def run_owned_process(argv: list[str], cwd: Path, env: dict[str, str], timeout: float) -> dict[str, Any]:
+    """Run one host-owned child whose whole process tree the host bounds.
+
+    On Windows the child starts suspended and joins a kill-on-close Job object
+    before it runs, so every descendant dies when the Job closes; elsewhere it
+    leads its own process group, which is killed as a group. Output is drained
+    on a bounded reader. ``cleanup`` is ``"confirmed"`` when the tree is gone
+    and the reader reached EOF; if the reader is still alive after cleanup a
+    descendant may still hold the pipe, and ``functional_output_drain_incomplete``
+    is raised instead of reporting an ordinary result. Functional checks and
+    the workspace dependency install (#1503) share this runner.
+    """
     started = time.monotonic()
     job = _WindowsJob() if os.name == "nt" else None
     try:
@@ -530,7 +615,7 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
     reader.start()
     timed_out = False
     try:
-        proc.wait(timeout=_CATALOG[profile]["timeout_seconds"])
+        proc.wait(timeout=timeout)
         reader.join(timeout=2)
         if reader.is_alive():
             timed_out = True
@@ -548,13 +633,21 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
             proc.stdout.close()
     if reader.is_alive():
         raise TaskStoreError("functional_output_drain_incomplete")
-    return {**check, "argv": argv, "argv_digest": digest(argv), "exit_code": proc.returncode,
-            "timed_out": timed_out, "duration_ms": round((time.monotonic() - started) * 1000),
+    return {"exit_code": proc.returncode, "timed_out": timed_out,
+            "duration_ms": round((time.monotonic() - started) * 1000),
             "output_digest": output_hash.hexdigest(), "output_bytes": output_size[0],
-            "output_truncated": output_size[0] > OUTPUT_LIMIT, "_output_tail": bytes(retained)}
+            "output_truncated": output_size[0] > OUTPUT_LIMIT, "cleanup": "confirmed",
+            "_output_tail": bytes(retained)}
 
 
-def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str) -> dict[str, Any] | None:
+def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict[str, str]) -> dict[str, Any]:
+    observed = run_owned_process(argv, cwd, env, _CATALOG[check["profile_id"]]["timeout_seconds"])
+    observed.pop("cleanup", None)
+    return {**check, "argv": argv, "argv_digest": digest(argv), **observed}
+
+
+def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str,
+                        dependencies: Any = None) -> dict[str, Any] | None:
     contract = load_contract(task)
     if contract is None:
         return None
@@ -594,7 +687,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             result["missing_targets"] = missing
             raise TaskStoreError("\n".join(f"functional_target_missing:{path}" for path in missing))
         for check in contract["checks"]:
-            observed = _run_check(check, root)
+            observed = _run_check(check, root, dependencies=dependencies)
             if "expected_failures" in check:
                 observed.update(_evaluate_expected_red(check, observed))
                 result["checks"].append(observed)
@@ -644,6 +737,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             "target_mismatch" if reason.startswith("functional_target_missing:") else
             "patch_hygiene" if reason == "functional_patch_hygiene_failed" else
             "check_timeout" if reason == "check_timeout" else
+            "infrastructure" if reason in INFRASTRUCTURE_REASONS else
             "expected_red" if reason.startswith(("expected_red_missing:", "expected_red_unexpected:")) else
             "capability_failure" if reason == "functional_check_failed" and any(
                 (check.get("test_report") or {}).get("failed", 0) for check in result["checks"])
@@ -677,6 +771,34 @@ def public_hygiene(hygiene: Mapping[str, Any]) -> dict[str, Any]:
     return {"exit_code": hygiene.get("exit_code"), "diagnostics": diagnostics,
             "diagnostics_truncated": bool(hygiene.get("diagnostics_truncated")) or len(rows) > 20,
             "observation_digest": digest(hygiene)}
+
+
+def _dependency_context(store: Any, task: Any, base_commit: str, lease: Any,
+                        checks: Sequence[Mapping[str, Any]] = ()) -> Any:
+    """What the check needs to keep the workspace's Node install current.
+
+    A plan without Node checks yields no context, and the check never runs
+    npm (#1503). A plan with Node checks always yields one, so a workspace
+    whose preparation install is missing still gets its dependencies before
+    the suite runs.
+    """
+    from .workspace_dependencies import (
+        DependencyContext,
+        dependency_directories,
+        installed_lockfile_digests,
+    )
+    try:
+        digests = installed_lockfile_digests(task)
+    except (TypeError, ValueError, AttributeError):
+        digests = {}
+    try:
+        directories = dependency_directories(checks or ())
+    except TaskStoreError:
+        directories = ()
+    if not directories:
+        return None
+    return DependencyContext(store=store, task_id=getattr(task, "id", ""), lease=lease,
+                             installed=digests, base_commit=base_commit)
 
 
 def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_commit: str = "",
@@ -752,9 +874,12 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
                     and previous.get("head_before") == git_output(Path(worktree), "rev-parse", "HEAD")):
                 return FUNCTIONAL_COMMAND_ID, 0 if previous["passed"] else 1, previous["reason"], digest(previous)
         return FUNCTIONAL_COMMAND_ID, 1, "check_timeout", ""
+    dependency_context = _dependency_context(store, task, base_commit, lease,
+                                            contract["checks"])
     result = validate_functional(task, worktree=worktree,
                                  base_commit=base_commit,
-                                 execution_id=execution_id or task.execution_id)
+                                 execution_id=execution_id or task.execution_id,
+                                 dependencies=dependency_context)
     assert result is not None
     result["run_id"] = lease.run_id if lease is not None else ""
     result["lease_epoch"] = lease.epoch if lease is not None else None
@@ -788,7 +913,8 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
                                              document=result, lease=lease)
             if prior is None and safe:
                 result = validate_functional(task, worktree=worktree, base_commit=base_commit,
-                                             execution_id=execution_id or task.execution_id)
+                                             execution_id=execution_id or task.execution_id,
+                                             dependencies=dependency_context)
                 result["run_id"] = lease.run_id if lease is not None else ""
                 result["lease_epoch"] = lease.epoch if lease is not None else None
     identity = digest(result)
