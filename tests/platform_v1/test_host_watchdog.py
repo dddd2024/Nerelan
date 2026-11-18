@@ -116,6 +116,6 @@ def test_the_watchdog_never_opens_a_window_that_takes_the_foreground():
     # 2026-11-18: a task starting powershell.exe directly flashed a console every 5 minutes
     # and threw the Owner out of full-screen games.
     install = INSTALL.read_text(encoding="utf-8")
-    assert 'System32\conhost.exe' in install and '"--headless `"$powershell`" $arguments"' in install
+    assert r'System32\conhost.exe' in install and '"--headless `"$powershell`" $arguments"' in install
     watch = WATCH.read_text(encoding="utf-8")
     assert "-NoNewWindow -PassThru" in watch and "-WindowStyle Hidden -PassThru" not in watch
