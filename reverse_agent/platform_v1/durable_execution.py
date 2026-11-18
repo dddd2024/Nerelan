@@ -42,7 +42,8 @@ from .repository_workspace import (
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
-from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
+from .functional_validation import (CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, frozen_base,
+                                   run_task_validation)
 from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
 
 
@@ -1204,6 +1205,7 @@ class DurableExecutionService:
 
             try:
                 repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+                _require_frozen_base(self.store.get_task(task_id), repo_base_sha)
             except TaskStoreError as exc:
                 return self._artifact_failure(task_id, lease, exc)
 
@@ -2076,6 +2078,7 @@ class DurableExecutionService:
 
         try:
             repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+            _require_frozen_base(self.store.get_task(task_id), repo_base_sha)
         except TaskStoreError as exc:
             return self._artifact_failure(task_id, lease, exc)
 
@@ -2503,7 +2506,7 @@ class DurableExecutionService:
                 kwargs["model_id"] = model_id
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
             kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
-                                   else getattr(task, "branch", "") or "")
+                                   else getattr(task, "branch", "") or frozen_base(self.store.get_task(task.id)))
             kwargs["transport_kind"] = os.environ.get(
                 "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
             ).strip() or "cli"
@@ -4529,6 +4532,19 @@ class DurableExecutionService:
         return tuple(c.checkpoint_name for c in cps)
 
 
+def _require_frozen_base(task: Any, prepared_base: str) -> None:
+    """Refuse before any model call when the worktree was not prepared at the frozen base (#1526).
+
+    An artifact consumer (review, repair) is bound to its producer's commit instead,
+    which ``prepared_original_base`` has already checked.
+    """
+    if load_input_binding(task) is not None:
+        return
+    frozen = frozen_base(task)
+    if frozen and prepared_base != frozen:
+        raise TaskStoreError("functional_base_mismatch")
+
+
 # ---------------------------------------------------------------------------
 # Executor kwargs helper
 # ---------------------------------------------------------------------------
@@ -4556,7 +4572,7 @@ def _build_resume_executor_kwargs(
             ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-        kwargs["base_ref"] = getattr(stored_task, "branch", "") or ""
+        kwargs["base_ref"] = getattr(stored_task, "branch", "") or frozen_base(stored_task)
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"

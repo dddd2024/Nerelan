@@ -96,6 +96,12 @@ def _build_executor_kwargs(
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
                               else str(_map_task_field(task, "branch", "")))
+        if not kwargs["base_ref"] and store is not None:
+            from .functional_validation import frozen_base
+            try:
+                kwargs["base_ref"] = frozen_base(store.get_task(str(_map_task_field(task, "id", ""))))
+            except TaskStoreError:
+                pass
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"
