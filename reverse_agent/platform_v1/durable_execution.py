@@ -644,6 +644,37 @@ def executor_timeout_seconds() -> int:
         return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
     return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
 
+# Total bound on one attempt in a continuous Owner window (#1551): a runaway guard, not
+# the stop condition. REVERSE_AGENT_EXECUTOR_RUNAWAY_SECONDS overrides within the range.
+DEFAULT_RUNAWAY_SECONDS = 24 * 3600
+MIN_RUNAWAY_SECONDS = MAX_EXECUTOR_TIMEOUT_SECONDS
+
+
+def executor_runaway_seconds() -> int:
+    raw = os.environ.get("REVERSE_AGENT_EXECUTOR_RUNAWAY_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else DEFAULT_RUNAWAY_SECONDS
+    except ValueError:
+        value = DEFAULT_RUNAWAY_SECONDS
+    return max(MIN_RUNAWAY_SECONDS, min(value, DEFAULT_RUNAWAY_SECONDS))
+
+
+def _continuous_owner_task(store: TaskStore, task_id: str) -> bool:
+    """True when ``task_id`` belongs to a Goal of a continuous (no-expiry) Owner window."""
+    from .control_store import OWNER_WINDOW_MODE
+    try:
+        with store._lock:
+            row = store._conn.execute(
+                "SELECT 1 FROM platform_goal_task_links l "
+                "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                "WHERE l.task_id=? AND w.confirmation_mode=? AND w.expires_at='' LIMIT 1",
+                (task_id, OWNER_WINDOW_MODE)).fetchone()
+    except sqlite3.Error:
+        return False  # no control tables (library store): an ordinary bounded attempt
+    return row is not None
+
+
 def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, policy_ref: str) -> None:
     """In an Owner window, the binding a Task runs on must be one the Owner was shown.
 
@@ -2512,6 +2543,12 @@ class DurableExecutionService:
             ).strip() or "cli"
             if self.lease_provider is not None:
                 kwargs["lease_provider"] = self.lease_provider
+            if _continuous_owner_task(self.store, task.id):
+                # Owner decision 2026-11-15 (#1551): a long attempt that keeps producing
+                # output is not cut at a fixed total duration; the executor's stall guard
+                # stops a silent one. Only the runaway guard bounds the total, and the
+                # executor keeps the 1 h cap where a relay lease or no stall guard applies.
+                timeout = executor_runaway_seconds()
             kwargs["timeout"] = timeout
         return kwargs
 
