@@ -206,3 +206,66 @@ def test_a_patient_interrupted_preparation_waits_for_the_backoff(case, monkeypat
     for _ in range(3):
         assert service.escalate_failed_tasks(goal.id) == ()
     assert store.count_tasks() == count
+
+
+def caused(*triples):
+    return [{"plan_task_id": step, "reason": reason, "cause": cause} for step, reason, cause in triples]
+
+
+def test_a_legacy_failed_row_with_a_host_cause_is_a_host_retry():
+    # Rows written before #1601/#1619 named a stall "failed:executor_stalled". Its honest
+    # cause (#1677 neutral_failure) is the host, so a continuous window never spends on it.
+    history = caused(("a", "failed:executor_stalled", "executor_stalled"),
+                     ("a", "failed:executor_stalled", "executor_stalled"),
+                     ("a", "failed:api_error_429", "quota_or_rate_limit"),
+                     ("b", "failed:model_review_abandoned_no_reply", "model_review_abandoned_no_reply"))
+    assert [gs._retry_kind(row) for row in history] == ["host"] * 4
+    assert gs._routing_retries_spent(history, patient=True) == 0
+    # Outside a continuous window they share the per-step free cap like any host retry.
+    assert gs._routing_retries_spent(history) == 1
+    assert gs._free_retries_used(history, "a") == 3
+
+
+def test_a_legacy_failed_row_with_host_plumbing_shares_the_cap_even_when_patient():
+    # A base the host prepared wrong repeats deterministically: it is not the model's
+    # failure, but it must not retry forever in a continuous window either.
+    history = caused(*[("a", "failed:deterministic_validation_failure", "functional_base_mismatch")] * 3)
+    assert {gs._retry_kind(row) for row in history} == {"plumbing"}
+    assert gs._routing_retries_spent(history, patient=True) == 1
+    assert gs._free_retries_used(history, "a") == 3
+
+
+def test_a_failed_row_without_a_neutral_cause_still_judges_the_model():
+    history = caused(("a", "failed:timeout", ""), ("a", "failed:deterministic_validation_failure", ""),
+                     ("a", "failed:model_review_invalid_output", ""))
+    assert {gs._retry_kind(row) for row in history} == {"model"}
+    assert gs._routing_retries_spent(history, patient=True) == 3
+    # A cause on a non-"failed:" reason is ignored; owner retries never spend.
+    assert gs._retry_kind({"reason": "contract_fixup", "cause": "executor_stalled"}) == "model"
+    assert gs._retry_kind({"reason": "owner_retry", "cause": ""}) == "owner"
+
+
+def test_escalations_annotate_failed_rows_with_the_attempt_cause():
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+
+    attempts = {"t1": ("executor_stalled", ""), "t2": ("deterministic_validation_failure", "functional_base_mismatch"),
+                "t3": ("deterministic_validation_failure", "functional_check_failed")}
+
+    def get_task(task_id, *, event_limit=None):
+        if task_id not in attempts:
+            raise TaskStoreError(f"task_not_found:{task_id}")
+        cls, detail = attempts[task_id]
+        return SimpleNamespace(failure_classification=cls, failure_detail=detail)
+
+    escalations = ({"plan_task_id": "a", "reason": "failed:executor_stalled", "from_task_id": "t1"},
+                   {"plan_task_id": "a", "reason": "failed:deterministic_validation_failure", "from_task_id": "t2"},
+                   {"plan_task_id": "a", "reason": "failed:deterministic_validation_failure", "from_task_id": "t3"},
+                   {"plan_task_id": "a", "reason": "failed:timeout", "from_task_id": "gone"},
+                   {"plan_task_id": "a", "reason": "host_retry:interrupted", "from_task_id": "t1"})
+    fake = SimpleNamespace(store=SimpleNamespace(get_task=get_task),
+                           control_store=SimpleNamespace(list_task_escalations=lambda goal_id: escalations))
+    rows = gs.GoalService._escalations(fake, "goal")
+    assert [row.get("cause") for row in rows] == ["executor_stalled", "functional_base_mismatch", "", "", None]
+    assert escalations[0].get("cause") is None  # the store's rows are not mutated
+    assert [gs._retry_kind(row) for row in rows] == ["host", "plumbing", "model", "model", "host"]
