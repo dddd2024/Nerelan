@@ -237,6 +237,28 @@ def load_contract(task: Any) -> dict[str, Any] | None:
     return contract
 
 
+def frozen_base(task: Any) -> str:
+    """The base commit the approved plan froze for ``task`` (functional or handoff contract), or "".
+
+    An executor that prepares its own worktree (OpenCode) starts from ``task.branch``
+    and, when that is empty, from the repository's HEAD at dispatch time. A retry or a
+    queued attempt can start hours after its contract was frozen, so HEAD has moved and
+    validation then refused the finished work as ``functional_base_mismatch`` (#1526).
+    Unreadable or conflicting contracts give "": validation reports them as before.
+    """
+    from .artifact_handoff import load_handoff_contract
+    bases = set()
+    for loader in (load_contract, load_handoff_contract):
+        try:
+            contract = loader(task)
+        except TaskStoreError:
+            continue
+        base = contract.get("base_commit") if isinstance(contract, Mapping) else None
+        if isinstance(base, str) and _SHA40.fullmatch(base):
+            bases.add(base)
+    return next(iter(bases)) if len(bases) == 1 else ""
+
+
 def _working_directory(root: Path, relative: str) -> Path:
     candidate = root.joinpath(*PurePosixPath(relative).parts).resolve(strict=True)
     if not candidate.is_dir() or not candidate.is_relative_to(root):
