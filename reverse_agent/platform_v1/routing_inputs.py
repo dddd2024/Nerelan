@@ -78,19 +78,21 @@ def upstream_namespace(model_id: Any) -> str:
     return model.split("/", 1)[0].lower() if "/" in model else ""
 
 
-def parse_groups(raw: Any) -> tuple[dict[str, dict[str, str]], list[str]]:
+def parse_groups(raw: Any) -> tuple[dict[str, dict[str, Any]], list[str]]:
     """Valid Owner group declarations and the errors of the ignored ones.
 
-    Shape: ``{"group/<id>": {"identity": "<model>"}}``. A key must name a ``group/``
-    or ``auto/`` id and the identity must be a non-empty string. An invalid entry
-    is ignored (its group then stays undeclared, which review treats as never
-    independent) and reported, without discarding the rest of the file.
+    Shape: ``{"group/<id>": {"identity": "<model>", "members": ["<upstream>/<model>", ...]}}``.
+    A key must name a ``group/`` or ``auto/`` id and the identity must be a non-empty
+    string. An invalid entry is ignored (its group then stays undeclared, which review
+    treats as never independent) and reported, without discarding the rest of the file.
+    ``members`` is optional: the gateway model ids the group fails over across, as the
+    gateway lists them. Invalid members are dropped and reported; the group stays declared.
     """
     if raw is None:
         return {}, []
     if not isinstance(raw, Mapping):
         return {}, ["invalid_model_routing_groups"]
-    groups: dict[str, dict[str, str]] = {}
+    groups: dict[str, dict[str, Any]] = {}
     errors: list[str] = []
     for key, value in raw.items():
         name = key.strip().lower() if isinstance(key, str) else ""
@@ -100,7 +102,70 @@ def parse_groups(raw: Any) -> tuple[dict[str, dict[str, str]], list[str]]:
             errors.append(f"invalid_model_routing_group:{key if isinstance(key, str) else type(key).__name__}")
             continue
         groups[name] = {"identity": identity.strip()}
+        members = value.get("members")
+        if members is not None:
+            if (isinstance(members, list) and members
+                    and all(isinstance(m, str) and "/" in m.strip() and not routing_group_id(m) for m in members)):
+                groups[name]["members"] = [m.strip() for m in members]
+            else:
+                errors.append(f"invalid_model_routing_group_members:{key}")
     return groups, errors
+
+
+def group_members(model_id: Any, groups: Mapping[str, Any] | None) -> tuple[str, ...]:
+    """The member model ids the Owner declared for the routing group ``model_id`` names, or ()."""
+    group = routing_group_id(model_id)
+    if not group or not isinstance(groups, Mapping):
+        return ()
+    entry = groups.get(group)
+    if entry is None:
+        entry = next((value for key, value in groups.items()
+                      if isinstance(key, str) and key.strip().lower() == group), None)
+    members = entry.get("members") if isinstance(entry, Mapping) else None
+    return tuple(m for m in members if isinstance(m, str)) if isinstance(members, list) else ()
+
+
+def paced_group_provider(model_id: Any, groups: Mapping[str, Any] | None, paced: Any) -> str:
+    """The first paced upstream among a declared group's members, or "".
+
+    A group that fails over onto a paced account (``codex/...``) spends that account's
+    weekly allowance, so it is paced against that account like a direct gateway model.
+    """
+    for member in group_members(model_id, groups):
+        namespace = member.split("/", 1)[0].lower()
+        if namespace in paced:
+            return namespace
+    return ""
+
+
+_READY_STATES = frozenset({"AVAILABLE", "READY"})
+
+
+def inherit_group_availability(candidates: list[dict[str, Any]], groups: Mapping[str, Any] | None,
+                               paced: Any = ()) -> None:
+    """A declared group with no availability evidence of its own takes a member's.
+
+    Availability comes from the binding's own task history or a probe; a new group has
+    neither, so it stayed UNKNOWN and ranked behind every single account it fails over
+    across, and was never chosen (2026-11-18). A group is AVAILABLE when a declared
+    member binding on the same connection is AVAILABLE/READY. Members on a paced
+    upstream never lend availability: the group's own pacing decides those.
+    """
+    ready = {(c.get("connection_id"), str(c.get("model_id", "")).lower()): c.get("binding_id")
+             for c in candidates if not routing_group_id(c.get("model_id"))
+             and str((c.get("availability") or {}).get("state", "UNKNOWN")).upper() in _READY_STATES}
+    for candidate in candidates:
+        members = group_members(candidate.get("model_id"), groups)
+        if not members or str((candidate.get("availability") or {}).get("state", "UNKNOWN")).upper() != "UNKNOWN":
+            continue
+        for member in members:
+            if member.split("/", 1)[0].lower() in paced:
+                continue
+            source = ready.get((candidate.get("connection_id"), member.lower()))
+            if source:
+                candidate["availability"] = {"state": "AVAILABLE", "reason": "group_member_available",
+                                             "member_binding": source}
+                break
 
 
 # Weekly pacing for subscription accounts whose weekly allowance must last the

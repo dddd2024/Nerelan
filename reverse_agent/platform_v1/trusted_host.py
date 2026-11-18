@@ -641,6 +641,7 @@ class CombinedTrustedHost:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
         from .model_router import capability, select_model, served_model
+        from .routing_inputs import inherit_group_availability, paced_group_provider
         from .routing_inputs import read_overrides, weekly_pace_config
         from .routing_capabilities import read_capability_table
         try:
@@ -697,6 +698,9 @@ class CombinedTrustedHost:
             # weekly allowance, so it is paced against that account's own windows.
             namespace = binding["model_id"].split("/", 1)[0] if "/" in binding["model_id"] else ""
             paced_provider = namespace if not native and namespace in paced_providers else ""
+            if not native and not paced_provider:
+                # A declared group failing over onto a paced account spends it too.
+                paced_provider = paced_group_provider(binding["model_id"], owner.get("groups", {}), paced_providers)
             pace_input = ""
             try:
                 # Headroom comes from this connection's own account, never the provider summary,
@@ -776,6 +780,7 @@ class CombinedTrustedHost:
                 history=availability_history.get(binding["binding_id"], ()),
                 runnable=binding["binding_id"] in runnable)
             candidates.append(candidate)
+        inherit_group_availability(candidates, owner.get("groups", {}), paced_providers)
         # Legacy labels only identify optional pins; unpinned tasks use the full pool.
         entry = self._store.get_agent_roster_public()["roles"].get(role, {})
         pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
