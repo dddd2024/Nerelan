@@ -1333,13 +1333,17 @@ def build_opencode_argv(
 # relay adds a fixed setup margin on top; the combined lease lifetime is
 # capped separately, and neither value is extendable from here.
 _EXECUTION_TIMEOUT_HARD_CAP_SECONDS = 3600
+# An invocation with no relay lease and a working stall guard may run longer: in a
+# continuous Owner window it is stopped by silence, not by total time (Owner decision
+# 2026-11-15, #1551), and this runaway guard is its only total bound.
+_UNLEASED_RUNAWAY_CAP_SECONDS = 24 * 3600
 
 
 def _validate_execution_timeout(timeout: object) -> int | float:
     """Reject an invalid execution budget before any lease or transport work."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ExecutorRuntimeError("invalid_execution_timeout")
-    if not 0 < timeout <= _EXECUTION_TIMEOUT_HARD_CAP_SECONDS:
+    if not 0 < timeout <= _UNLEASED_RUNAWAY_CAP_SECONDS:
         raise ExecutorRuntimeError("invalid_execution_timeout")
     if isinstance(timeout, float) and not math.isfinite(timeout):
         raise ExecutorRuntimeError("invalid_execution_timeout")
@@ -1637,6 +1641,12 @@ class OpenCodeExecutor:
         lease_provider: LeaseProvider | None = None,
     ) -> None:
         timeout = _validate_execution_timeout(timeout)
+        if timeout > _EXECUTION_TIMEOUT_HARD_CAP_SECONDS and (
+                (binding_resolution is not None and binding_resolution.relay_required)
+                or executor_stall_seconds() is None):
+            # A relay lease never outlives the 1 h cap, and without the stall guard
+            # nothing but total time would stop a silent attempt.
+            timeout = _EXECUTION_TIMEOUT_HARD_CAP_SECONDS
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
         if binding_resolution is not None:
