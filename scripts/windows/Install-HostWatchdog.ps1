@@ -42,8 +42,12 @@ $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$en
 if ($EnvFile) { $arguments += " -EnvFile `"$EnvFile`"" }
 if ($NoBrowser) { $arguments += " -NoBrowser" }
 
-$action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe") `
-  -Argument $arguments -WorkingDirectory $RepoDir
+# A task that starts powershell.exe directly opens a console window for a moment, even
+# with -WindowStyle Hidden, and that window takes the foreground: every 5 minutes it threw
+# the Owner out of full-screen games (2026-11-18). A headless console host never shows one.
+$powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+$action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot "System32\conhost.exe") `
+  -Argument "--headless `"$powershell`" $arguments" -WorkingDirectory $RepoDir
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
   -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)
 $principal = New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) `

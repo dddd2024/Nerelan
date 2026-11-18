@@ -110,7 +110,9 @@ try {
                  "-RepoDir", "`"$RepoDir`"", "-MagpiePath", "`"$MagpiePath`"")
   if ($EnvFile) { $arguments += @("-EnvFile", "`"$EnvFile`"") }
   if ($NoBrowser) { $arguments += "-NoBrowser" }
-  $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru
+  # Share this (headless) console instead of opening a new window that could take the
+  # foreground from a full-screen program.
+  $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -NoNewWindow -PassThru
   $null = $process.Handle
   $process.WaitForExit()
   Log "restart finished with exit code $($process.ExitCode)"
