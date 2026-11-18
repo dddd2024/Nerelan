@@ -19,6 +19,7 @@ param(
   [string]$EnvFile = "",
   [int]$IntervalMinutes = 5,
   [string]$TaskName = "Nerelan host watchdog",
+  [switch]$NoBrowser,
   [switch]$Uninstall
 )
 $ErrorActionPreference = "Stop"
@@ -39,6 +40,7 @@ if ($EnvFile) { $EnvFile = (Resolve-Path -LiteralPath $EnvFile).Path }
 
 $arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$entry`" -RepoDir `"$RepoDir`" -MagpiePath `"$MagpiePath`""
 if ($EnvFile) { $arguments += " -EnvFile `"$EnvFile`"" }
+if ($NoBrowser) { $arguments += " -NoBrowser" }
 
 $action = New-ScheduledTaskAction -Execute (Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe") `
   -Argument $arguments -WorkingDirectory $RepoDir

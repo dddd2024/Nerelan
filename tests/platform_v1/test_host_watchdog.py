@@ -6,7 +6,6 @@ a local health stub; it starts no host, Magpie or browser.
 
 from __future__ import annotations
 
-import faulthandler
 import json
 import os
 import shutil
@@ -23,7 +22,8 @@ WATCH = ROOT / "scripts" / "windows" / "Watch-NerelanHost.ps1"
 INSTALL = ROOT / "scripts" / "windows" / "Install-HostWatchdog.ps1"
 
 _PWSH = shutil.which(os.environ.get("NERELAN_TEST_POWERSHELL", "powershell")) or shutil.which("pwsh")
-requires_powershell = pytest.mark.skipif(_PWSH is None, reason="requires powershell or pwsh")
+# The watchdog reads the Windows process list (Win32_Process); off Windows it never restarts.
+requires_powershell = pytest.mark.skipif(_PWSH is None or os.name != "nt", reason="requires Windows PowerShell")
 CLOSED = "http://127.0.0.1:9/api/health"  # discard port: nothing answers
 
 
@@ -98,17 +98,15 @@ def test_the_scheduled_task_never_times_out_or_overlaps():
     assert "-RunLevel Limited" in text and "Watch-NerelanHost.ps1" in text
 
 
-def test_the_host_records_its_start_and_native_crashes(tmp_path, monkeypatch):
-    from reverse_agent.platform_v1 import trusted_host
+def test_dev_up_runs_the_host_with_the_crash_trace_on():
+    text = (ROOT / "dev-up.ps1").read_text(encoding="utf-8")
+    block = text[text.index("$combinedTrustedHostEnv = [ordered]@{"):text.index("$combinedProc = Start-ServiceProcess")]
+    assert '"PYTHONFAULTHANDLER" = "1"' in block
 
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    was_enabled = faulthandler.is_enabled()
-    try:
-        trusted_host._enable_crash_trace()
-        assert faulthandler.is_enabled()
-        line = (tmp_path / "Nerelan" / "host_faults.log").read_text(encoding="utf-8")
-        assert f"host start pid={os.getpid()}" in line
-    finally:
-        faulthandler.disable()
-        if was_enabled:
-            faulthandler.enable()
+
+def test_a_restart_keeps_the_dead_hosts_log_and_the_browser_setting():
+    text = WATCH.read_text(encoding="utf-8")
+    assert "Copy-Item -LiteralPath $hostLog" in text
+    assert r"dev-down\.ps1" in text  # a stop in progress also blocks a restart
+    assert 'if ($NoBrowser) { $arguments += "-NoBrowser" }' in text
+    assert 'if ($NoBrowser) { $arguments += " -NoBrowser" }' in INSTALL.read_text(encoding="utf-8")

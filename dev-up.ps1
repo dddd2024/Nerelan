@@ -634,6 +634,9 @@ $combinedTrustedHostEnv = [ordered]@{
   # (no model call); the CLIs keep owning their ChatGPT / Claude logins.
   "REVERSE_AGENT_CODEX_ENABLED" = "1"
   "REVERSE_AGENT_CLAUDE_CODE_ENABLED" = "1"
+  # A native crash (access violation) writes every thread's Python stack to this
+  # service's log, so a silent exit says whether it crashed or was killed (2026-11-18).
+  "PYTHONFAULTHANDLER" = "1"
 }
 
 $combinedProc = Start-ServiceProcess `

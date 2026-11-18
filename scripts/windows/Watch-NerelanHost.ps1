@@ -12,10 +12,15 @@
     - the Task API health endpoint does not answer ready (checked three times, 10 s apart);
     - the dev-up record exists and has no ``stopped_at``: dev-down writes ``stopped_at``,
       so a deliberate stop or a redeploy in progress is left alone;
-    - no dev-up.ps1 or Start-NerelanAtLogon.ps1 is running (a start is already under way);
+    - no dev-up.ps1, dev-down.ps1 or Start-NerelanAtLogon.ps1 is running (a start or stop is
+      under way), and the process list can be read at all;
     - the last watchdog restart is at least -MinRestartMinutes old (no restart loop).
   Every decision that is not "healthy" is logged to %LOCALAPPDATA%\Nerelan\autostart.log.
   -DryRun prints the decision and changes nothing.
+
+  Before a restart the dead host's log is copied aside, because dev-up truncates it; with
+  PYTHONFAULTHANDLER set by dev-up, a native crash leaves its stack dump there. Pass
+  -NoBrowser when the host normally runs without the client window, so a restart keeps it.
 #>
 param(
   [string]$RepoDir = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
@@ -25,6 +30,7 @@ param(
   [int]$HealthAttempts = 3,
   [int]$HealthIntervalSeconds = 10,
   [int]$MinRestartMinutes = 10,
+  [switch]$NoBrowser,
   [switch]$DryRun
 )
 $ErrorActionPreference = "Stop"
@@ -48,10 +54,17 @@ function Test-HostReady {
 }
 
 function Test-StartInProgress {
+  # An unreadable process list (e.g. off Windows) counts as busy: never restart blind.
+  if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) { return $true }
   $self = $PID
-  $starters = Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.ProcessId -ne $self -and $_.CommandLine -and
-                   ($_.CommandLine -match 'dev-up\.ps1' -or $_.CommandLine -match 'Start-NerelanAtLogon\.ps1') }
+  try {
+    $starters = Get-CimInstance Win32_Process -Filter "Name='powershell.exe' OR Name='pwsh.exe'" -ErrorAction Stop |
+      Where-Object { $_.ProcessId -ne $self -and $_.CommandLine -and
+                     ($_.CommandLine -match 'dev-up\.ps1' -or $_.CommandLine -match 'dev-down\.ps1' -or
+                      $_.CommandLine -match 'Start-NerelanAtLogon\.ps1') }
+  } catch {
+    return $true
+  }
   return [bool]$starters
 }
 
@@ -85,11 +98,18 @@ try {
   if ($decision -ne "restart") { Log "host not ready; $decision, no action"; return }
   $marker = Join-Path (Join-Path $RepoDir ".platform_v1_runtime") "watchdog_last_restart.txt"
   Set-Content -LiteralPath $marker -Value ((Get-Date).ToUniversalTime().ToString("o")) -Encoding UTF8
+  $hostLog = Join-Path (Join-Path $RepoDir ".platform_v1_runtime") "combined-trusted-host.log"
+  if (Test-Path -LiteralPath $hostLog) {
+    $kept = Join-Path $logDir ("host-exit-" + (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ") + ".log")
+    Copy-Item -LiteralPath $hostLog -Destination $kept
+    Log "kept the dead host's log as $kept"
+  }
   Log "host not ready and not stopped deliberately; restarting"
   $entry = Join-Path $PSScriptRoot "Start-NerelanAtLogon.ps1"
   $arguments = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$entry`"",
                  "-RepoDir", "`"$RepoDir`"", "-MagpiePath", "`"$MagpiePath`"")
   if ($EnvFile) { $arguments += @("-EnvFile", "`"$EnvFile`"") }
+  if ($NoBrowser) { $arguments += "-NoBrowser" }
   $process = Start-Process -FilePath "powershell.exe" -ArgumentList $arguments -WindowStyle Hidden -PassThru
   $null = $process.Handle
   $process.WaitForExit()
