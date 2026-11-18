@@ -217,6 +217,24 @@ _HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_rev
                           ORPHANED_PREPARATION})
 
 
+_WALL_TIMEOUT = re.compile(r"opencode_timeout:(\d+)")
+
+
+def _wall_timeout(classification: Any, detail: Any) -> str:
+    """'wall_timeout' for an attempt the host cut at its fixed total limit (at most 1 h), else "".
+
+    Owner decision 2026-11-15 (#1551): a fixed total duration is not a judgement of the
+    model; #1552 lost its whole retry budget to three such cuts while still working.
+    It counts as host plumbing (shares the per-step free cap), never as a model failure.
+    A cut at the 24 h runaway guard or one whose cleanup was unconfirmed is not this.
+    """
+    from .durable_execution import MAX_EXECUTOR_TIMEOUT_SECONDS
+    match = _WALL_TIMEOUT.fullmatch(str(detail or "").strip())
+    if str(classification or "") == "timeout" and match and int(match.group(1)) <= MAX_EXECUTOR_TIMEOUT_SECONDS:
+        return "wall_timeout"
+    return ""
+
+
 def _retry_kind(row: Mapping[str, Any]) -> str:
     """'owner', 'host' (liveness/quota), 'plumbing' (other host fault) or 'model'."""
     reason = str(row.get("reason") or "")
@@ -1478,10 +1496,19 @@ class GoalService:
             structured = functional_evidence(failed)
             all_results = [row for row in failed.evidence_refs if row.get("category") == "FunctionalValidation"]
             rows = [row for row in all_results if row.get("value") == failed.validation_output_digest]
-            if all_results and (not rows or structured.get("result_digest") != failed.validation_output_digest):
+            # A validation the host could not carry out itself (it prepared the wrong base, its
+            # own observation failed) judged nothing. Its result can never verify, and skipping
+            # it here parked the step forever with no event (#1525/#1551 goals, 2026-11-17/18).
+            # It authorizes no fixup or tree reuse: the step retries fresh from its frozen base.
+            from .model_profiles import neutral_failure
+            host_validation = (failed.status == "FAILED"
+                               and failed.failure_classification == "deterministic_validation_failure"
+                               and bool(neutral_failure(failed.failure_classification, failed.failure_detail)))
+            if (all_results and not host_validation
+                    and (not rows or structured.get("result_digest") != failed.validation_output_digest)):
                 continue
             miss = False
-            if rows:
+            if rows and not host_validation:
                 try:
                     result = json.loads(rows[-1]["detail"])
                     miss = (structured.get("result_digest") == failed.validation_output_digest
@@ -1982,7 +2009,8 @@ class GoalService:
             if str(row.get("reason") or "").startswith("failed:"):
                 try:
                     attempt = self.store.get_task(row["from_task_id"], event_limit=0)
-                    row["cause"] = neutral_failure(attempt.failure_classification, attempt.failure_detail)
+                    row["cause"] = (neutral_failure(attempt.failure_classification, attempt.failure_detail)
+                                    or _wall_timeout(attempt.failure_classification, attempt.failure_detail))
                 except (TaskStoreError, KeyError):
                     row["cause"] = ""
             rows.append(row)
