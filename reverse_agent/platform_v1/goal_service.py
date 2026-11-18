@@ -206,9 +206,33 @@ def _non_model_reason(reason: Any) -> bool:
             or bool(LIMIT_HIT.search(reason)))  # quota/rate limits are the account's answer
 
 
+# A "failed:<class>" escalation names only the failed attempt's class; the attempt's
+# honest cause (model_profiles.neutral_failure, #1677) decides whether it judged the model.
+# Rows written before #1601/#1619 recorded stalls, host kills and reviewer silence this
+# way, so a continuous window kept spending max_retries on them and parked every goal.
+# Liveness/quota causes retry like host faults; other host plumbing (a base the host
+# prepared wrong, a review it could not keep independent) shares the per-step free cap
+# even in a continuous window, so a deterministic host defect never retries forever.
+_HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_review_abandoned_no_reply",
+                          ORPHANED_PREPARATION})
+
+
+def _retry_kind(row: Mapping[str, Any]) -> str:
+    """'owner', 'host' (liveness/quota), 'plumbing' (other host fault) or 'model'."""
+    reason = str(row.get("reason") or "")
+    if reason == OWNER_RETRY_REASON:
+        return "owner"
+    if _non_model_reason(reason):
+        return "host"
+    cause = str(row.get("cause") or "")
+    if cause and reason.startswith("failed:"):
+        return "host" if cause in _HOST_CAUSES else "plumbing"
+    return "model"
+
+
 def _free_retries_used(history: Sequence[Mapping[str, Any]], plan_task_id: str) -> int:
     """Non-model retries this plan step has used; all of them share one cap of MAX_TRANSIENT_RETRIES."""
-    return sum(row["plan_task_id"] == plan_task_id and _non_model_reason(row.get("reason")) for row in history)
+    return sum(row["plan_task_id"] == plan_task_id and _retry_kind(row) in {"host", "plumbing"} for row in history)
 
 
 def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: bool = False) -> int:
@@ -222,11 +246,11 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
     free: dict[str, int] = {}
     spent = 0
     for row in history:
-        reason = row.get("reason")
-        if reason == OWNER_RETRY_REASON:
+        kind = _retry_kind(row)
+        if kind == "owner":
             continue
-        if _non_model_reason(reason):
-            if patient:
+        if kind in {"host", "plumbing"}:
+            if patient and kind == "host":
                 continue
             used = free.get(row["plan_task_id"], 0)
             free[row["plan_task_id"]] = used + 1
@@ -1084,7 +1108,7 @@ class GoalService:
                  if int(row["goal_revision"]) == goal.revision}
         models, bindings, executors = set(), set(), set()
         snapshot = []
-        history = self.control_store.list_task_escalations(goal.id)
+        history = self._escalations(goal.id)
         for source in ancestry:
             if source not in links:
                 raise TaskStoreError("review_not_independent")
@@ -1293,7 +1317,7 @@ class GoalService:
                 window = self.control_store.get_window(goal.window_id)
                 planned = {raw["id"]: self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks)}
                 links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal_id)}
-                history = self.control_store.list_task_escalations(goal_id)
+                history = self._escalations(goal_id)
                 for review_id, link in links.items():
                     review_plan = planned[review_id]
                     failed = self.store.get_task(link["task_id"])
@@ -1335,7 +1359,7 @@ class GoalService:
                                 from_task_id=failed.id, to_task_id=fresh.id, from_role=review_plan.agent_role,
                                 to_role=review_plan.agent_role, reason=f"model_review_refresh:{failed.id}")
                             outcomes.append({"plan_task_id": review_id, "from_task_id": failed.id, "to_task_id": fresh.id})
-                            history = self.control_store.list_task_escalations(goal_id)
+                            history = self._escalations(goal_id)
                             continue
                     if (failed.status != "FAILED" or failed.failure_classification != "model_review_rejected"
                             or not artifacts.model_review_input(failed)
@@ -1388,7 +1412,7 @@ class GoalService:
                         from_task_id=producer.id, to_task_id=repair.id, from_role=source_plan.agent_role,
                         to_role=source_plan.agent_role, reason=f"model_review_repair:{failed.id}")
                     outcomes.append({"plan_task_id": source_id, "from_task_id": producer.id, "to_task_id": repair.id})
-                    history = self.control_store.list_task_escalations(goal_id)
+                    history = self._escalations(goal_id)
                 if owns_transaction:
                     self.store._conn.execute("COMMIT")
             except BaseException:
@@ -1416,7 +1440,7 @@ class GoalService:
                 "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
                 (window.id,)).fetchone():
             return repairs
-        history = self.control_store.list_task_escalations(goal_id)
+        history = self._escalations(goal_id)
         planned = {item.id: item for item in (self._normalize_task(raw, seq=seq) for seq, raw in enumerate(goal.tasks))}
         outcomes = list(repairs)
         self._prune_stall_routes(goal_id)
@@ -1776,7 +1800,7 @@ class GoalService:
                 "AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))", (window.id,)).fetchone():
             options["reason"] = "owner_retry_no_active_window"
             return options
-        history = self.control_store.list_task_escalations(goal_id)
+        history = self._escalations(goal_id)
         options["routing_retries_left"] = max(0, window.max_retries - _routing_retries_spent(history, patient=window.continuous))
         options["automatic_retries_left"] = {
             str(item.get("id")): max(0, MAX_TRANSIENT_RETRIES - _free_retries_used(history, str(item.get("id"))))
@@ -1843,7 +1867,7 @@ class GoalService:
             raise TaskStoreError("owner_retry_model_choice_unavailable")  # no Owner-confirmed pool to pick from
         if binding_ref and binding_ref not in pool:
             raise TaskStoreError("owner_retry_model_outside_window")
-        history = self.control_store.list_task_escalations(goal_id)
+        history = self._escalations(goal_id)
         previous = [row for row in history if row["plan_task_id"] == plan_task.id]
         role = previous[-1]["to_role"] if previous else (plan_task.agent_role or DEFAULT_AGENT_ROLE)
         decision = None
@@ -1948,6 +1972,21 @@ class GoalService:
             return
         self.store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected",
                              description=f"{decision['binding_ref']}: {decision['reason']}", metadata=decision)
+
+    def _escalations(self, goal_id: str) -> tuple[dict[str, Any], ...]:
+        """The goal's escalation rows, each "failed:<class>" row with its attempt's honest cause."""
+        from .model_profiles import neutral_failure
+        rows = []
+        for row in self.control_store.list_task_escalations(goal_id):
+            row = dict(row)
+            if str(row.get("reason") or "").startswith("failed:"):
+                try:
+                    attempt = self.store.get_task(row["from_task_id"], event_limit=0)
+                    row["cause"] = neutral_failure(attempt.failure_classification, attempt.failure_detail)
+                except (TaskStoreError, KeyError):
+                    row["cause"] = ""
+            rows.append(row)
+        return tuple(rows)
 
     @staticmethod
     def _approved_base(failed: Any) -> str:
@@ -2057,7 +2096,7 @@ class GoalService:
                 conn.execute("SAVEPOINT goal_response_snapshot")
             try:
                 goal = self.control_store.refresh_goal_status(goal_id)
-                history = self.control_store.list_task_escalations(goal_id)
+                history = self._escalations(goal_id)
                 links = [
                     self._task_link_evidence(goal, link, history=history)
                     for link in self.control_store.list_goal_tasks(goal_id)
