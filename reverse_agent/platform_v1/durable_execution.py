@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
+from .model_availability import OWNER_WINDOW_POOL_MISROUTE
 from .run_store import (
     InvalidTransitionError,
     TaskStore,
@@ -724,7 +725,7 @@ def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, pol
         if not isinstance(pool, list) or observed not in pool:
             raise ValueError("binding_outside_confirmed_pool")
     except Exception as exc:
-        raise ExecutorRuntimeError("owner_window_binding_outside_confirmed_pool") from exc
+        raise ExecutorRuntimeError(OWNER_WINDOW_POOL_MISROUTE) from exc
 
 
 def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolution: Any) -> None:
@@ -1039,6 +1040,8 @@ class DurableExecutionService:
             code = str(exc).split(":", 1)[0]
             if code and all(c.isascii() and (c.isalnum() or c == "_") for c in code):
                 classification = f"binding_resolution_failed:{code}"
+        elif isinstance(exc, ExecutorRuntimeError) and str(exc) == OWNER_WINDOW_POOL_MISROUTE:
+            classification = OWNER_WINDOW_POOL_MISROUTE
         try:
             if self.store.get_task(task_id).status not in TERMINAL_STATUSES:
                 self.store._fenced_terminalize(
@@ -1129,14 +1132,18 @@ class DurableExecutionService:
         try:
             executor_kwargs = self._build_executor_kwargs(task)
         except ExecutorRuntimeError as exc:
-            if not str(exc).startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
+            code = str(exc)
+            if code == OWNER_WINDOW_POOL_MISROUTE:
+                # The binding was refused before workspace preparation or a provider call.
+                # Persist the known outcome and release the lease like other pre-dispatch failures.
+                self._fail_dispatch(task_id, lease, exc)
+            elif code.startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id, classification=code[:120], detail=code,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+            else:
                 raise
-            # No external call has started. Record a durable failure instead of
-            # leaving a stale RUNNING task or retrying with another model.
-            self.store._fenced_classify_failure(
-                lease.run_id, task_id, classification=str(exc)[:120], detail=str(exc),
-                owner=lease.owner, epoch=lease.epoch,
-            )
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id, execution_id=final.execution_id, success=False,

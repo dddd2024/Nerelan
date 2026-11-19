@@ -10,7 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 from reverse_agent.model_access.store import ModelProfileStore
-from reverse_agent.platform_v1 import goal_service, owner_window
+from reverse_agent.platform_v1 import durable_execution, goal_service, owner_window
 from reverse_agent.platform_v1.binding_resolver import BindingResolver
 from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
 from reverse_agent.platform_v1.durable_execution import ExecutorRuntimeError, _require_owner_window_pool
@@ -516,6 +516,25 @@ class TestDispatchPoolGuard:
         swapped = replace(RESOLVED["free"], model_id="something-else")
         with pytest.raises(ExecutorRuntimeError, match="owner_window_binding_outside_confirmed_pool"):
             _require_owner_window_pool(setup.db, stored, swapped, stored.policy_ref)
+
+    def test_durable_dispatch_preserves_a_pool_misroute(self, task, monkeypatch, tmp_path):
+        setup, stored = task
+        swapped = replace(RESOLVED["free"], model_id="something-else")
+        monkeypatch.setattr(durable_execution, "resolve_repository_workspace", lambda _repository: object())
+        service = durable_execution.DurableExecutionService(
+            store=setup.db,
+            router=SimpleNamespace(create_executor=lambda **_: pytest.fail("Executor must not be created")),
+            binding_resolver=SimpleNamespace(resolve=lambda *_, **__: swapped),
+            execution_authority_sha="a" * 40,
+            planning_sha="a" * 40,
+        )
+        outcome = service.execute_durable_single(stored.id, workspace_root=str(tmp_path))
+        final = setup.db.get_task(stored.id)
+        assert not outcome.success
+        assert outcome.failure_classification == final.failure_classification == "owner_window_binding_outside_confirmed_pool"
+        assert final.status == "FAILED"
+        assert setup.db._conn.execute("SELECT COUNT(*) FROM durable_external_operations").fetchone()[0] == 0
+        assert setup.db._conn.execute("SELECT lease_owner FROM durable_runs WHERE task_id=?", (stored.id,)).fetchone()[0] == ""
 
     def test_no_binding_is_refused(self, task):
         setup, stored = task

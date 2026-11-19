@@ -47,6 +47,7 @@ EXECUTOR_TERMINATED = "executor_terminated"
 # A redeploy changed the host's code under an in-flight run: its durable resume
 # refuses the old authority/planning identity (#1515). A host fault, not the model's.
 HOST_VERSION_CHANGED = "host_version_changed"
+OWNER_WINDOW_POOL_MISROUTE = "owner_window_binding_outside_confirmed_pool"
 # Owner decision 2026-11-12 B: failures the host classifies as not the model's fault
 # (a stall with no output, an external kill, a redeploy under the run). Goal retries
 # and measured agent profiles both read this one definition.

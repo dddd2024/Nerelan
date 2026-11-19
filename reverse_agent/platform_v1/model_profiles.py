@@ -17,7 +17,8 @@ import time
 from statistics import median
 from typing import Any
 
-from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, external_termination,
+from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
+                                 OWNER_WINDOW_POOL_MISROUTE, external_termination,
                                  no_credits_error, provider_rate_limit_reply, transient_overload)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
@@ -48,7 +49,7 @@ HOST_PLUMBING_CLASSES = frozenset({
     "ambiguous_external_operation", "executor_dispatch_failed", "cleanup_unconfirmed",
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
-    "owner_window_binding_outside_confirmed_pool"})
+    OWNER_WINDOW_POOL_MISROUTE})
 _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree

@@ -235,6 +235,16 @@ def test_a_legacy_failed_row_with_host_plumbing_shares_the_cap_even_when_patient
     assert gs._free_retries_used(history, "a") == 3
 
 
+def test_misroutes_fill_the_free_cap_without_erasing_other_plumbing_charges():
+    misroute = "owner_window_binding_outside_confirmed_pool"
+    misroutes = [("a", f"failed:{misroute}", misroute)] * 3
+    other_plumbing = ("a", "failed:deterministic_validation_failure", "functional_base_mismatch")
+    history = caused(*misroutes, other_plumbing)
+    assert gs._routing_retries_spent(caused(*misroutes), patient=True) == 0
+    assert gs._routing_retries_spent(history, patient=True) == 1
+    assert gs._free_retries_used(history, "a") == 4
+
+
 def test_a_failed_row_without_a_neutral_cause_still_judges_the_model():
     history = caused(("a", "failed:timeout", ""), ("a", "failed:deterministic_validation_failure", ""),
                      ("a", "failed:model_review_invalid_output", ""))
