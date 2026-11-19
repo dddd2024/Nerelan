@@ -280,3 +280,53 @@ def test_repair_replaced_by_a_later_attempt_still_keeps_the_goal_running(review_
     # A failed later attempt blocks the goal again.
     store._conn.execute("UPDATE tasks SET status = 'FAILED' WHERE id = ?", (retry.id,))
     assert control.refresh_goal_status(goal_id).status == 'BLOCKED'
+
+
+def test_a_rejection_parked_for_budget_is_repaired_once_the_budget_is_free(review_setup):
+    """2026-11-19 (#1551 goal): the first reviewed feature was parked as routing_retry_budget_exhausted
+    because host-side history was counted as model failures. Once the budget is free (here: raised;
+    live: the history reclassified), the same verified REJECT gets its repair and the goal runs again."""
+    store, control, service, goal_id = rejected(review_setup)
+    review = review_setup[3]
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 0')
+    store._conn.commit()
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    parked = store.get_task(review)
+    assert (parked.status, parked.failure_classification) == ('BLOCKED', 'routing_retry_budget_exhausted')
+    # Later ticks while the budget is still spent neither raise nor record the block again.
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert store.count_tasks() == count
+    assert sum(e.type == 'MODEL_SELECTION_FAILED' for e in store.get_events(review)) == 1
+    assert control.get_goal(goal_id).status == 'BLOCKED'
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 10')
+    store._conn.commit()
+    outcome, = service.escalate_failed_tasks(goal_id)
+    repair = store.get_task(outcome['to_task_id'])
+    assert repair.status == 'QUEUED' and outcome['from_task_id'] == review_setup[2]
+    assert artifact_handoff._load_evidence(repair, 'ReviewRepair', repair.execution_id)['review_task_id'] == review
+    # The parked review no longer blocks the goal, so its QUEUED repair can be claimed.
+    assert control.get_goal(goal_id).status == 'RUNNING'
+    assert service.escalate_failed_tasks(goal_id) == ()
+
+
+def test_a_parked_rejection_whose_repair_cannot_be_routed_stays_parked_without_raising(review_setup):
+    """#1690 review nit: routing the repair of a budget-parked review may fail; the review must stay
+    parked rather than be re-blocked (which raises and rolls back every tick for the goal)."""
+    store, control, service, goal_id = rejected(review_setup)
+    review = review_setup[3]
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 0')
+    store._conn.commit()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 10')
+    store._conn.commit()
+
+    def no_model(plan, *, goal, **kwargs):
+        raise TaskStoreError('no_runnable_model')
+    service.task_resolver = no_model
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert store.count_tasks() == count
+    parked = store.get_task(review)
+    assert (parked.status, parked.failure_classification) == ('BLOCKED', 'routing_retry_budget_exhausted')

@@ -1231,8 +1231,10 @@ class PlatformControlStore:
                 repair_holder[str(row["reason"]).split(":", 1)[1]] = holder
         awaiting_repair = {
             task_id for task_id, link in current.items()
-            if link["status"] == "FAILED"
-            and link["failure_classification"] == "model_review_rejected"
+            if ((link["status"], link["failure_classification"]) in {
+                ("FAILED", "model_review_rejected"),
+                # A rejection first parked for budget, repaired once the budget was free (#1551).
+                ("BLOCKED", "routing_retry_budget_exhausted")})
             and task_id in repair_holder
             and current[repair_holder[task_id]]["status"] not in {"FAILED", "BLOCKED", "CANCELLED"}
         }

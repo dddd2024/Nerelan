@@ -303,6 +303,16 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
     ("deterministic_validation_failure", "functional_worktree_root_required", "functional_worktree_root_required"),
     ("deterministic_validation_failure", "functional_contract_invalid_or_stale", "functional_contract_invalid_or_stale"),
     ("deterministic_validation_failure", "functional_observation_failed:OSError", "functional_observation_failed"),
+    # 2026-11-19 live (#1551): host-side failures that had spent the goal's max_retries.
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x: rpm '
+     'exhausted (429: you can retry your request)","type":"api_error"', "quota_or_rate_limit"),
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x: '
+     'inference exceeds tpm/rpm limit (429: you can retry your request)"', "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=429 message=slow down",
+     "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1073807364:executor_nonzero", "executor_terminated"),
+    ("owner_window_binding_outside_confirmed_pool", "owner_window_binding_outside_confirmed_pool",
+     "owner_window_binding_outside_confirmed_pool"),
 ])
 def test_host_and_quota_failures_are_neither_attempts_nor_failures(classification, detail, cause):
     """Live 2026-11-17: stalls and the #1526 base mismatch demoted GLM-5.3 from tier 4 to 2."""
@@ -336,6 +346,9 @@ def test_host_and_quota_failures_are_neither_attempts_nor_failures(classificatio
     ("codex_no_product_changes", "", "codex_no_product_changes"),
     ("timeout", "opencode_timeout:3600", "timeout"),
     ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero", "executor_nonzero"),
+    # A message that only mentions a number is not a rate limit; other API errors stay the model's.
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=500 message=line 1429",
+     "executor_nonzero"),
     ("codex_event_limit_exceeded", "", "codex_event_limit_exceeded"),
     ("model_review_invalid_output", "", "model_review_invalid_output"),
 ])
