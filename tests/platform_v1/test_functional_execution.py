@@ -1,4 +1,5 @@
 """Real Goal/Git/SQLite/test-process integration; only model execution is local fake."""
+import json
 from pathlib import Path
 import subprocess
 import time
@@ -6,12 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from test_goal_functional_checks import goal_checks, launch_checks
+from test_goal_functional_checks import goal_checks, launch_checks, planned_check
 from reverse_agent.platform_v1.binding_resolver import OpenCodeBindingResolution
 from reverse_agent.platform_v1.durable_execution import (
     DurableExecutionService, _CrashSimulated, reset_crash_seam, set_crash_after_checkpoint)
 from reverse_agent.platform_v1.functional_validation import (
-    FUNCTIONAL_COMMAND_ID, RESULT_CATEGORY, functional_evidence, run_task_validation)
+    FUNCTIONAL_COMMAND_ID, RESULT_CATEGORY, functional_evidence, require_reviewable_patch, run_task_validation)
 from reverse_agent.platform_v1.opencode_executor import _collect_final_product_files, handoff_dir
 from reverse_agent.platform_v1.run_read_model import RunReadModel
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
@@ -87,6 +88,57 @@ class LocalBinding:
 
 def ordinary(store, router):
     return TaskExecutionService(store=store, router=router, binding_resolver=LocalBinding())
+
+
+def test_unreviewable_producer_patch_fails_before_checks(goal_checks, tmp_path):
+    _, _, store, _, *_ = goal_checks
+    code = "value = 2\n" + ("# " + "x" * 100 + "\n") * 11000
+    task_id, _, router = setup_execution(goal_checks, "single", code)
+    outcome = durable(store, router).execute_durable_single(task_id, workspace_root=str(tmp_path / "worktrees"))
+    assert not outcome.success
+    task = store.get_task(task_id)
+    assert task.status == "FAILED"
+    assert task.failure_detail == "functional_observation_failed:review_diff_too_large"
+    [proof] = [row for row in task.evidence_refs if row["category"] == RESULT_CATEGORY]
+    result = json.loads(proof["detail"])
+    assert result["checks"] == [] and result["failure_kind"] == "host_observation"
+    assert result["tree_before"]
+
+
+def test_producer_cannot_modify_paths_outside_frozen_plan(goal_checks, tmp_path):
+    root, base, store, control, goals, goal, window = goal_checks
+    goals.plan(goal.id, expected_revision=1, tasks=[{**planned_check(), "allowed_paths": ["test_app.py"]}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    router = ExecutorRouter()
+    router.replace("opencode", lambda **kwargs: LocalImplementation(root, base, "value = 2\n"))
+    outcome = durable(store, router).execute_durable_single(task_id, workspace_root=str(tmp_path / "worktrees"))
+    assert not outcome.success
+    task = store.get_task(task_id)
+    assert task.status == "FAILED"
+    assert task.failure_detail == "functional_observation_failed:artifact_path_outside_allowlist"
+    [proof] = [row for row in task.evidence_refs if row["category"] == RESULT_CATEGORY]
+    assert json.loads(proof["detail"])["checks"] == []
+
+
+def test_scope_is_relative_to_the_approved_predecessor(goal_checks):
+    root, base, *_ = goal_checks
+
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(root), *args], encoding="utf-8").strip()
+
+    with (root / "test_app.py").open("a", encoding="utf-8") as check:
+        check.write("# Added by the approved predecessor\n")
+    git("add", "--", "test_app.py")
+    git("commit", "-m", "predecessor")
+    predecessor = git("rev-parse", "HEAD")
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    git("add", "--", "app.py")
+    tree = git("write-tree")
+    require_reviewable_patch(root, base, tree, allowed_paths=("app.py",), scope_base=predecessor)
+    with pytest.raises(TaskStoreError, match="artifact_path_outside_allowlist"):
+        require_reviewable_patch(root, base, tree, allowed_paths=("app.py",))
 
 
 @pytest.mark.parametrize("engine,mode", [("ordinary", "single"), ("ordinary", "sequential_team"),

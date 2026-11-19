@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 import subprocess
 
-from .artifact_handoff import _load_evidence
-from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene
+from .artifact_handoff import _load_evidence, load_input_binding
+from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene, require_reviewable_patch
 from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED
 from .quota_guard import LIVENESS_STALL_CLASSES
 from .run_store import TaskStoreError
@@ -197,6 +197,10 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
     previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     base = snapshot["base_commit"]
     recovery_tree = safe_recovery_tree(root, base, snapshot["tree"])
+    paths = tuple(current.get("allowed_paths", ()))
+    consumed = load_input_binding(task) if paths else None
+    require_reviewable_patch(root, base, recovery_tree, allowed_paths=paths,
+                             scope_base=consumed["producer"]["commit"] if consumed else "")
     restored_identity = {**binding, "source_tree": snapshot["tree"], "recovery_tree": recovery_tree}
     if previous is not None:
         if previous != restored_identity:
