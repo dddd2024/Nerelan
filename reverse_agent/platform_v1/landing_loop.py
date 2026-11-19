@@ -6,7 +6,7 @@ and pre-merge verdict transitions against current external observations.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
@@ -18,7 +18,7 @@ from . import artifact_handoff as artifacts, model_review
 class LandingLoopController:
     def __init__(self, *, control_store: PlatformControlStore,
                  autonomy: AutonomyService, github: LandingGitHubAdapter, owner_decisions=None,
-                 source_issue_closed=None) -> None:
+                 source_issue_closed: Callable[..., bool] | None = None) -> None:
         self.control_store = control_store
         self.autonomy = autonomy
         self.github = github
@@ -28,6 +28,19 @@ class LandingLoopController:
     def _source_closed(self, goal_id: str, *, fresh: bool = False) -> bool:
         return (self.control_store.get_goal(goal_id).status == "SUPERSEDED"
                 or (self.source_issue_closed is not None and self.source_issue_closed(goal_id, fresh=fresh)))
+
+    def _require_source_before_write(self, state: dict[str, Any], operation: str,
+                                     claim: str, *, fresh: bool = False) -> None:
+        # The caller owns the claim and has not invoked its write yet.
+        goal_id = state["goal_id"]
+        closed = (self._source_closed(goal_id, fresh=True) if fresh
+                  else self.control_store.get_goal(goal_id).status == "SUPERSEDED")
+        if closed:
+            self.control_store.record_landing_outcome(
+                state["identity"], operation, claim, outcome="ABSENT",
+                evidence={"reason": "goal_source_issue_closed_before_write", "head": state["head_sha"]},
+            )
+            raise TaskStoreError("goal_source_issue_closed")
 
     def publish_and_review(self, task_id: str, *, window_id: str,
                            publication, goals, execution, workspace_root: str):
@@ -160,6 +173,7 @@ class LandingLoopController:
         body = (f"Independent review: {len(result['findings'])} retained findings.\n"
                 f"<!-- nerelan-operation:{claim_id} -->\n"
                 f"Nerelan-Review: {result['verdict']} {state['head_sha']}")
+        self._require_source_before_write(state, "review_comment", claim_id)
         self.github.post_review_comment(state, claim_id, body)
         return self.reconcile(identity, "review_comment", window_id=window_id)
 
@@ -210,12 +224,10 @@ class LandingLoopController:
             return store.get_landing(identity)
         state = store.get_landing(identity)
         lease = now + 300000
-        def guard(*, write: bool = False):
+        def guard():
             if store.get_landing(identity)["tick_lease_ms"] != lease or _utc_now_ms() >= lease:
                 raise TaskStoreError("landing_tick_lease_lost")
             self._authorize(state, window_id)
-            if write and store.get_goal(state["goal_id"]).status == "SUPERSEDED":
-                raise TaskStoreError("goal_source_issue_closed")
         def finish(phase, reason="", delay=30000):
             return store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
         def park_closed():
@@ -324,22 +336,22 @@ class LandingLoopController:
                 return finish("WAITING", "main_moved_reassess")
             if fresh != pr:
                 return finish("BLOCKED", "landing_observation_changed")
-            if self._source_closed(state["goal_id"], fresh=True):
-                store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
-                    evidence={"reason": "goal_source_issue_closed_before_write", "head": state["head_sha"]})
-                return park_closed()
-            guard(write=True)
+            self._require_source_before_write(state, operation, claim, fresh=True)
+            guard()
             if operation == "merge":
                 # No API/subprocess operation may intervene between these calls.
                 verdict = self.github.invoke_verdict(state, claim)
+                guard()
                 if not verdict.get("passed"):
+                    self._require_source_before_write(state, operation, claim)
                     return finish("BLOCKED", verdict.get("reason", "premerge_verdict_rejected"))
-                guard(write=True)
-                self.github.merge_head_matched(state, claim)
+                write = self.github.merge_head_matched
             elif operation == "mark_ready":
-                self.github.mark_ready(state, claim)
+                write = self.github.mark_ready
             else:
-                self.github.update_branch(state, claim)
+                write = self.github.update_branch
+            self._require_source_before_write(state, operation, claim)
+            write(state, claim)
             result = self.reconcile(identity, operation, window_id=window_id)
             if operation == "update_branch" and result["status"] == "SUCCEEDED":
                 updated = self.github.observe_pr(state)

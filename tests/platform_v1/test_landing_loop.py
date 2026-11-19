@@ -271,6 +271,23 @@ def test_restart_after_comment_creation_reconciles_without_repost(review_setup):
     assert [r["outcome"] for r in reopened.landing_receipts(state["identity"])] == ["CLAIMED", "SUCCEEDED"]
 
 
+def test_source_closure_after_review_claim_keeps_unsent_comment_absent(review_setup, monkeypatch):
+    assert run_review(review_setup).success
+    control, goal, state, github, loop = review_loop(review_setup)
+    claim = loop.claim
+
+    def close_after_claim(*args, **kwargs):
+        result = claim(*args, **kwargs)
+        assert result and control.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+        return result
+
+    monkeypatch.setattr(loop, "claim", close_after_claim)
+    with pytest.raises(TaskStoreError, match="goal_source_issue_closed"):
+        loop.post_review(state["identity"], review_setup[3], window_id=goal.window_id)
+    assert github.comments == {}
+    assert control.landing_operation(state["identity"], "review_comment")["status"] == "ABSENT"
+
+
 @pytest.mark.parametrize("stale", ["head", "evidence"])
 def test_stale_review_never_posts(review_setup, monkeypatch, stale):
     assert run_review(review_setup).success
@@ -484,6 +501,24 @@ def test_source_issue_close_preserves_verified_landing(tmp_path, monkeypatch):
     before = store.get_goal(state["goal_id"])
     assert store.supersede_closed_issue_goal(before.id, revision=before.revision)
     assert store.get_goal(before.id) == before
+
+
+def test_source_closure_during_final_verdict_leaves_unsent_merge_absent(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    verdict = github.invoke_verdict
+
+    def close_during_verdict(current, claim):
+        result = verdict(current, claim)
+        if claim != "assessment":
+            assert store.supersede_closed_issue_goal(state["goal_id"], revision=1)
+        return result
+
+    monkeypatch.setattr(github, "invoke_verdict", close_during_verdict)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == "SUPERSEDED"
+    assert not github.merged
+    assert store.landing_operation(state["identity"], "merge")["status"] == "ABSENT"
 
 
 @pytest.mark.parametrize("bad", ["red", "missing", "stale"])
