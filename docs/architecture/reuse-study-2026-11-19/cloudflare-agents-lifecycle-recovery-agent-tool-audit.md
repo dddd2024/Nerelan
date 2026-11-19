@@ -1,0 +1,99 @@
+<!-- One upstream project. Static source research only. Implementation authority NONE. -->
+
+# Cloudflare Agents pinned deep audit — multi-capability wake, crash-loop budgets, stable retry identity, sub-agent progress and MCP lifecycle
+
+> **2026-11-19 | SINGLE_UPSTREAM_PROJECT | R1_DOCS_ONLY | PINNED_STATIC_SOURCE_REVIEW | TESTS_NOT_RUN | NO_DEPLOY | NO_MODEL_CALLS | NO_IMPLEMENTATION | NOT_MERGED**
+>
+> Upstream: [cloudflare/agents@81726f7d18206a0864d183c219fad9fa6e7e28e6](https://github.com/cloudflare/agents/commit/81726f7d18206a0864d183c219fad9fa6e7e28e6), [MIT LICENSE](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/LICENSE). Nerelan current-main at research start: [838d11a518989c3bbdabf5f03a99b53c382b7481](https://github.com/dddd2024/Nerelan/commit/838d11a518989c3bbdabf5f03a99b53c382b7481). **DO NOT** represent cloud Durable Objects as a local/Windows executor, TaskStore replacement, or an immediately usable plugin runtime.
+
+## 0. 先查重 / 缩小边界
+
+1. Nerelan issues 搜索 `modelcontextprotocol/registry` / `MCP Registry` 命中已完成的 [official Registry #1674](https://github.com/dddd2024/Nerelan/issues/1674)，故明确排除重复。另搜 `cloudflare/agents`、`Cloudflare Agents`、标题、代码，查 [Research Hub #1576](https://github.com/dddd2024/Nerelan/issues/1576) 和其**47 条既存评论**，未找到 Cloudflare Agents 独立 pinned-source 专项；#137/#289 是产品/运营 roadmap，不是此上游源码研究。
+2. 既有 DBOS #1623 + trial #1546，Inngest #1648，Restate #1694、multi-agent/agent framework 等专项已经覆盖“持久工作流”**领域**；本轮仅审 **Cloudflare Agents 实际 Lifecycle alarm interleaving + Chat Recovery crash-work budgets + AgentTool live/durable progress + MCP restore**，不重复泛谈 workflow。只研究此一个上游仓库（源码、测试与 docs）。
+3. Nerelan **当前决定性障碍**：[chaos bed #1696](https://github.com/dddd2024/Nerelan/issues/1696) 的 handoff 记载 12 goals/124 attempts、0 新功能交付及反复 host-side deadlocks，正在进行 provider-free 故障注入。不能根据“上游百万 Agent/低 idle 成本”等宣传数据推断 Nerelan 软件 Agent 能可靠完成真实 Feature。
+4. Governance: [AGENTS.md](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/AGENTS.md) R1 docs-only branch/Draft PR，不改 runtime；R2/R3 实施与依赖/部署等不在本研究授权。保留实施 owner #1696 chaos, #1546 DBOS trial, #1575 refactor, #1556 phase liveness, #1596 reroute, #1191 restart, #1508 multi-agent, #280 activity UX, #790 MCP, #303 trust, #1342 Magpie cost, #1267 accepted-cost. **No new duplicate implementation Issue.**
+
+## 1. Source-specific findings (read exact upstream + tests, NOT executed)
+
+### A. Unified physical alarm and serialized re-arm (**P0 BORROW_TEST_PATTERN / NO DIRECT RUNTIME CLONE**)
+
+- [`lifecycle/durable-object-lifecycle.ts` L674–777](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/lifecycle/durable-object-lifecycle.ts#L674-L777): multiple concurrent start calls share one in-flight start promise; `blockConcurrencyWhile` and explicit retryable startup failure avoid permanent input lock. If startup creates/re-times jobs but fails, a fallback alarm is armed from the **current** queue rather than leaving them silent.
+- [L831–913](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/lifecycle/durable-object-lifecycle.ts#L831-L913): `Lifecycle.rearmAlarm` derives **one physical DO alarm** from all durable jobs, serializes asynchronous alarm writes via `#alarmRearmQueue`, and rechecks live queue after prior write settles. Prevents late, older computed wake overwriting a new earlier due item. This is within a DO isolate, **not** a cross-host transactional lease or linearizable SQLite state guarantee.
+- [`lifecycle/job-driver.ts` L165–220](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/lifecycle/job-driver.ts#L165-L220): startup fallback, due job dispatch, host alarm callback, and re-arm under an alarm-level memory reset guard. [L224–280](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/lifecycle/job-driver.ts#L224-L280) tracks long async work handed off after bounded job return: a clean sibling completion may not clear an unrelated ongoing failure signal; [tests/tasks/memory-limit.test.ts L179–216](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/tests/tasks/memory-limit.test.ts#L179-L216) has 2 observers of 1 OOM => 1 strike.
+- [`schedules/scheduler.ts` L712–745](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/schedules/scheduler.ts#L712-L745): one-shot schedules created in `onStart` without `idempotent:true` can duplicate on every wake; warns, not automatically safe. [tests/schedules/capability.test.ts L65–105](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/tests/schedules/capability.test.ts#L65-L105) confirms opted-in one-shot dedup, while no opt-in creates another row; [L155–179](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/tests/schedules/capability.test.ts#L155-L179) asserts earliest wake and overdue rearm. **Nerelan must always maintain explicit stable queue identity; do not copy non-idempotent defaults.**
+
+**Nerelan delta:** current [`unattended_coordinator.py` L204–282, L333–477](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/unattended_coordinator.py#L204-L477) and [`goal_service.py` L238–393](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/goal_service.py#L238-L393) already reconcile/escalate/reroute. Do not add Cloudflare alarm driver; add chaos fixtures proving `due` queries, Coordinator sweep, leases and Host wake observations converge under overlapped scheduling, failed initialization, overdue retry, cancellation and owner restart.
+
+### B. Progress, interrupted-attempt and runaway-work are INDEPENDENT budgets (**P0 BORROW_PATTERN #1696**)
+
+- [`chat/recovery-incident.ts` L176–253, L263–346](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/recovery-incident.ts#L176-L346): default `noProgressTimeoutMs=300000` (5 min), `maxRecoveryWork=10000`, `maxInterruptedAttempts=5`, `maxAttempts=10`; these belong to chat streams and are **not calibrated for real Nerelan coding task complexity**. The `work` unit is durably flushed stream segments/settled tool results, **not tokens or paid cash** ([`chat/lifecycle.ts` L229–314](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/lifecycle.ts#L229-L314)).
+- [`chat/recovery-incident.ts` L752–905](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/recovery-incident.ts#L752-L905): (1) last progress clock seals idle; (2) cumulative work budget seals a looping-but-streaming task; (3) interrupted attempt count is never reset by progress/debounce and **next process/isolate counts death** left by unclosed in-flight entries; (4) transient retry attempt/budget independent; (5) awaiting *confirmed client interaction* suppresses budgets (legitimate HITL wait). All are explicit distinct state, not one retry counter. [`chat/lifecycle.ts` L314–329](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/lifecycle.ts#L314-L329) caller `shouldKeepRecovering` hook has a **fail-open on throw**: log and keep recovering — **NO-GO for Nerelan quota/policy fail-closed gates**.
+- [`chat/recovery-incident.ts` L555–635](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/recovery-incident.ts#L555-L635) persists terminal outcome and `recovering` flag so late WebSocket client gets correct state; stale recovering flag TTL prevents forever-spinner. Distinguishes *temporarily recovering* vs *terminal failure* vs *missing evidence*. A partial streamed answer is not accepted software goal.
+- Risks to NOT copy: counting bytes/chunks as goal progress; resetting all budgets after one printable line; a thrown policy hook continuing automatically; suppressing all budgets on **unverified** pending approval; assuming an isolate death proves provider was not called.
+
+**Nerelan delta:** #1696 existing chaos test bed is the correct home for new fixtures; #1556 phase diagnostics needs `last Host-confirmed command start/exit`, `no_progress_age`, `interruptions`, `cumulative_retry_work/cost`, `pending_HITL_authority`, `recovery_reason` with source confidence. #1267/#1342 own paid request ledger; cannot use source's stream segment count as real dollars.
+
+### C. Unknown enqueue outcome and stable retry identity (**P0 BORROW_DESIGN, KEEP TASKSTORE FENCING**)
+
+- [`chat/recovery-task.ts` L41–112](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/recovery-task.ts#L41-L112): a detached long turn is handed out of bounded job loop; a platform error **may happen after durable enqueue commit but before caller gets ACK**, so new retry attempts reuse **one stable dedupeKey**, otherwise side effect duplicated. [L145–185](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/recovery-task.ts#L145-L185) initial incident uses `idempotencyKey=chat-recovery:callback:incident`, retries for the same failed redefer pass `runId=dedupeKey`, truly new chain attempts intentionally receive distinct identity.
+- [`queue/queue.ts` L111–125](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/queue/queue.ts#L111-L125) explicitly says callbacks survive DO eviction and **must be idempotent**. [`workflows.ts` L334–408](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/workflows.ts#L334-L408) wraps some Agent notification/state operations in Cloudflare `step.do` idempotence; [L516–526](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/workflows.ts#L516-L526) notes WebSocket broadcasts are non-durable and **may repeat** on retry. This is **not generic exactly-once external tool effect**.
+- Nerelan already [`run_store.py` Durable external ops](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/run_store.py#L2974-L3229) and [`goal_service.py` L285–393](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/goal_service.py#L285-L393) have external intent/receipt/fencing. Therefore design lesson = **distinguish a retried enqueue RPC from a genuinely new model/tool attempt**, preserve `UNKNOWN/PENDING` external side effect, and never replay based on missing local ACK alone.
+
+### D. AgentTool parent/child trajectory: persist only meaningful milestones (**P1 BORROW_PATTERN #1508/#280**)
+
+- [`chat/agent-tools.ts` L110–232](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/agent-tools.ts#L110-L232): **durable milestones**, monotonic per-run sequence, coalesced transient progress, snapshot saved with only optional `data` persistence. A terminal completion flushes, while continuous stream progress is bounded for UX. Importantly, `data` still travels the LIVE frame even when not persisted — **not a security guarantee**.
+- [L399–476](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/agent-tools.ts#L399-L476): stream replay/live dedupe separates persisted sequence vs never-persisted transient IDs; [L484–596](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/chat/agent-tools.ts#L484-L596) maps streamed frame to parent run through request ID and preserves high-water, handles tailer attached mid-flight. **Do not trust a child-supplied tool-call ID as authorization; use Host-owned parent/child link**.
+- Nerelan [`run_store.py` TaskEvent](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/run_store.py#L184-L226), [`task_execution.py`](https://github.com/dddd2024/Nerelan/blob/838d11a518989c3bbdabf5f03a99b53c382b7481/reverse_agent/platform_v1/task_execution.py) and #280 activity UX already exist. Useful is **semantic milestone vs transient progress differentiation**, not new streaming DB or importing Cloudflare's socket protocol.
+
+### E. MCP lifecycle / dynamic tool surface (**P2 BORROW_PATTERN / NO DIRECT TRUST**)
+
+- [`mcp/client/manager.ts` L232–310, L493–579](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/mcp/client/manager.ts#L232-L310): persisted server identity, reconnect/restore, server-namespaced tools, AI-SDK adapter with conversion cache; `callTool` passes `serverId` to auth request recovery. Good discover/restore ergonomics, but the shown callsite **does not provide a Nerelan Host-side per-tool authority receipt**.
+- Nerelan #790 official MCP runtime + #303 config trust + #447 egress guard + #253 Packs already specify capability admission. Must not equate connected/authorized OAuth credentials with permission for every Agent tool action. Copy neither Workers Durable Object storage nor generic automatic tool exposure.
+
+### F. CF-only capabilities and exclusion (**P0 REJECT DIRECT MIGRATION**)
+
+- Cloudflare Durable Objects, `cloudflare:workers`, `ctx.storage.setAlarm`, `blockConcurrencyWhile`, workerd facets and Cloudflare Workflows' engine are **platform-specific**. One alarm per DO and isolate scoping are not Nerelan Windows process/SQLite semantics. Nor do hibernating WebSocket sessions imply CLI child processes persist across shutdown.
+- Current priority from [#1696](https://github.com/dddd2024/Nerelan/issues/1696) is **finish provider-free chaos bed first**, then bounded [DBOS trial #1546](https://github.com/dddd2024/Nerelan/issues/1546), then outstanding #1692/#1676 per [#1575](https://github.com/dddd2024/Nerelan/issues/1575). No second scheduling framework adoption justified without accepted-feature cost/reliability evidence.
+
+## 2. Nerelan module decisions (single-owner)
+
+| Existing module / owner | Decision | Borrow minimal slice | No-go |
+|---|---|---|---|
+| `unattended_coordinator.py`, `goal_service.py` / **#1696** | **P0 TEST_FIRST** | earliest wake, serialized/fenced rearm, error-path fallback, callback startup dedup, post-reboot sweep | Second scheduler / change coordinator architecture |
+| `run_store.py`, `goal_service.py` / **#1546/#1191** | **KEEP+P0** | stable enqueue id vs attempt id and unknown ACK resolution | Cloudflare DO / Cloudflare Steps vs TaskStore |
+| `model_availability.py`, `usage_ledger.py` / **#1556/#1267/#1342** | **P0 BORROW_CONCEPT** | no-progress + interrupted attempts + bounded recovered work/cost dimensions | stream chunks as cash, reset budgets on output |
+| `task_execution.py` / **#1508/#280** | **P1 BORROW_PATTERN** | durable sub-agent milestones, transient live progress, high-water replay | Trust child output for goal acceptance |
+| `capability_registry.py` / **#790/#303/#253** | **P2 CONDITIONAL** | restore namespaces/lifecycle | Treat OAuth connection as tool policy grant |
+| Entire Cloudflare stack | **REJECT DIRECT** | design ideas + provider-free failure fixtures | Deploy DO/Workers/Workflow, add npm dependency, Windows host migration |
+
+## 3. Provider-free chaos / pure tests (PLANNED; NOT RUN)
+
+1. **C1 Earlier wake race:** two parallel retry changes, newer earlier deadline wins; out-of-order wake write must not overwrite. Restart and due scan recover with known evidence. Use Nerelan SQLite transaction/claim epoch, not JS promise serialization alone.
+2. **C2 Startup failure:** initialize a new due job, then throw before starting Coordinator; after restart it has a due receipt and is eventually processed; callback idempotent key avoids duplicate row.
+3. **C3 Poison task** creates some visible progress on every attempt then crashes; no-progress timeout would reset every turn; a monotonic interruption/work budget must terminate or explicitly hold, never spend indefinitely.
+4. **C4 One reset many observers:** two concurrent callbacks see same host shutdown; one interruption/failure event, not two; clean sibling cannot erase failing sibling's recovery evidence.
+5. **C5 ACK lost after enqueue commit:** remote enqueue record exists but caller times out; retry same `run_id`/operation_key joins old record; does not duplicate provider/model call.
+6. **C6 New work distinct:** a genuinely authorized second attempt with changed retry epoch obtains a *new* ID but cannot overlap unresolved older external effect.
+7. **C7 Human wait classification:** hold only after host-approved verifiable pending approval; pending user interaction does not count as model liveness failure; forged client `approval_requested` cannot indefinitely bypass budget/expiry.
+8. **C8 Child replay/live race:** same parent tool run emits durable milestone sequence 7, transient progress id P, durable sequence 8; reconnect/replay gives each milestone once, progress best-effort and redacted, no fake completion.
+9. **C9 Child status:** child's recovery incident in progress vs terminal failed; parent remains waiting with deadline vs closes correctly; child cannot self-approve tool effect.
+10. **C10 Cleanup terminal:** interrupted pending teardown must take priority over keep-alive/scheduled work; after successful cleanup the store/lease shows closed; no orphan running CLI. Upstream [deferred-destroy.test.ts L68–155](https://github.com/cloudflare/agents/blob/81726f7d18206a0864d183c219fad9fa6e7e28e6/packages/agents/src/tests/deferred-destroy.test.ts#L68-L155) is static example only.
+11. **C11 MCP restore:** reconnect/reuse server identity but tool list and auth/policy changes invalidate old tool approval; untrusted repo MCP config cannot auto-import/execute.
+12. **C12 Cost-quality gate:** no accepted feature after N actions, intermittent progress and model spend; emit bounded `NO_CONVERGENCE/UNKNOWN` with source + next action. Compare claimed completion separately from independently accepted Git changes; all retries and account costs retained.
+
+**No upstream pytest/vitest or Nerelan tests actually executed this turn**; this is a planned extension to the existing chaos bed. No host runtime, model/account, Cloudflare API, CI, independent reviewer, or production Agent installation invoked.
+
+## 4. Evidence & limit
+
+Actual work: GitHub Issues + Hub 47-comment duplicate check; fixed upstream `81726f7d` and MIT license; inspected Lifecycle, JobDriver, Scheduler, Queue, ChatRecoveryIncident/Task, AgentTool, Workflows, MCP client manager, representative schedule/OOM/deferred-destroy upstream tests; compared latest Nerelan main@838d11a5 AGENTS.md, GoalService/Coordinator/TaskStore/TaskExecution, ContextRecovery/UsageLedger, and current #1696/related owners.
+
+Did NOT: compile/install/execute any Cloudflare agent, run tests, deploy a Worker, connect MCP, run CLI/provider, spend model/account quota, change R2/R3 authority, create implementation code, get independent review, or merge. **Findings are pinned static-source analysis, NOT a claim of proven efficacy, reliability or safe runtime behavior.**
+
+
+---
+
+## Research publication trail
+- Canonical research issue: https://github.com/dddd2024/Nerelan/issues/1710
+- Research hub: https://github.com/dddd2024/Nerelan/issues/1576
+- A docs-only Draft PR is filed after the research commit and linked in Issue + hub.
+- Evidence status: PINNED_SOURCE_ONLY / TESTS_NOT_RUN / NO_INSTALL / NO_CLOUDFLARE_RUN / NO_PROVIDER_SPEND / NOT_IMPLEMENTED / NOT_MERGED.
