@@ -47,6 +47,9 @@ param(
   [Parameter(Mandatory = $false)]
   [int]$ModelControlPort = 8765,
   [Parameter(Mandatory = $false)]
+  [ValidateRange(30, 1800)]
+  [int]$TrustedClientReadySeconds = 240,
+  [Parameter(Mandatory = $false)]
   [switch]$NoBrowser
 )
 
@@ -675,12 +678,18 @@ if (-not $frontendProc.HasExited) {
 }
 
 if (-not $NoBrowser) {
+  # The host opens the client only after its startup sweep, which can take over a
+  # minute when goals need repair or rerouting (2026-11-19: ~70 s; a fixed 30 s wait
+  # failed closed and left no host, so the watchdog's restart failed the same way).
+  # Wait while the host process lives, up to a bound; stop at once if it exits.
   $clientReady = $false
-  for ($clientAttempt = 0; $clientAttempt -lt 120; $clientAttempt++) {
+  $clientDeadline = (Get-Date).AddSeconds($TrustedClientReadySeconds)
+  while ((Get-Date) -lt $clientDeadline) {
     if (Test-TrustedClientReady) { $clientReady = $true; break }
+    if ($combinedProc.HasExited) { Fail-Closed "Combined trusted host exited before the trusted client was ready" }
     Start-Sleep -Milliseconds 250
   }
-  if (-not $clientReady) { Fail-Closed "trusted client did not become ready" }
+  if (-not $clientReady) { Fail-Closed "trusted client did not become ready within ${TrustedClientReadySeconds}s" }
 }
 
 $urlMap = [ordered]@{
