@@ -1557,3 +1557,16 @@ def test_dev_up_refuses_reuse_after_real_keeper_exit(tmp_path: Path) -> None:
     assert all(member["exited"] for member in proof["A_cleanup"]), proof
     assert result.returncode == 0, (result.stdout, result.stderr)
     _assert_ports_free(ports)
+
+
+def test_trusted_client_wait_outlasts_a_slow_startup_sweep_but_not_a_dead_host() -> None:
+    # 2026-11-19: the host opened the client ~70 s after start (startup sweep repaired a
+    # parked review); a fixed 30 s wait failed closed and left no host at all.
+    assert "[int]$TrustedClientReadySeconds = 240" in _DEV_UP
+    assert "[ValidateRange(30, 1800)]" in _DEV_UP
+    assert "$clientAttempt -lt 120" not in _DEV_UP
+    loop = _DEV_UP[_DEV_UP.index("$clientDeadline = "):_DEV_UP.index("trusted client did not become ready within")]
+    assert "AddSeconds($TrustedClientReadySeconds)" in loop
+    assert "Test-TrustedClientReady" in loop
+    # A host that died is reported at once instead of after the whole wait.
+    assert "if ($combinedProc.HasExited)" in loop
