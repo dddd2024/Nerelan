@@ -148,18 +148,23 @@ def _missing_targets(checks: Any, root: Path) -> list[str]:
     return missing
 
 
-def git_output(root: Path, *args: str) -> str:
+def git_output(root: Path, *args: str, missing_ref_ok: bool = False) -> str:
     result = subprocess.run(["git", "-C", str(root), *args], stdin=subprocess.DEVNULL,
                             capture_output=True, text=True, encoding="utf-8", errors="replace",
                             timeout=15, check=False)
+    if missing_ref_ok and result.returncode == 1 and not result.stdout:
+        return ""
     if result.returncode or len(result.stdout) > 16384:
         raise TaskStoreError("functional_git_observation_failed")
     return result.stdout.strip()
 
 
 def repository_base(repository: str) -> str:
+    """Freeze the locally fetched main for new work, or HEAD in an unfetched checkout."""
     binding = resolve_repository_workspace(repository)
-    head = git_output(binding.repo_dir, "rev-parse", "HEAD")
+    head = (git_output(binding.repo_dir, "rev-parse", "--verify", "--quiet",
+                       "refs/remotes/origin/main^{commit}", missing_ref_ok=True)
+            or git_output(binding.repo_dir, "rev-parse", "HEAD"))
     if not _SHA40.fullmatch(head):
         raise TaskStoreError("functional_base_invalid")
     return head
@@ -188,6 +193,17 @@ def prepared_base(task: Any, workspace: str) -> str:
     return next(iter(identities)) if len(identities) == 1 else ""
 
 
+def normalize_allowed_paths(value: Any) -> tuple[str, ...]:
+    from reverse_agent.executor_neutral.core import _normalize_allowed_path
+    if not isinstance(value, (list, tuple)) or len(value) > 200:
+        raise TaskStoreError("invalid_functional_allowed_paths")
+    try:
+        paths = (_normalize_allowed_path(path) for path in value)
+        return tuple(sorted(set(paths)))
+    except ValueError as exc:
+        raise TaskStoreError("invalid_functional_allowed_paths") from exc
+
+
 def freeze_contract(store: Any, task: Any, *, goal: Any, plan_task: Any, base_commit: str) -> dict[str, Any] | None:
     checks = normalize_checks(plan_task.validation_checks)
     if not checks:
@@ -199,6 +215,9 @@ def freeze_contract(store: Any, task: Any, *, goal: Any, plan_task: Any, base_co
                 "goal_id": goal.id, "goal_revision": goal.revision, "goal_artifact_digest": goal.artifact_digest,
                 "plan_task_id": plan_task.id, "requires_implementation": plan_task.capability == "execute_task",
                 "checks": list(checks)}
+    allowed_paths = normalize_allowed_paths(getattr(plan_task, "allowed_paths", ()))
+    if allowed_paths:
+        contract["allowed_paths"] = list(allowed_paths)
     previous = load_contract(store.get_task(task.id))
     if previous is not None:
         if previous != contract:
@@ -221,7 +240,11 @@ def load_contract(task: Any) -> dict[str, Any] | None:
         contract = json.loads(row["detail"])
         fields = {"version", "catalog_digest", "task_id", "repository", "base_commit", "goal_id",
                   "goal_revision", "goal_artifact_digest", "plan_task_id", "requires_implementation", "checks"}
-        if (not isinstance(contract, dict) or set(contract) != fields or row["status"] != "APPROVED"
+        if (not isinstance(contract, dict) or set(contract) not in (fields, fields | {"allowed_paths"})
+                or ("allowed_paths" in contract and
+                    (not contract["requires_implementation"] or not contract["allowed_paths"]
+                     or list(normalize_allowed_paths(contract["allowed_paths"])) != contract["allowed_paths"]))
+                or row["status"] != "APPROVED"
                 or row["value"] != digest(contract) or row["raw_json_digest"] != digest(contract)
                 or contract["version"] != CATALOG_VERSION or contract["catalog_digest"] != catalog_digest()
                 or contract["task_id"] != task.id or contract["repository"] != task.repository
@@ -576,6 +599,31 @@ def _run_process(check: Mapping[str, str], argv: list[str], cwd: Path, env: dict
             "output_truncated": output_size[0] > OUTPUT_LIMIT, "_output_tail": bytes(retained)}
 
 
+def require_reviewable_patch(root: Path, base: str, tree: str, *, allowed_paths: tuple[str, ...] = (),
+                             scope_base: str = "") -> None:
+    """Apply the review packet's own diff limit before accepting a producer."""
+    from .model_review import exact_diff
+    try:
+        exact_diff(root, base, tree)
+    except TaskStoreError as exc:
+        raise TaskStoreError(f"functional_observation_failed:{exc}") from exc
+    if allowed_paths:
+        from reverse_agent.executor_neutral.core import _path_allowed
+        result = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff",
+             "--no-textconv", scope_base or base, tree, "--"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=15, check=False,
+        )
+        try:
+            if result.returncode or (result.stdout and not result.stdout.endswith(b"\0")):
+                raise ValueError
+            paths = result.stdout.decode("utf-8").split("\0")
+        except ValueError as exc:
+            raise TaskStoreError("functional_observation_failed:artifact_paths_unreadable") from exc
+        if any(path and ("\\" in path or not _path_allowed(path, allowed_paths)) for path in paths):
+            raise TaskStoreError("functional_observation_failed:artifact_path_outside_allowlist")
+
+
 def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, execution_id: str) -> dict[str, Any] | None:
     contract = load_contract(task)
     if contract is None:
@@ -609,8 +657,12 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             result["artifact_input_digest"] = artifact_digest(consumed)
         if hygiene["exit_code"] != 0:
             raise TaskStoreError("functional_patch_hygiene_failed")
-        if contract["requires_implementation"] and not changed:
-            raise TaskStoreError("functional_implementation_missing")
+        if contract["requires_implementation"]:
+            if not changed:
+                raise TaskStoreError("functional_implementation_missing")
+            require_reviewable_patch(root, base_commit, before,
+                                     allowed_paths=tuple(contract.get("allowed_paths", ())),
+                                     scope_base=consumed["producer"]["commit"] if consumed else "")
         missing = _missing_targets(contract["checks"], root)
         if missing:
             result["missing_targets"] = missing

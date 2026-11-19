@@ -161,6 +161,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, title: event.target.value } : entry))} /></label>
           <label className="block text-sm">任务说明<textarea aria-label={`任务 ${task.id} 说明`} className={fieldClass} value={task.instruction ?? ""} disabled={busy} rows={4}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, instruction: event.target.value } : entry))} /></label>
+          {Boolean(task.allowed_paths?.length) && <p className="text-sm">允许修改：{task.allowed_paths?.join("、")}</p>}
           {goal.orchestration_mode === "agent_team" && <label className="block text-sm">负责 Agent<select aria-label={`任务 ${task.id} 负责 Agent`} className={fieldClass}
             value={task.agent_role ?? ""} disabled={busy}
             onChange={(event) => setTasks(tasks.map((entry, item) => {
