@@ -73,6 +73,7 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
             "id": goal.id,
             "title": goal.title,
             "status": goal.status,
+            "stop_reason": "source_issue_closed" if goal.status == "SUPERSEDED" else "",
             "tasks": task_blocks,
         })
 
@@ -183,6 +184,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append("")
         lines.append(f"### {goal.get('title', '')} ({goal.get('id', '')})")
         lines.append(f"- status: {goal.get('status', '')}")
+        if goal.get("stop_reason") == "source_issue_closed":
+            lines.append("- The source issue closed. The goal stopped scheduling work.")
         tasks = goal.get("tasks") or []
         if not tasks:
             lines.append("- _no tasks_")

@@ -59,6 +59,7 @@ from .autonomy import AutonomyService
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService
+from .goal_source_issue import GoalSourceIssues
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
 from .local_client_session import LocalClientSession
@@ -193,6 +194,7 @@ class CombinedTrustedHost:
             quota_forecaster=self._goal_quota_fit,
             account_status_provider=self._goal_account_status_provider,
             binding_account_resolver=self._binding_account_resolver,
+            source_issues=GoalSourceIssues(),
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -1743,6 +1745,7 @@ class CombinedTrustedHost:
                 live_github = LiveGitHubAdapter()
             self._publication_controller = PublicationController(
                 landing_decisions=self._landing_owner_decisions,
+                source_issue_closed=self._goal_service.stop_if_source_closed,
                 store=self._task_store,
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
@@ -1753,7 +1756,8 @@ class CombinedTrustedHost:
             landing = LandingLoopController(control_store=self._control_store,
                 autonomy=self._autonomy_service,
                 github=RoutedLandingGitHubAdapter(self._control_store),
-                owner_decisions=self._landing_owner_decisions)
+                owner_decisions=self._landing_owner_decisions,
+                source_issue_closed=self._goal_service.stop_if_source_closed)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,

@@ -20,6 +20,7 @@ import shutil
 
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
                                  OWNER_WINDOW_POOL_MISROUTE, transient_overload)
+from .goal_source_issue import GoalSourceIssues
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -435,6 +436,8 @@ def goal_to_dict(goal: GoalRecord, *, links: Sequence[Mapping[str, Any]] = ()) -
     # COMPLETED aggregates execution, not functional or remote acceptance.
     payload["completion_scope"] = "EXECUTION_ONLY"
     payload["remote_acceptance"] = "NOT_OBSERVED"
+    if goal.status == "SUPERSEDED":
+        payload["stop_reason"] = "source_issue_closed"
     return payload
 
 
@@ -443,7 +446,8 @@ class GoalService:
 
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
                  roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3,
-                 account_status_provider: Any | None = None, binding_account_resolver: Any | None = None) -> None:
+                 account_status_provider: Any | None = None, binding_account_resolver: Any | None = None,
+                 source_issues: GoalSourceIssues | None = None) -> None:
         if type(max_review_rounds) is not int or max_review_rounds < 1:
             raise TaskStoreError("invalid_review_round_limit")
         self.max_review_rounds = max_review_rounds
@@ -460,6 +464,15 @@ class GoalService:
         # ``account_ref`` so the guard can judge whether that account is fit.
         self.account_status_provider = account_status_provider
         self.binding_account_resolver = binding_account_resolver
+        self.source_issues = source_issues
+
+    def stop_if_source_closed(self, goal_id: str, *, fresh: bool = False) -> bool:
+        goal = self.control_store.get_goal(goal_id)
+        if goal.status == "SUPERSEDED":
+            return True
+        if self.source_issues is not None and self.source_issues.closed(goal, fresh=fresh):
+            return self.control_store.supersede_closed_issue_goal(goal_id, revision=goal.revision)
+        return False
 
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
         """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
@@ -546,6 +559,8 @@ class GoalService:
         )
 
     def launch(self, goal_id: str, *, expected_revision: int, window_id: str) -> GoalRecord:
+        if self.stop_if_source_closed(goal_id, fresh=True):
+            raise TaskStoreError("goal_source_issue_closed")
         # Serialize the approved snapshot with all materialization writes, including
         # against configuration updates made through another SQLite connection.
         with self.store._lock:
@@ -966,6 +981,8 @@ class GoalService:
 
     def reroute_quota_held(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """Coordinator entry for quota holds; same window and mode bounds as escalation."""
+        if self.stop_if_source_closed(goal_id):
+            return ()
         goal = self.control_store.get_goal(goal_id)
         if goal.orchestration_mode != "agent_team" or not goal.window_id or self.task_resolver is None:
             return ()
@@ -1528,6 +1545,8 @@ class GoalService:
         and nothing escalates outside the Goal's still-active window. The failed task
         and its evidence stay in place; only the plan task's link moves on.
         """
+        if self.stop_if_source_closed(goal_id):
+            return ()
         repairs = self._repair_rejected_reviews(goal_id)
         goal = self.control_store.get_goal(goal_id)
         if (goal.orchestration_mode != "agent_team" or not goal.window_id
@@ -1911,6 +1930,9 @@ class GoalService:
         goal = self.control_store.get_goal(goal_id)
         options: dict[str, Any] = {"available": False, "reason": "", "revision": goal.revision, "pool": [],
                                    "automatic_retries_left": {}, "routing_retries_left": 0}
+        if goal.status == "SUPERSEDED":
+            options["reason"] = "goal_source_issue_closed"
+            return options
         if goal.orchestration_mode != "agent_team":
             options["reason"] = "owner_retry_not_agent_team"
             return options
@@ -1943,6 +1965,8 @@ class GoalService:
         base, counts against the window's task count and tokens when it starts, never
         spends ``max_retries`` and never widens the window. No active window: refused.
         """
+        if self.stop_if_source_closed(goal_id, fresh=True):
+            raise TaskStoreError("goal_source_issue_closed")
         goal = self.control_store.get_goal(goal_id)
         if goal.revision != expected_revision:
             raise TaskStoreError("goal_revision_conflict")

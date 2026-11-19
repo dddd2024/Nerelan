@@ -43,6 +43,7 @@ const STATUS_LABELS: Record<GoalStatus, string> = {
   COMPLETED: "执行完成，待审查",
   BLOCKED: "已阻塞",
   INVALIDATED: "已失效",
+  SUPERSEDED: "来源 Issue 已关闭",
 };
 
 function mutationMessage(error: unknown) {

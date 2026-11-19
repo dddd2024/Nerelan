@@ -13,6 +13,7 @@ const STATUSES: Record<string, [string, string]> = {
   COMPLETED: ["执行完成，待审查", "请查看验证证据并等待独立审查。"],
   BLOCKED: ["需要处理阻塞", "请查看阻塞原因，处理后再继续。"],
   INVALIDATED: ["已失效", "请核对目标和授权后重新制定计划。"],
+  SUPERSEDED: ["来源 Issue 已关闭", "目标已经停止调度，执行记录仍可查看。"],
   QUEUED: ["排队中", "请等待调度，或查看可用模型和授权窗口。"],
   PREPARING_WORKSPACE: ["正在准备工作区", "请等待工作区准备完成。"],
   RUNNING_FIXTURE: ["正在执行样例", "可查看样例记录；实际任务仍需真实执行和验证。"],

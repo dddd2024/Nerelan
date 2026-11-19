@@ -6,7 +6,7 @@ and pre-merge verdict transitions against current external observations.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, Callable
 
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
@@ -17,11 +17,30 @@ from . import artifact_handoff as artifacts, model_review
 
 class LandingLoopController:
     def __init__(self, *, control_store: PlatformControlStore,
-                 autonomy: AutonomyService, github: LandingGitHubAdapter, owner_decisions=None) -> None:
+                 autonomy: AutonomyService, github: LandingGitHubAdapter, owner_decisions=None,
+                 source_issue_closed: Callable[..., bool] | None = None) -> None:
         self.control_store = control_store
         self.autonomy = autonomy
         self.github = github
         self.owner_decisions = owner_decisions or (lambda state: ())
+        self.source_issue_closed = source_issue_closed
+
+    def _source_closed(self, goal_id: str, *, fresh: bool = False) -> bool:
+        return (self.control_store.get_goal(goal_id).status == "SUPERSEDED"
+                or (self.source_issue_closed is not None and self.source_issue_closed(goal_id, fresh=fresh)))
+
+    def _require_source_before_write(self, state: dict[str, Any], operation: str,
+                                     claim: str, *, fresh: bool = False) -> None:
+        # The caller owns the claim and has not invoked its write yet.
+        goal_id = state["goal_id"]
+        closed = (self._source_closed(goal_id, fresh=True) if fresh
+                  else self.control_store.get_goal(goal_id).status == "SUPERSEDED")
+        if closed:
+            self.control_store.record_landing_outcome(
+                state["identity"], operation, claim, outcome="ABSENT",
+                evidence={"reason": "goal_source_issue_closed_before_write", "head": state["head_sha"]},
+            )
+            raise TaskStoreError("goal_source_issue_closed")
 
     def publish_and_review(self, task_id: str, *, window_id: str,
                            publication, goals, execution, workspace_root: str):
@@ -143,6 +162,8 @@ class LandingLoopController:
             resolved = self.reconcile(identity, "review_comment", window_id=window_id)
             if resolved["status"] != "ABSENT":
                 return resolved
+        if self._source_closed(state["goal_id"], fresh=True):
+            raise TaskStoreError("goal_source_issue_closed")
         claim_id = self.claim(identity, "review_comment", window_id=window_id)
         if not claim_id:
             return self.control_store.landing_operation(identity, "review_comment")
@@ -152,6 +173,7 @@ class LandingLoopController:
         body = (f"Independent review: {len(result['findings'])} retained findings.\n"
                 f"<!-- nerelan-operation:{claim_id} -->\n"
                 f"Nerelan-Review: {result['verdict']} {state['head_sha']}")
+        self._require_source_before_write(state, "review_comment", claim_id)
         self.github.post_review_comment(state, claim_id, body)
         return self.reconcile(identity, "review_comment", window_id=window_id)
 
@@ -208,6 +230,26 @@ class LandingLoopController:
             self._authorize(state, window_id)
         def finish(phase, reason="", delay=30000):
             return store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
+        def park_closed():
+            # A previous process may have sent a claimed request. Read it back
+            # under the existing grant, without reserving or sending a new write.
+            for operation in store.pending_landing_operations(identity):
+                try:
+                    self.reconcile(identity, operation, window_id=window_id)
+                except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
+                    pass  # The original pending receipt remains available for reconciliation.
+            if store.pending_landing_operations(identity):
+                return finish("BLOCKED", "goal_source_issue_closed_pending_receipt", delay=0)
+            merge = store.landing_operation(identity, "merge")
+            if merge and merge["status"] == "SUCCEEDED":
+                try:
+                    pr = observe()
+                except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
+                    return finish("BLOCKED", "goal_source_issue_closed_merge_readback_required", delay=0)
+                if pr.get("merged") and pr.get("merge_commit") == pr["main_sha"]:
+                    return finish("COMPLETE", delay=0)
+                return finish("BLOCKED", "goal_source_issue_closed_merge_readback_required", delay=0)
+            return finish("SUPERSEDED", "goal_source_issue_closed", delay=0)
         def observe():
             guard()
             pr = self.github.observe_pr(state)
@@ -219,12 +261,16 @@ class LandingLoopController:
                 raise TaskStoreError("landing_main_unknown")
             return pr
         try:
+            if store.get_goal(state["goal_id"]).status == "SUPERSEDED":
+                return park_closed()
             guard()
             pending_update = store.landing_operation(identity, "update_branch")
             if pending_update:
                 resolved = self.reconcile(identity, "update_branch", window_id=window_id)
                 updated = self.github.observe_pr(state)
                 if resolved["status"] == "SUCCEEDED" and updated.get("head_sha") != state["head_sha"]:
+                    if self._source_closed(state["goal_id"]):
+                        return park_closed()
                     store.ensure_landing(repository=state["repository"], goal_id=state["goal_id"],
                         pr_number=state["pr_number"], head_sha=updated["head_sha"], review_round=state["review_round"] + 1)
                     return finish("SUPERSEDED", delay=0)
@@ -237,6 +283,8 @@ class LandingLoopController:
                 if result["status"] == "SUCCEEDED" and pr["main_sha"] == pr["merge_commit"]:
                     return finish("COMPLETE", delay=0)
                 return finish("RECONCILING", "main_merge_not_confirmed")
+            if self._source_closed(state["goal_id"]):
+                return park_closed()
             if pr.get("state") != "OPEN":
                 return finish("BLOCKED", "pull_request_closed")
             paths = pr.get("changed_paths")
@@ -288,18 +336,22 @@ class LandingLoopController:
                 return finish("WAITING", "main_moved_reassess")
             if fresh != pr:
                 return finish("BLOCKED", "landing_observation_changed")
+            self._require_source_before_write(state, operation, claim, fresh=True)
             guard()
             if operation == "merge":
                 # No API/subprocess operation may intervene between these calls.
                 verdict = self.github.invoke_verdict(state, claim)
-                if not verdict.get("passed"):
-                    return finish("BLOCKED", verdict.get("reason", "premerge_verdict_rejected"))
                 guard()
-                self.github.merge_head_matched(state, claim)
+                if not verdict.get("passed"):
+                    self._require_source_before_write(state, operation, claim)
+                    return finish("BLOCKED", verdict.get("reason", "premerge_verdict_rejected"))
+                write = self.github.merge_head_matched
             elif operation == "mark_ready":
-                self.github.mark_ready(state, claim)
+                write = self.github.mark_ready
             else:
-                self.github.update_branch(state, claim)
+                write = self.github.update_branch
+            self._require_source_before_write(state, operation, claim)
+            write(state, claim)
             result = self.reconcile(identity, operation, window_id=window_id)
             if operation == "update_branch" and result["status"] == "SUCCEEDED":
                 updated = self.github.observe_pr(state)
@@ -309,6 +361,8 @@ class LandingLoopController:
                     return finish("SUPERSEDED", delay=0)
             return finish("RECONCILING", "external_result_" + result["status"].lower())
         except TaskStoreError as exc:
+            if str(exc) == "goal_source_issue_closed":
+                return park_closed()
             return finish("BLOCKED", str(exc))
         except (GitHubAdapterError, OSError, ValueError, TimeoutError):
             return finish("WAITING", "github_api_backoff", delay=60000)

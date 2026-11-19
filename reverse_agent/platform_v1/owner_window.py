@@ -578,6 +578,9 @@ class OwnerWindowAdmission:
                 raise TaskStoreError("owner_window_confirmation_refused")
             if time.monotonic() >= deadline:
                 raise TaskStoreError("owner_window_confirmation_expired")
+            for goal_id in goal_ids:
+                if host._goal_service.stop_if_source_closed(goal_id, fresh=True):
+                    raise TaskStoreError(f"goal_source_issue_closed:{goal_id}")
             approved = json.loads(before)
 
             def validate() -> None:

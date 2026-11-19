@@ -585,6 +585,8 @@ class PlatformControlStore:
             self._conn.execute("BEGIN IMMEDIATE")
             try:
                 state = self.get_landing(identity)
+                if self.get_goal(state["goal_id"]).status == "SUPERSEDED":
+                    raise TaskStoreError("goal_source_issue_closed")
                 window = self.get_window(window_id)
                 if (not self._window_current_locked(window_id)
                         or state["repository"] not in window.repositories
@@ -597,7 +599,7 @@ class PlatformControlStore:
                 row = self._conn.execute(
                     "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
                     (identity, operation)).fetchone()
-                if state["phase"] == "BLOCKED" or state["next_attempt_ms"] > now or (row and (
+                if state["phase"] in {"BLOCKED", "COMPLETE", "SUPERSEDED"} or state["next_attempt_ms"] > now or (row and (
                         row["status"] != "ABSENT" or row["next_attempt_ms"] > now)):
                     self._conn.commit()
                     return None
@@ -620,6 +622,14 @@ class PlatformControlStore:
                 "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
                 (identity, operation)).fetchone()
             return dict(row) if row else None
+
+    def pending_landing_operations(self, identity: str) -> tuple[str, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT operation FROM platform_landing_operations WHERE identity = ? "
+                "AND status IN ('CLAIMED', 'UNKNOWN') ORDER BY operation", (identity,),
+            ).fetchall()
+        return tuple(str(row["operation"]) for row in rows)
 
     def record_landing_outcome(self, identity: str, operation: str, claim_id: str, *,
                                outcome: str, evidence: Mapping[str, Any],
@@ -949,6 +959,8 @@ class PlatformControlStore:
             try:
                 if owns_transaction:
                     self._conn.execute("BEGIN IMMEDIATE")
+                if self.get_goal(goal_id).status == "SUPERSEDED":
+                    raise TaskStoreError("goal_source_issue_closed")
                 row = self._conn.execute(
                     "SELECT task_id FROM platform_goal_task_links WHERE goal_id = ? AND goal_revision = ? "
                     "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()
@@ -1007,7 +1019,7 @@ class PlatformControlStore:
                 "SELECT l.task_id FROM platform_goals g "
                 "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                 "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND t.status = 'READY_FOR_REVIEW' "
+                "WHERE g.window_id = ? AND g.status <> 'SUPERSEDED' AND t.status = 'READY_FOR_REVIEW' "
                 "ORDER BY g.created_at ASC, l.seq ASC", (window_id,)).fetchall()
         return tuple(str(row["task_id"]) for row in rows)
 
@@ -1202,6 +1214,23 @@ class PlatformControlStore:
                     break
             return tuple(ready)
 
+    def supersede_closed_issue_goal(self, goal_id: str, *, revision: int) -> bool:
+        """Stop a goal while preserving its existing attempts and receipts."""
+        with self._lock:
+            changed = self._conn.execute(
+                "UPDATE platform_goals SET status = 'SUPERSEDED', updated_at = ? "
+                "WHERE id = ? AND revision = ? AND status IN "
+                "('DRAFT', 'PLANNED', 'APPROVED', 'RUNNING', 'BLOCKED', 'COMPLETED') "
+                "AND NOT EXISTS (SELECT 1 FROM platform_landing_state "
+                "WHERE goal_id = platform_goals.id AND phase = 'COMPLETE')",
+                (_utc_now(), goal_id, revision),
+            )
+            return (bool(changed.rowcount) or self.get_goal(goal_id).status == "SUPERSEDED"
+                    or bool(self._conn.execute(
+                        "SELECT 1 FROM platform_landing_state WHERE goal_id = ? AND phase = 'COMPLETE'",
+                        (goal_id,),
+                    ).fetchone()))
+
     def refresh_goal_status(self, goal_id: str) -> GoalRecord:
         links = self.list_goal_tasks(goal_id)
         if not links:
@@ -1251,7 +1280,7 @@ class PlatformControlStore:
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_goals SET status = ?, updated_at = ? "
-                "WHERE id = ? AND status <> ?",
+                "WHERE id = ? AND status <> ? AND status <> 'SUPERSEDED'",
                 (status, _utc_now(), goal_id, status),
             )
         return self.get_goal(goal_id)
@@ -2275,6 +2304,12 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
+            if cur.execute(
+                "SELECT 1 FROM platform_goal_task_links l JOIN platform_goals g "
+                "ON g.id = l.goal_id AND g.revision = l.goal_revision "
+                "WHERE l.task_id = ? AND g.status = 'SUPERSEDED'", (task_id,),
+            ).fetchone():
+                raise TaskStoreError("goal_source_issue_closed")
             self.check_strict_task_admission(window_id, task_id)
             continuous = self._row_to_window(window).continuous
             if not continuous and datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
