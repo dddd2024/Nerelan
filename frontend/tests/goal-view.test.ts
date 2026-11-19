@@ -58,6 +58,11 @@ describe("titles", () => {
 });
 
 describe("goal state", () => {
+  it("shows a closed source issue even while a retained attempt is still active", () => {
+    expect(goalState(goal({ status: "SUPERSEDED", task_links: [link("RUNNING")] })))
+      .toMatchObject({ group: "ended", label: "来源 Issue 已关闭" });
+  });
+
   it("has one state per goal", () => {
     expect(goalState(goal({ status: "PLANNED" }))).toMatchObject({ key: "needs_you", label: "待审阅" });
     expect(goalState(goal({ task_links: [link("RUNNING", { activity: { type: "x", title: "OpenCode", description: "bash python -m pytest -q tests/a.py", timestamp: "" } })] })))

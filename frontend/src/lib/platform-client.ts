@@ -117,7 +117,8 @@ export type GoalStatus =
   | "RUNNING"
   | "COMPLETED"
   | "BLOCKED"
-  | "INVALIDATED";
+  | "INVALIDATED"
+  | "SUPERSEDED";
 
 export interface PlatformGoal {
   id: string;
@@ -139,6 +140,7 @@ export interface PlatformGoal {
   updated_at: string;
   completion_scope?: "EXECUTION_ONLY";
   remote_acceptance?: "NOT_OBSERVED";
+  stop_reason?: "source_issue_closed";
   task_links?: PlatformGoalTaskLink[];
 }
 

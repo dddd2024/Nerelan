@@ -949,6 +949,8 @@ class PlatformControlStore:
             try:
                 if owns_transaction:
                     self._conn.execute("BEGIN IMMEDIATE")
+                if self.get_goal(goal_id).status == "SUPERSEDED":
+                    raise TaskStoreError("goal_source_issue_closed")
                 row = self._conn.execute(
                     "SELECT task_id FROM platform_goal_task_links WHERE goal_id = ? AND goal_revision = ? "
                     "AND plan_task_id = ?", (goal_id, goal_revision, plan_task_id)).fetchone()
@@ -1202,6 +1204,17 @@ class PlatformControlStore:
                     break
             return tuple(ready)
 
+    def supersede_closed_issue_goal(self, goal_id: str, *, revision: int) -> bool:
+        """Stop a goal while preserving its existing attempts and receipts."""
+        with self._lock:
+            changed = self._conn.execute(
+                "UPDATE platform_goals SET status = 'SUPERSEDED', updated_at = ? "
+                "WHERE id = ? AND revision = ? AND status IN "
+                "('DRAFT', 'PLANNED', 'APPROVED', 'RUNNING', 'BLOCKED', 'COMPLETED')",
+                (_utc_now(), goal_id, revision),
+            )
+            return bool(changed.rowcount) or self.get_goal(goal_id).status == "SUPERSEDED"
+
     def refresh_goal_status(self, goal_id: str) -> GoalRecord:
         links = self.list_goal_tasks(goal_id)
         if not links:
@@ -1251,7 +1264,7 @@ class PlatformControlStore:
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_goals SET status = ?, updated_at = ? "
-                "WHERE id = ? AND status <> ?",
+                "WHERE id = ? AND status <> ? AND status <> 'SUPERSEDED'",
                 (status, _utc_now(), goal_id, status),
             )
         return self.get_goal(goal_id)
@@ -2275,6 +2288,12 @@ class PlatformControlStore:
             ).fetchone()
             if window is None or window["status"] != "ACTIVE":
                 raise TaskStoreError("window_not_active")
+            if cur.execute(
+                "SELECT 1 FROM platform_goal_task_links l JOIN platform_goals g "
+                "ON g.id = l.goal_id AND g.revision = l.goal_revision "
+                "WHERE l.task_id = ? AND g.status = 'SUPERSEDED'", (task_id,),
+            ).fetchone():
+                raise TaskStoreError("goal_source_issue_closed")
             self.check_strict_task_admission(window_id, task_id)
             continuous = self._row_to_window(window).continuous
             if not continuous and datetime.fromisoformat(str(window["expires_at"]).replace("Z", "+00:00")) <= datetime.now(timezone.utc):

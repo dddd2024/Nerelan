@@ -95,6 +95,9 @@ export function goalState(goal: Pick<PlatformGoal, "status" | "task_links">): Go
   if (goal.status === "INVALIDATED") {
     return { key: "cancelled", group: "ended", label: "已作废", detail: "目标已被新版本取代", tone: "idle" };
   }
+  if (goal.status === "SUPERSEDED") {
+    return { key: "cancelled", group: "ended", label: "来源 Issue 已关闭", detail: "执行记录仍可查看", tone: "idle" };
+  }
   const running = links.find((link) => RUNNING.has(link.status));
   // The host marks a goal BLOCKED once a step stopped; a stale RUNNING link must not hide that.
   if (running && !(goal.status === "BLOCKED" && links.some((link) => STOPPED.has(link.status)))) {

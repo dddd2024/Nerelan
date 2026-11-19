@@ -252,7 +252,8 @@ class UnattendedCoordinator:
                     "SELECT g.id AS goal_id, t.id AS task_id, t.updated_at FROM platform_goals g "
                     "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                     "JOIN tasks t ON t.id = l.task_id "
-                    "WHERE g.window_id = ? AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
+                    "WHERE g.window_id = ? AND g.status <> 'SUPERSEDED' "
+                    "AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
                     (window.id,)).fetchall()
         except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
             self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
@@ -403,6 +404,10 @@ class UnattendedCoordinator:
                 recovered += 1
                 self._executions += 1
                 continue
+            if self.goals is not None:
+                goal_id = self.control_store.goal_id_for_task(task_id)
+                if goal_id and self.goals.stop_if_source_closed(goal_id):
+                    continue
             operation = task_operation(task)
             if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
