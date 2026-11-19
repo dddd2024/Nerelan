@@ -11,13 +11,14 @@ from __future__ import annotations
 from datetime import datetime
 import json
 import math
+import re
 import threading
 import time
 from statistics import median
 from typing import Any
 
-from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, no_credits_error,
-                                 transient_overload)
+from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, external_termination,
+                                 no_credits_error, transient_overload)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 from .quota_guard import LIMIT_HIT
@@ -45,7 +46,13 @@ MIN_SAMPLES = 2
 HOST_PLUMBING_CLASSES = frozenset({
     ORPHANED_PREPARATION, "model_review_abandoned_no_reply", "review_not_independent",
     "ambiguous_external_operation", "executor_dispatch_failed", "cleanup_unconfirmed",
-    "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded"})
+    "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
+    # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
+    "owner_window_binding_outside_confirmed_pool"})
+# A generic nonzero CLI exit whose message is a provider rate limit (2026-11-18 live:
+# "rpm exhausted (429: you can retry your request)", "inference exceeds tpm/rpm limit (429").
+_NONZERO_RATE_LIMIT = re.compile(r"status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)", re.I)
+_NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree
 # root, or the host could not read its own contract or observation.
@@ -68,6 +75,12 @@ def neutral_failure(classification: str, detail: str) -> str:
         return "model_review_abandoned_no_reply"
     if LIMIT_HIT.search(lowered):
         return "quota_or_rate_limit"
+    if lowered == "executor_nonzero":
+        if _NONZERO_RATE_LIMIT.search(detail):
+            return "quota_or_rate_limit"
+        exit_code = _NONZERO_EXIT.match(detail)
+        if exit_code and external_termination(int(exit_code.group(1))):
+            return EXECUTOR_TERMINATED  # logoff/shutdown or a closed console ended the CLI
     if lowered == "deterministic_validation_failure":
         head = detail.split("\n", 1)[0]
         if head in HOST_VALIDATION_DETAILS or head.startswith(HOST_VALIDATION_PREFIXES):

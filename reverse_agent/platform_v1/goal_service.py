@@ -1410,7 +1410,8 @@ class GoalService:
                             if self._review_intent_hold(failed, review_plan):
                                 continue
                             if _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
-                                self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
+                                if failed.status != "BLOCKED":  # re-blocking a BLOCKED task raises
+                                    self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
                             base = self._approved_base(producer)
                             decision = None
@@ -1439,7 +1440,12 @@ class GoalService:
                             outcomes.append({"plan_task_id": review_id, "from_task_id": failed.id, "to_task_id": fresh.id})
                             history = self._escalations(goal_id)
                             continue
-                    if (failed.status != "FAILED" or failed.failure_classification != "model_review_rejected"
+                    # A rejection parked only because the budget looked spent is looked at again: a
+                    # later reclassification of host-side history can free the budget (#1551, 2026-11-19).
+                    budget_parked = (failed.status == "BLOCKED"
+                                     and failed.failure_classification == "routing_retry_budget_exhausted")
+                    if ((failed.status != "FAILED" or failed.failure_classification != "model_review_rejected")
+                            and not budget_parked
                             or not artifacts.model_review_input(failed)
                             or self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id)):
                         continue
@@ -1461,8 +1467,9 @@ class GoalService:
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
                     if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history, patient=window.continuous) + 2 > window.max_retries:
-                        self.store.block_model_selection(failed.id, decision={"reason":
-                            "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
+                        if not budget_parked:  # still parked: nothing to record again
+                            self.store.block_model_selection(failed.id, decision={"reason":
+                                "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})
                         continue
                     source_plan = planned[source_id]
                     base = self._approved_base(producer)
