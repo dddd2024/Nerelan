@@ -215,6 +215,7 @@ def _non_model_reason(reason: Any) -> bool:
 # even in a continuous window, so a deterministic host defect never retries forever.
 _HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_review_abandoned_no_reply",
                           ORPHANED_PREPARATION})
+_OWNER_POOL_MISROUTE = "owner_window_binding_outside_confirmed_pool"
 
 
 _WALL_TIMEOUT = re.compile(r"opencode_timeout:(\d+)")
@@ -266,8 +267,9 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
     Decision B: the first MAX_TRANSIENT_RETRIES non-model retries of each plan step
     are free; any beyond that cap spend max_retries like a model failure. Owner
     retries (decision A) never do. Task count and tokens still bound all of them.
-    In a continuous window (``patient``) non-model retries never spend max_retries.
-    Automatic plumbing retries stop when the shared per-step free cap is reached.
+    In a continuous window (``patient``) transient host retries never spend max_retries.
+    Binding misroutes stop at the free cap and never spend max_retries, including
+    any legacy misroute rows above the cap.
     """
     free: dict[str, int] = {}
     spent = 0
@@ -276,7 +278,7 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
         if kind == "owner":
             continue
         if kind in {"host", "plumbing"}:
-            if patient:
+            if patient and (kind == "host" or row.get("cause") == _OWNER_POOL_MISROUTE):
                 continue
             used = free.get(row["plan_task_id"], 0)
             free[row["plan_task_id"]] = used + 1
@@ -1686,7 +1688,7 @@ class GoalService:
                       else f"failed:{failed.failure_classification or 'unknown'}")
             retry = {"plan_task_id": plan_task.id, "reason": reason, "cause": cause}
             kind = _retry_kind(retry)
-            if kind == "plumbing" and patient:
+            if kind == "plumbing" and cause == _OWNER_POOL_MISROUTE and patient:
                 # Preserve the original failure classification for profiles and historical
                 # accounting. The settled step can retry after an Owner fixes the host or pool.
                 reason = "host_retry_limit_reached"
