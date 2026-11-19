@@ -235,6 +235,13 @@ def _wall_timeout(classification: Any, detail: Any) -> str:
     return ""
 
 
+def _attempt_failure_cause(attempt: Any) -> str:
+    from .model_profiles import neutral_failure
+
+    return (neutral_failure(attempt.failure_classification, attempt.failure_detail)
+            or _wall_timeout(attempt.failure_classification, attempt.failure_detail))
+
+
 def _retry_kind(row: Mapping[str, Any]) -> str:
     """'owner', 'host' (liveness/quota), 'plumbing' (other host fault) or 'model'."""
     reason = str(row.get("reason") or "")
@@ -259,7 +266,8 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
     Decision B: the first MAX_TRANSIENT_RETRIES non-model retries of each plan step
     are free; any beyond that cap spend max_retries like a model failure. Owner
     retries (decision A) never do. Task count and tokens still bound all of them.
-    In a continuous window (``patient``) no non-model retry ever spends max_retries.
+    In a continuous window (``patient``) non-model retries never spend max_retries.
+    Automatic plumbing retries stop when the shared per-step free cap is reached.
     """
     free: dict[str, int] = {}
     spent = 0
@@ -268,7 +276,7 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
         if kind == "owner":
             continue
         if kind in {"host", "plumbing"}:
-            if patient and kind == "host":
+            if patient:
                 continue
             used = free.get(row["plan_task_id"], 0)
             free[row["plan_task_id"]] = used + 1
@@ -1568,10 +1576,10 @@ class GoalService:
             # own observation failed) judged nothing. Its result can never verify, and skipping
             # it here parked the step forever with no event (#1525/#1551 goals, 2026-11-17/18).
             # It authorizes no fixup or tree reuse: the step retries fresh from its frozen base.
-            from .model_profiles import neutral_failure
+            cause = _attempt_failure_cause(failed) if failed.status == "FAILED" else ""
             host_validation = (failed.status == "FAILED"
                                and failed.failure_classification == "deterministic_validation_failure"
-                               and bool(neutral_failure(failed.failure_classification, failed.failure_detail)))
+                               and bool(cause))
             if (all_results and not host_validation
                     and (not rows or structured.get("result_digest") != failed.validation_output_digest)):
                 continue
@@ -1590,20 +1598,19 @@ class GoalService:
             # The host stopped the agent (shutdown, closed console, stall with no output):
             # like provider overload it is neither the model's failure nor capability
             # evidence, so the same model resumes from the retained tree after a backoff.
-            host_failure = (not miss and failed.status == "FAILED"
-                            and failed.failure_classification in HOST_RETRY_CLASSES)
+            host_failure = not miss and cause in HOST_RETRY_CLASSES
             overloaded = not miss and failed.status == "FAILED" and (host_failure or transient_overload(
                 failed.failure_classification, failed.failure_detail))
-            transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}" if host_failure
+            transient_reason = (f"{HOST_RETRY_REASON}:{cause}" if host_failure
                                 else "transient_overload")
             from .quota_guard import LIVENESS_STALL_CLASSES
-            stalled = host_failure and failed.failure_classification in LIVENESS_STALL_CLASSES
+            stalled = host_failure and cause in LIVENESS_STALL_CLASSES
             stall_route, stall_note = None, ""
             # One shared cap per plan step for every not-the-model's-fault retry (decision B).
             free_used = _free_retries_used(history, plan_task.id)
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
-            quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
+            quota_failure = not miss and cause == "quota_or_rate_limit"
             if (patient and not overloaded and not miss
                     and ((quota_failure and failed.status == "FAILED") or interrupted_dispatch or interrupted_preparation
                          or no_reply)):
@@ -1638,7 +1645,7 @@ class GoalService:
                     if in_backoff and stall_route is None:
                         continue  # backoff; a later tick retries without spending budget
                     if stalled or (patient and host_failure):
-                        transient_reason = (f"{HOST_RETRY_REASON}:{failed.failure_classification}:"
+                        transient_reason = (f"{HOST_RETRY_REASON}:{cause}:"
                                             f"{STALL_REROUTED if stall_route is not None else STALL_NO_ALTERNATIVE}")
                     snapshot = None
                     try:
@@ -1673,10 +1680,24 @@ class GoalService:
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
-            # Decision B: only retries that judge the model spend max_retries; host faults,
-            # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
-            # All of them share the per-step cap; past it they spend max_retries too.
-            exempt = (overloaded or interrupted or quota_failure or no_reply) and (patient or free_used < MAX_TRANSIENT_RETRIES)
+            reason = ("contract_fixup" if miss else transient_reason if overloaded
+                      else f"{HOST_RETRY_REASON}:interrupted" if interrupted
+                      else f"{HOST_RETRY_REASON}:{ABANDONED_NO_REPLY}" if no_reply
+                      else f"failed:{failed.failure_classification or 'unknown'}")
+            retry = {"plan_task_id": plan_task.id, "reason": reason, "cause": cause}
+            kind = _retry_kind(retry)
+            if kind == "plumbing" and patient:
+                # Preserve the original failure classification for profiles and historical
+                # accounting. The settled step can retry after an Owner fixes the host or pool.
+                reason = "host_retry_limit_reached"
+                if not any(e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == reason
+                           for e in self.store.get_events(failed.id)):
+                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED", title="Host retry limit reached",
+                                         description="Correct the host or binding pool and use Owner retry.",
+                                         metadata={"reason": reason, "cause": cause, "free_retries_used": free_used})
+                continue
+            exempt = ((kind == "host" and window.continuous)
+                      or (kind in {"host", "plumbing"} and free_used < MAX_TRANSIENT_RETRIES))
             if not exempt and _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
@@ -1720,11 +1741,12 @@ class GoalService:
                 try:
                     retry_args = {"refused_models": refused_models} if refused_models else {}
                     retry_args.update(self._review_authors(plan_task, goal, planned))
-                    # No reply says nothing about capability: route afresh, never up the ladder.
+                    # Non-model failures say nothing about capability: do not raise the tier floor.
                     decision = self.task_resolver(plan_task, goal=goal,
                                                   failed_binding="" if refusal or refused_models or unavailable or no_reply
                                                   else failed.binding_ref,
-                                                  failed_tier=failed_tier if not (unavailable or no_reply) else 0, **retry_args)
+                                                  failed_tier=failed_tier if kind == "model" and not unavailable else 0,
+                                                  **retry_args)
                 except TaskStoreError as exc:
                     if str(exc) == "review_not_independent":
                         self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
@@ -1818,10 +1840,10 @@ class GoalService:
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             if overloaded:
                 # Events reach the context packet; evidence detail does not.
-                cause = ("The machine stopped your previous attempt (shutdown or closed console)"
-                         if failed.failure_classification == EXECUTOR_TERMINATED
+                feedback = ("The machine stopped your previous attempt (shutdown or closed console)"
+                         if cause == EXECUTOR_TERMINATED
                          else "The host was redeployed while your previous attempt ran"
-                         if failed.failure_classification == HOST_VERSION_CHANGED
+                         if cause == HOST_VERSION_CHANGED
                          else "Your previous attempt stopped producing output" if host_failure
                          else "The provider was at capacity")
                 if stalled:
@@ -1842,7 +1864,7 @@ class GoalService:
                                      title="Retry after the agent was stopped" if host_failure
                                      else "Retry after provider overload",
                                      description=(snapshot["feedback"] if snapshot is not None else
-                                                  cause + "; your previous attempt was cut "
+                                                  feedback + "; your previous attempt was cut "
                                                   "off and is not available. Start from the approved base."),
                                      metadata={"source_task_id": failed.id})
             if miss:
@@ -1854,15 +1876,10 @@ class GoalService:
                 self.store.add_event(task.id, event_type="VALIDATED", title="Contract fix-up required",
                                      description=snapshot["feedback"], metadata={"source_task_id": failed.id})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
-            reason = ("contract_fixup" if miss else transient_reason if overloaded
-                      else f"{HOST_RETRY_REASON}:interrupted" if interrupted
-                      else f"{HOST_RETRY_REASON}:{ABANDONED_NO_REPLY}" if no_reply
-                      else f"failed:{failed.failure_classification or 'unknown'}")
             self.control_store.escalate_goal_task(
                 goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                 to_task_id=task.id, from_role=role, to_role=next_role, reason=reason)
-            history = (*history, {"plan_task_id": plan_task.id, "from_role": role, "to_role": next_role,
-                                  "reason": reason})
+            history = (*history, {**retry, "from_task_id": failed.id, "from_role": role, "to_role": next_role})
             outcomes.append({"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
                              "from_role": role, "to_role": next_role, "step": step, "reason": reason})
         if outcomes:
@@ -2074,15 +2091,13 @@ class GoalService:
 
     def _escalations(self, goal_id: str) -> tuple[dict[str, Any], ...]:
         """The goal's escalation rows, each "failed:<class>" row with its attempt's honest cause."""
-        from .model_profiles import neutral_failure
         rows = []
         for row in self.control_store.list_task_escalations(goal_id):
             row = dict(row)
             if str(row.get("reason") or "").startswith("failed:"):
                 try:
                     attempt = self.store.get_task(row["from_task_id"], event_limit=0)
-                    row["cause"] = (neutral_failure(attempt.failure_classification, attempt.failure_detail)
-                                    or _wall_timeout(attempt.failure_classification, attempt.failure_detail))
+                    row["cause"] = _attempt_failure_cause(attempt)
                 except (TaskStoreError, KeyError):
                     row["cause"] = ""
             rows.append(row)
