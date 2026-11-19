@@ -1604,6 +1604,14 @@ class GoalService:
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
             quota_failure = bool(LIMIT_HIT.search(failed.failure_classification or ""))
+            # The same host-side causes the budget count already treats as neutral (#1690) must
+            # also be exempt here, or a goal that legitimately used its model retries is blocked
+            # by the next rate limit or host misroute (chaos bed, 2026-11-19).
+            neutral = (neutral_failure(failed.failure_classification, failed.failure_detail)
+                       if failed.status == "FAILED" and not miss else "")
+            if neutral == "quota_or_rate_limit":
+                quota_failure = True  # a rate limit inside a generic CLI exit
+            host_plumbing = bool(neutral) and neutral not in _HOST_CAUSES and not quota_failure
             if (patient and not overloaded and not miss
                     and ((quota_failure and failed.status == "FAILED") or interrupted_dispatch or interrupted_preparation
                          or no_reply)):
@@ -1676,7 +1684,10 @@ class GoalService:
             # Decision B: only retries that judge the model spend max_retries; host faults,
             # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
             # All of them share the per-step cap; past it they spend max_retries too.
-            exempt = (overloaded or interrupted or quota_failure or no_reply) and (patient or free_used < MAX_TRANSIENT_RETRIES)
+            exempt = ((overloaded or interrupted or quota_failure or no_reply) and (patient or free_used < MAX_TRANSIENT_RETRIES)
+                      # Host plumbing keeps the per-step free cap even in a continuous run, so a
+                      # deterministic host bug cannot retry forever.
+                      or (host_plumbing and free_used < MAX_TRANSIENT_RETRIES))
             if not exempt and _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 if refusal or unavailable:
