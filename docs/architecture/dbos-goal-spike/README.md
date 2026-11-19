@@ -32,4 +32,4 @@ python -m venv .venv-spike
 .\.venv-spike\Scripts\python.exe docs/architecture/dbos-goal-spike/replay.py
 ```
 
-The runner prints its fixture directory and verifies the result twice after each forced process exit. The three scenarios do not run in standard CI and do not change project dependencies.
+The runner prints its fixture directory and verifies the result twice after each forced process exit. Workers require a directory and marker created by the runner. The runner removes inherited Git and DBOS settings before starting a worker. The three scenarios stay outside standard CI and project dependencies.

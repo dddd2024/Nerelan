@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+from uuid import uuid4
 
 from dbos import DBOS, SetWorkflowID
 from pytest import MonkeyPatch
@@ -27,6 +28,8 @@ WORKFLOW = "goal-engine-spike"
 DATABASE = "tasks.sqlite3"
 CRASH = 73
 WORKSPACES = Path("workspaces").resolve()
+FIXTURE_PREFIX = "nerelan-dbos-goal-replay-"
+SCENARIOS = ("reroute", "unknown", "unjournaled")
 
 
 class CrashAfterFixtureEffect(DeterministicFixtureExecutor):
@@ -144,6 +147,16 @@ def goal_workflow(scenario):
 
 
 def worker(action, scenario):
+    cwd = Path.cwd().resolve()
+    root = cwd.parent
+    marker = root / "driver.marker"
+    token = os.environ.get("NERELAN_DBOS_FIXTURE_TOKEN")
+    if (action not in {"start", "resume"} or scenario not in SCENARIOS or cwd.name != scenario
+            or root.parent != Path(tempfile.gettempdir()).resolve()
+            or not root.name.startswith(FIXTURE_PREFIX)
+            or not token or not marker.is_file() or marker.read_text(encoding="ascii") != token
+            or (action == "start" and any(cwd.iterdir()))):
+        raise SystemExit("Run the experiment without arguments to allocate isolated fixtures.")
     DBOS(config={
         "name": "nerelan-goal-recovery-spike",
         "system_database_url": "sqlite:///dbos.sqlite3",
@@ -162,16 +175,22 @@ def worker(action, scenario):
 
 
 def verify():
-    root = Path(tempfile.mkdtemp(prefix="nerelan-dbos-goal-replay-"))
+    root = Path(tempfile.mkdtemp(prefix=FIXTURE_PREFIX))
+    token = uuid4().hex
+    (root / "driver.marker").write_text(token, encoding="ascii")
+    # Discard any inherited repository target or remote DBOS control plane.
+    env = {key: value for key, value in os.environ.items()
+           if not key.upper().startswith(("GIT_", "DBOS_"))}
+    env.update(GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull, NERELAN_DBOS_FIXTURE_TOKEN=token)
     print(f"Fixtures: {root}", flush=True)
-    for scenario in ("reroute", "unknown", "unjournaled"):
+    for scenario in SCENARIOS:
         directory = root / scenario
         directory.mkdir()
         receipts = []
         for action in ("start", "resume", "resume"):
             result = subprocess.run(
                 [sys.executable, str(Path(__file__).resolve()), action, scenario],
-                cwd=directory, capture_output=True, text=True, timeout=60,
+                cwd=directory, env=env, capture_output=True, text=True, timeout=60,
             )
             assert result.returncode == (CRASH if action == "start" else 0), (
                 scenario, action, result.stdout, "\n".join(result.stderr.splitlines()[-24:]),
@@ -209,5 +228,7 @@ def verify():
 if __name__ == "__main__":
     if len(sys.argv) == 1:
         verify()
-    else:
+    elif len(sys.argv) == 3:
         worker(sys.argv[1], sys.argv[2])
+    else:
+        raise SystemExit("Run the experiment without arguments to allocate isolated fixtures.")
