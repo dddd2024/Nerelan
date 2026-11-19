@@ -16,7 +16,7 @@ from typing import Any, Callable
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
 from .durable_execution import DurableExecutionService, DurableResumeError
-from .model_availability import HOST_VERSION_CHANGED
+from .model_availability import HOST_VERSION_CHANGED, OWNER_WINDOW_POOL_MISROUTE
 from .run_store import ORPHANED_PREPARATION, TaskStore, TaskStoreError, _utc_now, pre_dispatch_interruption
 from .task_execution import TaskExecutionOutcome, TaskExecutionService
 from .task_runtime import ExecutorRouter, load_host_validation_contract, task_operation
@@ -39,7 +39,7 @@ _HOST_VERSION_REFUSALS = ("authority_sha_mismatch:", "planning_sha_mismatch:")
 # dispatched, so there is nothing to reconstruct (2026-11-17).
 _PRE_DISPATCH_REFUSAL = "pre_pre_planner_no_reconstruction_path:"
 # Host faults, never evidence about the account or model that was routed.
-_HOST_CLOSED_CLASSES = frozenset({HOST_VERSION_CHANGED, ORPHANED_PREPARATION})
+_HOST_CLOSED_CLASSES = frozenset({HOST_VERSION_CHANGED, ORPHANED_PREPARATION, OWNER_WINDOW_POOL_MISROUTE})
 
 # Upper bound on any idle wait: a new goal, claim or receipt must never wait
 # longer than this for the next poll, even if a quota window resets in hours.
@@ -652,7 +652,7 @@ class UnattendedCoordinator:
                     **({"attempt_elapsed_seconds": attempt_elapsed} if attempt_elapsed is not None else {}),
                 )
                 if final.failure_classification not in _HOST_CLOSED_CLASSES:
-                    # A redeploy- or restart-closed attempt is a host fault, not account evidence (#1515).
+                    # Pre-dispatch and host recovery failures supply no account evidence.
                     self._report_account_feedback(final, success=success)
                 return WorkerExecutionResult(
                     worker_id=assignment.worker_id,

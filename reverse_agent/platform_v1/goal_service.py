@@ -18,7 +18,8 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, transient_overload
+from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
+                                 OWNER_WINDOW_POOL_MISROUTE, transient_overload)
 from typing import Any, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
@@ -215,7 +216,6 @@ def _non_model_reason(reason: Any) -> bool:
 # even in a continuous window, so a deterministic host defect never retries forever.
 _HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_review_abandoned_no_reply",
                           ORPHANED_PREPARATION})
-_OWNER_POOL_MISROUTE = "owner_window_binding_outside_confirmed_pool"
 
 
 _WALL_TIMEOUT = re.compile(r"opencode_timeout:(\d+)")
@@ -278,11 +278,11 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
         if kind == "owner":
             continue
         if kind in {"host", "plumbing"}:
-            if patient and (kind == "host" or row.get("cause") == _OWNER_POOL_MISROUTE):
+            if patient and kind == "host":
                 continue
             used = free.get(row["plan_task_id"], 0)
             free[row["plan_task_id"]] = used + 1
-            if used < MAX_TRANSIENT_RETRIES:
+            if used < MAX_TRANSIENT_RETRIES or (patient and row.get("cause") == OWNER_WINDOW_POOL_MISROUTE):
                 continue
         spent += 1
     return spent
@@ -1688,7 +1688,7 @@ class GoalService:
                       else f"failed:{failed.failure_classification or 'unknown'}")
             retry = {"plan_task_id": plan_task.id, "reason": reason, "cause": cause}
             kind = _retry_kind(retry)
-            if kind == "plumbing" and cause == _OWNER_POOL_MISROUTE and patient:
+            if kind == "plumbing" and cause == OWNER_WINDOW_POOL_MISROUTE and patient:
                 # Preserve the original failure classification for profiles and historical
                 # accounting. The settled step can retry after an Owner fixes the host or pool.
                 reason = "host_retry_limit_reached"
