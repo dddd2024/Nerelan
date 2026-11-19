@@ -245,6 +245,45 @@ def _event(kind, properties=None):
 
 
 @pytest.mark.parametrize("abort_result", [True, False, None])
+@pytest.mark.parametrize("status", [
+    {"message": "Too Many Requests PROVIDER_SENTINEL"},
+    {"message": "PROVIDER_SENTINEL", "action": {"reason": "account_rate_limit"}},
+    {"message": "PROVIDER_SENTINEL: rpm exhausted (429: you can retry your request)"},
+])
+def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status, abort_result):
+    retry = {"type": "retry", "attempt": 1, "next": 1_800_000_000_000, **status}
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {"sessionID": "session-exact", "status": retry})),
+        (6, _event("session.idle", {"sessionID": "session-exact"})),
+    ], abort_result=abort_result)
+    result = run()
+    assert not result.success
+    assert result.failure_classification == "api_error_429"
+    assert result.abort_state == ("STREAM_ABORT_CONFIRMED" if abort_result else "STREAM_ABORT_UNKNOWN")
+    assert clock[0] == 1
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+    assert "PROVIDER_SENTINEL" not in repr(result)
+
+
+@pytest.mark.parametrize("message", ["connection reset", "HTTP 429 Credits exhausted"])
+def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message):
+    run, _, calls, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {
+            "sessionID": "foreign", "status": {"type": "retry", "message": "Too Many Requests"},
+        })),
+        (1, _event("session.status", {
+            "sessionID": "session-exact", "status": {"type": "retry", "message": message},
+        })),
+        (1, _event("session.idle", {"sessionID": "session-exact"})),
+    ])
+    assert run().success
+    assert calls == []
+
+
+@pytest.mark.parametrize("abort_result", [True, False, None])
 def test_idle_deadline_ignores_keepalives_and_foreign_session(monkeypatch, abort_result):
     run, stream, calls, clock = _timed_role(monkeypatch, [
         (0, _event("server.connected")), (2, b": keepalive\n\n"),

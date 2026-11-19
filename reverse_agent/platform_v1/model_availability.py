@@ -30,6 +30,14 @@ OVERLOAD_RE = re.compile(r"at capacity|overloaded|server (?:is )?busy|api_error_
 _NOT_OVERLOAD_CLASS = re.compile(r"limit|quota|rate|429|unavailable|refus|no_willing|policy", re.I)
 OVERLOADED = "provider_overloaded"
 
+# Recognize an account's rate-limit reply in an executor error or an OpenCode
+# retry event, including Magpie's generic exit diagnostics.
+_PROVIDER_RATE_LIMIT_REPLY_RE = re.compile(
+    r"^(?:too many requests\b|rate[ _-]limit(?:ed)?\b|(?:(?:http|status)[ :=]+)?429\b)"
+    r"|status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)",
+    re.IGNORECASE,
+)
+
 
 # Windows reports these for a child killed from outside: TerminateProcess during
 # shutdown or logoff (DBG_TERMINATE_PROCESS) and a closed console or Ctrl+C
@@ -52,6 +60,10 @@ def external_termination(exit_code: int) -> bool:
 
 def provider_overloaded(value: str) -> bool:
     return bool(OVERLOAD_RE.search(value or ""))
+
+
+def provider_rate_limit_reply(value: str) -> bool:
+    return bool(_PROVIDER_RATE_LIMIT_REPLY_RE.search((value or "").strip()))
 
 
 def transient_overload(classification: str, detail: str) -> bool:

@@ -28,12 +28,25 @@ from urllib.request import (
     build_opener,
 )
 
+from .model_availability import no_credits_error, provider_rate_limit_reply
+
 
 MAX_JSON_BYTES = 1_048_576
 MAX_SSE_EVENT_BYTES = 262_144
 SERVER_USERNAME = "reverse-agent"
 _VERSION_RE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
 _PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
+
+
+def _account_rate_limit_retry(status: Any) -> bool:
+    if not isinstance(status, Mapping) or status.get("type") != "retry":
+        return False
+    message = status.get("message")
+    if not isinstance(message, str) or no_credits_error(message):
+        return False
+    action = status.get("action")
+    return ((isinstance(action, Mapping) and action.get("reason") == "account_rate_limit")
+            or provider_rate_limit_reply(message))
 
 
 class OpenCodeServerTransportError(RuntimeError):
@@ -630,12 +643,7 @@ class OpenCodeServerClient:
                     projected = _usage_projection(info)
                     usage_count += 1
                     if usage_observer(projected):
-                        try:
-                            confirmed = self.abort(
-                                directory=directory, session_id=session_id, timeout=min(2.0, self.timeout)
-                            )
-                        except OpenCodeServerTransportError:
-                            confirmed = False
+                        confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
                         return ServerTransportResult(
                             success=False,
                             failure_classification=(
@@ -654,6 +662,17 @@ class OpenCodeServerClient:
                         )
                     continue
                 bound_session = properties.get("sessionID")
+                if (event_type == "session.status" and bound_session == session_id
+                        and _account_rate_limit_retry(properties.get("status"))):
+                    confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
+                    return ServerTransportResult(
+                        success=False,
+                        failure_classification="api_error_429",
+                        abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
+                        server_version=version,
+                        session_digest=_safe_digest(session_id, "session-"),
+                        usage_event_count=usage_count,
+                    )
                 if event_type == "session.idle" and bound_session == session_id:
                     return ServerTransportResult(
                         success=True,
@@ -673,10 +692,7 @@ class OpenCodeServerClient:
             if str(exc) != "server_event_timeout" or not session_id:
                 raise
             classification = "server_role_deadline_exceeded" if time.monotonic() >= deadline else "server_stream_stalled"
-            try:
-                confirmed = self.abort(directory=directory, session_id=session_id, timeout=min(2.0, self.timeout))
-            except OpenCodeServerTransportError:
-                confirmed = False
+            confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
             return ServerTransportResult(
                 success=False, failure_classification=classification,
                 abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
@@ -687,6 +703,12 @@ class OpenCodeServerClient:
                 stream.close()
             except Exception:
                 pass
+
+    def _abort_stream_confirmed(self, *, directory: str, session_id: str) -> bool:
+        try:
+            return self.abort(directory=directory, session_id=session_id, timeout=min(2.0, self.timeout))
+        except OpenCodeServerTransportError:
+            return False
 
     def _open_sse(self, *, directory: str, timeout: float):
         request = self._request(
