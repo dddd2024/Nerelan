@@ -18,7 +18,7 @@ from statistics import median
 from typing import Any
 
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, external_termination,
-                                 no_credits_error, transient_overload)
+                                 no_credits_error, provider_rate_limit_reply, transient_overload)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 from .quota_guard import LIMIT_HIT
@@ -49,9 +49,6 @@ HOST_PLUMBING_CLASSES = frozenset({
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
     "owner_window_binding_outside_confirmed_pool"})
-# A generic nonzero CLI exit whose message is a provider rate limit (2026-11-18 live:
-# "rpm exhausted (429: you can retry your request)", "inference exceeds tpm/rpm limit (429").
-_NONZERO_RATE_LIMIT = re.compile(r"status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)", re.I)
 _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree
@@ -76,7 +73,7 @@ def neutral_failure(classification: str, detail: str) -> str:
     if LIMIT_HIT.search(lowered):
         return "quota_or_rate_limit"
     if lowered == "executor_nonzero":
-        if _NONZERO_RATE_LIMIT.search(detail):
+        if provider_rate_limit_reply(detail):
             return "quota_or_rate_limit"
         exit_code = _NONZERO_EXIT.match(detail)
         if exit_code and external_termination(int(exit_code.group(1))):

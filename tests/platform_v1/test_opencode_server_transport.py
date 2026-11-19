@@ -248,6 +248,7 @@ def _event(kind, properties=None):
 @pytest.mark.parametrize("status", [
     {"message": "Too Many Requests PROVIDER_SENTINEL"},
     {"message": "PROVIDER_SENTINEL", "action": {"reason": "account_rate_limit"}},
+    {"message": "PROVIDER_SENTINEL: rpm exhausted (429: you can retry your request)"},
 ])
 def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status, abort_result):
     retry = {"type": "retry", "attempt": 1, "next": 1_800_000_000_000, **status}

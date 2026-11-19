@@ -28,7 +28,7 @@ from urllib.request import (
     build_opener,
 )
 
-from .model_availability import no_credits_error
+from .model_availability import no_credits_error, provider_rate_limit_reply
 
 
 MAX_JSON_BYTES = 1_048_576
@@ -36,8 +36,6 @@ MAX_SSE_EVENT_BYTES = 262_144
 SERVER_USERNAME = "reverse-agent"
 _VERSION_RE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
 _PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
-_RATE_LIMIT_RETRY = re.compile(r"^(?:too many requests\b|rate[ _-]limit(?:ed)?\b|"
-                               r"(?:(?:http|status)[ :=]+)?429\b)", re.IGNORECASE)
 
 
 def _account_rate_limit_retry(status: Any) -> bool:
@@ -48,7 +46,7 @@ def _account_rate_limit_retry(status: Any) -> bool:
         return False
     action = status.get("action")
     return ((isinstance(action, Mapping) and action.get("reason") == "account_rate_limit")
-            or bool(_RATE_LIMIT_RETRY.match(message.strip())))
+            or provider_rate_limit_reply(message))
 
 
 class OpenCodeServerTransportError(RuntimeError):
