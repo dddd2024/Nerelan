@@ -1810,7 +1810,10 @@ class GoalService:
                 self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
                     document={"task_id": task.id, "execution_id": task.execution_id,
                               "source_task_id": failed.id, "snapshot_digest": digest(snapshot),
-                              "feedback": snapshot["feedback"]})
+                              "feedback": snapshot["feedback"],
+                              # The router moved this cut-off tree to another binding on purpose;
+                              # restore accepts the binding change only when this says so.
+                              "rerouted": stall_route is not None})
                 record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(snapshot))
             if overloaded:
                 # Events reach the context packet; evidence detail does not.

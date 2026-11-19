@@ -269,3 +269,51 @@ def test_escalations_annotate_failed_rows_with_the_attempt_cause():
     assert [row.get("cause") for row in rows] == ["executor_stalled", "functional_base_mismatch", "", "", None]
     assert escalations[0].get("cause") is None  # the store's rows are not mutated
     assert [gs._retry_kind(row) for row in rows] == ["host", "plumbing", "model", "model", "host"]
+
+
+def test_a_patient_reroute_of_a_cut_off_tree_restores_on_the_new_binding(case, monkeypatch, tmp_path):
+    # #1528 (2026-11-17, 2026-11-19): a terminated or redeploy-closed attempt that escalation
+    # rerouted with its retained tree was refused at preparation (failed_snapshot_recovery_mismatch),
+    # because restore only accepted a binding change after a stall.
+    from test_contract_miss_fixup import destination, git
+    import reverse_agent.platform_v1.contract_recovery as recovery
+    root, base, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    service.task_resolver = lambda plan_task, *, goal, **kwargs: {
+        "binding_ref": "other-binding", "executor_kind": "opencode", "model_id": "m", "tier": 3,
+        "reason": "fixture", "context_window": 128000}
+    _fail_terminated(store, task, root, age=_seconds_ago(10_000))
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == f"{RETRY_REASON}:{gs.STALL_REROUTED}"
+    retry = store.get_task(step["to_task_id"])
+    assert retry.binding_ref == "other-binding"
+    assert recovery.recovery_input(retry)["rerouted"] is True
+    dest = destination(case, tmp_path)
+    recovery.restore_failed_tree(store, retry.id, worktree=dest)
+    assert (dest / "wrong_name.py").exists()
+    assert git(dest, "rev-parse", "HEAD") == base
+
+
+def test_an_unflagged_binding_change_of_a_cut_off_tree_is_still_refused(case, monkeypatch, tmp_path):
+    # Only escalation's explicit reroute may move a non-stall tree; a binding that changed
+    # without that flag (e.g. a record written before it existed) keeps the refusal.
+    from test_contract_miss_fixup import destination
+    import reverse_agent.platform_v1.contract_recovery as recovery
+    from reverse_agent.platform_v1.run_store import TaskStoreError
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    service.task_resolver = lambda plan_task, *, goal, **kwargs: {
+        "binding_ref": "other-binding", "executor_kind": "opencode", "model_id": "m", "tier": 3,
+        "reason": "fixture", "context_window": 128000}
+    _fail_terminated(store, task, root, age=_seconds_ago(10_000))
+    [step] = service.escalate_failed_tasks(goal.id)
+    retry = store.get_task(step["to_task_id"])
+    original = recovery.recovery_input
+    monkeypatch.setattr(recovery, "recovery_input",
+                        lambda t: {k: v for k, v in original(t).items() if k != "rerouted"})
+    with pytest.raises(TaskStoreError, match="failed_snapshot_recovery_mismatch"):
+        recovery.restore_failed_tree(store, retry.id, worktree=destination(case, tmp_path))
