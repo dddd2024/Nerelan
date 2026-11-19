@@ -2,15 +2,17 @@ from dataclasses import replace
 import hashlib
 from pathlib import Path
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 
 from reverse_agent.platform_v1.goal_source_issue import GoalSourceIssues, source_issue
+from reverse_agent.platform_v1 import artifact_handoff
 from reverse_agent.platform_v1.publication_controller import CommandResult, PublicationController
 from reverse_agent.platform_v1.run_store import TaskStoreError
 from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
-from test_chaos_liveness import BY_NAME, bed
+from test_chaos_liveness import BY_NAME, _finish, bed
 
 REPOSITORY = "dddd2024/Nerelan"
 NUMBER = 1525
@@ -132,3 +134,34 @@ def test_escalation_observes_issue_closure_before_routing(bed):
     assert bed.goals.escalate_failed_tasks(goal.id) == ()
     assert bed.control.get_goal(goal.id).status == "SUPERSEDED"
     assert not bed.control.list_task_escalations(goal.id)
+
+
+@pytest.mark.parametrize("already_stopped", [False, True])
+def test_closed_source_does_not_starve_later_ready_goals(bed, monkeypatch, tmp_path, already_stopped):
+    closed = _plan(bed)
+    bed.goals.launch(closed.id, expected_revision=1, window_id=bed.window.id)
+    open_id = bed.add_goal("later", [], steps=1)
+    for goal_id in (closed.id, open_id):
+        [link] = bed.control.list_goal_tasks(goal_id)
+        _finish(bed.store, bed.store.get_task(link["task_id"]), "READY_FOR_REVIEW", "")
+    bed.store._conn.commit()
+    bed.goals.source_issues = GoalSourceIssues(lambda *_: _issue("CLOSED"))
+    if already_stopped:
+        assert bed.goals.stop_if_source_closed(closed.id)
+    monkeypatch.setattr(artifact_handoff, "_load_evidence", lambda *args: {"retained": True})
+    passed = []
+
+    def publish_and_review(task_id, **_):
+        goal_id = bed.control.goal_id_for_task(task_id)
+        if bed.goals.stop_if_source_closed(goal_id):
+            raise TaskStoreError("goal_source_issue_closed")
+        passed.append(goal_id)
+
+    coordinator = UnattendedCoordinator(
+        store=bed.store, control_store=bed.control, autonomy=bed.autonomy, router=ExecutorRouter(),
+        workspace_root=str(tmp_path), goals=bed.goals, publication=object(),
+        landing_loop=SimpleNamespace(publish_and_review=publish_and_review),
+    )
+    coordinator._advance_landing(bed.window)
+    assert passed == [open_id]
+    assert bed.control.get_goal(closed.id).status == "SUPERSEDED"

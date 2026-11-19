@@ -321,6 +321,9 @@ class UnattendedCoordinator:
                         publication=self.publication, goals=self.goals,
                         execution=self._durable_service(), workspace_root=self.workspace_root)
                 except TaskStoreError as exc:
+                    if str(exc) == "goal_source_issue_closed":
+                        # A fresh check can supersede this goal after the scan.
+                        continue
                     self._last_error = str(exc)
                 break
         rows = self.control_store._conn.execute(

@@ -1009,7 +1009,7 @@ class PlatformControlStore:
                 "SELECT l.task_id FROM platform_goals g "
                 "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                 "JOIN tasks t ON t.id = l.task_id "
-                "WHERE g.window_id = ? AND t.status = 'READY_FOR_REVIEW' "
+                "WHERE g.window_id = ? AND g.status <> 'SUPERSEDED' AND t.status = 'READY_FOR_REVIEW' "
                 "ORDER BY g.created_at ASC, l.seq ASC", (window_id,)).fetchall()
         return tuple(str(row["task_id"]) for row in rows)
 
