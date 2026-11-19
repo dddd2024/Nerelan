@@ -184,9 +184,11 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
     original, current = load_contract(source), load_contract(task)
     if (binding.get("snapshot_digest") != digest(snapshot)
             or binding.get("task_id") != task.id or binding.get("execution_id") != task.execution_id
-            # A stalled attempt's tree may continue on another binding (#1596); every other
-            # recovery stays with the agent that wrote the tree.
-            or (source.failure_classification not in LIVENESS_STALL_CLASSES
+            # A stalled attempt's tree may continue on another binding (#1596), and so may a
+            # tree the host cut off that escalation explicitly rerouted (continuous run, #1553;
+            # #1528 was refused here twice). Every other recovery, e.g. a contract fix-up,
+            # stays with the agent that wrote the tree.
+            or (source.failure_classification not in LIVENESS_STALL_CLASSES and binding.get("rerouted") is not True
                 and (task.binding_ref != source.binding_ref or task.executor_kind != source.executor_kind))
             or original is None or current is None
             or {k: v for k, v in current.items() if k != "task_id"}
