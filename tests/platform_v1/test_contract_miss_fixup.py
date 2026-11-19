@@ -29,6 +29,7 @@ def host(tmp_path, monkeypatch):
     monkeypatch.setattr(fv, "resolve_repository_workspace", lambda *args, **kw: SimpleNamespace(repo_dir=tmp_path))
     monkeypatch.setattr(fv, "git_output", lambda *args: "a" * 40)
     monkeypatch.setattr(fv, "_snapshot_workspace", lambda *args: (None, "b" * 40, ["app.py"], {"exit_code": 0}))
+    monkeypatch.setattr(fv, "require_reviewable_patch", lambda *args, **kwargs: None)
     monkeypatch.setattr(ah, "check_input_snapshot", lambda *args, **kw: None)
     task = SimpleNamespace(id="task", repository="owner/repo", executor_kind="codex")
     return tmp_path, lambda: fv.validate_functional(task, worktree=tmp_path, base_commit="a" * 40, execution_id="run")
@@ -352,6 +353,49 @@ def test_destination_change_and_binding_change_fail_closed(case, tmp_path):
     store._conn.commit()
     with pytest.raises(TaskStoreError, match="recovery_mismatch"):
         recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+
+
+def test_restore_refuses_a_different_approved_base(case, tmp_path, monkeypatch):
+    root, base, store, _, service, goal, _, _ = case
+    wrong_tree(root)
+    validate(case)
+    [step] = service.escalate_failed_tasks(goal.id)
+    fixup = store.get_task(step["to_task_id"])
+    dest = destination(case, tmp_path)
+    other_base = git(root, "commit-tree", f"{base}^{{tree}}", "-p", base, "-m", "different approved base")
+    load = recovery.load_contract
+    monkeypatch.setattr(recovery, "load_contract",
+                        lambda item: {**load(item), "base_commit": other_base} if item.id == fixup.id else load(item))
+    with pytest.raises(TaskStoreError, match="recovery_mismatch"):
+        recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+    assert git(dest, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("same_predecessor", [True, False])
+def test_restore_respects_the_exact_predecessor_artifact(case, tmp_path, monkeypatch, same_predecessor):
+    root, base, store, _, service, goal, _, task = case
+    (root / "predecessor.txt").write_text("retained input\n", encoding="utf-8")
+    git(root, "add", "--", "predecessor.txt")
+    git(root, "commit", "-m", "accepted predecessor")
+    predecessor = git(root, "rev-parse", "HEAD")
+    prior = {"producer": {"commit": predecessor, "tree": git(root, "rev-parse", "HEAD^{tree}")}}
+    wrong_tree(root)
+    validate(case)
+    [step] = service.escalate_failed_tasks(goal.id)
+    fixup = store.get_task(step["to_task_id"])
+    dest = tmp_path / "predecessor-worktree"
+    git(root, "worktree", "add", "--detach", str(dest), predecessor)
+    monkeypatch.setattr(recovery, "load_input_binding", lambda item: prior if same_predecessor or item.id == task.id
+                        else {"producer": {"commit": base, "tree": git(root, "rev-parse", f"{base}^{{tree}}")}})
+    if same_predecessor:
+        recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+        assert (dest / "predecessor.txt").read_text(encoding="utf-8") == "retained input\n"
+        assert git(dest, "rev-parse", "HEAD") == predecessor
+        assert git(dest, "status", "--porcelain")
+    else:
+        with pytest.raises(TaskStoreError, match="failed_snapshot_predecessor_mismatch"):
+            recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+        assert git(dest, "status", "--porcelain") == ""
 
 
 def test_discarded_usage_is_measured_once_and_unknown_stays_unknown(case):

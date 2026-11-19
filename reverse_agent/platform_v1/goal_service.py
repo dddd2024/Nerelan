@@ -29,7 +29,7 @@ from .repository_workspace import (
 )
 from .run_store import ORPHANED_PREPARATION, TaskStore, TaskStoreError, _utc_now, pre_dispatch_interruption
 from .functional_validation import (
-    freeze_contract, functional_evidence, load_contract, normalize_checks, repository_base,
+    freeze_contract, functional_evidence, load_contract, normalize_allowed_paths, normalize_checks, repository_base,
 )
 from .quota_guard import LIMIT_HIT
 from .model_router import task_traits
@@ -143,6 +143,7 @@ class PlannedTask:
     context_need: int = 0
     needs: tuple[str, ...] = ()
     required_artifacts: tuple[dict[str, str], ...] = ()
+    allowed_paths: tuple[str, ...] = ()
 
 
 AGENT_TASK_ROLES = frozenset({"planner", "complex", "coder", "simple", "reviewer"})
@@ -412,6 +413,8 @@ def _plan_task_dict(task: "PlannedTask") -> dict[str, Any]:
     if not payload["agent_role"]:
         # Keep the legacy role optional; difficulty and kind are always explicit.
         del payload["agent_role"]
+    if not task.allowed_paths:
+        del payload["allowed_paths"]
     return payload
 DEFAULT_AGENT_ROLE = "coder"
 
@@ -2398,6 +2401,7 @@ class GoalService:
         if capability not in {"execute_task", "validate_task"}:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
         checks = normalize_checks(raw.get("validation_checks", ()))
+        allowed_paths = normalize_allowed_paths(raw.get("allowed_paths", ()))
         artifact_input = normalize_input(raw.get("artifact_input"))
         command = raw.get("validation_command_id", "")
         if (not isinstance(command, str) or (command and
@@ -2418,6 +2422,8 @@ class GoalService:
             if artifact_input is None:
                 raise TaskStoreError("model_review_artifact_input_required")
             capability = "validate_task"
+        if allowed_paths and (capability != "execute_task" or not checks):
+            raise TaskStoreError("plan_path_scope_requires_functional_execution")
         return PlannedTask(
             id=task_id,
             title=title,
@@ -2433,6 +2439,7 @@ class GoalService:
             context_need=context_need,
             needs=needs,
             required_artifacts=required_artifacts,
+            allowed_paths=allowed_paths,
         )
 
     @staticmethod
@@ -2445,7 +2452,9 @@ class GoalService:
         guidance = validation_guidance(task.validation_checks)
         validation = ("\n\nyour tests must be in exactly these files: " + ", ".join(guidance["targets"])
                       if guidance["targets"] else "")
-        return f"[{goal.title}] {task.id} {task.title}{authorization}\n\n{task.instruction}{validation}"
+        paths = getattr(task, "allowed_paths", ())
+        scope = "\n\nModify only the approved paths " + ", ".join(paths) + "." if paths else ""
+        return f"[{goal.title}] {task.id} {task.title}{authorization}\n\n{task.instruction}{validation}{scope}"
 
     @staticmethod
     def _render_spec(goal: GoalRecord, criteria: Sequence[str]) -> str:
@@ -2477,6 +2486,8 @@ class GoalService:
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
                     f"Difficulty: {item.difficulty}; kind: `{item.kind}`",
+                    *(["Approved change paths " + ", ".join(f"`{path}`" for path in item.allowed_paths)]
+                      if item.allowed_paths else []),
                     *([f"Host check: `{item.validation_command_id}` (patch hygiene only)"]
                       if item.validation_command_id else []),
                     "Functional checks: " + (", ".join(

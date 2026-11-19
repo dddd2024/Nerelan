@@ -241,7 +241,7 @@ def retain_validated_artifact(store: Any, task_id: str, identity: str, *,
     the same content-addressed object/ref; it cannot make a consumer accepted.
     Replaying this operation uses the original proof and identical commit bytes.
     """
-    from .functional_validation import git_output
+    from .functional_validation import git_output, load_contract, require_reviewable_patch
     task = store.get_task(task_id)
     contract = load_handoff_contract(task)
     if contract is None or not contract["export_required"]:
@@ -258,6 +258,12 @@ def retain_validated_artifact(store: Any, task_id: str, identity: str, *,
         raise TaskStoreError("artifact_proof_lease_mismatch")
     root = Path(worktree).resolve(strict=True)
     _verify_proof_workspace(task, proof, root)
+    functional_contract = load_contract(task) or {}
+    paths = tuple(functional_contract.get("allowed_paths", ()))
+    consumed = load_input_binding(task) if paths else None
+    require_reviewable_patch(root, proof["base_commit"], proof["tree"],
+                             allowed_paths=paths,
+                             scope_base=consumed["producer"]["commit"] if consumed else "")
     ref = _retention_ref(task)
     previous = _load_evidence(task, ACCEPTED_CATEGORY, task.execution_id)
     if previous is not None and previous.get("result_digest") != identity:

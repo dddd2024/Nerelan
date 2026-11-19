@@ -128,7 +128,7 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null; agent_role?: string }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null; agent_role?: string; allowed_paths?: string[] }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";

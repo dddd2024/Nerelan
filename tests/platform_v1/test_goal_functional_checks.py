@@ -78,6 +78,19 @@ def test_approved_check_contract_survives_duplicate_launch_and_reopen(goal_check
         reopened._conn.close()
 
 
+def test_new_approval_freezes_observed_origin_main_over_checkout_head(goal_checks):
+    root, local_head, store, control, _, _, _ = goal_checks
+    main = subprocess.check_output(
+        ["git", "-C", str(root), "commit-tree", f"{local_head}^{{tree}}", "-p", local_head, "-m", "Fetched main"],
+        encoding="utf-8",
+    ).strip()
+    subprocess.run(["git", "-C", str(root), "update-ref", "refs/remotes/origin/main", main], check=True)
+    launched = launch_checks(goal_checks)
+    linked = control.list_goal_tasks(launched.id)[0]
+    assert load_contract(store.get_task(linked["task_id"]))["base_commit"] == main
+    assert main != local_head
+
+
 def test_check_edit_invalidates_approval_and_contract_follows_new_revision(goal_checks):
     _, _, store, control, service, goal, window = goal_checks
     first = service.plan(goal.id, expected_revision=1, tasks=[planned_check()]).goal
