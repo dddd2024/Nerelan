@@ -308,3 +308,25 @@ def test_a_rejection_parked_for_budget_is_repaired_once_the_budget_is_free(revie
     # The parked review no longer blocks the goal, so its QUEUED repair can be claimed.
     assert control.get_goal(goal_id).status == 'RUNNING'
     assert service.escalate_failed_tasks(goal_id) == ()
+
+
+def test_a_parked_rejection_whose_repair_cannot_be_routed_stays_parked_without_raising(review_setup):
+    """#1690 review nit: routing the repair of a budget-parked review may fail; the review must stay
+    parked rather than be re-blocked (which raises and rolls back every tick for the goal)."""
+    store, control, service, goal_id = rejected(review_setup)
+    review = review_setup[3]
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 0')
+    store._conn.commit()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    store._conn.execute('UPDATE platform_autonomous_windows SET max_retries = 10')
+    store._conn.commit()
+
+    def no_model(plan, *, goal, **kwargs):
+        raise TaskStoreError('no_runnable_model')
+    service.task_resolver = no_model
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert service.escalate_failed_tasks(goal_id) == ()
+    assert store.count_tasks() == count
+    parked = store.get_task(review)
+    assert (parked.status, parked.failure_classification) == ('BLOCKED', 'routing_retry_budget_exhausted')

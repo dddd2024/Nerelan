@@ -1476,9 +1476,10 @@ class GoalService:
                     try:
                         repair_decision = self.task_resolver(source_plan, goal=goal) if self.task_resolver is not None else None
                     except TaskStoreError as exc:
-                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                        if not budget_parked:  # a parked review stays parked; re-blocking it raises
+                            self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
                         continue
-                    repair_executor = repair_decision["executor_kind"] if repair_decision else producer.executor_kind
+                    repair_executor =repair_decision["executor_kind"] if repair_decision else producer.executor_kind
                     repair = self.store.create_task(title=self._execution_title(goal, source_plan), repository=goal.repository,
                         executor_kind=repair_executor,
                         binding_ref=repair_decision["binding_ref"] if repair_decision else producer.binding_ref,
