@@ -439,6 +439,53 @@ def test_unattended_accept_to_merge_and_restart_receipt(tmp_path, monkeypatch):
     assert len([c for c in github.calls if c[0] == "merge"]) == 1
 
 
+@pytest.mark.parametrize("noticed_in_tick", [False, True])
+def test_source_closure_stops_existing_landing_before_merge(tmp_path, monkeypatch, noticed_in_tick):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    goal_id = state["goal_id"]
+    if noticed_in_tick:
+        loop.source_issue_closed = lambda goal_id, *, fresh: fresh and store.supersede_closed_issue_goal(
+            goal_id, revision=1,
+        )
+    else:
+        assert store.supersede_closed_issue_goal(goal_id, revision=1)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == "SUPERSEDED"
+    assert progress["parking_reason"] == "goal_source_issue_closed"
+    assert not github.merged
+    operation = store.landing_operation(state["identity"], "merge")
+    assert operation is None or operation["status"] == "ABSENT"
+
+
+@pytest.mark.parametrize("observed_merge", [False, True])
+def test_source_closure_reconciles_prior_landing_without_writing(tmp_path, monkeypatch, observed_merge):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    identity = state["identity"]
+    claim = loop.claim(identity, "merge", window_id=window.id)
+    assert claim
+    if observed_merge:
+        github.merged = True
+        github.main = "d" * 40
+    assert store.supersede_closed_issue_goal(state["goal_id"], revision=1)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == ("COMPLETE" if observed_merge else "BLOCKED")
+    assert store.landing_operation(identity, "merge")["status"] == ("SUCCEEDED" if observed_merge else "UNKNOWN")
+    assert not github.calls
+    with pytest.raises(TaskStoreError, match="goal_source_issue_closed"):
+        loop.claim(identity, "mark_ready", window_id=window.id)
+
+
+def test_source_issue_close_preserves_verified_landing(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    assert step(loop, state, window, now)["phase"] == "RECONCILING"
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+    before = store.get_goal(state["goal_id"])
+    assert store.supersede_closed_issue_goal(before.id, revision=before.revision)
+    assert store.get_goal(before.id) == before
+
+
 @pytest.mark.parametrize("bad", ["red", "missing", "stale"])
 def test_current_head_checks_block_writes(tmp_path, monkeypatch, bad):
     store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)

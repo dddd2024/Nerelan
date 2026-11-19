@@ -1756,7 +1756,8 @@ class CombinedTrustedHost:
             landing = LandingLoopController(control_store=self._control_store,
                 autonomy=self._autonomy_service,
                 github=RoutedLandingGitHubAdapter(self._control_store),
-                owner_decisions=self._landing_owner_decisions)
+                owner_decisions=self._landing_owner_decisions,
+                source_issue_closed=self._goal_service.stop_if_source_closed)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
