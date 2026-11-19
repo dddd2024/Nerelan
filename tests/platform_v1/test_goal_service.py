@@ -930,20 +930,22 @@ def test_backoff_memory_is_dropped_once_the_step_moves_on(case, monkeypatch):
     assert list(service._stall_routes_checked) == ["b", "c"]
 
 
-def _strand(store, task, *, status="INTERRUPTED", classification="", lease_ms=1, operation_state=None):
+def _strand(store, task, *, status="INTERRUPTED", classification="", lease_ms=1, operation_state=None,
+            operation_key="opencode_dispatch", external_id="", recovery="orphan_stale_lease"):
     """A redeploy-stranded attempt: its durable run, lease and (optionally) an external call (#1515)."""
     now = "2026-11-14T06:00:00Z"
     store._conn.execute(
         "INSERT INTO durable_runs (run_id, task_id, execution_id, worktree_path, lease_owner, lease_epoch, "
         "lease_expiry_ms, recovery_classification, created_at, updated_at) "
-        "VALUES (?, ?, ?, '', 'old-host', 1, ?, 'orphan_stale_lease', ?, ?)",
-        (f"run-{task.id}", task.id, task.execution_id, lease_ms, now, now))
+        "VALUES (?, ?, ?, '', 'old-host', 1, ?, ?, ?, ?)",
+        (f"run-{task.id}", task.id, task.execution_id, lease_ms, recovery, now, now))
     if operation_state is not None:
         store._conn.execute(
             "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
-            "idempotency_key, request_digest, state, created_at, updated_at) "
-            "VALUES (?, ?, ?, 'opencode_dispatch', ?, 'digest', ?, ?, ?)",
-            (f"op-{task.id}", f"run-{task.id}", task.id, f"idem-{task.id}", operation_state, now, now))
+            "idempotency_key, request_digest, state, external_operation_id, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, 'digest', ?, ?, ?, ?)",
+            (f"op-{task.id}", f"run-{task.id}", task.id, operation_key, f"idem-{task.id}", operation_state,
+             external_id, now, now))
     store._conn.execute("UPDATE tasks SET status=?, failure_classification=?, updated_at=? WHERE id=?",
                         (status, classification, "2000-01-01T00:00:00Z", task.id))
     store._conn.commit()
@@ -1060,6 +1062,84 @@ def test_host_version_changed_with_an_unresolved_call_stays_parked(case, monkeyp
     holds = [e for e in store.get_events(task.id)
              if e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == "external_operation_unresolved"]
     assert len(holds) == 1 and holds[0].metadata["hold"] == f"op-{task.id}:{state}"
+
+
+def _local_call(task):
+    return f"single-exec-{task.id}"
+
+
+def _settled_events(store, task):
+    return [e for e in store.get_events(task.id)
+            if e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == "abandoned_host_restart"]
+
+
+def test_host_version_changed_settles_its_dead_local_call_and_retries(case, monkeypatch):
+    """#1515/#1528: a redeploy-closed OpenCode attempt whose only unresolved call is its own local
+    execution, on a run a later host reconciled, is settled as a failure and retries as a host fault."""
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, status="FAILED", classification="host_version_changed", operation_state="PENDING",
+            operation_key=_local_call(task))
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "host_retry:host_version_changed"
+    assert store.get_task(step["to_task_id"]).status == "QUEUED"
+    [operation] = store._conn.execute(
+        "SELECT state, result_state FROM durable_external_operations WHERE task_id=?", (task.id,)).fetchall()
+    assert (operation["state"], operation["result_state"]) == ("RECONCILED", "failure")
+    [event] = _settled_events(store, task)
+    assert event.metadata["operation_id"] == f"op-{task.id}"
+    assert not [e for e in store.get_events(task.id) if e.metadata.get("reason") == "external_operation_unresolved"]
+    service.escalate_failed_tasks(goal.id)
+    assert len(_settled_events(store, task)) == 1
+
+
+def test_owner_retry_settles_a_dead_local_call_of_a_redeploy_closed_step(case):
+    _, _, store, control, service, goal, _window, task = case
+    _strand(store, task, status="FAILED", classification="host_version_changed", operation_state="PENDING",
+            operation_key=_local_call(task))
+    result = service.owner_retry(goal.id, "T001", expected_revision=control.get_goal(goal.id).revision)
+    assert result["from_task_id"] == task.id
+    assert store.get_task(result["to_task_id"]).status == "QUEUED"
+    assert len(_settled_events(store, task)) == 1
+
+
+@pytest.mark.parametrize("variant", ["remote_id", "unknown_state", "interrupted", "not_orphaned",
+                                     "native_executor", "live_lease", "second_call"])
+def test_host_version_changed_keeps_the_hold_unless_the_call_is_surely_dead(case, monkeypatch, variant):
+    """Only a PENDING local call with no external id, on an orphaned run of a FAILED host_version_changed
+    OpenCode attempt with nothing live, is settled; every other unresolved call keeps the step parked."""
+    import time as _time
+    _, _, store, control, service, goal, _window, task = case
+    kwargs = dict(status="FAILED", classification="host_version_changed", operation_state="PENDING",
+                  operation_key=_local_call(task))
+    if variant == "remote_id":
+        kwargs["external_id"] = "remote-123"
+    elif variant == "unknown_state":
+        kwargs["operation_state"] = "UNKNOWN"
+    elif variant == "interrupted":
+        kwargs.update(status="INTERRUPTED", classification="")
+    elif variant == "not_orphaned":
+        kwargs["recovery"] = "normal"
+    elif variant == "live_lease":
+        kwargs["lease_ms"] = int(_time.time() * 1000) + 600000
+    _strand(store, task, **kwargs)
+    if variant == "native_executor":
+        store._conn.execute("UPDATE tasks SET executor_kind='codex' WHERE id=?", (task.id,))
+    if variant == "second_call":
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+            "idempotency_key, request_digest, state, created_at, updated_at) VALUES "
+            "('other-op', ?, ?, 'opencode_dispatch', 'other-idem', 'digest', 'PENDING', 'x', 'x')",
+            (f"run-{task.id}", task.id))
+    store._conn.commit()
+    monkeypatch.setattr(goal_service_module, "TRANSIENT_BACKOFF_SECONDS", 0)
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+    assert not _settled_events(store, task)
+    states = {row["state"] for row in store._conn.execute(
+        "SELECT state FROM durable_external_operations WHERE task_id=?", (task.id,)).fetchall()}
+    assert "RECONCILED" not in states
 
 
 def test_detail_response_includes_generated_at_timestamp():

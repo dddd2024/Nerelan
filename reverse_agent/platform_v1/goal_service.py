@@ -316,6 +316,36 @@ def _stranded_source_refusal(conn: Any, task_id: str) -> str:
     return ""
 
 
+ABANDONED_HOST_RESTART = "abandoned_host_restart"
+
+
+def _abandoned_local_executions(conn: Any, task: Any) -> list[dict[str, Any]]:
+    """Local OpenCode calls of a redeploy-closed attempt that no process can still run (#1515).
+
+    The OpenCode CLI runs inside a kill-on-close job object owned by the host
+    process, so when that host is gone the call is over: it has no remote job to
+    finish or poll. Such a call is recognized only when every unresolved
+    operation of the attempt is its own ``single-exec-<task id>`` call, PENDING,
+    with no external id, on a run a later host reconciled after its lease expired
+    (``orphan_stale_lease``), and no lease or claim of the attempt is live. Any
+    other call (remote, review, unknown state or key) keeps the hold.
+    """
+    if (task.status != "FAILED" or task.failure_classification != HOST_VERSION_CHANGED
+            or task.executor_kind != "opencode"):
+        return []
+    if _stranded_source_refusal(conn, task.id) != "external_operation_unresolved":
+        return []
+    rows = [dict(row) for row in conn.execute(
+        "SELECT o.operation_id, o.operation_key, o.state, o.external_operation_id, r.recovery_classification "
+        "FROM durable_external_operations o LEFT JOIN durable_runs r ON r.run_id = o.run_id "
+        "WHERE o.task_id = ? AND o.state NOT IN (?, ?) ORDER BY o.created_at, o.operation_id",
+        (task.id, *_SETTLED_EXTERNAL_STATES)).fetchall()]
+    local = [row for row in rows
+             if row["state"] == "PENDING" and row["operation_key"] == f"single-exec-{task.id}"
+             and not row["external_operation_id"] and row["recovery_classification"] == "orphan_stale_lease"]
+    return local if rows and len(local) == len(rows) else []
+
+
 def _stranded_source(task: Any) -> bool:
     """An attempt a redeploy or restart stopped mid-run, whose calls may be unresolved."""
     return task.status == "INTERRUPTED" or (task.status == "FAILED"
@@ -1184,6 +1214,7 @@ class GoalService:
         """
         if not _stranded_source(task):
             return False
+        self._settle_abandoned_local_executions(task)
         with self.store._lock:
             pending = _unresolved_external_operations(self.store._conn, task.id)
         if not pending:
@@ -1205,6 +1236,35 @@ class GoalService:
         except Exception as exc:
             raise TaskStoreError(f"external_operation_hold_unrecorded:{task.id}: {type(exc).__name__}; "
                                  "no replacement scheduled") from exc
+        return True
+
+    def _settle_abandoned_local_executions(self, task: Any) -> bool:
+        """Settle as failures the local calls a dead host left PENDING (#1515).
+
+        Without this a redeploy that closed an OpenCode attempt held its step
+        forever (#1528, 2026-11-17/18): nothing else ever settles the call. One
+        event per operation comes first, so a settle that fails is retried on the
+        next tick without a second event.
+        """
+        with self.store._lock:
+            rows = _abandoned_local_executions(self.store._conn, task)
+        if not rows:
+            return False
+        recorded = {event.metadata.get("operation_id") for event in self.store.get_events(task.id)
+                    if event.type == "MODEL_SELECTION_FAILED"
+                    and event.metadata.get("reason") == ABANDONED_HOST_RESTART}
+        for row in rows:
+            if row["operation_id"] not in recorded:
+                self.store.add_event(
+                    task.id, event_type="MODEL_SELECTION_FAILED", title="Local call settled: host restarted",
+                    description=(f"{ABANDONED_HOST_RESTART}: local execution {row['operation_id']} of "
+                                 f"{task.execution_id} ran under a host that has since exited; its job object "
+                                 "ended the process tree, so the call is settled as a failure and the step "
+                                 "retries as a host fault"),
+                    metadata={"reason": ABANDONED_HOST_RESTART, "operation_id": row["operation_id"],
+                              "task_status": task.status, "failure_classification": task.failure_classification})
+            self.store._reconcile_external_operation(operation_id=row["operation_id"], external_operation_id="",
+                                                     result_state="failure")
         return True
 
     def _review_intent_hold(self, task: Any, plan_task: PlannedTask | None) -> bool:
@@ -1877,6 +1937,7 @@ class GoalService:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
         if _stranded_source(failed):
+            self._settle_abandoned_local_executions(failed)
             with self.store._lock:
                 refusal = _stranded_source_refusal(self.store._conn, failed.id)
             if refusal:
