@@ -609,9 +609,18 @@ def require_reviewable_patch(root: Path, base: str, tree: str, *, allowed_paths:
         raise TaskStoreError(f"functional_observation_failed:{exc}") from exc
     if allowed_paths:
         from reverse_agent.executor_neutral.core import _path_allowed
-        paths = git_output(root, "diff", "--name-only", "-z", "--no-renames",
-                           scope_base or base, tree, "--").split("\x00")
-        if any(path and not _path_allowed(path, allowed_paths) for path in paths):
+        result = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only", "-z", "--no-renames", "--no-ext-diff",
+             "--no-textconv", scope_base or base, tree, "--"],
+            stdin=subprocess.DEVNULL, capture_output=True, timeout=15, check=False,
+        )
+        try:
+            if result.returncode or (result.stdout and not result.stdout.endswith(b"\0")):
+                raise ValueError
+            paths = result.stdout.decode("utf-8").split("\0")
+        except ValueError as exc:
+            raise TaskStoreError("functional_observation_failed:artifact_paths_unreadable") from exc
+        if any(path and ("\\" in path or not _path_allowed(path, allowed_paths)) for path in paths):
             raise TaskStoreError("functional_observation_failed:artifact_path_outside_allowlist")
 
 

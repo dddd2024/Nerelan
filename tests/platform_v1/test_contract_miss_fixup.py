@@ -371,6 +371,33 @@ def test_restore_refuses_a_different_approved_base(case, tmp_path, monkeypatch):
     assert git(dest, "status", "--porcelain") == ""
 
 
+@pytest.mark.parametrize("same_predecessor", [True, False])
+def test_restore_respects_the_exact_predecessor_artifact(case, tmp_path, monkeypatch, same_predecessor):
+    root, base, store, _, service, goal, _, task = case
+    (root / "predecessor.txt").write_text("retained input\n", encoding="utf-8")
+    git(root, "add", "--", "predecessor.txt")
+    git(root, "commit", "-m", "accepted predecessor")
+    predecessor = git(root, "rev-parse", "HEAD")
+    prior = {"producer": {"commit": predecessor, "tree": git(root, "rev-parse", "HEAD^{tree}")}}
+    wrong_tree(root)
+    validate(case)
+    [step] = service.escalate_failed_tasks(goal.id)
+    fixup = store.get_task(step["to_task_id"])
+    dest = tmp_path / "predecessor-worktree"
+    git(root, "worktree", "add", "--detach", str(dest), predecessor)
+    monkeypatch.setattr(recovery, "load_input_binding", lambda item: prior if same_predecessor or item.id == task.id
+                        else {"producer": {"commit": base, "tree": git(root, "rev-parse", f"{base}^{{tree}}")}})
+    if same_predecessor:
+        recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+        assert (dest / "predecessor.txt").read_text(encoding="utf-8") == "retained input\n"
+        assert git(dest, "rev-parse", "HEAD") == predecessor
+        assert git(dest, "status", "--porcelain")
+    else:
+        with pytest.raises(TaskStoreError, match="failed_snapshot_predecessor_mismatch"):
+            recovery.restore_failed_tree(store, fixup.id, worktree=dest)
+        assert git(dest, "status", "--porcelain") == ""
+
+
 def test_discarded_usage_is_measured_once_and_unknown_stays_unknown(case):
     _, _, store, _, _, _, _, task = case
     store._conn.execute("UPDATE tasks SET status='FAILED' WHERE id=?", (task.id,))

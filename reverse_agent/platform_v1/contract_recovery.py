@@ -196,29 +196,38 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
         raise TaskStoreError("failed_snapshot_recovery_mismatch")
     previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     base = snapshot["base_commit"]
-    recovery_tree = safe_recovery_tree(root, base, snapshot["tree"])
+    source_input = load_input_binding(source)
+    destination_input = load_input_binding(task)
+    predecessor = source_input["producer"] if source_input else None
+    if predecessor != (destination_input["producer"] if destination_input else None):
+        raise TaskStoreError("failed_snapshot_predecessor_mismatch")
+    apply_base = predecessor["commit"] if predecessor else base
+    expected_tree = git_output(root, "rev-parse", f"{apply_base}^{{tree}}")
+    if predecessor and (expected_tree != predecessor["tree"]
+            or git_output(root, "merge-base", apply_base, snapshot["head"]) != apply_base):
+        raise TaskStoreError("failed_snapshot_predecessor_mismatch")
+    recovery_tree = safe_recovery_tree(root, apply_base, snapshot["tree"])
     paths = tuple(current.get("allowed_paths", ()))
-    consumed = load_input_binding(task) if paths else None
     require_reviewable_patch(root, base, recovery_tree, allowed_paths=paths,
-                             scope_base=consumed["producer"]["commit"] if consumed else "")
+                             scope_base=apply_base)
     restored_identity = {**binding, "source_tree": snapshot["tree"], "recovery_tree": recovery_tree}
     if previous is not None:
         if previous != restored_identity:
             raise TaskStoreError("failed_snapshot_restore_conflict")
         return  # Never overwrite work already executed after restoration.
-    _, tree, _, _ = _snapshot_workspace(root, base)
-    if git_output(root, "rev-parse", "HEAD") != base:
+    _, tree, _, _ = _snapshot_workspace(root, apply_base)
+    if git_output(root, "rev-parse", "HEAD") != apply_base:
         raise TaskStoreError("failed_snapshot_destination_head_changed")
-    if tree != git_output(root, "rev-parse", f"{base}^{{tree}}"):
+    if tree != expected_tree:
         # A crash after apply but before binding may only reuse the exact failed tree.
         if tree != recovery_tree:
             raise TaskStoreError("failed_snapshot_destination_changed")
     else:
-        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", base, recovery_tree, "--"], timeout=60)
+        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", apply_base, recovery_tree, "--"], timeout=60)
         if patch:
             subprocess.run(["git", "-C", str(root), "apply", "--whitespace=nowarn", "-"], input=patch, check=True,
                            capture_output=True, timeout=60)
-    if _snapshot_workspace(root, base)[1] != recovery_tree:
+    if _snapshot_workspace(root, apply_base)[1] != recovery_tree:
         raise TaskStoreError("failed_snapshot_restore_mismatch")
     store._bind_artifact_evidence(task.id, category="FailedTreeRestored", label=task.execution_id,
                                   document=restored_identity, lease=lease)

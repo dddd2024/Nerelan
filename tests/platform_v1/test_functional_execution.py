@@ -141,6 +141,15 @@ def test_scope_is_relative_to_the_approved_predecessor(goal_checks):
         require_reviewable_patch(root, base, tree, allowed_paths=("app.py",))
 
 
+def test_path_allowlist_preserves_leading_space_in_git_names(goal_checks):
+    root, base, *_ = goal_checks
+    (root / " app.py").write_text("outside = True\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "--", " app.py"], check=True)
+    tree = subprocess.check_output(["git", "-C", str(root), "write-tree"], encoding="utf-8").strip()
+    with pytest.raises(TaskStoreError, match="artifact_path_outside_allowlist"):
+        require_reviewable_patch(root, base, tree, allowed_paths=("app.py",))
+
+
 @pytest.mark.parametrize("engine,mode", [("ordinary", "single"), ("ordinary", "sequential_team"),
                                         ("durable", "single"), ("durable", "sequential_team")])
 @pytest.mark.parametrize("code,expected", [("value = 2\n", True), ("value = 3\n", False)])
