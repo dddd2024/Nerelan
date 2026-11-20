@@ -1,17 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { ShieldCheck } from "lucide-react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { GoalReviewEditor } from "@/components/goal-review-editor";
 import { PageHeader, PageSurface } from "@/components/page-header";
 import type { GoalConfigurationInput, GoalPlanInput } from "@/lib/goal-continuation-operation";
 import {
-  useApproveExistingGoal,
-  useLaunchExistingGoal,
   usePlanExistingGoal,
   useSaveGoalConfiguration,
   useSaveGoalPlan,
 } from "@/hooks/use-goal-continuation";
-import { useApprovedPolicy, useGoal, useGoals } from "@/hooks/use-platform";
+import { useGoal, useGoals } from "@/hooks/use-platform";
 import { StartCard } from "@/components/start-card";
 import { cn } from "@/lib/cn";
 import { PlanSteps } from "@/components/plan-steps";
@@ -54,8 +52,6 @@ function mutationMessage(error: unknown) {
 function GoalDetail({
   goal,
   onPlan,
-  onApprove,
-  onLaunch,
   pending,
   error,
   onSaveConfiguration,
@@ -63,14 +59,11 @@ function GoalDetail({
 }: {
   goal: PlatformGoal;
   onPlan: () => void;
-  onApprove: () => void;
-  onLaunch: (hours: number) => void;
   pending: boolean;
   error: unknown;
   onSaveConfiguration: (goal: PlatformGoal, input: GoalConfigurationInput) => Promise<unknown>;
   onSavePlan: (goal: PlatformGoal, input: GoalPlanInput) => Promise<unknown>;
 }) {
-  const [autonomyHours, setAutonomyHours] = useState(2);
   const [editing, setEditing] = useState(false);
   const [configurationReady, setConfigurationReady] = useState(goal.executor_kind === "deterministic_fixture");
   const [configurationIssue, setConfigurationIssue] = useState("");
@@ -78,18 +71,10 @@ function GoalDetail({
     setConfigurationReady(ready);
     setConfigurationIssue(issue ?? "");
   }, []);
-  const [launchConfirmed, setLaunchConfirmed] = useState(false);
-  useEffect(() => { setLaunchConfirmed(false); }, [goal.revision, goal.artifact_digest, goal.status]);
-  // Owner decision 2026-11-09: a planned goal starts from the confirmation card.
-  // The older approve-then-launch pair stays only for a delegated policy host;
-  // elsewhere approving moved a goal to APPROVED, which no window accepts.
-  const delegated = Boolean(useApprovedPolicy().data);
   const canPlan = goal.status === "DRAFT";
-  const cardStart = goal.status === "PLANNED" && !delegated;
-  const canApprove = goal.status === "PLANNED" && delegated;
-  const canLaunch = goal.status === "APPROVED" && delegated;
+  const cardStart = goal.status === "PLANNED";
   const issue = issueRef(goal);
-  const legacyApproved = goal.status === "APPROVED" && !delegated;
+  const legacyApproved = goal.status === "APPROVED";
 
   return (
     <section
@@ -143,7 +128,7 @@ function GoalDetail({
 
       <GoalReviewEditor goal={goal} busy={pending} onEditingChange={setEditing}
         onConfigurationReady={onConfigurationReady} onSaveConfiguration={onSaveConfiguration} onSavePlan={onSavePlan} />
-      {!configurationReady && (canPlan || canApprove || canLaunch) && <p className="mt-3 text-sm text-ra-text-secondary">
+      {!configurationReady && canPlan && <p className="mt-3 text-sm text-ra-text-secondary">
         {configurationIssue || "当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。"}
       </p>}
 
@@ -196,56 +181,13 @@ function GoalDetail({
             生成计划
           </button>
         )}
-        {canApprove && (
-          <button
-            type="button"
-            data-testid="approval-approve-button"
-            disabled={pending || editing || !configurationReady}
-            onClick={onApprove}
-            className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
-          >
-            批准当前计划
-          </button>
-        )}
-        {canLaunch && (
-          <>
-            <label className="text-sm text-ra-text-secondary">
-              <input type="checkbox" aria-label="确认启动当前计划" checked={launchConfirmed}
-                disabled={pending || editing} onChange={(event) => setLaunchConfirmed(event.target.checked)} />
-              确认启动当前计划并使用所选自治窗口
-            </label>
-            <label className="text-xs text-ra-text-tertiary">
-              自治窗口
-              <select
-                aria-label="自治窗口时长"
-                value={autonomyHours}
-                onChange={(event) => { setAutonomyHours(Number(event.target.value)); setLaunchConfirmed(false); }}
-                disabled={pending}
-                className="ml-2 rounded-lg border border-ra-border bg-ra-base px-2 py-2 text-sm text-ra-text"
-              >
-                <option value={1}>1 小时</option>
-                <option value={2}>2 小时</option>
-                <option value={4}>4 小时</option>
-              </select>
-            </label>
-            <button
-              type="button"
-              data-testid="approval-launch-button"
-              disabled={pending || editing || !configurationReady || !launchConfirmed}
-              onClick={() => onLaunch(autonomyHours)}
-              className="rounded-lg bg-ra-accent px-4 py-2 text-sm font-medium text-ra-base disabled:opacity-50"
-            >
-              启动运行
-            </button>
-          </>
-        )}
         {legacyApproved && (
           <p data-testid="approval-legacy-approved" className="text-sm text-ra-text-secondary">
             这个目标是按旧流程批准的，执行窗口只接受「计划已生成、尚未批准」的目标。
             编辑目标配置并保存后会回到草稿，重新生成计划就能在这里开始执行。
           </p>
         )}
-        {!canPlan && !canApprove && !canLaunch && !cardStart && !legacyApproved && (
+        {!canPlan && !cardStart && !legacyApproved && (
           <p className="text-sm text-ra-text-tertiary">
             当前状态只读；此页面不会对该 Goal 执行新的审批动作。
           </p>
@@ -261,11 +203,8 @@ function GoalDetail({
  */
 export function ApprovalsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const goalsQuery = useGoals();
   const planMutation = usePlanExistingGoal();
-  const approveMutation = useApproveExistingGoal();
-  const launchMutation = useLaunchExistingGoal();
   const configurationMutation = useSaveGoalConfiguration();
   const editPlanMutation = useSaveGoalPlan();
 
@@ -274,8 +213,6 @@ export function ApprovalsPage() {
   );
   const requestedGoalId = searchParams.get("goal") ?? "";
   const selectedGoalId = requestedGoalId || pendingGoals[0]?.id;
-  const selectionRef = useRef(selectedGoalId);
-  selectionRef.current = selectedGoalId;
   const selectedGoalQuery = useGoal(selectedGoalId);
   const selectedGoal = selectedGoalQuery.data;
   /*
@@ -286,16 +223,12 @@ export function ApprovalsPage() {
    */
   const hasPendingGoals = pendingGoals.length > 0;
   const hasNothingToShow = !hasPendingGoals && !selectedGoalId;
-  const pending =
-    planMutation.isPending || approveMutation.isPending || launchMutation.isPending
-    || configurationMutation.isPending || editPlanMutation.isPending;
+  const pending = planMutation.isPending || configurationMutation.isPending || editPlanMutation.isPending;
   const error =
-    planMutation.error ?? approveMutation.error ?? launchMutation.error ?? configurationMutation.error ?? editPlanMutation.error ?? null;
+    planMutation.error ?? configurationMutation.error ?? editPlanMutation.error ?? null;
 
   const resetMutations = () => {
     planMutation.reset();
-    approveMutation.reset();
-    launchMutation.reset();
     configurationMutation.reset();
     editPlanMutation.reset();
   };
@@ -310,7 +243,7 @@ export function ApprovalsPage() {
       <PageHeader
         title="审批与继续"
         icon={ShieldCheck}
-        description="目标拆解成计划后，需要你确认计划、批准执行，或直接启动无人值守窗口。刷新后会回到同一个目标，不会丢失进度。"
+        description="在这里核对目标计划，然后确认并启动无人值守窗口。"
       />
 
         {goalsQuery.isLoading && (
@@ -346,7 +279,7 @@ export function ApprovalsPage() {
               <ShieldCheck className="mx-auto h-6 w-6 text-ra-text-tertiary" aria-hidden="true" />
               <p className="mt-3 text-sm font-medium text-ra-text">当前没有待处理的目标</p>
               <p className="mx-auto mt-1.5 max-w-md text-sm leading-6 text-ra-text-secondary">
-                需要你确认计划、批准执行或启动窗口的目标会出现在这里。也可以先去目标列表查看已有进度。
+                待生成计划、待确认或需要重新规划的目标会出现在这里。
               </p>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                 <Link to="/goals" className={APPROVAL_ACTION_CLASS}>查看所有目标</Link>
@@ -423,21 +356,6 @@ export function ApprovalsPage() {
                   onPlan={() => {
                     resetMutations();
                     planMutation.mutate(selectedGoal);
-                  }}
-                  onApprove={() => {
-                    resetMutations();
-                    approveMutation.mutate(selectedGoal);
-                  }}
-                  onLaunch={(autonomyHours) => {
-                    resetMutations();
-                    launchMutation.mutate({
-                      goal: selectedGoal,
-                      autonomyHours,
-                    }, {
-                      onSuccess: (goal) => {
-                        if (selectionRef.current === goal.id) navigate(`/?goal=${encodeURIComponent(goal.id)}`);
-                      },
-                    });
                   }}
                 />
               )}
