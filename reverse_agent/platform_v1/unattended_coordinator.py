@@ -68,6 +68,9 @@ class UnattendedCoordinator:
     coordinator can safely continue after durable-run reconciliation.
     """
 
+    _recovering: bool = False
+    _skip_sweep_thread: int | None = None
+
     def __init__(
         self,
         *,
@@ -130,6 +133,8 @@ class UnattendedCoordinator:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
+        self._recovering = False
+        self._skip_sweep_thread: int | None = None
         self._dispatch_active = False
         # The live poller may refill idle slots while older batches are running.
         # Direct tick() remains synchronous for deterministic host/test callers.
@@ -166,8 +171,16 @@ class UnattendedCoordinator:
             # but the coordinator must never poll with unknown recovery truth.
             # Hold the stop intent until reconciliation succeeds, so a failed
             # startup cannot be bypassed by a manual or background tick (#1347).
+            # Defer the potentially slow escalation sweep to the coordinator thread
+            # so host readiness and client UI startup are not blocked (#1622).
             self._stop.set()
-            self.reconcile(fail_closed_on_durable=True)
+            self._recovering = False
+            self._skip_sweep_thread = threading.get_ident()
+            try:
+                self.reconcile(fail_closed_on_durable=True)
+            finally:
+                self._skip_sweep_thread = None
+            self._recovering = self.goal_escalator is not None
             self._stop.clear()
             thread = threading.Thread(
                 target=self._run, name="reverse-agent-unattended", daemon=True
@@ -231,17 +244,19 @@ class UnattendedCoordinator:
                               for task_id in self.control_store.recover_orphaned_preparations())
         except Exception as exc:  # noqa: BLE001 - must never break reconciliation
             self._last_error = f"orphaned_preparation_recovery_failed:{type(exc).__name__}"
-        self._sweep_escalations()
+        if self._skip_sweep_thread != threading.get_ident():
+            stop_event = self._stop if threading.current_thread() is self._thread else None
+            self._sweep_escalations(stop_event=stop_event)
         return tuple(reconciled)
 
-    def _sweep_escalations(self) -> None:
+    def _sweep_escalations(self, *, stop_event: threading.Event | None = None) -> None:
         """Re-examine the active window's goals with FAILED or BLOCKED tasks (#1473).
 
         Escalation otherwise runs only after a task this process just executed, so
         a task the host itself broke (restart during preparation, an interrupted
         run refused on resume) would wait forever once the host came back.
         """
-        if self.goal_escalator is None:
+        if self.goal_escalator is None or (stop_event is not None and stop_event.is_set()):
             return
         try:
             window = self.control_store.active_window()
@@ -269,6 +284,8 @@ class UnattendedCoordinator:
         for row in rows:
             due.setdefault(row["goal_id"], []).append((row["task_id"], row["updated_at"]))
         for goal_id, tasks in due.items():
+            if stop_event is not None and stop_event.is_set():
+                break
             last = seen.get(goal_id)
             if last is not None and last[0] == tasks and now - last[1] < SWEEP_REPEAT_SECONDS:
                 continue
@@ -285,7 +302,7 @@ class UnattendedCoordinator:
         # a separate deterministic invocation mode, not an extra worker slot.
         with self._lifecycle_lock:
             if background:
-                if self._manual_tick_active:
+                if self._manual_tick_active or self._recovering:
                     return 0
             else:
                 if (self._manual_tick_active
@@ -841,8 +858,11 @@ class UnattendedCoordinator:
         with self._lifecycle_lock:
             thread = self._thread
             alive = thread is not None and thread.is_alive()
+            recovering = alive and self._recovering and not self._stop.is_set()
             if alive and self._stop.is_set():
                 lifecycle = "DRAINING"
+            elif recovering:
+                lifecycle = "RECOVERING"
             elif alive:
                 lifecycle = "RUNNING"
             else:
@@ -853,6 +873,7 @@ class UnattendedCoordinator:
         return {
             "enabled": alive,
             "lifecycle": lifecycle,
+            "recovering": recovering,
             "accepting_work": accepting_work,
             "inflight_batch": inflight_batch,
             "inflight_task_count": inflight_task_count,
@@ -912,6 +933,12 @@ class UnattendedCoordinator:
     def _run(self) -> None:
         current = threading.current_thread()
         try:
+            if self._recovering and not self._stop.is_set():
+                try:
+                    self._sweep_escalations(stop_event=self._stop)
+                finally:
+                    with self._lifecycle_lock:
+                        self._recovering = False
             reconciled_at = time.monotonic()
             while not self._stop.is_set():
                 if time.monotonic() - reconciled_at >= self.reconcile_interval:
@@ -947,6 +974,7 @@ class UnattendedCoordinator:
             # report STOPPED while that synchronous execution is unfinished.
             self._manual_tick_idle.wait()
             with self._lifecycle_lock:
+                self._recovering = False
                 self._dispatch_active = False
                 if self._thread is current:
                     self._thread = None

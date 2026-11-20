@@ -102,4 +102,35 @@ describe("UnattendedStatus", () => {
     expect(screen.getByRole("status")).not.toHaveTextContent("个任务完成");
     expect(screen.getByRole("status")).not.toHaveTextContent("早先的目标");
   });
+  it("shows honest recovery status without a false stop or stall warning while RECOVERING", () => {
+    const recovering = status(window, "2026-11-11T11:30:00Z");
+    recovering.coordinator = {
+      ...recovering.coordinator,
+      enabled: true,
+      lifecycle: "RECOVERING",
+      recovering: true,
+      accepting_work: false,
+    };
+    render(<UnattendedStatus status={recovering} now={now} quietWhenRunning />);
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent("协调器启动恢复中");
+    expect(banner).not.toHaveTextContent("执行窗口已停止");
+    expect(banner).not.toHaveTextContent("协调器未在接收任务");
+    expect(banner).not.toHaveClass("text-ra-status-warning");
+  });
+  it("still treats DRAINING with accepting_work false as stopped", () => {
+    const draining = status();
+    draining.coordinator = {
+      ...draining.coordinator,
+      enabled: true,
+      lifecycle: "DRAINING",
+      recovering: false,
+      accepting_work: false,
+    };
+    render(<UnattendedStatus status={draining} now={now} />);
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent("执行窗口已停止");
+    expect(banner).toHaveTextContent("协调器未在接收任务");
+    expect(banner).toHaveClass("text-ra-status-warning");
+  });
 });
