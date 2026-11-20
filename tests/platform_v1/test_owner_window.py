@@ -253,6 +253,67 @@ def untouched(s, *goals):
 
 
 class TestAdmission:
+    @pytest.mark.parametrize("scenario", ["success", "unknown_receipt", "head_changed", "behind"])
+    def test_resume_binds_the_parked_pr_without_rebinding_its_goal(self, setup, monkeypatch, scenario):
+        from reverse_agent.platform_v1 import control_store
+        from reverse_agent.platform_v1.autonomy import AutonomyService
+        from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+        from reverse_agent.platform_v1.landing_loop import LandingLoopController
+        from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+        from test_landing_loop import ProgressGitHub
+
+        goal = setup.planned("parked", "codex", "pinned")
+        old, _ = admit(setup.host, (goal.id,), capabilities=(*ALL, "open_draft_pr"))
+        control = setup.host._control_store
+        github = ProgressGitHub()
+        state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+            pr_number=42, head_sha=github.head, review_round=1)
+        identity = state["identity"]
+        claim = control.claim_landing_operation(identity, "review_comment", window_id=old.id)
+        assert claim
+        setup.db._conn.execute("UPDATE platform_goals SET status='COMPLETED' WHERE id=?", (goal.id,))
+        control.finish_landing_tick(identity, "BLOCKED", "landing_denied_by_window", 0)
+        control.stop_window(old.id)
+        before = control.get_goal(goal.id)
+        links = control.list_goal_tasks(goal.id)
+
+        window, shown = admit(setup.host, (goal.id,), capabilities=(OWNER_LANDING_CAPABILITY,),
+                              resume_parked_landing=True)
+        assert f"{goal.repository} PR #42" in shown[0][0] and github.head in shown[0][0]
+        assert control.get_goal(goal.id) == before
+        assert control.list_goal_tasks(goal.id) == links
+        assert control.list_window_goals(window.id) == ()
+        assert control.landing_operation(identity, "review_comment")["claim_id"] == claim
+        assert control.landing_operation(identity, "review_comment")["window_id"] == old.id
+
+        if scenario == "head_changed":
+            github.head = "b" * 40
+        github.behind = scenario == "behind"
+        def readback(_state, claim_id):
+            assert claim_id == claim
+            return dict(identity=identity, claim_id=claim, operation="review_comment",
+                        outcome="UNKNOWN" if scenario == "unknown_receipt" else "SUCCEEDED")
+        github.reconcile_review_comment = readback
+        loop = LandingLoopController(control_store=control, github=github,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+        coordinator = UnattendedCoordinator(store=setup.db, control_store=control, autonomy=loop.autonomy,
+            router=None, workspace_root="", landing_loop=loop)
+        now = [control_store._utc_now_ms()]
+        monkeypatch.setattr(control_store, "_utc_now_ms", lambda: now[0])
+        for _ in range(3):
+            now[0] += 60_001
+            coordinator.tick()
+        if scenario == "success":
+            assert control.get_landing(identity)["phase"] == "COMPLETE"
+            assert [name for name, _ in github.calls].count("merge") == 1
+        else:
+            assert control.get_landing(identity)["parking_reason"] == {
+                "unknown_receipt": "landing_recovery_prior_receipt_unresolved",
+                "head_changed": "landing_head_race", "behind": "landing_recovery_branch_behind",
+            }[scenario]
+            assert github.calls == [] and github.draft and not github.merged
+        assert control.get_goal(goal.id) == before
+
     def test_terminal_landing_grant_is_bound_to_one_confirmed_goal(self, setup, monkeypatch):
         from reverse_agent.platform_v1 import control_store
         from reverse_agent.platform_v1.autonomy import AutonomyService
@@ -697,6 +758,10 @@ class TestCommandLine:
                                    "--capability", "execute_task", "--capability", "validate_task",
                                    "--capability", "open_draft_pr", "--land-reviewed-pr"])
         assert OWNER_LANDING_CAPABILITY in args.capability
+
+    def test_landing_recovery_only_requests_landing_capability(self):
+        args = owner_window.parse(["--goal", "g1", "--hours", "1", "--resume-parked-landing"])
+        assert args.capability == [OWNER_LANDING_CAPABILITY]
 
     @pytest.mark.parametrize("argv", [
         ["--goal", "g", "--hours", "200", "--max-tasks", "1", "--capability", "execute_task"],

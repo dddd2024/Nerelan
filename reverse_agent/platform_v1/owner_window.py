@@ -44,6 +44,7 @@ from urllib.parse import unquote, urlsplit
 from .binding_resolver import BindingResolver
 from .control_store import (
     OWNER_LANDING_CAPABILITY,
+    OWNER_LANDING_RECOVERY_RECEIPT,
     OWNER_TERMINAL_MECHANISM,
     OWNER_WINDOW_CAPABILITIES,
     OWNER_WINDOW_MAX_GOALS,
@@ -563,12 +564,17 @@ class OwnerWindowAdmission:
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[..., bool],
               max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal",
-              requested_by: str = "", continuous: bool = False) -> Any:
+              requested_by: str = "", continuous: bool = False, resume_parked_landing: bool = False) -> Any:
         if surface not in _MECHANISMS:
             raise TaskStoreError("owner_window_surface_invalid")
+        if resume_parked_landing and (surface != "terminal" or tuple(capabilities) != (OWNER_LANDING_CAPABILITY,)
+                or continuous or len(goal_ids) != 1):
+            raise TaskStoreError("landing_recovery_scope_invalid")
         if not self._lock.acquire(blocking=False):
             raise TaskStoreError("owner_window_admission_in_progress")
         try:
+            if resume_parked_landing:
+                return self._resume_parked_landing(goal_ids[0], hours=hours, confirm=confirm)
             host = self._host
             goal_ids, envelope = self._prepare(
                 goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
@@ -657,6 +663,56 @@ class OwnerWindowAdmission:
         finally:
             self._lock.release()
 
+    def _resume_parked_landing(self, goal_id: str, *, hours: float, confirm: Callable[..., bool]) -> Any:
+        """Confirm an exact parked PR and schedule it without re-admitting the Goal."""
+        if not _GOAL_ID.fullmatch(goal_id) or not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+            raise TaskStoreError("landing_recovery_scope_invalid")
+        control = self._host._control_store
+
+        def scope() -> dict[str, Any]:
+            with control._lock:
+                state = control.recoverable_landing(goal_id)
+                goal = control.get_goal(goal_id)
+                return {"state": state, "goals": [goal_id], "goal_revision": goal.revision,
+                        "artifact_digest": goal.artifact_digest, "source_window_id": goal.window_id,
+                        "mechanism": OWNER_TERMINAL_MECHANISM}
+
+        approved = scope()
+        state = approved["state"]
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        envelope = {"policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                    "owner_identity": f"os-user:{getpass.getuser()}", "starts_at": _utc(now),
+                    "expires_at": _utc(now + timedelta(hours=hours)), "repositories": [state["repository"]],
+                    "capabilities": [OWNER_LANDING_CAPABILITY], "max_tasks": 1,
+                    "max_concurrent_tasks": 1, "max_retries": 0}
+        evidence = {**approved, "envelope": envelope}
+        digest = sha256_json(evidence)
+        code = secrets.token_hex(3).upper()
+        deadline = time.monotonic() + CONFIRM_SECONDS
+        text = (f"Nerelan: resume landing of {state['repository']} PR #{state['pr_number']}\n"
+                f"Goal: {goal_id} rev {approved['goal_revision']}\nHead: {state['head_sha']}\n"
+                f"Expires: {envelope['expires_at']}\nRead back prior receipts, then Ready and merge if all checks pass.\n"
+                f"Scope digest: {digest}\nType {code} to activate. Anything else cancels.")
+        if confirm(text, code) is not True:
+            raise TaskStoreError("owner_window_confirmation_refused")
+
+        def sql_admit(window_id: str) -> None:
+            if time.monotonic() >= deadline:
+                raise TaskStoreError("owner_window_confirmation_expired")
+            if scope() != approved:
+                raise TaskStoreError("landing_recovery_scope_changed")
+            control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode=? WHERE id=?",
+                                  (OWNER_WINDOW_MODE, window_id))
+            receipt = control.append_receipt(window_id=window_id, operation_type=OWNER_LANDING_RECOVERY_RECEIPT,
+                capability=OWNER_LANDING_CAPABILITY, repository=state["repository"], subject_id=state["identity"],
+                decision="allowed", reason="owner_landing_recovery_exact_scope", input_payload=state, result=digest)
+            control._conn.execute("UPDATE platform_operation_receipts SET evidence_json=?, confirmation_mode=? WHERE id=?",
+                                  (canonical_json(evidence), OWNER_WINDOW_MODE, receipt.id))
+            control.finish_landing_tick(state["identity"], "WAITING", "", 0)
+
+        return control.activate_window(envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
+            _host_expected_goal_ids=(goal_id,), _host_recovery_identity=state["identity"])
+
 
 # --- command line ---------------------------------------------------------------
 
@@ -681,10 +737,13 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-tasks", type=int, default=0)
     parser.add_argument("--max-concurrent", type=int, default=1)
     parser.add_argument("--max-retries", type=int, default=0)
-    parser.add_argument("--capability", action="append", required=True,
+    parser.add_argument("--capability", action="append", default=[],
                         choices=sorted(OWNER_WINDOW_CAPABILITIES))
-    parser.add_argument("--land-reviewed-pr", action="store_true",
+    landing = parser.add_mutually_exclusive_group()
+    landing.add_argument("--land-reviewed-pr", action="store_true",
                         help="authorize Ready and merge for one Goal in this confirmed, expiring window")
+    landing.add_argument("--resume-parked-landing", action="store_true",
+                         help="confirm Ready and merge of one parked PR at its exact head, without running tasks")
     parser.add_argument("--max-token-units", type=int, default=0)
     parser.add_argument("--max-cost-micro-units", type=int, default=0)
     args = parser.parse_args(argv)
@@ -693,6 +752,12 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--goal values must be distinct Goal IDs")
     if not args.continuous and not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
         parser.error("--hours must be above 0 and at most 168")
+    if args.resume_parked_landing:
+        if (args.continuous or len(args.goal) != 1 or args.capability or args.max_tasks or args.max_concurrent != 1
+                or args.max_retries or args.max_token_units or args.max_cost_micro_units):
+            parser.error("--resume-parked-landing accepts one Goal and an expiring window, without task options")
+        args.capability = [OWNER_LANDING_CAPABILITY]
+        return args
     if (not (args.max_tasks == 0 if args.continuous else 1 <= args.max_tasks <= 100)
             or not 1 <= args.max_concurrent <= 8 or not 0 <= args.max_retries <= 5):
         parser.error("limits out of range")
@@ -716,7 +781,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         "goal_ids": tuple(args.goal), "hours": args.hours, "max_tasks": args.max_tasks,
         "max_concurrent": args.max_concurrent, "max_retries": args.max_retries,
         "capabilities": tuple(args.capability), "max_token_units": args.max_token_units,
-        "max_cost_micro_units": args.max_cost_micro_units, "continuous": args.continuous, "confirm": terminal_confirm})
+        "max_cost_micro_units": args.max_cost_micro_units, "continuous": args.continuous, "confirm": terminal_confirm,
+        "resume_parked_landing": args.resume_parked_landing})
 
 
 if __name__ == "__main__":

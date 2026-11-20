@@ -35,6 +35,11 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 窗口任务上限应为独立审查和可能的修复预留余量。窗口停止或到期后，授权随之失效。
 确认卡片、监督者请求和持续窗口均不提供此选项。
 
+已完成执行、因缺少窗口授权而暂停的 PR，可在原窗口结束后使用
+`--goal <GOAL_ID> --hours 1 --resume-parked-landing`。终端显示待恢复的仓库、PR 和完整提交 SHA。
+确认后，新窗口只处理这条合并记录，先核对旧操作回执，再检查独立审查和 CI。它不重新执行 Goal，
+也不更新 PR 分支。PR 已关闭、提交变化或分支落后时会再次暂停。
+
 ### 激活前预检
 
 宿主运行时，`POST /api/owner-window/preflight` 接受与命令行相同的参数（`goal_ids`、`hours`、`max_tasks`、
