@@ -1,13 +1,9 @@
 import {
   PlatformClientError,
   __setMockGoalStatus,
-  __launchMockGoal,
   fetchGoal,
-  ensureApprovedWindow,
-  fetchApprovedPolicyIfConfigured,
-  approvedCheckerPlan,
+  submitGoalRevision,
   type PlatformGoal,
-  type PlatformWindow,
 } from "@/lib/platform-client";
 
 export interface GoalConfigurationInput {
@@ -23,36 +19,23 @@ export interface GoalPlanInput {
   acceptance_criteria: string[];
 }
 
-const API_BASE = import.meta.env.VITE_TASK_API_BASE ?? "http://127.0.0.1:8766";
-
 const GOAL_REVISION_OR_STATE_CONFLICT_CODES = new Set([
   "goal_revision_conflict",
   "goal_revision_mismatch",
   "goal_revision_or_state_mismatch",
-  "goal_not_approvable",
-  "goal_not_launchable",
   "goal_configuration_not_editable",
 ]);
 
-export type GoalContinuationErrorCode =
-  | "goal_revision_conflict"
-  | "active_window_repository_conflict"
-  | "invalid_autonomy_duration"
-  | "goal_continuation_failed";
+type GoalContinuationErrorCode = "goal_revision_conflict" | "goal_continuation_failed";
 
 export class GoalContinuationError extends Error {
   readonly code: GoalContinuationErrorCode;
   readonly goalId: string;
 
   constructor(code: GoalContinuationErrorCode, goalId: string) {
-    const message =
-      code === "goal_revision_conflict"
-        ? "目标已被其他操作更新。已重新读取最新状态，请确认后再继续。"
-        : code === "active_window_repository_conflict"
-          ? "当前自治窗口属于其他仓库；请先处理该窗口，再继续此目标。"
-          : code === "invalid_autonomy_duration"
-            ? "自治窗口时长无效。"
-            : "目标继续操作未完成，请根据最新服务端状态重试。";
+    const message = code === "goal_revision_conflict"
+      ? "目标已被其他操作更新。已重新读取最新状态，请确认后再继续。"
+      : "目标继续操作未完成，请根据最新服务端状态重试。";
     super(message);
     this.name = "GoalContinuationError";
     this.code = code;
@@ -65,27 +48,6 @@ function isMock() {
   return import.meta.env.MODE === "test" && !import.meta.env.VITE_TASK_CLIENT_USE_HTTP;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...init?.headers,
-    },
-  });
-  const text = await response.text();
-  const payload = text
-    ? (JSON.parse(text) as T & { error?: string })
-    : ({} as T & { error?: string });
-  if (!response.ok) {
-    const code =
-      typeof payload.error === "string" ? payload.error : "platform_request_failed";
-    throw new PlatformClientError(response.status, code);
-  }
-  return payload;
-}
-
 function mapStageError(error: unknown, goalId: string): never {
   if (
     error instanceof PlatformClientError &&
@@ -96,46 +58,14 @@ function mapStageError(error: unknown, goalId: string): never {
   throw error;
 }
 
-async function mutateStage(
-  goal: PlatformGoal,
-  stage: "plan" | "approve",
-): Promise<PlatformGoal> {
-  try {
-    return await request<PlatformGoal>(
-      `/api/goals/${encodeURIComponent(goal.id)}/${stage}`,
-      {
-        method: "POST",
-        body: JSON.stringify({ expected_revision: goal.revision }),
-      },
-    );
-  } catch (error) {
-    mapStageError(error, goal.id);
-  }
-}
-
-async function ensureWindow(goal: PlatformGoal, autonomyHours: number): Promise<PlatformWindow> {
-  if (!Number.isFinite(autonomyHours) || autonomyHours < 1 || autonomyHours > 24) throw new GoalContinuationError("invalid_autonomy_duration", goal.id);
-  try { return await ensureApprovedWindow(goal.repository, { autonomyHours, operationId: `continue-${goal.id}-r${goal.revision}-${Date.now().toString(36)}` }); } catch (error) {
-    if (error instanceof PlatformClientError && error.code === "active_window_repository_conflict") throw new GoalContinuationError("active_window_repository_conflict", goal.id);
-    throw error;
-  }
-}
-
 export async function planExistingGoal(goal: PlatformGoal): Promise<PlatformGoal> {
-  if (!isMock()) {
-    const template = await fetchApprovedPolicyIfConfigured();
-    const plan = approvedCheckerPlan(template);
-    if (plan) return saveGoalPlan(goal, plan);
-  }
   return saveGoalPlan(goal, { tasks: goal.tasks, acceptance_criteria: goal.acceptance_criteria });
 }
 
 async function saveRevision(goal: PlatformGoal, action: "amend" | "plan", input: object) {
   try {
-    const saved = await request<PlatformGoal>(`/api/goals/${encodeURIComponent(goal.id)}/${action}`, {
-      method: "POST", body: JSON.stringify({ ...input, expected_revision: goal.revision }),
-    });
-    if (saved.id !== goal.id) throw new GoalContinuationError("goal_continuation_failed", goal.id);
+    const saved = await submitGoalRevision(goal, action, input);
+    if (saved?.id !== goal.id) throw new GoalContinuationError("goal_continuation_failed", goal.id);
     return saved;
   } catch (error) { mapStageError(error, goal.id); }
 }
@@ -179,43 +109,4 @@ export async function saveGoalPlan(goal: PlatformGoal, input: GoalPlanInput): Pr
     artifact_digest: `mock-plan:${current.id}:${revision}`, updated_at: new Date().toISOString(),
   });
   return { ...await fetchGoal(goal.id) };
-}
-
-export async function approveExistingGoal(
-  goal: PlatformGoal,
-): Promise<PlatformGoal> {
-  if (isMock()) {
-    await mockCurrent(goal, ["PLANNED"]);
-    __setMockGoalStatus(goal.id, { status: "APPROVED" });
-    return fetchGoal(goal.id);
-  }
-  return mutateStage(goal, "approve");
-}
-
-export async function launchExistingGoal(
-  goal: PlatformGoal,
-  autonomyHours: number,
-): Promise<PlatformGoal> {
-  if (isMock()) {
-    await mockCurrent(goal, ["APPROVED"]);
-    __launchMockGoal(goal.id);
-    return fetchGoal(goal.id);
-  }
-
-  const window = await ensureWindow(goal, autonomyHours);
-  try {
-    await request<PlatformGoal>(
-      `/api/goals/${encodeURIComponent(goal.id)}/launch`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          expected_revision: goal.revision,
-          window_id: window.id,
-        }),
-      },
-    );
-    return fetchGoal(goal.id);
-  } catch (error) {
-    mapStageError(error, goal.id);
-  }
 }

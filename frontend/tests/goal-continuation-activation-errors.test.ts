@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { launchExistingGoal } from "@/lib/goal-continuation-operation";
-import { PlatformClientError, type PlatformGoal } from "@/lib/platform-client";
+import { ensureApprovedWindow, PlatformClientError } from "@/lib/platform-client";
 import { profileToPolicy } from "@/lib/profile-mapper";
 
 function template() {
   const policy = profileToPolicy("ASK_FOR_APPROVAL");
-  policy.repository = goal.repository;
+  policy.repository = repository;
   policy.autonomousWindow.expiresAt = "2030-12-31T08:00:00Z";
   return { available: true, policy_id: "approved-fixture", policy_revision: 1, policy_digest: "a".repeat(64),
     window_id: "window-concurrent", policy, confirmation_provenance: { confirmation_mode: "DELEGATED_CONTROLLER", personally_human: false },
@@ -16,28 +15,14 @@ function approvedWindow() {
   const approved = template();
   return { id: approved.window_id, policy_id: approved.policy_id, policy_revision: approved.policy_revision,
     canonical_policy_digest: approved.policy_digest, status: "ACTIVE", expires_at: approved.policy.autonomousWindow.expiresAt,
-    repositories: [goal.repository] };
+    repositories: [repository] };
 }
 
-const goal: PlatformGoal = {
-  id: "goal-activation-error",
-  title: "Activation error",
-  objective: "Preserve actionable activation errors.",
-  repository: "dddd2024/Nerelan",
-  status: "APPROVED",
-  revision: 7,
-  spec_markdown: "# Spec",
-  plan_markdown: "# Plan",
-  tasks: [],
-  acceptance_criteria: ["Use the approved revision"],
-  artifact_digest: "fixture",
-  executor_kind: "deterministic_fixture",
-  orchestration_mode: "single",
-  binding_ref: "",
-  window_id: "",
-  created_at: "2026-09-20T00:00:00Z",
-  updated_at: "2026-09-20T00:00:00Z",
-};
+const repository = "dddd2024/Nerelan";
+
+function openApprovedWindow() {
+  return ensureApprovedWindow(repository, { autonomyHours: 2, operationId: "activation-test" });
+}
 
 function response(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
@@ -64,7 +49,7 @@ describe("activation error reconciliation", () => {
       .mockResolvedValueOnce(response({ error: code }, status))
       .mockResolvedValueOnce(response({ autonomy: { active_window: null } }));
 
-    const result = launchExistingGoal(goal, 2);
+    const result = openApprovedWindow();
     await expect(result).rejects.toBeInstanceOf(PlatformClientError);
     await expect(result).rejects.toMatchObject({ status, code });
     expect(fetchMock).toHaveBeenCalledTimes(4);
@@ -73,26 +58,20 @@ describe("activation error reconciliation", () => {
     expect(paths[3]).toBe(paths[1]);
     expect(paths[2]).toMatch(/\/api\/windows\/activate$/);
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({ policy_id: template().policy_id, policy_revision: 1, policy: template().policy });
-    expect(paths.some((path) => path.endsWith(`/api/goals/${goal.id}/launch`))).toBe(false);
   });
 
   it("uses a refreshed same-repository window without another activation", async () => {
     const active = approvedWindow();
-    const running = { ...goal, status: "RUNNING", window_id: active.id };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response(template()))
       .mockResolvedValueOnce(response({ autonomy: { active_window: null } }))
       .mockResolvedValueOnce(response({ error: "active_window_exists" }, 409))
-      .mockResolvedValueOnce(response({ autonomy: { active_window: active } }))
-      .mockResolvedValueOnce(response(running))
-      .mockResolvedValueOnce(response(running));
+      .mockResolvedValueOnce(response({ autonomy: { active_window: active } }));
 
-    await expect(launchExistingGoal(goal, 2)).resolves.toMatchObject({ window_id: active.id });
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    await expect(openApprovedWindow()).resolves.toMatchObject({ id: active.id });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[3][0]).toBe(fetchMock.mock.calls[1][0]);
     expect(fetchMock.mock.calls.filter(([input]) => String(input).endsWith("/api/windows/activate"))).toHaveLength(1);
-    const launch = fetchMock.mock.calls.find(([input]) => String(input).endsWith(`/api/goals/${goal.id}/launch`));
-    expect(JSON.parse(String(launch?.[1]?.body))).toEqual({ expected_revision: goal.revision, window_id: active.id });
   });
 
   it("rejects a refreshed other-repository window before launch", async () => {
@@ -102,7 +81,7 @@ describe("activation error reconciliation", () => {
       .mockResolvedValueOnce(response({ error: "active_window_exists" }, 409))
       .mockResolvedValueOnce(response({ autonomy: { active_window: { id: "other", repositories: ["other/repository"] } } }));
 
-    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({ code: "active_window_repository_conflict" });
+    await expect(openApprovedWindow()).rejects.toMatchObject({ code: "active_window_repository_conflict" });
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[3][0]).toBe(fetchMock.mock.calls[1][0]);
   });
@@ -111,23 +90,21 @@ describe("activation error reconciliation", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response(template()))
       .mockResolvedValueOnce(response({ autonomy: { active_window: { ...approvedWindow(), canonical_policy_digest: "b".repeat(64) } } }));
-    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({ code: "active_window_policy_conflict" });
+    await expect(openApprovedWindow()).rejects.toMatchObject({ code: "active_window_policy_conflict" });
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/activate"))).toBe(false);
   });
 
   it("falls back to an owner-confirmed window when no delegated template is pinned", async () => {
     const window = { ...approvedWindow(), id: "owner-window" };
-    const running = { ...goal, status: "RUNNING", window_id: window.id };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response({ available: false, reason: "trusted_policy_unavailable" }))
       .mockResolvedValueOnce(response({ autonomy: { active_window: null } }))
-      .mockResolvedValueOnce(response(window, 201))
-      .mockImplementation(async () => response(running));
-    await launchExistingGoal(goal, 2);
+      .mockResolvedValueOnce(response(window, 201));
+    await openApprovedWindow();
     const activation = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/api/windows/activate"));
     expect(activation).toBeDefined();
     const body = JSON.parse(String((activation![1] as RequestInit).body));
-    expect(body).toMatchObject({ confirmation: "ACTIVATE", owner_identity: "local-owner", repositories: [goal.repository] });
+    expect(body).toMatchObject({ confirmation: "ACTIVATE", owner_identity: "local-owner", repositories: [repository] });
     expect(Date.parse(body.expires_at) - Date.parse(body.starts_at)).toBe(2 * 60 * 60 * 1000);
   });
 
@@ -135,13 +112,10 @@ describe("activation error reconciliation", () => {
     const approved = template();
     approved.policy.autonomousWindow.expiresAt = "2030-12-31T16:00:00+08:00";
     const active = approvedWindow();
-    const running = { ...goal, status: "RUNNING", window_id: active.id };
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response(approved))
-      .mockResolvedValueOnce(response({ autonomy: { active_window: active } }))
-      .mockResolvedValueOnce(response(running))
-      .mockResolvedValueOnce(response(running));
-    await expect(launchExistingGoal(goal, 2)).resolves.toMatchObject({ window_id: active.id });
+      .mockResolvedValueOnce(response({ autonomy: { active_window: active } }));
+    await expect(openApprovedWindow()).resolves.toMatchObject({ id: active.id });
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/activate"))).toBe(false);
   });
 
@@ -149,7 +123,7 @@ describe("activation error reconciliation", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response(template()))
       .mockResolvedValueOnce(response({ autonomy: { active_window: { ...approvedWindow(), expires_at } } }));
-    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({ code: "active_window_policy_conflict" });
+    await expect(openApprovedWindow()).rejects.toMatchObject({ code: "active_window_policy_conflict" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/activate"))).toBe(false);
   });
@@ -160,7 +134,7 @@ describe("activation error reconciliation", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(response(approved))
       .mockResolvedValueOnce(response({ autonomy: { active_window: approvedWindow() } }));
-    await expect(launchExistingGoal(goal, 2)).rejects.toMatchObject({ code: "active_window_policy_conflict" });
+    await expect(openApprovedWindow()).rejects.toMatchObject({ code: "active_window_policy_conflict" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
