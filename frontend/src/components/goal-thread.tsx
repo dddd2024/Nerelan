@@ -317,6 +317,35 @@ function GoalPanel({ goal, steps, roles }: { goal: PlatformGoal; steps: Platform
   );
 }
 
+const LANDING_PHASE_LABELS = new Map([
+  ["PENDING", "等待处理合并流程"],
+  ["WAITING", "等待合并条件满足"],
+  ["RECONCILING", "正在核对 GitHub 操作结果"],
+  ["BLOCKED", "合并流程已暂停"],
+  ["COMPLETE", "已合并，并在主分支核实"],
+  ["SUPERSEDED", "此记录已结束"],
+]);
+
+const LANDING_REASON_LABELS = new Map([
+  ["landing_denied_by_window", "当前窗口未授权合并。需要 Owner 确认包含合并权限的窗口。"],
+  ["fresh_current_head_checks_required", "等待当前提交的 CI 检查通过。"],
+  ["latest_review_verdict_rejects_head", "当前提交的独立审查未通过。"],
+  ["main_merge_not_confirmed", "等待在主分支确认合并。"],
+  ["goal_source_issue_closed", "关联 Issue 已关闭。"],
+  ["pull_request_closed", "PR 已关闭。"],
+]);
+
+function LandingStatus({ landing }: { landing: NonNullable<PlatformGoalTimeline["landing"]> }) {
+  const label = LANDING_PHASE_LABELS.get(landing.phase) ?? "等待确认合并状态";
+  const reason = LANDING_REASON_LABELS.get(landing.parking_reason);
+  return (
+    <section aria-label="合并状态" className="mb-4 rounded-md border border-ra-border px-3 py-2 text-sm">
+      <p className="font-medium text-ra-text">PR #{landing.pr_number} · {label}</p>
+      {reason && <p className="mt-1 text-ra-text-secondary">{reason}</p>}
+    </section>
+  );
+}
+
 export function GoalThread({ goal, timeline, composer }: {
   goal: PlatformGoal;
   timeline?: PlatformGoalTimeline;
@@ -343,6 +372,7 @@ export function GoalThread({ goal, timeline, composer }: {
         <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ThreadPrimitive.Viewport className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <div className="mx-auto w-full max-w-[760px] px-4 pb-8 pt-6 sm:px-6">
+              {timeline?.landing && <LandingStatus landing={timeline.landing} />}
               <StepStrip steps={thread.steps} roles={roles} />
               <ThreadPrimitive.Messages
                 components={{ UserMessage, AssistantMessage }}

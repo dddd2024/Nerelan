@@ -3,7 +3,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchGoal, fetchGoalsPage, PlatformClientError } from "@/lib/platform-client";
-import { goalReadRetryDelay, useGoal } from "@/hooks/use-platform";
+import { goalReadRetryDelay, useGoal, useGoalTimeline } from "@/hooks/use-platform";
 
 beforeEach(() => vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1"));
 afterEach(() => {
@@ -71,6 +71,25 @@ describe("request failure evidence", () => {
 });
 
 describe("goal reads", () => {
+  it("discovers landing after execution ends and stops polling when landing parks", async () => {
+    vi.useFakeTimers();
+    const initial = { goal: { id: "publishing", status: "COMPLETED" }, steps: [], landing: null, awaiting_landing: true };
+    const parked = { ...initial, awaiting_landing: false, landing: { phase: "BLOCKED", pr_number: 42, parking_reason: "landing_denied_by_window" } };
+    const fetch = vi.fn().mockResolvedValueOnce(Response.json(parked));
+    vi.stubGlobal("fetch", fetch);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["goals", "publishing", "timeline"], initial);
+    const hook = renderHook(() => useGoalTimeline("publishing"), { wrapper: ({ children }: { children: ReactNode }) =>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider> });
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_001); });
+    expect(hook.result.current.data?.landing?.phase).toBe("BLOCKED");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    client.clear();
+  });
+
   function mount(client: QueryClient, id: string) {
     return renderHook(() => useGoal(id), { wrapper: ({ children }: { children: ReactNode }) =>
       <QueryClientProvider client={client}>{children}</QueryClientProvider> });
