@@ -599,6 +599,7 @@ def test_live_adapter_commands_are_head_matched_and_checker_unchanged(tmp_path, 
     assert adapter.invoke_verdict(state, "merge-claim")["passed"]
     adapter.merge_head_matched(state, "merge-claim")
     assert calls[0][1:4] == ["-m", "reverse_agent.landing_review", "verdict"]
+    assert calls[0][-2:] == ["--auth-source", "gh"]
     assert calls[1][-3:] == ["--merge", "--match-head-commit", "a" * 40]
     assert not any(arg in {"--admin", "--rebase", "--force"} for call in calls for arg in call)
 

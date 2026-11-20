@@ -137,7 +137,8 @@ class LiveLandingGitHubAdapter:
             return result
         # This exact command is mandatory immediately before gh pr merge.
         return self._run([sys.executable, "-m", "reverse_agent.landing_review", "verdict",
-                          "--repository", state["repository"], "--pr", str(state["pr_number"]), "--head", state["head_sha"]], verdict=True, checker=True)
+                          "--repository", state["repository"], "--pr", str(state["pr_number"]),
+                          "--head", state["head_sha"], "--auth-source", "gh"], verdict=True, checker=True)
 
     def merge_head_matched(self, state, claim_id):
         self._run(["gh", "pr", "merge", str(state["pr_number"]), "--repo", state["repository"],
