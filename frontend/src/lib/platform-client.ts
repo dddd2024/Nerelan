@@ -169,6 +169,12 @@ export interface PlatformGoalTimeline {
   goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
   plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
   steps: PlatformTimelineStep[];
+  landing?: {
+    phase: string;
+    pr_number: number;
+    parking_reason: string;
+  } | null;
+  awaiting_landing?: boolean;
   /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
   retry?: PlatformRetryOptions;
 }
@@ -1414,6 +1420,12 @@ function mockGoalTimeline(goalId: string): PlatformGoalTimeline {
 export async function fetchGoal(goalId: string, signal?: AbortSignal): Promise<PlatformGoal> {
   if (isMock()) return mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
   return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`, { signal });
+}
+
+export function submitGoalRevision(goal: Pick<PlatformGoal, "id" | "revision">, action: "amend" | "plan", input: object) {
+  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goal.id)}/${action}`, {
+    method: "POST", body: JSON.stringify({ ...input, expected_revision: goal.revision }),
+  });
 }
 
 export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKey: string): Promise<PlatformGoal> {

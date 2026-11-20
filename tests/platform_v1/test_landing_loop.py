@@ -357,10 +357,18 @@ def test_router_selected_toolless_executor_runs_publication_review(toolless, bud
 
 def test_review_comment_can_use_publication_grant_without_landing_grant(tmp_path):
     control, window, state, github, loop = setup_loop(tmp_path / "tasks.sqlite3",
-        capabilities=("open_draft_pr",))
-    assert loop.claim(state["identity"], "review_comment", window_id=window.id)
+        capabilities=tuple(sorted(control_module.OWNER_WINDOW_CAPABILITIES)))
+    identity = state["identity"]
+    assert loop.claim(identity, "review_comment", window_id=window.id)
     with pytest.raises(TaskStoreError, match="landing_denied"):
-        loop.claim(state["identity"], "merge", window_id=window.id)
+        loop.claim(identity, "merge", window_id=window.id)
+
+    parked = loop.tick(identity, window_id=window.id)
+    assert parked["phase"] == "BLOCKED"
+    assert parked["parking_reason"] == "landing_denied_by_window"
+    assert control.landing_operation(identity, "mark_ready") is None
+    assert control.landing_operation(identity, "merge") is None
+    assert github.calls == []
 
 
 class ProgressGitHub(FakeGitHubAdapter):
