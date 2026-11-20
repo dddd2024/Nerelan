@@ -993,3 +993,22 @@ def test_landing_progress_visible_without_github_state_replica(read_model):
         phase="BLOCKED", review_round=2, pr_number=1266, head_sha="a" * 40,
         next_attempt_ms=0, parking_reason="landing_denied_by_window")
     assert control._conn.total_changes == changes
+
+
+def test_timeline_awaits_landing_creation_only_for_recent_eligible_publication(read_model):
+    model, _, control = read_model
+    now = datetime.now(timezone.utc)
+    window = AutonomyService(control_store=control, capabilities=CapabilityRegistry()).activate({
+        "policy_id": "publication-gap", "policy_revision": 1, "owner_identity": "test",
+        "starts_at": (now - timedelta(minutes=1)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["owner/repo"], "capabilities": ["execute_task", "open_draft_pr"],
+        "max_tasks": 3, "max_concurrent_tasks": 1, "max_retries": 0, "confirmation": "ACTIVATE",
+    })
+    goal = {"id": "publishing", "status": "COMPLETED", "window_id": window.id, "updated_at": now.isoformat(),
+            "tasks": [{"id": "T1"}, {"id": "T2", "artifact_input": {"plan_task_id": "T1"}}],
+            "task_links": [{"plan_task_id": "T1", "status": "READY_FOR_REVIEW"}]}
+    assert model.goal_timeline(goal)["awaiting_landing"] is True
+    assert model.goal_timeline({**goal, "tasks": []})["awaiting_landing"] is False
+    assert model.goal_timeline({**goal, "updated_at": (now - timedelta(hours=1)).isoformat()})["awaiting_landing"] is False
+    control.stop_window(window.id)
+    assert model.goal_timeline(goal)["awaiting_landing"] is False

@@ -116,7 +116,8 @@ export function useGoalTimeline(goalId: string | undefined) {
       const live = data?.steps.some((step) => step.attempts.some((attempt) => LIVE_ATTEMPT.has(attempt.status)));
       if (live || data?.goal.status === "RUNNING") return 3_000;
       const phase = data?.landing?.phase;
-      return phase === "PENDING" || phase === "WAITING" || phase === "RECONCILING" ? 10_000 : false;
+      return data?.awaiting_landing || phase === "PENDING" || phase === "WAITING" || phase === "RECONCILING"
+        ? 10_000 : false;
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

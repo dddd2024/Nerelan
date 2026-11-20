@@ -373,6 +373,9 @@ export function GoalThread({ goal, timeline, composer }: {
           <ThreadPrimitive.Viewport className="relative min-h-0 flex-1 overflow-y-auto custom-scrollbar">
             <div className="mx-auto w-full max-w-[760px] px-4 pb-8 pt-6 sm:px-6">
               {timeline?.landing && <LandingStatus landing={timeline.landing} />}
+              {timeline?.awaiting_landing && !timeline.landing && (
+                <p className="mb-4 text-sm text-ra-text-secondary">等待发布 Draft PR</p>
+              )}
               <StepStrip steps={thread.steps} roles={roles} />
               <ThreadPrimitive.Messages
                 components={{ UserMessage, AssistantMessage }}

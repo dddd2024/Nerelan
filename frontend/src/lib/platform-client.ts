@@ -174,6 +174,7 @@ export interface PlatformGoalTimeline {
     pr_number: number;
     parking_reason: string;
   } | null;
+  awaiting_landing?: boolean;
   /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
   retry?: PlatformRetryOptions;
 }
