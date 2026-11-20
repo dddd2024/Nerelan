@@ -253,8 +253,8 @@ def untouched(s, *goals):
 
 
 class TestAdmission:
-    @pytest.mark.parametrize("scenario", ["success", "unknown_receipt", "head_changed", "behind"])
-    def test_resume_binds_the_parked_pr_without_rebinding_its_goal(self, setup, monkeypatch, scenario):
+    @pytest.mark.parametrize("scenario", ["success", "unknown_receipt", "head_changed", "behind", "revoked"])
+    def test_resume_binds_the_parked_pr_without_rebinding_its_goal(self, setup, tmp_path, request, monkeypatch, scenario):
         from reverse_agent.platform_v1 import control_store
         from reverse_agent.platform_v1.autonomy import AutonomyService
         from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
@@ -286,6 +286,11 @@ class TestAdmission:
         assert control.landing_operation(identity, "review_comment")["claim_id"] == claim
         assert control.landing_operation(identity, "review_comment")["window_id"] == old.id
 
+        reopened = TaskStore(str(tmp_path / "owner.sqlite"))
+        request.addfinalizer(reopened._conn.close)
+        control = control_store.PlatformControlStore(reopened)
+        if scenario == "revoked":
+            control.stop_window(window.id)
         if scenario == "head_changed":
             github.head = "b" * 40
         github.behind = scenario == "behind"
@@ -296,7 +301,7 @@ class TestAdmission:
         github.reconcile_review_comment = readback
         loop = LandingLoopController(control_store=control, github=github,
             autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
-        coordinator = UnattendedCoordinator(store=setup.db, control_store=control, autonomy=loop.autonomy,
+        coordinator = UnattendedCoordinator(store=reopened, control_store=control, autonomy=loop.autonomy,
             router=None, workspace_root="", landing_loop=loop)
         now = [control_store._utc_now_ms()]
         monkeypatch.setattr(control_store, "_utc_now_ms", lambda: now[0])
@@ -310,6 +315,7 @@ class TestAdmission:
             assert control.get_landing(identity)["parking_reason"] == {
                 "unknown_receipt": "landing_recovery_prior_receipt_unresolved",
                 "head_changed": "landing_head_race", "behind": "landing_recovery_branch_behind",
+                "revoked": "landing_denied_by_window",
             }[scenario]
             assert github.calls == [] and github.draft and not github.merged
         assert control.get_goal(goal.id) == before
