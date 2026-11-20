@@ -345,6 +345,7 @@ export interface PlatformStatus {
   coordinator: {
     enabled: boolean;
     lifecycle?: string;
+    recovering?: boolean;
     accepting_work?: boolean;
     stranded_goals?: { goal_id: string; title?: string; window_id?: string; window_status?: string }[];
     executions?: number;
