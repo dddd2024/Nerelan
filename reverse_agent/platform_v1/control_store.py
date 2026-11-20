@@ -51,6 +51,7 @@ OWNER_WINDOW_MODE = "OWNER_WINDOW"
 OWNER_WINDOW_RECEIPT = "owner_window_admission"
 OWNER_TERMINAL_MECHANISM = "owner typed a one-time code at the host terminal"
 OWNER_LANDING_CAPABILITY = "land_reviewed_pr"
+OWNER_LANDING_RECOVERY_RECEIPT = "owner_landing_recovery"
 OWNER_WINDOW_MAX_GOALS = 20
 OWNER_WINDOW_MAX_MINUTES = 7 * 24 * 60
 OWNER_WINDOW_CAPABILITIES = frozenset(
@@ -521,6 +522,28 @@ class PlatformControlStore:
                 (goal_id,)).fetchone()
         return dict(row) if row else None
 
+    def recoverable_landing(self, goal_id: str) -> dict[str, Any]:
+        """Only an execution-complete Goal parked at the authorization boundary."""
+        with self._lock:
+            goal = self.get_goal(goal_id)
+            landing = self.landing_progress(goal_id)
+            if (goal.status != "COMPLETED" or not goal.window_id or not landing
+                    or landing["phase"] != "BLOCKED"
+                    or landing["parking_reason"] != "landing_denied_by_window"
+                    or landing["tick_lease_ms"] > _utc_now_ms()):
+                raise TaskStoreError("landing_recovery_not_eligible")
+            return landing
+
+    def landing_recovery_identity(self, window: AutonomousWindowRecord | None) -> str:
+        if window is None or window.capabilities != (OWNER_LANDING_CAPABILITY,) or not self.is_owner_window(window):
+            return ""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT subject_id FROM platform_operation_receipts WHERE window_id=? AND operation_type=? "
+                "AND decision='allowed' AND confirmation_mode=? ORDER BY seq LIMIT 1",
+                (window.id, OWNER_LANDING_RECOVERY_RECEIPT, OWNER_WINDOW_MODE)).fetchone()
+            return str(row["subject_id"]) if row is not None else ""
+
     def lease_landing_tick(self, identity: str, now: int) -> bool:
         # A persisted lease also fences competing host processes. Remote writes
         # have their own non-expiring claims and must be reconciled after a crash.
@@ -597,8 +620,11 @@ class PlatformControlStore:
                         or window.confirmation_mode == "DELEGATED_CONTROLLER"
                         or self.window_policy_binding(window_id)["policy_digest_sha256"]):
                     raise TaskStoreError("landing_window_denied")
+                if (self.is_owner_window(window) and window.capabilities == (OWNER_LANDING_CAPABILITY,)
+                        and operation in {"review_comment", "update_branch"}):
+                    raise TaskStoreError("landing_recovery_write_outside_scope")
                 if operation != "review_comment":
-                    self.check_owner_landing_scope(window, state["goal_id"])
+                    self.check_owner_landing_scope(window, state["goal_id"], identity=identity)
                 now = _utc_now_ms()
                 row = self._conn.execute(
                     "SELECT * FROM platform_landing_operations WHERE identity=? AND operation=?",
@@ -1059,24 +1085,31 @@ class PlatformControlStore:
             "AND operation_type = ? AND decision = 'allowed' AND confirmation_mode = ? LIMIT 1",
             (window_id, goal_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchone() is not None
 
-    def check_owner_landing_scope(self, window: AutonomousWindowRecord, goal_id: str) -> None:
+    def check_owner_landing_scope(self, window: AutonomousWindowRecord, goal_id: str, *, identity: str = "") -> None:
         """Owner Window landing must match the immutable terminal-confirmed Goal."""
         if not self.is_owner_window(window):
             return  # Trusted internal landing policies retain their existing path.
         with self._lock:
             goal = self.get_goal(goal_id)
+            recovery = window.capabilities == (OWNER_LANDING_CAPABILITY,)
             receipt = self._conn.execute(
                 "SELECT evidence_json FROM platform_operation_receipts "
                 "WHERE window_id=? AND subject_id=? AND operation_type=? AND decision='allowed' "
                 "AND confirmation_mode=? ORDER BY seq LIMIT 1",
-                (window.id, goal_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE),
+                (window.id, identity if recovery else goal_id,
+                 OWNER_LANDING_RECOVERY_RECEIPT if recovery else OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE),
             ).fetchone()
             evidence = json.loads(receipt["evidence_json"]) if receipt is not None else {}
-            if (window.continuous or goal.window_id != window.id or window.repositories != (goal.repository,)
+            if (window.continuous or window.repositories != (goal.repository,)
                     or evidence.get("mechanism") != OWNER_TERMINAL_MECHANISM
                     or evidence.get("goals") != [goal_id]
                     or evidence.get("goal_revision") != goal.revision
-                    or evidence.get("artifact_digest") != goal.artifact_digest
+                    or evidence.get("artifact_digest") != goal.artifact_digest):
+                raise TaskStoreError("landing_owner_scope_not_confirmed")
+            if recovery:
+                if goal.status != "COMPLETED" or goal.window_id != evidence.get("source_window_id"):
+                    raise TaskStoreError("landing_owner_scope_not_confirmed")
+            elif (goal.window_id != window.id
                     or OWNER_LANDING_CAPABILITY not in evidence.get("envelope", {}).get("capabilities", ())):
                 raise TaskStoreError("landing_owner_scope_not_confirmed")
 
@@ -1737,6 +1770,7 @@ class PlatformControlStore:
                         _host_preserve_claim_windows: bool = False,
                         _host_expected_goal_id: str | None = None,
                         _host_expected_goal_ids: tuple[str, ...] | None = None,
+                        _host_recovery_identity: str = "",
                         _standing_renewal: bool = False) -> AutonomousWindowRecord:
         """Create the window and optional trusted-host SQL admission in one commit.
 
@@ -1750,6 +1784,8 @@ class PlatformControlStore:
         if _host_preserve_claim_windows and _host_sql_admit is None:
             raise TaskStoreError("host_atomic_admission_required")
         owner_window = _host_expected_goal_ids is not None
+        if _host_recovery_identity and not owner_window:
+            raise TaskStoreError("host_atomic_admission_invalid")
         continuous = payload.get("continuous", False)
         if type(continuous) is not bool or (continuous and not owner_window):
             raise TaskStoreError("continuous_run_requires_owner_admission")
@@ -1773,15 +1809,21 @@ class PlatformControlStore:
                     or not 1 <= payload["max_concurrent_tasks"] <= 8
                     or type(payload.get("max_retries")) is not int or not 0 <= payload["max_retries"] <= 5
                     or not isinstance(capabilities_requested, (list, tuple))
-                    or "execute_task" not in capabilities_requested
                     or not set(capabilities_requested) <= allowed_capabilities
                     or len(set(capabilities_requested)) != len(capabilities_requested)
-                    or (OWNER_LANDING_CAPABILITY in capabilities_requested
-                        and (continuous or len(_host_expected_goal_ids) != 1
-                             or not {"open_draft_pr", "validate_task"} <= set(capabilities_requested)))
                     or len(payload.get("repositories", ())) != 1
                     or payload.get("standing_renewal") is not None
                     or payload.get("adopt_unfinished_goals")):
+                raise TaskStoreError("host_atomic_window_scope_invalid")
+            requested = set(capabilities_requested)
+            if _host_recovery_identity:
+                if (requested != {OWNER_LANDING_CAPABILITY} or continuous or len(_host_expected_goal_ids) != 1
+                        or payload["max_tasks"] != 1 or payload["max_concurrent_tasks"] != 1
+                        or payload["max_retries"] != 0):
+                    raise TaskStoreError("host_atomic_window_scope_invalid")
+            elif ("execute_task" not in requested or (OWNER_LANDING_CAPABILITY in requested
+                    and (continuous or len(_host_expected_goal_ids) != 1
+                         or not {"open_draft_pr", "validate_task"} <= requested))):
                 raise TaskStoreError("host_atomic_window_scope_invalid")
         if _host_sql_admit is not None:
             if not owner_window and (
@@ -1938,7 +1980,15 @@ class PlatformControlStore:
                     self._run_host_sql_admission(_host_sql_admit, window_id)
                     if not starts <= datetime.now(timezone.utc) < expires:
                         raise TaskStoreError("host_atomic_window_expired")
-                    if owner_window:
+                    if _host_recovery_identity:
+                        window = self.get_window(window_id)
+                        state = self.get_landing(_host_recovery_identity)
+                        if (state["goal_id"] not in _host_expected_goal_ids or state["phase"] != "WAITING"
+                                or self.list_window_goals(window_id)
+                                or self.landing_recovery_identity(window) != state["identity"]):
+                            raise TaskStoreError("landing_recovery_scope_changed")
+                        self.check_owner_landing_scope(window, state["goal_id"], identity=state["identity"])
+                    elif owner_window:
                         # Exactly the confirmed Goals, all launched here, each
                         # with its receipt; nothing else may be bound.
                         bound = self.list_window_goals(window_id)

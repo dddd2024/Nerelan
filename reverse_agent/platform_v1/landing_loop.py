@@ -182,7 +182,7 @@ class LandingLoopController:
         capability = ("open_draft_pr" if operation == "review_comment" and "open_draft_pr" in window.capabilities
                       else OWNER_LANDING_CAPABILITY)
         if capability == OWNER_LANDING_CAPABILITY and capability in window.capabilities:
-            self.control_store.check_owner_landing_scope(window, state["goal_id"])
+            self.control_store.check_owner_landing_scope(window, state["goal_id"], identity=state["identity"])
         if not self.autonomy.authorize(
                 window_id=window_id, operation=capability,
                 repository=state["repository"], subject_id=state["goal_id"],
@@ -266,7 +266,13 @@ class LandingLoopController:
             if store.get_goal(state["goal_id"]).status == "SUPERSEDED":
                 return park_closed()
             guard()
-            pending_update = store.landing_operation(identity, "update_branch")
+            recovery = store.landing_recovery_identity(store.get_window(window_id)) == identity
+            if recovery:
+                for pending in store.pending_landing_operations(identity):
+                    self.reconcile(identity, pending, window_id=window_id)
+                if store.pending_landing_operations(identity):
+                    return finish("RECONCILING", "landing_recovery_prior_receipt_unresolved")
+            pending_update = None if recovery else store.landing_operation(identity, "update_branch")
             if pending_update:
                 resolved = self.reconcile(identity, "update_branch", window_id=window_id)
                 updated = self.github.observe_pr(state)
@@ -289,6 +295,8 @@ class LandingLoopController:
                 return park_closed()
             if pr.get("state") != "OPEN":
                 return finish("BLOCKED", "pull_request_closed")
+            if recovery and pr.get("behind"):
+                return finish("BLOCKED", "landing_recovery_branch_behind")
             paths = pr.get("changed_paths")
             if not isinstance(paths, list) or not paths:
                 return finish("BLOCKED", "changed_paths_required")
@@ -329,17 +337,28 @@ class LandingLoopController:
             claim = self.claim(identity, operation, window_id=window_id)
             if not claim:
                 return finish("WAITING", "operation_claimed")
-            fresh = observe()
+            try:
+                self._require_source_before_write(state, operation, claim, fresh=True)
+                fresh = observe()
+                ready_target_changed = (operation == "mark_ready" and fresh == pr
+                                        and not self.github.ready_target_current(state))
+                guard()
+            except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
+                if store.landing_operation(identity, operation)["status"] == "CLAIMED":
+                    store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
+                        evidence={"reason": "landing_preflight_failed_before_write", "head": state["head_sha"]})
+                raise
             if fresh.get("main_sha") != pr.get("main_sha"):
                 # This claim has not reached a remote write. Its absence is
                 # known, so a later tick can reassess and merge-update main.
                 store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
                     evidence={"reason": "main_moved_before_write", "head": state["head_sha"]})
                 return finish("WAITING", "main_moved_reassess")
-            if fresh != pr:
-                return finish("BLOCKED", "landing_observation_changed")
-            self._require_source_before_write(state, operation, claim, fresh=True)
-            guard()
+            if fresh != pr or ready_target_changed:
+                reason = "landing_ready_target_changed" if ready_target_changed else "landing_observation_changed"
+                store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
+                    evidence={"reason": reason, "head": state["head_sha"]})
+                return finish("BLOCKED", reason)
             if operation == "merge":
                 # No API/subprocess operation may intervene between these calls.
                 verdict = self.github.invoke_verdict(state, claim)
