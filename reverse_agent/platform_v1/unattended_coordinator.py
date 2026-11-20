@@ -68,6 +68,9 @@ class UnattendedCoordinator:
     coordinator can safely continue after durable-run reconciliation.
     """
 
+    _recovering: bool = False
+    _skip_sweep_thread: int | None = None
+
     def __init__(
         self,
         *,
