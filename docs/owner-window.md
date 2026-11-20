@@ -27,6 +27,14 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 范围太大显示不下时直接拒绝，不截断。确认码必须在交互式终端输入，管道输入会被拒绝。确认有效期 5 分钟，
 窗口时间从打印范围之前开始计算。
 
+### 为单个 Goal 授予合并权限
+
+在宿主终端命令中加入 `--land-reviewed-pr`，同时指定一个 `--goal`、有限的 `--hours`，以及
+`--capability validate_task` 和 `--capability open_draft_pr`。终端会把 GitHub Ready 和合并列为
+授权动作。Owner 输入一次性确认码后，宿主按独立审查、当前提交的 CI 和合并前检查推进。
+窗口任务上限应为独立审查和可能的修复预留余量。窗口停止或到期后，授权随之失效。
+确认卡片、监督者请求和持续窗口均不提供此选项。
+
 ### 激活前预检
 
 宿主运行时，`POST /api/owner-window/preflight` 接受与命令行相同的参数（`goal_ids`、`hours`、`max_tasks`、
@@ -130,6 +138,7 @@ python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库�
 - 回调中禁止 COMMIT/ROLLBACK（SQLite authorizer），提交前再做一次 SQLite 时钟闸门。
 - 数据库对窗口范围施加硬上限，与调用方请求无关；能力只能取
   `execute_task`、`resume_task`、`reconcile_task`、`validate_task`、`open_draft_pr`，且必须包含 `execute_task`。
+  单目标的限时终端 opt-in 还可授予 `land_reviewed_pr`。
 - 存在未清理的 ACTIVE 认领时拒绝（与原生准入相同）。
 
 激活之后，只有 Owner 确认过的目标能在这个窗口里运行：

@@ -43,6 +43,8 @@ from urllib.parse import unquote, urlsplit
 
 from .binding_resolver import BindingResolver
 from .control_store import (
+    OWNER_LANDING_CAPABILITY,
+    OWNER_TERMINAL_MECHANISM,
     OWNER_WINDOW_CAPABILITIES,
     OWNER_WINDOW_MAX_GOALS,
     OWNER_WINDOW_MAX_MINUTES,
@@ -62,7 +64,7 @@ _GOAL_ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,255}")
 _EXECUTORS = {"opencode", "codex", "claude_code"}
 _MODES = {"single", "sequential_team", "agent_team"}
 _MECHANISMS = {
-    "terminal": "owner typed a one-time code at the host terminal",
+    "terminal": OWNER_TERMINAL_MECHANISM,
     "ui": "owner pressed Start on the Nerelan confirmation card",
     "supervisor": "supervisor request file under the Owner's standing delegation; preset bounds only",
 }
@@ -219,8 +221,10 @@ class OwnerWindowAdmission:
             lines += [f"Window:         {env['starts_at']} -> {env['expires_at']}",
                       f"Limits:         {env['max_tasks']} tasks, {env['max_concurrent_tasks']} at a time, {env['max_retries']} retries",
                       f"Budget caps:    tokens {env['max_token_units'] or 'none'}, cost {env['max_cost_micro_units'] or 'none'}"]
-        lines += [f"Capabilities:   {', '.join(env['capabilities'])}",
-                  f"Paid API:       {scope['paid_api']}", "", f"Goals ({len(scope['goals'])}):"]
+        lines += [f"Capabilities:   {', '.join(env['capabilities'])}", f"Paid API:       {scope['paid_api']}"]
+        if OWNER_LANDING_CAPABILITY in env["capabilities"]:
+            lines.append("Landing:        GitHub Ready and merge after independent review and all required checks")
+        lines += ["", f"Goals ({len(scope['goals'])}):"]
         for goal in scope["goals"]:
             lines += [f"- {goal['id']} rev {goal['revision']}  {goal['executor_kind']}/{goal['orchestration_mode']}"
                       f"{'  pinned ' + goal['binding_ref'] if goal['binding_ref'] else '  routed'}",
@@ -287,7 +291,8 @@ class OwnerWindowAdmission:
 
     def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
                  max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
-                 max_cost_micro_units: int = 0, continuous: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
+                 max_cost_micro_units: int = 0, continuous: bool = False,
+                 terminal: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
         """Validate the request and fix the envelope; binds discovered models first."""
         host = self._host
         goal_ids = tuple(goal_ids)
@@ -308,8 +313,14 @@ class OwnerWindowAdmission:
         if continuous and (hours != 0 or max_token_units != 0):
             raise TaskStoreError("continuous_run_has_window_bounds")
         capabilities = tuple(dict.fromkeys(capabilities))
-        if "execute_task" not in capabilities or not set(capabilities) <= OWNER_WINDOW_CAPABILITIES:
+        allowed_capabilities = OWNER_WINDOW_CAPABILITIES
+        if terminal:
+            allowed_capabilities |= {OWNER_LANDING_CAPABILITY}
+        if "execute_task" not in capabilities or not set(capabilities) <= allowed_capabilities:
             raise TaskStoreError("owner_window_capabilities_invalid")
+        if OWNER_LANDING_CAPABILITY in capabilities and (continuous or len(goal_ids) != 1
+                or not {"open_draft_pr", "validate_task"} <= set(capabilities)):
+            raise TaskStoreError("owner_window_landing_scope_invalid")
         # Discovered models bind now, so routing inside the transaction cannot
         # pick a binding the Owner was never shown.
         host._routing_bind_discovered()
@@ -562,7 +573,7 @@ class OwnerWindowAdmission:
             goal_ids, envelope = self._prepare(
                 goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
                 max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
-                max_cost_micro_units=max_cost_micro_units, continuous=continuous)
+                max_cost_micro_units=max_cost_micro_units, continuous=continuous, terminal=surface == "terminal")
             deadline = time.monotonic() + CONFIRM_SECONDS
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_ids[0])
@@ -672,6 +683,8 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-retries", type=int, default=0)
     parser.add_argument("--capability", action="append", required=True,
                         choices=sorted(OWNER_WINDOW_CAPABILITIES))
+    parser.add_argument("--land-reviewed-pr", action="store_true",
+                        help="authorize Ready and merge for one Goal in this confirmed, expiring window")
     parser.add_argument("--max-token-units", type=int, default=0)
     parser.add_argument("--max-cost-micro-units", type=int, default=0)
     args = parser.parse_args(argv)
@@ -689,6 +702,10 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("budget caps must not be negative")
     if args.continuous and (args.hours or args.max_token_units):
         parser.error("continuous runs have no window duration or token cap")
+    if args.land_reviewed_pr:
+        if args.continuous or len(args.goal) != 1 or not {"open_draft_pr", "validate_task"} <= set(args.capability):
+            parser.error("--land-reviewed-pr requires one Goal, an expiring window, validate_task and open_draft_pr")
+        args.capability.append(OWNER_LANDING_CAPABILITY)
     return args
 
 

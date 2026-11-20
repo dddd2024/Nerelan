@@ -9,7 +9,7 @@ import json
 from typing import Any, Callable
 
 from .autonomy import AutonomyService
-from .control_store import PlatformControlStore
+from .control_store import OWNER_LANDING_CAPABILITY, PlatformControlStore
 from .github_adapter import LandingGitHubAdapter
 from .run_store import TaskStoreError
 from . import artifact_handoff as artifacts, model_review
@@ -178,9 +178,11 @@ class LandingLoopController:
         return self.reconcile(identity, "review_comment", window_id=window_id)
 
     def _authorize(self, state: dict[str, Any], window_id: str, operation: str = "") -> None:
-        capability = "land_reviewed_pr"
-        if operation == "review_comment" and "open_draft_pr" in self.control_store.get_window(window_id).capabilities:
-            capability = "open_draft_pr"
+        window = self.control_store.get_window(window_id)
+        capability = ("open_draft_pr" if operation == "review_comment" and "open_draft_pr" in window.capabilities
+                      else OWNER_LANDING_CAPABILITY)
+        if capability == OWNER_LANDING_CAPABILITY and capability in window.capabilities:
+            self.control_store.check_owner_landing_scope(window, state["goal_id"])
         if not self.autonomy.authorize(
                 window_id=window_id, operation=capability,
                 repository=state["repository"], subject_id=state["goal_id"],
