@@ -1,7 +1,5 @@
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
-  approveExistingGoal,
-  launchExistingGoal,
   planExistingGoal,
   saveGoalConfiguration,
   saveGoalPlan,
@@ -58,30 +56,5 @@ export function useSaveGoalPlan() {
     mutationFn: ({ goal, input }: { goal: PlatformGoal; input: GoalPlanInput }) => saveGoalPlan(goal, input),
     onSuccess: (goal) => writeGoalToCache(queryClient, goal),
     onError: (_error, variables) => invalidateGoal(queryClient, variables.goal.id),
-  });
-}
-
-export function useApproveExistingGoal() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (goal: PlatformGoal) => approveExistingGoal(goal),
-    onSuccess: (goal) => writeGoalToCache(queryClient, goal),
-    onError: (_error, goal) => invalidateGoal(queryClient, goal.id),
-  });
-}
-
-export function useLaunchExistingGoal() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      goal,
-      autonomyHours,
-    }: {
-      goal: PlatformGoal;
-      autonomyHours: number;
-    }) => launchExistingGoal(goal, autonomyHours),
-    onSuccess: (goal) => writeGoalToCache(queryClient, goal),
-    onError: (_error, variables) =>
-      invalidateGoal(queryClient, variables.goal.id),
   });
 }

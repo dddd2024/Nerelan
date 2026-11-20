@@ -109,7 +109,6 @@ describe("Approvals continuation page", () => {
     expect(screen.getByTestId("approval-plan")).toHaveTextContent(
       "实现并验证目标",
     );
-    // Approving no longer exists as a separate step outside a delegated host.
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByTestId("start-bounds")).toHaveTextContent("持续运行，直到你停止"));
@@ -122,6 +121,17 @@ describe("Approvals continuation page", () => {
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("start-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the replan path for an old approved Goal without querying the retired policy", async () => {
+    __setMockGoalStatus(DEMO_GOAL_ID, { status: "APPROVED" });
+    const policy = vi.spyOn(platformClient, "fetchApprovedPolicyIfConfigured");
+    renderWithProviders(<ApprovalsPage />, { initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`] });
+
+    expect(await screen.findByTestId("approval-legacy-approved")).toHaveTextContent("重新生成计划");
+    expect(screen.getByRole("button", { name: "编辑目标配置" })).toBeInTheDocument();
+    expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
+    expect(policy).not.toHaveBeenCalled();
   });
 
   it("collapses to a single actionable empty state when the queue is empty and nothing is selected", async () => {
