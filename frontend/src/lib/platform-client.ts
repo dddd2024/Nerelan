@@ -169,6 +169,11 @@ export interface PlatformGoalTimeline {
   goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
   plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
   steps: PlatformTimelineStep[];
+  landing?: {
+    phase: string;
+    pr_number: number;
+    parking_reason: string;
+  } | null;
   /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
   retry?: PlatformRetryOptions;
 }

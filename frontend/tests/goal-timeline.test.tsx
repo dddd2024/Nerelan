@@ -203,6 +203,21 @@ function renderThread(goal: PlatformGoal, data?: PlatformGoalTimeline) {
 
 describe("GoalThread attempts", () => {
 
+  it("shows why a completed goal still cannot land its PR", () => {
+    renderThread({ ...GOAL, status: "COMPLETED" }, {
+      ...timeline,
+      landing: { phase: "BLOCKED", pr_number: 1691, parking_reason: "landing_denied_by_window" },
+    });
+    const landing = screen.getByRole("region", { name: "合并状态" });
+    expect(landing).toHaveTextContent("PR #1691 · 合并流程已暂停");
+    expect(landing).toHaveTextContent("当前窗口未授权合并");
+  });
+
+  it("reports main verification when landing reaches COMPLETE", () => {
+    renderThread(GOAL, { ...timeline, landing: { phase: "COMPLETE", pr_number: 42, parking_reason: "" } });
+    expect(screen.getByRole("region", { name: "合并状态" })).toHaveTextContent("PR #42 · 已合并，并在主分支核实");
+  });
+
   it("reads as one story: every attempt in order with its own reason", () => {
     renderThread(GOAL, timeline);
     const turns = screen.getAllByTestId("thread-assistant-message").map((message) => message.getAttribute("data-message-id"));

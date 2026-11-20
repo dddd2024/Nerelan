@@ -981,11 +981,15 @@ def test_malformed_token_totals_never_claim_observed_model_usage(
 def test_landing_progress_visible_without_github_state_replica(read_model):
     model, store, control = read_model
     goal, task = _seed_goal_with_task(control, store, "landing-progress")
+    snapshot = {"id": goal.id, "status": "COMPLETED"}
+    assert model.goal_timeline(snapshot)["landing"] is None
     state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
         pr_number=1266, head_sha="a" * 40, review_round=2)
-    control.finish_landing_tick(state["identity"], "WAITING", "fresh_current_head_checks_required", 123456)
+    control.finish_landing_tick(state["identity"], "BLOCKED", "landing_denied_by_window", 0)
     changes = control._conn.total_changes
-    assert model.run_detail(task.id)["landing"] == dict(phase="WAITING", review_round=2,
-        pr_number=1266, head_sha="a" * 40, next_attempt_ms=123456,
-        parking_reason="fresh_current_head_checks_required")
+    timeline = model.goal_timeline(snapshot)
+    assert timeline["goal"]["status"] == "COMPLETED"
+    assert timeline["landing"] == model.run_detail(task.id)["landing"] == dict(
+        phase="BLOCKED", review_round=2, pr_number=1266, head_sha="a" * 40,
+        next_attempt_ms=0, parking_reason="landing_denied_by_window")
     assert control._conn.total_changes == changes

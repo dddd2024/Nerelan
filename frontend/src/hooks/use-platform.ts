@@ -104,7 +104,7 @@ export function useGoal(goalId: string | undefined) {
 
 const LIVE_ATTEMPT = new Set(["RUNNING", "RUNNING_FIXTURE", "VALIDATING", "PREPARING_WORKSPACE", "QUEUED"]);
 
-/** The goal timeline; polled only while an attempt can still change. */
+/** Poll execution and landing independently, since landing can outlast the attempts. */
 export function useGoalTimeline(goalId: string | undefined) {
   return useQuery({
     queryKey: ["goals", goalId, "timeline"],
@@ -114,7 +114,9 @@ export function useGoalTimeline(goalId: string | undefined) {
     refetchInterval: (query) => {
       const data = query.state.data as PlatformGoalTimeline | undefined;
       const live = data?.steps.some((step) => step.attempts.some((attempt) => LIVE_ATTEMPT.has(attempt.status)));
-      return live || data?.goal.status === "RUNNING" ? 3_000 : false;
+      if (live || data?.goal.status === "RUNNING") return 3_000;
+      const phase = data?.landing?.phase;
+      return phase === "PENDING" || phase === "WAITING" || phase === "RECONCILING" ? 10_000 : false;
     },
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

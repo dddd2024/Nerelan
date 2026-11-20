@@ -714,6 +714,7 @@ class RunReadModel:
                 "orchestration_mode", "binding_ref", "window_id", "created_at", "updated_at")},
             "plan": plan,
             "steps": steps,
+            "landing": self._landing_projection(goal.get("id")),
         }
 
     def run_detail(self, task_id: str) -> dict[str, Any]:
