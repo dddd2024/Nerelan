@@ -39,6 +39,8 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 `--goal <GOAL_ID> --hours 1 --resume-parked-landing`。终端显示待恢复的仓库、PR 和完整提交 SHA。
 确认后，新窗口只处理这条合并记录，先核对旧操作回执，再检查独立审查和 CI。它不重新执行 Goal，
 也不更新 PR 分支。PR 已关闭、提交变化或分支落后时会再次暂停。
+宿主在读取来源 Issue 后再次核对 PR 提交再发出 Ready 请求。GitHub 的 Ready 接口没有预期 SHA 参数，
+因此读写之间仍可能发生变化。合并由 GitHub 按预期 SHA 执行。
 
 ### 激活前预检
 

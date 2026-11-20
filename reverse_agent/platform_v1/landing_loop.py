@@ -337,17 +337,28 @@ class LandingLoopController:
             claim = self.claim(identity, operation, window_id=window_id)
             if not claim:
                 return finish("WAITING", "operation_claimed")
-            fresh = observe()
+            try:
+                self._require_source_before_write(state, operation, claim, fresh=True)
+                fresh = observe()
+                ready_target_changed = (operation == "mark_ready" and fresh == pr
+                                        and not self.github.ready_target_current(state))
+                guard()
+            except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
+                if store.landing_operation(identity, operation)["status"] == "CLAIMED":
+                    store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
+                        evidence={"reason": "landing_preflight_failed_before_write", "head": state["head_sha"]})
+                raise
             if fresh.get("main_sha") != pr.get("main_sha"):
                 # This claim has not reached a remote write. Its absence is
                 # known, so a later tick can reassess and merge-update main.
                 store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
                     evidence={"reason": "main_moved_before_write", "head": state["head_sha"]})
                 return finish("WAITING", "main_moved_reassess")
-            if fresh != pr:
-                return finish("BLOCKED", "landing_observation_changed")
-            self._require_source_before_write(state, operation, claim, fresh=True)
-            guard()
+            if fresh != pr or ready_target_changed:
+                reason = "landing_ready_target_changed" if ready_target_changed else "landing_observation_changed"
+                store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
+                    evidence={"reason": reason, "head": state["head_sha"]})
+                return finish("BLOCKED", reason)
             if operation == "merge":
                 # No API/subprocess operation may intervene between these calls.
                 verdict = self.github.invoke_verdict(state, claim)

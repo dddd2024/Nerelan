@@ -37,6 +37,9 @@ class FakeGitHubAdapter:
     def update_branch(self, state, claim_id):
         self.calls.append(("update_branch", claim_id))
 
+    def ready_target_current(self, state):
+        return True
+
     def mark_ready(self, state, claim_id):
         self.calls.append(("mark_ready", claim_id))
 
@@ -602,6 +605,25 @@ def test_live_adapter_commands_are_head_matched_and_checker_unchanged(tmp_path, 
     assert calls[0][-2:] == ["--auth-source", "gh"]
     assert calls[1][-3:] == ["--merge", "--match-head-commit", "a" * 40]
     assert not any(arg in {"--admin", "--rebase", "--force"} for call in calls for arg in call)
+
+
+@pytest.mark.parametrize("head,expected", [("a" * 40, True), ("b" * 40, False)])
+def test_live_ready_target_reads_the_current_head(tmp_path, monkeypatch, head, expected):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    state = dict(repository="dddd2024/Nerelan", pr_number=1266, head_sha="a" * 40)
+    calls = []
+
+    def observe(_state, suffix):
+        assert suffix == "pulls/1266"
+        return {"head": {"sha": head}, "base": {"ref": "main", "repo": {"full_name": state["repository"]}},
+                "draft": True, "state": "open"}
+
+    monkeypatch.setattr(adapter, "_api", observe)
+    monkeypatch.setattr(adapter, "_run", lambda args, **_kwargs: calls.append(args))
+    assert adapter.ready_target_current(state) is expected
+    assert calls == []
 
 
 def test_publish_review_accept_merge_via_unattended_entry(toolless, monkeypatch):

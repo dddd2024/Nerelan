@@ -107,6 +107,15 @@ class LiveLandingGitHubAdapter:
                    f"repos/{state['repository']}/pulls/{state['pr_number']}/update-branch",
                    "-f", "expected_head_sha=" + state["head_sha"]])
 
+    def ready_target_current(self, state):
+        # GitHub's Ready mutation has no expected-head argument. Make the
+        # last external read a direct check of the Ready target.
+        pr = self._api(state, f"pulls/{state['pr_number']}")
+        base = pr.get("base") or {}
+        return ((pr.get("head") or {}).get("sha") == state["head_sha"] and pr.get("draft") is True
+                and pr.get("state") == "open" and base.get("ref") == "main"
+                and (base.get("repo") or {}).get("full_name") == state["repository"])
+
     def mark_ready(self, state, claim_id):
         self._run(["gh", "pr", "ready", str(state["pr_number"]), "--repo", state["repository"]], json_output=False)
 

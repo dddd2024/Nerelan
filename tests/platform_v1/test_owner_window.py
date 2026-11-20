@@ -253,7 +253,10 @@ def untouched(s, *goals):
 
 
 class TestAdmission:
-    @pytest.mark.parametrize("scenario", ["success", "unknown_receipt", "head_changed", "behind", "revoked"])
+    @pytest.mark.parametrize("scenario", [
+        "success", "unknown_receipt", "head_changed", "head_changed_at_source",
+        "head_changed_at_ready_read", "revoked_at_ready_read", "behind", "revoked",
+    ])
     def test_resume_binds_the_parked_pr_without_rebinding_its_goal(self, setup, tmp_path, request, monkeypatch, scenario):
         from reverse_agent.platform_v1 import control_store
         from reverse_agent.platform_v1.autonomy import AutonomyService
@@ -299,8 +302,22 @@ class TestAdmission:
             return dict(identity=identity, claim_id=claim, operation="review_comment",
                         outcome="UNKNOWN" if scenario == "unknown_receipt" else "SUCCEEDED")
         github.reconcile_review_comment = readback
+
+        def source_closed(_goal_id, *, fresh=False):
+            if fresh and scenario == "head_changed_at_source":
+                github.head = "b" * 40
+            return False
+
+        def ready_target_current(_state):
+            if scenario == "revoked_at_ready_read":
+                control.stop_window(window.id)
+            return scenario != "head_changed_at_ready_read"
+
+        github.ready_target_current = ready_target_current
+
         loop = LandingLoopController(control_store=control, github=github,
-            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+            source_issue_closed=source_closed)
         coordinator = UnattendedCoordinator(store=reopened, control_store=control, autonomy=loop.autonomy,
             router=None, workspace_root="", landing_loop=loop)
         now = [control_store._utc_now_ms()]
@@ -315,9 +332,15 @@ class TestAdmission:
             assert control.get_landing(identity)["parking_reason"] == {
                 "unknown_receipt": "landing_recovery_prior_receipt_unresolved",
                 "head_changed": "landing_head_race", "behind": "landing_recovery_branch_behind",
+                "head_changed_at_source": "landing_head_race",
+                "head_changed_at_ready_read": "landing_ready_target_changed",
+                "revoked_at_ready_read": "landing_denied_by_window",
                 "revoked": "landing_denied_by_window",
             }[scenario]
-            assert github.calls == [] and github.draft and not github.merged
+            assert not any(name in {"mark_ready", "merge", "update_branch"} for name, _ in github.calls)
+            assert github.draft and not github.merged
+            if scenario in {"head_changed_at_source", "head_changed_at_ready_read", "revoked_at_ready_read"}:
+                assert control.landing_operation(identity, "mark_ready")["status"] == "ABSENT"
         assert control.get_goal(goal.id) == before
 
     def test_terminal_landing_grant_is_bound_to_one_confirmed_goal(self, setup, monkeypatch):
