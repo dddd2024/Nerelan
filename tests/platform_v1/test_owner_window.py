@@ -12,12 +12,13 @@ import pytest
 from reverse_agent.model_access.store import ModelProfileStore
 from reverse_agent.platform_v1 import durable_execution, goal_service, owner_window
 from reverse_agent.platform_v1.binding_resolver import BindingResolver
-from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+from reverse_agent.platform_v1.control_store import OWNER_LANDING_CAPABILITY, OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
 from reverse_agent.platform_v1.durable_execution import ExecutorRuntimeError, _require_owner_window_pool
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
 
 ALL = ("execute_task", "resume_task", "reconcile_task", "validate_task")
+WITH_LANDING = (*ALL, "open_draft_pr", OWNER_LANDING_CAPABILITY)
 
 
 class TestContinuousRun:
@@ -252,6 +253,55 @@ def untouched(s, *goals):
 
 
 class TestAdmission:
+    def test_terminal_landing_grant_is_bound_to_one_confirmed_goal(self, setup, monkeypatch):
+        from reverse_agent.platform_v1 import control_store
+        from reverse_agent.platform_v1.autonomy import AutonomyService
+        from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+        from reverse_agent.platform_v1.landing_loop import LandingLoopController
+        from test_landing_loop import ProgressGitHub, step
+
+        goal = setup.planned("landing", "codex", "pinned")
+        other = setup.planned("other", "codex", "pinned")
+        window, shown = admit(setup.host, (goal.id,), capabilities=WITH_LANDING)
+        assert "GitHub Ready and merge after independent review" in shown[0][0]
+        control = setup.host._control_store
+        now = [control_store._utc_now_ms()]
+        monkeypatch.setattr(control_store, "_utc_now_ms", lambda: now[0])
+        github = ProgressGitHub()
+        loop = LandingLoopController(control_store=control, github=github,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+
+        other_state = control.ensure_landing(repository=other.repository, goal_id=other.id,
+            pr_number=40, head_sha=github.head, review_round=1)
+        with pytest.raises(TaskStoreError, match="landing_owner_scope_not_confirmed"):
+            control.claim_landing_operation(other_state["identity"], "merge", window_id=window.id)
+        assert step(loop, other_state, window, now)["parking_reason"] == "landing_owner_scope_not_confirmed"
+        assert github.calls == []
+
+        state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+            pr_number=41, head_sha=github.head, review_round=1)
+        step(loop, state, window, now)
+        assert not github.draft and not github.merged
+        step(loop, state, window, now)
+        assert github.merged
+        assert step(loop, state, window, now)["phase"] == "COMPLETE"
+        assert [name for name, _ in github.calls].count("merge") == 1
+
+    @pytest.mark.parametrize("surface,continuous,goal_count,reason", [
+        ("ui", False, 1, "owner_window_capabilities_invalid"),
+        ("supervisor", False, 1, "owner_window_capabilities_invalid"),
+        ("terminal", True, 1, "owner_window_landing_scope_invalid"),
+        ("terminal", False, 2, "owner_window_landing_scope_invalid"),
+    ])
+    def test_landing_rejects_implicit_or_wider_consent(self, setup, surface, continuous, goal_count, reason):
+        goals = [setup.planned(f"landing-{i}", "codex", "pinned") for i in range(goal_count)]
+        with pytest.raises(TaskStoreError, match=reason):
+            setup.host._owner_window_admission.admit([goal.id for goal in goals], surface=surface,
+                capabilities=WITH_LANDING, continuous=continuous, hours=0 if continuous else 1,
+                max_tasks=0 if continuous else 5, max_concurrent=1, max_retries=0,
+                confirm=lambda *_args, **_kw: pytest.fail("invalid landing request reached confirmation"))
+        untouched(setup, *goals)
+
     def test_activates_exactly_the_confirmed_goals_with_one_receipt_each(self, setup):
         a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "opencode", "free", tasks=2)
         window, shown = admit(setup.host, (a.id, b.id))
@@ -336,7 +386,7 @@ class TestAdmission:
         ({"hours": 169}, "owner_window_duration_invalid"),
         ({"hours": 0}, "owner_window_duration_invalid"),
         ({"capabilities": ("resume_task",)}, "owner_window_capabilities_invalid"),
-        ({"capabilities": ("execute_task", "land_reviewed_pr")}, "owner_window_capabilities_invalid"),
+        ({"capabilities": ("execute_task", "land_reviewed_pr")}, "owner_window_landing_scope_invalid"),
         ({"max_tasks": 1}, "owner_window_max_tasks_below_planned_tasks"),
         ({"max_concurrent": 9}, "owner_window_limits_invalid"),
         ({"max_retries": 6}, "owner_window_limits_invalid"),
@@ -641,6 +691,12 @@ class TestCommandLine:
         args = owner_window.parse(["--goal", "g1", "--goal", "g2", "--hours", "24", "--max-tasks", "10",
                                    "--capability", "execute_task", "--capability", "open_draft_pr"])
         assert args.goal == ["g1", "g2"] and args.capability == ["execute_task", "open_draft_pr"]
+
+    def test_landing_is_an_explicit_terminal_flag(self):
+        args = owner_window.parse(["--goal", "g1", "--hours", "1", "--max-tasks", "5",
+                                   "--capability", "execute_task", "--capability", "validate_task",
+                                   "--capability", "open_draft_pr", "--land-reviewed-pr"])
+        assert OWNER_LANDING_CAPABILITY in args.capability
 
     @pytest.mark.parametrize("argv", [
         ["--goal", "g", "--hours", "200", "--max-tasks", "1", "--capability", "execute_task"],
