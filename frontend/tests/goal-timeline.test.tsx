@@ -218,6 +218,23 @@ describe("GoalThread attempts", () => {
     expect(screen.getByRole("region", { name: "合并状态" })).toHaveTextContent("PR #42 · 已合并，并在主分支核实");
   });
 
+  it("shows the recorded Draft while polling for its landing record", () => {
+    const publication = {
+      status: "COMPLETE", branch: "codex/result", pr_number: 42,
+      pr_url: "https://github.com/dddd2024/Nerelan/pull/42", commit_sha: "a".repeat(40),
+    };
+    const goal: PlatformGoal = { ...GOAL, status: "COMPLETED",
+      task_links: GOAL.task_links?.map((link) => ({ ...link, publication })) };
+    renderThread(goal, {
+      ...timeline,
+      awaiting_landing: true,
+      landing: null,
+      steps: [{ ...timeline.steps[0], publication }],
+    });
+    expect(screen.getByTestId("goal-panel-step-T001")).toHaveTextContent("已记录 Draft PR #42");
+    expect(screen.queryByText("等待发布 Draft PR")).not.toBeInTheDocument();
+  });
+
   it("reads as one story: every attempt in order with its own reason", () => {
     renderThread(GOAL, timeline);
     const turns = screen.getAllByTestId("thread-assistant-message").map((message) => message.getAttribute("data-message-id"));
