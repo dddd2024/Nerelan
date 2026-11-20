@@ -203,6 +203,38 @@ function renderThread(goal: PlatformGoal, data?: PlatformGoalTimeline) {
 
 describe("GoalThread attempts", () => {
 
+  it("shows why a completed goal still cannot land its PR", () => {
+    renderThread({ ...GOAL, status: "COMPLETED" }, {
+      ...timeline,
+      landing: { phase: "BLOCKED", pr_number: 1691, parking_reason: "landing_denied_by_window" },
+    });
+    const landing = screen.getByRole("region", { name: "合并状态" });
+    expect(landing).toHaveTextContent("PR #1691 · 合并流程已暂停");
+    expect(landing).toHaveTextContent("当前窗口未授权合并");
+  });
+
+  it("reports main verification when landing reaches COMPLETE", () => {
+    renderThread(GOAL, { ...timeline, landing: { phase: "COMPLETE", pr_number: 42, parking_reason: "" } });
+    expect(screen.getByRole("region", { name: "合并状态" })).toHaveTextContent("PR #42 · 已合并，并在主分支核实");
+  });
+
+  it("shows the recorded Draft while polling for its landing record", () => {
+    const publication = {
+      status: "COMPLETE", branch: "codex/result", pr_number: 42,
+      pr_url: "https://github.com/dddd2024/Nerelan/pull/42", commit_sha: "a".repeat(40),
+    };
+    const goal: PlatformGoal = { ...GOAL, status: "COMPLETED",
+      task_links: GOAL.task_links?.map((link) => ({ ...link, publication })) };
+    renderThread(goal, {
+      ...timeline,
+      awaiting_landing: true,
+      landing: null,
+      steps: [{ ...timeline.steps[0], publication }],
+    });
+    expect(screen.getByTestId("goal-panel-step-T001")).toHaveTextContent("已记录 Draft PR #42");
+    expect(screen.queryByText("等待发布 Draft PR")).not.toBeInTheDocument();
+  });
+
   it("reads as one story: every attempt in order with its own reason", () => {
     renderThread(GOAL, timeline);
     const turns = screen.getAllByTestId("thread-assistant-message").map((message) => message.getAttribute("data-message-id"));

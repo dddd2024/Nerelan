@@ -640,6 +640,27 @@ class RunReadModel:
         return {key: state[key] for key in ("phase", "review_round", "pr_number", "head_sha",
                                            "next_attempt_ms", "parking_reason")}
 
+    def _awaiting_landing(self, goal: Mapping[str, Any], steps: Sequence[Mapping[str, Any]]) -> bool:
+        if goal.get("status") != "COMPLETED" or not goal.get("window_id"):
+            return False
+        updated = _parse_time(goal.get("updated_at"))
+        now = self._clock()
+        if updated is None or (now - updated).total_seconds() >= self._stale_after_seconds:
+            return False
+        from .artifact_handoff import published_plan_tasks
+        producers = published_plan_tasks(goal.get("tasks") or ())
+        if not any(step["plan_task_id"] in producers and step["status"] == "READY_FOR_REVIEW"
+                   and not step["publication_blocked"] and (step.get("publication") or {}).get("status") != "FAILED"
+                   for step in steps):
+            return False
+        try:
+            window = self.control_store.get_window(goal["window_id"])
+        except TaskStoreError:
+            return False
+        expires = _parse_time(window.expires_at)
+        return (window.status == "ACTIVE" and "open_draft_pr" in window.capabilities
+                and (window.continuous or (expires is not None and now < expires)))
+
     def goal_timeline(self, goal: Mapping[str, Any], *, events_per_attempt: int = TIMELINE_EVENTS_PER_ATTEMPT) -> dict[str, Any]:
         """One goal as one conversation: request, plan, every attempt in order, result.
 
@@ -708,12 +729,15 @@ class RunReadModel:
                 "publication_blocked": _safe_text(link.get("publication_blocked"), limit=64),
                 "attempts": attempts,
             })
+        landing = self._landing_projection(goal.get("id"))
         return {
             "goal": {key: goal.get(key) for key in (
                 "id", "title", "objective", "status", "repository", "executor_kind",
                 "orchestration_mode", "binding_ref", "window_id", "created_at", "updated_at")},
             "plan": plan,
             "steps": steps,
+            "landing": landing,
+            "awaiting_landing": landing is None and self._awaiting_landing(goal, steps),
         }
 
     def run_detail(self, task_id: str) -> dict[str, Any]:
