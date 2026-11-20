@@ -327,3 +327,167 @@ def test_an_unflagged_binding_change_of_a_cut_off_tree_is_still_refused(case, mo
                         lambda t: {k: v for k, v in original(t).items() if k != "rerouted"})
     with pytest.raises(TaskStoreError, match="failed_snapshot_recovery_mismatch"):
         recovery.restore_failed_tree(store, retry.id, worktree=destination(case, tmp_path))
+
+
+# #1620: narrow transient_overload detail-text fallback to generic/host classes.
+
+_OVERLOAD_DETAILS = (
+    "test_server_overloaded FAILED",
+    "overloaded_error: Overloaded",
+    "503 Service Unavailable",
+    "Selected model is at capacity. Please try again a different model.",
+)
+
+
+@pytest.mark.parametrize("detail", _OVERLOAD_DETAILS)
+@pytest.mark.parametrize("classification", [
+    "deterministic_validation_failure",
+    "timeout",
+    "model_review_rejected",
+    "MODEL_REFUSED",
+    "functional_check_failed",
+    "patch_hygiene_failed",
+    "no_coder_product_diff",
+    "codex_no_product_changes",
+    "model_review_invalid_output",
+    "claude_code_turn_failed:rate_limit",
+    "claude_code_turn_failed:policy_refusal",
+])
+def test_model_judging_classifications_never_become_overload_from_detail(classification, detail):
+    from reverse_agent.platform_v1 import model_availability
+    assert not model_availability.transient_overload(classification, detail)
+
+
+@pytest.mark.parametrize("classification", [
+    "provider_overloaded",
+    "provider_overloaded:529",
+    "PROVIDER_OVERLOADED",
+])
+@pytest.mark.parametrize("detail", ["", "test_server_overloaded FAILED"])
+def test_explicit_overload_classification_always_matches(classification, detail):
+    from reverse_agent.platform_v1 import model_availability
+    assert model_availability.transient_overload(classification, detail)
+
+
+@pytest.mark.parametrize("classification", [
+    "",
+    "failed",
+    "executor_error",
+    "executor_nonzero",
+    "opencode_nonzero:exit=1",
+    "codex_turn_failed",
+    "claude_code_turn_failed:upstream",
+    "executor_stalled",
+    "executor_terminated",
+    "host_version_changed",
+])
+def test_allowlisted_generic_and_host_classes_still_detect_detail_overload(classification):
+    from reverse_agent.platform_v1 import model_availability
+    assert model_availability.transient_overload(classification, "503 Service Unavailable")
+    assert not model_availability.transient_overload(classification, "Rate limit exceeded; at capacity")
+    assert not model_availability.transient_overload(classification, "AssertionError: bad value")
+
+
+@pytest.mark.parametrize("continuous", [False, True])
+def test_validation_failure_mentioning_overload_escalates_and_spends_budget(case, monkeypatch, continuous):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    if continuous:
+        _continuous(store, window)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected", description="fixture",
+                    metadata={"binding_ref": task.binding_ref, "reason": "fixture", "tier": 2,
+                              "context_window": 128000, "context_need": 24000})
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure', "
+        "failure_detail='test_server_overloaded FAILED', updated_at='2000-01-01T00:00:00Z' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    resolved = []
+
+    def resolve(plan_task, *, goal, failed_binding="", failed_tier=0, **kw):
+        resolved.append((failed_binding, failed_tier))
+        return {
+            "binding_ref": "other-account",
+            "executor_kind": "opencode",
+            "model_id": "zai/glm-5.3",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        }
+
+    service.task_resolver = resolve
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "failed:deterministic_validation_failure"
+    assert resolved == [(task.binding_ref, 2)]
+    retry = store.get_task(step["to_task_id"])
+    assert retry.binding_ref == "other-account"
+    assert gs._routing_retries_spent(service._escalations(goal.id), patient=continuous) == 1
+
+    # Once the escalated task also fails validation mentioning overload, max_retries=1 is exhausted.
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure', "
+        "failure_detail='test_server_overloaded FAILED', updated_at='2000-01-01T00:00:00Z' WHERE id=?",
+        (retry.id,),
+    )
+    store._conn.commit()
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+
+
+@pytest.mark.parametrize("continuous", [False, True])
+def test_validation_failure_mentioning_overload_stops_when_max_retries_zero(case, monkeypatch, continuous):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    _no_routing_retries(store, window)
+    if continuous:
+        _continuous(store, window)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure', "
+        "failure_detail='test_server_overloaded FAILED', updated_at='2000-01-01T00:00:00Z' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    service.task_resolver = lambda *args, **kwargs: (_ for _ in ()).throw(
+        AssertionError("exhausted budget must not resolve a retry")
+    )
+    count = store.count_tasks()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert store.count_tasks() == count
+
+
+@pytest.mark.parametrize("continuous", [False, True])
+def test_explicit_provider_overload_still_retries_as_transient_overload(case, monkeypatch, continuous):
+    root, _, store, _, service, goal, window, task = case
+    wrong_tree(root)
+    if continuous:
+        _continuous(store, window)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='provider_overloaded', "
+        "failure_detail='Selected model is at capacity.', updated_at='2000-01-01T00:00:00Z' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "transient_overload"
+    assert store.get_task(step["to_task_id"]).binding_ref == task.binding_ref
+
+
+def test_validation_failure_mentioning_overload_counts_as_model_failure_in_profiles(case):
+    from reverse_agent.platform_v1 import model_profiles
+    _, _, store, _, _, _, _, task = case
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure', "
+        "failure_detail='test_server_overloaded FAILED' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    profile = model_profiles.compute_agent_profiles(store)[task.binding_ref]
+    assert profile["attempts"] == 1
+    assert profile["failed"] == 1
+    assert profile.get("overloaded", 0) == 0
+    assert profile["failure_kinds"] == {"deterministic_validation_failure": 1}

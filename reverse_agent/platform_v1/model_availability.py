@@ -66,16 +66,46 @@ def provider_rate_limit_reply(value: str) -> bool:
     return bool(_PROVIDER_RATE_LIMIT_REPLY_RE.search((value or "").strip()))
 
 
-def transient_overload(classification: str, detail: str) -> bool:
-    """A failed attempt is provider overload only when nothing more specific applies.
+# Classifications whose failure_detail may still be inspected for provider-overload
+# wording (empty/generic/executor-nonzero/legacy turn failures/host-retry classes).
+# Model-judging classifications (e.g. deterministic_validation_failure, timeout,
+# model_review_rejected, MODEL_REFUSED, functional check failures) are excluded so
+# test or review output mentioning "overloaded" is never misread as provider overload (#1620).
+_OVERLOAD_DETAIL_CLASSES = frozenset({
+    "",
+    "failed",
+    "executor_error",
+    "executor_nonzero",
+    "role_failed",
+    "coordinator_execution_error",
+    "server_session_error",
+    "codex_turn_failed",
+    "claude_code_turn_failed",
+    "codex_process_failed",
+    "claude_code_process_failed",
+    "network_provider_failure",
+}) | HOST_RETRY_CLASSES
+_OVERLOAD_DETAIL_PREFIXES = (
+    "codex_turn_failed:",
+    "claude_code_turn_failed:",
+    "opencode_nonzero",
+)
 
-    Usage/rate limits, entitlement errors and refusals keep their own handling even
-    when their message also mentions capacity.
+
+def transient_overload(classification: str, detail: str) -> bool:
+    """Return True for explicit provider overload or allowlisted generic/host failures with overload detail.
+
+    Model-judging classifications (such as deterministic_validation_failure, timeout,
+    model_review_rejected, MODEL_REFUSED, or functional check failures) as well as
+    rate/quota limits, entitlement errors, and refusals are never reclassified from
+    detail text.
     """
-    classification = classification or ""
-    if classification.startswith(OVERLOADED):
+    cls = (classification or "").strip().lower()
+    if cls.startswith(OVERLOADED):
         return True
-    if _NOT_OVERLOAD_CLASS.search(classification):
+    if _NOT_OVERLOAD_CLASS.search(cls):
+        return False
+    if cls not in _OVERLOAD_DETAIL_CLASSES and not cls.startswith(_OVERLOAD_DETAIL_PREFIXES):
         return False
     from .codex_protocol import usage_limit_hit
     return provider_overloaded(detail) and not usage_limit_hit(detail or "")
