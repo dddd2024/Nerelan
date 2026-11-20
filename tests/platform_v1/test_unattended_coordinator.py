@@ -1494,3 +1494,153 @@ def test_redeploy_close_requires_the_callers_claim(tmp_path):
         coordinator._fail_redeploy_stranded_task(task_id, detail="authority_sha_mismatch:x!=y",
                                                  observed=coordinator._latest_durable_run_identity(task_id))
     assert store.get_task(task_id).status == "INTERRUPTED"
+
+
+def _failed_and_queued_fixture(tmp_path, *, failed_count=1):
+    store = TaskStore(str(tmp_path / "coordinator.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "nonblocking-startup-sweep", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1, "confirmation": "ACTIVATE",
+    })
+    for idx in range(failed_count):
+        goal = goals.create({
+            "objective": f"Failed goal {idx}", "idempotency_key": f"failed-goal-{idx}",
+            "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+        })
+        goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "failed", "instruction": "fail"}])
+        goals.approve(goal.id, expected_revision=1)
+        goals.launch(goal.id, expected_revision=1, window_id=window.id)
+        failed_task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure' WHERE id=?",
+            (failed_task_id,),
+        )
+    queued_goal = goals.create({
+        "objective": "Runnable goal", "idempotency_key": "runnable-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(queued_goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "run", "instruction": "run"}])
+    goals.approve(queued_goal.id, expected_revision=1)
+    goals.launch(queued_goal.id, expected_revision=1, window_id=window.id)
+    store._conn.commit()
+    return store, control, autonomy
+
+
+def test_start_returns_before_slow_first_escalation_sweep_and_sweeps_before_first_dispatch(tmp_path):
+    store, control, autonomy = _failed_and_queued_fixture(tmp_path, failed_count=1)
+    order: list[str] = []
+    order_lock = threading.Lock()
+    sweep_entered = threading.Event()
+    allow_finish = threading.Event()
+    dispatched_done = threading.Event()
+
+    def escalator(_goal_id: str) -> tuple:
+        with order_lock:
+            order.append("sweep_start")
+        sweep_entered.set()
+        allow_finish.wait(timeout=10.0)
+        with order_lock:
+            order.append("sweep_end")
+        return ()
+
+    def execute(task_id: str):
+        with order_lock:
+            order.append("dispatch")
+        result = _ready_fixture(store, task_id)
+        dispatched_done.set()
+        return result
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces", goal_escalator=escalator,
+        task_executor=execute, poll_interval=0.05,
+    )
+    try:
+        started_at = time.monotonic()
+        coordinator.start()
+        assert time.monotonic() - started_at < 2.0
+        assert sweep_entered.wait(timeout=5.0)
+        status = coordinator.status()
+        assert status["enabled"] is True
+        assert status["lifecycle"] == "RECOVERING"
+        assert status["recovering"] is True
+        assert status["accepting_work"] is False
+        assert status["ticks"] == 0
+        assert coordinator.tick() == 0
+        assert coordinator.tick(background=True) == 0
+        with order_lock:
+            assert "dispatch" not in order
+
+        allow_finish.set()
+        assert dispatched_done.wait(timeout=5.0)
+        deadline = time.monotonic() + 2.0
+        while coordinator.status()["recovering"] and time.monotonic() < deadline:
+            time.sleep(0.02)
+        with order_lock:
+            assert order[:3] == ["sweep_start", "sweep_end", "dispatch"]
+        running = coordinator.status()
+        assert running["lifecycle"] == "RUNNING"
+        assert running["recovering"] is False
+        assert running["accepting_work"] is True
+    finally:
+        allow_finish.set()
+        coordinator.stop(timeout=5.0)
+        store._conn.close()
+
+
+def test_stop_during_startup_sweep_halts_remaining_goals_without_dispatch(tmp_path):
+    store, control, autonomy = _failed_and_queued_fixture(tmp_path, failed_count=2)
+    swept: list[str] = []
+    dispatched: list[str] = []
+    sweep_entered = threading.Event()
+    allow_finish = threading.Event()
+
+    def escalator(goal_id: str) -> tuple:
+        swept.append(goal_id)
+        sweep_entered.set()
+        allow_finish.wait(timeout=10.0)
+        return ()
+
+    def execute(task_id: str):
+        dispatched.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces", goal_escalator=escalator,
+        task_executor=execute, poll_interval=0.05,
+    )
+    stopper = None
+    try:
+        coordinator.start()
+        assert sweep_entered.wait(timeout=5.0)
+        stopper = threading.Thread(target=lambda: coordinator.stop(timeout=5.0), daemon=True)
+        stopper.start()
+        deadline = time.monotonic() + 2.0
+        while not coordinator._stop.is_set() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert coordinator._stop.is_set()
+        draining = coordinator.status()
+        assert draining["lifecycle"] == "DRAINING"
+        assert draining["recovering"] is False
+        allow_finish.set()
+        stopper.join(timeout=5.0)
+        assert not stopper.is_alive()
+        assert len(swept) == 1
+        assert dispatched == []
+        stopped = coordinator.status()
+        assert stopped["lifecycle"] == "STOPPED"
+        assert stopped["recovering"] is False
+    finally:
+        allow_finish.set()
+        coordinator.stop(timeout=5.0)
+        if stopper is not None:
+            stopper.join(timeout=2.0)
+        store._conn.close()
