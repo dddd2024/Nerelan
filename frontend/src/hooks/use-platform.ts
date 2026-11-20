@@ -7,7 +7,6 @@ import {
   fetchGoals,
   fetchPlatformStatus,
   fetchAccountPool,
-  fetchApprovedPolicyIfConfigured,
   draftQuickStart,
   preflightOwnerWindow,
   type QuickStartDraftInput,
@@ -19,14 +18,6 @@ import {
   createGoalDraft,
   type StartGoalInput,
 } from "@/lib/goal-start-operation";
-
-export function useApprovedPolicy() {
-  return useQuery({
-    queryKey: ["platform", "approved-policy"], queryFn: fetchApprovedPolicyIfConfigured,
-    enabled: import.meta.env.MODE !== "mock" && (import.meta.env.MODE !== "test" || Boolean(import.meta.env.VITE_TASK_CLIENT_USE_HTTP)),
-    staleTime: 3_000, retry: false, refetchOnWindowFocus: true,
-  });
-}
 
 export function usePlatformStatus() {
   return useQuery({

@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBindings } from "@/hooks/use-model-access";
-import { useApprovedPolicy } from "@/hooks/use-platform";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
@@ -137,9 +136,6 @@ export function GoalComposer({
   }, [focusKey]);
 
   const bindingsQuery = useBindings();
-  const approvedPolicyQuery = useApprovedPolicy();
-  const approvedPolicy = approvedPolicyQuery.data;
-  const checkerOnly = approvedPolicy?.supported_operations.length === 1 && approvedPolicy.supported_operations[0] === "validate_task";
   const usableBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
@@ -155,11 +151,11 @@ export function GoalComposer({
    * Runs once, and never overwrites a binding the user typed themselves.
    */
   useEffect(() => {
-    if (checkerOnly || draft.teamMode || draft.executorKind === "deterministic_fixture" || bindingTouched || bindingsQuery.data === undefined) return;
+    if (draft.teamMode || draft.executorKind === "deterministic_fixture" || bindingTouched || bindingsQuery.data === undefined) return;
     const usable = usableBindings[0];
     if (!usable || draftRef.current.bindingRef) return;
     replaceDraft({ ...draftRef.current, bindingRef: usable.bindingId });
-  }, [checkerOnly, draft.teamMode, draft.executorKind, bindingTouched, bindingsQuery.data, usableBindings]);
+  }, [draft.teamMode, draft.executorKind, bindingTouched, bindingsQuery.data, usableBindings]);
 
   function replaceDraft(next: GoalComposerDraft, persist = true) {
     draftRef.current = next;
@@ -175,18 +171,16 @@ export function GoalComposer({
     });
   }
 
-  const executionSummary = checkerOnly
-    ? "固定仓库检查（不调用模型）"
-    : draft.teamMode
-      ? "自动选择执行方式和模型"
-      : `${{
+  const executionSummary = draft.teamMode
+    ? "自动选择执行方式和模型"
+    : `${{
           opencode: "OpenCode：规划 → 编码 → 审查",
           claude_code: "Claude Code 单任务（Claude 账号）",
           codex: "Codex 单任务（ChatGPT 账号）",
           deterministic_fixture: "无模型演练（只验证平台流程）",
         }[draft.executorKind]}${draft.executorKind !== "deterministic_fixture"
           ? ` · 模型绑定：${draft.bindingRef || "未选择"}` : ""}`;
-  const needsBinding = draft.executorKind !== "deterministic_fixture" && !checkerOnly && !draft.teamMode;
+  const needsBinding = draft.executorKind !== "deterministic_fixture" && !draft.teamMode;
   const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
   const objectiveLength = draft.objective.trim().length;
   const repositoryReady = draft.repository.includes("/");
@@ -225,15 +219,11 @@ export function GoalComposer({
         const submitted: StartGoalInput = {
           objective: draftRef.current.objective.trim(),
           repository: draftRef.current.repository.trim(),
-          executorKind: checkerOnly ? "opencode" : draftRef.current.executorKind,
-          bindingRef: checkerOnly ? "" : draftRef.current.bindingRef,
+          executorKind: draftRef.current.executorKind,
+          bindingRef: draftRef.current.bindingRef,
           autonomyHours: 2,
           operationId: draftRef.current.operationId,
-          ...(!checkerOnly && draftRef.current.teamMode ? { teamMode: true } : {}),
-          ...(checkerOnly && approvedPolicy?.goal_idempotency_key ? { checkerDraft: {
-            idempotencyKey: approvedPolicy.goal_idempotency_key,
-            executorKind: "opencode" as const, orchestrationMode: "single" as const, bindingRef: "" as const,
-          } } : {}),
+          ...(draftRef.current.teamMode ? { teamMode: true } : {}),
         };
 
         try {
@@ -316,13 +306,6 @@ export function GoalComposer({
           {blockedReason}
         </p>
       ) : null}
-      {/* What limits Send or the run stays visible with the options closed. */}
-      {approvedPolicy && checkerOnly && <p role="status" className="px-3 pb-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
-        已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
-        {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
-        {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
-      </p>}
-      {approvedPolicyQuery.isError && <p role="status" className="px-3 pb-2 text-xs text-ra-status-warning">当前没有可验证的已批准运行窗口；可以保存草稿，不能据此获得执行授权。</p>}
       {bindingMissing ? (
         <p
           role="status"
@@ -356,7 +339,7 @@ export function GoalComposer({
                 <Bot className="h-3.5 w-3.5" aria-hidden="true" />
                 <select
                   aria-label="执行模式"
-                  value={draft.teamMode && !checkerOnly ? "agent_team" : draft.executorKind}
+                  value={draft.teamMode ? "agent_team" : draft.executorKind}
                   onChange={(event) =>
                     editDraft(event.target.value === "agent_team"
                       ? { executorKind: "opencode", teamMode: true, bindingRef: "" }
@@ -364,10 +347,10 @@ export function GoalComposer({
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
-                  {!checkerOnly && <option value="agent_team">自动（按任务选择 Agent 和模型）</option>}
-                  <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode：规划 → 编码 → 审查"}</option>
-                  {!checkerOnly && <option value="claude_code">Claude Code 单任务（Claude 账号）</option>}
-                  {!checkerOnly && <option value="codex">Codex 单任务（ChatGPT 账号）</option>}
+                  <option value="agent_team">自动（按任务选择 Agent 和模型）</option>
+                  <option value="opencode">OpenCode：规划 → 编码 → 审查</option>
+                  <option value="claude_code">Claude Code 单任务（Claude 账号）</option>
+                  <option value="codex">Codex 单任务（ChatGPT 账号）</option>
                   <option value="deterministic_fixture">无模型演练（只验证平台流程）</option>
                 </select>
               </label>
@@ -403,11 +386,6 @@ export function GoalComposer({
 
           <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
         </div>
-        {approvedPolicy && !checkerOnly && <p role="status" className="mt-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
-          已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
-          {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
-          {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
-        </p>}
       </div>
     </form>
   );
