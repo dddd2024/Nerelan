@@ -1422,6 +1422,12 @@ export async function fetchGoal(goalId: string, signal?: AbortSignal): Promise<P
   return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`, { signal });
 }
 
+export function submitGoalRevision(goal: Pick<PlatformGoal, "id" | "revision">, action: "amend" | "plan", input: object) {
+  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goal.id)}/${action}`, {
+    method: "POST", body: JSON.stringify({ ...input, expected_revision: goal.revision }),
+  });
+}
+
 export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKey: string): Promise<PlatformGoal> {
   if (isMock()) {
     const id = `goal-draft-${idempotencyKey}`;
