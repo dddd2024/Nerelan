@@ -4,16 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalComposer } from "@/components/goal-composer";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
+import * as platformClient from "@/lib/platform-client";
 
-const approvedPolicyState = vi.hoisted(() => ({ data: undefined as undefined | {
-  supported_operations: string[]; validation_command_id: string;
-  goal_idempotency_key?: string;
-  policy: { autonomousWindow: { expiresAt: string } };
-} }));
-vi.mock("@/hooks/use-platform", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/hooks/use-platform")>(),
-  useApprovedPolicy: () => ({ data: approvedPolicyState.data, isError: false }),
-}));
 vi.mock("@/hooks/use-model-access", () => {
   const data = [{ bindingId: "available-opencode", name: "Available model", executorId: "opencode", enabled: true }];
   return { useBindings: () => ({ data, isLoading: false }) };
@@ -34,21 +26,20 @@ describe("GoalComposer compact progressive disclosure", () => {
 
   afterEach(() => {
     window.sessionStorage.clear();
-    approvedPolicyState.data = undefined;
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
-  it("describes the real checker instead of promising model code repair", async () => {
-    approvedPolicyState.data = { supported_operations: ["validate_task"], validation_command_id: "git_diff_check", goal_idempotency_key: "approved-frozen-checker-goal", policy: { autonomousWindow: { expiresAt: "2030-12-31T08:00:00Z" } } };
+  it("submits the draft without consulting the retired delegated policy", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const policy = vi.spyOn(platformClient, "fetchApprovedPolicyIfConfigured").mockResolvedValue(null);
     const onSubmit = vi.fn(async () => {});
     const user = userEvent.setup();
     renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
-    await user.type(screen.getByLabelText("描述最终目标"), "检查冻结范围内的差异格式");
-    expect(screen.getByTestId("approved-policy-summary")).toHaveTextContent("不实现代码或修复目标");
-    // It limits what the run does, so it shows with 高级 closed.
-    expect(screen.getByTestId("approved-policy-summary")).toBeVisible();
-    expect(screen.queryByLabelText("模型绑定")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("描述最终目标"), "核对失败重试后的任务状态");
     await user.click(screen.getByLabelText("创建并审阅目标"));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ objective: "核对失败重试后的任务状态", teamMode: true }));
+    expect(policy).not.toHaveBeenCalled();
   });
 
   it("sends on Enter, keeps Shift+Enter a newline and leaves IME composition alone", async () => {
