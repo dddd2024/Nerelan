@@ -99,12 +99,6 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
         'automatic_model_calls':False,'input_snapshot_digest':snapshot}
     if len(render_context_packet(compact).encode()) <= budget_bytes:
         return compact
-    if compact['goal']:
-        for key in ('objective','spec_markdown','plan_markdown'):
-            compact['goal'][key]=''
-        compact['compression']['goal_text_omitted']=True
-    for task in [compact['task'],*compact['tasks']]:
-        task['title']=_clip(task['title'],64)
     retained=[source for source in compact['sources'] if source['kind'] in {'goal','checkpoint','git'}
               or (source['kind']=='task' and source['ref']==compact['task']['id'])]
     compact['compression']['sources_omitted']=len(compact['sources'])-len(retained)
@@ -115,6 +109,19 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
         compact['compression']['descriptions_clipped']+=shortened!=event['description']
         event['description']=shortened
         event['title']=_clip(event['title'],64)
+    if len(render_context_packet(compact).encode()) <= budget_bytes:
+        return compact
+    if compact['goal']:
+        had_md=False
+        for key in ('spec_markdown','plan_markdown'):
+            if compact['goal'].get(key):
+                had_md=True
+            if key in compact['goal']:
+                compact['goal'][key]=''
+        if had_md:
+            compact['compression']['goal_text_omitted']=True
+    if len(render_context_packet(compact).encode()) <= budget_bytes:
+        return compact
     # Deterministic recent critical events first. Every omitted event is in catalog.
     critical=re.compile(r'FAIL|BLOCK|INTERRUPT|CANCEL|ERROR|REJECT|ESCALAT|DECISION',re.I)
     priority=sorted(enumerate(history),key=lambda pair:
@@ -122,9 +129,38 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
     compact['history']=[]
     compact['compression']['history_omitted']=len(history)
     if len(render_context_packet(compact).encode())>budget_bytes:
-        for task in [compact['task'],*compact['tasks']]:task['title']=''
-    if len(render_context_packet(compact).encode())>budget_bytes:
-        raise ContextBuilderError('context_budget_insufficient')
+        for task in [compact['task'],*compact['tasks']]:task['title']=_clip(task['title'],64)
+        if len(render_context_packet(compact).encode())>budget_bytes and compact['goal'] and compact['goal'].get('objective'):
+            raw_obj=compact['goal']['objective']
+            compact['goal']['objective']=''
+            compact['compression']['goal_text_omitted']=True
+            base_bytes=len(render_context_packet(compact).encode())
+            slack=budget_bytes-base_bytes
+            if slack>0:
+                crit_pairs=[(i,e) for i,e in priority if critical.search(e['type']+' '+e['title'])]
+                reserved_critical=0
+                if crit_pairs:
+                    compact['history']=[e for _,e in sorted(crit_pairs)]
+                    with_crit_bytes=len(render_context_packet(compact).encode())
+                    compact['history']=[]
+                    crit_bytes=max(0,with_crit_bytes-base_bytes)
+                    reserved_critical=min(slack//3,crit_bytes)
+                target_limit=budget_bytes-reserved_critical
+                lo,hi,best=1,len(raw_obj),''
+                while lo<=hi:
+                    mid=(lo+hi)//2
+                    cand=_clip(raw_obj,mid)
+                    compact['goal']['objective']=cand
+                    if len(render_context_packet(compact).encode())<=target_limit:
+                        best=cand
+                        lo=mid+1
+                    else:
+                        hi=mid-1
+                compact['goal']['objective']=best
+        if len(render_context_packet(compact).encode())>budget_bytes:
+            for task in [compact['task'],*compact['tasks']]:task['title']=''
+        if len(render_context_packet(compact).encode())>budget_bytes:
+            raise ContextBuilderError('context_budget_insufficient')
     selected=[]
     for index,event in priority:
         selected.append((index,event))

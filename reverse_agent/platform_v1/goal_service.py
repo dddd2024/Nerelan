@@ -2497,6 +2497,66 @@ class GoalService:
         return self.quota_forecaster(goal, tasks)
 
     @staticmethod
+    def _compact_quota_fit_for_plan(fit: Mapping[str, Any], *, _depth: int = 0) -> dict[str, Any]:
+        """Compact read-only quota forecast for plan_markdown while preserving full API fields."""
+        summary: dict[str, Any] = {
+            key: fit[key]
+            for key in (
+                "status",
+                "uncertain",
+                "forecast_only",
+                "availability_guaranteed",
+                "estimated_at",
+                "safety_buffer_percent",
+            )
+            if key in fit
+        }
+        if isinstance(fit.get("accounts"), Mapping):
+            summary["accounts"] = {
+                account_ref: (
+                    {
+                        key: entry[key]
+                        for key in (
+                            "state",
+                            "decision",
+                            "reason",
+                            "blocking_windows",
+                            "uncertain",
+                            "until",
+                        )
+                        if key in entry
+                    }
+                    if isinstance(entry, Mapping)
+                    else entry
+                )
+                for account_ref, entry in fit["accounts"].items()
+            }
+        if isinstance(fit.get("tasks"), Sequence) and not isinstance(fit["tasks"], (str, bytes)):
+            summary["tasks"] = [
+                (
+                    {
+                        key: item[key]
+                        for key in ("task_id", "account_ref", "binding_ref", "reason")
+                        if key in item
+                    }
+                    if isinstance(item, Mapping)
+                    else item
+                )
+                for item in fit["tasks"]
+            ]
+        if "alternative" in fit:
+            alt = fit["alternative"]
+            if isinstance(alt, Mapping):
+                summary["alternative"] = (
+                    GoalService._compact_quota_fit_for_plan(alt, _depth=_depth + 1)
+                    if _depth < 1
+                    else {"status": alt.get("status")}
+                )
+            else:
+                summary["alternative"] = alt
+        return summary
+
+    @staticmethod
     def _render_plan(goal: GoalRecord, tasks: Sequence[PlannedTask], fit=None) -> str:
         lines = [f"# Plan: {goal.title}", "", "## Execution tasks", ""]
         for item in tasks:
@@ -2527,6 +2587,11 @@ class GoalService:
                 ]
             )
         if fit is not None:
+            compact_fit = (
+                GoalService._compact_quota_fit_for_plan(fit)
+                if isinstance(fit, Mapping)
+                else fit
+            )
             lines.extend(["## Quota fit forecast", "", "Read-only forecast; no capacity reserved or future availability promised.",
-                          "", "```json", json.dumps(fit, sort_keys=True), "```", ""])
+                          "", "```json", json.dumps(compact_fit, sort_keys=True), "```", ""])
         return "\n".join(lines)
