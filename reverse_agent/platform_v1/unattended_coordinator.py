@@ -305,6 +305,9 @@ class UnattendedCoordinator:
     def _advance_landing(self, window):
         if self.landing_loop is None:
             return
+        recovery = self.control_store.landing_recovery_identity(window)
+        if recovery:
+            self.landing_loop.tick(recovery, window_id=window.id)
         # Bounded scan over local intent; GitHub truth is read by each tick.
         if window is not None and self.publication is not None and self.goals is not None:
             from . import artifact_handoff as artifacts
@@ -330,6 +333,8 @@ class UnattendedCoordinator:
             "SELECT identity,goal_id FROM platform_landing_state WHERE phase NOT IN "
             "('BLOCKED','COMPLETE','SUPERSEDED') ORDER BY next_attempt_ms LIMIT 10").fetchall()
         for row in rows:
+            if row["identity"] == recovery:
+                continue
             goal = self.control_store.get_goal(row["goal_id"])
             if goal.window_id:
                 self.landing_loop.tick(row["identity"], window_id=goal.window_id)
