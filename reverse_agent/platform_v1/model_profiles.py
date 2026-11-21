@@ -49,7 +49,12 @@ HOST_PLUMBING_CLASSES = frozenset({
     "ambiguous_external_operation", "executor_dispatch_failed", "cleanup_unconfirmed",
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
-    OWNER_WINDOW_POOL_MISROUTE})
+    OWNER_WINDOW_POOL_MISROUTE,
+    # Host-enforced OpenCode Server stream budget guards and transport plumbing (#1267).
+    "stream_budget_abort_confirmed", "stream_budget_abort_unknown",
+    "stream_budget_usage_unknown_before_dispatch", "stream_budget_exhausted_before_dispatch",
+    "server_budget_snapshot_unavailable", "server_budget_snapshot_invalid",
+    "server_transport_failed", "server_transport_internal_failure"})
 _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree

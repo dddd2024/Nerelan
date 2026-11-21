@@ -317,6 +317,17 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
     ("executor_nonzero", "opencode_nonzero:exit=1073807364:executor_nonzero", "executor_terminated"),
     ("owner_window_binding_outside_confirmed_pool", "owner_window_binding_outside_confirmed_pool",
      "owner_window_binding_outside_confirmed_pool"),
+    ("stream_budget_abort_confirmed", "stream_budget_abort_confirmed", "stream_budget_abort_confirmed"),
+    ("stream_budget_abort_unknown", "stream_budget_abort_unknown", "stream_budget_abort_unknown"),
+    ("stream_budget_usage_unknown_before_dispatch", "stream_budget_usage_unknown_before_dispatch",
+     "stream_budget_usage_unknown_before_dispatch"),
+    ("stream_budget_exhausted_before_dispatch", "stream_budget_exhausted_before_dispatch",
+     "stream_budget_exhausted_before_dispatch"),
+    ("server_budget_snapshot_unavailable", "server_budget_snapshot_unavailable",
+     "server_budget_snapshot_unavailable"),
+    ("server_budget_snapshot_invalid", "server_budget_snapshot_invalid", "server_budget_snapshot_invalid"),
+    ("server_transport_failed", "server_transport_failed", "server_transport_failed"),
+    ("server_transport_internal_failure", "server_transport_internal_failure", "server_transport_internal_failure"),
 ])
 def test_host_and_quota_failures_are_neither_attempts_nor_failures(classification, detail, cause):
     """Live 2026-11-17: stalls and the #1526 base mismatch demoted GLM-5.3 from tier 4 to 2."""
@@ -388,3 +399,19 @@ def test_provider_rate_limit_reply_recognizes_free_usage_limit_and_allowance():
     assert provider_rate_limit_reply("HTTP 429 Credits exhausted") is False
     assert provider_rate_limit_reply("status=429 insufficient credits") is False
     assert provider_rate_limit_reply("Internal server error 500") is False
+
+
+def test_server_budget_and_transport_classes_remain_non_agent_failures():
+    from reverse_agent.platform_v1 import goal_service
+    server_plumbing = (
+        "stream_budget_abort_confirmed",
+        "stream_budget_abort_unknown",
+        "stream_budget_usage_unknown_before_dispatch",
+        "stream_budget_exhausted_before_dispatch",
+        "server_budget_snapshot_unavailable",
+        "server_budget_snapshot_invalid",
+        "server_transport_failed",
+        "server_transport_internal_failure",
+    )
+    for cls in server_plumbing:
+        assert goal_service._NON_AGENT_FAILURE.search(cls), cls
