@@ -2550,7 +2550,7 @@ class GoalService:
                 summary["alternative"] = (
                     GoalService._compact_quota_fit_for_plan(alt, _depth=_depth + 1)
                     if _depth < 1
-                    else {"status": alt.get("status")}
+                    else ({key: alt[key] for key in ("status",) if key in alt})
                 )
             else:
                 summary["alternative"] = alt

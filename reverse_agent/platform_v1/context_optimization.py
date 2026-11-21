@@ -132,11 +132,25 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
         for task in [compact['task'],*compact['tasks']]:task['title']=_clip(task['title'],64)
         if len(render_context_packet(compact).encode())>budget_bytes and compact['goal'] and compact['goal'].get('objective'):
             raw_obj=compact['goal']['objective']
+            prior_goal_omitted=compact['compression']['goal_text_omitted']
             compact['goal']['objective']=''
             compact['compression']['goal_text_omitted']=True
             base_bytes=len(render_context_packet(compact).encode())
             slack=budget_bytes-base_bytes
-            if slack>0:
+            obj_restored=False
+            if slack<=0:
+                for task in [compact['task'],*compact['tasks']]:task['title']=''
+                base_bytes=len(render_context_packet(compact).encode())
+                slack=budget_bytes-base_bytes
+                if slack>0:
+                    compact['goal']['objective']=raw_obj
+                    compact['compression']['goal_text_omitted']=prior_goal_omitted
+                    if len(render_context_packet(compact).encode())<=budget_bytes:
+                        obj_restored=True
+                    else:
+                        compact['goal']['objective']=''
+                        compact['compression']['goal_text_omitted']=True
+            if slack>0 and not obj_restored:
                 crit_pairs=[(i,e) for i,e in priority if critical.search(e['type']+' '+e['title'])]
                 reserved_critical=0
                 if crit_pairs:
@@ -146,7 +160,7 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
                     crit_bytes=max(0,with_crit_bytes-base_bytes)
                     reserved_critical=min(slack//3,crit_bytes)
                 target_limit=budget_bytes-reserved_critical
-                lo,hi,best=1,len(raw_obj),''
+                lo,hi,best=1,len(raw_obj.encode('utf-8'))-1,''
                 while lo<=hi:
                     mid=(lo+hi)//2
                     cand=_clip(raw_obj,mid)

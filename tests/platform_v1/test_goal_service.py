@@ -1305,3 +1305,15 @@ def test_plan_markdown_compacts_bulky_nested_quota_fit_while_preserving_api_fit(
     assert "observation" not in parsed["alternative"]["accounts"]["acct-b"]
     assert "need" not in parsed["alternative"]["accounts"]["acct-b"]
     assert parsed["alternative"]["alternative"] == {"status": "fits_other"}
+
+
+def test_compact_quota_fit_for_plan_omits_absent_status_in_deep_alternative():
+    from reverse_agent.platform_v1.goal_service import GoalService
+    compact = GoalService._compact_quota_fit_for_plan({
+        "status": "needs_another_model",
+        "alternative": {
+            "status": "inner",
+            "alternative": {"accounts": {"acct-c": {"state": "READY"}}},
+        },
+    })
+    assert compact["alternative"]["alternative"] == {}
