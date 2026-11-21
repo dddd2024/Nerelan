@@ -192,3 +192,163 @@ def test_malformed_derived_cache_is_ignored_without_losing_current_truth(tmp_pat
     store.add_evidence(task.id, category='ContextSummary', label='unknown-usage',
         value=render_context_packet(missing_usage), status='COMPLETED', raw_json_digest=_canonical_digest(missing_usage))
     assert service.packet(task.id)['advisory_summary']['usage'] is None
+
+
+def _make_local_repo(tmp_path):
+    from tests.platform_v1.test_context_builder import _git
+    path = tmp_path / 'repo'
+    path.mkdir()
+    _git(path, 'init', '-q')
+    _git(path, 'remote', 'add', 'origin', 'https://github.com/octo/demo.git')
+    (path / 'a.txt').write_text('alpha\n', encoding='utf-8')
+    _git(path, 'add', 'a.txt')
+    _git(path, 'commit', '-q', '-m', 'init')
+    return path
+
+
+def test_compact_context_preserves_objective_over_markdown_at_p0b_budget(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's1.db')
+    objective = 'P0B_OBJECTIVE_MARKER ' + ('fix goal objective clipping ' * 70)
+    spec_md = '# Spec\n' + ('detailed spec section\n' * 450)
+    plan_md = '# Plan\n' + ('detailed plan section\n' * 450)
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = ?, spec_markdown = ?, plan_markdown = ? WHERE id = ?',
+        (objective, spec_md, plan_md, goal.id),
+    )
+    store._conn.commit()
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    assert len(render_context_packet(full).encode()) > 16384
+    compact = compact_context(full, budget_bytes=16384)
+    assert compact['goal']['objective'] == objective
+    assert compact['goal']['spec_markdown'] == ''
+    assert compact['goal']['plan_markdown'] == ''
+    assert compact['compression']['goal_text_omitted'] is True
+    assert len(render_context_packet(compact).encode()) <= 16384
+
+
+def test_compact_context_clips_oversized_objective_while_reserving_critical_history(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's2.db')
+    objective = 'OBJ_START ' + ('x' * 6000)
+    for i in range(10):
+        store.add_event(first.id, event_type='EXECUTOR_PROGRESS', title=f'step-{i}',
+                        description='progress ' * 10)
+    store.add_event(first.id, event_type='VALIDATED', title='DECISION keep critical hint',
+                    description='Critical decision rationale')
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = ?, spec_markdown = "", plan_markdown = "" WHERE id = ?',
+        (objective, goal.id),
+    )
+    store._conn.commit()
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    compact = compact_context(full, budget_bytes=3072)
+    assert compact['goal']['objective'].startswith('OBJ_START ')
+    assert len(compact['goal']['objective']) < len(objective)
+    assert compact['compression']['goal_text_omitted'] is True
+    assert any('DECISION' in event['title'] for event in compact['history'])
+    assert len(render_context_packet(compact).encode()) <= 3072
+
+
+def test_compact_context_empty_restricted_objective_keeps_goal_text_omitted_false(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's3.db')
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = "", spec_markdown = "", plan_markdown = "" WHERE id = ?',
+        (goal.id,),
+    )
+    store._conn.commit()
+    for i in range(30):
+        store.add_event(first.id, event_type='EXECUTOR_PROGRESS', title=f'ev-{i}', description='event body ' * 15)
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    assert len(render_context_packet(full).encode()) > 3072
+    compact = compact_context(full, budget_bytes=3072)
+    assert compact['goal']['objective'] == ''
+    assert compact['goal']['spec_markdown'] == ''
+    assert compact['goal']['plan_markdown'] == ''
+    assert compact['compression']['goal_text_omitted'] is False
+    assert compact['compression']['history_omitted'] > 0
+    assert len(render_context_packet(compact).encode()) <= 3072
+
+
+def test_compact_context_clips_multibyte_utf8_objective_by_byte_budget(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's4.db')
+    objective = '中文目标' * 500
+    assert len(objective) == 2000 and len(objective.encode('utf-8')) == 6000
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = ?, spec_markdown = "", plan_markdown = "" WHERE id = ?',
+        (objective, goal.id),
+    )
+    store._conn.commit()
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    compact = compact_context(full, budget_bytes=5120)
+    assert len(compact['goal']['objective'].encode('utf-8')) > len(objective)
+    assert compact['goal']['objective'].startswith('中文目标')
+    assert len(compact['goal']['objective']) < len(objective)
+    assert compact['compression']['goal_text_omitted'] is True
+    assert len(render_context_packet(compact).encode()) <= 5120
+
+
+def test_compact_context_one_byte_overflow_keeps_goal_text_omitted_honest(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's5.db')
+    objective = 'ONE_BYTE_OVERFLOW_CHECK ' + ('x' * 600)
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = ?, spec_markdown = "", plan_markdown = "" WHERE id = ?',
+        (objective, goal.id),
+    )
+    store._conn.commit()
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    exact_bytes = len(render_context_packet(compact_context(full, budget_bytes=65536)).encode())
+    assert exact_bytes - 1 >= 1024
+    compact = compact_context(full, budget_bytes=exact_bytes - 1)
+    assert len(render_context_packet(compact).encode()) <= exact_bytes - 1
+    if compact['compression']['goal_text_omitted']:
+        assert compact['goal']['objective'] != full['goal']['objective']
+
+
+def test_compact_context_recovers_objective_after_blanking_many_task_titles(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's6.db')
+    objective = 'RECOVER_ME_OBJECTIVE'
+    store._conn.execute(
+        'UPDATE platform_goals SET objective = ?, spec_markdown = "", plan_markdown = "" WHERE id = ?',
+        (objective, goal.id),
+    )
+    for i in range(25):
+        t = store.create_task(
+            title=f'long-task-title-{i:02d}-' + ('t' * 42),
+            repository='octo/demo',
+            executor_kind='deterministic_fixture',
+        )
+        store._conn.execute(
+            'INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, '
+            'dependencies_json, seq) VALUES (?, ?, ?, ?, "[]", ?)',
+            (goal.id, goal.revision, f'extra-{i}', t.id, i + 10),
+        )
+    store._conn.commit()
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=65536)
+    empty_obj_packet = compact_context(full, budget_bytes=65536)
+    for task in [empty_obj_packet['task'], *empty_obj_packet['tasks']]:
+        task['title'] = task['title'][:64]
+    empty_obj_packet['goal']['objective'] = ''
+    empty_obj_packet['compression']['goal_text_omitted'] = True
+    clipped_titles_empty_obj_bytes = len(render_context_packet(empty_obj_packet).encode())
+    blanked_titles_with_obj_packet = compact_context(full, budget_bytes=65536)
+    for task in [blanked_titles_with_obj_packet['task'], *blanked_titles_with_obj_packet['tasks']]:
+        task['title'] = ''
+    blanked_titles_with_obj_bytes = len(render_context_packet(blanked_titles_with_obj_packet).encode())
+    assert blanked_titles_with_obj_bytes < clipped_titles_empty_obj_bytes
+    tight_budget = max(1024, (blanked_titles_with_obj_bytes + clipped_titles_empty_obj_bytes) // 2)
+    assert blanked_titles_with_obj_bytes <= tight_budget < clipped_titles_empty_obj_bytes
+    compact = compact_context(full, budget_bytes=tight_budget)
+    assert compact['goal']['objective'] == 'RECOVER_ME_OBJECTIVE'
+    assert compact['compression']['goal_text_omitted'] is False
+    assert len(render_context_packet(compact).encode()) <= tight_budget

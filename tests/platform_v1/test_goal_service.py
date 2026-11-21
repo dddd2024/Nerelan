@@ -1217,3 +1217,103 @@ def test_goal_detail_preserves_existing_fields_besides_generated_at():
     assert detail["completion_scope"] == "EXECUTION_ONLY"
     assert detail["remote_acceptance"] == "NOT_OBSERVED"
     assert "generated_at" in detail
+
+
+def test_plan_markdown_compacts_bulky_nested_quota_fit_while_preserving_api_fit():
+    import json
+    _, _, _, goals = _services()
+    bulky_fit = {
+        "status": "needs_a_reset",
+        "uncertain": True,
+        "forecast_only": True,
+        "availability_guaranteed": False,
+        "estimated_at": "2026-11-20T00:00:00Z",
+        "safety_buffer_percent": 15,
+        "accounts": {
+            "acct-a": {
+                "state": "EXHAUSTED",
+                "decision": "wait",
+                "reason": "weekly_cap",
+                "blocking_windows": ["weekly"],
+                "uncertain": True,
+                "until": "2026-11-21T00:00:00Z",
+                "need": {"tokens": 50000, "padding": "z" * 2000},
+                "observation": {"raw": "y" * 2000},
+                "resets": {"weekly": "2026-11-21T00:00:00Z"},
+            }
+        },
+        "tasks": [
+            {
+                "task_id": "t1",
+                "account_ref": "acct-a",
+                "binding_ref": "b1",
+                "need": {"estimate": {"tokens": 12345}, "blob": "n" * 2000},
+                "routing": {"candidates": ["b" * 1000]},
+            },
+            {
+                "task_id": "t2",
+                "account_ref": None,
+                "reason": "no_capacity",
+                "need": {"blob": "m" * 2000},
+            },
+        ],
+        "alternative": {
+            "status": "needs_another_model",
+            "uncertain": False,
+            "accounts": {
+                "acct-b": {
+                    "state": "READY",
+                    "decision": "proceed",
+                    "observation": {"huge": "x" * 2000},
+                    "need": {"tokens": 999, "blob": "k" * 1500},
+                }
+            },
+            "tasks": [
+                {"task_id": "t1", "account_ref": "acct-b", "binding_ref": "b2", "need": {"blob": "j" * 1500}},
+            ],
+            "alternative": {
+                "status": "fits_other",
+                "accounts": {"acct-c": {"state": "READY", "observation": {"huge": "q" * 2000}}},
+            },
+        },
+    }
+    goals.quota_forecaster = lambda _goal, _tasks: bulky_fit
+    goal = goals.create({
+        "objective": "Preserve compact plan forecast",
+        "idempotency_key": "compact-quota-fit-plan",
+        "executor_kind": "deterministic_fixture",
+        "orchestration_mode": "single",
+    })
+    planned = goals.plan(goal.id, expected_revision=1)
+    assert planned.quota_fit["accounts"]["acct-a"]["need"]["padding"] == "z" * 2000
+    assert planned.quota_fit["tasks"][0]["routing"]["candidates"] == ["b" * 1000]
+    detail_fit = goals.detail(goal.id)["quota_fit"]
+    assert detail_fit["accounts"]["acct-a"]["observation"]["raw"] == "y" * 2000
+    section = planned.goal.plan_markdown.split("## Quota fit forecast", 1)[1]
+    compact_json = section.split("```json\n", 1)[1].split("\n```", 1)[0]
+    assert len(compact_json.encode("utf-8")) < 2048
+    parsed = json.loads(compact_json)
+    assert parsed["status"] == "needs_a_reset"
+    assert set(parsed["accounts"]["acct-a"]) == {
+        "state", "decision", "reason", "blocking_windows", "uncertain", "until",
+    }
+    assert parsed["tasks"] == [
+        {"task_id": "t1", "account_ref": "acct-a", "binding_ref": "b1"},
+        {"task_id": "t2", "account_ref": None, "reason": "no_capacity"},
+    ]
+    assert parsed["alternative"]["status"] == "needs_another_model"
+    assert "observation" not in parsed["alternative"]["accounts"]["acct-b"]
+    assert "need" not in parsed["alternative"]["accounts"]["acct-b"]
+    assert parsed["alternative"]["alternative"] == {"status": "fits_other"}
+
+
+def test_compact_quota_fit_for_plan_omits_absent_status_in_deep_alternative():
+    from reverse_agent.platform_v1.goal_service import GoalService
+    compact = GoalService._compact_quota_fit_for_plan({
+        "status": "needs_another_model",
+        "alternative": {
+            "status": "inner",
+            "alternative": {"accounts": {"acct-c": {"state": "READY"}}},
+        },
+    })
+    assert compact["alternative"]["alternative"] == {}
