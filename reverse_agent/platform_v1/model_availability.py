@@ -34,7 +34,8 @@ OVERLOADED = "provider_overloaded"
 # retry event, including Magpie's generic exit diagnostics.
 _PROVIDER_RATE_LIMIT_REPLY_RE = re.compile(
     r"^(?:too many requests\b|rate[ _-]limit(?:ed)?\b|(?:(?:http|status)[ :=]+)?429\b)"
-    r"|status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)",
+    r"|status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)"
+    r"|\b(?:free\s+)?usage\s+limit\s+reached\b|\bout\s+of\s+its\s+allowance\b",
     re.IGNORECASE,
 )
 
@@ -63,7 +64,10 @@ def provider_overloaded(value: str) -> bool:
 
 
 def provider_rate_limit_reply(value: str) -> bool:
-    return bool(_PROVIDER_RATE_LIMIT_REPLY_RE.search((value or "").strip()))
+    text = (value or "").strip()
+    if no_credits_error(text):
+        return False
+    return bool(_PROVIDER_RATE_LIMIT_REPLY_RE.search(text))
 
 
 # Classifications whose failure_detail may still be inspected for provider-overload

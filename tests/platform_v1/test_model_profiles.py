@@ -310,6 +310,10 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
      'inference exceeds tpm/rpm limit (429: you can retry your request)"', "quota_or_rate_limit"),
     ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=429 message=slow down",
      "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero message=OpenCode Zen Free: Free usage limit reached",
+     "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero message=(out of its allowance: not asked again before 07:06 UTC-4)",
+     "quota_or_rate_limit"),
     ("executor_nonzero", "opencode_nonzero:exit=1073807364:executor_nonzero", "executor_terminated"),
     ("owner_window_binding_outside_confirmed_pool", "owner_window_binding_outside_confirmed_pool",
      "owner_window_binding_outside_confirmed_pool"),
@@ -368,3 +372,19 @@ def test_neutral_classes_reuse_the_host_definitions():
     from reverse_agent.platform_v1 import goal_service, model_profiles, model_review
     assert goal_service.HOST_RETRY_CLASSES is model_profiles.HOST_RETRY_CLASSES
     assert model_review.ABANDONED_NO_REPLY in model_profiles.HOST_PLUMBING_CLASSES
+
+
+def test_provider_rate_limit_reply_recognizes_free_usage_limit_and_allowance():
+    from reverse_agent.platform_v1.model_availability import no_credits_error, provider_rate_limit_reply
+    magpie_msg = (
+        "AI_APICallError: OpenCode Zen Free: Free usage limit reached. Free models work in OpenCode "
+        "(https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+    assert provider_rate_limit_reply("Free usage limit reached") is True
+    assert provider_rate_limit_reply("out of its allowance") is True
+    assert provider_rate_limit_reply(magpie_msg) is True
+    assert no_credits_error(magpie_msg) is None
+    assert provider_rate_limit_reply("HTTP 429 Credits exhausted") is False
+    assert provider_rate_limit_reply("status=429 insufficient credits") is False
+    assert provider_rate_limit_reply("Internal server error 500") is False

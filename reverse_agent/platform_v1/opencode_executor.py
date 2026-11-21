@@ -3722,6 +3722,9 @@ def _classify_exit(
 
         if _QUOTA_EXHAUSTED_RE.search(text):
             return "quota_exhausted"
+        from .model_availability import provider_rate_limit_reply
+        if provider_rate_limit_reply(text):
+            return "api_error_429"
         if _AUTH_ERROR_RE.search(text):
             return "auth_provider_route_failure"
         if _OVERLOAD_ERROR_RE.search(text):
