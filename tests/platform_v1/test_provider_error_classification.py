@@ -573,3 +573,23 @@ def test_no_credits_binding_is_excluded_from_routing(monkeypatch, tmp_path):
         host._resolve_task_model(PlannedTask('T', 'Edit', 'Edit locally', difficulty=2))
     filters = [row.get('filter') for row in caught.value.decision.get('excluded_candidates', [])]
     assert "availability:no_credits" in filters
+
+
+def test_free_usage_limit_and_allowance_classify_for_cooldown_not_no_credits():
+    from reverse_agent.platform_v1.model_availability import no_credits_error
+    from reverse_agent.platform_v1.quota_guard import LIMIT_HIT_HOLD_SECONDS, account_refusal_hold
+
+    magpie_msg = (
+        "AI_APICallError: OpenCode Zen Free: Free usage limit reached. Free models work in OpenCode "
+        "(https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+    usage_limit_ev = [{"type": "error", "error": {"message": magpie_msg}}]
+    allowance_only_ev = [{
+        "type": "error",
+        "error": {"message": "Request blocked (out of its allowance: not asked again before 07:06 UTC-4)"},
+    }]
+    assert _dummy_executor()._classify_exit(1, usage_limit_ev) == "quota_exhausted"
+    assert _dummy_executor()._classify_exit(1, allowance_only_ev) == "api_error_429"
+    assert account_refusal_hold("api_error_429", "opencode_nonzero:exit=1:api_error_429") == LIMIT_HIT_HOLD_SECONDS
+    assert no_credits_error(magpie_msg) is None

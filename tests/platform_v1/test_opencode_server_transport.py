@@ -249,6 +249,8 @@ def _event(kind, properties=None):
     {"message": "Too Many Requests PROVIDER_SENTINEL"},
     {"message": "PROVIDER_SENTINEL", "action": {"reason": "account_rate_limit"}},
     {"message": "PROVIDER_SENTINEL: rpm exhausted (429: you can retry your request)"},
+    {"message": "PROVIDER_SENTINEL: OpenCode Zen Free: Free usage limit reached. Free models work in OpenCode; subscribe to OpenCode Go (out of its allowance: not asked again before 07:06 UTC-4)"},
+    {"message": "PROVIDER_SENTINEL (out of its allowance: not asked again before 07:06 UTC-4)"},
 ])
 def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status, abort_result):
     retry = {"type": "retry", "attempt": 1, "next": 1_800_000_000_000, **status}
