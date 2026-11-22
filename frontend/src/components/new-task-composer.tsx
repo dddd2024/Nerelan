@@ -14,6 +14,8 @@ import { taskCopy } from "@/lib/ui-locale";
 
 export type ExecutorChoice = "opencode" | "codex" | "claude_code" | "deterministic_fixture";
 
+const PREFERRED_FREE_MODEL_ID = "token-sensenova/glm-5.2";
+
 interface ExecutorOption {
   value: ExecutorChoice;
   label: string;
@@ -88,7 +90,12 @@ export function NewTaskComposer({
     if (bindingsQuery.data === undefined) {
       return;
     }
-    const usable = opencodeBindings.length > 0 ? opencodeBindings[0] : null;
+    const preferred = opencodeBindings.find(
+      (b) => b.modelId === PREFERRED_FREE_MODEL_ID,
+    );
+    const fallback =
+      !preferred && opencodeBindings.length > 0 ? opencodeBindings[0] : null;
+    const usable = preferred ?? fallback ?? null;
     if (usable) {
       setSelectedBindingId(usable.bindingId);
     }
@@ -148,6 +155,10 @@ export function NewTaskComposer({
     ? customPolicy
     : profileToPolicy(permissionMode);
 
+  const hasPreferredFreeModel =
+    isOpenCode &&
+    opencodeBindings.some((b) => b.modelId === PREFERRED_FREE_MODEL_ID);
+
   const hasValidOpenCodeBinding =
     isOpenCode &&
     opencodeBindings.length > 0 &&
@@ -197,6 +208,12 @@ export function NewTaskComposer({
             <h2 className="text-sm font-semibold text-ra-text-secondary">
               新建任务
             </h2>
+            <span
+              data-testid="interactive-mode-badge"
+              className="ml-1 inline-flex items-center rounded-full border border-ra-accent/40 bg-ra-accent/10 px-2 py-0.5 text-[10px] font-medium text-ra-accent"
+            >
+              此模式需要你在场
+            </span>
             <button
               type="button"
               aria-label="关闭"
@@ -324,6 +341,11 @@ export function NewTaskComposer({
                 {!bindingsQuery.isLoading && opencodeBindings.length === 0 && (
                   <p className="mt-1 text-xs text-ra-status-warning" data-testid="no-binding-hint">
                     没有可用的 OpenCode 绑定，请前往设置创建。
+                  </p>
+                )}
+                {!bindingsQuery.isLoading && opencodeBindings.length > 0 && !hasPreferredFreeModel && (
+                  <p className="mt-1 text-xs text-ra-status-warning" data-testid="preferred-free-model-missing-hint">
+                    未找到推荐的免费模型 {PREFERRED_FREE_MODEL_ID}，请前往账户页添加，或继续使用当前绑定。
                   </p>
                 )}
                 {selectedBinding && (
