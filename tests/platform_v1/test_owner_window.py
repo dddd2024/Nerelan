@@ -380,7 +380,6 @@ class TestAdmission:
     @pytest.mark.parametrize("surface,continuous,goal_count,reason", [
         ("ui", False, 1, "owner_window_capabilities_invalid"),
         ("supervisor", False, 1, "owner_window_capabilities_invalid"),
-        ("terminal", True, 1, "owner_window_landing_scope_invalid"),
         ("terminal", False, 2, "owner_window_landing_scope_invalid"),
     ])
     def test_landing_rejects_implicit_or_wider_consent(self, setup, surface, continuous, goal_count, reason):
@@ -391,6 +390,125 @@ class TestAdmission:
                 max_tasks=0 if continuous else 5, max_concurrent=1, max_retries=0,
                 confirm=lambda *_args, **_kw: pytest.fail("invalid landing request reached confirmation"))
         untouched(setup, *goals)
+
+    @pytest.mark.parametrize("surface", ["terminal", "ui", "supervisor"])
+    def test_continuous_landing_allows_multi_goal_append_and_adoption_while_keeping_gates(
+        self, setup, tmp_path, monkeypatch, surface
+    ):
+        from reverse_agent.platform_v1 import control_store
+        from reverse_agent.platform_v1.autonomy import AutonomyService
+        from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+        from reverse_agent.platform_v1.landing_loop import LandingLoopController
+        from test_landing_loop import ProgressGitHub, step
+
+        g1 = setup.planned("cont-1", "codex", "pinned")
+        g2 = setup.planned("cont-2", "codex", "pinned")
+        g3 = setup.planned("cont-3", "codex", "pinned")
+        unconfirmed = setup.planned("cont-unconfirmed", "codex", "pinned")
+        stranded = setup.planned("cont-stranded", "codex", "pinned")
+        old, _ = admit(setup.host, (stranded.id,))
+        control = setup.host._control_store
+        control.stop_window(old.id, reason="window_task_budget_exhausted")
+
+        admission = setup.host._owner_window_admission
+        if surface == "supervisor":
+            (tmp_path / "owner_window_settings.json").write_text(
+                json.dumps({"confirmation": "ui", "supervisor_activation": True}), encoding="utf-8")
+            monkeypatch.setattr(setup.host._store, "_state_path", tmp_path / "model_setup_state.json", raising=False)
+            req = admission.supervisor_request([g1.id, g2.id], "continuous")
+            pre = admission.preflight([g1.id, g2.id], **req)
+            assert pre["ok"] is True
+            window = admission.admit_from_supervisor(
+                [g1.id, g2.id], preset="continuous", card_digest=pre["card_digest"], requested_by="sup")
+        elif surface == "ui":
+            req = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2,
+                       capabilities=WITH_LANDING, continuous=True)
+            pre = admission.preflight([g1.id, g2.id], **req)
+            assert pre["ok"] is True
+            window = admission.admit_from_card([g1.id, g2.id], card_digest=pre["card_digest"], **req)
+        else:
+            window, _ = admit(setup.host, (g1.id, g2.id), continuous=True, hours=0, max_tasks=0,
+                              max_concurrent=3, max_retries=2, capabilities=WITH_LANDING)
+
+        assert window.continuous and OWNER_LANDING_CAPABILITY in window.capabilities
+        # Appending another Goal into the active continuous landing window also authorizes it.
+        append_req = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2,
+                          capabilities=WITH_LANDING, continuous=True)
+        append_pre = admission.preflight([g3.id], **append_req)
+        appended = admission.admit_from_card([g3.id], card_digest=append_pre["card_digest"], **append_req)
+        assert appended.id == window.id
+        # Adopting a stranded Goal into the continuous landing window preserves its landing eligibility.
+        assert control.adopt_standing_goals(window.id)[0]["status"] == "REBOUND"
+
+        now = [control_store._utc_now_ms()]
+        monkeypatch.setattr(control_store, "_utc_now_ms", lambda: now[0])
+        for idx, goal in enumerate((g1, g2, g3, stranded), start=50):
+            github = ProgressGitHub()
+            loop = LandingLoopController(control_store=control, github=github,
+                autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+            state = control.ensure_landing(repository=goal.repository, goal_id=goal.id,
+                                           pr_number=idx, head_sha=github.head, review_round=1)
+            step(loop, state, window, now)
+            assert not github.draft and not github.merged
+            step(loop, state, window, now)
+            assert github.merged and step(loop, state, window, now)["phase"] == "COMPLETE"
+
+        # Unconfirmed Goals, red CI, and R3 paths remain blocked even in a continuous landing window.
+        github_unconfirmed = ProgressGitHub()
+        loop_u = LandingLoopController(control_store=control, github=github_unconfirmed,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+        u_state = control.ensure_landing(repository=unconfirmed.repository, goal_id=unconfirmed.id,
+                                         pr_number=99, head_sha=github_unconfirmed.head, review_round=1)
+        assert step(loop_u, u_state, window, now)["parking_reason"] == "landing_owner_scope_not_confirmed"
+        assert github_unconfirmed.calls == []
+
+        github_red = ProgressGitHub()
+        github_red.bad_check = "red"
+        loop_r = LandingLoopController(control_store=control, github=github_red,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+        r_state = control.ensure_landing(repository=g1.repository, goal_id=g1.id,
+                                         pr_number=100, head_sha=github_red.head, review_round=1)
+        assert step(loop_r, r_state, window, now)["parking_reason"] == "fresh_current_head_checks_required"
+        assert not github_red.merged
+
+        github_r3 = ProgressGitHub()
+        github_r3.paths = ["secrets/private.key"]
+        loop_3 = LandingLoopController(control_store=control, github=github_r3,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+        s3 = control.ensure_landing(repository=g1.repository, goal_id=g1.id,
+                                    pr_number=101, head_sha=github_r3.head, review_round=1)
+        assert step(loop_3, s3, window, now)["parking_reason"] == "r3_action_specific_owner_authorization_required"
+        assert not github_r3.merged
+
+    def test_continuous_landing_rejects_incomplete_or_mismatched_receipts(self, setup):
+        goal = setup.planned("g", "codex", "pinned")
+        window, _ = admit(setup.host, (goal.id,), continuous=True, hours=0, max_tasks=0,
+                          max_token_units=0, max_concurrent=1, capabilities=WITH_LANDING, surface="terminal")
+        control = setup.host._control_store
+        row = setup.db._conn.execute(
+            "SELECT id, evidence_json FROM platform_operation_receipts "
+            "WHERE window_id = ? AND subject_id = ? AND operation_type = ?",
+            (window.id, goal.id, OWNER_WINDOW_RECEIPT)).fetchone()
+        base = json.loads(row["evidence_json"])
+
+        for bad in (
+            {k: v for k, v in base.items() if k != "goal_revision"},
+            {k: v for k, v in base.items() if k != "artifact_digest"},
+            {k: v for k, v in base.items() if k != "goal_id"},
+            {**base, "goal_id": "other-goal"},
+            {**base, "reason": "continuous_run_adoption", "to_window_id": "other-window"},
+            {k: v for k, v in {**base, "reason": "continuous_run_adoption"}.items() if k != "to_window_id"},
+        ):
+            setup.db._conn.execute(
+                "UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+                (json.dumps(bad), row["id"]))
+            with pytest.raises(TaskStoreError, match="landing_owner_scope_not_confirmed"):
+                control.check_owner_landing_scope(window, goal.id)
+
+        setup.db._conn.execute(
+            "UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+            (json.dumps({**base, "reason": "continuous_run_adoption", "to_window_id": window.id}), row["id"]))
+        control.check_owner_landing_scope(window, goal.id)
 
     def test_activates_exactly_the_confirmed_goals_with_one_receipt_each(self, setup):
         a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "opencode", "free", tasks=2)
@@ -788,6 +906,13 @@ class TestCommandLine:
                                    "--capability", "open_draft_pr", "--land-reviewed-pr"])
         assert OWNER_LANDING_CAPABILITY in args.capability
 
+    def test_continuous_landing_cli_allows_multiple_goals(self):
+        args = owner_window.parse(["--goal", "g1", "--goal", "g2", "--continuous",
+                                   "--capability", "execute_task", "--capability", "validate_task",
+                                   "--capability", "open_draft_pr", "--land-reviewed-pr"])
+        assert args.continuous is True and args.goal == ["g1", "g2"]
+        assert OWNER_LANDING_CAPABILITY in args.capability
+
     def test_landing_recovery_only_requests_landing_capability(self):
         args = owner_window.parse(["--goal", "g1", "--hours", "1", "--resume-parked-landing"])
         assert args.capability == [OWNER_LANDING_CAPABILITY]
@@ -798,6 +923,8 @@ class TestCommandLine:
         ["--goal", "g", "--goal", "g", "--hours", "1", "--max-tasks", "1", "--capability", "execute_task"],
         ["--goal", "a/b", "--hours", "1", "--max-tasks", "1", "--capability", "execute_task"],
         ["--goal", "g", "--hours", "1", "--max-tasks", "1", "--capability", "land_reviewed_pr"],
+        ["--goal", "g1", "--goal", "g2", "--hours", "1", "--max-tasks", "5", "--capability", "execute_task",
+         "--capability", "validate_task", "--capability", "open_draft_pr", "--land-reviewed-pr"],
         ["--goal", "g", "--hours", "1", "--max-tasks", "1", "--max-concurrent", "9", "--capability", "execute_task"],
         ["--goal", "g", "--hours", "1", "--max-tasks", "1", "--capability", "execute_task", "--yes"],
     ])

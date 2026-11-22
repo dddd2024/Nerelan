@@ -72,7 +72,15 @@ class TestPresets:
         request = window_request(presets(None)["day"], ["g1", "g2"], tasks=2)
         assert request["max_tasks"] == 6 and request["max_cost_micro_units"] == 0
         assert "open_draft_pr" in request["capabilities"]
-        assert not {"merge", "publish", "mark_ready"} & set(request["capabilities"])
+        assert not {"merge", "publish", "mark_ready", "land_reviewed_pr"} & set(request["capabilities"])
+
+    def test_continuous_preset_includes_governed_landing_while_bounded_presets_do_not(self):
+        all_presets = presets(None)
+        cont = window_request(all_presets["continuous"], ["g1", "g2"], tasks=2)
+        assert cont["continuous"] is True and "land_reviewed_pr" in cont["capabilities"]
+        for name in ("trial", "day", "week"):
+            req = window_request(all_presets[name], ["g1"], tasks=2)
+            assert "land_reviewed_pr" not in req["capabilities"]
 
 
 class TestDraft:

@@ -80,7 +80,7 @@ An Owner-authorized development goal covers ordinary R1 implementation, focused 
 
 An Owner-activated window may carry a **standing renewal** policy (Owner decision 2026-10-21, #1310 D): when it expires by time, the host activates a successor with identical bounds (at most 7 days each, never past the policy's `renew_until`, at most 90 days after activation) and moves unfinished goals into it. Stopping a window or revoking the policy ends renewal immediately. Details: [standing windows](docs/agents/governance-reference.md#standing-windows).
 
-**Continuous run** (Owner decision 2026-11-15, #1538): an Owner-activated window may run with no expiry, token budget or task cap until the Owner stops it, admitting new and stranded goals as it goes. The remaining limits are provider account quotas, a per-attempt runaway guard, concurrency and, when paid API is on, a money cap. Review, CI, landing and R2/R3 rules are unchanged. Details: [continuous run](docs/agents/governance-reference.md#continuous-run).
+**Continuous run** (Owner decision 2026-11-15, #1538; amended 2026-11-22, #1718): an Owner-activated window runs without expiry, token or task caps until stopped, admitting new/stranded goals and carrying `land_reviewed_pr` under exact-head review, CI and matched-head merge (self-governance R2 needs independent refutation; R3 stays gated). Limits: account quotas, runaway guard, concurrency and paid money cap. Details: [continuous run](docs/agents/governance-reference.md#continuous-run).
 
 ## Test commands
 

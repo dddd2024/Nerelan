@@ -315,11 +315,12 @@ class OwnerWindowAdmission:
             raise TaskStoreError("continuous_run_has_window_bounds")
         capabilities = tuple(dict.fromkeys(capabilities))
         allowed_capabilities = OWNER_WINDOW_CAPABILITIES
-        if terminal:
+        if terminal or continuous:
             allowed_capabilities |= {OWNER_LANDING_CAPABILITY}
         if "execute_task" not in capabilities or not set(capabilities) <= allowed_capabilities:
             raise TaskStoreError("owner_window_capabilities_invalid")
-        if OWNER_LANDING_CAPABILITY in capabilities and (continuous or len(goal_ids) != 1
+        if OWNER_LANDING_CAPABILITY in capabilities and (
+                (not continuous and len(goal_ids) != 1)
                 or not {"open_draft_pr", "validate_task"} <= set(capabilities)):
             raise TaskStoreError("owner_window_landing_scope_invalid")
         # Discovered models bind now, so routing inside the transaction cannot
@@ -768,8 +769,8 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     if args.continuous and (args.hours or args.max_token_units):
         parser.error("continuous runs have no window duration or token cap")
     if args.land_reviewed_pr:
-        if args.continuous or len(args.goal) != 1 or not {"open_draft_pr", "validate_task"} <= set(args.capability):
-            parser.error("--land-reviewed-pr requires one Goal, an expiring window, validate_task and open_draft_pr")
+        if (not args.continuous and len(args.goal) != 1) or not {"open_draft_pr", "validate_task"} <= set(args.capability):
+            parser.error("--land-reviewed-pr requires validate_task and open_draft_pr, and one Goal unless --continuous")
         args.capability.append(OWNER_LANDING_CAPABILITY)
     return args
 

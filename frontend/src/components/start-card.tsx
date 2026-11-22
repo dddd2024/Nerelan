@@ -71,9 +71,12 @@ export function scopeMatchesGoal(report: OwnerWindowPreflightResult | undefined,
 
 function terminalCommand(card: OwnerWindowCard) {
   const r = card.request;
+  const landing = r.capabilities.includes("land_reviewed_pr");
+  const capabilities = r.capabilities.filter((capability) => capability !== "land_reviewed_pr");
   return ["python -m reverse_agent.platform_v1.owner_window", ...r.goal_ids.map((id) => `--goal ${id}`),
     ...(r.continuous ? ["--continuous"] : [`--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`]), `--max-concurrent ${r.max_concurrent}`,
-    `--max-retries ${r.max_retries}`, ...r.capabilities.map((capability) => `--capability ${capability}`),
+    `--max-retries ${r.max_retries}`, ...capabilities.map((capability) => `--capability ${capability}`),
+    ...(landing ? ["--land-reviewed-pr"] : []),
     ...(r.max_token_units ? [`--max-token-units ${r.max_token_units}`] : [])].join(" ");
 }
 
@@ -136,7 +139,11 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     <section data-testid="start-card" aria-label="开始执行" className="mt-6 rounded-2xl border border-ra-border bg-ra-light/30 p-4">
       <h3 className="text-sm font-medium text-ra-text">开始执行</h3>
       <p className="mt-1 text-xs text-ra-text-secondary">
-        {card?.request.continuous ? "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户。" : "选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。"}
+        {card?.request.continuous
+          ? (card.request.capabilities.includes("land_reviewed_pr")
+            ? "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户；独立审查与门禁通过后自动合并，不用付费 API。"
+            : "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户。")
+          : "选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。"}
       </p>
 
       {cardQuery.isError ? (

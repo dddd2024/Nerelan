@@ -27,13 +27,11 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 范围太大显示不下时直接拒绝，不截断。确认码必须在交互式终端输入，管道输入会被拒绝。确认有效期 5 分钟，
 窗口时间从打印范围之前开始计算。
 
-### 为单个 Goal 授予合并权限
+### 为目标授予合并权限（限时单目标与持续运行多目标）
 
-在宿主终端命令中加入 `--land-reviewed-pr`，同时指定一个 `--goal`、有限的 `--hours`，以及
-`--capability validate_task` 和 `--capability open_draft_pr`。终端会把 GitHub Ready 和合并列为
-授权动作。Owner 输入一次性确认码后，宿主按独立审查、当前提交的 CI 和合并前检查推进。
-窗口任务上限应为独立审查和可能的修复预留余量。窗口停止或到期后，授权随之失效。
-确认卡片、监督者请求和持续窗口均不提供此选项。
+按 Owner 决定（2026-11-22，[#1718](https://github.com/dddd2024/Nerelan/issues/1718#issuecomment-7075002630)），持续运行窗口（`--continuous --land-reviewed-pr`，或 `continuous` 预设经确认卡片/监督者激活）可携带 `land_reviewed_pr`，在独立审查、当前提交 CI、匹配 SHA 合并和 `main` 核验通过后，对同一仓库内的多个已确认 Goal（含后续追加或接管的 Goal）持续受控自动合并，不再要求每个 Goal 单独到宿主终端输入确认码。
+
+在非持续的限时窗口中，仍保留原有的单 Goal 终端 opt-in 边界：在宿主终端命令中加入 `--land-reviewed-pr`，同时指定一个 `--goal`、有限的 `--hours`，以及 `--capability validate_task` 和 `--capability open_draft_pr`。窗口停止或到期后，授权随之失效；非持续窗口的确认卡片和监督者预设不开启此选项。
 
 已完成执行、因缺少窗口授权而暂停的 PR，可在原窗口结束后使用
 `--goal <GOAL_ID> --hours 1 --resume-parked-landing`。终端显示待恢复的仓库、PR 和完整提交 SHA。
@@ -79,8 +77,8 @@ python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 
 | `day` 一天（默认） | 24 小时 | 1 | 2 | 2,000,000 |
 | `week` 一周 | 168 小时 | 2 | 2 | 10,000,000 |
 
-数值来自 Owner 决定（2026-11-09），可以在任务库旁边的 `owner_window_presets.json` 里改（只能改这四项）。
-所有预设只开 Draft PR，付费 API 不在模型池里；任务数上限按"任务数 ×（1 + 重试）"计算。一周预设是一个 7 天窗口，
+数值来自 Owner 决定（2026-11-09；`continuous` 预设含 `land_reviewed_pr` 见 2026-11-22 决定），可以在任务库旁边的 `owner_window_presets.json` 里改（只能改限时预设的这四项）。
+限时预设（`trial`/`day`/`week`）只开 Draft PR，`continuous` 预设支持受控自动合并，付费 API 均不在模型池里；任务数上限按"任务数 ×（1 + 重试）"计算。一周预设是一个 7 天窗口，
 正好在 Owner 窗口的上限内；超过 7 天需要 standing renewal（#1310 D），不在预设里。
 
 成稿只创建并规划目标，不批准、不启动、不激活。
@@ -145,7 +143,7 @@ python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库�
 - 回调中禁止 COMMIT/ROLLBACK（SQLite authorizer），提交前再做一次 SQLite 时钟闸门。
 - 数据库对窗口范围施加硬上限，与调用方请求无关；能力只能取
   `execute_task`、`resume_task`、`reconcile_task`、`validate_task`、`open_draft_pr`，且必须包含 `execute_task`。
-  单目标的限时终端 opt-in 还可授予 `land_reviewed_pr`。
+  单目标的限时终端 opt-in 以及持续运行（`continuous`）窗口还可授予 `land_reviewed_pr`。
 - 存在未清理的 ACTIVE 认领时拒绝（与原生准入相同）。
 
 激活之后，只有 Owner 确认过的目标能在这个窗口里运行：

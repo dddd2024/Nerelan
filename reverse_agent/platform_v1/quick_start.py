@@ -25,7 +25,7 @@ import subprocess
 from typing import Any
 
 from .artifact_handoff import published_plan_tasks
-from .control_store import OWNER_WINDOW_CAPABILITIES, OWNER_WINDOW_MAX_GOALS
+from .control_store import OWNER_LANDING_CAPABILITY, OWNER_WINDOW_CAPABILITIES, OWNER_WINDOW_MAX_GOALS
 from .run_store import TaskStoreError
 
 MAX_TEXT_CHARS = 2_000
@@ -95,13 +95,16 @@ def presets(state_dir: str | Path | None = None) -> dict[str, dict[str, Any]]:
 
 
 def window_request(preset: Mapping[str, Any], goal_ids: list[str], *, tasks: int) -> dict[str, Any]:
-    """The Owner window request a preset describes; Draft PRs only, paid API excluded by the pool."""
+    """The Owner window request a preset describes; continuous presets include governed landing."""
     continuous = preset.get("continuous") is True
+    capabilities = [c for c in CAPABILITIES if c in OWNER_WINDOW_CAPABILITIES]
+    if continuous:
+        capabilities.append(OWNER_LANDING_CAPABILITY)
     return {"goal_ids": goal_ids, "hours": float(preset["hours"]),
             **({"continuous": True} if continuous else {}),
             "max_tasks": 0 if continuous else max(tasks, 1) * (1 + int(preset["max_retries"])),
             "max_concurrent": int(preset["max_concurrent"]), "max_retries": int(preset["max_retries"]),
-            "capabilities": [c for c in CAPABILITIES if c in OWNER_WINDOW_CAPABILITIES],
+            "capabilities": capabilities,
             "max_token_units": int(preset["max_token_units"]), "max_cost_micro_units": 0}
 
 
