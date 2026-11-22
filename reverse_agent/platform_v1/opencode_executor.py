@@ -379,9 +379,46 @@ _OPENCODE_DISABLE_ENV = {
 }
 
 
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def _selected_model_limits(store: Any, task_id: str) -> tuple[int | None, int | None]:
+    """Read context_window and max_output_tokens from the task's latest MODEL_SELECTED event."""
+    get_events = getattr(store, "get_events", None)
+    if not callable(get_events):
+        return None, None
+    try:
+        events = list(get_events(task_id))
+    except Exception:
+        return None, None
+    for event in reversed(events):
+        if getattr(event, "type", "") != "MODEL_SELECTED":
+            continue
+        meta = getattr(event, "metadata", None)
+        if not isinstance(meta, Mapping):
+            continue
+        chars = meta.get("characteristics")
+        chars = chars if isinstance(chars, Mapping) else {}
+        context_window = _positive_int(meta.get("context_window")) or _positive_int(
+            chars.get("context_window")
+        )
+        max_output_tokens = _positive_int(chars.get("max_output_tokens")) or _positive_int(
+            meta.get("max_output_tokens")
+        )
+        if context_window is not None:
+            return context_window, max_output_tokens
+    return None, None
+
+
 def build_binding_config_content(
     resolution: OpenCodeBindingResolution,
     lease: ExecutionLeaseHandle | None = None,
+    *,
+    context_window: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> str:
     """Build transient non-secret provider metadata for one OpenCode child.
 
@@ -417,13 +454,18 @@ def build_binding_config_content(
         provider_key = resolution.provider_id or _TRANSIENT_PROVIDER_ID
         options = {"baseURL": resolution.base_url}
         provider_facing_model = _extract_provider_facing_model(resolution.model_id)
+    model_config: dict[str, Any] = {}
+    context_limit = _positive_int(context_window)
+    if context_limit is not None:
+        output_limit = _positive_int(max_output_tokens) or min(16384, max(4096, context_limit // 8))
+        model_config = {"limit": {"context": context_limit, "output": output_limit}}
     payload = {
         "provider": {
             provider_key: {
                 "npm": "@ai-sdk/openai" if resolution.native_endpoint == "/responses" else _TRANSIENT_PROVIDER_NPM,
                 "name": _TRANSIENT_PROVIDER_NAME,
                 "options": options,
-                "models": {provider_facing_model: {}},
+                "models": {provider_facing_model: model_config},
             }
         }
     }
@@ -1639,6 +1681,8 @@ class OpenCodeExecutor:
         use_auto: bool = True,
         transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
+        context_window: int | None = None,
+        max_output_tokens: int | None = None,
     ) -> None:
         timeout = _validate_execution_timeout(timeout)
         if timeout > _EXECUTION_TIMEOUT_HARD_CAP_SECONDS and (
@@ -1681,6 +1725,14 @@ class OpenCodeExecutor:
         if transport_kind not in {"cli", "server"}:
             raise ExecutorRuntimeError("opencode_transport_kind_invalid")
         self._transport_kind = transport_kind
+        self._context_window = _positive_int(context_window)
+        self._max_output_tokens = _positive_int(max_output_tokens)
+
+    def _resolve_model_limits(self, store: Any, task_id: str) -> tuple[int | None, int | None]:
+        """Use constructor-supplied limits when present, else fall back to store events."""
+        if self._context_window is not None:
+            return self._context_window, self._max_output_tokens
+        return _selected_model_limits(store, task_id)
 
     def execute(
         self,
@@ -1805,9 +1857,12 @@ class OpenCodeExecutor:
             try:
                 role = role_context.role
                 if self._binding_resolution is not None:
+                    context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                     config_content = build_binding_config_content(
                         self._binding_resolution,
                         lease=lease_handle,
+                        context_window=context_window,
+                        max_output_tokens=max_output_tokens,
                     )
                     child_env = build_role_child_env(
                         self._parent_env,
@@ -2248,9 +2303,12 @@ class OpenCodeExecutor:
             role = role_context.role
             config_content: str | None = None
             if self._binding_resolution is not None:
+                context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                 config_content = build_binding_config_content(
                     self._binding_resolution,
                     lease=lease_handle,
+                    context_window=context_window,
+                    max_output_tokens=max_output_tokens,
                 )
             child_env = build_role_child_env(
                 self._parent_env,

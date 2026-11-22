@@ -2550,6 +2550,12 @@ class DurableExecutionService:
             ).strip() or "cli"
             if self.lease_provider is not None:
                 kwargs["lease_provider"] = self.lease_provider
+            from .opencode_executor import _selected_model_limits
+            context_window, max_output_tokens = _selected_model_limits(self.store, task.id)
+            if context_window is not None:
+                kwargs["context_window"] = context_window
+                if max_output_tokens is not None:
+                    kwargs["max_output_tokens"] = max_output_tokens
             if _continuous_owner_task(self.store, task.id):
                 # Owner decision 2026-11-15 (#1551): a long attempt that keeps producing
                 # output is not cut at a fixed total duration; the executor's stall guard

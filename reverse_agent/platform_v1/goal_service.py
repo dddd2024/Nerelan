@@ -1700,6 +1700,7 @@ class GoalService:
             interrupted = interrupted_dispatch or interrupted_preparation
             if (not miss and not overloaded and not model_review and not refusal and not unavailable
                     and not quota_failure and not interrupted
+                    and failed.failure_classification != "server_session_error"
                     and _NON_AGENT_FAILURE.search(failed.failure_classification or "")):
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
