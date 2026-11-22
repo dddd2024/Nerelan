@@ -1406,3 +1406,52 @@ def test_ambiguous_pending_op_zero_dispatch(tmp_path) -> None:
     assert outcome.success is False
     assert outcome.failure_classification == "ambiguous_external_operation"
     assert poison_count[0] == 0
+
+
+def test_build_executor_kwargs_passes_model_limits_without_weakening_facade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Durable opencode dispatch preserves MODEL_SELECTED limits while keeping facade fenced."""
+    monkeypatch.setenv("REVERSE_AGENT_OPENCODE_MODEL", "openai-compatible/sense-coding-fast")
+    store = _make_store(tmp_path)
+    task = store.create_task(
+        title="durable-model-limits",
+        executor_kind="opencode",
+        orchestration_mode="single",
+    )
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selected",
+        description="selected",
+        metadata={
+            "context_window": 200_000,
+            "characteristics": {"context_window": 200_000, "max_output_tokens": 16_384},
+        },
+    )
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selection skipped",
+        description="skipped without limits",
+        metadata={"reason": "quota_held"},
+    )
+
+    router = ExecutorRouter()
+    svc = DurableExecutionService(
+        store=store,
+        router=router,
+        execution_authority_sha="test_authority",
+        planning_sha="test_planning",
+    )
+
+    kwargs = svc._build_executor_kwargs(task)
+    assert kwargs["context_window"] == 200_000
+    assert kwargs["max_output_tokens"] == 16_384
+
+    executor = router.create_executor(executor_kind="opencode", **kwargs)
+    facade = _DurableFencedExecutorStore(store, "run-1", task.id, "owner", 1)
+    assert not hasattr(facade, "get_events")
+    assert executor._resolve_model_limits(facade, task.id) == (200_000, 16_384)
+    store._conn.close()

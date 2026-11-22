@@ -391,10 +391,10 @@ def _selected_model_limits(store: Any, task_id: str) -> tuple[int | None, int | 
     if not callable(get_events):
         return None, None
     try:
-        events = get_events(task_id)
+        events = list(get_events(task_id))
     except Exception:
         return None, None
-    for event in reversed(list(events)):
+    for event in reversed(events):
         if getattr(event, "type", "") != "MODEL_SELECTED":
             continue
         meta = getattr(event, "metadata", None)
@@ -408,7 +408,8 @@ def _selected_model_limits(store: Any, task_id: str) -> tuple[int | None, int | 
         max_output_tokens = _positive_int(chars.get("max_output_tokens")) or _positive_int(
             meta.get("max_output_tokens")
         )
-        return context_window, max_output_tokens
+        if context_window is not None:
+            return context_window, max_output_tokens
     return None, None
 
 
@@ -1680,6 +1681,8 @@ class OpenCodeExecutor:
         use_auto: bool = True,
         transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
+        context_window: int | None = None,
+        max_output_tokens: int | None = None,
     ) -> None:
         timeout = _validate_execution_timeout(timeout)
         if timeout > _EXECUTION_TIMEOUT_HARD_CAP_SECONDS and (
@@ -1722,6 +1725,14 @@ class OpenCodeExecutor:
         if transport_kind not in {"cli", "server"}:
             raise ExecutorRuntimeError("opencode_transport_kind_invalid")
         self._transport_kind = transport_kind
+        self._context_window = _positive_int(context_window)
+        self._max_output_tokens = _positive_int(max_output_tokens)
+
+    def _resolve_model_limits(self, store: Any, task_id: str) -> tuple[int | None, int | None]:
+        """Use constructor-supplied limits when present, else fall back to store events."""
+        if self._context_window is not None:
+            return self._context_window, self._max_output_tokens
+        return _selected_model_limits(store, task_id)
 
     def execute(
         self,
@@ -1846,7 +1857,7 @@ class OpenCodeExecutor:
             try:
                 role = role_context.role
                 if self._binding_resolution is not None:
-                    context_window, max_output_tokens = _selected_model_limits(store, task_id)
+                    context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                     config_content = build_binding_config_content(
                         self._binding_resolution,
                         lease=lease_handle,
@@ -2292,7 +2303,7 @@ class OpenCodeExecutor:
             role = role_context.role
             config_content: str | None = None
             if self._binding_resolution is not None:
-                context_window, max_output_tokens = _selected_model_limits(store, task_id)
+                context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                 config_content = build_binding_config_content(
                     self._binding_resolution,
                     lease=lease_handle,

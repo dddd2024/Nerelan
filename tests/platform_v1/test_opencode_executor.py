@@ -3547,6 +3547,43 @@ def test_selected_model_limits_extracts_latest_model_selected_event() -> None:
         metadata={"context_window": 128_000, "characteristics": {"context_window": 128_000, "max_output_tokens": 8_192}},
     )
     assert _selected_model_limits(store, task.id) == (128_000, 8_192)
+
+    # A subsequent quota-reroute or skip MODEL_SELECTED without limits must not mask earlier limits.
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selection skipped",
+        description="Model selection skipped; using fallback",
+        metadata={"reason": "quota_held"},
+    )
+    assert _selected_model_limits(store, task.id) == (128_000, 8_192)
+    store._conn.close()
+
+
+def test_opencode_executor_resolve_model_limits_with_fenced_store(tmp_path: Path) -> None:
+    from reverse_agent.platform_v1.durable_execution import _DurableFencedExecutorStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(title="t", executor_kind="opencode", binding_ref="b", repository="o/r")
+    facade = _DurableFencedExecutorStore(store, "run-1", task.id, "owner", 1)
+    assert not hasattr(facade, "get_events")
+
+    executor = OpenCodeExecutor(
+        binding_resolution=_executor_managed_binding_resolution(),
+        context_window=128_000,
+        max_output_tokens=8_192,
+    )
+    ctx_limit, out_limit = executor._resolve_model_limits(facade, task.id)
+    assert (ctx_limit, out_limit) == (128_000, 8_192)
+    models = json.loads(
+        build_binding_config_content(
+            _executor_managed_binding_resolution(),
+            context_window=ctx_limit,
+            max_output_tokens=out_limit,
+        )
+    )["provider"]["openai-compatible"]["models"]
+    assert models == {"sense-coding-fast": {"limit": {"context": 128_000, "output": 8_192}}}
     store._conn.close()
 
 
