@@ -32,10 +32,59 @@ from .model_availability import no_credits_error, provider_rate_limit_reply
 
 
 MAX_JSON_BYTES = 1_048_576
-MAX_SSE_EVENT_BYTES = 262_144
+MAX_SSE_EVENT_BYTES = 1_048_576
+_OVERSIZED_SSE_PREFIX_BYTES = 2048
 SERVER_USERNAME = "reverse-agent"
 _VERSION_RE = re.compile(r"^[A-Za-z0-9._+-]{1,64}$")
 _PROVIDER_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,127}$")
+_SSE_TYPE_RE = re.compile(r'"type"\s*:\s*"([^"]+)"')
+_SSE_ROLE_RE = re.compile(r'"role"\s*:\s*"([^"]+)"')
+_SSE_ASSISTANT_ROLE_RE = re.compile(r'"role"\s*:\s*"assistant"')
+_SKIPPABLE_OVERSIZED_SSE_TYPES = frozenset({
+    "message.part.updated",
+    "message.part.delta",
+    "session.diff",
+})
+
+
+def _is_skippable_oversized_sse(prefix: bytes) -> bool:
+    """Allow non-accounting, non-terminal SSE payloads (e.g. large diffs/parts) to drain."""
+    text = prefix.decode("utf-8", errors="replace")
+    type_match = _SSE_TYPE_RE.search(text)
+    if type_match is None:
+        return False
+    event_type = type_match.group(1)
+    if event_type in _SKIPPABLE_OVERSIZED_SSE_TYPES:
+        return True
+    if event_type == "message.updated":
+        role_match = _SSE_ROLE_RE.search(text)
+        return (
+            role_match is not None
+            and role_match.group(1) == "user"
+            and _SSE_ASSISTANT_ROLE_RE.search(text) is None
+        )
+    return False
+
+
+def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
+    error = properties.get("error")
+    candidates: list[str] = []
+    if isinstance(error, str):
+        candidates.append(error)
+    elif isinstance(error, Mapping):
+        for key in ("message", "msg"):
+            value = error.get(key)
+            if isinstance(value, str):
+                candidates.append(value)
+        data = error.get("data")
+        if isinstance(data, Mapping):
+            for key in ("message", "msg"):
+                value = data.get(key)
+                if isinstance(value, str):
+                    candidates.append(value)
+    if any(no_credits_error(text) for text in candidates):
+        return False
+    return any(provider_rate_limit_reply(text) for text in candidates)
 
 
 def _account_rate_limit_retry(status: Any) -> bool:
@@ -681,9 +730,14 @@ class OpenCodeServerClient:
                         usage_event_count=usage_count,
                     )
                 if event_type == "session.error" and bound_session == session_id:
+                    classification = (
+                        "api_error_429"
+                        if _session_error_rate_limit(properties)
+                        else "server_session_error"
+                    )
                     return ServerTransportResult(
                         success=False,
-                        failure_classification="server_session_error",
+                        failure_classification=classification,
                         server_version=version,
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
@@ -726,26 +780,48 @@ class OpenCodeServerClient:
             raise OpenCodeServerTransportError("server_event_content_type_invalid")
         return response
 
+    def _read_sse_line(self, stream: Any, deadline: float, limit: int) -> bytes:
+        if self._remaining(deadline) <= 0:
+            raise OpenCodeServerTransportError("server_event_timeout")
+        try:
+            if isinstance(stream, _DeadlineSSEStream):
+                stream.deadline = deadline
+            line = stream.readline(limit)
+        except (TimeoutError, OSError) as exc:
+            raise OpenCodeServerTransportError("server_event_timeout") from exc
+        if not line:
+            raise OpenCodeServerTransportError("server_event_disconnected")
+        return line
+
     def _read_sse_event(self, stream: Any, deadline: float) -> Mapping[str, Any]:
         data_lines: list[bytes] = []
+        prefix = bytearray()
         total = 0
+        oversized = False
         while True:
-            if self._remaining(deadline) <= 0:
-                raise OpenCodeServerTransportError("server_event_timeout")
-            try:
-                if isinstance(stream, _DeadlineSSEStream):
-                    stream.deadline = deadline
-                line = stream.readline(MAX_SSE_EVENT_BYTES + 1)
-            except (TimeoutError, OSError) as exc:
-                raise OpenCodeServerTransportError("server_event_timeout") from exc
-            if not line:
-                raise OpenCodeServerTransportError("server_event_disconnected")
-            total += len(line)
-            if total > MAX_SSE_EVENT_BYTES:
-                raise OpenCodeServerTransportError("server_event_too_large")
+            line = self._read_sse_line(
+                stream, deadline, 65536 if oversized else MAX_SSE_EVENT_BYTES + 1
+            )
+            if not line.endswith(b"\n"):
+                if not oversized and line.startswith(b"data:"):
+                    value = line[5:]
+                    if value.startswith(b" "):
+                        value = value[1:]
+                    if len(prefix) < _OVERSIZED_SSE_PREFIX_BYTES:
+                        prefix.extend(value[: _OVERSIZED_SSE_PREFIX_BYTES - len(prefix)])
+                oversized = True
+                data_lines.clear()
+                while not line.endswith(b"\n"):
+                    line = self._read_sse_line(stream, deadline, 65536)
+                continue
             if line in {b"\n", b"\r\n"}:
+                if oversized:
+                    if _is_skippable_oversized_sse(bytes(prefix)):
+                        return {"type": "server.event.oversized", "properties": {}}
+                    raise OpenCodeServerTransportError("server_event_too_large")
                 if not data_lines:
                     total = 0
+                    prefix.clear()
                     continue
                 raw = b"\n".join(data_lines)
                 try:
@@ -755,11 +831,24 @@ class OpenCodeServerClient:
                 if not isinstance(event, Mapping):
                     raise OpenCodeServerTransportError("server_event_shape_invalid")
                 return event
+            if oversized:
+                continue
+            total += len(line)
             if line.startswith(b"data:"):
                 value = line[5:]
                 if value.startswith(b" "):
                     value = value[1:]
-                data_lines.append(value.rstrip(b"\r\n"))
+                value = value.rstrip(b"\r\n")
+                if len(prefix) < _OVERSIZED_SSE_PREFIX_BYTES:
+                    prefix.extend(value[: _OVERSIZED_SSE_PREFIX_BYTES - len(prefix)])
+                if total > MAX_SSE_EVENT_BYTES:
+                    oversized = True
+                    data_lines.clear()
+                else:
+                    data_lines.append(value)
+            elif total > MAX_SSE_EVENT_BYTES:
+                oversized = True
+                data_lines.clear()
 
     def _json_request(
         self,

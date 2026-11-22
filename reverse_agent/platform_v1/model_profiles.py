@@ -50,11 +50,18 @@ HOST_PLUMBING_CLASSES = frozenset({
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
     OWNER_WINDOW_POOL_MISROUTE,
-    # Host-enforced OpenCode Server stream budget guards and transport plumbing (#1267).
+    # Host-enforced OpenCode Server stream budget guards and transport plumbing (#1267, #1718).
     "stream_budget_abort_confirmed", "stream_budget_abort_unknown",
     "stream_budget_usage_unknown_before_dispatch", "stream_budget_exhausted_before_dispatch",
     "server_budget_snapshot_unavailable", "server_budget_snapshot_invalid",
-    "server_transport_failed", "server_transport_internal_failure"})
+    "server_transport_failed", "server_transport_internal_failure",
+    "server_event_too_large", "server_event_disconnected", "server_event_connect_failed",
+    "server_event_content_type_invalid", "server_event_malformed", "server_event_shape_invalid",
+    "server_connected_event_missing", "server_http_request_failed", "server_http_status_invalid",
+    "server_json_too_large", "server_json_malformed", "server_json_content_type_invalid",
+    "server_empty_response_expected", "server_request_path_invalid", "server_request_too_large",
+    "server_redirect_forbidden", "server_endpoint_not_loopback", "server_process_start_failed",
+    "server_process_exited_before_health", "server_health_timeout", "server_model_provider_required"})
 _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree

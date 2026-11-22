@@ -285,6 +285,106 @@ def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message
     assert calls == []
 
 
+@pytest.mark.parametrize("error_payload,expected", [
+    ({"name": "APIError", "data": {"message": "OpenCode Zen Free: Free usage limit reached (out of its allowance: not asked again before 07:06 UTC-4)"}}, "api_error_429"),
+    ({"message": "Too Many Requests"}, "api_error_429"),
+    ("out of its allowance", "api_error_429"),
+    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "server_session_error"),
+    ({"message": "Internal model execution failed"}, "server_session_error"),
+])
+def test_session_error_classifies_rate_limit_without_masking_billing_or_generic_errors(monkeypatch, error_payload, expected):
+    run, stream, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {"sessionID": "session-exact", "error": error_payload})),
+    ])
+    result = run()
+    assert not result.success
+    assert result.failure_classification == expected
+    assert stream.closed
+
+
+@pytest.mark.parametrize("oversized_event", [
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-user-380k",
+                "sessionID": "session-exact",
+                "role": "user",
+                "summary": {"diffs": [{"file": "a.py", "patch": "x" * 380_000}]},
+            }
+        },
+    },
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-user-1m5",
+                "sessionID": "session-exact",
+                "role": "user",
+                "summary": {"diffs": [{"file": "a.py", "patch": "x" * 1_500_000}]},
+            }
+        },
+    },
+    {
+        "type": "message.part.updated",
+        "properties": {
+            "part": {
+                "id": "prt-read-1m5",
+                "sessionID": "session-exact",
+                "type": "tool",
+                "state": {"status": "completed", "output": "y" * 1_500_000},
+            }
+        },
+    },
+])
+def test_oversized_non_accounting_sse_events_are_tolerated_without_losing_usage(monkeypatch, oversized_event):
+    observed = []
+    run, stream, calls, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event(oversized_event["type"], oversized_event["properties"])),
+        (1, _event("message.updated", _usage_event()["properties"])),
+        (1, _event("session.idle", {"sessionID": "session-exact"})),
+    ], usage_observer=lambda info: observed.append(dict(info)) or False)
+    result = run()
+    assert result.success
+    assert result.usage_event_count == 1
+    assert len(observed) == 1
+    assert calls == []
+    assert stream.closed
+
+
+@pytest.mark.parametrize("oversized_event", [
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-assistant-1m5",
+                "sessionID": "session-exact",
+                "role": "assistant",
+                "time": {"completed": 123},
+                "padding": "z" * 1_500_000,
+            }
+        },
+    },
+    {
+        "type": "session.status",
+        "properties": {
+            "sessionID": "session-exact",
+            "status": {"type": "retry", "message": "x" * 1_500_000},
+        },
+    },
+])
+def test_oversized_accounting_or_control_sse_events_fail_closed(monkeypatch, oversized_event):
+    run, stream, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event(oversized_event["type"], oversized_event["properties"])),
+    ])
+    with pytest.raises(OpenCodeServerTransportError, match="server_event_too_large"):
+        run()
+    assert stream.closed
+
+
 @pytest.mark.parametrize("abort_result", [True, False, None])
 def test_idle_deadline_ignores_keepalives_and_foreign_session(monkeypatch, abort_result):
     run, stream, calls, clock = _timed_role(monkeypatch, [

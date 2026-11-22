@@ -166,7 +166,7 @@ def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None,
 # for a short, bounded time. It is derived from the binding's own attempt rows like the
 # limit-hit hold above: no separate ledger. Repeated stalls double it up to the cap; a
 # successful attempt on the binding clears it. Stalls older than the look-back are history.
-LIVENESS_STALL_CLASSES = frozenset({"executor_stalled"})
+LIVENESS_STALL_CLASSES = frozenset({"executor_stalled", "server_stream_stalled"})
 LIVENESS_COOLDOWN_SECONDS = 15 * 60
 LIVENESS_COOLDOWN_MAX_SECONDS = 2 * 3600
 LIVENESS_LOOKBACK_SECONDS = 24 * 3600
