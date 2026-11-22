@@ -3513,7 +3513,21 @@ def test_binding_config_content_includes_model_limits_when_provided() -> None:
         build_binding_config_content(resolution, context_window=128_000)
     )["provider"]["openai-compatible"]["models"]
     assert with_default_output == {
-        "sense-coding-fast": {"limit": {"context": 128_000, "output": 16_000}}
+        "sense-coding-fast": {"limit": {"context": 128_000, "output": 32_000}}
+    }
+
+    with_capped_default_output = json.loads(
+        build_binding_config_content(resolution, context_window=200_000)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_capped_default_output == {
+        "sense-coding-fast": {"limit": {"context": 200_000, "output": 32_768}}
+    }
+
+    with_small_context = json.loads(
+        build_binding_config_content(resolution, context_window=4_096)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_small_context == {
+        "sense-coding-fast": {"limit": {"context": 4_096, "output": 2_048}}
     }
 
     with_explicit_output = json.loads(

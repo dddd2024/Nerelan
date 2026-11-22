@@ -457,7 +457,11 @@ def build_binding_config_content(
     model_config: dict[str, Any] = {}
     context_limit = _positive_int(context_window)
     if context_limit is not None:
-        output_limit = _positive_int(max_output_tokens) or min(16384, max(4096, context_limit // 8))
+        output_limit = _positive_int(max_output_tokens)
+        if output_limit is None:
+            output_limit = min(32768, max(4096, context_limit // 4))
+            if output_limit >= context_limit:
+                output_limit = max(1, context_limit // 2)
         model_config = {"limit": {"context": context_limit, "output": output_limit}}
     payload = {
         "provider": {
