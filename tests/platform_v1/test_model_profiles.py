@@ -328,6 +328,13 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
     ("server_budget_snapshot_invalid", "server_budget_snapshot_invalid", "server_budget_snapshot_invalid"),
     ("server_transport_failed", "server_transport_failed", "server_transport_failed"),
     ("server_transport_internal_failure", "server_transport_internal_failure", "server_transport_internal_failure"),
+    ("server_stream_stalled", "server_stream_stalled", "server_stream_stalled"),
+    ("server_event_too_large", "server_event_too_large", "server_event_too_large"),
+    ("server_event_disconnected", "server_event_disconnected", "server_event_disconnected"),
+    ("server_http_request_failed", "server_http_request_failed", "server_http_request_failed"),
+    ("server_process_exited_before_health", "server_process_exited_before_health",
+     "server_process_exited_before_health"),
+    ("server_health_timeout", "server_health_timeout", "server_health_timeout"),
 ])
 def test_host_and_quota_failures_are_neither_attempts_nor_failures(classification, detail, cause):
     """Live 2026-11-17: stalls and the #1526 base mismatch demoted GLM-5.3 from tier 4 to 2."""

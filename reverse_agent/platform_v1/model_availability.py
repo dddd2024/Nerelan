@@ -52,7 +52,7 @@ OWNER_WINDOW_POOL_MISROUTE = "owner_window_binding_outside_confirmed_pool"
 # Owner decision 2026-11-12 B: failures the host classifies as not the model's fault
 # (a stall with no output, an external kill, a redeploy under the run). Goal retries
 # and measured agent profiles both read this one definition.
-HOST_RETRY_CLASSES = frozenset({"executor_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", "server_stream_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
 
 
 def external_termination(exit_code: int) -> bool:
