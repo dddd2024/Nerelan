@@ -17,6 +17,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 |---|---|---|---|---|---|---|---|
 | Paperclip | `paperclipai/paperclip` | 高：目标拆解、角色层级、任务委派、审批、预算暂停 | 对标产品体验 | 无代码复用；作为任务、状态、预算统一展示的对照 | 引入它的调度器会形成两套任务真相和审批语义，与 TaskStore、Coordinator、授权快照冲突 | 它支持外部调度器接管任务状态，或提供可嵌入的组织/预算视图组件时 | 2026-11-08 |
 | Orca | `stablyai/orca` | 高：编码 Agent 工作台、Git worktree、Codex/Claude 多账户切换 | 借鉴 UI，独立试用 | 无 | 它的账户切换是人工选择；Nerelan 需要按任务、额度和能力自动选择并判断能否安全启动。与 Magpie 同时管理账户会造成归因不一致 | 它支持按任务自动选账户，或开放账户状态接口时 | 2026-11-08 |
+| Bifrost | `maximhq/bifrost` | 高：Provider API Key 路由、错误分类、请求内重试、用量与预算、会话亲和 | [源码深拆](reuse-study-2026-11-16/bifrost.md) · [研究 #1573](https://github.com/dddd2024/Nerelan/issues/1573)：只学失败分类/Attempt Trail/成功缓存亲和 | 无代码复用；上游为对照测试与故障诊断样本 | Magpie 已管理大量订阅账户、配额、请求证据、会话/模型，复制 Bifrost 会形成第二网关、双重重试和预算账本；部分高级路由/集群为 Enterprise | Magpie 完成路由归属与实测后仍有独立、不可补足的缺陷，且 Bifrost 对现有全部账户、Harness 与任务经济性实测占优并获 Owner 授权时 | 2026-11-16 |
 | Magpie | 本机 `F:\magpie` | 高：同服务账户切换、额度等待、请求重试 | 已复用，作为账户层 owner | 账户池、额度窗口、模型网关（`fetch_magpie_snapshot`） | 已是复用对象；Nerelan 只保留任务级能力匹配、周配速和授权边界 | 路由归属验收（见下）完成后，决定本地哪些路径降为 fallback | 2026-11-08 |
 | OpenBot | `CopilotKit/OpenBot` | 中高：隔离浏览器与文件环境、工具调用前后的权限网关、AG-UI | 研究可插拔执行层 | 无 | Beta 阶段，需要自带服务、数据库和执行环境；整套移植会让它接管任务状态 | 核心任务闭环通过后，评估把隔离浏览器作为可选工具，由宿主做权限决策 | 2026-11-08 |
 | Rulesync | `dyoshikawa/rulesync` | 中：统一生成各 Agent 的配置 | 小规模验证后复用 | 无 | 不能让它成为第二套治理真相；`AGENTS.md` 仍是权威 | 需要为多个执行器维护同一套非权威指令时 | 2026-11-08 |
