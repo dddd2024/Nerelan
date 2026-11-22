@@ -176,4 +176,67 @@ describe("Connection/Binding-aware task composer", () => {
     expect((onSubmit.mock.calls[0][0] as { bindingRef?: string }).bindingRef).toBeUndefined();
     expect((onSubmit.mock.calls[0][0] as { repository?: string }).repository).toBeUndefined();
   });
+
+  it("defaults to the opencode executor and the glm-5.2 binding when present", async () => {
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(["bindings"], [
+      { bindingId: "other-binding", name: "其他模型", executorId: "opencode", connectionId: "other", modelId: "other-model", enabled: true },
+      { bindingId: "glm-binding", name: "GLM 免费模型", executorId: "opencode", connectionId: "sensenova", modelId: "token-sensenova/glm-5.2", enabled: true },
+    ]);
+    renderWithProviders(
+      <ComposerMount submit={vi.fn()} queryClient={queryClient} />,
+    );
+
+    const bindingSelect = await screen.findByTestId("task-opencode-binding-select");
+    await waitFor(() => expect(bindingSelect).toHaveValue("glm-binding"));
+    expect(screen.getByTestId("owner-present-label")).toHaveTextContent("此模式需要你在场");
+  });
+
+  it("shows the accounts link hint and does not fall back to fixture when no binding exists", async () => {
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(["bindings"], []);
+    const submit = vi.fn();
+    renderWithProviders(
+      <ComposerMount submit={submit} queryClient={queryClient} />,
+    );
+
+    const bindingSelect = await screen.findByTestId("task-opencode-binding-select");
+    await waitFor(() => expect(bindingSelect).toBeDisabled());
+
+    const hint = screen.getByTestId("no-binding-hint");
+    expect(hint).toBeInTheDocument();
+    const accountsLink = screen.getByTestId("no-binding-accounts-link");
+    expect(accountsLink).toHaveAttribute("href", "/accounts");
+
+    const fixtureOption = screen.getByTestId("executor-option-deterministic_fixture");
+    const fixtureInput = fixtureOption.querySelector("input");
+    expect(fixtureInput).not.toBeChecked();
+  });
+
+  it("respects a manually chosen executor and binding", async () => {
+    const user = userEvent.setup();
+    const queryClient = makeQueryClient();
+    queryClient.setQueryData(["bindings"], [
+      { bindingId: "glm-binding", name: "GLM 免费模型", executorId: "opencode", connectionId: "sensenova", modelId: "token-sensenova/glm-5.2", enabled: true },
+      { bindingId: "codex-binding", name: "Codex 模型", executorId: "codex", connectionId: "native", modelId: "gpt-5.4", enabled: true },
+    ]);
+    const submit = vi.fn();
+    renderWithProviders(
+      <ComposerMount submit={submit} queryClient={queryClient} />,
+    );
+
+    await user.click(screen.getByTestId("executor-option-codex"));
+    const bindingSelect = await screen.findByTestId("task-opencode-binding-select");
+    await waitFor(() => expect(bindingSelect).toHaveValue("codex-binding"));
+
+    await user.type(screen.getByLabelText("任务标题"), "手动选择执行器");
+    await user.click(screen.getByTestId("submit-new-task"));
+
+    expect(submit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        executorKind: "codex",
+        bindingRef: "codex-binding",
+      }),
+    );
+  });
 });
