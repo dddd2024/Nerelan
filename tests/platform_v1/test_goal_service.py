@@ -930,6 +930,42 @@ def test_backoff_memory_is_dropped_once_the_step_moves_on(case, monkeypatch):
     assert list(service._stall_routes_checked) == ["b", "c"]
 
 
+def test_server_session_error_escalates_while_local_session_missing_stays_blocked(case):
+    """#1718: server_session_error is an OpenCode turn error and must retry, unlike review_session_missing."""
+    _, _, store, control, service, goal, _, task = case
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selected",
+        description="fixture",
+        metadata={"binding_ref": task.binding_ref, "tier": 2, "context_window": 128000},
+    )
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='server_session_error', "
+        "failure_detail='opencode_server:server_session_error' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    calls = []
+    service.task_resolver = _stall_resolver(calls, OTHER_BINDING)
+
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "failed:server_session_error"
+    assert calls == [{"failed_binding": task.binding_ref, "avoid_bindings": ()}]
+    retry = store.get_task(step["to_task_id"])
+    assert retry.binding_ref == "other-upstream"
+    assert control.get_goal(goal.id).status == "RUNNING"
+
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='review_session_missing', "
+        "failure_detail='review_session_missing' WHERE id=?",
+        (retry.id,),
+    )
+    store._conn.commit()
+    assert service.escalate_failed_tasks(goal.id) == ()
+    assert control.get_goal(goal.id).status == "BLOCKED"
+
+
 def _strand(store, task, *, status="INTERRUPTED", classification="", lease_ms=1, operation_state=None,
             operation_key="opencode_dispatch", external_id="", recovery="orphan_stale_lease"):
     """A redeploy-stranded attempt: its durable run, lease and (optionally) an external call (#1515)."""
