@@ -51,8 +51,8 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 |---|---|---|
 | `savannahfeder/agentbox` | coding agent worktree | 桌面端并行运行多个 Claude Code / Codex，每个在独立 worktree |
 | `cosscom/shipyard` | coding agent worktree | 在开发机上运行编码 Agent：worktree、终端、编排、桌面应用 |
-| `wangmiaozero/pi-harness` | multi-agent coding orchestration | Pi Coding Agent 的运维超集：可观测性、治理、故障恢复、评测、多 Agent 编排 |
+| `wangmiaozero/pi-harness` | multi-agent coding orchestration | **已源码分诊（2026-11-17）：** [报告](reuse-study-2026-11-16/pi-harness.md) / [#1625](https://github.com/dddd2024/Nerelan/issues/1625)。借鉴 Plugin manifest/grant、DAG ready/blocked、artifact handoff、可视化 Replay；拒绝 Pi-only runtime、JSON paused 恢复、Node 非沙箱、文本 review gate 与 UNKNOWN 估算成本权威。AGPL-3.0-only，未复制源码。 |
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+除 `pi-harness` 已完成**静态源码专项**外，本节其余项目尚未进行独立分诊。Pi-Harness 的恢复/安全/成本结论未在 Nerelan 运行环境验证；完整证据和测试门槛见 [专项报告](reuse-study-2026-11-16/pi-harness.md) 与 [#1625](https://github.com/dddd2024/Nerelan/issues/1625)。
