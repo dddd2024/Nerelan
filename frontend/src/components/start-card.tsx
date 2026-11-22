@@ -71,9 +71,12 @@ export function scopeMatchesGoal(report: OwnerWindowPreflightResult | undefined,
 
 function terminalCommand(card: OwnerWindowCard) {
   const r = card.request;
+  const landing = r.capabilities.includes("land_reviewed_pr");
+  const capabilities = r.capabilities.filter((capability) => capability !== "land_reviewed_pr");
   return ["python -m reverse_agent.platform_v1.owner_window", ...r.goal_ids.map((id) => `--goal ${id}`),
     ...(r.continuous ? ["--continuous"] : [`--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`]), `--max-concurrent ${r.max_concurrent}`,
-    `--max-retries ${r.max_retries}`, ...r.capabilities.map((capability) => `--capability ${capability}`),
+    `--max-retries ${r.max_retries}`, ...capabilities.map((capability) => `--capability ${capability}`),
+    ...(landing ? ["--land-reviewed-pr"] : []),
     ...(r.max_token_units ? [`--max-token-units ${r.max_token_units}`] : [])].join(" ");
 }
 

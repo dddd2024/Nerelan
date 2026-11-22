@@ -1086,7 +1086,7 @@ class PlatformControlStore:
             (window_id, goal_id, OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchone() is not None
 
     def check_owner_landing_scope(self, window: AutonomousWindowRecord, goal_id: str, *, identity: str = "") -> None:
-        """Owner Window landing must match the immutable terminal-confirmed Goal."""
+        """Owner Window landing must match a confirmed Goal scope (or continuous landing window)."""
         if not self.is_owner_window(window):
             return  # Trusted internal landing policies retain their existing path.
         with self._lock:
@@ -1100,6 +1100,17 @@ class PlatformControlStore:
                  OWNER_LANDING_RECOVERY_RECEIPT if recovery else OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE),
             ).fetchone()
             evidence = json.loads(receipt["evidence_json"]) if receipt is not None else {}
+            if window.continuous and not recovery:
+                if (window.repositories != (goal.repository,)
+                        or goal.window_id != window.id
+                        or OWNER_LANDING_CAPABILITY not in window.capabilities
+                        or receipt is None
+                        or ("goal_revision" in evidence and evidence.get("goal_revision") != goal.revision)
+                        or ("artifact_digest" in evidence and evidence.get("artifact_digest") != goal.artifact_digest)
+                        or (evidence.get("reason") != "continuous_run_adoption"
+                            and OWNER_LANDING_CAPABILITY not in evidence.get("envelope", {}).get("capabilities", ()))):
+                    raise TaskStoreError("landing_owner_scope_not_confirmed")
+                return
             if (window.continuous or window.repositories != (goal.repository,)
                     or evidence.get("mechanism") != OWNER_TERMINAL_MECHANISM
                     or evidence.get("goals") != [goal_id]
@@ -1822,7 +1833,7 @@ class PlatformControlStore:
                         or payload["max_retries"] != 0):
                     raise TaskStoreError("host_atomic_window_scope_invalid")
             elif ("execute_task" not in requested or (OWNER_LANDING_CAPABILITY in requested
-                    and (continuous or len(_host_expected_goal_ids) != 1
+                    and ((not continuous and len(_host_expected_goal_ids) != 1)
                          or not {"open_draft_pr", "validate_task"} <= requested))):
                 raise TaskStoreError("host_atomic_window_scope_invalid")
         if _host_sql_admit is not None:

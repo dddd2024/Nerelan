@@ -1755,7 +1755,10 @@ export async function fetchOwnerWindowCard(goalIds: string[], preset = ""): Prom
       goal_ids: goalIds, hours: values.hours, max_tasks: chosen === "continuous" ? 0 : Math.max(tasks, 1) * (1 + values.max_retries),
       ...(chosen === "continuous" ? { continuous: true } : {}),
       max_concurrent: values.max_concurrent, max_retries: values.max_retries,
-      capabilities: ["execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"],
+      capabilities: [
+        "execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr",
+        ...(chosen === "continuous" ? ["land_reviewed_pr"] : []),
+      ],
       max_token_units: values.max_token_units, max_cost_micro_units: 0,
     } };
   }

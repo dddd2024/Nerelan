@@ -91,6 +91,29 @@ describe("start card", () => {
     expect(screen.queryByTestId("start-button")).not.toBeInTheDocument();
   });
 
+  it("maps land_reviewed_pr to --land-reviewed-pr in strict terminal continuous commands", async () => {
+    const continuous: OwnerWindowCard = {
+      ...CARD,
+      preset: "continuous",
+      confirmation: "terminal",
+      request: {
+        ...CARD.request,
+        continuous: true,
+        hours: 0,
+        max_tasks: 0,
+        max_token_units: 0,
+        max_concurrent: 3,
+        capabilities: ["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"],
+      },
+    };
+    vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(continuous);
+    vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue({ ...PASS, confirmation: "terminal" });
+    renderWithProviders(<StartCard goal={GOAL} />);
+    const cmd = await screen.findByTestId("start-terminal");
+    expect(cmd).toHaveTextContent("--continuous --max-concurrent 3 --max-retries 2 --capability execute_task --capability validate_task --capability open_draft_pr --land-reviewed-pr");
+    expect(cmd).not.toHaveTextContent("--capability land_reviewed_pr");
+  });
+
   it("shows every model Start authorizes and the ones left out", async () => {
     vi.spyOn(client, "fetchOwnerWindowCard").mockResolvedValue(CARD);
     vi.spyOn(client, "preflightOwnerWindow").mockResolvedValue(PASS);
