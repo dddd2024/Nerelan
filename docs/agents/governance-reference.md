@@ -78,7 +78,9 @@ Owner decision 2026-11-15 (#1538). Window expiry, the total token budget (`max_t
 
 The limits that remain are real ones: provider account quotas (5-hour, weekly, credits), which routing paces and avoids when they are exhausted; a per-attempt runaway guard that reports its reason when it trips; the concurrency setting; and a money cap whenever paid API is enabled. Usage stays recorded per task and per account. Stopping a continuous run is final for that run.
 
-This decision changes only window bounds. It creates no operational grant and does not touch delegated or trusted-policy windows, `max_retries` semantics (Owner decision 2026-11-12 B), independent review, CI, matched-head landing, the provider-free CI rule or R2/R3 authority. Until #1538 is implemented, bounded windows remain the runtime mechanism.
+Under Owner decision 2026-11-22 ([#1718](https://github.com/dddd2024/Nerelan/issues/1718#issuecomment-7075002630)), a continuous window (including the `continuous` quick-start/supervisor preset and terminal `--continuous --land-reviewed-pr`) may also carry `land_reviewed_pr` across multiple confirmed, appended and adopted Goals on the same repository without per-Goal terminal confirmation. Ordinary R1 and recoverable code changes auto-merge once independent exact-head review, exact-head CI, matched-head merge and `main` verification pass. Self-governance R2 paths (`AGENTS.md`, `.github/workflows/**`, `reverse_agent/landing_review.py`) may also auto-merge when backed by independent challenge/refutation confirming no gate is weakened beyond the cited Owner decision.
+
+Bounded non-continuous windows, delegated and trusted-policy windows, `max_retries` semantics (Owner decision 2026-11-12 B), independent review, exact-head CI, matched-head merge, the provider-free CI rule, and irreversible or R3 actions (production host/DB mutations, credentials, deletions and releases) remain separately gated.
 
 ## Bounded operational grants
 

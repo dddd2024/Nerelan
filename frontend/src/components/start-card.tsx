@@ -139,7 +139,11 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     <section data-testid="start-card" aria-label="开始执行" className="mt-6 rounded-2xl border border-ra-border bg-ra-light/30 p-4">
       <h3 className="text-sm font-medium text-ra-text">开始执行</h3>
       <p className="mt-1 text-xs text-ra-text-secondary">
-        {card?.request.continuous ? "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户。" : "选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。"}
+        {card?.request.continuous
+          ? (card.request.capabilities.includes("land_reviewed_pr")
+            ? "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户；独立审查与门禁通过后自动合并，不用付费 API。"
+            : "开始后持续处理任务，直到你停止。账户额度不足时会等待或换用可用账户。")
+          : "选好执行窗口后点「开始」。窗口到期、任务数或 Token 用完就会停下；只开 Draft PR，不用付费 API。"}
       </p>
 
       {cardQuery.isError ? (

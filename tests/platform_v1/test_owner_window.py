@@ -480,6 +480,36 @@ class TestAdmission:
         assert step(loop_3, s3, window, now)["parking_reason"] == "r3_action_specific_owner_authorization_required"
         assert not github_r3.merged
 
+    def test_continuous_landing_rejects_incomplete_or_mismatched_receipts(self, setup):
+        goal = setup.planned("g", "codex", "pinned")
+        window, _ = admit(setup.host, (goal.id,), continuous=True, hours=0, max_tasks=0,
+                          max_token_units=0, max_concurrent=1, capabilities=WITH_LANDING, surface="terminal")
+        control = setup.host._control_store
+        row = setup.db._conn.execute(
+            "SELECT id, evidence_json FROM platform_operation_receipts "
+            "WHERE window_id = ? AND subject_id = ? AND operation_type = ?",
+            (window.id, goal.id, OWNER_WINDOW_RECEIPT)).fetchone()
+        base = json.loads(row["evidence_json"])
+
+        for bad in (
+            {k: v for k, v in base.items() if k != "goal_revision"},
+            {k: v for k, v in base.items() if k != "artifact_digest"},
+            {k: v for k, v in base.items() if k != "goal_id"},
+            {**base, "goal_id": "other-goal"},
+            {**base, "reason": "continuous_run_adoption", "to_window_id": "other-window"},
+            {k: v for k, v in {**base, "reason": "continuous_run_adoption"}.items() if k != "to_window_id"},
+        ):
+            setup.db._conn.execute(
+                "UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+                (json.dumps(bad), row["id"]))
+            with pytest.raises(TaskStoreError, match="landing_owner_scope_not_confirmed"):
+                control.check_owner_landing_scope(window, goal.id)
+
+        setup.db._conn.execute(
+            "UPDATE platform_operation_receipts SET evidence_json = ? WHERE id = ?",
+            (json.dumps({**base, "reason": "continuous_run_adoption", "to_window_id": window.id}), row["id"]))
+        control.check_owner_landing_scope(window, goal.id)
+
     def test_activates_exactly_the_confirmed_goals_with_one_receipt_each(self, setup):
         a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "opencode", "free", tasks=2)
         window, shown = admit(setup.host, (a.id, b.id))

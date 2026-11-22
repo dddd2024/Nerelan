@@ -143,7 +143,7 @@ python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库�
 - 回调中禁止 COMMIT/ROLLBACK（SQLite authorizer），提交前再做一次 SQLite 时钟闸门。
 - 数据库对窗口范围施加硬上限，与调用方请求无关；能力只能取
   `execute_task`、`resume_task`、`reconcile_task`、`validate_task`、`open_draft_pr`，且必须包含 `execute_task`。
-  单目标的限时终端 opt-in 还可授予 `land_reviewed_pr`。
+  单目标的限时终端 opt-in 以及持续运行（`continuous`）窗口还可授予 `land_reviewed_pr`。
 - 存在未清理的 ACTIVE 认领时拒绝（与原生准入相同）。
 
 激活之后，只有 Owner 确认过的目标能在这个窗口里运行：

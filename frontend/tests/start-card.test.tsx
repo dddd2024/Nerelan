@@ -112,6 +112,7 @@ describe("start card", () => {
     const cmd = await screen.findByTestId("start-terminal");
     expect(cmd).toHaveTextContent("--continuous --max-concurrent 3 --max-retries 2 --capability execute_task --capability validate_task --capability open_draft_pr --land-reviewed-pr");
     expect(cmd).not.toHaveTextContent("--capability land_reviewed_pr");
+    expect(screen.getByText(/独立审查与门禁通过后自动合并/)).toBeInTheDocument();
   });
 
   it("shows every model Start authorizes and the ones left out", async () => {

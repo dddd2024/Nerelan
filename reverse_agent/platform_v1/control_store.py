@@ -1105,8 +1105,13 @@ class PlatformControlStore:
                         or goal.window_id != window.id
                         or OWNER_LANDING_CAPABILITY not in window.capabilities
                         or receipt is None
-                        or ("goal_revision" in evidence and evidence.get("goal_revision") != goal.revision)
-                        or ("artifact_digest" in evidence and evidence.get("artifact_digest") != goal.artifact_digest)
+                        or "goal_revision" not in evidence
+                        or evidence.get("goal_revision") != goal.revision
+                        or "artifact_digest" not in evidence
+                        or evidence.get("artifact_digest") != goal.artifact_digest
+                        or evidence.get("goal_id") != goal_id
+                        or (evidence.get("reason") == "continuous_run_adoption"
+                            and evidence.get("to_window_id") != window.id)
                         or (evidence.get("reason") != "continuous_run_adoption"
                             and OWNER_LANDING_CAPABILITY not in evidence.get("envelope", {}).get("capabilities", ()))):
                     raise TaskStoreError("landing_owner_scope_not_confirmed")
