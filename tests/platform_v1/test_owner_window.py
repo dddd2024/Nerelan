@@ -1078,7 +1078,8 @@ class TestPreflight:
         report = setup.host._owner_window_admission.preflight([a.id, b.id], **REQUEST)
         assert report["ok"] is True
         assert [check["check"] for check in report["checks"]] == [
-            "leftover_claims", "goals", "model_pool", "routing"]
+            "leftover_claims", "active_window", "goals", "model_pool", "routing"]
+        assert self.by_check(report)["active_window"]["ok"] is True
         assert f"- {a.id} T0: pinned (gpt-test, pinned)" in report["preview"]
         assert f"- {b.id} T1: free ({RESOLVED['free'].model_id}, pinned)" in report["preview"]
         scope = report["scope"]
@@ -1109,6 +1110,32 @@ class TestPreflight:
         assert "3 active coordinator claims" in checks["leftover_claims"]["detail"]
         assert checks["goals"]["reason"] == "skipped_while_claims_hold"
         assert "routing" not in checks
+
+    def test_an_active_window_fails_preflight_naming_it_its_expiry_and_runnable_goals(self, setup):
+        first = setup.planned("first", "codex", "pinned")
+        old, _ = admit(setup.host, (first.id,))
+        second = setup.planned("second", "codex", "pinned")
+        report = setup.host._owner_window_admission.preflight([second.id], **REQUEST)
+        checks = self.by_check(report)
+        assert report["ok"] is False
+        assert (checks["active_window"]["ok"], checks["active_window"]["reason"]) == (
+            False, f"active_window_already_exists:{old.id}")
+        assert old.expires_at in checks["active_window"]["detail"]
+        assert "1 of its goals still runnable" in checks["active_window"]["detail"]
+        assert setup.host._control_store.get_goal(second.id) == second
+        assert setup.host._control_store.active_window().id == old.id
+
+    def test_a_continuous_request_joining_the_active_continuous_window_passes_the_check(self, setup):
+        first = setup.planned("first", "codex", "pinned")
+        window, _ = admit(setup.host, (first.id,), continuous=True, hours=0, max_tasks=0,
+                          max_token_units=0, max_concurrent=3)
+        second = setup.planned("second", "codex", "pinned")
+        request = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2,
+                       capabilities=list(ALL), continuous=True)
+        report = setup.host._owner_window_admission.preflight([second.id], **request)
+        checks = self.by_check(report)
+        assert checks["active_window"]["ok"] is True and window.id in checks["active_window"]["detail"]
+        assert report["ok"] is True
 
     def test_a_routed_single_goal_fails_routing_with_its_reason(self, setup):
         goals = setup.host._goal_service
