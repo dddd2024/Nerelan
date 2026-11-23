@@ -1310,15 +1310,16 @@ class PlatformControlStore:
                         (goal_id,),
                     ).fetchone()))
 
-    def restore_merged_goal(self, goal_id: str) -> None:
-        """A goal superseded by the issue its own merge closed is COMPLETED, not stopped.
+    def complete_merged_goal(self, goal_id: str) -> None:
+        """A merged goal is COMPLETED: one still shown RUNNING because its review ran inside
+        the landing loop, or one superseded by the issue its own merge closed.
 
         Only with a COMPLETE landing, a confirmed merge and every linked task finished, so
-        nothing is ever dispatched again by this.
+        nothing is ever dispatched again by this and no status is ever moved back.
         """
         with self._lock:
             self._conn.execute(
-                "UPDATE platform_goals SET status = 'COMPLETED', updated_at = ? WHERE id = ? AND status = 'SUPERSEDED' "
+                "UPDATE platform_goals SET status = 'COMPLETED', updated_at = ? WHERE id = ? AND status IN ('RUNNING', 'SUPERSEDED') "
                 "AND EXISTS (SELECT 1 FROM platform_landing_state AS l JOIN platform_landing_operations AS o "
                 "ON o.identity = l.identity WHERE l.goal_id = platform_goals.id AND l.phase = 'COMPLETE' "
                 "AND o.operation = 'merge' AND o.status = 'SUCCEEDED') "

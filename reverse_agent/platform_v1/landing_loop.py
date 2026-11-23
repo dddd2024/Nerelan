@@ -243,8 +243,7 @@ class LandingLoopController:
         def finish(phase, reason="", delay=30000):
             row = store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
             if phase == "COMPLETE":
-                store.restore_merged_goal(state["goal_id"])
-                store.refresh_goal_status(state["goal_id"])  # its review may have run inside this loop
+                store.complete_merged_goal(state["goal_id"])
             return row
         def park_closed():
             # A previous process may have sent a claimed request. Read it back

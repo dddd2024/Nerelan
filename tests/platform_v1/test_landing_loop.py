@@ -1190,15 +1190,21 @@ def test_a_merge_that_main_has_moved_past_is_confirmed(tmp_path, monkeypatch):
     assert step(loop, state, window, now)["phase"] == "COMPLETE"
 
 
-def test_completion_refreshes_the_goal(tmp_path, monkeypatch):
+@pytest.mark.parametrize("before, tasks, after", [("RUNNING", "READY_FOR_REVIEW", "COMPLETED"), ("RUNNING", "QUEUED", "RUNNING"),
+                                                  ("COMPLETED", "QUEUED", "COMPLETED"), ("BLOCKED", "READY_FOR_REVIEW", "BLOCKED")])
+def test_completion_only_moves_a_finished_goal_forward(tmp_path, monkeypatch, before, tasks, after):
     store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    goal = store.get_goal(state["goal_id"])
+    task = store.task_store.create_task(title="t", repository=goal.repository)
+    store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (tasks, task.id))
+    store._conn.execute("INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+                        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, task.id))
+    store._conn.execute("UPDATE platform_goals SET status = ? WHERE id = ?", (before, goal.id))
     github.draft = False
-    refreshed = []
-    monkeypatch.setattr(store, "refresh_goal_status", refreshed.append)
     step(loop, state, window, now)
-    assert refreshed == []
-    step(loop, state, window, now)
-    assert refreshed == [state["goal_id"]]
+    assert store.get_goal(goal.id).status == before
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+    assert store.get_goal(goal.id).status == after
 
 
 @pytest.mark.parametrize("status, superseded", [("SUCCEEDED", False), ("UNKNOWN", True), ("ABSENT", True), ("CLAIMED", True)])
