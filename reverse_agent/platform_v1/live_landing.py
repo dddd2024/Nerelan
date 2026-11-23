@@ -52,7 +52,13 @@ class LiveLandingGitHubAdapter:
         files = self._pages(state, f"pulls/{state['pr_number']}/files?per_page=100")
         if len(files) != pr["changed_files"]:
             raise GitHubAdapterError("landing_changed_paths_incomplete")
-        return dict(repository=pr["base"]["repo"]["full_name"], base_branch=pr["base"]["ref"],
+        on_main = False
+        if pr["merged"] and pr["merge_commit_sha"]:
+            # Another landing may already have moved main past this merge.
+            proof = self._api(state, f"compare/{pr['merge_commit_sha']}...{main}")
+            on_main = proof["status"] in {"ahead", "identical"}
+        return dict(merge_on_main=on_main,
+                    repository=pr["base"]["repo"]["full_name"], base_branch=pr["base"]["ref"],
                     head_sha=pr["head"]["sha"], main_sha=main, draft=pr["draft"],
                     state=pr["state"].upper(), merged=pr["merged"], merge_commit=pr["merge_commit_sha"],
                     behind=comparison["behind_by"] > 0, body=pr.get("body") or "",
@@ -71,11 +77,20 @@ class LiveLandingGitHubAdapter:
                     conclusion=row["conclusion"], fresh=bool(row.get("completed_at")))
         return {"checks": checks}
 
+    def rerun_failed_main(self, state, main_sha):
+        """Rerun the failed jobs of main's own CI run once; its attempt number is the memory."""
+        runs = self._api(state, f"actions/runs?head_sha={main_sha}&event=push&branch=main&per_page=100")
+        for run in runs.get("workflow_runs", ()):
+            if (run.get("head_sha") == main_sha and run.get("status") == "completed" and run.get("run_attempt") == 1
+                    and run.get("conclusion") in {"failure", "timed_out", "cancelled"}):
+                self._run(["gh", "api", "--method", "POST",
+                           f"repos/{state['repository']}/actions/runs/{int(run['id'])}/rerun-failed-jobs"], json_output=False)
+
     def reconcile_operation(self, state, operation, claim_id):
         pr = self.observe_pr(state)
         outcome = "UNKNOWN"
         if operation == "merge":
-            if pr["merged"] and pr["head_sha"] == state["head_sha"] and pr["merge_commit"] == pr["main_sha"]:
+            if pr["merged"] and pr["head_sha"] == state["head_sha"] and pr["merge_on_main"]:
                 outcome = "SUCCEEDED"
             # Open does not prove a timed-out merge request cannot still finish.
         elif operation == "mark_ready":

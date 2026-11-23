@@ -276,6 +276,13 @@ class PublicationController:
                 status=status, request_digest=request, commit_sha=artifact["commit"],
                 pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
         body = "Retained functionally validated artifact. Independent review pending."
+        from .goal_source_issue import source_issue
+        from .quick_start import MAX_ISSUE_BODY_CHARS
+        number = source_issue(goal)
+        if number is not None and len(goal.objective) < MAX_ISSUE_BODY_CHARS and len(artifacts.published_plan_tasks(goal.tasks)) == 1:
+            # The whole, uncut issue is this goal's objective and its review's subject; GitHub
+            # closes it when, and only when, the reviewed head reaches main.
+            body += f"\n\nCloses #{number}"
         if self.landing_decisions is not None:
             import fnmatch
             paths = self._git(workspace, "diff", "--no-renames", "--name-only", artifact["base_commit"], artifact["commit"]).stdout.splitlines()

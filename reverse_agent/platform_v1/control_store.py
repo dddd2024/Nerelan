@@ -1296,7 +1296,12 @@ class PlatformControlStore:
                 "WHERE id = ? AND revision = ? AND status IN "
                 "('DRAFT', 'PLANNED', 'APPROVED', 'RUNNING', 'BLOCKED', 'COMPLETED') "
                 "AND NOT EXISTS (SELECT 1 FROM platform_landing_state "
-                "WHERE goal_id = platform_goals.id AND phase = 'COMPLETE')",
+                "WHERE goal_id = platform_goals.id AND phase = 'COMPLETE') "
+                # Its own merge closes the issue before the landing confirms main. An UNKNOWN
+                # merge may be done; a CLAIMED one is not sent yet and still yields to the Owner.
+                "AND NOT EXISTS (SELECT 1 FROM platform_landing_state AS l JOIN platform_landing_operations AS o "
+                "ON o.identity = l.identity WHERE l.goal_id = platform_goals.id AND o.operation = 'merge' "
+                "AND o.status IN ('SUCCEEDED', 'UNKNOWN'))",
                 (_utc_now(), goal_id, revision),
             )
             return (bool(changed.rowcount) or self.get_goal(goal_id).status == "SUPERSEDED"

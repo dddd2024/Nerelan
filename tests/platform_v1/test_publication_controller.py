@@ -178,3 +178,23 @@ def test_artifact_publication_refuses_unverified_output(review_setup, monkeypatc
     with pytest.raises(TaskStoreError, match="unverified"):
         publication.publish_artifact(review_setup[2], window_id=goal.window_id, goal_id=goal.id)
     assert not remote["pushes"] and remote["creates"] == 0
+
+
+@pytest.mark.parametrize("number, objective, closes", [
+    (1438, "Resolve the issue", True), (None, "free text", False), (1438, "x" * 12_000, False)])
+def test_the_pr_closes_only_the_issue_its_goal_was_made_from(review_setup, monkeypatch, number, objective, closes):
+    from dataclasses import replace
+    from reverse_agent.platform_v1 import goal_source_issue
+    publication, control, goal, remote = artifact_publisher(review_setup)
+    monkeypatch.setattr(goal_source_issue, "source_issue", lambda current: number)
+    read = control.get_goal
+    monkeypatch.setattr(control, "get_goal", lambda goal_id: replace(read(goal_id), objective=objective))
+    bodies, run = [], publication.runner
+
+    def runner(argv, cwd):
+        if argv[:3] == ("gh", "pr", "create"):
+            bodies.append(argv[argv.index("--body") + 1])
+        return run(argv, cwd)
+    publication.runner = runner
+    publication.publish_artifact(review_setup[2], window_id=goal.window_id, goal_id=goal.id)
+    assert len(bodies) == 1 and ("Closes #1438" in bodies[0].splitlines()) is closes

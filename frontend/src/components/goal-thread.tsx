@@ -330,6 +330,7 @@ const LANDING_REASON_LABELS = new Map([
   ["landing_denied_by_window", "当前窗口未授权合并。需要 Owner 确认包含合并权限的窗口。"],
   ["fresh_current_head_checks_required", "等待当前提交的 CI 检查通过。"],
   ["latest_review_verdict_rejects_head", "当前提交的独立审查未通过。"],
+  ["main_checks_failed", "主分支的 CI 未通过，已暂停所有合并；已自动重跑一次，变绿后继续。"],
   ["main_merge_not_confirmed", "等待在主分支确认合并。"],
   ["goal_source_issue_closed", "关联 Issue 已关闭。"],
   ["pull_request_closed", "PR 已关闭。"],
