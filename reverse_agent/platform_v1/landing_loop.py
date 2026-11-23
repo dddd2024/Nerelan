@@ -15,6 +15,15 @@ from .run_store import TaskStoreError
 from . import artifact_handoff as artifacts, model_review
 
 
+RED_MAIN_RECHECK_MS = 5 * 60_000
+
+
+def merge_confirmed(pr):
+    """The PR's merge commit is on main (main may have moved past it since)."""
+    return bool(pr.get("merged") and pr.get("merge_commit")
+                and pr.get("merge_on_main", pr["main_sha"] == pr["merge_commit"]))
+
+
 class LandingLoopController:
     def __init__(self, *, control_store: PlatformControlStore,
                  autonomy: AutonomyService, github: LandingGitHubAdapter, owner_decisions=None,
@@ -106,6 +115,7 @@ class LandingLoopController:
             self.control_store.complete_task_claim(window_id=window_id, task_id=review.id,
                 owner=coordinator.owner, epoch=epoch,
                 result=getattr(outcome, "failure_classification", "") or "review_execution_finished")
+            self.control_store.refresh_goal_status(goal_id)
             completed = store.get_task(review.id)
             if not any(row.get("category") == model_review.CATEGORY and row.get("label") == completed.execution_id
                        for row in completed.evidence_refs):
@@ -231,7 +241,10 @@ class LandingLoopController:
                 raise TaskStoreError("landing_tick_lease_lost")
             self._authorize(state, window_id)
         def finish(phase, reason="", delay=30000):
-            return store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
+            row = store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
+            if phase == "COMPLETE":
+                store.complete_merged_goal(state["goal_id"])
+            return row
         def park_closed():
             # A previous process may have sent a claimed request. Read it back
             # under the existing grant, without reserving or sending a new write.
@@ -248,7 +261,7 @@ class LandingLoopController:
                     pr = observe()
                 except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
                     return finish("BLOCKED", "goal_source_issue_closed_merge_readback_required", delay=0)
-                if pr.get("merged") and pr.get("merge_commit") == pr["main_sha"]:
+                if merge_confirmed(pr):
                     return finish("COMPLETE", delay=0)
                 return finish("BLOCKED", "goal_source_issue_closed_merge_readback_required", delay=0)
             return finish("SUPERSEDED", "goal_source_issue_closed", delay=0)
@@ -288,7 +301,7 @@ class LandingLoopController:
                 if not claim or not pr.get("merge_commit"):
                     return finish("BLOCKED", "unrecorded_merge")
                 result = self.reconcile(identity, "merge", window_id=window_id)
-                if result["status"] == "SUCCEEDED" and pr["main_sha"] == pr["merge_commit"]:
+                if result["status"] == "SUCCEEDED" and merge_confirmed(pr):
                     return finish("COMPLETE", delay=0)
                 return finish("RECONCILING", "main_merge_not_confirmed")
             if self._source_closed(state["goal_id"]):
@@ -329,6 +342,15 @@ class LandingLoopController:
                 return finish("WAITING", "r2_independent_gate_confirmation_required")
             if self.github.observe_checks(state).get("checks", {}) != checks:
                 return finish("WAITING", "checks_changed_during_assessment")
+            if operation == "merge":
+                main = self.github.observe_main(state, pr["main_sha"])
+                if main["held"]:
+                    for run_id in main["rerun"]:
+                        try:
+                            self.github.rerun_failed_jobs(state, run_id)
+                        except (GitHubAdapterError, OSError, ValueError):
+                            pass  # refused, or another host asked first: the hold itself stands
+                    return finish("WAITING", "main_checks_failed", delay=RED_MAIN_RECHECK_MS)
             prior = store.landing_operation(identity, operation)
             if prior:
                 resolved = self.reconcile(identity, operation, window_id=window_id)

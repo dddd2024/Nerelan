@@ -407,6 +407,9 @@ class ProgressGitHub(FakeGitHubAdapter):
             checks["baseline"]["head_sha"] = "f" * 40
         return {"checks": checks}
 
+    def observe_main(self, state, main_sha):
+        return {"held": False, "rerun": []}
+
     def invoke_verdict(self, state, claim_id):
         passed = self.accepted if claim_id == "assessment" else self.premerge
         self.calls.append(("verdict", claim_id))
@@ -1104,3 +1107,149 @@ def test_only_an_accepted_repair_of_the_rejected_head_is_republished(monkeypatch
     landing = {"identity": "i", **{k: case[k] for k in ("phase", "parking_reason", "head_sha")}}
     assert coordinator._republishes_rejected_head(
         None, SimpleNamespace(id="new", execution_id="e"), {"commit": "b" * 40}, landing) is allowed
+
+
+def _hold_main(github, held, rerun=()):
+    github.main_reads, github.reruns = [], []
+
+    def observe(state, main_sha):
+        github.main_reads.append(main_sha)
+        return {"held": held, "rerun": list(rerun)}
+    github.observe_main = observe
+    github.rerun_failed_jobs = lambda state, run_id: github.reruns.append(run_id)
+
+
+@pytest.mark.parametrize("rerun_fails", [False, True])
+def test_a_red_main_holds_the_merge_until_it_is_green(tmp_path, monkeypatch, rerun_fails):
+    from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    _hold_main(github, True, [7])
+    if rerun_fails:
+        def refuse(*args):
+            github.reruns.append(args[1])
+            raise GitHubAdapterError("forbidden")
+        github.rerun_failed_jobs = refuse
+    held = step(loop, state, window, now)
+    assert (held["phase"], held["parking_reason"]) == ("WAITING", "main_checks_failed")
+    assert not github.merged and store.landing_operation(state["identity"], "merge") is None
+    assert github.reruns == [7]
+    step(loop, state, window, now)  # inside the recheck delay: nothing is read
+    assert len(github.main_reads) == 1
+    _hold_main(github, True)  # the rerun is under way: still held, nothing more to rerun
+    now[0] += 5 * 60001
+    assert loop.tick(state["identity"], window_id=window.id)["parking_reason"] == "main_checks_failed"
+    assert github.reruns == [] and not github.merged
+    _hold_main(github, False)
+    for _ in range(8):
+        step(loop, state, window, now)
+    assert github.merged and store.get_landing(state["identity"])["phase"] == "COMPLETE"
+
+
+def test_red_main_does_not_hold_ready(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    _hold_main(github, True, [7])
+    step(loop, state, window, now)
+    assert not github.draft and not github.merged and github.main_reads == []
+
+
+MAIN = "a" * 40
+_CHECK = dict(id=1, name="baseline", head_sha=MAIN, status="completed", conclusion="failure", completed_at="t",
+              app={"slug": "github-actions"}, check_suite={"id": 50})
+_RUN = dict(id=9, head_sha=MAIN, status="completed", run_attempt=1, conclusion="failure", check_suite_id=50)
+
+
+@pytest.mark.parametrize("check, run, held, rerun", [
+    ({}, {}, True, [9]),
+    ({"conclusion": "timed_out"}, {"conclusion": "timed_out"}, True, [9]),
+    ({}, {"run_attempt": 2}, True, []),                                             # failed twice: only a person
+    ({"status": "in_progress", "conclusion": None}, {"status": "in_progress", "run_attempt": 2, "conclusion": None}, True, []),
+    ({"status": "queued", "conclusion": None}, {"status": "queued", "run_attempt": 1, "conclusion": None}, False, []),
+    ({"conclusion": "success"}, {"run_attempt": 2, "conclusion": "success"}, False, []),
+    ({"conclusion": "success"}, {}, False, []),                                     # another job of the run failed
+    ({"name": "repository-diagnostic"}, {}, False, []),
+    ({"app": {"slug": "other"}}, {}, False, []),
+    ({"head_sha": "b" * 40}, {}, False, []),
+    ({}, {"check_suite_id": 51}, True, []),                                         # an unrelated workflow is not rerun
+])
+def test_live_adapter_reads_mains_own_required_checks(tmp_path, monkeypatch, check, run, held, rerun):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    monkeypatch.setattr(adapter, "_run", lambda args, **kwargs: [{"check_runs": [{**_CHECK, **check}]}])
+    monkeypatch.setattr(adapter, "_api", lambda state, suffix: {"workflow_runs": [{**_RUN, **run}]})
+    state = dict(repository="o/r", head_sha="c" * 40, pr_number=1)
+    assert adapter.observe_main(state, MAIN) == {"held": held, "rerun": rerun}
+
+
+def test_a_merge_that_main_has_moved_past_is_confirmed(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    assert step(loop, state, window, now)["phase"] == "RECONCILING"
+    observe = github.observe_pr
+    github.observe_pr = lambda current: dict(observe(current), main_sha="e" * 40, merge_on_main=True)
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+
+
+@pytest.mark.parametrize("before, tasks, after", [("RUNNING", "READY_FOR_REVIEW", "COMPLETED"), ("RUNNING", "QUEUED", "RUNNING"),
+                                                  ("COMPLETED", "QUEUED", "COMPLETED"), ("BLOCKED", "READY_FOR_REVIEW", "BLOCKED")])
+def test_completion_only_moves_a_finished_goal_forward(tmp_path, monkeypatch, before, tasks, after):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    goal = store.get_goal(state["goal_id"])
+    task = store.task_store.create_task(title="t", repository=goal.repository)
+    store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (tasks, task.id))
+    store._conn.execute("INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+                        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, task.id))
+    store._conn.execute("UPDATE platform_goals SET status = ? WHERE id = ?", (before, goal.id))
+    github.draft = False
+    step(loop, state, window, now)
+    assert store.get_goal(goal.id).status == before
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+    assert store.get_goal(goal.id).status == after
+
+
+@pytest.mark.parametrize("status, superseded", [("SUCCEEDED", False), ("UNKNOWN", True), ("ABSENT", True), ("CLAIMED", True)])
+def test_only_a_confirmed_merge_keeps_its_goal_when_the_issue_closes(tmp_path, monkeypatch, status, superseded):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    claim = store.claim_landing_operation(state["identity"], "merge", window_id=window.id)
+    if status != "CLAIMED":
+        store.record_landing_outcome(state["identity"], "merge", claim, outcome=status, evidence={"x": 1})
+    goal = store.get_goal(state["goal_id"])
+    store.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+    assert (store.get_goal(goal.id).status == "SUPERSEDED") is superseded
+
+
+@pytest.mark.parametrize("merged, tasks, status", [(True, "READY_FOR_REVIEW", "COMPLETED"), (True, "QUEUED", "SUPERSEDED"),
+                                                   (False, "READY_FOR_REVIEW", "SUPERSEDED")])
+def test_a_goal_superseded_by_its_own_merge_is_restored_once_confirmed(tmp_path, monkeypatch, merged, tasks, status):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    goal = store.get_goal(state["goal_id"])
+    task = store.task_store.create_task(title="t", repository=goal.repository)
+    store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (tasks, task.id))
+    store._conn.execute("INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+                        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, task.id))
+    claim = store.claim_landing_operation(state["identity"], "merge", window_id=window.id)
+    store.record_landing_outcome(state["identity"], "merge", claim, outcome="UNKNOWN", evidence={"x": 1})
+    assert store.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+    github.draft, github.merged = False, merged
+    github.main = "d" * 40 if merged else github.main
+    for _ in range(3):
+        step(loop, state, window, now)
+    assert not any(call[0] == "merge" for call in github.calls)
+    assert store.get_goal(goal.id).status == status
+
+
+@pytest.mark.parametrize("status, on_main", [("ahead", True), ("identical", True), ("behind", False), ("diverged", False)])
+def test_live_adapter_confirms_a_merge_by_ancestry(tmp_path, monkeypatch, status, on_main):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    head, merge, main = "a" * 40, "c" * 40, "d" * 40
+    answers = {"pulls/1": {"head": {"sha": head}, "base": {"repo": {"full_name": "o/r"}, "ref": "main"}, "draft": False,
+                           "state": "closed", "merged": True, "merge_commit_sha": merge, "changed_files": 0},
+               "git/ref/heads/main": {"object": {"sha": main}}, f"compare/{main}...{head}": {"behind_by": 1},
+               f"compare/{merge}...{main}": {"status": status}}
+    monkeypatch.setattr(adapter, "_api", lambda state, suffix: answers[suffix])
+    monkeypatch.setattr(adapter, "_pages", lambda state, suffix: [])
+    state = dict(repository="o/r", pr_number=1, head_sha=head, identity="i")
+    assert adapter.observe_pr(state)["merge_on_main"] is on_main
+    outcome = adapter.reconcile_operation(state, "merge", "claim")["outcome"]
+    assert outcome == ("SUCCEEDED" if on_main else "UNKNOWN")
