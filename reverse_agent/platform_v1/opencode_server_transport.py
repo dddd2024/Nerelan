@@ -19,7 +19,7 @@ import secrets
 import socket
 import subprocess
 import time
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit
 from urllib.request import (
@@ -66,7 +66,7 @@ def _is_skippable_oversized_sse(prefix: bytes) -> bool:
     return False
 
 
-def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
+def _session_error_texts(properties: Mapping[str, Any]) -> list[str]:
     error = properties.get("error")
     candidates: list[str] = []
     if isinstance(error, str):
@@ -82,9 +82,28 @@ def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
                 value = data.get(key)
                 if isinstance(value, str):
                     candidates.append(value)
+    return candidates
+
+
+def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
+    candidates = _session_error_texts(properties)
     if any(no_credits_error(text) for text in candidates):
         return False
     return any(provider_rate_limit_reply(text) for text in candidates)
+
+
+def _extract_rate_limit_reset_at(texts: Sequence[str]) -> str:
+    """Return a validated UTC ISO reset timestamp from rate-limit text, or ''."""
+    from .codex_protocol import local_now, parse_reset_time
+
+    now = local_now()
+    for text in texts:
+        if not isinstance(text, str) or not text:
+            continue
+        reset = parse_reset_time(text, now)
+        if reset:
+            return reset
+    return ""
 
 
 def _account_rate_limit_retry(status: Any) -> bool:
@@ -110,6 +129,7 @@ class ServerTransportResult:
     server_version: str = ""
     session_digest: str = ""
     usage_event_count: int = 0
+    failure_reset_at: str = ""
 
 
 @dataclass(frozen=True)
@@ -713,6 +733,8 @@ class OpenCodeServerClient:
                 bound_session = properties.get("sessionID")
                 if (event_type == "session.status" and bound_session == session_id
                         and _account_rate_limit_retry(properties.get("status"))):
+                    status = properties.get("status")
+                    reset_at = _extract_rate_limit_reset_at((status.get("message", ""),))
                     confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
                     return ServerTransportResult(
                         success=False,
@@ -721,6 +743,7 @@ class OpenCodeServerClient:
                         server_version=version,
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
+                        failure_reset_at=reset_at,
                     )
                 if event_type == "session.idle" and bound_session == session_id:
                     return ServerTransportResult(
@@ -735,12 +758,18 @@ class OpenCodeServerClient:
                         if _session_error_rate_limit(properties)
                         else "server_session_error"
                     )
+                    reset_at = (
+                        _extract_rate_limit_reset_at(_session_error_texts(properties))
+                        if classification == "api_error_429"
+                        else ""
+                    )
                     return ServerTransportResult(
                         success=False,
                         failure_classification=classification,
                         server_version=version,
                         session_digest=_safe_digest(session_id, "session-"),
                         usage_event_count=usage_count,
+                        failure_reset_at=reset_at,
                     )
         except OpenCodeServerTransportError as exc:
             if str(exc) != "server_event_timeout" or not session_id:

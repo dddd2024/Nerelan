@@ -462,3 +462,27 @@ def test_clock_reset_in_failure_uses_host_local_time(monkeypatch):
     turn = parser.finish()
     assert turn.failure_classification == 'codex_usage_limit'
     assert turn.failure_reset_at == '2026-10-19T07:05:00Z'
+
+
+def test_parse_reset_time_magpie_not_asked_again_before_with_utc_offsets():
+    from datetime import datetime
+    now_utc = datetime.fromisoformat('2026-11-22T10:00:00+00:00')  # 06:00 UTC-4
+    msg = (
+        "OpenCode Zen Free: Free usage limit reached "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+    assert parse_reset_time(msg, now_utc) == '2026-11-22T11:06:00Z'
+    assert parse_reset_time('not asked again before 18:30 UTC+05:30', now_utc) == '2026-11-22T13:00:00Z'
+    assert parse_reset_time('not asked again before 11:30 UTC+05:30', now_utc) == '2026-11-23T06:00:00Z'
+
+    now_est = datetime.fromisoformat('2026-11-22T22:00:00-04:00')  # 2026-11-23T02:00:00Z
+    assert parse_reset_time('not asked again before 23:30 UTC', now_est) == '2026-11-23T23:30:00Z'
+
+    # Rollover evaluated in the stated UTC-4 offset (23:30 UTC-4 -> next day 01:15 UTC-4).
+    rollover_now = datetime.fromisoformat('2026-11-23T03:30:00+00:00')
+    assert parse_reset_time('not asked again before 01:15 UTC-4', rollover_now) == '2026-11-23T05:15:00Z'
+
+    for bad_now in (None, datetime(2026, 11, 22, 10, 0)):
+        assert parse_reset_time(msg, bad_now) is None
+    for bad_offset in ('UTC+25', 'UTC-4x', 'UTC+14:30', 'UTC+05:99'):
+        assert parse_reset_time(f'not asked again before 07:06 {bad_offset}', now_utc) is None

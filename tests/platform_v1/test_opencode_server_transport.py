@@ -303,6 +303,60 @@ def test_session_error_classifies_rate_limit_without_masking_billing_or_generic_
     assert stream.closed
 
 
+def test_rate_limit_results_extract_validated_reset_timestamp(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import codex_protocol
+
+    fixed_now = datetime.fromisoformat("2026-11-22T06:00:00-04:00")
+    monkeypatch.setattr(codex_protocol, "local_now", lambda: fixed_now)
+    magpie_msg = (
+        "OpenCode Zen Free: Free usage limit reached "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+
+    run_retry, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {
+            "sessionID": "session-exact",
+            "status": {"type": "retry", "attempt": 1, "message": magpie_msg},
+        })),
+    ])
+    retry_res = run_retry()
+    assert retry_res.failure_classification == "api_error_429"
+    assert retry_res.failure_reset_at == "2026-11-22T11:06:00Z"
+
+    run_err, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"name": "APIError", "data": {"message": magpie_msg}},
+        })),
+    ])
+    err_res = run_err()
+    assert err_res.failure_classification == "api_error_429"
+    assert err_res.failure_reset_at == "2026-11-22T11:06:00Z"
+
+    run_no_reset, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"message": "Too Many Requests"},
+        })),
+    ])
+    assert run_no_reset().failure_reset_at == ""
+
+    run_non_429, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"message": "Internal model execution failed (try again at 07:06 UTC-4)"},
+        })),
+    ])
+    non_429_res = run_non_429()
+    assert non_429_res.failure_classification == "server_session_error"
+    assert non_429_res.failure_reset_at == ""
+
+
 @pytest.mark.parametrize("oversized_event", [
     {
         "type": "message.updated",

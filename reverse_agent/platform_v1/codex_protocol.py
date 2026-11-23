@@ -35,9 +35,15 @@ _USAGE_LIMIT_RE = re.compile(
 )
 
 # A stated reset time inside a usage-limit message: an ISO-8601 timestamp, or a
-# "try again at HH:MM" style hint (the latter resolved against the current day).
+# "try again at HH:MM" / "not asked again before HH:MM [UTC±H[:MM]]" style hint
+# (resolved against the current day in the stated offset or host timezone).
 _RESET_ISO_RE = re.compile(r"\b(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?)\b")
-_RESET_CLOCK_RE = re.compile(r"(?i)try\s+again\s+at\s+(\d{1,2}):(\d{2})(?:\s*([ap])\.?m\b\.?)?")
+_RESET_CLOCK_RE = re.compile(
+    r"(?i)(?:try\s+again\s+at|not\s+asked\s+again\s+before)\s+"
+    r"(\d{1,2}):(\d{2})(?:\s*([ap])\.?m\b\.?)?"
+    r"(?:\s+(UTC[^\s),.;]*))?"
+)
+_RESET_UTC_OFFSET_RE = re.compile(r"(?i)^UTC(?:([+-])(\d{1,2})(?::(\d{2}))?)?$")
 
 _FAILURE_DETAIL_LIMIT = 500
 
@@ -76,6 +82,22 @@ def local_now() -> datetime:
     return datetime.now().astimezone()
 
 
+def _parse_utc_offset(token: str) -> timezone | None:
+    """Parse a stated UTC±H[:MM] token, returning None when malformed or out of range."""
+    match = _RESET_UTC_OFFSET_RE.match(token)
+    if match is None:
+        return None
+    sign, raw_hours, raw_minutes = match.groups()
+    if sign is None:
+        return timezone.utc
+    hours = int(raw_hours)
+    minutes = int(raw_minutes) if raw_minutes is not None else 0
+    if hours > 14 or minutes > 59 or (hours == 14 and minutes > 0):
+        return None
+    offset = timedelta(hours=hours, minutes=minutes)
+    return timezone(offset if sign == "+" else -offset)
+
+
 def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
     """Return a stated reset in UTC. Explicit offsets need no reference time.
 
@@ -104,8 +126,14 @@ def parse_reset_time(message: str, now: datetime | None = None) -> str | None:
                 if not 1 <= hour <= 12:
                     return None
                 hour = hour % 12 + (12 if clock.group(3).lower() == "p" else 0)
-            reset = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if reset <= now:
+            ref = now
+            if clock.group(4):
+                tz = _parse_utc_offset(clock.group(4))
+                if tz is None:
+                    return None
+                ref = now.astimezone(tz)
+            reset = ref.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if reset <= ref:
                 reset += timedelta(days=1)
             return reset.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         except (ValueError, OverflowError):

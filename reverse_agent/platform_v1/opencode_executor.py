@@ -2531,6 +2531,7 @@ class OpenCodeExecutor:
                 event_callback=None,
                 classification=result.failure_classification or "server_transport_failed",
                 abort_state=result.abort_state,
+                failure_reset_at=result.failure_reset_at,
             )
         return self._validate_server_success(
             task_id=task_id,
@@ -2550,6 +2551,7 @@ class OpenCodeExecutor:
         event_callback: ExecutorCallback | None,
         classification: str,
         abort_state: str,
+        failure_reset_at: str = "",
     ) -> ExecutorResult:
         _emit(event_callback, task_id, {
             "type": "EXECUTOR_FINISHED",
@@ -2576,6 +2578,7 @@ class OpenCodeExecutor:
             execution_id=execution_id,
             process_exit_code=-1,
             failure_classification=classification,
+            failure_reset_at=failure_reset_at,
         )
 
     def _validate_server_success(
