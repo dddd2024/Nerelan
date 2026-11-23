@@ -11,7 +11,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
@@ -345,6 +345,33 @@ class UnattendedCoordinator:
                 self._manual_tick_active = False
                 self._manual_tick_idle.set()
 
+    def _can_resume_parked_review(self, goal: Any, task: Any, accepted: Mapping[str, Any],
+                                  landing: Mapping[str, Any]) -> bool:
+        """True only when an unparked BLOCKED review later succeeded with retained evidence."""
+        if (landing.get("phase") != "BLOCKED" or landing.get("parking_reason")
+                or landing.get("head_sha") != accepted.get("commit")
+                or self.control_store.landing_operation(landing["identity"], "review_comment") is not None):
+            return False
+        links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
+                 if int(row["goal_revision"]) == goal.revision}
+        source = next((key for key, row in links.items() if row["task_id"] == task.id), None)
+        if not source:
+            return False
+        reviews = [raw for raw in goal.tasks if raw.get("kind") == "review"
+                   and raw.get("artifact_input") == {"plan_task_id": source}]
+        if len(reviews) != 1:
+            return False
+        review_link = links.get(reviews[0]["id"])
+        if not review_link:
+            return False
+        try:
+            review = self.store.get_task(review_link["task_id"])
+        except (TaskStoreError, KeyError):
+            return False
+        from . import model_review
+        return any(row.get("category") == model_review.CATEGORY and row.get("label") == review.execution_id
+                   for row in review.evidence_refs)
+
     def _advance_landing(self, window):
         if self.landing_loop is None:
             return
@@ -356,11 +383,15 @@ class UnattendedCoordinator:
             from . import artifact_handoff as artifacts
             for task_id in self.control_store.ready_window_tasks(window.id):
                 task = self.store.get_task(task_id)
-                if task.status != "READY_FOR_REVIEW" or not artifacts._load_evidence(
-                        task, artifacts.ACCEPTED_CATEGORY, task.execution_id):
+                if task.status != "READY_FOR_REVIEW":
+                    continue
+                accepted = artifacts._load_evidence(task, artifacts.ACCEPTED_CATEGORY, task.execution_id)
+                if not accepted:
                     continue
                 goal = self.control_store.get_goal(self.control_store.goal_id_for_task(task.id))
-                if goal.window_id != window.id or self.control_store.landing_progress(goal.id):
+                landing = self.control_store.landing_progress(goal.id)
+                if goal.window_id != window.id or (
+                        landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)):
                     continue
                 try:
                     self.landing_loop.publish_and_review(task.id, window_id=window.id,

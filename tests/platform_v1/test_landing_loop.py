@@ -1,5 +1,6 @@
 """Provider-free contract tests and reusable landing adapter fake."""
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -778,3 +779,157 @@ def test_unattended_revoked_window_parks_without_adapter_calls(tmp_path, monkeyp
     coordinator.tick()
     assert store.get_landing(state["identity"])["phase"] == "BLOCKED"
     assert not github.calls
+
+
+def _coordinator_toolless_harness(toolless, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    s = toolless
+    control = PlatformControlStore(s["store"])
+    goal = control.get_goal(control.goal_id_for_task(s["producer"]))
+    s["store"]._conn.execute(
+        "UPDATE platform_autonomous_windows SET capabilities_json=?",
+        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),),
+    )
+    producer = s["store"].get_task(s["producer"])
+    retained = artifact_handoff._load_evidence(producer, artifact_handoff.ACCEPTED_CATEGORY, producer.execution_id)
+    github = ProgressGitHub()
+    github.head = retained["commit"]
+    github.accepted = False
+    github.comments = {}
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + retained["commit"] in body
+
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN",
+    )
+    loop = LandingLoopController(
+        control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+        github=github,
+    )
+    goals = GoalService(store=s["store"], control_store=control)
+    coordinator = UnattendedCoordinator(
+        store=s["store"], control_store=control, autonomy=loop.autonomy,
+        router=s["service"].router, workspace_root=s["root"], landing_loop=loop,
+        publication=SimpleNamespace(publish_artifact=lambda task_id, **kwargs: SimpleNamespace(
+            commit_sha=retained["commit"], pr_number=1266)),
+        goals=goals,
+    )
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: s["service"])
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+    return s, control, goal, producer, retained, github, goals, coordinator, now
+
+
+def test_coordinator_resumes_landing_after_retried_review_succeeds(review_setup, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    from test_functional_execution import durable
+    from test_model_review_execution import ACCEPT, Reviewer
+
+    store, router, producer, review_id, _, options, root = review_setup
+    control = PlatformControlStore(store)
+    goal = control.get_goal(control.goal_id_for_task(producer))
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal.id,))
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET capabilities_json = ?, max_retries = 10",
+        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),),
+    )
+    retained = artifact_handoff._load_evidence(
+        store.get_task(producer), artifact_handoff.ACCEPTED_CATEGORY, store.get_task(producer).execution_id)
+    github = ProgressGitHub()
+    github.head = retained["commit"]
+    github.accepted = False
+    github.comments = {}
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + retained["commit"] in body
+
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN",
+    )
+    loop = LandingLoopController(
+        control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+        github=github,
+    )
+    goals = GoalService(
+        store=store, control_store=control,
+        task_resolver=lambda *a, **kw: {
+            "executor_kind": "opencode", "binding_ref": store.get_task(review_id).binding_ref,
+            "model_id": "local/test", "reason": "retry",
+        },
+    )
+    service = durable(store, router)
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=loop.autonomy,
+        router=router, workspace_root=root, landing_loop=loop,
+        publication=SimpleNamespace(publish_artifact=lambda task_id, **kwargs: SimpleNamespace(
+            commit_sha=retained["commit"], pr_number=1266)),
+        goals=goals,
+    )
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: service)
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+
+    options["response"] = "unparseable review"
+    coordinator.tick()
+    assert control.landing_progress(goal.id)["phase"] == "BLOCKED"
+    assert github.comments == {}
+
+    from reverse_agent.platform_v1 import functional_validation
+    retry_outcome, = goals.escalate_failed_tasks(goal.id)
+    retried_review_id = retry_outcome["to_task_id"]
+    assert retried_review_id != review_id
+    producer_task = store.get_task(producer)
+    source = artifact_handoff._producer_worktree(
+        store, producer_task, functional_validation.functional_evidence(producer_task))
+    router.replace("opencode", lambda **kw: Reviewer(source, kw["base_ref"], response=ACCEPT))
+    assert durable(store, router).execute_durable_single(retried_review_id, workspace_root=str(root / "retry")).success
+    control.refresh_goal_status(goal.id)
+    assert control.get_goal(goal.id).status == "COMPLETED"
+
+    coordinator.tick()
+    assert github.accepted and not github.draft and len(github.comments) == 1
+    assert ("Nerelan-Review: ACCEPT " + retained["commit"]) in next(iter(github.comments.values()))
+    now[0] += 60001
+    coordinator.tick()
+    now[0] += 60001
+    coordinator.tick()
+    assert control.landing_progress(goal.id)["phase"] == "COMPLETE"
+    assert len(github.comments) == 1
+
+
+@pytest.mark.parametrize("case", ["no_retained_review", "with_parking_reason", "with_review_comment_op"])
+def test_coordinator_does_not_reenter_blocked_landing_without_retained_review_or_with_parking_reason(
+    toolless, monkeypatch, case,
+):
+    s, control, goal, producer, retained, github, goals, coordinator, _ = _coordinator_toolless_harness(
+        toolless, monkeypatch)
+    if case != "no_retained_review":
+        assert s["service"].execute_durable_single(task_id=s["consumer"], workspace_root=s["root"]).success
+    state = control.ensure_landing(
+        repository=goal.repository, goal_id=goal.id, pr_number=1266,
+        head_sha=retained["commit"], review_round=1,
+    )
+    if case == "with_review_comment_op":
+        claim = control.claim_landing_operation(state["identity"], "review_comment", window_id=goal.window_id)
+        assert claim
+    if case == "with_parking_reason":
+        control.finish_landing_tick(state["identity"], "BLOCKED", "landing_denied_by_window", 0)
+    else:
+        control.schedule_landing(state["identity"], expected_phase=state["phase"], phase="BLOCKED")
+
+    called = []
+    monkeypatch.setattr(coordinator.landing_loop, "publish_and_review", lambda *a, **kw: called.append(a))
+    monkeypatch.setattr(coordinator.landing_loop, "tick", lambda *a, **kw: called.append(("tick", a)))
+    coordinator.tick()
+    assert called == []
