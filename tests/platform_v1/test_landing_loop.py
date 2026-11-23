@@ -778,3 +778,122 @@ def test_unattended_revoked_window_parks_without_adapter_calls(tmp_path, monkeyp
     coordinator.tick()
     assert store.get_landing(state["identity"])["phase"] == "BLOCKED"
     assert not github.calls
+
+
+def _coordinator_toolless_harness(toolless, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    s = toolless
+    control = PlatformControlStore(s["store"])
+    goal = control.get_goal(control.goal_id_for_task(s["producer"]))
+    s["store"]._conn.execute(
+        "UPDATE platform_autonomous_windows SET capabilities_json=?",
+        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),),
+    )
+    producer = s["store"].get_task(s["producer"])
+    retained = artifact_handoff._load_evidence(producer, artifact_handoff.ACCEPTED_CATEGORY, producer.execution_id)
+    github = ProgressGitHub()
+    github.head = retained["commit"]
+    github.accepted = False
+    github.comments = {}
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + retained["commit"] in body
+
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN",
+    )
+    loop = LandingLoopController(
+        control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+        github=github,
+    )
+    goals = GoalService(store=s["store"], control_store=control)
+    coordinator = UnattendedCoordinator(
+        store=s["store"], control_store=control, autonomy=loop.autonomy,
+        router=s["service"].router, workspace_root=s["root"], landing_loop=loop,
+        publication=SimpleNamespace(publish_artifact=lambda task_id, **kwargs: SimpleNamespace(
+            commit_sha=retained["commit"], pr_number=1266)),
+        goals=goals,
+    )
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: s["service"])
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+    return s, control, goal, producer, retained, github, goals, coordinator, now
+
+
+def test_coordinator_resumes_landing_after_retried_review_succeeds(toolless, monkeypatch):
+    s, control, goal, producer, retained, github, goals, coordinator, now = _coordinator_toolless_harness(
+        toolless, monkeypatch)
+    service = s["service"]
+    original_exec = service.execute_durable_single
+    attempts = {"count": 0}
+
+    def fail_first_review(*, task_id, workspace_root):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            s["store"]._update_task_fields(task_id, {
+                "status": "FAILED",
+                "failure_classification": "model_review_invalid_output",
+                "failure_detail": "model_review_invalid_output",
+            })
+            return SimpleNamespace(failure_classification="model_review_invalid_output")
+        return original_exec(task_id=task_id, workspace_root=workspace_root)
+
+    monkeypatch.setattr(service, "execute_durable_single", fail_first_review)
+    # Prevent first tick from auto-escalating inside run; simulate publish_and_review parking BLOCKED first.
+    coordinator.tick()
+    assert attempts["count"] == 1
+    assert control.landing_progress(goal.id)["phase"] == "BLOCKED"
+    assert github.comments == {}
+
+    # Escalate and run replacement review outside publish_and_review, reaching COMPLETED goal.
+    goals.escalate_failed_tasks(goal.id)
+    links = {row["plan_task_id"]: row["task_id"] for row in control.list_goal_tasks(goal.id)
+             if row["goal_revision"] == goal.revision}
+    retried_review_id = links["review"]
+    assert retried_review_id != s["consumer"]
+    outcome = fail_first_review(task_id=retried_review_id, workspace_root=s["root"])
+    assert getattr(outcome, "success", False)
+    assert control.get_goal(goal.id).status == "COMPLETED"
+
+    # Coordinator resumes the BLOCKED landing row now that the replacement review retained ACCEPT evidence.
+    coordinator.tick()
+    assert github.accepted and not github.draft and len(github.comments) == 1
+    assert ("Nerelan-Review: ACCEPT " + retained["commit"]) in next(iter(github.comments.values()))
+    now[0] += 60001
+    coordinator.tick()
+    now[0] += 60001
+    coordinator.tick()
+    assert control.landing_progress(goal.id)["phase"] == "COMPLETE"
+    assert len(github.comments) == 1
+
+
+@pytest.mark.parametrize("case", ["no_retained_review", "with_parking_reason", "with_review_comment_op"])
+def test_coordinator_does_not_reenter_blocked_landing_without_retained_review_or_with_parking_reason(
+    toolless, monkeypatch, case,
+):
+    s, control, goal, producer, retained, github, goals, coordinator, _ = _coordinator_toolless_harness(
+        toolless, monkeypatch)
+    if case != "no_retained_review":
+        assert s["service"].execute_durable_single(task_id=s["consumer"], workspace_root=s["root"]).success
+    state = control.ensure_landing(
+        repository=goal.repository, goal_id=goal.id, pr_number=1266,
+        head_sha=retained["commit"], review_round=1,
+    )
+    if case == "with_parking_reason":
+        control.park_landing(state["identity"], "landing_denied_by_window")
+    else:
+        control.schedule_landing(state["identity"], expected_phase=state["phase"], phase="BLOCKED")
+    if case == "with_review_comment_op":
+        claim = control.claim_landing_operation(state["identity"], "review_comment", window_id=goal.window_id)
+        assert claim
+
+    called = []
+    monkeypatch.setattr(coordinator.landing_loop, "publish_and_review", lambda *a, **kw: called.append(a))
+    monkeypatch.setattr(coordinator.landing_loop, "tick", lambda *a, **kw: called.append(("tick", a)))
+    coordinator.tick()
+    assert called == []
