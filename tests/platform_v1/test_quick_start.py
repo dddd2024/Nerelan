@@ -261,3 +261,29 @@ class TestUnpublishableDrafts:
         assert [(w["warning"], w["goal_id"]) for w in report["warnings"]] == [("goal_unpublishable", goal_ids[0])]
         request["capabilities"] = [c for c in request["capabilities"] if c != "open_draft_pr"]
         assert setup.host._owner_window_admission.preflight(goal_ids, **request)["warnings"] == []
+
+
+@pytest.mark.parametrize("text, paths", [
+    ("Intro.\n\nOnly touch `a/b.py` and `tests/test_b.py`. Do not change `AGENTS.md`.\n", ["a/b.py", "tests/test_b.py"]),
+    ("- Only modify `a/b.py`, `a/c.py`, and `a/d/**`.", ["a/b.py", "a/c.py", "a/d/**"]),
+    ("Only touch `a/b.py` where needed.", []),          # not a closed list
+    ("Only touch `a/b.py` and the docs.", []),
+    ("Only touch `submit()`.", []),                     # code, not a path
+    ("Only touch `../x/y.py`.", []),
+    ("Only touch `a/b.py`.\nOnly touch `a/c.py`.", []),  # two statements: ambiguous
+    ("We will only touch `a/b.py`.", []),
+    ("Do not touch `a/b.py`.", []),
+    ("", []),
+])
+def test_an_explicit_scope_sentence_becomes_allowed_paths(text, paths):
+    from reverse_agent.platform_v1.quick_start import allowed_paths_from_text
+    assert allowed_paths_from_text(text) == paths
+
+
+def test_scope_reaches_only_a_checked_implementation_task():
+    from reverse_agent.platform_v1.quick_start import team_tasks
+    checks = [{"profile_id": "python_pytest", "working_directory": ".", "targets": ["tests/test_b.py"]}]
+    implement, review = team_tasks("#1", checks, ["a/b.py"])
+    assert implement["allowed_paths"] == ["a/b.py"] and "allowed_paths" not in review
+    assert "allowed_paths" not in team_tasks("#1", [], ["a/b.py"])[0]
+    assert "allowed_paths" not in team_tasks("#1", checks)[0]

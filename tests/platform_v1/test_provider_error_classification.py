@@ -593,3 +593,11 @@ def test_free_usage_limit_and_allowance_classify_for_cooldown_not_no_credits():
     assert _dummy_executor()._classify_exit(1, allowance_only_ev) == "api_error_429"
     assert account_refusal_hold("api_error_429", "opencode_nonzero:exit=1:api_error_429") == LIMIT_HIT_HOLD_SECONDS
     assert no_credits_error(magpie_msg) is None
+
+
+def test_a_refused_review_rests_the_binding_for_an_hour():
+    from reverse_agent.platform_v1.model_availability import REVIEW_REFUSED_RE, REVIEW_REFUSED_TTL_SECONDS
+    assert REVIEW_REFUSED_RE.search("MODEL_UNAVAILABLE MODEL_UNAVAILABLE:review_http_400").group(1) == "review_http_400"
+    assert not REVIEW_REFUSED_RE.search("MODEL_UNAVAILABLE:review_http_503")
+    assert not REVIEW_REFUSED_RE.search("MODEL_UNAVAILABLE:model_not_found")
+    assert REVIEW_REFUSED_TTL_SECONDS == 3600

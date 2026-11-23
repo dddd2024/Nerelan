@@ -18,7 +18,7 @@ from statistics import median
 from typing import Any
 
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
-                                 OWNER_WINDOW_POOL_MISROUTE, external_termination,
+                                 OWNER_WINDOW_POOL_MISROUTE, REVIEW_REFUSED_RE, external_termination,
                                  no_credits_error, provider_rate_limit_reply, transient_overload)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
@@ -83,6 +83,8 @@ def neutral_failure(classification: str, detail: str) -> str:
         return lowered
     if lowered.startswith("model_review_abandoned_no_reply"):
         return "model_review_abandoned_no_reply"
+    if REVIEW_REFUSED_RE.search(f"{classification} {detail}"):
+        return "review_refused_by_upstream"
     if LIMIT_HIT.search(lowered):
         return "quota_or_rate_limit"
     if lowered == "executor_nonzero":

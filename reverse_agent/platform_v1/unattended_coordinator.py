@@ -372,6 +372,25 @@ class UnattendedCoordinator:
         return any(row.get("category") == model_review.CATEGORY and row.get("label") == review.execution_id
                    for row in review.evidence_refs)
 
+    def _republishes_rejected_head(self, goal: Any, task: Any, accepted: Mapping[str, Any],
+                                   landing: Mapping[str, Any]) -> bool:
+        """True when ``task`` is the repair of exactly the head this landing had rejected.
+
+        The REJECT comment must be confirmed and the producer's ReviewRepair evidence must
+        name the rejected commit, so an unrelated new head or an unposted verdict never
+        qualifies, nor does a PR somebody closed. The old landing may still be WAITING for
+        checks of the rejected head; its next tick sees the new head and parks itself.
+        """
+        from . import artifact_handoff as artifacts
+        if (landing.get("phase") not in {"WAITING", "BLOCKED"} or landing.get("parking_reason") == "pull_request_closed"
+                or landing.get("head_sha") == accepted.get("commit")):
+            return False
+        comment = self.control_store.landing_operation(landing["identity"], "review_comment")
+        if comment is None or comment["status"] != "SUCCEEDED":
+            return False
+        repair = artifacts._load_evidence(task, "ReviewRepair", task.execution_id)
+        return bool(repair) and (repair.get("producer") or {}).get("commit") == landing.get("head_sha")
+
     def _advance_landing(self, window):
         if self.landing_loop is None:
             return
@@ -391,7 +410,8 @@ class UnattendedCoordinator:
                 goal = self.control_store.get_goal(self.control_store.goal_id_for_task(task.id))
                 landing = self.control_store.landing_progress(goal.id)
                 if goal.window_id != window.id or (
-                        landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)):
+                        landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)
+                        and not self._republishes_rejected_head(goal, task, accepted, landing)):
                     continue
                 try:
                     self.landing_loop.publish_and_review(task.id, window_id=window.id,

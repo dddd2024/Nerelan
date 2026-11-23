@@ -933,3 +933,97 @@ def test_coordinator_does_not_reenter_blocked_landing_without_retained_review_or
     monkeypatch.setattr(coordinator.landing_loop, "tick", lambda *a, **kw: called.append(("tick", a)))
     coordinator.tick()
     assert called == []
+
+
+def test_coordinator_publishes_the_repair_of_a_rejected_head_and_lands_it(review_setup, monkeypatch):
+    """P0-D2 r8 follow-up: after REJECT and repair the new head was never published again."""
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    from test_functional_execution import LocalImplementation, durable, ordinary
+    from test_model_review_execution import ACCEPT, REJECT, Reviewer
+
+    store, router, producer, review_id, _, options, root = review_setup
+    control = PlatformControlStore(store)
+    goal = control.get_goal(control.goal_id_for_task(producer))
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal.id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET capabilities_json = ?, max_retries = 10",
+                        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),))
+
+    def accepted(task_id):
+        task = store.get_task(task_id)
+        return artifact_handoff._load_evidence(task, artifact_handoff.ACCEPTED_CATEGORY, task.execution_id)
+    github = ProgressGitHub()
+    github.accepted, github.comments, published = False, {}, []
+
+    def publish(task_id, **kwargs):
+        github.head = accepted(task_id)["commit"]
+        published.append(github.head)
+        return SimpleNamespace(commit_sha=github.head, pr_number=1266)
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + github.head in body
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN")
+    loop = LandingLoopController(control_store=control, github=github,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+
+    def resolve(plan, **kwargs):
+        model = "local/test" if plan.kind == "review" else "local/repair-author"
+        return {"executor_kind": "opencode", "binding_ref": "local-test-binding", "model_id": model, "reason": "t"}
+    goals = GoalService(store=store, control_store=control, task_resolver=resolve)
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=loop.autonomy, router=router,
+        workspace_root=root, landing_loop=loop, publication=SimpleNamespace(publish_artifact=publish), goals=goals)
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: durable(store, router))
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+
+    options["response"] = REJECT
+    window = control.active_window()
+    coordinator._advance_landing(window)
+    first = accepted(producer)["commit"]
+    assert published == [first] and "REJECT " + first in next(iter(github.comments.values()))
+    # The REJECT alone never republishes the rejected head.
+    coordinator._advance_landing(window)
+    assert published == [first]
+
+    link = next(row for row in control.list_goal_tasks(goal.id) if row["plan_task_id"] ==
+                next(r for r in goal.tasks if r.get("kind") == "review")["artifact_input"]["plan_task_id"])
+    repair = link["task_id"]
+    assert repair != producer
+    from reverse_agent.platform_v1 import functional_validation
+    old = store.get_task(producer)
+    source = artifact_handoff._producer_worktree(store, old, functional_validation.functional_evidence(old))
+    router.replace("opencode", lambda **kw: LocalImplementation(source, first, "value = 2\n# repaired\n"))
+    assert ordinary(store, router).execute(repair, workspace_root=str(root / "repair")).success
+    store.append_usage_observation(repair, observation_id="repair-author", execution_id=store.get_task(repair).execution_id,
+        role="executor", model_id="local/repair-author", provider_id="local", source_kind="assistant_message",
+        source_id="repair-turn", status="UNKNOWN")
+    second = accepted(repair)["commit"]
+    assert second != first
+    router.replace("opencode", lambda **kw: Reviewer(source, kw["base_ref"], response=ACCEPT))
+    for _ in range(6):
+        now[0] += 60001
+        coordinator._advance_landing(window)
+    assert published == [first, second]
+    assert github.merged and control.landing_progress(goal.id)["phase"] == "COMPLETE"
+    assert sorted(body.split("Nerelan-Review: ")[1] for body in github.comments.values()) == [
+        "ACCEPT " + second, "REJECT " + first]
+
+
+@pytest.mark.parametrize("change, allowed", [
+    ({}, True), ({"phase": "WAITING"}, True), ({"phase": "COMPLETE"}, False), ({"phase": "RECONCILING"}, False),
+    ({"parking_reason": "pull_request_closed"}, False), ({"head_sha": "b" * 40}, False), ({"comment": "UNKNOWN"}, False),
+    ({"comment": None}, False), ({"repairs": "c" * 40}, False), ({"repairs": None}, False)])
+def test_only_the_repair_of_the_rejected_head_is_republished(monkeypatch, change, allowed):
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    case = {"phase": "BLOCKED", "parking_reason": "", "head_sha": "a" * 40, "comment": "SUCCEEDED", "repairs": "a" * 40, **change}
+    fake = SimpleNamespace(control_store=SimpleNamespace(landing_operation=lambda identity, op: (
+        {"status": case["comment"]} if case["comment"] else None)))
+    monkeypatch.setattr(artifact_handoff, "_load_evidence", lambda task, category, label: (
+        {"producer": {"commit": case["repairs"]}} if case["repairs"] else None))
+    landing = {"identity": "i", **{k: case[k] for k in ("phase", "parking_reason", "head_sha")}}
+    assert UnattendedCoordinator._republishes_rejected_head(
+        fake, None, SimpleNamespace(execution_id="e"), {"commit": "b" * 40}, landing) is allowed
