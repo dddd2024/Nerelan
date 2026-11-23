@@ -249,6 +249,29 @@ class UnattendedCoordinator:
             self._sweep_escalations(stop_event=stop_event)
         return tuple(reconciled)
 
+    def _next_sweep_delay(self, goal_id: str) -> float:
+        """Seconds before re-examining an unchanged stuck goal (#1652)."""
+        provider = getattr(self, "goals", None)
+        if provider is None or not callable(getattr(provider, "next_backoff_delay", None)):
+            provider = getattr(self.goal_escalator, "__self__", None)
+        getter = getattr(provider, "next_backoff_delay", None)
+        if not callable(getter):
+            return SWEEP_REPEAT_SECONDS
+        try:
+            delay = getter(goal_id)
+        except Exception:  # noqa: BLE001 - scheduling hint must never break reconciliation
+            return SWEEP_REPEAT_SECONDS
+        if type(delay) not in (int, float) or not math.isfinite(delay):
+            return SWEEP_REPEAT_SECONDS
+        return min(SWEEP_REPEAT_SECONDS, max(0.0, float(delay)))
+
+    def _has_due_escalation_sweep(self) -> bool:
+        seen = getattr(self, "_swept", None)
+        if not seen:
+            return False
+        now = time.monotonic()
+        return any(now >= next_due for _, next_due in seen.values())
+
     def _sweep_escalations(self, *, stop_event: threading.Event | None = None) -> None:
         """Re-examine the active window's goals with FAILED or BLOCKED tasks (#1473).
 
@@ -273,9 +296,10 @@ class UnattendedCoordinator:
         except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
             self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
             return
-        # A goal is re-examined at once when one of its stuck tasks is new or changed, and
-        # otherwise only every SWEEP_REPEAT_SECONDS (backoffs expire; an unroutable task
-        # would else log a selection failure every minute).
+        # A goal is re-examined at once when one of its stuck tasks is new or changed,
+        # when its earliest step backoff expires, and otherwise only every
+        # SWEEP_REPEAT_SECONDS (an unroutable task would else log a selection failure
+        # every minute).
         seen = getattr(self, "_swept", None)
         if seen is None:
             seen = self._swept = {}
@@ -287,13 +311,15 @@ class UnattendedCoordinator:
             if stop_event is not None and stop_event.is_set():
                 break
             last = seen.get(goal_id)
-            if last is not None and last[0] == tasks and now - last[1] < SWEEP_REPEAT_SECONDS:
+            if last is not None and last[0] == tasks and now < last[1]:
                 continue
-            seen[goal_id] = (tasks, now)
+            seen[goal_id] = (tasks, now + SWEEP_REPEAT_SECONDS)
             try:
                 self.goal_escalator(goal_id)
             except Exception as exc:  # noqa: BLE001 - one goal must not stop the others
                 self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
+            else:
+                seen[goal_id] = (tasks, now + self._next_sweep_delay(goal_id))
         for goal_id in set(seen) - set(due):
             seen.pop(goal_id, None)
 
@@ -947,6 +973,11 @@ class UnattendedCoordinator:
                         self.reconcile()
                     except Exception as exc:  # a reconcile fault must not stop dispatch
                         self._last_error = f"reconcile_failed:{type(exc).__name__}"
+                elif self._has_due_escalation_sweep():
+                    try:
+                        self._sweep_escalations(stop_event=self._stop)
+                    except Exception as exc:  # noqa: BLE001 - a sweep fault must not stop dispatch
+                        self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
                 dispatched = 0
                 try:
                     dispatched = self.tick(background=True)

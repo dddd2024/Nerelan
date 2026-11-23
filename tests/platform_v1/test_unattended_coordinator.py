@@ -1644,3 +1644,384 @@ def test_stop_during_startup_sweep_halts_remaining_goals_without_dispatch(tmp_pa
         if stopper is not None:
             stopper.join(timeout=2.0)
         store._conn.close()
+
+
+def _backoff_sweep_case(monkeypatch, *, two_steps: bool = False):
+    from reverse_agent.platform_v1 import goal_service as gs
+    from reverse_agent.platform_v1 import unattended_coordinator as uc
+
+    wall = [1_800_000_000.0]
+    mono = [1000.0]
+    monkeypatch.setattr(gs.time, "time", lambda: wall[0])
+    monkeypatch.setattr(uc.time, "monotonic", lambda: mono[0])
+    monkeypatch.setattr(gs, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(gs, "repository_base", lambda repository: "b" * 40)
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(
+        store=store,
+        control_store=control,
+        task_resolver=lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        },
+    )
+    plan_tasks = [{"id": "T001", "title": "Step 1", "instruction": "Step 1", "agent_role": "coder"}]
+    if two_steps:
+        plan_tasks.append({"id": "T002", "title": "Step 2", "instruction": "Step 2", "agent_role": "coder"})
+    goal = goals.create({
+        "objective": "Backoff sweep scheduling",
+        "repository": "dddd2024/Nerelan",
+        "idempotency_key": f"sweep-backoff-{two_steps}",
+        "executor_kind": "opencode",
+        "orchestration_mode": "agent_team",
+        "binding_ref": "",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=plan_tasks)
+    goals.approve(goal.id, expected_revision=1)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "continuous-sweep-test",
+        "policy_revision": 1,
+        "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2,
+        "max_tasks": 10,
+        "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    control.append_receipt(
+        window_id=window.id,
+        operation_type="owner_window_admission",
+        capability="execute_task",
+        repository="dddd2024/Nerelan",
+        subject_id=goal.id,
+        decision="allowed",
+        reason="test",
+        input_payload={},
+        result="ok",
+    )
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute(
+        "UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? WHERE subject_id = ?",
+        (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal.id),
+    )
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+        (OWNER_WINDOW_MODE, window.id),
+    )
+    store._conn.commit()
+
+    calls: list[str] = []
+
+    def escalator(gid: str) -> tuple:
+        calls.append(gid)
+        return goals.escalate_failed_tasks(gid)
+
+    coordinator = uc.UnattendedCoordinator.__new__(uc.UnattendedCoordinator)
+    coordinator.control_store = control
+    coordinator._last_error = ""
+    coordinator.goals = goals
+    coordinator.goal_escalator = escalator
+
+    def advance(seconds: float) -> None:
+        wall[0] += seconds
+        mono[0] += seconds
+
+    def link_task(plan_task_id: str) -> str:
+        return next(
+            row["task_id"] for row in control.list_goal_tasks(goal.id)
+            if row["plan_task_id"] == plan_task_id
+        )
+
+    return store, control, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs
+
+
+def test_sweep_reexamines_patient_429_on_first_tick_after_backoff_expiry(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, _, gs = _backoff_sweep_case(monkeypatch)
+    try:
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        task_id = link_task("T001")
+        age = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age, task_id),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+        assert link_task("T001") == task_id
+
+        advance(15.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 1  # still inside 30 s backoff
+
+        advance(16.0)  # 31 s after initial sweep: 1 s past backoff expiry
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        replacement = link_task("T001")
+        assert replacement != task_id
+        assert store.get_task(replacement).status == "QUEUED"
+        assert goals.next_backoff_delay(goal.id) is None
+    finally:
+        store._conn.close()
+
+
+def test_sweep_reexamines_stalled_step_after_backoff_and_clamps_long_backoff(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs = _backoff_sweep_case(monkeypatch)
+    try:
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        goals.roster_resolver = lambda role: ("opencode", "bind-a")
+        goals.task_resolver = None  # same binding resumes once backoff expires
+        task_id = link_task("T001")
+        # 30 s remaining on a 120 s stall backoff.
+        age_30 = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='server_stream_stalled', "
+            "failure_detail='opencode_server:server_stream_stalled', updated_at=? WHERE id=?",
+            (age_30, task_id),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+        advance(31.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        second_task = link_task("T001")
+        assert second_task != task_id
+
+        # A backoff longer than SWEEP_REPEAT_SECONDS (2000 s left) clamps to 900 s upper bound.
+        monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 2500)
+        age_2000 = datetime.fromtimestamp(wall[0] - 500.0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age_2000, second_task),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+        # Second retry (free_used=1): 2500 * 2**1 - 500 = 4500 s remaining, clamped to 900 s.
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(4500.0)
+
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+        assert link_task("T001") == second_task
+    finally:
+        store._conn.close()
+
+
+def test_sweep_keeps_repeat_interval_for_unroutable_and_earliest_for_mixed_steps(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs = _backoff_sweep_case(
+        monkeypatch, two_steps=True
+    )
+    try:
+        # Both steps initially unroutable / held -> SWEEP_REPEAT_SECONDS applies without event spam.
+        t1 = link_task("T001")
+        t2 = link_task("T002")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', updated_at='2026-11-22T00:00:00Z' WHERE id=?",
+            (t1,),
+        )
+        store._conn.execute("UPDATE tasks SET status='BLOCKED' WHERE id=?", (t2,))
+        store._conn.commit()
+
+        def no_model(*args, **kwargs):
+            raise TaskStoreError("no_runnable_model")
+
+        goals.task_resolver = no_model
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) is None
+        assert len([e for e in store.get_events(t1) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+        # Sweep 2 sees t1.updated_at updated by Sweep 1; after that, unchanged tasks wait 900 s.
+        advance(10.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+        assert len([e for e in store.get_events(t1) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+        # Mixed goal: T001 held BLOCKED, T002 has a 30 s patient backoff -> wakes at 30 s for T002.
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        goals.task_resolver = lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        }
+        store._conn.execute("UPDATE tasks SET status='BLOCKED' WHERE id=?", (t1,))
+        age_30 = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age_30, t2),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+
+        advance(29.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+
+        advance(2.0)  # 31 s: T002 escalates to QUEUED, leaving only held T001
+        coordinator._sweep_escalations()
+        assert len(calls) == 5
+        assert link_task("T002") != t2
+        assert goals.next_backoff_delay(goal.id) is None
+
+        # Next sweep observes the smaller stuck set ([T001] only) once and settles on 900 s.
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 6
+        assert goals.next_backoff_delay(goal.id) is None
+
+        # Only held T001 remains -> next sweep waits the full SWEEP_REPEAT_SECONDS.
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 6
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 7
+    finally:
+        store._conn.close()
+
+
+def test_live_coordinator_runs_due_backoff_sweep_before_reconcile_interval(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import goal_service as gs
+
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 1)
+    monkeypatch.setattr(gs, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(gs, "repository_base", lambda repository: "b" * 40)
+
+    store = TaskStore(str(tmp_path / "live_backoff.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(
+        store=store,
+        control_store=control,
+        task_resolver=lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        },
+    )
+    goal = goals.create({
+        "objective": "Live backoff wake",
+        "repository": "dddd2024/Nerelan",
+        "idempotency_key": "live-backoff-wake",
+        "executor_kind": "opencode",
+        "orchestration_mode": "agent_team",
+        "binding_ref": "",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Step", "instruction": "Step", "agent_role": "coder"}])
+    goals.approve(goal.id, expected_revision=1)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "live-backoff-window",
+        "policy_revision": 1,
+        "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1,
+        "max_tasks": 10,
+        "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    control.append_receipt(
+        window_id=window.id,
+        operation_type="owner_window_admission",
+        capability="execute_task",
+        repository="dddd2024/Nerelan",
+        subject_id=goal.id,
+        decision="allowed",
+        reason="test",
+        input_payload={},
+        result="ok",
+    )
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute(
+        "UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? WHERE subject_id = ?",
+        (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal.id),
+    )
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+        (OWNER_WINDOW_MODE, window.id),
+    )
+    store._conn.commit()
+
+    first_task = control.list_goal_tasks(goal.id)[0]["task_id"]
+    # Failed at current second -> 1 s backoff expires in ~1 s, well before 60 s reconcile_interval.
+    recent = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+        "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+        (recent, first_task),
+    )
+    store._conn.commit()
+
+    dispatched = threading.Event()
+
+    def fake_execute(task_id: str):
+        if task_id != first_task:
+            dispatched.set()
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces",
+        goal_escalator=goals.escalate_failed_tasks,
+        goals=goals,
+        task_executor=fake_execute,
+        poll_interval=0.1,
+        reconcile_interval=60.0,
+    )
+    try:
+        coordinator.start()
+        assert dispatched.wait(timeout=5.0)
+        replacement = control.list_goal_tasks(goal.id)[0]["task_id"]
+        assert replacement != first_task
+    finally:
+        coordinator.stop(timeout=5.0)
+        store._conn.close()
