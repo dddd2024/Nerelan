@@ -137,6 +137,21 @@ class InflightCheckpointTests(unittest.TestCase):
         self.assertEqual(self.control.tick(self.evidence(10), self.need(), [], reservation_id="own",
             refresh=lambda account: self.evidence(90)), "REQUESTED")
 
+    def test_evidence_age_alone_does_not_stop_a_running_task(self):
+        old = dict(self.evidence(), observed_at="1970-01-01T00:01:40Z")  # 900 s before the clock
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        tick = lambda **kw: self.control.tick(old, need, [], reservation_id="own", **kw)
+        self.assertEqual(tick(), "RUNNING")
+        # Observed pressure still stops it.
+        self.control.pressure = {"weekly": 99}
+        self.assertEqual(tick(), "REQUESTED")
+
+    def test_a_stale_refresh_still_requests_a_checkpoint(self):
+        old = dict(self.evidence(), observed_at="1970-01-01T00:01:40Z")
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        self.assertEqual(self.control.tick(self.evidence(), need, [], reservation_id="own",
+                                           refresh=lambda account: old), "REQUESTED")
+
     def test_ambiguous_resume_is_not_dispatched_again(self):
         self.tick()
         self.control.saved("cp-1", self.payload)

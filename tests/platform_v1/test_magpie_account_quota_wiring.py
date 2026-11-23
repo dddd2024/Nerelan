@@ -614,7 +614,8 @@ def test_parser_fresh_reading_past_admission_freshness_is_unknown_capacity(monke
     # Positive control: A's fresh reading remains usable capacity.
     assert _decision(h.host._quota_check(h.bindings["bind-conn-a"])) == ("ok", "no_signal")
     routed = _route(monkeypatch, h)
-    assert _headroom(routed["bind-conn-b"]) == (None,) * 4
+    # Routing sees the aged lower bound (the week still paces); nothing above confirms exhaustion from it.
+    assert _headroom(routed["bind-conn-b"]) == (0.0, pytest.approx(0.7), 0.0, now + 3600)
     assert _headroom(routed["bind-conn-a"]) == (pytest.approx(0.8), pytest.approx(0.7), pytest.approx(0.7), now + 3600)
     # Hold: the stated 600s stays 600s; B's stale exhausted window never extends it.
     _fail(h, "bind-conn-b", reset_in=600)
@@ -622,15 +623,14 @@ def test_parser_fresh_reading_past_admission_freshness_is_unknown_capacity(monke
     verdict = h.host._quota_check(h.bindings["bind-conn-b"])
     assert _decision(verdict) == ("switch", "limit_hit") and verdict["until"] == _iso(now + 600)
     assert h.host._limit_hit_until(h.connections["conn-a"]) is None
-    # Admission preparation still reads the original diagnostic and stays fail-closed.
+    # Admission pads the aged reading (100 s past the contract) and still refuses a spent window.
     h.host._prepare_task_quota(SimpleNamespace(id="t", binding_ref="bind-conn-b", executor_kind="codex",
                                                kind="code", difficulty=3))
     [call] = h.calls
     evidence = call["evidence"]
     assert (call["account_ref"], evidence["account_ref"], evidence["source"]) == (ref, ref, "magpie")
-    assert [w["used_percent"] for w in evidence["windows"]] == [100.0, 30]
-    assert (evidence["fresh"], evidence["eligible"], evidence["uncertain"]) == (False, False, True)
-    assert evidence["eligibility_reason"] == "refresh_required"
+    assert evidence["aged_admission"] is True and evidence["observed_at"] == _iso(now - 700)
+    assert [w["used_percent"] for w in evidence["windows"]] == [100.0, pytest.approx(30 + 8 * 700 / 3600)]
     assert reservation.admission(evidence, call["need"])["decision"] == "quota_wait"
 
 
@@ -652,11 +652,13 @@ def test_admission_freshness_boundary_governs_guard_hold_and_headroom(monkeypatc
     assert _decision(blocked["quota"]) == ("switch", "limit_hit") and blocked["short_headroom"] == 0.0
     forecast = _route(monkeypatch, h, forecast=True, quota_evidence=evidence)
     assert _headroom(forecast["bind-conn-b"]) == (0.0, pytest.approx(0.7), 0.0, now + 1800)
-    # 601s old: the same reading no longer counts as capacity anywhere.
+    # 601s old: no longer a guard or hold signal; live routing keeps only the aged lower bound.
     clock[0] = now + 1
     assert h.host._limit_hit_until(h.connections["conn-b"]) == now + 600
-    for candidates in (_route(monkeypatch, h), _route(monkeypatch, h, forecast=True, quota_evidence=evidence)):
-        assert _headroom(candidates["bind-conn-b"]) == (None,) * 4
+    for expected, candidates in (
+            ((0.0, pytest.approx(0.7), 0.0, now + 1800), _route(monkeypatch, h)),
+            ((None,) * 4, _route(monkeypatch, h, forecast=True, quota_evidence=evidence))):
+        assert _headroom(candidates["bind-conn-b"]) == expected
         assert candidates["bind-conn-a"]["short_headroom"] == pytest.approx(0.8)  # fresh control
     # Without a failure the guard sees unknown capacity after the boundary, exhaustion at it.
     unfailed = _accounts_host(monkeypatch, _snapshot(a, b), {"conn-b": b["account_ref"]})
@@ -684,3 +686,62 @@ def test_untrusted_local_cli_exhaustion_neither_refuses_nor_extends_a_hold(monke
     assert _headroom(_route(monkeypatch, fresh)["bind-conn-c"])[0] == 0.0
     _fail(fresh, "bind-conn-c", reset_in=600)
     assert fresh.host._limit_hit_until(fresh.connections["conn-c"]) == now + 3600
+
+
+def _aged(ref, used=0.0, weekly=1.0, *, age=1800, provider="codex"):
+    account = _account(ref, used, weekly, provider=provider, age=age)
+    if age > 900:  # parse_quotas keeps these only as cached windows
+        account.update(state="STALE", reason="stale_reading", cached_windows=account["windows"], windows=[])
+    return account
+
+
+def test_idle_account_with_an_aged_reading_is_admitted_with_a_margin(monkeypatch):
+    call = _prepare(_host(monkeypatch, _snapshot(_aged("acct-a")), account_ref="acct-a"))
+    evidence = call["evidence"]
+    used = {w["window"]: w["used_percent"] for w in evidence["windows"]}
+    assert evidence["aged_admission"] is True
+    assert used["five_hour"] == pytest.approx(20, abs=1) and used["weekly"] == pytest.approx(5, abs=1)
+    assert {w["window"]: w["observed_percent"] for w in evidence["windows"]} == {"five_hour": 0.0, "weekly": 1.0}
+    assert reservation.admission(evidence, call["need"])["decision"] == "ok"
+    # The one-hour bound still applies to the padded evidence, and padding never compounds.
+    assert reservation.admission(evidence, call["need"], now=time.time() + 1900)["decision"] == "quota_wait"
+    assert reservation.aged_evidence(evidence, now=time.time()) is None
+
+
+@pytest.mark.parametrize("age", [700, 1000, 3500])
+def test_aged_reading_between_the_contract_and_one_hour_is_usable(monkeypatch, age):
+    call = _prepare(_host(monkeypatch, _snapshot(_aged("acct-a", age=age)), account_ref="acct-a"))
+    assert call["evidence"]["aged_admission"] is True
+
+
+@pytest.mark.parametrize("used,weekly", [(75.0, 1.0), (0.0, 88.0)])
+def test_aged_margin_keeps_a_spent_account_held(monkeypatch, used, weekly):
+    call = _prepare(_host(monkeypatch, _snapshot(_aged("acct-a", used, weekly)), account_ref="acct-a"))
+    assert reservation.admission(call["evidence"], call["need"])["decision"] == "quota_wait"
+
+
+@pytest.mark.parametrize("broken", ["too_old", "reset_passed", "missing_window", "foreign", "unlinked", "duplicate"])
+def test_unusable_aged_readings_stay_held(monkeypatch, broken):
+    account = _aged("acct-a", age=3700 if broken == "too_old" else 1800)
+    if broken == "reset_passed":
+        account["cached_windows"][0]["resets_at"] = _iso(time.time() - 60)
+    if broken == "missing_window":
+        account["cached_windows"].pop()
+    ref = {"foreign": "acct-b", "unlinked": None}.get(broken, "acct-a")
+    snapshot = _snapshot(account, account) if broken == "duplicate" else _snapshot(account)
+    call = _prepare(_host(monkeypatch, snapshot, account_ref=ref))
+    assert not call["evidence"].get("aged_admission")
+    assert reservation.admission(call["evidence"], call["need"])["decision"] == "quota_wait"
+
+
+def test_fresh_evidence_is_preferred_and_never_padded(monkeypatch):
+    evidence = _prepare(_host(monkeypatch, _snapshot(_account("acct-a", 10.0)), account_ref="acct-a"))["evidence"]
+    assert evidence["fresh"] and "aged_admission" not in evidence
+    assert [w["used_percent"] for w in evidence["windows"]] == [10.0, 30.0]
+
+
+def test_native_pacing_uses_the_aged_lower_bound_unpadded(monkeypatch):
+    h = _host(monkeypatch, _snapshot(_aged("acct-a", 5.0, 12.0)), account_ref="acct-a")
+    view = h.host._native_pace_quota(h.connection)
+    assert {w["window"]: w["used_percent"] for w in view["windows"]} == {"five_hour": 5.0, "weekly": 12.0}
+    assert h.host._account_quota(h.connection).get("windows", []) == []  # the guard keeps its contract

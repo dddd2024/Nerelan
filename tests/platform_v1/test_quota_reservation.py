@@ -650,3 +650,35 @@ def test_control_store_learns_each_task_once_and_uses_the_median(tmp_path, monke
     assert rates == pytest.approx({"five_hour": 1 / 11})
     evidence = json.loads(conn.execute("SELECT evidence_json FROM platform_quota_calibrations").fetchone()[0])
     assert len(evidence["delta_samples"]["five_hour"]) == 3 and evidence["basis"] == "provider_delta_lower_bound"
+
+
+@pytest.mark.parametrize("end", ["before", "after"])
+def test_aged_evidence_never_trains_calibration(end):
+    # A padded start would shrink the delta and make the learned rate optimistic.
+    pair = {"before": _magpie(1000, 52, 28), "after": _magpie(2000, 74, 32)}
+    pair[end] = dict(pair[end], aged_admission=True)
+    assert reservation.delta_calibration("t", pair["before"], pair["after"], [_settled("t", 1010, 1500, units=0.786)]) == {}
+
+
+def test_claim_uses_the_padded_copy_of_the_same_reading(tmp_path):
+    import json
+    import time
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    store = TaskStore(str(tmp_path / "quota.sqlite3"))
+    control = PlatformControlStore(store)
+    reading = quota_evidence(now=time.time() - 900)
+    for window in reading["windows"]:
+        window["resets_at"] = time.time() + 7200
+    task = store.create_task(title="t", executor_kind="opencode", binding_ref="b")
+
+    def latest():
+        return json.loads(store._conn.execute("SELECT evidence_json FROM platform_quota_observations").fetchone()[0])
+    for evidence in (reading, reservation.aged_evidence(
+            reservation.observation("a", [reading]), now=time.time())):
+        control.prepare_quota_admission(task_id=task.id, binding_ref="b", account_ref="a",
+                                        evidence=evidence, need=quota_need())
+    assert latest()["aged_admission"] is True
+    # The unpadded reading of the same time does not come back.
+    control.prepare_quota_admission(task_id=task.id, binding_ref="b", account_ref="a", evidence=reading, need=quota_need())
+    assert latest()["aged_admission"] is True

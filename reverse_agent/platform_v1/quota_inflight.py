@@ -10,6 +10,7 @@ plus an acknowledged clean stop permits PAUSED. Role milestones are untouched.
 from __future__ import annotations
 
 import json
+import math
 
 from . import quota_reservation, usage_ledger
 from ..model_access import pricing
@@ -71,7 +72,8 @@ def reduce_signal(state, source, sequence, signal):
     return state, True
 
 
-def projection(evidence, need, outstanding=(), *, reservation_id, spent, now, headroom=10, anchor=None, pressure=None):
+def projection(evidence, need, outstanding=(), *, reservation_id, spent, now, headroom=10, anchor=None, pressure=None,
+               freshness=quota_reservation.ADMISSION_FRESHNESS_SECONDS):
     """Project cumulative spend plus remaining p80 in each account window.
 
     Keep the frozen observation as the accounting anchor: refreshing an account
@@ -105,7 +107,7 @@ def projection(evidence, need, outstanding=(), *, reservation_id, spent, now, he
     if not reservation_id:
         raise ValueError("reservation identity required")
     return quota_reservation.admission(evidence, {"windows": windows}, others,
-                                      now=now, buffer=headroom)
+                                      now=now, buffer=headroom, freshness=freshness)
 
 
 class CooperativeQuotaCheckpoint:
@@ -168,8 +170,11 @@ class CooperativeQuotaCheckpoint:
         row = self.journal(None, None)
         if row is not None:
             return row["state"]
+        # The frozen admission evidence is the accounting base, not a new reading: its age alone
+        # must not stop a running task. Live spend, pressure and resets still do.
         result = projection(evidence, need, outstanding, reservation_id=reservation_id,
-                            spent=self.high_water, now=self.clock(), headroom=headroom, pressure=self.pressure)
+                            spent=self.high_water, now=self.clock(), headroom=headroom, pressure=self.pressure,
+                            freshness=math.inf)
         if refresh is not None:
             fresh = refresh(evidence["account_ref"])
             if fresh is not None:

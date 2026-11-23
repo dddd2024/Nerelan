@@ -2333,8 +2333,10 @@ class PlatformControlStore:
                         (account_ref, json.dumps(existing), json.dumps({"before": json.loads(previous[0]), "after": selected, "claims": rows})))
                 else:
                     self._delta_calibrate_locked(account_ref, selected, rows)
-            self._conn.execute("INSERT INTO platform_quota_observations VALUES (?,?,?) ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, evidence_json=excluded.evidence_json WHERE excluded.observed_at > platform_quota_observations.observed_at",
-                               (account_ref, selected.get("observed_at") or "", json.dumps(selected)))
+            self._conn.execute("INSERT INTO platform_quota_observations VALUES (?,?,?) ON CONFLICT(account_ref) DO UPDATE SET observed_at=excluded.observed_at, evidence_json=excluded.evidence_json WHERE excluded.observed_at > platform_quota_observations.observed_at OR (excluded.observed_at = platform_quota_observations.observed_at AND ?)",
+                               # The same reading, now aged and padded, replaces its fresh copy for the claim check.
+                               (account_ref, selected.get("observed_at") or "", json.dumps(selected),
+                                selected.get("aged_admission") is True))
             self._conn.execute("INSERT OR REPLACE INTO platform_quota_admissions (task_id,binding_ref,account_ref,evidence_json,need_json,small_task,safety_buffer) VALUES (?,?,?,?,?,?,?)",
                                (task_id, binding_ref, account_ref, json.dumps(selected), json.dumps(need), int(small_task), safety_buffer))
             if resume_checkpoint:

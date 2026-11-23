@@ -712,7 +712,7 @@ class CombinedTrustedHost:
                     quota_view = {} if forecast else self._gateway_account_quota(paced_provider)
                 else:
                     quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
-                                  if forecast else self._account_quota(connection)) if native else {}
+                                  if forecast else self._native_pace_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
                 pace_input = str(quota_view.get("pace_input") or "")
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
@@ -1220,6 +1220,10 @@ class CombinedTrustedHost:
             self.__dict__.pop("_subscription_quota_cache", None)
             return self._account_quota_candidates(connection, self._subscription_quotas())
         evidence = quota_reservation.observation(account, read(account), refresh=read)
+        if not evidence["fresh"]:
+            now = time.time()
+            evidence = quota_reservation.aged_evidence(
+                self._aged_account_reading(connection, now=now), now=now) or evidence
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
@@ -1303,6 +1307,26 @@ class CombinedTrustedHost:
         account = connection.get("account_ref") or connection.get("connection_id")
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
         return _usable_quota(account, candidates)
+
+    def _aged_account_reading(self, connection: Mapping[str, Any], *, now: float) -> dict[str, Any] | None:
+        """The linked Magpie account's own reading, up to GATEWAY_PACE_MAX_AGE_SECONDS old.
+
+        Only an explicit ``account_ref`` link identifies it; an unlinked login has none.
+        """
+        self._subscription_quotas()
+        ref = connection.get("account_ref")
+        reading = getattr(self, "_magpie_account_readings", {}).get(ref) if ref else None
+        return _gateway_pace_reading(reading, now=now)
+
+    def _native_pace_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
+        """Weekly pacing view of a native account: fresh evidence, else its aged reading."""
+        usable = self._account_quota(connection)
+        if usable.get("windows"):
+            return usable
+        from .quota_reservation import ADMISSION_FRESHNESS_SECONDS
+        aged = self._aged_account_reading(connection, now=time.time())
+        # A reading no older than the contract was already judged above; never overrule that.
+        return aged if aged and aged["reading_age_seconds"] > ADMISSION_FRESHNESS_SECONDS else usable
 
     def _liveness_upstream(self, binding: Mapping[str, Any],
                            connections: Mapping[str, Mapping[str, Any]]) -> str:
@@ -1983,7 +2007,8 @@ def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) 
 
 
 # Weekly pacing of a Magpie gateway upstream accepts a reading up to this old (see
-# _gateway_account_quota); admission and the quota guard keep the 600 s contract.
+# _gateway_account_quota). The quota guard keeps the 600 s contract; admission accepts an
+# older reading only as quota_reservation.aged_evidence, padded for unseen spend.
 GATEWAY_PACE_MAX_AGE_SECONDS = 3600
 
 
