@@ -62,7 +62,7 @@ def reduce_signal(state, source, sequence, signal):
         elif window and quota_reservation._number(value) and value <= 100:
             value = value * 100 if value <= 1 else value
             state["pressure"][window] = max(state["pressure"].get(window, 0), value)
-        elif window and notice.get("status") == "allowed" and value is None:
+        elif window and notice.get("status") == "allowed" and "utilization" not in notice and notice.get("using_overage") is not True:
             pass  # the account may go on; no figure is no measurement, so the whole p80 stays reserved
         else:
             state["uncertain"] = True

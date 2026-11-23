@@ -42,6 +42,8 @@ def _rate_limit(info: Any) -> dict[str, Any] | None:
     utilization = info.get("utilization")
     if type(utilization) in (int, float) and 0 <= utilization <= 100:
         public["utilization"] = utilization
+    elif utilization is not None:
+        public["utilization"] = None  # stated but unreadable: never the same as not stated
     if isinstance(info.get("isUsingOverage"), bool):
         public["using_overage"] = info["isUsingOverage"]
     return public

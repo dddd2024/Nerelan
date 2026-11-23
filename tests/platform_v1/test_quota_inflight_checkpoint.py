@@ -147,17 +147,21 @@ class InflightCheckpointTests(unittest.TestCase):
         self.assertEqual(tick(), "REQUESTED")
 
     def test_an_allowed_notice_without_a_figure_does_not_stop_the_task(self):
+        from reverse_agent.platform_v1.claude_protocol import _rate_limit
         blank = {"sequences": {}, "sources": {}, "high_water": {}, "pressure": {}, "uncertain": False, "estimate": {}}
         need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
         for notice, expected in (
-                ({"window": "five_hour", "status": "allowed"}, "ok"),
-                ({"window": "seven_day", "status": "allowed"}, "ok"),
-                ({"window": "five_hour", "status": "allowed_warning"}, "quota_wait"),
-                ({"window": "five_hour", "status": "rejected"}, "quota_wait"),
-                ({"window": "five_hour", "status": "allowed", "utilization": 0.99}, "quota_wait"),
-                ({"window": "five_hour", "status": "allowed", "utilization": 101}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed"}, "ok"),
+                ({"rateLimitType": "seven_day", "status": "allowed"}, "ok"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": None, "isUsingOverage": False}, "ok"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "isUsingOverage": True}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed_warning"}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "rejected"}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": 0.99}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": 101}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": "0.99"}, "quota_wait"),
                 ({"status": "allowed"}, "quota_wait")):
-            state, _ = inflight.reduce_signal(blank, "claude_code", 0, {"rate_limit": notice})
+            state, _ = inflight.reduce_signal(blank, "claude_code", 0, {"rate_limit": _rate_limit(notice)})
             self.assertEqual(inflight.projection(self.evidence(), need, [], reservation_id="own", now=self.now,
                 spent=state["high_water"], pressure=state["pressure"])["decision"], expected, notice)
 
