@@ -57,9 +57,10 @@ _FRONTEND_TESTS = re.compile(r"npm (?:--prefix frontend )?test|vitest|frontend/t
 # cover them become the checks. Only files that exist in the workspace are used.
 _PYTHON_SOURCE = re.compile(r"(?<![\w/.-])((?:[A-Za-z0-9_]+/)+[A-Za-z0-9_]+\.py)\b")
 _FRONTEND_SOURCE = re.compile(r"(?<![\w/.-])frontend/src/[A-Za-z0-9_./-]+\.tsx?\b")
-# "Only touch `a` and `b`." at the start of a line: the one explicit scope wording read as
-# authority. Anything but plain backticked paths before the full stop is not a scope.
-_ONLY_TOUCH = re.compile(r"^[ \t]*(?:[-*]\s+)?Only (?:touch|change|modify) ((?:`[^`\n]+`(?:,\s*(?:and\s+)?|\s+and\s+)?)+)\.(?=\s|$)",
+# "Only touch `a/x.py` and `b/**`." as its own unindented line: the one explicit scope
+# wording read as authority. Anything but plain backticked files or ``/**`` trees is not a scope.
+_SCOPE_PATH = re.compile(r"(?:[A-Za-z0-9_.-]+/)+(?:\*\*|[A-Za-z0-9_-][A-Za-z0-9_.-]*\.[A-Za-z0-9]{1,8})")
+_ONLY_TOUCH = re.compile(r"^Only (?:touch|change|modify) ((?:`[^`\n]+`(?:,\s*(?:and\s+)?|\s+and\s+)?)+)\.(?=\s|$)",
                          re.M | re.I)
 UNPUBLISHABLE = "no_functional_checks"
 MAX_TARGETS = 16
@@ -189,15 +190,16 @@ def checks_from_text(text: str, exists: Callable[[str], bool] | None = None) -> 
 def allowed_paths_from_text(text: str) -> list[str]:
     """The repository paths an issue limits its change to, or [] when it states none.
 
-    Two statements, or one that names something that is not a path, give no limit: a
-    guessed scope would refuse a correct change.
+    Two statements, a directory without ``/**``, quoted code or anything that is not a
+    path give no limit: a guessed scope would refuse a correct change.
     """
     from .functional_validation import normalize_allowed_paths
-    found = _ONLY_TOUCH.findall(text or "")
+    # Fenced text is an example, also when the fence is never closed.
+    found = _ONLY_TOUCH.findall(re.sub(r"^(```|~~~).*?(?:^\1|\Z)", "", text or "", flags=re.M | re.S))
     if len(found) != 1:
         return []
     paths = re.findall(r"`([^`\n]+)`", found[0])
-    if not all("/" in path and " " not in path for path in paths):
+    if not all(_SCOPE_PATH.fullmatch(path) for path in paths):
         return []
     try:
         return list(normalize_allowed_paths(paths))

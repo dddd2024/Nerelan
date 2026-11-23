@@ -1418,7 +1418,8 @@ class GoalService:
         """Atomically admit bounded repairs per producer/revision.
 
         Escalation history counts review rounds separately from routing attempts;
-        both replacement executions still spend the existing window retry budget.
+        both replacement executions still spend an expiring window's retry budget. In a
+        continuous run only max_review_rounds bounds them.
         """
         from . import model_review, artifact_handoff as artifacts
         outcomes = []
@@ -1465,7 +1466,8 @@ class GoalService:
                                     decision = self.task_resolver(review_plan, goal=goal,
                                         **self._review_authors(review_plan, goal, planned))
                                 except TaskStoreError as exc:
-                                    self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                                    if failed.status != "BLOCKED":  # re-blocking a BLOCKED task raises
+                                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
                                     continue
                             executor = decision["executor_kind"] if decision is not None else failed.executor_kind
                             binding_ref = decision["binding_ref"] if decision is not None else failed.binding_ref

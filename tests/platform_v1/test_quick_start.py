@@ -265,7 +265,14 @@ class TestUnpublishableDrafts:
 
 @pytest.mark.parametrize("text, paths", [
     ("Intro.\n\nOnly touch `a/b.py` and `tests/test_b.py`. Do not change `AGENTS.md`.\n", ["a/b.py", "tests/test_b.py"]),
-    ("- Only modify `a/b.py`, `a/c.py`, and `a/d/**`.", ["a/b.py", "a/c.py", "a/d/**"]),
+    ("Only modify `a/b.py`, `a/c.py`, and `a/d/**`.", ["a/b.py", "a/c.py", "a/d/**"]),
+    ("- Only modify `a/b.py`.", []),                    # one item of a list is not the issue's scope
+    ("Only touch `reverse_agent/platform_v1`.", []),    # a directory: would refuse every file in it
+    ("Only touch `origin/main`.", []),
+    ("Only touch `application/json`.", []),
+    ("```\nOnly touch `a/b.py`.\n```\n", []),
+    ("```\nOnly touch `a/b.py`.\n", []),
+    ("~~~\nOnly touch `a/b.py`.\n~~~\nOnly touch `a/c.py`.", ["a/c.py"]),
     ("Only touch `a/b.py` where needed.", []),          # not a closed list
     ("Only touch `a/b.py` and the docs.", []),
     ("Only touch `submit()`.", []),                     # code, not a path

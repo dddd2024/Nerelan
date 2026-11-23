@@ -95,6 +95,8 @@ def neutral_failure(classification: str, detail: str) -> str:
             return EXECUTOR_TERMINATED  # logoff/shutdown or a closed console ended the CLI
     if lowered == "deterministic_validation_failure":
         head = detail.split("\n", 1)[0]
+        if head == "functional_observation_failed:artifact_path_outside_allowlist":
+            return ""  # the patch left its approved scope: the attempt's own doing
         if head in HOST_VALIDATION_DETAILS or head.startswith(HOST_VALIDATION_PREFIXES):
             return head.split(":", 1)[0]
     return ""

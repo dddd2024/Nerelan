@@ -422,3 +422,10 @@ def test_server_budget_and_transport_classes_remain_non_agent_failures():
     )
     for cls in server_plumbing:
         assert goal_service._NON_AGENT_FAILURE.search(cls), cls
+
+
+def test_leaving_the_approved_scope_is_the_attempts_own_failure():
+    from reverse_agent.platform_v1.model_profiles import neutral_failure
+    failed = "deterministic_validation_failure"
+    assert neutral_failure(failed, "functional_observation_failed:artifact_path_outside_allowlist") == ""
+    assert neutral_failure(failed, "functional_observation_failed:OSError") == "functional_observation_failed"
