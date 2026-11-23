@@ -249,12 +249,13 @@ _MAX_MODEL_ID_LENGTH = 128
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
-# Non-secret OS user/temp location keys. On Windows, CPython derives its
-# user base from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); a
+# Non-secret OS user/temp location and user-identity keys. On Windows, CPython derives
+# its user base from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); a
 # child without any of them makes ``site.getusersitepackages()`` resolve to
 # the *literal* ``~`` directory, so a tooling install writes a ``~/...`` tree
 # inside the workspace the executor is editing and the artifact hygiene gate
-# rejects the patch. These are filesystem locations, never credentials.
+# rejects the patch. Likewise, Windows lacks POSIX ``pwd``, so ``getpass.getuser()``
+# fails unless a non-secret OS user-identity key is preserved.
 _BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
     "USERPROFILE",
     "HOMEDRIVE",
@@ -265,6 +266,9 @@ _BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
     "TMP",
     "TMPDIR",
     "HOME",
+    "USERNAME",
+    "USER",
+    "LOGNAME",
 )
 
 _BINDING_CHILD_ENV_ALLOWLIST = (

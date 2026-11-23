@@ -52,6 +52,7 @@ def claude_child_env(parent: Mapping[str, str]) -> dict[str, str]:
     allowed = {
         "path", "systemroot", "pathext", "home", "userprofile", "localappdata",
         "appdata", "temp", "tmp", "claude_config_dir", "lang", "lc_all",
+        "username", "user", "logname",
         # Proxy variables stay out: their URLs can carry credentials.
         "systemdrive", "comspec", "windir", "programfiles", "programfiles(x86)", "programdata",
     }
