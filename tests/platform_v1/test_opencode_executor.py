@@ -337,6 +337,52 @@ def test_server_executor_reservation_threshold_returns_confirmed_abort(
     assert sum(event["type"] == "STREAM_ABORT_CONFIRMED" for event in events) == 1
 
 
+def test_server_executor_forwards_failure_reset_at(tmp_path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="server 429 reset", executor_kind="opencode", model_profile_ref="p/m"
+    )
+
+    def fake_server(**kwargs):
+        return ServerTransportResult(
+            success=False,
+            failure_classification="api_error_429",
+            abort_state="STREAM_ABORT_CONFIRMED",
+            server_version="test-1",
+            session_digest="session-digest",
+            usage_event_count=0,
+            failure_reset_at="2026-11-22T11:06:00Z",
+        )
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    executor = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )
+    result = executor._run_executor_core(
+        task_id=task.id,
+        store=store,
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-429-reset",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=None,
+        role_context=exec_mod.RoleContext(
+            role="executor", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert result.success is False
+    assert result.failure_classification == "api_error_429"
+    assert result.error == "opencode_server:api_error_429"
+    assert result.failure_reset_at == "2026-11-22T11:06:00Z"
+
+
 def test_server_executor_threshold_uses_cumulative_task_usage(
     tmp_path, monkeypatch
 ) -> None:

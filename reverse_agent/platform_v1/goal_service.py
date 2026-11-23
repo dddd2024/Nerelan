@@ -1787,8 +1787,9 @@ class GoalService:
                         continue
                     events = self.store.get_events(failed.id)
                     last = next((e for e in reversed(events) if e.type == "MODEL_SELECTION_FAILED"), None)
-                    if not (patient and last is not None and last.metadata.get("reason") == str(exc)):
-                        # A patient step re-routes on every tick after its backoff: one event per change.
+                    if last is None or last.metadata.get("reason") != str(exc):
+                        # Record once per failure reason so repeated sweeps do not spam events or
+                        # bump tasks.updated_at and defeat _sweep_escalations' repeat interval.
                         self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
                                              title="Escalation model selection failed",
                                              description=str(exc), metadata={"reason": str(exc)})
