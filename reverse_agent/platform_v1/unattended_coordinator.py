@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import threading
 import time
 import uuid
@@ -387,13 +388,14 @@ class UnattendedCoordinator:
         a reviewer is missing and a second REJECT is repaired before anything new appears.
         The rejected head must have its confirmed REJECT comment, the repair evidence must
         lead back to it, and the PR must still be open, Draft and at that head (or at this
-        one, when a push was interrupted): a PR somebody closed or moved is left alone.
+        one, when a push was interrupted): a PR somebody closed or moved is left alone. The
+        old landing's own tick parks an interrupted push as ``landing_head_race``.
         """
         from . import artifact_handoff as artifacts
         reason = str(landing.get("parking_reason") or "")
         if (landing.get("head_sha") == accepted.get("commit")
                 or not (landing.get("phase") == "WAITING"
-                        or landing.get("phase") == "BLOCKED" and (not reason or "reject" in reason))):
+                        or landing.get("phase") == "BLOCKED" and (not reason or "reject" in reason or reason == "landing_head_race"))):
             return False
         comment = self.control_store.landing_operation(landing["identity"], "review_comment")
         if comment is None or comment["status"] != "SUCCEEDED":
@@ -412,7 +414,8 @@ class UnattendedCoordinator:
             if source["commit"] == landing.get("head_sha"):
                 observed = self.landing_loop.github.observe_pr(dict(landing))
                 return (observed.get("state") == "OPEN" and observed.get("draft") is True
-                        and observed.get("head_sha") in {landing["head_sha"], accepted["commit"]})
+                        and (observed.get("head_sha") == accepted["commit"]
+                             or observed.get("head_sha") == landing["head_sha"] and reason != "landing_head_race"))
             try:
                 producer = self.store.get_task(source["task_id"])
             except (TaskStoreError, KeyError):
@@ -453,7 +456,7 @@ class UnattendedCoordinator:
                         continue
                     self._last_error = str(exc)
                     continue  # one goal that cannot publish never holds the others back
-                except (GitHubAdapterError, OSError, ValueError, TimeoutError) as exc:
+                except (GitHubAdapterError, OSError, ValueError, subprocess.SubprocessError) as exc:
                     self._last_error = f"landing_publish_failed:{type(exc).__name__}"
                     continue
                 break

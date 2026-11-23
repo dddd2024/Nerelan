@@ -935,7 +935,7 @@ def test_coordinator_does_not_reenter_blocked_landing_without_retained_review_or
     assert called == []
 
 
-@pytest.mark.parametrize("scenario", ["accepted", "no_reviewer_first", "closed_pr", "github_error"])
+@pytest.mark.parametrize("scenario", ["accepted", "no_reviewer_first", "closed_pr", "github_error", "interrupted_push"])
 def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setup, monkeypatch, scenario):
     """P0-D2 r8 follow-up: after REJECT and repair the new head was never published again."""
     from reverse_agent.platform_v1 import functional_validation
@@ -977,8 +977,11 @@ def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setu
         github.head = accepted(task_id)["commit"]
         github.accepted = False  # no verdict names the new head yet
         published.append(github.head)
+        if broken[0] and scenario == "interrupted_push" and github.head != published[0]:
+            broken[0] = False
+            raise TaskStoreError("publication_pr_head_or_draft_mismatch")  # after the push
         return SimpleNamespace(commit_sha=github.head, pr_number=1266)
-    broken = [scenario == "github_error"]
+    broken = [scenario in {"github_error", "interrupted_push"}]
 
     def post(state, claim, body):
         github.comments[claim] = body
@@ -1007,6 +1010,8 @@ def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setu
         for _ in range(count):
             now[0] += 60001
             coordinator._advance_landing(window)
+    if scenario == "interrupted_push":
+        github.bad_check = "missing"  # the rejected head never turns green: its landing stays WAITING
     options["response"] = REJECT
     coordinator._advance_landing(window)
     first = accepted(producer)["commit"]
@@ -1052,6 +1057,11 @@ def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setu
                 raise GitHubAdapterError("rate_limit")
             return failing(state)
         github.observe_pr = once
+    if scenario == "interrupted_push":
+        assert control.landing_progress(goal.id)["phase"] == "WAITING"
+        ticks(1)
+        assert control.landing_progress(goal.id)["parking_reason"] == "landing_head_race"
+        github.bad_check = None
     ticks(7)
     assert not broken[0]
     assert github.merged and control.landing_progress(goal.id)["phase"] == "COMPLETE"
@@ -1063,6 +1073,8 @@ def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setu
 @pytest.mark.parametrize("change, allowed", [
     ({}, True), ({"phase": "WAITING", "parking_reason": "fresh_current_head_checks_required"}, True),
     ({"parking_reason": "latest_review_verdict_rejects_head"}, True), ({"pr_head": "b" * 40}, True), ({"chain": True}, True),
+    ({"parking_reason": "landing_head_race", "pr_head": "b" * 40}, True),
+    ({"parking_reason": "landing_head_race"}, False), ({"parking_reason": "landing_head_race", "pr_head": "c" * 40}, False),
     ({"phase": "COMPLETE"}, False), ({"phase": "RECONCILING"}, False), ({"parking_reason": "pull_request_closed"}, False),
     ({"parking_reason": "landing_denied_by_window"}, False), ({"parking_reason": "r2_trusted_owner_decision_required"}, False),
     ({"head_sha": "b" * 40}, False), ({"comment": "UNKNOWN"}, False), ({"comment": None}, False),
