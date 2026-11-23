@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import pytest
 
@@ -442,3 +443,48 @@ class TestSupervisorControl:
             {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
         step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
         assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}
+
+
+class TestFollowUps:
+    """#1438: non-object results, UTF-8 output and the CLI grace flag."""
+
+    def test_a_non_object_result_is_reported_invalid_instead_of_raising(self, tmp_path, monkeypatch):
+        directory = tmp_path / DIRECTORY
+        directory.mkdir()
+        monkeypatch.setattr(supervisor_requests.secrets, "token_hex", lambda size: "abcd1234abcd1234")
+        (directory / "abcd1234abcd1234.result.json").write_text("[]", encoding="utf-8")
+        answer = supervisor_requests.submit(tmp_path, {"action": "preflight"}, wait_seconds=0.1, poll_seconds=0.01)
+        assert answer == {"ok": False, "error": "supervisor_result_invalid", "request_id": "abcd1234abcd1234"}
+
+    def test_main_writes_utf8_bytes_even_when_stdout_uses_the_locale_encoding(self, tmp_path, monkeypatch):
+        answer = {"ok": True, "action": "status", "result": {"title": "\u6807\u9898 caf\u00e9"}}
+        monkeypatch.setattr(supervisor_requests, "submit", lambda *args, **kwargs: answer)
+        target = tmp_path / "out.txt"
+        stream = target.open("w", encoding="gbk")
+        monkeypatch.setattr(sys, "stdout", stream)
+        try:
+            assert supervisor_requests.main(["--state-dir", str(tmp_path), "status"]) == 0
+        finally:
+            stream.flush()
+            stream.close()
+        assert json.loads(target.read_bytes().decode("utf-8")) == answer
+
+    @pytest.mark.parametrize("args, expected", [([], 900.0), (["--grace", "12"], 12.0)])
+    def test_the_cli_passes_the_grace_seconds_and_keeps_the_default(self, tmp_path, monkeypatch, args, expected):
+        calls = []
+        monkeypatch.setattr(supervisor_requests, "submit",
+                            lambda state_dir, payload, **kwargs: calls.append((state_dir, payload, kwargs)) or {"ok": True})
+        argv = ["--state-dir", str(tmp_path), *args, "status"]
+        assert supervisor_requests.main(argv) == 0
+        assert calls == [(str(tmp_path), {"action": "status", "goal_id": ""},
+                          {"wait_seconds": 300.0, "taken_grace_seconds": expected})]
+
+    def test_write_atomic_removes_the_temp_file_on_any_exception(self, tmp_path, monkeypatch):
+        def refuse(*args, **kwargs):
+            raise ValueError("replace failed")
+        monkeypatch.setattr(supervisor_requests.os, "replace", refuse)
+        target = tmp_path / "answer.json"
+        with pytest.raises(ValueError):
+            supervisor_requests._write_atomic(target, {"ok": True})
+        assert list(tmp_path.glob("*.tmp")) == []
+        assert not target.exists()
