@@ -198,6 +198,7 @@ STALL_ROUTES_CHECKED_LIMIT = 1024
 # max_retries. Model-judging failures (checks, timeouts, refusals) keep their budget.
 PATIENT_BACKOFF_MAX_SECONDS = 2 * 3600
 OWNER_RETRY_REASON = "owner_retry"
+REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
 
@@ -269,7 +270,9 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
     Decision B: the first MAX_TRANSIENT_RETRIES non-model retries of each plan step
     are free; any beyond that cap spend max_retries like a model failure. Owner
     retries (decision A) never do. Task count and tokens still bound all of them.
-    In a continuous window (``patient``) transient host retries never spend max_retries.
+    In a continuous window (``patient``) transient host retries never spend max_retries,
+    and neither do review repairs: max_review_rounds bounds those. One failed coding
+    attempt otherwise left no budget to fix what the reviewer found (P0-D2 r8).
     Binding misroutes stop at the free cap and never spend max_retries, including
     any legacy misroute rows above the cap.
     """
@@ -278,6 +281,8 @@ def _routing_retries_spent(history: Sequence[Mapping[str, Any]], *, patient: boo
     for row in history:
         kind = _retry_kind(row)
         if kind == "owner":
+            continue
+        if patient and str(row.get("reason") or "").startswith(REVIEW_LOOP_REASONS):
             continue
         if kind in {"host", "plumbing"}:
             if patient and kind == "host":
@@ -1413,7 +1418,8 @@ class GoalService:
         """Atomically admit bounded repairs per producer/revision.
 
         Escalation history counts review rounds separately from routing attempts;
-        both replacement executions still spend the existing window retry budget.
+        both replacement executions still spend an expiring window's retry budget. In a
+        continuous run only max_review_rounds bounds them.
         """
         from . import model_review, artifact_handoff as artifacts
         outcomes = []
@@ -1448,7 +1454,8 @@ class GoalService:
                                 and feedback["review_task_id"] == failed.id):
                             if self._review_intent_hold(failed, review_plan):
                                 continue
-                            if _routing_retries_spent(history, patient=window.continuous) >= window.max_retries:
+                            if (not window.continuous
+                                    and _routing_retries_spent(history) >= window.max_retries):
                                 if failed.status != "BLOCKED":  # re-blocking a BLOCKED task raises
                                     self.store.block_model_selection(failed.id, decision={"reason": "routing_retry_budget_exhausted"})
                                 continue
@@ -1459,7 +1466,8 @@ class GoalService:
                                     decision = self.task_resolver(review_plan, goal=goal,
                                         **self._review_authors(review_plan, goal, planned))
                                 except TaskStoreError as exc:
-                                    self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
+                                    if failed.status != "BLOCKED":  # re-blocking a BLOCKED task raises
+                                        self.store.block_model_selection(failed.id, decision=getattr(exc, "decision", {"reason": str(exc)}))
                                     continue
                             executor = decision["executor_kind"] if decision is not None else failed.executor_kind
                             binding_ref = decision["binding_ref"] if decision is not None else failed.binding_ref
@@ -1505,7 +1513,8 @@ class GoalService:
                     producer = self.store.get_task(links[source_id]["task_id"])
                     rounds = [row for row in history if int(row["goal_revision"]) == goal.revision
                               and row["plan_task_id"] == source_id and row["reason"].startswith("model_review_repair:")]
-                    if len(rounds) + 1 >= self.max_review_rounds or _routing_retries_spent(history, patient=window.continuous) + 2 > window.max_retries:
+                    if (len(rounds) + 1 >= self.max_review_rounds
+                            or not window.continuous and _routing_retries_spent(history) + 2 > window.max_retries):
                         if not budget_parked:  # still parked: nothing to record again
                             self.store.block_model_selection(failed.id, decision={"reason":
                                 "model_review_round_limit" if len(rounds) + 1 >= self.max_review_rounds else "routing_retry_budget_exhausted"})

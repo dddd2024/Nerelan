@@ -29,7 +29,8 @@ RPC_OPERATION = "model_review_rpc"
 # Failures the reviewer call reports with a known outcome; anything else from
 # the call (timeout, lost reply, transport error) may have completed remotely.
 KNOWN_CALL_FAILURES = frozenset({"model_review_invalid_output", "review_not_independent",
-    "model_review_connection_unsupported", "model_review_sandbox_unsupported"})
+    "model_review_connection_unsupported", "model_review_sandbox_unsupported",
+    "MODEL_UNAVAILABLE"})  # the upstream refused the call: no completion exists
 # Receipt states that settle the reviewer call; any other row is unresolved.
 SETTLED_STATES = frozenset({"SUCCESS", "RECONCILED"})
 # A reviewer call is read-only and evidence binds only from a reply this host

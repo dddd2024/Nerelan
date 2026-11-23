@@ -922,6 +922,7 @@ class CombinedTrustedHost:
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
                               history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
         from .model_availability import (AvailabilityCache, NO_CREDITS, NO_CREDITS_TTL_SECONDS,
+                                          REVIEW_REFUSED_RE, REVIEW_REFUSED_TTL_SECONDS,
                                           no_credits_error, observation, native_owner_account)
         cache = getattr(self, "_availability_cache", None)
         if cache is None:
@@ -951,6 +952,9 @@ class CombinedTrustedHost:
             if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
                 cache.remember(binding, connection, observation(now=at, success=True))
             # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
+            elif (refused := REVIEW_REFUSED_RE.search(f"{classification} {row['failure_detail'] or ''}")):
+                cache.remember(binding, connection, observation(now=at, state="UNAVAILABLE",
+                    reason=refused.group(1), ttl_seconds=REVIEW_REFUSED_TTL_SECONDS))
             elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
                 cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
             # A billing refusal (402 "Insufficient credits", 429 "Credits exhausted")

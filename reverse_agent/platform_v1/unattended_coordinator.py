@@ -8,6 +8,7 @@ import math
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import threading
 import time
 import uuid
@@ -347,30 +348,79 @@ class UnattendedCoordinator:
 
     def _can_resume_parked_review(self, goal: Any, task: Any, accepted: Mapping[str, Any],
                                   landing: Mapping[str, Any]) -> bool:
-        """True only when an unparked BLOCKED review later succeeded with retained evidence."""
-        if (landing.get("phase") != "BLOCKED" or landing.get("parking_reason")
-                or landing.get("head_sha") != accepted.get("commit")
+        """True when the verdict of this landing's own head is retained but was never posted.
+
+        BLOCKED without a reason is a review that failed and later succeeded. WAITING is a
+        publish that broke (a GitHub error) between recording the landing and its comment.
+        """
+        if (landing.get("head_sha") != accepted.get("commit")
+                or not (landing.get("phase") == "WAITING"
+                        or landing.get("phase") == "BLOCKED" and not landing.get("parking_reason"))
                 or self.control_store.landing_operation(landing["identity"], "review_comment") is not None):
             return False
+        review = self._planned_review(goal, task)
+        return review is not None and self._has_retained_review(review)
+
+    def _planned_review(self, goal: Any, task: Any) -> Any:
+        """The current attempt of the one planned review of ``task``, or None."""
         links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
                  if int(row["goal_revision"]) == goal.revision}
         source = next((key for key, row in links.items() if row["task_id"] == task.id), None)
-        if not source:
-            return False
         reviews = [raw for raw in goal.tasks if raw.get("kind") == "review"
-                   and raw.get("artifact_input") == {"plan_task_id": source}]
-        if len(reviews) != 1:
-            return False
-        review_link = links.get(reviews[0]["id"])
-        if not review_link:
-            return False
+                   and raw.get("artifact_input") == {"plan_task_id": source}] if source else []
+        link = links.get(reviews[0]["id"]) if len(reviews) == 1 else None
         try:
-            review = self.store.get_task(review_link["task_id"])
+            return self.store.get_task(link["task_id"]) if link else None
         except (TaskStoreError, KeyError):
-            return False
+            return None
+
+    @staticmethod
+    def _has_retained_review(review: Any) -> bool:
         from . import model_review
         return any(row.get("category") == model_review.CATEGORY and row.get("label") == review.execution_id
                    for row in review.evidence_refs)
+
+    def _republishes_rejected_head(self, goal: Any, task: Any, accepted: Mapping[str, Any],
+                                   landing: Mapping[str, Any]) -> bool:
+        """True when ``task`` is an accepted repair of the head this landing had rejected.
+
+        Publishing waits for the repair's own review to ACCEPT, so nothing is pushed while
+        a reviewer is missing and a second REJECT is repaired before anything new appears.
+        The rejected head must have its confirmed REJECT comment, the repair evidence must
+        lead back to it, and the PR must still be open, Draft and at that head (or at this
+        one, when a push was interrupted): a PR somebody closed or moved is left alone. The
+        old landing's own tick parks an interrupted push as ``landing_head_race``.
+        """
+        from . import artifact_handoff as artifacts
+        reason = str(landing.get("parking_reason") or "")
+        if (landing.get("head_sha") == accepted.get("commit")
+                or not (landing.get("phase") == "WAITING"
+                        or landing.get("phase") == "BLOCKED" and (not reason or "reject" in reason or reason == "landing_head_race"))):
+            return False
+        comment = self.control_store.landing_operation(landing["identity"], "review_comment")
+        if comment is None or comment["status"] != "SUCCEEDED":
+            return False
+        review = self._planned_review(goal, task)
+        if review is None or review.status != "READY_FOR_REVIEW" or not self._has_retained_review(review):
+            return False
+        # A repair may itself have been rejected and repaired before it was ever published.
+        producer, seen = task, set()
+        while producer.id not in seen:
+            seen.add(producer.id)
+            repair = artifacts._load_evidence(producer, "ReviewRepair", producer.execution_id)
+            source = (repair or {}).get("producer") or {}
+            if not source.get("commit"):
+                return False
+            if source["commit"] == landing.get("head_sha"):
+                observed = self.landing_loop.github.observe_pr(dict(landing))
+                return (observed.get("state") == "OPEN" and observed.get("draft") is True
+                        and (observed.get("head_sha") == accepted["commit"]
+                             or observed.get("head_sha") == landing["head_sha"] and reason != "landing_head_race"))
+            try:
+                producer = self.store.get_task(source["task_id"])
+            except (TaskStoreError, KeyError):
+                return False
+        return False
 
     def _advance_landing(self, window):
         if self.landing_loop is None:
@@ -381,6 +431,7 @@ class UnattendedCoordinator:
         # Bounded scan over local intent; GitHub truth is read by each tick.
         if window is not None and self.publication is not None and self.goals is not None:
             from . import artifact_handoff as artifacts
+            from .github_adapter import GitHubAdapterError
             for task_id in self.control_store.ready_window_tasks(window.id):
                 task = self.store.get_task(task_id)
                 if task.status != "READY_FOR_REVIEW":
@@ -390,10 +441,12 @@ class UnattendedCoordinator:
                     continue
                 goal = self.control_store.get_goal(self.control_store.goal_id_for_task(task.id))
                 landing = self.control_store.landing_progress(goal.id)
-                if goal.window_id != window.id or (
-                        landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)):
+                if goal.window_id != window.id:
                     continue
                 try:
+                    if (landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)
+                            and not self._republishes_rejected_head(goal, task, accepted, landing)):
+                        continue
                     self.landing_loop.publish_and_review(task.id, window_id=window.id,
                         publication=self.publication, goals=self.goals,
                         execution=self._durable_service(), workspace_root=self.workspace_root)
@@ -402,6 +455,10 @@ class UnattendedCoordinator:
                         # A fresh check can supersede this goal after the scan.
                         continue
                     self._last_error = str(exc)
+                    continue  # one goal that cannot publish never holds the others back
+                except (GitHubAdapterError, OSError, ValueError, subprocess.SubprocessError) as exc:
+                    self._last_error = f"landing_publish_failed:{type(exc).__name__}"
+                    continue
                 break
         rows = self.control_store._conn.execute(
             "SELECT identity,goal_id FROM platform_landing_state WHERE phase NOT IN "

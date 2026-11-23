@@ -327,3 +327,35 @@ def test_a_single_binding_never_accepts_a_member_style_echo(monkeypatch):
     monkeypatch.setattr(transport, "_post", lambda *args: gateway_reply(model="trae-cn/glm-5.3"))
     with pytest.raises(TaskStoreError, match="review_not_independent"):
         transport.review("prompt", gateway(model_id="magpie/zai/glm-5.3"), None, groups=GROUPS)
+
+
+@pytest.mark.parametrize("code, expected", [(400, "MODEL_UNAVAILABLE:review_http_400"), (404, "MODEL_UNAVAILABLE:review_http_404"),
+                                            (408, "transport_error"), (429, "transport_error"), (503, "transport_error")])
+def test_a_refused_review_call_names_the_binding_not_the_network(monkeypatch, code, expected):
+    from urllib.error import HTTPError
+    def refuse(*args, **kwargs):
+        raise HTTPError("http://127.0.0.1:1/v1/chat/completions", code, "no", {}, None)
+    monkeypatch.setattr(transport, "gateway_chat", refuse)
+    monkeypatch.setattr(transport, "keyless_gateway", lambda resolution: True)
+    resolution = SimpleNamespace(provider_id="openai-compatible", model_id="openai-compatible/raccoon/sn-kimi-k3",
+                                 base_url="http://127.0.0.1:1/v1")
+    with pytest.raises(TaskStoreError) as caught:
+        transport.review("prompt", resolution, None)
+    assert str(caught.value) == expected
+
+
+def test_a_refused_review_settles_its_call_and_is_not_a_model_failure(toolless, monkeypatch):
+    from reverse_agent.platform_v1.model_profiles import neutral_failure
+    s = toolless
+    def refuse(*args, **kwargs):
+        raise TaskStoreError("MODEL_UNAVAILABLE:review_http_400")
+    monkeypatch.setattr(transport, "review", refuse)
+    result = s["service"].execute_durable_single(task_id=s["consumer"], workspace_root=s["root"])
+    assert not result.success
+    task = s["store"].get_task(s["consumer"])
+    assert task.status == "FAILED" and task.failure_classification.split(":")[0] == "MODEL_UNAVAILABLE"
+    assert "review_http_400" in f"{task.failure_classification} {task.failure_detail}"
+    assert neutral_failure(task.failure_classification, task.failure_detail) == "review_refused_by_upstream"
+    rows = s["store"]._conn.execute("SELECT state, result_state FROM durable_external_operations WHERE task_id = ?",
+                                    (task.id,)).fetchall()
+    assert [tuple(row) for row in rows] == [("RECONCILED", "failure")]

@@ -13,7 +13,7 @@ This module accepts only prompt text and connection identity, never a workspace.
 import json
 from urllib.parse import urlsplit
 from urllib.request import Request
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 from ..model_access.http_safe import urlopen_direct
 from ..model_access.credential_relay import _normalize_model_id
@@ -26,6 +26,11 @@ from .task_runtime import ExecutorRuntimeError
 # needs to stop a call that will never answer. Same as the default executor timeout.
 TIMEOUT_SECONDS = 600
 MAX_RESPONSE_BYTES = 512 * 1024
+# The upstream answered that it will not serve this request on this binding. Sending the
+# same request to it again cannot help; another binding may. 408, 409, 425, 429 and 5xx
+# stay transport errors and retry. 400 and 403 can also be about the prompt, so the
+# marker says only what was observed.
+REFUSED_STATUSES = frozenset({400, 401, 402, 403, 404, 410, 413, 422})
 
 
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -157,6 +162,11 @@ def review(prompt, resolution, lease_provider, groups=None):
         raise
     except TimeoutError as exc:
         raise TaskStoreError("timeout") from exc
+    except HTTPError as exc:
+        exc.close()
+        if exc.code in REFUSED_STATUSES:
+            raise TaskStoreError(f"MODEL_UNAVAILABLE:review_http_{exc.code}") from exc
+        raise TaskStoreError("transport_error") from exc
     except URLError as exc:
         reason = "timeout" if isinstance(exc.reason, TimeoutError) else "transport_error"
         raise TaskStoreError(reason) from exc

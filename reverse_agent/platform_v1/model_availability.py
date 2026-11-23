@@ -13,6 +13,10 @@ from typing import Any, Callable, Mapping
 # "model is not supported": Copilot answers "The requested model is not supported."
 UNAVAILABLE_MARKERS = ('model_not_supported', 'model is not supported', 'not allowed for user type', 'not_allowed', 'not-allowed', 'not allowed',
                        'model_not_found', 'invalid_api_key', 'authentication_error')
+# A tool-less review call the upstream refused outright (model_review_transport). One
+# request can be refused for its own sake, so the binding rests for an hour, not a day.
+REVIEW_REFUSED_RE = re.compile(r"MODEL_UNAVAILABLE:(review_http_4\d\d)")
+REVIEW_REFUSED_TTL_SECONDS = 3600
 
 
 def native_owner_account(binding: Mapping[str, Any], connection: Mapping[str, Any]) -> bool:

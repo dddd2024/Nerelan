@@ -330,3 +330,36 @@ def test_a_parked_rejection_whose_repair_cannot_be_routed_stays_parked_without_r
     assert store.count_tasks() == count
     parked = store.get_task(review)
     assert (parked.status, parked.failure_classification) == ('BLOCKED', 'routing_retry_budget_exhausted')
+
+
+@pytest.mark.parametrize("expires, repaired", [("", True), ("2999-01-01T00:00:00Z", False)])
+def test_continuous_run_repairs_a_rejection_after_the_retry_budget_is_spent(review_setup, expires, repaired):
+    """P0-D2 r8: one failed coding attempt left 1 of 2 retries, and a repair asked for 2."""
+    store, control, service, goal_id = rejected(review_setup)
+    _, _, producer, review, *_ = review_setup
+    goal = control.get_goal(goal_id)
+    store._conn.execute("UPDATE platform_autonomous_windows SET max_retries = 2, expires_at = ?, "
+                        "confirmation_mode = 'OWNER_WINDOW'", (expires,))
+    store._conn.execute(
+        "INSERT INTO platform_task_escalations (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, "
+        "from_role, to_role, reason, created_at) VALUES (?, ?, 'T-other', 1, ?, ?, 'coder', 'coder', "
+        "'failed:deterministic_validation_failure', '2026-01-01T00:00:00Z')", (goal_id, goal.revision, producer, review))
+    store._conn.commit()
+    assert bool(service._repair_rejected_reviews(goal_id)) is repaired
+
+
+def test_continuous_run_still_stops_at_the_review_round_limit(review_setup):
+    store, control, service, goal_id = rejected(review_setup)
+    service.max_review_rounds = 1
+    store._conn.execute("UPDATE platform_autonomous_windows SET expires_at = '', confirmation_mode = 'OWNER_WINDOW'")
+    store._conn.commit()
+    assert service._repair_rejected_reviews(goal_id) == ()
+    assert store.get_task(review_setup[3]).failure_classification == 'model_review_round_limit'
+
+
+def test_review_loop_rows_spend_retries_only_outside_a_continuous_run():
+    history = [{"plan_task_id": "T1", "reason": "model_review_repair:x", "cause": ""},
+               {"plan_task_id": "T2", "reason": "model_review_refresh:x", "cause": ""},
+               {"plan_task_id": "T1", "reason": "failed:deterministic_validation_failure", "cause": ""}]
+    assert goal_service._routing_retries_spent(history) == 3
+    assert goal_service._routing_retries_spent(history, patient=True) == 1

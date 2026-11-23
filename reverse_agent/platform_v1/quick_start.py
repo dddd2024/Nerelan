@@ -57,6 +57,11 @@ _FRONTEND_TESTS = re.compile(r"npm (?:--prefix frontend )?test|vitest|frontend/t
 # cover them become the checks. Only files that exist in the workspace are used.
 _PYTHON_SOURCE = re.compile(r"(?<![\w/.-])((?:[A-Za-z0-9_]+/)+[A-Za-z0-9_]+\.py)\b")
 _FRONTEND_SOURCE = re.compile(r"(?<![\w/.-])frontend/src/[A-Za-z0-9_./-]+\.tsx?\b")
+# "Only touch `a/x.py` and `b/**`." as its own unindented line: the one explicit scope
+# wording read as authority. Anything but plain backticked files or ``/**`` trees is not a scope.
+_SCOPE_PATH = re.compile(r"(?:[A-Za-z0-9_.-]+/)+(?:\*\*|[A-Za-z0-9_-][A-Za-z0-9_.-]*\.[A-Za-z0-9]{1,8})")
+_ONLY_TOUCH = re.compile(r"^Only (?:touch|change|modify) ((?:`[^`\n]+`(?:,\s*(?:and\s+)?|\s+and\s+)?)+)\.(?=\s|$)",
+                         re.M | re.I)
 UNPUBLISHABLE = "no_functional_checks"
 MAX_TARGETS = 16
 _PRESET_HINTS = (
@@ -182,6 +187,26 @@ def checks_from_text(text: str, exists: Callable[[str], bool] | None = None) -> 
     return checks
 
 
+def allowed_paths_from_text(text: str) -> list[str]:
+    """The repository paths an issue limits its change to, or [] when it states none.
+
+    Two statements, a directory without ``/**``, quoted code or anything that is not a
+    path give no limit: a guessed scope would refuse a correct change.
+    """
+    from .functional_validation import normalize_allowed_paths
+    # Fenced text is an example, also when the fence is never closed.
+    found = _ONLY_TOUCH.findall(re.sub(r"^(```|~~~).*?(?:^\1|\Z)", "", text or "", flags=re.M | re.S))
+    if len(found) != 1:
+        return []
+    paths = re.findall(r"`([^`\n]+)`", found[0])
+    if not all(_SCOPE_PATH.fullmatch(path) for path in paths):
+        return []
+    try:
+        return list(normalize_allowed_paths(paths))
+    except TaskStoreError:
+        return []
+
+
 def workspace_files(repository: str) -> Callable[[str], bool] | None:
     """``exists`` for the host's configured workspace of ``repository``, or None if it has none."""
     from .repository_workspace import RepositoryWorkspaceError, resolve_repository_workspace
@@ -196,7 +221,7 @@ def workspace_files(repository: str) -> Callable[[str], bool] | None:
     return exists
 
 
-def team_tasks(label: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def team_tasks(label: str, checks: list[dict[str, Any]], allowed_paths: list[str] | None = None) -> list[dict[str, Any]]:
     """Implement, then an independent review of that result, when there are checks to run.
 
     The review takes the implementation as its artifact input, so the router gives
@@ -209,6 +234,8 @@ def team_tasks(label: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]
     if not checks:
         return [implement]
     implement["validation_checks"] = checks
+    if allowed_paths:
+        implement["allowed_paths"] = allowed_paths
     review = {"id": "review", "title": f"Review {label}", "kind": "review", "agent_role": "reviewer",
               "difficulty": REVIEW_DIFFICULTY, "dependencies": ["implement"],
               "artifact_input": {"plan_task_id": "implement"},
@@ -262,7 +289,7 @@ class QuickStart:
         body = str(issue.get("body", ""))[:MAX_ISSUE_BODY_CHARS]
         return {"key": f"issue-{number}", "title": title[:200], "subject": url,
                 "objective": f"Resolve {url}\n\n# {issue.get('title', '')}\n\n{body}".strip(),
-                "checks": checks_from_text(body, exists)}
+                "checks": checks_from_text(body, exists), "allowed_paths": allowed_paths_from_text(body)}
 
     @staticmethod
     def _text_spec(text: str) -> dict[str, str]:
@@ -287,4 +314,5 @@ class QuickStart:
         label = spec["title"].split(" ", 1)[0] if spec["key"].startswith("issue-") else "the request"
         return self._goals.plan(goal.id, expected_revision=goal.revision,
                                 acceptance_criteria=[line.format(subject=spec["subject"]) for line in ACCEPTANCE],
-                                tasks=team_tasks(label, spec.get("checks") or [])).goal
+                                tasks=team_tasks(label, spec.get("checks") or [],
+                                                 spec.get("allowed_paths") or [])).goal
