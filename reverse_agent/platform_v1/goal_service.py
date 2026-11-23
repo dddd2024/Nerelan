@@ -999,6 +999,15 @@ class GoalService:
         """Stalled attempts already looked at during their backoff: task id -> goal id."""
         return self.__dict__.setdefault("_stall_routes_checked_map", {})
 
+    @property
+    def _backoff_deadlines(self) -> dict[str, float]:
+        """Seconds until the earliest active step backoff on a goal expires: goal id -> delay."""
+        return self.__dict__.setdefault("_backoff_deadlines_map", {})
+
+    def next_backoff_delay(self, goal_id: str) -> float | None:
+        """Seconds until the earliest active step backoff on ``goal_id`` expires, or None."""
+        return self._backoff_deadlines.get(goal_id)
+
     def _prune_stall_routes(self, goal_id: str) -> None:
         """Forget this goal's stalled attempts that are no longer its failed current links.
 
@@ -1545,6 +1554,8 @@ class GoalService:
         and nothing escalates outside the Goal's still-active window. The failed task
         and its evidence stay in place; only the plan task's link moves on.
         """
+        self._backoff_deadlines.pop(goal_id, None)
+        earliest_delay: float | None = None
         if self.stop_if_source_closed(goal_id):
             return ()
         repairs = self._repair_rejected_reviews(goal_id)
@@ -1643,7 +1654,11 @@ class GoalService:
                 # seconds (e.g. a full disk at preparation) can retry on every tick.
                 failed_at = _parse_utc(failed.updated_at)
                 wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), PATIENT_BACKOFF_MAX_SECONDS)
-                if failed_at is None or time.time() < failed_at + wait:
+                now_wall = time.time()
+                if failed_at is None or now_wall < failed_at + wait:
+                    if failed_at is not None:
+                        remaining = failed_at + wait - now_wall
+                        earliest_delay = remaining if earliest_delay is None else min(earliest_delay, remaining)
                     continue  # wait, then route again; no budget spent
             if overloaded:
                 transient = free_used
@@ -1652,7 +1667,8 @@ class GoalService:
                 else:
                     failed_at = _parse_utc(failed.updated_at)
                     wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** transient), PATIENT_BACKOFF_MAX_SECONDS)
-                    in_backoff = failed_at is not None and time.time() < failed_at + wait
+                    now_wall = time.time()
+                    in_backoff = failed_at is not None and now_wall < failed_at + wait
                     checked = self._stall_routes_checked
                     # Inside the free cap a stall may move to another binding at once (#1596).
                     # Past it (continuous run) every liveness class may move, but only once its
@@ -1667,6 +1683,8 @@ class GoalService:
                         if stall_route is None:
                             checked[failed.id] = goal.id
                     if in_backoff and stall_route is None:
+                        remaining = failed_at + wait - now_wall
+                        earliest_delay = remaining if earliest_delay is None else min(earliest_delay, remaining)
                         continue  # backoff; a later tick retries without spending budget
                     if stalled or (patient and host_failure):
                         transient_reason = (f"{HOST_RETRY_REASON}:{cause}:"
@@ -1908,6 +1926,11 @@ class GoalService:
             history = (*history, {**retry, "from_task_id": failed.id, "from_role": role, "to_role": next_role})
             outcomes.append({"plan_task_id": plan_task.id, "from_task_id": failed.id, "to_task_id": task.id,
                              "from_role": role, "to_role": next_role, "step": step, "reason": reason})
+        if earliest_delay is not None:
+            deadlines = self._backoff_deadlines
+            while len(deadlines) >= STALL_ROUTES_CHECKED_LIMIT and goal_id not in deadlines:
+                del deadlines[next(iter(deadlines))]
+            deadlines[goal_id] = max(0.0, earliest_delay)
         if outcomes:
             self.control_store.refresh_goal_status(goal_id)
         return tuple(outcomes)
