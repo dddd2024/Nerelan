@@ -130,6 +130,7 @@ def codex_child_env(parent: Mapping[str, str]) -> dict[str, str]:
     allowed = {
         "path", "systemroot", "pathext", "home", "userprofile", "localappdata",
         "appdata", "temp", "tmp", "codex_home", "lang", "lc_all",
+        "username", "user", "logname",
         # Proxy variables stay out: their URLs can carry credentials.
         "systemdrive", "comspec", "windir", "programfiles", "programfiles(x86)", "programdata",
     }

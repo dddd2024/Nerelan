@@ -472,3 +472,32 @@ def test_real_npm_starts_in_the_check_environment(tmp_path):
                             capture_output=True, text=True, timeout=120)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip() == "true"
+
+
+def test_os_username_retained_in_child_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", "nerelan-win-user")
+    monkeypatch.setenv("USER", "nerelan-posix-user")
+    monkeypatch.setenv("LOGNAME", "nerelan-logname")
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    monkeypatch.setenv("GITHUB_TOKEN", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    assert env["USERNAME"] == "nerelan-win-user"
+    assert env["USER"] == "nerelan-posix-user"
+    assert env["LOGNAME"] == "nerelan-logname"
+    assert not {"OPENAI_API_KEY", "GITHUB_TOKEN"} & env.keys()
+
+
+def test_python_getuser_runs_under_sanitized_child_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", os.environ.get("USERNAME") or "nerelan-check-user")
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    result = subprocess.run(
+        [sys.executable, "-c", "import getpass; print(getpass.getuser())"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip()

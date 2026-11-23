@@ -2605,6 +2605,41 @@ def test_role_binding_child_env_matches_binding_helper_validation() -> None:
         assert role_child.get(key) == binding_child.get(key)
 
 
+def test_role_and_binding_child_env_preserve_valid_os_user_keys_only() -> None:
+    valid_parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERNAME": "builder-win",
+        "USER": "builder-posix",
+        "LOGNAME": "builder-logname",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0004",
+    }
+    invalid_parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERNAME": "bad\x00user",
+        "USER": "",
+        "LOGNAME": "builder\nnewline",
+    }
+
+    for child in (
+        build_role_child_env(valid_parent, None, "executor"),
+        build_binding_child_env(valid_parent, _role_binding_config()),
+    ):
+        assert child["USERNAME"] == "builder-win"
+        assert child["USER"] == "builder-posix"
+        assert child["LOGNAME"] == "builder-logname"
+        assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+
+    for child in (
+        build_role_child_env(invalid_parent, None, "executor"),
+        build_binding_child_env(invalid_parent, _role_binding_config()),
+    ):
+        assert "USERNAME" not in child
+        assert "USER" not in child
+        assert "LOGNAME" not in child
+
+
 @needs_real_interpreter
 def test_role_binding_child_env_real_interpreter_resolves_user_site(
     tmp_path: Path,

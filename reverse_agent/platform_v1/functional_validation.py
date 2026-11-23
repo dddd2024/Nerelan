@@ -305,8 +305,11 @@ def _resolved_argv(profile: str) -> list[str]:
 
 def _environment(root: Path, config_dir: Path | None = None) -> dict[str, str]:
     # Model/provider/GitHub credentials and parent Python injection flags are not inherited.
+    # Retain non-secret OS user-identity keys: Windows lacks POSIX ``pwd``, so
+    # ``getpass.getuser()`` raises OSError if none of these variables are set.
     names = ("PATH", "SystemRoot", "WINDIR", "TEMP", "TMP", "TMPDIR", "HOME", "USERPROFILE",
-             "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "COMSPEC", "PATHEXT", "LANG", "LC_ALL")
+             "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "COMSPEC", "PATHEXT", "LANG", "LC_ALL",
+             "USERNAME", "USER", "LOGNAME")
     env = {key: os.environ[key] for key in names if key in os.environ}
     # The Owner's npm user/global configuration is never read. npm 10+ refuses one file
     # loaded as both user and global config ("double-loading config"), so each gets its
