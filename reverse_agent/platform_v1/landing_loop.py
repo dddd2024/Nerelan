@@ -15,9 +15,6 @@ from .run_store import TaskStoreError
 from . import artifact_handoff as artifacts, model_review
 
 
-# A required check of main that ended like this stops every merge until it is green again.
-RED_MAIN_CONCLUSIONS = frozenset({"failure", "timed_out", "cancelled", "startup_failure", "action_required"})
-MAIN_CHECKS = ("baseline", "state-gate")
 RED_MAIN_RECHECK_MS = 5 * 60_000
 
 
@@ -246,6 +243,7 @@ class LandingLoopController:
         def finish(phase, reason="", delay=30000):
             row = store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
             if phase == "COMPLETE":
+                store.restore_merged_goal(state["goal_id"])
                 store.refresh_goal_status(state["goal_id"])  # its review may have run inside this loop
             return row
         def park_closed():
@@ -346,13 +344,13 @@ class LandingLoopController:
             if self.github.observe_checks(state).get("checks", {}) != checks:
                 return finish("WAITING", "checks_changed_during_assessment")
             if operation == "merge":
-                main = self.github.observe_checks(dict(state, head_sha=pr["main_sha"])).get("checks", {})
-                if any(main.get(name, {}).get("head_sha") == pr["main_sha"]
-                       and main[name].get("status") == "completed"
-                       and main[name].get("conclusion") in RED_MAIN_CONCLUSIONS for name in MAIN_CHECKS):
-                    # One rerun tells a flake from a broken main; after that only a new or
-                    # rerun green main releases the hold, which is looked at again every time.
-                    self.github.rerun_failed_main(state, pr["main_sha"])
+                main = self.github.observe_main(state, pr["main_sha"])
+                if main["held"]:
+                    for run_id in main["rerun"]:
+                        try:
+                            self.github.rerun_failed_jobs(state, run_id)
+                        except (GitHubAdapterError, OSError, ValueError):
+                            pass  # refused, or another host asked first: the hold itself stands
                     return finish("WAITING", "main_checks_failed", delay=RED_MAIN_RECHECK_MS)
             prior = store.landing_operation(identity, operation)
             if prior:

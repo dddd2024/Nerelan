@@ -1297,11 +1297,11 @@ class PlatformControlStore:
                 "('DRAFT', 'PLANNED', 'APPROVED', 'RUNNING', 'BLOCKED', 'COMPLETED') "
                 "AND NOT EXISTS (SELECT 1 FROM platform_landing_state "
                 "WHERE goal_id = platform_goals.id AND phase = 'COMPLETE') "
-                # Its own merge closes the issue before the landing confirms main. An UNKNOWN
-                # merge may be done; a CLAIMED one is not sent yet and still yields to the Owner.
+                # Its own confirmed merge closes the issue. Anything short of confirmed still
+                # yields to the Owner closing it; see restore_merged_goal for the race.
                 "AND NOT EXISTS (SELECT 1 FROM platform_landing_state AS l JOIN platform_landing_operations AS o "
                 "ON o.identity = l.identity WHERE l.goal_id = platform_goals.id AND o.operation = 'merge' "
-                "AND o.status IN ('SUCCEEDED', 'UNKNOWN'))",
+                "AND o.status = 'SUCCEEDED')",
                 (_utc_now(), goal_id, revision),
             )
             return (bool(changed.rowcount) or self.get_goal(goal_id).status == "SUPERSEDED"
@@ -1309,6 +1309,25 @@ class PlatformControlStore:
                         "SELECT 1 FROM platform_landing_state WHERE goal_id = ? AND phase = 'COMPLETE'",
                         (goal_id,),
                     ).fetchone()))
+
+    def restore_merged_goal(self, goal_id: str) -> None:
+        """A goal superseded by the issue its own merge closed is COMPLETED, not stopped.
+
+        Only with a COMPLETE landing, a confirmed merge and every linked task finished, so
+        nothing is ever dispatched again by this.
+        """
+        with self._lock:
+            self._conn.execute(
+                "UPDATE platform_goals SET status = 'COMPLETED', updated_at = ? WHERE id = ? AND status = 'SUPERSEDED' "
+                "AND EXISTS (SELECT 1 FROM platform_landing_state AS l JOIN platform_landing_operations AS o "
+                "ON o.identity = l.identity WHERE l.goal_id = platform_goals.id AND l.phase = 'COMPLETE' "
+                "AND o.operation = 'merge' AND o.status = 'SUCCEEDED') "
+                "AND EXISTS (SELECT 1 FROM platform_goal_task_links AS k WHERE k.goal_id = platform_goals.id "
+                "AND k.goal_revision = platform_goals.revision) "
+                "AND NOT EXISTS (SELECT 1 FROM platform_goal_task_links AS k JOIN tasks AS t ON t.id = k.task_id "
+                "WHERE k.goal_id = platform_goals.id AND k.goal_revision = platform_goals.revision "
+                "AND t.status <> 'READY_FOR_REVIEW')",
+                (_utc_now(), goal_id))
 
     def refresh_goal_status(self, goal_id: str) -> GoalRecord:
         links = self.list_goal_tasks(goal_id)
