@@ -682,3 +682,44 @@ def test_claim_uses_the_padded_copy_of_the_same_reading(tmp_path):
     # The unpadded reading of the same time does not come back.
     control.prepare_quota_admission(task_id=task.id, binding_ref="b", account_ref="a", evidence=reading, need=quota_need())
     assert latest()["aged_admission"] is True
+
+
+@pytest.mark.parametrize("later", ["same_reading", "unknown"])
+def test_claim_reprices_an_aged_row_and_never_lends_it_to_an_unknown_preparation(tmp_path, monkeypatch, later):
+    """The stored margin grows with age, and a failed later reading does not inherit the row."""
+    import time
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
+    from tests.platform_v1.test_unattended_coordinator import _budget_window
+    real = time.time
+    offset = [0.0]
+    monkeypatch.setattr(time, "time", lambda: real() + offset[0])
+    store = TaskStore(str(tmp_path / "quota.sqlite3"))
+    control = PlatformControlStore(store)
+    window = _budget_window(AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+                            policy_id="aged", max_tokens=0, reservation=0)
+    read_at = time.time() - 620
+    reading = dict(quota_evidence(now=read_at), windows=[
+        {"window": "five_hour", "used_percent": 45, "resets_at": read_at + 90000},
+        {"window": "weekly", "used_percent": 5, "resets_at": read_at + 90000}])
+    need = {"windows": {"five_hour": {"p80": 30}, "weekly": {"p80": 6}}}
+
+    def prepare(name, evidence):
+        task = store.create_task(title=name, executor_kind="opencode", binding_ref=name)
+        control.prepare_quota_admission(task_id=task.id, binding_ref=name, account_ref="a", evidence=evidence, need=need)
+        return task
+    aged = reservation.aged_evidence(reservation.observation("a", [reading]), now=time.time())
+    first = prepare("first", aged)
+    if later == "unknown":
+        # A short wait: the margin alone would still fit, so only the identity rule can hold it.
+        offset[0] = 30
+        second = prepare("second", {"account_ref": "a", "state": "UNKNOWN", "observed_at": None, "windows": []})
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
+            control.claim_task(window_id=window.id, task_id=second.id, owner="t", lease_ms=60000)
+        assert control.claim_task(window_id=window.id, task_id=first.id, owner="t", lease_ms=60000)[0] == 1
+    else:
+        offset[0] = 3500 - 620
+        with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
+            control.claim_task(window_id=window.id, task_id=first.id, owner="t", lease_ms=60000)

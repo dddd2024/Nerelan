@@ -2002,6 +2002,8 @@ def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) 
     from . import quota_reservation
     if not account or not candidates:
         return {}
+    # A stored aged admission row is not capacity evidence here.
+    candidates = [dict(item, aged_admission=False) for item in candidates]
     selected = quota_reservation.observation(account, candidates, clock=time.time)
     return selected if selected["fresh"] else dict(selected, windows=[])
 

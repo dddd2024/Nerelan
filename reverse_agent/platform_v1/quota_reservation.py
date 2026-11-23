@@ -45,6 +45,10 @@ def _number(value: Any) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
 
 
+def _padded(used: float, window: str, age: float) -> float:
+    return min(100.0, used + AGED_POINTS_PER_HOUR[window] * age / 3600)
+
+
 def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
                 clock: Callable[[], float] = time.time, freshness: float = 600,
                 refresh: Callable[[str], Iterable[Mapping[str, Any]]] | None = None,
@@ -71,11 +75,16 @@ def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
                     2 if basis == "OFFICIAL_VIA_CLI" or source in {"cli", "claude_rate_limit_event"} else
                     1 if basis == "ESTIMATED_FROM_HISTORY" or source == "estimated" else 0)
             known = rank > 0 and bool(item.get("windows")) and item.get("state") != "UNKNOWN"
-            limit = max(freshness, AGED_MAX_SECONDS) if rank == 3 and item.get("aged_admission") is True else freshness
+            aged = rank == 3 and item.get("aged_admission") is True
+            limit = max(freshness, AGED_MAX_SECONDS) if aged else freshness
             fresh = known and at is not None and 0 <= now - at <= limit
+            windows = _canonical_windows(item.get("windows") or ())
+            if aged and fresh:  # the margin grows with the reading's age, also after it was stored
+                windows = [dict(w, used_percent=_padded(w["observed_percent"], w["window"], now - at))
+                           if w["window"] in AGED_POINTS_PER_HOUR and _number(w.get("observed_percent")) else w
+                           for w in windows]
             result.append((fresh, rank if known else 0, at if at is not None else -math.inf,
-                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh),
-                                windows=_canonical_windows(item.get("windows") or ()))))
+                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh), windows=windows)))
         return result
 
     choices = normalize(candidates)
@@ -113,8 +122,7 @@ def aged_evidence(selected: Mapping[str, Any] | None, *, now: float) -> dict[str
         reset = float(reset_raw) if _number(reset_raw) else quota_forecast.parse_time(reset_raw)
         if not _number(used) or (reset_raw is not None and reset is None) or (reset is not None and reset <= now):
             return None
-        windows.append(dict(window, observed_percent=used,
-                            used_percent=min(100.0, used + points * (now - at) / 3600)))
+        windows.append(dict(window, observed_percent=used, used_percent=_padded(used, window["window"], now - at)))
     if sorted(w["window"] for w in windows) != sorted(AGED_POINTS_PER_HOUR):
         return None
     return dict(selected, windows=windows, aged_admission=True, reading_age_seconds=round(now - at))
@@ -200,7 +208,7 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
     selected = observation(account, [evidence], clock=lambda: now,
                            freshness=freshness, small_task=small_task)
     waits = []
-    windows = {w["window"]: w for w in _canonical_windows(evidence.get("windows", ()))}
+    windows = {w["window"]: w for w in _canonical_windows(selected.get("windows", ()))}
     observed = quota_forecast.parse_time(selected.get("observed_at"))
     provider_reported = (selected.get("source") in {"magpie", "official", "cli", "claude_rate_limit_event"}
                          or selected.get("provenance") == "OFFICIAL_VIA_CLI")

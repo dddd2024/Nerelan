@@ -101,7 +101,8 @@ def projection(evidence, need, outstanding=(), *, reservation_id, spent, now, he
         measured = prior + used if quota_reservation._number(prior) and used is not None else None
         candidates = [v for v in (current, measured, (pressure or {}).get(name)) if quota_reservation._number(v)]
         adjusted.append(dict(window, used_percent=max(candidates) if candidates else None))
-    evidence = dict(evidence, windows=adjusted)
+    # A running task keeps the margin it was admitted with; it does not grow under it.
+    evidence = dict(evidence, windows=adjusted, aged_admission=False)
     others = [r for r in outstanding if r.get("reservation_id") != reservation_id]
     # An absent identity must not exclude every unidentified reservation.
     if not reservation_id:

@@ -2497,7 +2497,14 @@ class PlatformControlStore:
                         proposed = quota_need["windows"].get(name, {}).get("p80")
                         if quota_reservation._number(amount) and quota_reservation._number(proposed):
                             quota_need["windows"][name]["p80"] = max(amount, proposed)
-                quota_verdict = quota_reservation.admission(json.loads(latest["evidence_json"]), quota_need, outstanding,
+                latest_evidence = json.loads(latest["evidence_json"])
+                if latest_evidence.get("aged_admission"):
+                    # An aged row serves only the task prepared from that same reading: a later
+                    # preparation that found no usable reading must not inherit it.
+                    own = json.loads(quota_input["evidence_json"])
+                    if not own.get("aged_admission") or own.get("observed_at") != latest_evidence.get("observed_at"):
+                        latest_evidence["aged_admission"] = False
+                quota_verdict = quota_reservation.admission(latest_evidence, quota_need, outstanding,
                     small_task=bool(quota_input["small_task"]), buffer=quota_input["safety_buffer"])
                 cur.execute("UPDATE platform_quota_admissions SET verdict_json=? WHERE task_id=?", (json.dumps(quota_verdict), task_id))
                 if quota_verdict["decision"] == "quota_wait":
