@@ -180,6 +180,9 @@ def test_failed_startup_reconcile_recovers_on_a_later_successful_start(tmp_path,
                not in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "FAILED", "BLOCKED"}
                and time.monotonic() < deadline):
             time.sleep(0.05)
+        # The worker completes its claim, and the window counter, just after the task settles.
+        while control.get_window(window.id).tasks_completed == 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
         final = store.get_task(task_id)
         assert final.status in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"} and final.validation_exit_code == 0
         assert dispatches == [task_id]
