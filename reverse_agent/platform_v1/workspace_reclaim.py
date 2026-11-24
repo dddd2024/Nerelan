@@ -115,7 +115,7 @@ def _is_fixture_repo(top: Path, path: Path) -> bool:
     except OSError:
         return False
     # Nothing but the fixture file was ever committed, on any branch, stash or reflog.
-    history = _git(["log", "--all", "--reflog", "--format=", "--name-only", "-z"], path)
+    history = _git(["log", "--all", "--reflog", "-m", "--format=", "--name-only", "-z"], path)
     return history is not None and set(filter(None, history.replace("\n", "\0").split("\0"))) <= {"fixture.txt"}
 
 
@@ -270,40 +270,51 @@ def _task_rows(db) -> dict[str, tuple[str, str]] | None:
     return None if rows is None else {i: (s, u) for i, s, u in rows}
 
 
-def _open_goal_tasks(db) -> set[str] | None:
-    """Tasks linked to a Goal that is not finished; ``None`` if unreadable."""
+def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | None:
+    """``{task_id: reason}`` for finished tasks whose worktree stays; ``None`` if unreadable.
+
+    A Goal may still read its tasks' worktrees (handoff, review repair, publication,
+    landing) until it is superseded or its landing is complete: all of them while its
+    window is active or a landing is open, and otherwise those of its results, blocked
+    steps and rejected reviews until it is COMPLETED.
+    """
     if db is None:
-        return set()
+        return {}
     conn = None
     try:
         path = Path(db).expanduser().resolve()
         conn = sqlite3.connect("file:" + quote(path.as_posix(), safe="/:") + "?mode=ro",
                                uri=True, timeout=3)
-        names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-        if "platform_goals" not in names:
-            return set()  # a store without Goals
-        return {str(row[0]) for row in conn.execute(
-            "SELECT t.task_id FROM platform_goal_task_links t JOIN platform_goals g ON g.id = t.goal_id "
-            "WHERE g.status NOT IN ('COMPLETED', 'SUPERSEDED', 'CANCELLED')")}
-    except (sqlite3.Error, OSError, ValueError):
+        tasks = conn.execute("SELECT * FROM tasks")
+        columns = [c[0] for c in tasks.description]
+        rows = {row["id"]: row for row in (dict(zip(columns, values)) for values in tasks)}
+        goals = []
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_goals'").fetchone():
+            goals = conn.execute(
+                "SELECT l.task_id, g.status, EXISTS(SELECT 1 FROM platform_autonomous_windows w "
+                "WHERE w.id = g.window_id AND w.status = 'ACTIVE'), "
+                "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id AND s.phase = 'COMPLETE'), "
+                "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id "
+                "AND s.phase NOT IN ('COMPLETE', 'SUPERSEDED')) "
+                "FROM platform_goal_task_links l JOIN platform_goals g ON g.id = l.goal_id").fetchall()
+    except (sqlite3.Error, OSError, ValueError, KeyError):
         return None
     finally:
         if conn is not None:
             conn.close()
-
-
-def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | None:
-    """``{task_id: reason}`` for finished tasks whose worktree stays; ``None`` if unreadable."""
-    open_tasks = _open_goal_tasks(db)
-    if open_tasks is None:
-        return None
     holds = {}
-    for task_id, (status, updated_at) in (_task_rows(db) or {}).items() if db is not None else ():
-        finished_at = _parse_utc(updated_at)
-        if status not in ("FAILED", "CANCELLED") and task_id in open_tasks:
-            holds[task_id] = "result of an open goal"
-        elif finished_at is None or now - finished_at < retention_days * 86400:
+    for task_id, row in rows.items():
+        finished_at = _parse_utc(row.get("updated_at"))
+        if "updated_at" in row and (finished_at is None or now - finished_at < retention_days * 86400):
             holds[task_id] = f"task finished recently; retention {retention_days:g}"
+    for task_id, status, active, landed, landing in goals:
+        row = rows.get(task_id, {})
+        if status in ("SUPERSEDED", "CANCELLED") or (status == "COMPLETED" and landed):
+            continue
+        if active or landing or (status != "COMPLETED" and (
+                row.get("status") not in ("FAILED", "CANCELLED")
+                or row.get("failure_classification") == "model_review_rejected")):
+            holds[task_id] = "an open goal may still need it"
     return holds
 
 
@@ -432,14 +443,15 @@ def inspect(path: Path, *, now: float, retention_days: float,
             if not upstream or _git(["rev-parse", "--verify", "-q", upstream], path) != sha:
                 return keep("local branch without matching upstream")
     record["head"] = head
-    record["reclaim"] = True
-    record["reason"] = "clean, pushed, older than retention"
+    reason = "clean, pushed, older than retention"
     if dirty or unpushed:
         # git add -N of an ignored file: no snapshot would hold its content.
         if _git(["diff", "--no-ext-diff", "--name-only", "--diff-filter=A"], path) != "":
             return keep("intent-to-add entries")
         record["preserve"] = True
-        record["reason"] = "terminal task, work preserved first, older than retention"
+        reason = "terminal task, work preserved first, older than retention"
+    record["reclaim"] = True
+    record["reason"] = reason
     return record
 
 
@@ -453,13 +465,15 @@ def _snapshot(path: Path, head: str) -> tuple[str, ...] | None:
             return out if code == 0 else None
 
         # Work on a copy: write-tree on the real index would rewrite it and reset its age.
+        # The tree is then read into a fresh index without stat data, so every file is hashed.
         gitdir = _gitdir(path)
         try:
-            shutil.copyfile(gitdir / "index", env["GIT_INDEX_FILE"])
+            shutil.copyfile(gitdir / "index", Path(scratch) / "staged")
         except (OSError, TypeError):
             return None
-        staged = git("write-tree", env=env)  # fails on an unmerged index, which is then kept
-        if staged is None:
+        # Fails on an unmerged index, which is then kept.
+        staged = git("write-tree", env={"GIT_INDEX_FILE": str(Path(scratch) / "staged")})
+        if staged is None or git("read-tree", staged, env=env) is None:
             return None
         # Fixture repositories are ignored, so -A never records a gitlink for one.
         if git("add", "-A", "--", ".", env=env) is None:

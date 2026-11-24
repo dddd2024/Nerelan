@@ -773,29 +773,44 @@ def test_a_node_modules_junction_is_unlinked_not_followed(repo, root, tmp_path, 
     assert (tmp_path / "shared" / "precious.txt").exists()
 
 
-def _goal_db(path, task_status, goal_status, age_days=5):
-    _store_db(path, [("task-1", task_status, _iso(LATER - age_days * 86400))])
+def _goal_db(path, task_status, goal_status, window="STOPPED", phase="", classification=""):
     with sqlite3.connect(path) as db:
-        db.execute("CREATE TABLE platform_goals(id TEXT, status TEXT)")
+        db.execute("CREATE TABLE tasks(id TEXT, status TEXT, updated_at TEXT, failure_classification TEXT)")
+        db.execute("INSERT INTO tasks VALUES('task-1', ?, ?, ?)",
+                   (task_status, _iso(LATER - 5 * 86400), classification))
+        db.execute("CREATE TABLE platform_goals(id TEXT, status TEXT, window_id TEXT)")
         db.execute("CREATE TABLE platform_goal_task_links(goal_id TEXT, task_id TEXT)")
-        db.execute("INSERT INTO platform_goals VALUES('g', ?)", (goal_status,))
+        db.execute("CREATE TABLE platform_autonomous_windows(id TEXT, status TEXT)")
+        db.execute("CREATE TABLE platform_landing_state(goal_id TEXT, phase TEXT)")
+        db.execute("INSERT INTO platform_goals VALUES('g', ?, 'w')", (goal_status,))
         db.execute("INSERT INTO platform_goal_task_links VALUES('g', 'task-1')")
+        db.execute("INSERT INTO platform_autonomous_windows VALUES('w', ?)", (window,))
+        if phase:
+            db.execute("INSERT INTO platform_landing_state VALUES('g', ?)", (phase,))
 
 
-@pytest.mark.parametrize("task_status,goal_status,kept", [
-    ("READY_FOR_REVIEW", "RUNNING", True), ("READY_FOR_REVIEW", "BLOCKED", True),
-    ("BLOCKED", "BLOCKED", True), ("FAILED", "RUNNING", False),
-    ("READY_FOR_REVIEW", "COMPLETED", False), ("READY_FOR_REVIEW", "SUPERSEDED", False),
+@pytest.mark.parametrize("kept,task_status,goal_status,kw", [
+    (True, "READY_FOR_REVIEW", "RUNNING", {}),
+    (True, "BLOCKED", "BLOCKED", {}),
+    (True, "FAILED", "BLOCKED", {"window": "ACTIVE"}),
+    (True, "FAILED", "BLOCKED", {"classification": "model_review_rejected"}),
+    (True, "READY_FOR_REVIEW", "COMPLETED", {"window": "ACTIVE"}),  # complete, not published yet
+    (True, "READY_FOR_REVIEW", "COMPLETED", {"phase": "WAITING"}),
+    (True, "READY_FOR_REVIEW", "RUNNING", {"phase": "COMPLETE"}),
+    (False, "FAILED", "BLOCKED", {}),
+    (False, "READY_FOR_REVIEW", "COMPLETED", {}),
+    (False, "READY_FOR_REVIEW", "COMPLETED", {"phase": "COMPLETE", "window": "ACTIVE"}),
+    (False, "READY_FOR_REVIEW", "SUPERSEDED", {"window": "ACTIVE"}),
 ])
-def test_a_result_of_an_open_goal_is_kept(repo, root, tmp_path, task_status, goal_status, kept):
+def test_what_an_open_goal_may_need_is_kept(repo, root, tmp_path, kept, task_status, goal_status, kw):
     wt = add_worktree(repo, root, "task-1")
     db = tmp_path / "tasks.sqlite3"
-    _goal_db(db, task_status, goal_status)
-    entry = _preserve_sweep(root, tmp_path)
-    assert wt.exists() is kept and (entry["reason"] == "result of an open goal") is kept
+    _goal_db(db, task_status, goal_status, **kw)
     if kept:
         [record] = _reclaimer(root, db).reclaim_finished(LATER)
-        assert record["reason"] == "result of an open goal" and wt.exists()
+        assert record["reason"] == "an open goal may still need it"
+    entry = _preserve_sweep(root, tmp_path)
+    assert wt.exists() is kept and (entry["reason"] == "an open goal may still need it") is kept
 
 
 def test_full_sweep_waits_for_the_task_not_only_the_tree(repo, root, tmp_path):
@@ -866,15 +881,45 @@ def test_a_long_reflog_is_preserved_and_the_index_is_untouched(repo, root, tmp_p
     assert set(commits) <= set(git(repo, "rev-list", ref).split())
 
 
-def test_open_goal_lookup_reads_the_real_schema(tmp_path):
+def test_the_hold_lookup_reads_the_real_schema_and_fails_closed(repo, root, tmp_path):
     from reverse_agent.platform_v1.control_store import PlatformControlStore
     from reverse_agent.platform_v1.run_store import TaskStore
-    store = TaskStore(str(tmp_path / "tasks.sqlite3"))
+
+    def holds(name):
+        return workspace_reclaim._task_holds(tmp_path / name, now=LATER, retention_days=1)
+    store = TaskStore(str(tmp_path / "real.sqlite3"))
     try:
         PlatformControlStore(store)
-        assert workspace_reclaim._open_goal_tasks(tmp_path / "tasks.sqlite3") == set()
+        assert holds("real.sqlite3") == {}
     finally:
         store._conn.close()
-    with sqlite3.connect(tmp_path / "partial.sqlite3") as db:
+    _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    with sqlite3.connect(tmp_path / "tasks.sqlite3") as db:
         db.execute("CREATE TABLE platform_goals(id TEXT, status TEXT)")
-    assert workspace_reclaim._open_goal_tasks(tmp_path / "partial.sqlite3") is None
+    assert holds("tasks.sqlite3") is None and holds("missing.sqlite3") is None
+    wt = add_worktree(repo, root, "task-1")
+    assert _preserve_sweep(root, tmp_path)["reason"] == "task store unreadable" and wt.exists()
+
+
+def test_a_failed_intent_to_add_check_keeps_the_worktree(repo, root, tmp_path, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    git(wt, "commit", "-q", "--allow-empty", "-m", "reflog only")
+    git(wt, "reset", "-q", "--hard", "origin/main")
+    real = workspace_reclaim._git
+    monkeypatch.setattr(workspace_reclaim, "_git",
+                        lambda args, *a, **k: None if args[0] == "diff" else real(args, *a, **k))
+    assert _preserve_sweep(root, tmp_path)["reclaim"] is False and wt.exists()
+
+
+def test_a_same_size_edit_with_the_indexed_timestamp_is_not_missed(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    path = wt / "a.txt"
+    path.write_text("AAAA\n")
+    git(wt, "add", "a.txt")
+    when = os.stat(path).st_mtime_ns
+    path.write_text("BBBB\n")
+    os.utime(path, ns=(when, when))
+    # As git sees a racy entry: the index is no newer than the file it describes.
+    os.utime(workspace_reclaim._gitdir(wt) / "index", ns=(when, when))
+    entry = _preserve_sweep(root, tmp_path)
+    assert git(repo, "show", f"{entry['preserved_ref']}:a.txt") == "BBBB"
