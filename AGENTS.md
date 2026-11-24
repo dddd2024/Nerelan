@@ -50,7 +50,7 @@ The ruleset enforces required checks (`baseline`, `state-gate`, `landing-state-g
 - **R0** read-only observation: no gate.
 - **R1** ordinary product, test and doc changes: the change flow above.
 - **R2** governance (`AGENTS.md`, `docs/agents/**`, `.github/workflows/**`, `reverse_agent/landing_review.py`) and dependency changes: the change flow above, plus the PR body must name the Owner decision it implements and the reviewer must explicitly confirm the gate is not weakened beyond that decision.
-- **R3** secrets/credentials, tags/releases, deployment, destructive operations on user data, executing untrusted binaries: require an explicit Owner instruction covering the action. Delegation never covers R3 implicitly. A bounded operational grant may cover repeated, explicitly enumerated operations as described below; actions outside its scope need a fresh instruction.
+- **R3** secrets/credentials, tags/releases, public deployment, unpreserved user-data deletion, extra spend, expanded external permissions, ruleset changes, untrusted binaries: require an explicit Owner instruction. Delegation never covers R3 implicitly. Reversible local operations below run under bounded continuous authorization; other R3 needs a fresh instruction.
 
 A PR can edit the workflow that checks it, so for R2 workflow changes the reviewer must read the workflow diff itself, not rely on the gate.
 
@@ -64,9 +64,7 @@ Do not request repeated confirmation for an action already covered by a live exp
 
 ## Bounded operational grants
 
-The Owner may explicitly grant named operations once for a bounded unattended run, with repository, actions, environment/paths, version rule, expiry, concurrency/retry/cost limits and revocation conditions recorded in existing execution evidence. Repeated covered actions need no per-action confirmation. If bounds cannot be enforced, park the action. See [grant scope and recovery rules](docs/agents/governance-reference.md#bounded-operational-grants).
-
-This policy creates no grant and never expands earlier one-use grants retroactively. Ordinary development goals do not imply R3 authority. Expiry, revocation, scope drift, failed preconditions or exhausted limits park the affected action. No grant waives independent review, CI, matched-head merge, budgets or evidence. Ruleset bypass, secret printing/committing, CI provider calls, shared-history rewriting and destructive user-data operations are excluded.
+Under Owner decision 2026-11-24 (`#1718`), active continuous supervision covers five reversible local classes via existing checks (no new permission subsystem): (1) local upgrades to reviewed CI-green `main` at `0` `RUNNING` tasks with backup, health check and rollback; (2) ordinary-fault local host restarts on the same `TaskStore`; (3) reclaim `apply` with `preserve=1`; (4) isolated research-host window renewals within unchanged bounds; (5) normal dispatch, model switching, retries and gated PR merges. Other repeated grants need an explicit recorded Owner instruction; park failed preconditions. Strict R3 (auth/secrets changes, extra spend, unpreserved deletion, expanded external permissions, tags/releases, public deployment, ruleset bypass, CI provider calls, history rewrites, untrusted binaries) and CI/review/matched-head gates stay mandatory. See [grant scope and recovery rules](docs/agents/governance-reference.md#bounded-operational-grants).
 
 ## Preserve existing work
 
