@@ -3745,3 +3745,15 @@ def test_artifact_file_is_safe_fails_closed_on_permissionerror(tmp_path, monkeyp
     file = source / "a.py"
     file.write_text("pass\n", encoding="utf-8")
     assert _artifact_file_is_safe(tmp_path, file) is False
+
+
+def test_run_owned_cli_process_closes_stdin_to_prevent_eof_hang(tmp_path):
+    script = "import json, sys; raw = sys.stdin.read(); print(json.dumps({'stdin_len': len(raw)}))"
+    owned = _run_owned_cli_process(
+        [sys.executable, "-u", "-c", script],
+        cwd=str(tmp_path),
+        env=dict(os.environ),
+        timeout=5.0,
+    )
+    assert owned.returncode == 0 and not owned.timed_out
+    assert json.loads(owned.stdout.strip()) == {"stdin_len": 0}

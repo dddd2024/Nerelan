@@ -382,7 +382,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         elif reason:
             pass
         elif (not candidate.get("enabled", True) or not candidate.get("runnable", True)
-                or role == "planner" and candidate["executor_id"] not in {"codex", "claude_code"}
+                or role == "planner" and candidate["executor_id"] not in {"codex", "claude_code", "opencode"}
                 or responses_only and candidate["executor_id"] == "claude_code"):
             reason = "executor_fitness"
         elif (override.get("exclude") or difficulty > override.get("max_difficulty", 5)
@@ -587,20 +587,41 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                                 and c["availability_rank"] == best_availability]
         pool = independent_toolless or pool
     exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
-    # Evidence always outranks an unmeasured fallback outside bounded exploration.
+    # Evidence always outranks an unmeasured fallback outside bounded exploration,
+    # unless every proven qualifying candidate is degraded (cooling/shortfall/unready)
+    # while a clean, ready unmeasured candidate exists.
     proven_pool = [c for c in pool if not c["unproven"] and c["tier"] >= difficulty]
-    if proven_pool:
+    has_healthy_proven = any(
+        c["availability_rank"] == 0 and c["liveness_rank"] == 0 and c["quota_penalty"] == 0
+        for c in proven_pool
+    )
+    clean_unproven = [
+        c for c in pool
+        if c["unproven"] and c["availability_rank"] == 0 and c["liveness_rank"] == 0 and c["quota_penalty"] == 0
+    ]
+    if proven_pool and (has_healthy_proven or not clean_unproven or artifact_review or bool(failed_model)):
         pool = proven_pool
     qualifying = [c for c in pool if c["tier"] >= difficulty]
+    has_healthy_qualifying = any(
+        c["availability_rank"] == 0 and c["liveness_rank"] == 0 and c["quota_penalty"] == 0
+        for c in qualifying
+    )
     # Exploration must not turn unknown availability into a prerequisite probe
     # or displace an otherwise qualifying ready/available connection.
     if any(c["availability_rank"] == 0 for c in qualifying):
         exploratory = [c for c in exploratory if c["availability_rank"] == 0]
+    if clean_unproven:
+        exploratory = [c for c in exploratory if c["liveness_rank"] == 0] or exploratory
     reason = "cheapest_qualifying"
     if pinned:
         chosen, reason = pinned, "pin"
-    elif not failed_model and difficulty <= 2 and exploration_draw < exploration_budget and exploratory:
+    elif (not failed_model and not artifact_review and difficulty <= 4
+          and exploration_draw < exploration_budget and exploratory):
         chosen, reason = exploratory[0], "exploration"
+    elif qualifying and (has_healthy_qualifying or not clean_unproven or artifact_review or bool(failed_model) or difficulty > 4):
+        chosen = qualifying[0]
+    elif clean_unproven and not artifact_review and not failed_model and difficulty <= 4:
+        chosen, reason = clean_unproven[0], "prior_only_unproven"
     elif qualifying:
         chosen = qualifying[0]
     else:
@@ -617,7 +638,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         # A capability retry keeps its escalation reason; the liveness block records the fallback.
         reason = ("liveness_same_binding_fallback" if chosen["liveness_rank"] == LIVENESS_AVOIDED
                   else "liveness_cooling_fallback")
-    if chosen["unproven"] and difficulty >= 3:
+    if chosen["unproven"] and difficulty >= 3 and reason != "exploration":
         reason = "prior_only_unproven"
     # JSON-safe evidence: unknown speed is null, never Infinity.
     for item in ranked:

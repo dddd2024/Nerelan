@@ -77,11 +77,12 @@ def test_success_then_speed_break_ties_and_quota_headroom_scales_cost():
 
 
 def test_exploration_budget_is_injected_and_bounded_to_easy_tasks():
-    pool = [candidate("known", "flash-lite"), candidate("new", "unknown")]
+    pool = [candidate("known", "opus"), candidate("new", "unknown")]
     assert choose(pool, exploration_draw=.05)["reason"] == "exploration"
     assert choose(pool, exploration_draw=.1)["reason"] != "exploration"
     assert choose(pool, exploration_draw=0, exploration_budget=0)["reason"] != "exploration"
-    assert choose(pool, difficulty=3, exploration_draw=0)["reason"] != "exploration"
+    assert choose(pool, difficulty=4, exploration_draw=0)["reason"] == "exploration"
+    assert choose(pool, difficulty=5, exploration_draw=0)["reason"] != "exploration"
 
 
 @pytest.mark.parametrize("decision", ["switch", "warn"])
@@ -139,7 +140,9 @@ def test_fitness_review_model_identity_and_pin_precedence():
     pool = [candidate("a", "opus"), candidate("sibling", "opus", executor="codex"),
             candidate("b", "sonnet", "paid_api", "claude_code")]
     assert choose(pool, kind="review", author_model="opus")["binding_ref"] == "b"
-    assert choose(pool, role="planner")["binding_ref"] == "sibling"
+    assert choose(pool, role="planner")["binding_ref"] == "a"
+    assert any(row["binding_id"] == "bad" and row["filter"] == "executor_fitness"
+               for row in choose([*pool, candidate("bad", "opus", executor="custom")], role="planner")["excluded_candidates"])
     assert choose(pool, pin="b")["reason"] == "pin"
     assert choose(pool, pin="b")["binding_ref"] == "b"
     pool[0]["runnable"] = False
@@ -856,3 +859,18 @@ def test_decision_summarizes_all_exclusions_and_hidden_ranked_candidates():
     assert summary["count"] == 7 and summary["shown"] == len(result["candidates"]) == 5
     assert sum(summary["hidden_tiers"].values()) == 2
     assert all(isinstance(tier, str) for tier in summary["hidden_tiers"])
+
+
+def test_clean_unproven_beats_cooling_proven_on_moderate_difficulty():
+    pool = [candidate("kimi", "kimi-k3", quota=COOLING),
+            candidate("free-new", "unmeasured-free-model", cost="free")]
+    result = choose(pool, difficulty=3, kind="code")
+    assert result["binding_ref"] == "free-new"
+    assert result["reason"] == "prior_only_unproven"
+    # Healthy proven models still win outside bounded exploration.
+    pool[0]["quota"] = None
+    assert choose(pool, difficulty=3, kind="code")["binding_ref"] == "kimi"
+    # Review tasks never fall back to an unproven model when a proven model cannot verify independently.
+    with pytest.raises(Exception, match="review_not_independent"):
+        choose([candidate("free-new", "unmeasured-free-model", cost="free")],
+               difficulty=3, kind="review", author_models=("other-model",))

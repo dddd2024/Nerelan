@@ -94,7 +94,7 @@ def extract_policy(text: str, *, known: Mapping[str, Mapping[str, Any]]) -> dict
             raise TaskStoreError(f"agent_policy_role_uses_excluded_binding:{role}")
         proposal[role] = binding
     planner = proposal.get("planner")
-    if planner and known[planner]["executor_id"] not in {"claude_code", "codex"}:
+    if planner and known[planner]["executor_id"] not in {"claude_code", "codex", "opencode"}:
         raise TaskStoreError("agent_policy_planner_requires_native_executor")
     explanation = data.get("explanation", "")
     if not isinstance(explanation, str):
