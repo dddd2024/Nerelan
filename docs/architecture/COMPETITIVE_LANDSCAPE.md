@@ -55,4 +55,10 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+以上雷达是 **2026-11-08 当时的历史候选快照**，不代表当前仍未分诊；各项目的最新独立固定源码审计，以 [#1576 研究总索引](https://github.com/dddd2024/Nerelan/issues/1576) 的归档评论、对应研究 Issue 与 Docs-only Draft PR 为准。
+
+## 新增专项：Pydantic AI（2026-11-17，研究分支记录）
+
+| 仓库 / 许可证 | 独立源码审计 | Nerelan 模块复用边界 |
+|---|---|---|
+| [`pydantic/pydantic-ai@4aaa230`](https://github.com/pydantic/pydantic-ai/commit/4aaa230baad0b97b4d465708b6d6bd5ff4533b93) · MIT | [Issue #1639](https://github.com/dddd2024/Nerelan/issues/1639) · [研究报告](reuse-study-2026-11-16/pydantic-ai.md) | **BORROW_PATTERN**：Toolset 类型化组合、稳定 ID/命名冲突拒绝、DeferredToolRequests 挂起/恢复状态、真实 Owner 许可再绑定、可限定的模型 failover、缺失 usage 不当零、run-local ToolBudget。**REJECT**：把 `answered_by` 或 `approve_all` 当 Host 授权、把 Toolset 过滤当沙箱、用宽默认 ContentFilter fallback 绕过安全拒绝、将 SDK `UsageLimits.request_limit` / `cost` 当 Magpie/TaskStore 硬预算。此分支仅静态调研，未安装/测试/实施，未合入 main。 |
