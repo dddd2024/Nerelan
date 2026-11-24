@@ -76,6 +76,8 @@ const FAILURES: Record<string, [string, string]> = {
   cleanup_unconfirmed: ["无法确认执行器已退出", "请核对本地进程和执行记录，确认结束后再重试。"],
   executor_error: ["执行器出错", "请查看执行记录并检查本地执行环境。"],
   coordinator_execution_error: ["调度执行出错", "请查看调度记录并核对任务的实际执行状态。"],
+  "binding_resolution_failed:paid_subscription_gateway": ["付费订阅不能经网关派发", "Claude、Codex/GPT、反重力订阅只能由官方工具执行。系统会改用其他模型；没有可用模型时，请启用官方工具或其他来源。"],
+  paid_subscription_gateway: ["付费订阅不能经网关派发", "请改用官方工具，或选择其他来源的模型。"],
   binding_resolution_failed: ["连接配置无法解析", "请检查任务绑定的连接和模型配置。"],
   invalid_plan_handoff: ["计划交接无效", "请查看规划结果并重新生成有效的计划。"],
   missing_plan_handoff: ["缺少计划交接", "请检查规划记录并补齐计划结果。"],
@@ -151,6 +153,26 @@ export function runtimeMessage(code: string): RuntimeMessage {
     : Object.hasOwn(FAILURES, key) ? FAILURES[key] : undefined;
   const entry = lookup(code) ?? lookup(code.split(":", 1)[0]);
   return entry ? { label: entry[0], nextStep: entry[1] } : { label: code, nextStep: "" };
+}
+
+/** Why the host refuses to dispatch a binding (subscription_gateway.block_cause). */
+export function dispatchBlockLabel(cause: string): string {
+  const [kind, name] = cause.split(":", 2);
+  const reason: Record<string, string> = {
+    provider: `这是付费订阅账号（${name}）`,
+    group_member: `这个组里有付费订阅账号（${name}）`,
+    group_membership_unknown: "这个组的成员没有申报，可能用到付费订阅账号",
+    auto_membership_unknown: "自动组的成员由网关决定，可能用到付费订阅账号",
+    model_family: `没有写明来源，网关可能用付费订阅账号提供 ${name} 模型`,
+    model_unknown: "没有写明模型，网关可能用付费订阅账号",
+    settings_unreadable: "模型路由设置读不出来，无法确认来源",
+  };
+  return `不派发：${reason[kind] ?? "可能用到付费订阅账号"}。付费订阅只能由官方工具执行。`;
+}
+
+/** Replace the host's exclusion code in English evidence text. */
+export function explainPaidGateway(text: string): string {
+  return text.replaceAll("paid_subscription_gateway", "付费订阅不能经网关派发");
 }
 
 export function runtimeExplanation(code: string): string {

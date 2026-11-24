@@ -224,6 +224,7 @@ function normalizeBinding(value: unknown): Binding {
     connectionId: raw.connectionId ?? raw.connection_id,
     modelId: raw.modelId ?? raw.model_id,
     enabled: raw.enabled,
+    ...(raw.dispatch_block ? { dispatchBlock: raw.dispatch_block } : {}),
   });
 }
 

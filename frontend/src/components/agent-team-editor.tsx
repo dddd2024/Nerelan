@@ -29,7 +29,7 @@ export function AgentTeamEditor({ bindings }: AgentTeamEditorProps) {
   const [text, setText] = useState("");
   const [job, setJob] = useState<AgentPolicyJob | null>(null);
   const [error, setError] = useState("");
-  const usable = bindings.filter((binding) => binding.enabled);
+  const usable = bindings.filter((binding) => binding.enabled && !binding.dispatchBlock);
   const nameOf = (bindingId: string) => {
     const binding = bindings.find((item) => item.bindingId === bindingId);
     return binding ? `${binding.name} · ${binding.modelId}` : bindingId;

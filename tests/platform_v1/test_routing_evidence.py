@@ -608,7 +608,7 @@ def test_native_executor_never_probed_even_without_native_model_prefix():
             probe=forbidden, allow_probe=True)['state'] == 'UNKNOWN'
 
 
-@pytest.mark.parametrize('model', ['codex/gpt-6-sol', 'claude/sonnet'])
+@pytest.mark.parametrize('model', ['copilot/gpt-6-sol', 'trae-cn/glm-5.3'])
 @pytest.mark.parametrize('difficulty', [2, 4])
 def test_namespaced_external_session_uses_real_runnable_path(readiness_host, model, difficulty):
     host = readiness_host
@@ -686,7 +686,7 @@ def test_chain_review_real_availability_and_blocked_evidence(monkeypatch, tmp_pa
     host._store.upsert_binding({**mid, 'model_id': 'glm-5.3'})
     if independent:
         host._store.upsert_binding({**mid, 'binding_id': 'independent', 'name': 'Independent',
-                                   'model_id': 'gemini-flash-lite'})
+                                   'model_id': 'copilot/gemini-flash-lite'})
         # Non-Codex review needs a tool-less transport (#1283); this fixture's keyless
         # gateway stands in for an api_key relay connection without changing routing cost.
         from reverse_agent.platform_v1 import model_review_transport

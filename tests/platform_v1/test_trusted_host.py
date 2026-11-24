@@ -1906,7 +1906,7 @@ def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> 
             "name": binding_id,
             "executor_id": "opencode",
             "connection_id": connection_id,
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
             "enabled": True,
         })
 
@@ -1917,7 +1917,7 @@ def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> 
             connection_id="conn-a",
             executor_id="opencode",
             provider_id="openai-compatible",
-            model_id="openai-compatible/gpt-4o",
+            model_id="openai-compatible/fake-4o",
             base_url=base_url,
             auth_method="api_key",
             external_session_status="not_applicable",
@@ -1940,7 +1940,7 @@ def test_vault_backed_lease_serves_only_selected_connection_secret(tmp_path) -> 
         # Relay request for binding-a resolves only Connection A's secret.
         request = Request(
             f"{host.relay_url}/chat/completions",
-            data=json.dumps({"model": "gpt-4o", "messages": []}).encode(),
+            data=json.dumps({"model": "fake-4o", "messages": []}).encode(),
             headers={"Authorization": f"Bearer {handle.lease_id}"},
             method="POST",
         )

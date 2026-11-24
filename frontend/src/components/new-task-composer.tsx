@@ -69,7 +69,7 @@ export function NewTaskComposer({
   const opencodeBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
-        (b) => b.enabled && b.executorId === executorChoice,
+        (b) => b.enabled && !b.dispatchBlock && b.executorId === executorChoice,
       ),
     [bindingsQuery.data, executorChoice],
   );

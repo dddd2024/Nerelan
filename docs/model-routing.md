@@ -41,6 +41,35 @@ ids): the maps start empty, `paid_api_windows` is empty and `reset_buffer` is
 `0.03`. Copy it beside `model_setup_state.json` to edit any decision; absent
 configuration keeps the built-in defaults below.
 
+### Paid subscriptions never go through a gateway
+
+Claude, Codex/ChatGPT and Antigravity subscriptions run only in their official
+agent (Owner decision 2026-11-23, #1743). One rule
+(`platform_v1/subscription_gateway.py`) is asked at selection, by the binding
+resolver, before an execution snapshot (leases, probes, reviews) and for tasks
+without a binding. No pin, cost class, retry or fallback overrides it. Refused:
+
+- a model id that names a paid provider (`codex/...`, `claude/...`, `antigravity-bridge/...`);
+- a `group/` with a declared paid member, an undeclared `group/`, and a declared one of
+  a subscription model family without a valid member list;
+- an `auto/` id of such a family, even when declared: the gateway fills it by itself;
+- a name of such a family without a provider, or with only its vendor (`openai/...`),
+  on a keyless or local endpoint, whatever it signs in with.
+
+A task without a binding is judged by the defaults, not the setting.
+
+Native Codex and Claude Code, vendor API keys, Copilot, WorkBuddy, Trae and other
+sources are not affected. A declaration is trusted: Magpie's API reports no group
+members, so update `groups` whenever a group changes in Magpie. The list is a
+setting, replaced as a whole (provider name to model families); a malformed file
+blocks gateway dispatch:
+
+```json
+{"paid_subscriptions": {"providers": {
+  "claude": ["claude", "opus", "sonnet", "haiku", "fable"],
+  "codex": ["gpt", "o1", "o3", "o4"], "chatgpt": ["gpt"], "antigravity": ["gemini"]}}}
+```
+
 Content classes are task kinds or `security_simulation`; modalities belong in
 `needs`. Explicit connection and model costs are `free`, `subscription`, or
 `paid_api`. Cost-class precedence is Owner per-binding > per-model >

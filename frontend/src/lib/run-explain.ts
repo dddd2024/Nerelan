@@ -1,5 +1,5 @@
 import type { PlatformRunActivityEvent, PlatformTaskFailure } from "@/lib/platform-client";
-import { runtimeMessage } from "@/lib/runtime-labels";
+import { explainPaidGateway, runtimeMessage } from "@/lib/runtime-labels";
 
 /** A short, readable model name: the binding without its gateway prefix. */
 export function modelName(binding?: string): string {
@@ -43,7 +43,7 @@ export function eventDetail(event: PlatformRunActivityEvent): string {
   if (event.path) return tidyDetail(event.path);
   if (event.command) return tidyDetail(event.command.summary);
   if (event.test) return event.test.summary;
-  return tidyDetail(event.description ?? "");
+  return tidyDetail(explainPaidGateway(event.description ?? ""));
 }
 
 /** Adjacent rows that say the same thing (same title, category and detail) become one row with a count. */

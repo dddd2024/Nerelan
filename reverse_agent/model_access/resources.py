@@ -496,7 +496,9 @@ def build_resource_view(store: Any, profiles: Callable[[], Mapping[str, Mapping[
                 costs.append(cost)
             rows.append({"binding_id": binding["binding_id"], "model_id": binding["model_id"],
                          "executor_id": binding["executor_id"], "enabled": binding["enabled"],
-                         "usable": bool(binding["enabled"] and ready.get(binding["executor_id"])),
+                         "usable": bool(binding["enabled"] and ready.get(binding["executor_id"])
+                                        and not binding.get("dispatch_block")),
+                         "dispatch_block": binding.get("dispatch_block", ""),
                          "observed": usage, "tokens": binding_tokens, "equivalent_cost": cost})
         native = NATIVE_CLI_PROVIDERS.get(connection.get("executor_provider_id"))
         credential = _credential(connection)

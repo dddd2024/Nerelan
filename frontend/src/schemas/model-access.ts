@@ -102,6 +102,8 @@ export const BindingSchema = z.object({
   connectionId: z.string().min(1, "连接 ID 不能为空").max(80),
   modelId: z.string().trim().min(1, "Model ID 不能为空").max(200),
   enabled: z.boolean(),
+  /** Host verdict, read-only: why this binding is never dispatched; empty when it may be. */
+  dispatchBlock: z.string().optional(),
 });
 
 export const BindingInputSchema = BindingSchema;
