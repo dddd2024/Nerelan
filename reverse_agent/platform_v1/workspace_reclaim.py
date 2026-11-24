@@ -50,8 +50,7 @@ once per sweep interval it sweeps the whole root. Standalone clones are never
 included.
 When the disk holding the root has less free space than the configured floor,
 it warns, records that in its state file and sweeps early with the shorter
-low-disk retention; no safety check is relaxed. Below a lower floor,
-``disk_short_for_start`` lets task preparation refuse a new worktree.
+low-disk retention; no safety check is relaxed.
 """
 
 from __future__ import annotations
@@ -80,8 +79,11 @@ LOG = logging.getLogger(__name__)
 DEFAULT_RETENTION_DAYS = 3.0
 DEFAULT_LOW_DISK_GB = 10.0
 DEFAULT_LOW_DISK_RETENTION_DAYS = 1.0
-DEFAULT_MIN_START_FREE_GB = 2.0
 LOW_DISK_SWEEP_SECONDS = 3600.0
+DEFAULT_DISPATCH_MIN_FREE_GB = 2.0
+# A hold ends only clearly above the floor, so a reading that hovers there
+# neither flaps dispatch nor floods the log.
+DISPATCH_RESUME_FACTOR = 1.25
 PRESERVE_PREFIX = "refs/nerelan/reclaimed/"
 _GIT = ("git", "-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false",
         "-c", "core.longpaths=true")
@@ -677,26 +679,6 @@ def auto_config(env=None) -> dict:
     }
 
 
-def free_gb(path) -> float | None:
-    """Free space on the volume holding ``path``, which may not exist yet."""
-    probe = Path(path).absolute()
-    while not probe.exists() and probe.parent != probe:
-        probe = probe.parent
-    try:
-        return shutil.disk_usage(probe).free / 2 ** 30
-    except OSError:
-        return None
-
-
-def disk_short_for_start(path, env=None) -> float | None:
-    """Return the free GB when too little is left to start a task, else ``None``."""
-    env = os.environ if env is None else env
-    floor = _env_number(env, "REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB",
-                        DEFAULT_MIN_START_FREE_GB, 0.0)
-    free = free_gb(path)
-    return free if free is not None and free < floor else None
-
-
 def _parse_utc(text: str) -> float | None:
     try:
         moment = datetime.fromisoformat(text.strip())
@@ -705,6 +687,69 @@ def _parse_utc(text: str) -> float | None:
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     return moment.timestamp()
+
+
+def disk_state(root, low_disk_gb: float, disk_usage=shutil.disk_usage) -> dict:
+    """Free space of the volume holding ``root``; ``None`` fields when unreadable."""
+    try:
+        usage = disk_usage(root)
+    except OSError:
+        return {"free_gb": None, "total_gb": None, "low": False}
+    free = usage.free / 2 ** 30
+    return {"free_gb": round(free, 2), "total_gb": round(usage.total / 2 ** 30, 2),
+            "low": free < low_disk_gb}
+
+
+class DispatchDiskGuard:
+    """Whether the host has too little disk to start another task.
+
+    Independent of the reclaim mode and read-only. A hold starts below
+    ``floor_gb`` and ends at ``DISPATCH_RESUME_FACTOR`` times it; an unreadable
+    volume never starts or ends one. Only the two transitions are logged.
+    """
+
+    def __init__(self, root, *, floor_gb=DEFAULT_DISPATCH_MIN_FREE_GB,
+                 low_disk_gb=DEFAULT_LOW_DISK_GB, disk_usage=shutil.disk_usage,
+                 clock=time.time):
+        self.root = Path(root).absolute()
+        self.floor_gb = float(floor_gb)
+        self.low_disk_gb = float(low_disk_gb)
+        self.disk_usage = disk_usage
+        self.clock = clock
+        self._held_since: float | None = None
+        self._lock = threading.Lock()
+
+    def check(self) -> dict:
+        with self._lock:
+            # The root may not exist yet; its nearest existing parent shares the volume.
+            root = next((p for p in (self.root, *self.root.parents) if p.exists()), self.root)
+            disk = disk_state(root, self.low_disk_gb, self.disk_usage)
+            # Compare the reported (rounded) number, so log and UI never contradict the hold.
+            free = disk["free_gb"]
+            if free is not None:
+                if self._held_since is None and free < self.floor_gb:
+                    self._held_since = self.clock()
+                    LOG.warning("dispatch held: %.2f GB free on the workspace volume is below %g GB; "
+                                "running tasks continue, queued tasks wait", free, self.floor_gb)
+                elif self._held_since is not None and free >= self.floor_gb * DISPATCH_RESUME_FACTOR:
+                    self._held_since = None
+                    LOG.warning("dispatch resumed: %.2f GB free on the workspace volume", free)
+            held = self._held_since is not None
+            return {**disk, "floor_gb": self.floor_gb,
+                    "resume_gb": round(self.floor_gb * DISPATCH_RESUME_FACTOR, 2),
+                    "hold": held, "reason": "disk_space_critical" if held else "",
+                    "held_since": datetime.fromtimestamp(self._held_since, timezone.utc).isoformat()
+                    if held else None}
+
+
+def configured_disk_guard(workspace_root, env=None) -> DispatchDiskGuard:
+    env = os.environ if env is None else env
+    return DispatchDiskGuard(
+        workspace_root,
+        floor_gb=_env_number(env, "REVERSE_AGENT_DISPATCH_MIN_FREE_GB",
+                             DEFAULT_DISPATCH_MIN_FREE_GB, 0.0),
+        low_disk_gb=_env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_LOW_DISK_GB",
+                                DEFAULT_LOW_DISK_GB, 0.0))
 
 
 class AutoReclaimer:
@@ -798,13 +843,7 @@ class AutoReclaimer:
             return {"finished": finished, "sweep": swept, "disk": disk}
 
     def disk(self) -> dict:
-        try:
-            usage = self.disk_usage(self.root)
-        except OSError:
-            return {"free_gb": None, "total_gb": None, "low": False}
-        free = usage.free / 2 ** 30
-        return {"free_gb": round(free, 2), "total_gb": round(usage.total / 2 ** 30, 2),
-                "low": free < self.low_disk_gb}
+        return disk_state(self.root, self.low_disk_gb, self.disk_usage)
 
     def _opts(self, now, statuses):
         return dict(now=now, retention_days=self.retention_days, include_clones=False,

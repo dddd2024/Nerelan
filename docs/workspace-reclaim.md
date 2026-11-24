@@ -37,7 +37,6 @@ On by default. Set before starting the host to change it:
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_PRESERVE` | off | `1` is `--preserve` |
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_LOW_DISK_GB` | `10` | below this much free space the host warns and sweeps early, at most hourly |
 | `REVERSE_AGENT_WORKSPACE_RECLAIM_LOW_DISK_RETENTION_DAYS` | `1` | retention of those early sweeps (minimum 0.25) |
-| `REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB` | `2` | below this, a new task worktree is refused; `0` disables |
 
 Invalid values fall back to the default and an unknown mode stays off. The
 first check runs one poll after startup, so starting the host does no extra
@@ -50,10 +49,19 @@ not sweep again early.
 Use `report` to read the host log (`workspace reclaim: would remove ...`)
 without removing anything.
 
-Below `REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB`, task preparation stops with
-`workspace_disk_space_low` before running `git worktree add`, so a nearly full
-disk fails one task cleanly instead of partway through its work.
-
 Caches that a sandboxed run left unlistable (`.nt`, `.pytest_cache`) do not keep
 a tree. If the host account also cannot delete them, the removal is reported as
 failed and the leftover needs an administrator.
+
+## Dispatch hold on a nearly full disk
+
+Always on, whatever the reclaim mode; it deletes nothing. Below
+`REVERSE_AGENT_DISPATCH_MIN_FREE_GB` (default `2`, `0` disables) free on the
+volume of the task workspaces, the unattended coordinator starts no task: no
+new attempt, resume or landing review, and so no claim, receipt or retry.
+Running tasks, result recovery and gated merges continue; publishing waits,
+because it may start a review. Dispatch resumes by itself at 1.25 times the floor. An unreadable
+volume neither starts nor ends a hold. Entering and leaving are each logged
+once, and `/api/platform/status` shows `coordinator.disk` (free space, floor,
+`hold`, `reason`, `held_since`, waiting tasks), as does the workspace banner.
+Tasks started by hand are not held.

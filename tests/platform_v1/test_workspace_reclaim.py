@@ -8,8 +8,7 @@ import time
 
 import pytest
 
-from reverse_agent.platform_v1 import repository_preparation, workspace_reclaim
-from reverse_agent.platform_v1.task_runtime import ExecutorRuntimeError
+from reverse_agent.platform_v1 import workspace_reclaim
 from reverse_agent.platform_v1.workspace_reclaim import main, sweep
 
 LATER = time.time() + 30 * 86400
@@ -522,28 +521,6 @@ def test_unlistable_work_directory_keeps_the_tree(repo, root, monkeypatch):
     _deny_listing(monkeypatch, "results")
     entry = by_name(sweep([root], now=LATER, apply=True))["task-1"]
     assert entry["reason"] == "tree unreadable" and wt.exists()
-
-
-def test_free_gb_uses_the_nearest_existing_parent(tmp_path):
-    assert workspace_reclaim.free_gb(tmp_path / "not" / "yet") > 0
-
-
-def test_start_floor_defaults_and_can_be_disabled(tmp_path, monkeypatch):
-    monkeypatch.setattr(workspace_reclaim, "free_gb", lambda _path: 1.0)
-    assert workspace_reclaim.disk_short_for_start(tmp_path, env={}) == 1.0
-    off = {"REVERSE_AGENT_WORKSPACE_MIN_START_FREE_GB": "0"}
-    assert workspace_reclaim.disk_short_for_start(tmp_path, env=off) is None
-
-
-def test_task_preparation_refuses_a_worktree_when_the_disk_is_nearly_full(repo, root, monkeypatch):
-    monkeypatch.setattr(repository_preparation, "disk_short_for_start", lambda _path: 1.0)
-    events = []
-    with pytest.raises(ExecutorRuntimeError, match="workspace_disk_space_low"):
-        repository_preparation.prepare_linked_worktree(
-            "task-1", root, lambda _task, event: events.append(event),
-            repo_dir_value=str(repo), base_ref="origin/main")
-    assert not (root / "task-1").exists()
-    assert events[-1]["metadata"]["free_gb"] == 1.0
 
 
 def test_report_mode_never_deletes(repo, root, tmp_path):
