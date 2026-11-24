@@ -14,7 +14,13 @@ only when every check below proves no work can be lost:
 * HEAD and its reflog, and for a clone every ref and reflog (branches, tags,
   stash), is reachable from a remote-tracking ref;
 * nothing anywhere in the tree was modified within the retention window;
-* when a TaskStore is given, the matching task is not in a non-terminal state;
+* when a TaskStore is given, the matching task is not in a non-terminal state,
+  finished longer ago than the retention period, and is not a result that an
+  open Goal may still read from its worktree (landing, artifact handoff);
+* it contains no junction: git on Windows follows those and deletes what they
+  point to. Only ``node_modules`` junctions are allowed; the link itself is
+  removed first;
+* no merge, rebase, bisect or similar is in progress and it has no own refs;
 * it is not a planner worktree, which recovers itself from owner records.
 
 "Pushed" means reachable from a local remote-tracking ref; run ``git fetch
@@ -104,9 +110,13 @@ def _is_fixture_repo(top: Path, path: Path) -> bool:
             return False
         if os.lstat(path / "fixture.txt").st_size > 4096:
             return False
-        return "[remote" not in (git_dir / "config").read_text(encoding="utf-8", errors="replace")
+        if "[remote" in (git_dir / "config").read_text(encoding="utf-8", errors="replace"):
+            return False
     except OSError:
         return False
+    # Nothing but the fixture file was ever committed, on any branch, stash or reflog.
+    history = _git(["log", "--all", "--reflog", "--format=", "--name-only", "-z"], path)
+    return history is not None and set(filter(None, history.replace("\n", "\0").split("\0"))) <= {"fixture.txt"}
 
 
 def _run(args, cwd, timeout=60, stdin_text=None, env=None):
@@ -156,10 +166,18 @@ def _long(path: Path) -> str:
     return text
 
 
-def _walk(path: Path) -> tuple[float, bool]:
-    """Return the newest mtime in the whole tree and whether it nests a repo."""
+def _is_junction(entry_path: str, st) -> bool:
+    # Any Windows reparse point that is not a plain symlink; git unlinks symlinks.
+    return bool(getattr(st, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+                and not stat.S_ISLNK(st.st_mode)) or os.path.isjunction(entry_path)
+
+
+def _walk(path: Path) -> tuple[float, bool, list[str], list[str]]:
+    """Newest mtime in the whole tree, whether it nests a repo, its fixture repos and junctions."""
     newest = os.lstat(path).st_mtime
     nested = False
+    fixtures: list[str] = []
+    junctions: list[str] = []
     top = _long(path)
     stack = [top]
     while stack:
@@ -168,9 +186,15 @@ def _walk(path: Path) -> tuple[float, bool]:
             for entry in it:
                 st = entry.stat(follow_symlinks=False)
                 newest = max(newest, st.st_mtime)
-                if (current != top and entry.name == ".git"
-                        and not _is_fixture_repo(Path(top), Path(current))):
-                    nested = True
+                if _is_junction(entry.path, st):
+                    junctions.append(entry.path)
+                    continue
+                if current != top and entry.name == ".git":
+                    plain = path / os.path.relpath(current, top)
+                    if _is_fixture_repo(path, plain):
+                        fixtures.append(plain.relative_to(path).as_posix() + "/")
+                    else:
+                        nested = True
                 if stat.S_ISDIR(st.st_mode) and entry.name != ".git" and not _is_link(Path(entry.path)):
                     stack.append(entry.path)
     # Commits and checkouts touch the (per-worktree) gitdir, not the tree root.
@@ -181,7 +205,26 @@ def _walk(path: Path) -> tuple[float, bool]:
                 newest = max(newest, os.stat(gitdir / name).st_mtime)
         except OSError:
             continue
-    return newest, nested
+    return newest, nested, fixtures, junctions
+
+
+_IN_PROGRESS = ("rebase-merge", "rebase-apply", "sequencer", "MERGE_HEAD", "MERGE_AUTOSTASH",
+                "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD", "BISECT_LOG", "AUTO_MERGE")
+
+
+def _own_state(gitdir: Path) -> bool:
+    """Operation state or refs that live only in this worktree's gitdir."""
+    return (any((gitdir / name).exists() for name in _IN_PROGRESS)
+            or any(p.is_file() for p in (gitdir / "refs").rglob("*")))
+
+
+def _unlink_junctions(path: Path) -> bool:
+    """Remove the worktree's node_modules links (never their targets); True if none is left."""
+    for link in _walk(path)[3]:
+        if os.path.basename(link) != "node_modules":
+            return False
+        os.rmdir(link)  # on a junction this removes only the link
+    return not _walk(path)[3]
 
 
 def _gitdir(path: Path) -> Path | None:
@@ -227,9 +270,46 @@ def _task_rows(db) -> dict[str, tuple[str, str]] | None:
     return None if rows is None else {i: (s, u) for i, s, u in rows}
 
 
+def _open_goal_tasks(db) -> set[str] | None:
+    """Tasks linked to a Goal that is not finished; ``None`` if unreadable."""
+    if db is None:
+        return set()
+    conn = None
+    try:
+        path = Path(db).expanduser().resolve()
+        conn = sqlite3.connect("file:" + quote(path.as_posix(), safe="/:") + "?mode=ro",
+                               uri=True, timeout=3)
+        names = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "platform_goals" not in names:
+            return set()  # a store without Goals
+        return {str(row[0]) for row in conn.execute(
+            "SELECT t.task_id FROM platform_goal_task_links t JOIN platform_goals g ON g.id = t.goal_id "
+            "WHERE g.status NOT IN ('COMPLETED', 'SUPERSEDED', 'CANCELLED')")}
+    except (sqlite3.Error, OSError, ValueError):
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | None:
+    """``{task_id: reason}`` for finished tasks whose worktree stays; ``None`` if unreadable."""
+    open_tasks = _open_goal_tasks(db)
+    if open_tasks is None:
+        return None
+    holds = {}
+    for task_id, (status, updated_at) in (_task_rows(db) or {}).items() if db is not None else ():
+        finished_at = _parse_utc(updated_at)
+        if status not in ("FAILED", "CANCELLED") and task_id in open_tasks:
+            holds[task_id] = "result of an open goal"
+        elif finished_at is None or now - finished_at < retention_days * 86400:
+            holds[task_id] = f"task finished recently; retention {retention_days:g}"
+    return holds
+
+
 def inspect(path: Path, *, now: float, retention_days: float,
             include_clones: bool = False, task_statuses: dict | None = None,
-            preserve: bool = False) -> dict:
+            preserve: bool = False, task_holds: dict | None = None) -> dict:
     """Return ``{"path", "kind", "reclaim", "reason"}`` for one root child."""
     record = {"path": str(path), "name": path.name, "kind": "unknown",
               "reclaim": False, "reason": ""}
@@ -257,6 +337,8 @@ def inspect(path: Path, *, now: float, retention_days: float,
     if task_statuses is None:
         return keep("task store unreadable")
     status = task_statuses.get(path.name)
+    if status is not None and path.name in (task_holds or {}):
+        return keep(task_holds[path.name])
     may_preserve = (preserve and record["kind"] == "worktree" and status in TERMINAL_STATUSES
                     and bool(_NAME_RE.fullmatch(path.name)))
     if status is not None and status not in TERMINAL_STATUSES:
@@ -275,11 +357,15 @@ def inspect(path: Path, *, now: float, retention_days: float,
         if (resolved / "locked").exists():
             return keep("worktree is locked")
     try:
-        newest, nested = _walk(path)
+        newest, nested, fixtures, junctions = _walk(path)
     except OSError:
         return keep("tree unreadable")
     if nested:
         return keep("contains a nested repository or submodule")
+    if any(os.path.basename(link) != "node_modules" for link in junctions):
+        return keep("contains a junction")
+    if _own_state(gitdir if gitdir.is_absolute() else gitdir.resolve()) and record["kind"] == "worktree":
+        return keep("operation in progress or refs of its own")
     age_days = (now - newest) / 86400
     if age_days < retention_days:
         return keep(f"modified {age_days:.1f} days ago; retention {retention_days:g}")
@@ -307,8 +393,10 @@ def inspect(path: Path, *, now: float, retention_days: float,
                    path, timeout=300)
     if ignored is None:
         return keep("ignored files unreadable")
-    kept = [p for p in ignored.split("\0") if p and not _is_cache(p)
-            and not (p.endswith("/") and _is_fixture_repo(path, path / p))]
+    ignored_paths = set(filter(None, ignored.split("\0")))
+    if not set(fixtures) <= ignored_paths:
+        return keep("contains a nested repository or submodule")
+    kept = sorted(p for p in ignored_paths if not _is_cache(p) and p not in fixtures)
     if kept:
         return keep(f"ignored files present: {kept[0]}")
     head = _git(["rev-parse", "--verify", "HEAD^{commit}"], path)
@@ -347,6 +435,9 @@ def inspect(path: Path, *, now: float, retention_days: float,
     record["reclaim"] = True
     record["reason"] = "clean, pushed, older than retention"
     if dirty or unpushed:
+        # git add -N of an ignored file: no snapshot would hold its content.
+        if _git(["diff", "--no-ext-diff", "--name-only", "--diff-filter=A"], path) != "":
+            return keep("intent-to-add entries")
         record["preserve"] = True
         record["reason"] = "terminal task, work preserved first, older than retention"
     return record
@@ -361,8 +452,14 @@ def _snapshot(path: Path, head: str) -> tuple[str, ...] | None:
             code, out = _run([*args], path, timeout=300, **kw)
             return out if code == 0 else None
 
-        staged = git("write-tree")  # fails on an unmerged index, which is then kept
-        if staged is None or git("read-tree", staged, env=env) is None:
+        # Work on a copy: write-tree on the real index would rewrite it and reset its age.
+        gitdir = _gitdir(path)
+        try:
+            shutil.copyfile(gitdir / "index", env["GIT_INDEX_FILE"])
+        except (OSError, TypeError):
+            return None
+        staged = git("write-tree", env=env)  # fails on an unmerged index, which is then kept
+        if staged is None:
             return None
         # Fixture repositories are ignored, so -A never records a gitlink for one.
         if git("add", "-A", "--", ".", env=env) is None:
@@ -390,8 +487,14 @@ def preserve_work(record: dict) -> str | None:
     staged = commit(snapshot[1], [head], "index before workspace reclaim")
     if not staged:
         return None
-    # Reflog-only commits stay reachable as extra parents.
+    # Reflog-only commits stay reachable as extra parents; grouped, so a long reflog
+    # never exceeds the command line.
     others = [sha for sha in dict.fromkeys(reflog.split()) if sha != head]
+    while len(others) > 50:
+        group = commit(snapshot[1], others[:50], "reflog before workspace reclaim")
+        if not group:
+            return None
+        others = [*others[50:], group]
     final = commit(snapshot[2], [head, staged, *others], f"workspace reclaim: {path.name}")
     if not final:
         return None
@@ -424,6 +527,11 @@ def remove(record: dict) -> dict:
         common = _git(["rev-parse", "--path-format=absolute", "--git-common-dir"], path)
         if common is None:
             return {**record, "removed": False, "error": "git common dir unknown"}
+        try:
+            if not _unlink_junctions(path):
+                return {**record, "removed": False, "error": "contains a junction"}
+        except OSError as exc:
+            return {**record, "removed": False, "error": f"junction: {type(exc).__name__}: {exc}"}
         if record.get("preserve"):
             ref = preserve_work(record)
             if ref is None:
@@ -464,6 +572,9 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
     now = time.time() if now is None else now
     compiled = [re.compile(p, re.IGNORECASE) for p in (patterns or [])]
     statuses = _task_statuses(task_db)
+    holds = _task_holds(task_db, now=now, retention_days=retention_days)
+    if holds is None:
+        statuses = None  # unreadable: keep everything
     entries = []
     for root in roots:
         root = Path(root).absolute()
@@ -481,7 +592,7 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
             if compiled and not any(p.search(child.name) for p in compiled):
                 continue
             opts = dict(now=now, retention_days=retention_days,
-                        include_clones=include_clones, task_statuses=statuses, preserve=preserve)
+                        include_clones=include_clones, task_statuses=statuses, preserve=preserve, task_holds=holds)
             entries.append(_reclaim_one(child, opts, apply, stop))
     return {
         "generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
@@ -649,7 +760,8 @@ class AutoReclaimer:
 
     def _opts(self, now, statuses):
         return dict(now=now, retention_days=self.retention_days, include_clones=False,
-                    task_statuses=statuses, preserve=self.preserve)
+                    task_statuses=statuses, preserve=self.preserve,
+                    task_holds=_task_holds(self.task_db, now=now, retention_days=self.retention_days))
 
     def reclaim_finished(self, now: float) -> list[dict]:
         rows = _task_rows(self.task_db)
@@ -672,7 +784,10 @@ class AutoReclaimer:
                     or child.parent != self.root or not os.path.lexists(child)):
                 continue
             self._handled.add((task_id, updated_at))
-            record = _reclaim_one(child, self._opts(now, statuses), self.apply,
+            opts = self._opts(now, statuses)
+            if opts["task_holds"] is None:
+                break  # unreadable: the next full sweep looks again
+            record = _reclaim_one(child, opts, self.apply,
                                   self._stop.is_set)
             self._log(record)
             records.append(record)

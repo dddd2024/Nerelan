@@ -737,3 +737,144 @@ def test_unreadable_disk_is_not_low(root, tmp_path):
     def broken(path):
         raise OSError("gone")
     assert _reclaimer(root, tmp_path / "x", disk_usage=broken).disk()["low"] is False
+
+
+def _junction(link, target):
+    target.mkdir()
+    (target / "precious.txt").write_text("keep\n")
+    subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+
+
+windows_only = pytest.mark.skipif(os.name != "nt", reason="NTFS junctions")
+
+
+@windows_only
+@pytest.mark.parametrize("place", ["link", "sub/link", "a.txt"])
+def test_a_junction_keeps_the_worktree_and_its_target(repo, root, tmp_path, place):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / place).parent.mkdir(exist_ok=True)
+    if place == "a.txt":
+        (wt / place).unlink()
+    _junction(wt / place, tmp_path / "outside")
+    entry = _preserve_sweep(root, tmp_path)
+    assert entry["reason"] == "contains a junction" and wt.exists()
+    assert (tmp_path / "outside" / "precious.txt").exists()
+
+
+@windows_only
+@pytest.mark.parametrize("dirty", [False, True])
+def test_a_node_modules_junction_is_unlinked_not_followed(repo, root, tmp_path, dirty):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "node_modules")
+    _junction(wt / "node_modules", tmp_path / "shared")
+    if dirty:
+        (wt / "new.txt").write_text("x\n")
+    assert _preserve_sweep(root, tmp_path)["removed"] is True and not wt.exists()
+    assert (tmp_path / "shared" / "precious.txt").exists()
+
+
+def _goal_db(path, task_status, goal_status, age_days=5):
+    _store_db(path, [("task-1", task_status, _iso(LATER - age_days * 86400))])
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE platform_goals(id TEXT, status TEXT)")
+        db.execute("CREATE TABLE platform_goal_task_links(goal_id TEXT, task_id TEXT)")
+        db.execute("INSERT INTO platform_goals VALUES('g', ?)", (goal_status,))
+        db.execute("INSERT INTO platform_goal_task_links VALUES('g', 'task-1')")
+
+
+@pytest.mark.parametrize("task_status,goal_status,kept", [
+    ("READY_FOR_REVIEW", "RUNNING", True), ("READY_FOR_REVIEW", "BLOCKED", True),
+    ("BLOCKED", "BLOCKED", True), ("FAILED", "RUNNING", False),
+    ("READY_FOR_REVIEW", "COMPLETED", False), ("READY_FOR_REVIEW", "SUPERSEDED", False),
+])
+def test_a_result_of_an_open_goal_is_kept(repo, root, tmp_path, task_status, goal_status, kept):
+    wt = add_worktree(repo, root, "task-1")
+    db = tmp_path / "tasks.sqlite3"
+    _goal_db(db, task_status, goal_status)
+    entry = _preserve_sweep(root, tmp_path)
+    assert wt.exists() is kept and (entry["reason"] == "result of an open goal") is kept
+    if kept:
+        [record] = _reclaimer(root, db).reclaim_finished(LATER)
+        assert record["reason"] == "result of an open goal" and wt.exists()
+
+
+def test_full_sweep_waits_for_the_task_not_only_the_tree(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 3600))])
+    assert "task finished recently" in _preserve_sweep(root, tmp_path)["reason"] and wt.exists()
+
+
+def test_a_fixture_repository_with_other_history_blocks(repo, root):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "task-[0-9]*-*/")
+    nested = _fixture_repo(wt / "task-1794752891525-b7316c826cf2")
+    git(nested, "add", "fixture.txt")
+    git(nested, "commit", "-qm", "fixture")
+    git(nested, "checkout", "-qb", "work")
+    (nested / "work.py").write_text("x\n")
+    git(nested, "add", "work.py")
+    git(nested, "commit", "-qm", "work")
+    git(nested, "checkout", "-q", "-")
+    assert not (nested / "work.py").exists()
+    assert not by_name(sweep([root], now=LATER, apply=True))["task-1"]["reclaim"] and nested.exists()
+
+
+def test_a_fixture_repository_that_is_not_ignored_blocks_preserve(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    nested = _fixture_repo(wt / "task-1794752891525-b7316c826cf2")
+    git(nested, "add", "fixture.txt")
+    git(nested, "commit", "-qm", "fixture")
+    assert not _preserve_sweep(root, tmp_path)["reclaim"] and nested.exists()
+
+
+def test_intent_to_add_keeps_the_worktree(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "*.log")
+    (wt / "x.log").write_text("x\n")
+    git(wt, "add", "-N", "-f", "x.log")
+    assert _preserve_sweep(root, tmp_path)["reason"] == "intent-to-add entries" and wt.exists()
+
+
+@pytest.mark.parametrize("state", ["rebase-merge/autostash", "MERGE_HEAD", "BISECT_LOG",
+                                   "refs/worktree/mine"])
+def test_operation_state_keeps_the_worktree(repo, root, tmp_path, state):
+    wt = add_worktree(repo, root, "task-1")
+    target = workspace_reclaim._gitdir(wt) / state
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(git(wt, "rev-parse", "HEAD") + "\n")
+    old = time.time() - 60
+    os.utime(target, (old, old))
+    assert _preserve_sweep(root, tmp_path)["reason"] == "operation in progress or refs of its own"
+    assert wt.exists()
+
+
+def test_a_long_reflog_is_preserved_and_the_index_is_untouched(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    tree, main = git(wt, "rev-parse", "HEAD^{tree}"), git(wt, "rev-parse", "HEAD")
+    commits = [git(wt, "commit-tree", tree, "-p", main, "-m", f"c{n}") for n in range(120)]
+    log = workspace_reclaim._gitdir(wt) / "logs" / "HEAD"
+    with open(log, "a", newline="\n") as out:
+        for sha in commits:
+            out.write(f"{main} {sha} t <t@t> 1700000000 +0000\tx\n")
+    (wt / "new.txt").write_text("x\n")
+    index = workspace_reclaim._gitdir(wt) / "index"
+    before = index.read_bytes()
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    [record] = sweep([root], now=LATER, task_db=db, preserve=True)["entries"]
+    ref = workspace_reclaim.preserve_work(record)
+    assert index.read_bytes() == before
+    assert set(commits) <= set(git(repo, "rev-list", ref).split())
+
+
+def test_open_goal_lookup_reads_the_real_schema(tmp_path):
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = TaskStore(str(tmp_path / "tasks.sqlite3"))
+    try:
+        PlatformControlStore(store)
+        assert workspace_reclaim._open_goal_tasks(tmp_path / "tasks.sqlite3") == set()
+    finally:
+        store._conn.close()
+    with sqlite3.connect(tmp_path / "partial.sqlite3") as db:
+        db.execute("CREATE TABLE platform_goals(id TEXT, status TEXT)")
+    assert workspace_reclaim._open_goal_tasks(tmp_path / "partial.sqlite3") is None

@@ -19,7 +19,10 @@ also reclaims the worktree of a terminal task that holds uncommitted or
 unpushed work: the working tree, the index and reflog-only commits are first
 written to `refs/nerelan/reclaimed/<task>/<sha>` in the shared repository. A
 worktree whose work cannot be kept, or that changes meanwhile, stays. Get work
-back with `git worktree add <dir> refs/nerelan/reclaimed/<task>/<sha>`.
+back with `git worktree add <dir> refs/nerelan/reclaimed/<task>/<sha>`. Text is
+stored as git stores it (line endings normalized). These refs are local, never
+expire, and keep whatever was in the worktree; delete one with
+`git update-ref -d` when it is no longer wanted.
 
 ## Automatic reclaim in the trusted host
 
