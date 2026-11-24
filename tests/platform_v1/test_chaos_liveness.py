@@ -108,6 +108,15 @@ FAULTS = (
     Fault("quota_credits", "host", _plain(
         "FAILED", "quota_exhausted",
         "opencode_nonzero:exit=1:quota_exhausted name=APIError status=429 message=Credits exhausted")),
+    # The three #1505 attempts (2026-11-23): stall, gateway 502, connection reset.
+    Fault("connection_reset", "host", _plain(
+        "FAILED", "network_provider_failure",
+        'opencode_nonzero:exit=1:network_provider_failure name=UnknownError message={"message":"Trae CN: '
+        'ECONNRESET: The socket connection was closed unexpectedly. (502: you can retry your request)"}')),
+    Fault("gateway_502_in_generic_exit", "host", _plain(
+        "FAILED", "executor_nonzero",
+        "opencode_nonzero:exit=1:executor_nonzero name=APIError status=502 message=Bad Gateway: upstream_error")),
+    Fault("native_gateway_502", "host", _plain("FAILED", "claude_code_turn_failed:api_error_502")),
     Fault("terminated", "host", _plain("FAILED", "executor_terminated", "exit=3221225786")),
     Fault("termination_in_generic_exit", "host", _plain(
         "FAILED", "executor_nonzero", "opencode_nonzero:exit=3221225786:executor_nonzero")),
@@ -292,6 +301,16 @@ def test_a_goal_survives_repeated_host_faults(bed, fault, repeat):
     goal_id = bed.add_goal(f"{fault}-{repeat}", [BY_NAME[fault]] * repeat)
     _assert_live(bed)
     assert bed.control.get_goal(goal_id).status == "COMPLETED"
+
+
+def test_the_1505_upstream_sequence_moves_bindings_and_spends_no_budget(bed):
+    script = [BY_NAME[name] for name in ("stall", "gateway_502_in_generic_exit", "connection_reset")]
+    goal_id = bed.add_goal("issue-1505", script, steps=1)
+    _assert_live(bed)
+    assert bed.control.get_goal(goal_id).status == "COMPLETED"
+    assert bed.goals.retry_options(goal_id)["routing_retries_left"] == MAX_RETRIES
+    reasons = [row["reason"] for row in bed.control.list_task_escalations(goal_id)]
+    assert reasons[1] == "host_retry:network_provider_failure:rerouted"
 
 
 def test_model_failures_within_the_budget_still_complete(bed):

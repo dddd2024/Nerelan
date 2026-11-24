@@ -206,12 +206,17 @@ def test_escalated_task_keeps_the_launch_base_when_head_moves(monkeypatch):
 
 @pytest.mark.parametrize("classification", ["auth_provider_route_failure", "cli_unavailable",
                                             "functional_contract_conflict", "budget_exhausted",
-                                            "network_provider_failure", "workspace_missing",
+                                            "workspace_missing",
                                             "claude_code_turn_failed:api_error_429", "claude_code_turn_failed:api_error"])
 def test_infrastructure_failures_never_escalate(monkeypatch, classification):
     store, control, goals, goal = _launched(monkeypatch)
-    _fail(store, _link(control, goal.id, "T001")["task_id"], classification=classification)
+    failed_id = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, failed_id, classification=classification)
     assert goals.escalate_failed_tasks(goal.id) == ()
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    if not classification.endswith("429"):  # a rate limit has its own retry path
+        # The wait is visible, and repeated sweeps record it once.
+        assert [e.metadata["reason"] for e in store.get_events(failed_id) if e.type == "MODEL_SELECTION_FAILED"]             == [f"automatic_retry_not_allowed:{classification}"]
 
 
 def test_escalations_spend_the_window_retry_budget(monkeypatch):
