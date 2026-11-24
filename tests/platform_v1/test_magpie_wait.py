@@ -272,7 +272,7 @@ def test_idle_loop_shares_one_wait_budget(
             return {"available": False, "reason": "cancelled"}
         clock += spent
         if cancelled:
-            cancel.set()
+            coordinator._stop.set()
             return {"available": False, "reason": "cancelled"}
         return {"available": available, "reason": "allowance_available" if available else "timeout"}
 
@@ -291,4 +291,5 @@ def test_idle_loop_shares_one_wait_budget(
     coordinator._run()
 
     assert ticks == expected_ticks
-    assert sleeps == expected_sleep
+    # The local wait is taken in slices, so a quota reset can end it.
+    assert sum(sleeps) == sum(expected_sleep)

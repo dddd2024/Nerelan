@@ -52,6 +52,18 @@ SWEEP_REPEAT_SECONDS = 900.0
 # a stop request by more than a minute (cancellation polls every 0.2 s).
 QUOTA_WAIT_MIN_SECONDS = 60.0
 QUOTA_WAIT_MAX_SECONDS = 3600.0
+REEVALUATE_POLL_SECONDS = 5.0
+
+
+class _AnySet:
+    """``is_set`` over several events, for a wait that any of them may cancel."""
+
+    def __init__(self, *events: threading.Event) -> None:
+        self._events = events
+
+    def is_set(self) -> bool:
+        return any(event.is_set() for event in self._events)
+
 
 
 def _failure_detail(exc: BaseException) -> str:
@@ -132,6 +144,7 @@ class UnattendedCoordinator:
         self.claim_lease_ms = max(1, claim_lease_ms)
         self.owner = owner or f"coordinator-{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self._stop = threading.Event()
+        self._reevaluate = threading.Event()  # an account's quota reset: look at held work now
         self._thread: threading.Thread | None = None
         self._lifecycle_lock = threading.RLock()
         self._recovering = False
@@ -1024,6 +1037,18 @@ class UnattendedCoordinator:
             return self.poll_interval
         return max(self.poll_interval, min(float(hint), IDLE_WAIT_CAP_SECONDS))
 
+    def request_reevaluation(self) -> None:
+        """End the idle wait and re-examine stuck goals: an account's quota reset was seen."""
+        self._reevaluate.set()
+
+    def _idle(self, poll_at: float) -> None:
+        """Sleep until ``poll_at``, stop, or a requested re-evaluation (seen within 5 s)."""
+        while not self._stop.is_set() and not self._reevaluate.is_set():
+            remaining = poll_at - time.monotonic()
+            if remaining <= 0:
+                return
+            self._stop.wait(min(remaining, REEVALUATE_POLL_SECONDS))
+
     def quota_wait(self, wait_seconds: float) -> bool:
         """Delegate a long idle wait to Magpie; ``True`` when capacity returned.
 
@@ -1037,10 +1062,11 @@ class UnattendedCoordinator:
 
         budget = int(min(wait_seconds, QUOTA_WAIT_MAX_SECONDS))
         result = wait_for_allowance(self.quota_wait_target, timeout=f"{budget}s",
-                                    cancel=self._stop)
+                                    cancel=_AnySet(self._stop, self._reevaluate))
         if result.get("available"):
             return True
-        if result.get("reason") not in (None, "timeout", "allowance_available"):
+        if result.get("reason") not in (None, "timeout", "allowance_available") and not (
+                result.get("reason") == "cancelled" and self._reevaluate.is_set()):
             self._last_error = f"quota_wait_{result['reason']}"
         return False
 
@@ -1055,6 +1081,13 @@ class UnattendedCoordinator:
                         self._recovering = False
             reconciled_at = time.monotonic()
             while not self._stop.is_set():
+                if self._reevaluate.is_set():
+                    self._reevaluate.clear()
+                    getattr(self, "_swept", {}).clear()  # every stuck goal is due again
+                    try:
+                        self._sweep_escalations(stop_event=self._stop)
+                    except Exception as exc:  # noqa: BLE001 - a sweep fault must not stop dispatch
+                        self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
                 if time.monotonic() - reconciled_at >= self.reconcile_interval:
                     reconciled_at = time.monotonic()
                     try:
@@ -1076,9 +1109,7 @@ class UnattendedCoordinator:
                 if self.quota_wait(wait):
                     continue  # allowance is back: poll now instead of sleeping
                 # Delegation and local polling share the same idle interval.
-                remaining = poll_at - time.monotonic()
-                if remaining > 0:
-                    self._stop.wait(remaining)
+                self._idle(poll_at)
         finally:
             # Stop is draining, not cancellation. Retain thread ownership and
             # all original lease/claim semantics until each live batch finishes.

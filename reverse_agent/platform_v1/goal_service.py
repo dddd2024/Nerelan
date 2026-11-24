@@ -452,7 +452,10 @@ class GoalService:
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
                  roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3,
                  account_status_provider: Any | None = None, binding_account_resolver: Any | None = None,
-                 source_issues: GoalSourceIssues | None = None) -> None:
+                 source_issues: GoalSourceIssues | None = None,
+                 quota_reset_released: Any | None = None) -> None:
+        # (binding, failed_at) -> the account reset after that refusal and has room again.
+        self.quota_reset_released = quota_reset_released
         if type(max_review_rounds) is not int or max_review_rounds < 1:
             raise TaskStoreError("invalid_review_round_limit")
         self.max_review_rounds = max_review_rounds
@@ -1667,7 +1670,10 @@ class GoalService:
                 failed_at = _parse_utc(failed.updated_at)
                 wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), PATIENT_BACKOFF_MAX_SECONDS)
                 now_wall = time.time()
-                if failed_at is None or now_wall < failed_at + wait:
+                # The account reset after this refusal: its wait is over.
+                released = (quota_failure and failed_at is not None and self.quota_reset_released is not None
+                            and self.quota_reset_released(failed.binding_ref, failed_at))
+                if not released and (failed_at is None or now_wall < failed_at + wait):
                     if failed_at is not None:
                         remaining = failed_at + wait - now_wall
                         earliest_delay = remaining if earliest_delay is None else min(earliest_delay, remaining)

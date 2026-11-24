@@ -195,6 +195,7 @@ class CombinedTrustedHost:
             account_status_provider=self._goal_account_status_provider,
             binding_account_resolver=self._binding_account_resolver,
             source_issues=GoalSourceIssues(),
+            quota_reset_released=self._quota_reset_released,
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -266,8 +267,82 @@ class CombinedTrustedHost:
         settings = self._store.get_magpie()
         if not (settings.get("enabled") or magpie_enabled(os.environ)):
             return None
-        return fetch_magpie_snapshot(
+        snapshot = fetch_magpie_snapshot(
             os.environ.get("REVERSE_AGENT_MAGPIE_URL", settings.get("base_url") or "http://127.0.0.1:3425"))
+        self._observe_quota_resets(snapshot)
+        return snapshot
+
+    def _observe_quota_resets(self, snapshot: Any) -> None:
+        """Record resets the account readings show and re-evaluate held work at once.
+
+        Never raises: a failed observation only leaves the holds as they were.
+        """
+        try:
+            now = time.time()
+            store = self._control_store.quota_resets
+            since = getattr(self, "_quota_resets_checked_at", now)
+            self._quota_resets_checked_at = now
+            if not store.observe(snapshot, now=now) and not store.passed(since=since, now=now):
+                return
+            # A minute-old view predates the reset. A read in progress stores its own result after this.
+            self.__dict__.pop("_subscription_quota_cache", None)
+            coordinator = getattr(self, "_coordinator", None)
+            if coordinator is not None:
+                coordinator.request_reevaluation()
+        except Exception:  # noqa: BLE001 - detection is optional evidence
+            return
+
+    def _recent_quota_resets(self) -> list[dict[str, Any]]:
+        from .quota_resets import public_event
+        since = time.time() - 7 * 86400
+        return [public_event(event) for event in self._control_store.quota_resets.recent(since=since)]
+
+    def _reset_account(self, connection: Mapping[str, Any], binding: Mapping[str, Any]) -> "str | None":
+        """The account a binding spends: its linked one, or the gateway's only one of that upstream."""
+        if connection.get("account_ref"):
+            return connection["account_ref"]
+        from .resource_allowances import gateway_connection
+        namespace = _upstream_namespace(binding)
+        if not namespace or not gateway_connection(connection):
+            return None
+        refs = getattr(self, "_magpie_provider_accounts", {}).get(namespace, ())
+        return refs[0] if len(refs) == 1 else None  # with more than one, which refused is unknown
+
+    def _binding_reset_account(self, binding_ref: str) -> "tuple[str | None, str]":
+        binding = next((b for b in self._store.list_bindings_public() if b["binding_id"] == binding_ref), None)
+        if binding is None:
+            return None, ""
+        connection = self._store.get_connection_public(binding["connection_id"])
+        return self._reset_account(connection, binding), binding["model_id"]
+
+    def _quota_reset_released(self, binding_ref: str, failed_at: float) -> bool:
+        """Whether the account a failed attempt ran on reset since, with room again."""
+        try:
+            account, model = self._binding_reset_account(binding_ref)
+            return account is not None and self._control_store.quota_resets.released(
+                account, model, hit_at=failed_at, now=time.time())
+        except Exception:  # noqa: BLE001 - without evidence the ordinary backoff stands
+            return False
+
+    def _goal_quota_resets(self, goal: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """Resets of the accounts this goal's attempts run on, since its first attempt."""
+        from .quota_resets import public_event
+        from ..model_access.quota_forecast import parse_time
+        refs, began = set(), []
+        for link in goal.get("task_links") or ():
+            for attempt in (*(link.get("attempts") or ()), link):
+                try:
+                    task = self._task_store.get_task(str(attempt.get("task_id") or ""), event_limit=0)
+                except TaskStoreError:
+                    continue
+                refs.add(task.binding_ref)
+                began.append(parse_time(task.created_at))
+        accounts = {account for ref in refs if ref
+                    for account in (self._binding_reset_account(ref)[0],) if account}
+        since = min((at for at in began if at is not None), default=None)
+        if not accounts or since is None:
+            return []
+        return [public_event(event) for event in self._control_store.quota_resets.recent(accounts, since=since)]
 
     def _pool_runtime_status(self) -> dict[str, Any]:
         """Coordinator and active-window facts the alert rules read."""
@@ -294,6 +369,7 @@ class CombinedTrustedHost:
             persist_alerts=os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1",
             weekly_pace=self._weekly_pace_policy,
             reset_signal=self._routing_reset_signal,
+            quota_resets=self._recent_quota_resets,
         )
 
     def _weekly_pace_policy(self) -> Mapping[str, Any]:
@@ -1417,6 +1493,7 @@ class CombinedTrustedHost:
             # hour). Any other connection is one account, whatever its model ids look like.
             candidates = [b for b in candidates if _upstream_namespace(b) == namespace]
         bindings = [b["binding_id"] for b in candidates]
+        by_id = {b["binding_id"]: b for b in candidates}
         if not bindings:
             return None
         now = time.time()
@@ -1424,7 +1501,8 @@ class CombinedTrustedHost:
         # never from a later admission check. Keep those older failures discoverable.
         since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, failure_detail, failure_reset_at, failure_at, updated_at FROM tasks "
+            "SELECT binding_ref, failure_classification, failure_detail, failure_reset_at, failure_at, updated_at "
+            "FROM tasks "
             "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
@@ -1450,6 +1528,11 @@ class CombinedTrustedHost:
                 pass
             if stated is not None and stated <= now:
                 continue  # An expired stated failure cannot renew on a later quota window.
+            row_binding = by_id[row["binding_ref"]]
+            reset_account = self._reset_account(connection, row_binding)
+            if reset_account and self._control_store.quota_resets.released(
+                    reset_account, row_binding["model_id"], hit_at=hit_at, now=now, stated_reset=stated):
+                continue  # The account's own readings show it reset after this refusal.
             if stated is not None:
                 # Only exhausted windows may extend a stated account hold.
                 from .quota_guard import parse_time
@@ -1588,6 +1671,7 @@ class CombinedTrustedHost:
             self._magpie_allowances = read_allowances(snapshot, now=time.time())
         except Exception:  # noqa: BLE001 - allowances only add preferences; none is the safe default
             self._magpie_allowances = None
+        self._observe_quota_resets(snapshot)
         magpie = magpie_quota_windows(snapshot)
         merged = dict(local)
         for key, quota in magpie.items():
@@ -1836,6 +1920,7 @@ class CombinedTrustedHost:
                 local_client_session=self._local_client_session,
                 magpie_status=self._magpie.status,
                 pool_monitor=self._pool_monitor,
+                goal_quota_resets=self._goal_quota_resets,
             )
             self._task_server = ExclusiveThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
