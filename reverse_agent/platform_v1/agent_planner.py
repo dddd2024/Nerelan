@@ -1,7 +1,7 @@
 """Planner agent: decompose a Goal into difficulty-tagged tasks for the Agent team.
 
-The planner role's agent (a native CLI executor: Claude Code or Codex) runs
-read-only in a disposable detached worktree and must answer with one JSON object.
+The planner role's agent (Claude Code, Codex, or OpenCode in read-only role
+mode) runs in a disposable detached worktree and must answer with one JSON object.
 That plan then goes through the ordinary GoalService validation, so a
 malformed or out-of-policy plan is rejected exactly like a hand-written one.
 Planning runs as a background job because it can take minutes; callers poll
@@ -167,9 +167,137 @@ def extract_plan(text: str) -> dict[str, Any]:
     return {"tasks": tasks, "acceptance_criteria": criteria[:20]}
 
 
+def _opencode_planner_final_text(stdout: str) -> str:
+    """Extract the full untruncated assistant text from OpenCode JSONL stdout."""
+    final_parts: list[str] = []
+    for line in (stdout or "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            event = json.loads(stripped)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        if not isinstance(event, Mapping):
+            continue
+        part = event.get("part")
+        if (event.get("type") == "text" and isinstance(part, Mapping)
+                and part.get("type") == "text" and isinstance(part.get("text"), str)):
+            final_parts.append(part["text"])
+    return final_parts[-1] if final_parts else ""
+
+
+def _opencode_planner_usage(stdout: str, model_for_cli: str) -> dict[str, int] | None:
+    from . import opencode_executor as oe
+
+    observations = oe._extract_usage_observations(
+        stdout,
+        task_id="plan",
+        execution_id="plan",
+        role="planner",
+        fallback_model_id=model_for_cli,
+    )
+    input_total, output_total, seen = 0, 0, False
+    for row in observations:
+        if row.get("status") not in {"OBSERVED", "PARTIAL"}:
+            continue
+        in_units, out_units = row.get("input_units"), row.get("output_units")
+        if type(in_units) is int and in_units >= 0:
+            input_total += in_units
+            seen = True
+        if type(out_units) is int and out_units >= 0:
+            output_total += out_units
+            seen = True
+    return {"input_tokens": input_total, "output_tokens": output_total} if seen else None
+
+
+def _run_opencode_planner(*, model_id: str, repo_dir: str, prompt: str,
+                          timeout: float = PLAN_TIMEOUT_SECONDS,
+                          executor_factory: Callable[..., Any] | None = None,
+                          binding_resolution: Any = None,
+                          lease_provider: Any = None) -> "PlannerOutput":
+    from . import opencode_executor as oe
+
+    factory = executor_factory or oe.OpenCodeExecutor
+    executor = factory(
+        model_id=model_id,
+        binding_resolution=binding_resolution,
+        lease_provider=lease_provider,
+        repo_dir=repo_dir,
+        timeout=min(timeout, 600),
+        use_auto=False,
+    )
+    cli_path, is_cmd = oe.resolve_opencode_cli(executor._opencode_exe)
+    workspace = Path(repo_dir).resolve()
+    prompt_file = oe._write_prompt_file(prompt)
+    lease_handle = None
+    try:
+        if executor._binding_resolution is not None and executor._binding_resolution.relay_required:
+            lease_handle = executor._lease_provider(executor._binding_resolution)
+            lease_handle.bind_execution_deadline(executor._timeout)
+        model_for_cli = lease_handle.model_id if lease_handle is not None else executor._model_id
+        if executor._binding_resolution is not None:
+            config_content = oe.build_binding_config_content(
+                executor._binding_resolution,
+                lease=lease_handle,
+                context_window=executor._context_window,
+                max_output_tokens=executor._max_output_tokens,
+            )
+            child_env = oe.build_role_child_env(executor._parent_env, config_content, "planner")
+        else:
+            child_env = oe.build_role_child_env(executor._parent_env, None, "planner")
+        cli_argv, _ = oe.build_opencode_argv(
+            cli_path,
+            is_cmd=is_cmd,
+            model_id=model_for_cli,
+            worktree=str(workspace),
+            prompt_file=str(prompt_file),
+            use_auto=executor._use_auto,
+        )
+        owned = oe._run_owned_cli_process(
+            cli_argv,
+            cwd=str(workspace),
+            env=child_env,
+            timeout=executor._timeout,
+        )
+    finally:
+        if lease_handle is not None:
+            try:
+                lease_handle.release()
+            except Exception:
+                pass
+        try:
+            prompt_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+    if not owned.cleanup_confirmed:
+        raise TaskStoreError("opencode_cleanup_unconfirmed")
+    if owned.timed_out:
+        raise TaskStoreError("opencode_execution_timeout")
+    if owned.stalled:
+        raise TaskStoreError("executor_stalled")
+    events_raw, _ = executor._parse_json_lines(owned.stdout)
+    if owned.returncode != 0:
+        raise TaskStoreError(executor._classify_exit(owned.returncode, events_raw) or "opencode_planner_failed")
+    # Use raw JSONL text extraction rather than redacted executor evidence so plans longer
+    # than MAX_EVIDENCE_STRING_LEN are never truncated before extract_plan() parses them.
+    return PlannerOutput(_opencode_planner_final_text(owned.stdout), _opencode_planner_usage(owned.stdout, model_for_cli))
+
+
 def run_planner_cli(*, executor_kind: str, model_id: str, repo_dir: str, prompt: str,
-                    timeout: float = PLAN_TIMEOUT_SECONDS, executor_factory: Callable[..., Any] | None = None) -> str:
+                    timeout: float = PLAN_TIMEOUT_SECONDS, executor_factory: Callable[..., Any] | None = None,
+                    binding_resolution: Any = None, lease_provider: Any = None) -> "PlannerOutput":
     """Run the planner read-only in its isolated workspace; return its final text."""
+    if executor_kind == "opencode":
+        return _run_opencode_planner(
+            model_id=model_id,
+            repo_dir=repo_dir,
+            prompt=prompt,
+            timeout=timeout,
+            executor_factory=executor_factory,
+            binding_resolution=binding_resolution,
+            lease_provider=lease_provider,
+        )
     from .codex_executor import CodexExecutor, CodexPreparedContext
     from .claude_executor import ClaudeCodeExecutor
     classes = {"claude_code": ClaudeCodeExecutor, "codex": CodexExecutor}
@@ -240,7 +368,12 @@ _RUNTIME_CODES = frozenset({
     "cli_missing", "cli_requires_native_executable", "cli_unavailable", "model_id_invalid",
     "sandbox_invalid", "timeout_invalid", "managed_login_unavailable", "process_start_failed",
     "requires_managed_session_binding", "session_unavailable", "relay_requires_lease_provider",
-)})
+)} | {
+    "opencode_cli_missing", "opencode_cli_unavailable", "opencode_execution_timeout",
+    "opencode_model_id_invalid", "opencode_transport_kind_invalid", "binding_executor_mismatch",
+    "api_key_requires_relay", "lease_provider_required", "lease_id_required", "relay_url_required",
+    "api_key_lease_required", "external_session_unavailable", "magpie_unreachable", "opencode_nonzero",
+})
 
 
 def _runtime_error_code(exc: ExecutorRuntimeError) -> str:
@@ -256,14 +389,16 @@ class AgentPlanner:
 
     def __init__(self, *, goal_service: Any, roster_resolver: Callable[[str], tuple[str, str]],
                  binding_model: Callable[[str], str], repo_dir_for: Callable[[str], str],
-                 runner: Callable[..., str] = run_planner_cli,
-                 workspace_root: str | Path | None = None) -> None:
+                 runner: Callable[..., Any] = run_planner_cli,
+                 workspace_root: str | Path | None = None,
+                 binding_context: Callable[[str], tuple[Any, Any]] | None = None) -> None:
         self._goals = goal_service
         self._roster = roster_resolver
         self._binding_model = binding_model
         self._repo_dir_for = repo_dir_for
         self._runner = runner
         self._workspace_root = workspace_root or (Path(goal_service.store.db_path).absolute().parent / "task_workspaces")
+        self._binding_context = binding_context
         self._jobs: dict[str, PlanJob] = {}
         self._lock = threading.Lock()
 
@@ -282,7 +417,7 @@ class AgentPlanner:
         if goal.orchestration_mode != "agent_team":
             raise TaskStoreError("agent_planner_requires_agent_team_goal")
         executor_kind, binding_ref = self._roster("planner")
-        if executor_kind not in {"claude_code", "codex"}:
+        if executor_kind not in {"claude_code", "codex", "opencode"}:
             raise TaskStoreError("agent_planner_requires_native_executor")
         with self._lock:
             current = self._jobs.get(goal_id)
@@ -314,12 +449,20 @@ class AgentPlanner:
     def _run(self, job: PlanJob, goal: Any, executor_kind: str, binding_ref: str,
              source: Path, base_commit: str) -> None:
         try:
+            extra: dict[str, Any] = {}
+            if executor_kind == "opencode" and self._binding_context is not None:
+                resolution, lease_provider = self._binding_context(binding_ref)
+                if resolution is not None:
+                    extra["binding_resolution"] = resolution
+                if lease_provider is not None:
+                    extra["lease_provider"] = lease_provider
             with repository_preparation.planner_worktree(
                     source, self._workspace_root, goal.id, goal.revision, base_commit) as (workspace, _):
                 output = self._runner(
                     executor_kind=executor_kind, model_id=self._binding_model(binding_ref),
                     repo_dir=str(workspace),
-                    prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository))
+                    prompt=build_planner_prompt(objective=goal.objective, repository=goal.repository),
+                    **extra)
             if isinstance(output, PlannerOutput):
                 text, job.usage = output.text, output.usage
             else:

@@ -820,6 +820,22 @@ def test_coordinator_preserves_qualification_and_review_boundary(reserved, monke
         r.store._conn.close()
 
 
+def test_coordinator_quota_resume_allows_prior_only_unproven(reserved, monkeypatch):
+    n = reserved
+    park_for_resume(n, monkeypatch)
+    r = coordinator_recovery(n, monkeypatch, alternative=True)
+    launches, _ = resume_transport(n, r, monkeypatch)
+    r.host._resolve_task_model = lambda *a, **k: {
+        "binding_ref": "alternative", "executor_kind": "claude_code",
+        "underpowered": True, "reason": "prior_only_unproven",
+    }
+    try:
+        assert r.coordinator.tick() == 1
+        assert len(launches) == 1 and launches[0][0] == "claude_code"
+    finally:
+        r.store._conn.close()
+
+
 def test_resume_crash_is_ambiguous_and_cannot_launch_again(reserved, monkeypatch):
     n = reserved
     park_for_resume(n, monkeypatch)

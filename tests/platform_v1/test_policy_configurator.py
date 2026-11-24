@@ -16,6 +16,7 @@ KNOWN = {
     "coding-glm": {"binding_id": "coding-glm", "executor_id": "opencode", "model_id": "glm-5.2", "connection_id": "deepseek-flash"},
     "coding-kimi": {"binding_id": "coding-kimi", "executor_id": "opencode", "model_id": "kimi-k3", "connection_id": "deepseek-flash"},
     "chatgpt-gpt": {"binding_id": "chatgpt-gpt", "executor_id": "codex", "model_id": "gpt-6.1-sol", "connection_id": "chatgpt-account"},
+    "custom-bot": {"binding_id": "custom-bot", "executor_id": "custom_exec", "model_id": "bot-1", "connection_id": "deepseek-flash"},
 }
 PROPOSAL = {"roles": {"planner": "claude-opus", "complex": "claude-sonnet", "coder": "coding-glm",
                       "simple": "coding-glm", "reviewer": "chatgpt-gpt"},
@@ -33,12 +34,14 @@ def test_extract_policy_validates_against_real_bindings():
     proposal = extract_policy("```json\n" + json.dumps(PROPOSAL) + "\n```", known=KNOWN)
     assert proposal["roles"]["coder"] == "coding-glm" and proposal["excluded"] == ["coding-kimi"]
     assert "GLM" in proposal["explanation"]
+    oc_planner = extract_policy(json.dumps({**PROPOSAL, "roles": {**PROPOSAL["roles"], "planner": "coding-glm"}}), known=KNOWN)
+    assert oc_planner["roles"]["planner"] == "coding-glm"
 
 
 @pytest.mark.parametrize("change,error", [
     ({"roles": {"coder": "made-up"}}, "agent_policy_unknown_binding:coder"),
     ({"roles": {"coder": "coding-kimi"}, "excluded": ["coding-kimi"]}, "agent_policy_role_uses_excluded_binding:coder"),
-    ({"roles": {"planner": "coding-glm"}}, "agent_policy_planner_requires_native_executor"),
+    ({"roles": {"planner": "custom-bot"}}, "agent_policy_planner_requires_native_executor"),
     ({"roles": "everything"}, "agent_policy_roles_required"),
 ])
 def test_extract_policy_rejects_invented_or_inconsistent_proposals(change, error):

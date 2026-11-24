@@ -639,12 +639,22 @@ class CombinedTrustedHost:
     def _agent_planner(self) -> Any:
         from .agent_planner import AgentPlanner
         from .repository_workspace import resolve_repository_workspace
+
+        def _binding_context(binding_ref: str) -> tuple[Any, Any]:
+            if not self.model_control_url:
+                return None, None
+            resolution = self._binding_resolver_factory(self.model_control_url).resolve(
+                binding_ref, task_executor="opencode"
+            )
+            return resolution, self._lease_provider_factory()
+
         return AgentPlanner(
             goal_service=self._goal_service,
             roster_resolver=self._resolve_agent_role,
             binding_model=lambda binding_ref: self._store.get_binding_public(binding_ref)["model_id"],
             repo_dir_for=lambda repository: str(resolve_repository_workspace(repository).repo_dir),
             workspace_root=self._task_workspace_root(),
+            binding_context=_binding_context,
         )
 
     def _context_recovery(self) -> Any:
@@ -1279,7 +1289,7 @@ class CombinedTrustedHost:
                                                            quota_evidence=fresh_evidence)
                     except TaskStoreError as exc:
                         raise TaskStoreError("QUOTA_WAIT:no_qualifying_model") from exc
-                    if decision.get("underpowered") or decision["executor_kind"] not in {"codex", "claude_code"}:
+                    if (decision.get("underpowered") and decision.get("reason") != "prior_only_unproven") or decision["executor_kind"] not in {"codex", "claude_code"}:
                         raise TaskStoreError("QUOTA_WAIT:qualifying_native_model_unavailable")
                     if decision["binding_ref"] != task.binding_ref:
                         resume_route = {"goal_id": goal.id, "goal_revision": goal.revision,
@@ -1615,7 +1625,7 @@ class CombinedTrustedHost:
                 for entry in getattr(self, "_quota_guard_log", ())]
 
     # Roles whose work only some executors can do; a measured swap never leaves this set.
-    ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex"})}
+    ROLE_EXECUTORS = {"planner": frozenset({"claude_code", "codex", "opencode"})}
 
     def _usage_profiles(self) -> dict[str, dict[str, Any]]:
         """What each Binding was observed doing, for the unified resource view."""

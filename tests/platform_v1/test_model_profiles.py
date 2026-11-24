@@ -134,17 +134,20 @@ def test_best_pairing_needs_evidence_and_prefers_success_then_speed():
 def test_a_planner_is_never_swapped_to_an_executor_that_cannot_plan():
     from types import SimpleNamespace
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+    assert {"claude_code", "codex", "opencode"} <= CombinedTrustedHost.ROLE_EXECUTORS["planner"]
     store = TaskStore(":memory:")
-    for hour in (1, 2, 3):  # the OpenCode sibling is measured much better than the Claude Code binding
+    for hour in (1, 2, 3):  # siblings are measured better than the Claude Code binding
         _task(store, "glm-opencode", "READY_FOR_REVIEW", start=f"2026-10-13T0{hour}:00:00Z", end=f"2026-10-13T0{hour}:01:00Z")
+        _task(store, "glm-codex", "READY_FOR_REVIEW", kind="codex", start=f"2026-10-13T0{hour}:00:00Z", end=f"2026-10-13T0{hour}:01:00Z")
         _task(store, "glm-claude", "FAILED", "deterministic_validation_failure", kind="claude_code")
     bindings = [{"binding_id": "glm-claude", "executor_id": "claude_code", "connection_id": "c", "model_id": "glm", "enabled": True},
-                {"binding_id": "glm-opencode", "executor_id": "opencode", "connection_id": "c", "model_id": "glm", "enabled": True}]
+                {"binding_id": "glm-opencode", "executor_id": "opencode", "connection_id": "c", "model_id": "glm", "enabled": True},
+                {"binding_id": "glm-codex", "executor_id": "codex", "connection_id": "c", "model_id": "glm", "enabled": True}]
     model_store = SimpleNamespace(list_bindings_public=lambda: bindings,
-                                  list_executors_public=lambda: [{"executor_id": e, "operational": True} for e in ("claude_code", "opencode")])
-    host = SimpleNamespace(_store=model_store, _task_store=store, ROLE_EXECUTORS=CombinedTrustedHost.ROLE_EXECUTORS)
+                                  list_executors_public=lambda: [{"executor_id": e, "operational": True} for e in ("claude_code", "opencode", "codex")])
+    host = SimpleNamespace(_store=model_store, _task_store=store, ROLE_EXECUTORS={"planner": frozenset({"claude_code", "opencode"})})
     pick = lambda role: CombinedTrustedHost._prefer_measured_pairing(host, role, "claude_code", "glm-claude")
-    assert pick("planner") == ("claude_code", "glm-claude")  # OpenCode cannot plan
+    assert pick("planner") == ("opencode", "glm-opencode")  # codex excluded under restricted ROLE_EXECUTORS; opencode allowed
     assert pick("coder") == ("opencode", "glm-opencode")  # other roles follow the measurements
 
 

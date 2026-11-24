@@ -121,7 +121,7 @@ def _planner(tmp_path, goals, runner, roster=("claude_code", "claude-opus")):
         calls.append(kwargs)
         return runner(**kwargs)
     return AgentPlanner(goal_service=goals, roster_resolver=lambda role: roster,
-                        binding_model=lambda ref: {"claude-opus": "opus"}[ref],
+                        binding_model=lambda ref: {"claude-opus": "opus", "cheap": "glm-5.2"}[ref],
                         repo_dir_for=lambda repository: str(repo), runner=run,
                         workspace_root=tmp_path / "workspaces"), calls
 
@@ -154,11 +154,14 @@ def test_planner_failures_are_finite_and_leave_the_goal_unplanned(tmp_path):
 def test_planner_requires_native_planner_and_current_revision(tmp_path):
     goals, goal = _goals()
     planner, _ = _planner(tmp_path, goals, lambda **_: json.dumps(PLAN), roster=("opencode", "cheap"))
+    assert planner.start(goal.id, expected_revision=1, background=False)["status"] == "PLANNED"
+    goals2, goal2 = _goals()
+    planner, _ = _planner(tmp_path, goals2, lambda **_: json.dumps(PLAN), roster=("custom", "cheap"))
     with pytest.raises(TaskStoreError, match="agent_planner_requires_native_executor"):
-        planner.start(goal.id, expected_revision=1, background=False)
-    planner, _ = _planner(tmp_path, goals, lambda **_: json.dumps(PLAN))
+        planner.start(goal2.id, expected_revision=1, background=False)
+    planner, _ = _planner(tmp_path, goals2, lambda **_: json.dumps(PLAN))
     with pytest.raises(TaskStoreError, match="goal_revision_mismatch"):
-        planner.start(goal.id, expected_revision=2, background=False)
+        planner.start(goal2.id, expected_revision=2, background=False)
 
 
 def test_read_only_cli_run_parses_claude_stream(tmp_path):
@@ -494,3 +497,51 @@ def test_planner_prompt_sizes_work_for_a_wide_model_pool():
     assert "most tasks are difficulty 3 or lower" in prompt
     assert "use 5 only for one irreducible core step" in prompt
     assert "split the work rather than lowering a rating" in prompt
+
+
+def test_read_only_opencode_planner_run_uses_devnull_and_parses_json_plan(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import opencode_executor as oe
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    events = [
+        {"type": "text", "part": {"type": "text", "text": json.dumps(PLAN)}},
+        {"type": "step-finish", "id": "sf-1", "tokens": {"input": 120, "output": 45, "reasoning": 0, "cache": {"read": 0, "write": 0}}, "cost": 0.0},
+    ]
+    script = (
+        "import sys; stdin_data = sys.stdin.read(); "
+        "assert stdin_data == '', f'expected DEVNULL EOF, got {stdin_data!r}'; "
+        "print(" + repr("\n".join(json.dumps(e) for e in events)) + ")"
+    )
+    seen = {}
+    orig_owned = oe._run_owned_cli_process
+
+    def fake_owned(argv, *, cwd, env, timeout=300, stall_seconds="env"):
+        seen["argv"] = argv
+        seen["cwd"] = cwd
+        seen["env"] = env
+        return orig_owned([sys.executable, "-u", "-c", script], cwd=cwd, env=env, timeout=15.0)
+
+    monkeypatch.setattr(oe, "_run_owned_cli_process", fake_owned)
+
+    def factory(**kwargs):
+        return OpenCodeExecutor(
+            opencode_exe=sys.executable,
+            parent_env={"PATH": str(Path(sys.executable).parent)},
+            **kwargs,
+        )
+
+    output = run_planner_cli(
+        executor_kind="opencode",
+        model_id="copilot/gpt-4.1",
+        repo_dir=str(repo),
+        prompt="plan it safely",
+        executor_factory=factory,
+    )
+    assert extract_plan(output.text)["tasks"][0]["agent_role"] == "complex"
+    assert output.usage == {"input_tokens": 120, "output_tokens": 45}
+    cfg = json.loads(seen["env"]["OPENCODE_CONFIG_CONTENT"])
+    assert cfg["permission"]["bash"] == {"*": "deny"}
+    assert cfg["permission"]["edit"]["*"] == "deny"
+    assert Path(seen["cwd"]).resolve() == repo.resolve()
