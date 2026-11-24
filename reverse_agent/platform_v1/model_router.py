@@ -293,6 +293,11 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         and identity(c["model_id"]) in authors for c in candidates))
     excluded_tiers: dict[str, int] = {}
     for candidate in candidates:
+        if candidate.get("dispatch_block"):
+            # A paid subscription behind a gateway (#1743): above every pin and preference.
+            excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
+                             "filter": "paid_subscription_gateway", "cause": candidate["dispatch_block"]})
+            continue
         if window_pool is not None and candidate["binding_id"] not in window_pool:
             excluded.append({"binding_id": candidate["binding_id"], "model_id": candidate.get("model_id"),
                              "filter": "outside_window_pool"})

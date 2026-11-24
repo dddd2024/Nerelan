@@ -2541,6 +2541,10 @@ class DurableExecutionService:
                 model_id = (
                     getattr(task, "model_profile_ref", "") or ""
                 ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
+                from .binding_resolver import BindingResolutionError
+                from .subscription_gateway import BLOCKED, unbound_model_cause
+                if unbound_model_cause(model_id):
+                    raise BindingResolutionError(BLOCKED)
                 kwargs["model_id"] = model_id
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
             kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None

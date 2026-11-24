@@ -181,6 +181,27 @@ DEFAULT_WEEKLY_PACE: dict[str, Any] = {
     "require_fresh": False}
 
 
+# Paid subscriptions that run only in their official agent, never through a gateway
+# (Owner decision 2026-11-23, #1743): gateway provider name -> the model families its
+# accounts serve. The families decide ids that name no provider and groups whose
+# members are unknown. Copilot, WorkBuddy, Trae and other non-paid sources are absent.
+DEFAULT_PAID_SUBSCRIPTIONS: dict[str, Any] = {"providers": {
+    "claude": ["claude", "opus", "sonnet", "haiku", "fable"],
+    "codex": ["gpt", "o1", "o3", "o4"],
+    "chatgpt": ["gpt"],
+    "antigravity": ["gemini"],
+}}
+_PLAIN_WORD = re.compile(r"[a-z0-9]{1,40}")
+
+
+def _valid_paid_subscriptions(raw: Any) -> bool:
+    providers = raw.get("providers") if isinstance(raw, dict) and set(raw) == {"providers"} else None
+    return (isinstance(providers, dict) and bool(providers)
+            and all(isinstance(name, str) and _PLAIN_WORD.fullmatch(name) and isinstance(families, list)
+                    and all(isinstance(family, str) and _PLAIN_WORD.fullmatch(family) for family in families)
+                    for name, families in providers.items()))
+
+
 def weekly_pace_config(owner: Mapping[str, Any]) -> dict[str, Any]:
     """Owner overrides on top of the defaults; read_overrides already validated them."""
     return {**DEFAULT_WEEKLY_PACE, **(owner.get("weekly_pace") or {})}
@@ -392,6 +413,8 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
     if group_errors:
         data["group_errors"] = group_errors
         logging.getLogger(__name__).warning("model_routing_overrides.json: ignored %s", ", ".join(group_errors))
+    if "paid_subscriptions" in data and not _valid_paid_subscriptions(data["paid_subscriptions"]):
+        raise ValueError("invalid_model_routing_overrides")
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
             or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh"))

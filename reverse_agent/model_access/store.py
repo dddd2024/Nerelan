@@ -951,6 +951,11 @@ class ModelProfileStore:
                 raise KeyError(f"binding references unknown connection")
             stored_conn = self._connections[binding.connection_id]
             conn = stored_conn.connection
+            # Every lease, probe and review starts here: refuse before any secret is read.
+            blocked = self._dispatch_block(binding)
+            if blocked:
+                from ..platform_v1.subscription_gateway import PaidSubscriptionGatewayError
+                raise PaidSubscriptionGatewayError(blocked)
             resolved_key: str | None = None
             if conn.auth_method == "api_key":
                 # Resolves through the OS vault at point of use. A locked or
@@ -1069,7 +1074,21 @@ class ModelProfileStore:
     def list_bindings_public(self) -> list[dict[str, Any]]:
         with self._lock:
             self._ensure_connection_binding_ready()
-            return [self.get_binding_public(binding.binding_id) for binding in self._bindings.values()]
+            from ..platform_v1.subscription_gateway import owner_settings
+            owner = owner_settings(self._state_path)  # read once for the whole listing
+            return [self._binding_public(binding, owner) for binding in self._bindings.values()]
+
+    def _dispatch_block(self, binding: Binding, owner: Any = ...) -> str:
+        """Why this binding may not be dispatched (a paid subscription behind a gateway), or ""."""
+        from ..platform_v1.subscription_gateway import block_cause, owner_settings
+        stored = self._connections.get(binding.connection_id)
+        if stored is None:
+            return ""  # an unknown connection cannot resolve at all
+        conn = stored.connection
+        return block_cause(binding.model_id, {
+            "auth_method": conn.auth_method, "base_url": conn.base_url,
+            "anthropic_base_url": conn.anthropic_base_url, "executor_provider_id": conn.executor_provider_id,
+        }, binding.executor_id, owner_settings(self._state_path) if owner is ... else owner)
 
     def get_binding_public(self, binding_id: str) -> dict[str, Any]:
         with self._lock:
@@ -1077,7 +1096,12 @@ class ModelProfileStore:
             binding = self._bindings.get(binding_id)
             if binding is None:
                 raise KeyError(f"binding not found: {binding_id}")
+            return self._binding_public(binding)
+
+    def _binding_public(self, binding: Binding, owner: Any = ...) -> dict[str, Any]:
+        with self._lock:
             result = binding.to_public_dict()
+            result["dispatch_block"] = self._dispatch_block(binding, owner)
             metadata = getattr(self, "_routing_catalogs", {}).get(binding.connection_id, {}).get("metadata", {}).get(binding.model_id, {})
             result["native_endpoint"] = "/responses" if metadata.get("native_endpoints") and all(
                 endpoint in {"/responses", "/v1/responses", "responses"} for endpoint in metadata["native_endpoints"]) else "/chat/completions"
