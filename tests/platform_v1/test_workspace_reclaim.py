@@ -98,7 +98,13 @@ def test_non_git_symlink_and_planner_entries_are_kept(repo, root, tmp_path):
     (root / "scratch" / "notes.txt").write_text("keep\n")
     planner = add_worktree(repo, root, "goal-r1-" + "0" * 32)
     (root / (planner.name + ".planner-owner.json")).write_text("{}")
-    os.symlink(repo, root / "link")
+    try:
+        os.symlink(repo, root / "link")
+    except OSError:
+        if os.name != "nt":
+            raise
+        # Unprivileged Windows accounts lack symlink privilege; directory junctions share the same link guard.
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(root / "link"), str(repo)], check=True, capture_output=True)
     report = sweep([root], now=LATER, apply=True)
     entries = by_name(report)
     assert entries["scratch"]["reason"] == "not a git checkout"
@@ -307,7 +313,7 @@ def test_other_missing_worktrees_stay_registered(repo, root, tmp_path):
     git(repo, "worktree", "add", "-q", "--detach", str(away), "origin/main")
     away.rename(tmp_path / "away-moved")  # missing but unlocked: prune would drop it
     assert by_name(sweep([root], now=LATER, apply=True))["task-1"]["removed"] is True
-    assert str(away) in git(repo, "worktree", "list", "--porcelain")
+    assert away.as_posix() in git(repo, "worktree", "list", "--porcelain").replace("\\", "/")
 
 
 def test_locked_worktree_is_kept(repo, root):
@@ -357,9 +363,14 @@ def test_recent_fetch_in_clone_counts_as_activity(repo, root, tmp_path):
     clone = root / "review-clone"
     git(root, "clone", "-q", str(tmp_path / "remote.git"), str(clone))
     git(clone, "fetch", "-q")  # FETCH_HEAD exists, so the next fetch rewrites it in place
+    follow = os.utime in os.supports_follow_symlinks
     for dirpath, dirs, files in os.walk(clone):
         for name in dirs + files:
-            os.utime(os.path.join(dirpath, name), (0, 0), follow_symlinks=False)
+            target = os.path.join(dirpath, name)
+            if follow:
+                os.utime(target, (0, 0), follow_symlinks=False)
+            elif not os.path.islink(target):
+                os.utime(target, (0, 0))
     os.utime(clone, (0, 0))
     git(clone, "fetch", "-q")
     now = os.stat(clone / ".git" / "FETCH_HEAD").st_mtime + 86400
