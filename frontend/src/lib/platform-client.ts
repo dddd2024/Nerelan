@@ -351,11 +351,26 @@ export interface PlatformStatus {
     executions?: number;
     last_error: string;
     active_window_id: string;
+    /** Free space of the task workspaces' volume; `hold` means no new task is started. */
+    disk?: DiskState | null;
   };
   task_count: number;
   goal_count: number;
   capability_count: number;
   live_model_calls: boolean;
+}
+
+export interface DiskState {
+  free_gb: number | null;
+  total_gb: number | null;
+  low: boolean;
+  floor_gb: number;
+  resume_gb: number;
+  hold: boolean;
+  reason: string;
+  held_since: string | null;
+  waiting_task_count: number;
+  waiting_task_ids: string[];
 }
 
 export type AccountHealth = "HEALTHY" | "DEGRADED" | "EXHAUSTED" | "ABNORMAL" | "STALE" | "UNKNOWN";
