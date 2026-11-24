@@ -14,7 +14,13 @@ only when every check below proves no work can be lost:
 * HEAD and its reflog, and for a clone every ref and reflog (branches, tags,
   stash), is reachable from a remote-tracking ref;
 * nothing anywhere in the tree was modified within the retention window;
-* when a TaskStore is given, the matching task is not in a non-terminal state;
+* when a TaskStore is given, the matching task is not in a non-terminal state,
+  finished longer ago than the retention period, and is not a result that an
+  open Goal may still read from its worktree (landing, artifact handoff);
+* it contains no junction: git on Windows follows those and deletes what they
+  point to. Only ``node_modules`` junctions are allowed; the link itself is
+  removed first;
+* no merge, rebase, bisect or similar is in progress and it has no own refs;
 * it is not a planner worktree, which recovers itself from owner records.
 
 "Pushed" means reachable from a local remote-tracking ref; run ``git fetch
@@ -31,11 +37,19 @@ tolerates Windows long paths and read-only files. A worktree is removed only
 through ``git worktree remove`` without ``--force``; if git refuses, or a file
 is locked, the failure is reported and the sweep continues.
 
+With ``preserve`` a linked worktree whose task is known and terminal may hold
+uncommitted or unpushed work: that work is first written to a
+``refs/nerelan/reclaimed/`` commit in the shared repository, verified, and only
+then is the checkout removed. Every other check above still applies.
+
 ``AutoReclaimer`` runs the same checks unattended inside the trusted host. It
 is off unless ``REVERSE_AGENT_WORKSPACE_RECLAIM`` is ``report`` (log only) or
 ``apply``. Every poll it reclaims the workspace of each task that finished
 (terminal status, last update) more than the retention period ago, and once per
 sweep interval it sweeps the whole root. Standalone clones are never included.
+When the disk holding the root has less free space than the configured floor,
+it warns, records that in its state file and sweeps early with the shorter
+low-disk retention; no safety check is relaxed.
 """
 
 from __future__ import annotations
@@ -54,6 +68,7 @@ import sqlite3
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from urllib.parse import quote
 
@@ -61,6 +76,10 @@ from .run_store import TERMINAL_STATUSES
 
 LOG = logging.getLogger(__name__)
 DEFAULT_RETENTION_DAYS = 3.0
+DEFAULT_LOW_DISK_GB = 10.0
+DEFAULT_LOW_DISK_RETENTION_DAYS = 1.0
+LOW_DISK_SWEEP_SECONDS = 3600.0
+PRESERVE_PREFIX = "refs/nerelan/reclaimed/"
 _GIT = ("git", "-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false",
         "-c", "core.longpaths=true")
 _GIT_ENV = {"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0"}
@@ -72,15 +91,41 @@ _CACHE_NAMES = frozenset({
 })
 _CACHE_SUFFIXES = (".pyc", ".pyo")
 _SCRATCH_RE = re.compile(r"\.nt(?:-[0-9a-f]{12})?")
+# What the platform's own tests leave behind when run inside a task worktree.
+_FIXTURE_NAME_RE = re.compile(r"task-\d{13}-[0-9a-f]{12}")
+_NAME_RE = re.compile(r"[A-Za-z0-9_-]{1,160}")
 
 
-def _run(args, cwd, timeout=60, stdin_text=None):
+def _is_fixture_repo(top: Path, path: Path) -> bool:
+    """A test's throwaway repository: exact name, place and content, and no remote."""
+    parts = path.parts[len(top.parts):]
+    if (not _FIXTURE_NAME_RE.fullmatch(path.name) or parts[:-1] not in ((), ("task_workspaces",))
+            or any(_is_link(top.joinpath(*parts[:n])) for n in range(1, len(parts) + 1))):
+        return False
+    try:
+        if not {entry.name for entry in os.scandir(path)} <= {".git", "fixture.txt"}:
+            return False
+        git_dir = path / ".git"
+        if _is_link(git_dir) or not git_dir.is_dir() or (git_dir / "worktrees").exists():
+            return False
+        if os.lstat(path / "fixture.txt").st_size > 4096:
+            return False
+        if "[remote" in (git_dir / "config").read_text(encoding="utf-8", errors="replace"):
+            return False
+    except OSError:
+        return False
+    # Nothing but the fixture file was ever committed, on any branch, stash or reflog.
+    history = _git(["log", "--all", "--reflog", "-m", "--format=", "--name-only", "-z"], path)
+    return history is not None and set(filter(None, history.replace("\n", "\0").split("\0"))) <= {"fixture.txt"}
+
+
+def _run(args, cwd, timeout=60, stdin_text=None, env=None):
     try:
         proc = subprocess.run(
             [*_GIT, *args], cwd=str(cwd), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout,
             input=stdin_text, stdin=None if stdin_text is not None else subprocess.DEVNULL,
-            env={**os.environ, **_GIT_ENV},
+            env={**os.environ, **_GIT_ENV, **(env or {})},
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return None, str(exc)
@@ -121,10 +166,18 @@ def _long(path: Path) -> str:
     return text
 
 
-def _walk(path: Path) -> tuple[float, bool]:
-    """Return the newest mtime in the whole tree and whether it nests a repo."""
+def _is_junction(entry_path: str, st) -> bool:
+    # Any Windows reparse point that is not a plain symlink; git unlinks symlinks.
+    return bool(getattr(st, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+                and not stat.S_ISLNK(st.st_mode)) or os.path.isjunction(entry_path)
+
+
+def _walk(path: Path) -> tuple[float, bool, list[str], list[str]]:
+    """Newest mtime in the whole tree, whether it nests a repo, its fixture repos and junctions."""
     newest = os.lstat(path).st_mtime
     nested = False
+    fixtures: list[str] = []
+    junctions: list[str] = []
     top = _long(path)
     stack = [top]
     while stack:
@@ -133,8 +186,15 @@ def _walk(path: Path) -> tuple[float, bool]:
             for entry in it:
                 st = entry.stat(follow_symlinks=False)
                 newest = max(newest, st.st_mtime)
+                if _is_junction(entry.path, st):
+                    junctions.append(entry.path)
+                    continue
                 if current != top and entry.name == ".git":
-                    nested = True
+                    plain = path / os.path.relpath(current, top)
+                    if _is_fixture_repo(path, plain):
+                        fixtures.append(plain.relative_to(path).as_posix() + "/")
+                    else:
+                        nested = True
                 if stat.S_ISDIR(st.st_mode) and entry.name != ".git" and not _is_link(Path(entry.path)):
                     stack.append(entry.path)
     # Commits and checkouts touch the (per-worktree) gitdir, not the tree root.
@@ -145,7 +205,26 @@ def _walk(path: Path) -> tuple[float, bool]:
                 newest = max(newest, os.stat(gitdir / name).st_mtime)
         except OSError:
             continue
-    return newest, nested
+    return newest, nested, fixtures, junctions
+
+
+_IN_PROGRESS = ("rebase-merge", "rebase-apply", "sequencer", "MERGE_HEAD", "MERGE_AUTOSTASH",
+                "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD", "BISECT_LOG", "AUTO_MERGE")
+
+
+def _own_state(gitdir: Path) -> bool:
+    """Operation state or refs that live only in this worktree's gitdir."""
+    return (any((gitdir / name).exists() for name in _IN_PROGRESS)
+            or any(p.is_file() for p in (gitdir / "refs").rglob("*")))
+
+
+def _unlink_junctions(path: Path) -> bool:
+    """Remove the worktree's node_modules links (never their targets); True if none is left."""
+    for link in _walk(path)[3]:
+        if os.path.basename(link) != "node_modules":
+            return False
+        os.rmdir(link)  # on a junction this removes only the link
+    return not _walk(path)[3]
 
 
 def _gitdir(path: Path) -> Path | None:
@@ -191,8 +270,60 @@ def _task_rows(db) -> dict[str, tuple[str, str]] | None:
     return None if rows is None else {i: (s, u) for i, s, u in rows}
 
 
+def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | None:
+    """``{task_id: reason}`` for finished tasks whose worktree stays; ``None`` if unreadable.
+
+    A Goal may still read its tasks' worktrees (handoff, review repair, publication,
+    landing) until it is superseded or its landing is complete: all of them while its
+    window is active or a landing is open, and otherwise those of its results, blocked
+    steps and rejected reviews until it is COMPLETED.
+    """
+    if db is None:
+        return {}
+    conn = None
+    try:
+        path = Path(db).expanduser().resolve()
+        conn = sqlite3.connect("file:" + quote(path.as_posix(), safe="/:") + "?mode=ro",
+                               uri=True, timeout=3)
+        tasks = conn.execute("SELECT * FROM tasks")
+        columns = [c[0] for c in tasks.description]
+        rows = {row["id"]: row for row in (dict(zip(columns, values)) for values in tasks)}
+        goals = []
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_goals'").fetchone():
+            goals = conn.execute(
+                "SELECT l.task_id, g.status, EXISTS(SELECT 1 FROM platform_autonomous_windows w "
+                "WHERE w.id = g.window_id AND w.status = 'ACTIVE'), "
+                "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id AND s.phase = 'COMPLETE'), "
+                "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id "
+                "AND s.phase NOT IN ('COMPLETE', 'SUPERSEDED')) "
+                # An escalation moves the link on, but a repair still reads the attempt it came from.
+                "FROM (SELECT goal_id, task_id FROM platform_goal_task_links "
+                "UNION SELECT goal_id, from_task_id FROM platform_task_escalations) l "
+                "JOIN platform_goals g ON g.id = l.goal_id").fetchall()
+    except (sqlite3.Error, OSError, ValueError, KeyError):
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
+    holds = {}
+    for task_id, row in rows.items():
+        finished_at = _parse_utc(row.get("updated_at"))
+        if "updated_at" in row and (finished_at is None or now - finished_at < retention_days * 86400):
+            holds[task_id] = f"task finished recently; retention {retention_days:g}"
+    for task_id, status, active, landed, landing in goals:
+        row = rows.get(task_id, {})
+        if status in ("SUPERSEDED", "CANCELLED") or (status == "COMPLETED" and landed):
+            continue
+        if active or landing or (status != "COMPLETED" and (
+                row.get("status") not in ("FAILED", "CANCELLED")
+                or row.get("failure_classification") == "model_review_rejected")):
+            holds[task_id] = "an open goal may still need it"
+    return holds
+
+
 def inspect(path: Path, *, now: float, retention_days: float,
-            include_clones: bool = False, task_statuses: dict | None = None) -> dict:
+            include_clones: bool = False, task_statuses: dict | None = None,
+            preserve: bool = False, task_holds: dict | None = None) -> dict:
     """Return ``{"path", "kind", "reclaim", "reason"}`` for one root child."""
     record = {"path": str(path), "name": path.name, "kind": "unknown",
               "reclaim": False, "reason": ""}
@@ -220,6 +351,10 @@ def inspect(path: Path, *, now: float, retention_days: float,
     if task_statuses is None:
         return keep("task store unreadable")
     status = task_statuses.get(path.name)
+    if status is not None and path.name in (task_holds or {}):
+        return keep(task_holds[path.name])
+    may_preserve = (preserve and record["kind"] == "worktree" and status in TERMINAL_STATUSES
+                    and bool(_NAME_RE.fullmatch(path.name)))
     if status is not None and status not in TERMINAL_STATUSES:
         return keep(f"task still {status}")
     if record["kind"] == "clone":
@@ -236,11 +371,15 @@ def inspect(path: Path, *, now: float, retention_days: float,
         if (resolved / "locked").exists():
             return keep("worktree is locked")
     try:
-        newest, nested = _walk(path)
+        newest, nested, fixtures, junctions = _walk(path)
     except OSError:
         return keep("tree unreadable")
     if nested:
         return keep("contains a nested repository or submodule")
+    if any(os.path.basename(link) != "node_modules" for link in junctions):
+        return keep("contains a junction")
+    if _own_state(gitdir if gitdir.is_absolute() else gitdir.resolve()) and record["kind"] == "worktree":
+        return keep("operation in progress or refs of its own")
     age_days = (now - newest) / 86400
     if age_days < retention_days:
         return keep(f"modified {age_days:.1f} days ago; retention {retention_days:g}")
@@ -252,7 +391,8 @@ def inspect(path: Path, *, now: float, retention_days: float,
     porcelain = _git(["status", "--porcelain", "--untracked-files=all"], path)
     if porcelain is None:
         return keep("git status failed")
-    if porcelain:
+    dirty = bool(porcelain)
+    if dirty and not may_preserve:
         return keep("uncommitted or untracked changes")
     # status hides edits to assume-unchanged (lowercase tag) and
     # skip-worktree (S) entries, so their presence alone keeps the checkout.
@@ -267,7 +407,10 @@ def inspect(path: Path, *, now: float, retention_days: float,
                    path, timeout=300)
     if ignored is None:
         return keep("ignored files unreadable")
-    kept = [p for p in ignored.split("\0") if p and not _is_cache(p)]
+    ignored_paths = set(filter(None, ignored.split("\0")))
+    if not set(fixtures) <= ignored_paths:
+        return keep("contains a nested repository or submodule")
+    kept = sorted(p for p in ignored_paths if not _is_cache(p) and p not in fixtures)
     if kept:
         return keep(f"ignored files present: {kept[0]}")
     head = _git(["rev-parse", "--verify", "HEAD^{commit}"], path)
@@ -289,7 +432,7 @@ def inspect(path: Path, *, now: float, retention_days: float,
         unpushed = None
     if unpushed is None:
         return keep("remote reachability unknown")
-    if unpushed:
+    if unpushed and not may_preserve:
         return keep("commits not on any remote branch")
     if record["kind"] == "clone":
         # Reachability alone would drop a local branch name; every branch
@@ -303,9 +446,82 @@ def inspect(path: Path, *, now: float, retention_days: float,
             if not upstream or _git(["rev-parse", "--verify", "-q", upstream], path) != sha:
                 return keep("local branch without matching upstream")
     record["head"] = head
+    reason = "clean, pushed, older than retention"
+    if dirty or unpushed:
+        # git add -N of an ignored file: no snapshot would hold its content.
+        if _git(["diff", "--no-ext-diff", "--no-renames", "--name-only", "--diff-filter=A"], path) != "":
+            return keep("intent-to-add entries")
+        record["preserve"] = True
+        reason = "terminal task, work preserved first, older than retention"
     record["reclaim"] = True
-    record["reason"] = "clean, pushed, older than retention"
+    record["reason"] = reason
     return record
+
+
+def _snapshot(path: Path, head: str) -> tuple[str, ...] | None:
+    """Write the index and working tree as git trees; ``None`` if either cannot be."""
+    with tempfile.TemporaryDirectory(prefix="nerelan-reclaim-") as scratch:
+        env = {"GIT_INDEX_FILE": str(Path(scratch) / "index")}
+
+        def git(*args, **kw):
+            code, out = _run([*args], path, timeout=300, **kw)
+            return out if code == 0 else None
+
+        # Work on a copy: write-tree on the real index would rewrite it and reset its age.
+        # The tree is then read into a fresh index without stat data, so every file is hashed.
+        gitdir = _gitdir(path)
+        try:
+            shutil.copyfile(gitdir / "index", Path(scratch) / "staged")
+        except (OSError, TypeError):
+            return None
+        # Fails on an unmerged index, which is then kept.
+        staged = git("write-tree", env={"GIT_INDEX_FILE": str(Path(scratch) / "staged")})
+        if staged is None or git("read-tree", staged, env=env) is None:
+            return None
+        # Fixture repositories are ignored, so -A never records a gitlink for one.
+        if git("add", "-A", "--", ".", env=env) is None:
+            return None
+        tree = git("write-tree", env=env)
+    return None if tree is None else (head, staged, tree)
+
+
+def preserve_work(record: dict) -> str | None:
+    """Keep a worktree's uncommitted and unpushed work under a ref; return the ref."""
+    path, head = Path(record["path"]), record["head"]
+    snapshot = _snapshot(path, head)
+    reflog = _git(["log", "-g", "--format=%H", "HEAD", "--"], path, timeout=120)
+    if snapshot is None or reflog is None:
+        return None
+    identity = ["-c", "user.name=nerelan-reclaim", "-c", "user.email=reclaim@localhost",
+                "-c", "commit.gpgsign=false"]
+
+    def commit(tree, parents, message):
+        args = [*identity, "commit-tree", tree]
+        for parent in parents:
+            args += ["-p", parent]
+        return _git([*args, "-m", message], path)
+
+    staged = commit(snapshot[1], [head], "index before workspace reclaim")
+    if not staged:
+        return None
+    # Reflog-only commits stay reachable as extra parents; grouped, so a long reflog
+    # never exceeds the command line.
+    others = [sha for sha in dict.fromkeys(reflog.split()) if sha != head]
+    while len(others) > 50:
+        group = commit(snapshot[1], others[:50], "reflog before workspace reclaim")
+        if not group:
+            return None
+        others = [*others[50:], group]
+    final = commit(snapshot[2], [head, staged, *others], f"workspace reclaim: {path.name}")
+    if not final:
+        return None
+    ref = f"{PRESERVE_PREFIX}{path.name}/{final[:12]}"
+    if _git(["update-ref", ref, final], path) is None or _git(["rev-parse", "--verify", ref], path) != final:
+        return None
+    # Anything written meanwhile is not in the ref, so the checkout stays.
+    if _git(["rev-parse", "--verify", "HEAD^{commit}"], path) != head or _snapshot(path, head) != snapshot:
+        return None
+    return ref
 
 
 def _on_rm_error(func, target, _exc):
@@ -328,10 +544,22 @@ def remove(record: dict) -> dict:
         common = _git(["rev-parse", "--path-format=absolute", "--git-common-dir"], path)
         if common is None:
             return {**record, "removed": False, "error": "git common dir unknown"}
-        # Plain remove (no --force): git's own refusal (dirty, locked) is final.
+        try:
+            if not _unlink_junctions(path):
+                return {**record, "removed": False, "error": "contains a junction"}
+        except OSError as exc:
+            return {**record, "removed": False, "error": f"junction: {type(exc).__name__}: {exc}"}
+        if record.get("preserve"):
+            ref = preserve_work(record)
+            if ref is None:
+                return {**record, "removed": False, "error": "work could not be preserved"}
+            record = {**record, "preserved_ref": ref}
+        # Plain remove (no --force): git's own refusal (dirty, locked) is final. Only a
+        # tree whose changes were just preserved is forced; one --force still refuses a lock.
         # It also drops the registration, so no repository-wide prune runs:
         # that would unregister unrelated missing worktrees outside the root.
-        code, err = _run(["worktree", "remove", str(path)], Path(common))
+        code, err = _run(["worktree", "remove", *(["--force"] if record.get("preserve") else []),
+                          str(path)], Path(common), timeout=300)
         if code != 0:
             return {**record, "removed": False, "error": f"git worktree remove: {err}"}
     try:
@@ -356,10 +584,14 @@ def _reclaim_one(child: Path, opts: dict, apply: bool, stop=None) -> dict:
 
 def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
           patterns=None, include_clones: bool = False, task_db=None,
-          apply: bool = False, now: float | None = None, stop=None) -> dict:
+          apply: bool = False, now: float | None = None, stop=None,
+          preserve: bool = False) -> dict:
     now = time.time() if now is None else now
     compiled = [re.compile(p, re.IGNORECASE) for p in (patterns or [])]
     statuses = _task_statuses(task_db)
+    holds = _task_holds(task_db, now=now, retention_days=retention_days)
+    if holds is None:
+        statuses = None  # unreadable: keep everything
     entries = []
     for root in roots:
         root = Path(root).absolute()
@@ -377,7 +609,7 @@ def sweep(roots, *, retention_days: float = DEFAULT_RETENTION_DAYS,
             if compiled and not any(p.search(child.name) for p in compiled):
                 continue
             opts = dict(now=now, retention_days=retention_days,
-                        include_clones=include_clones, task_statuses=statuses)
+                        include_clones=include_clones, task_statuses=statuses, preserve=preserve, task_holds=holds)
             entries.append(_reclaim_one(child, opts, apply, stop))
     return {
         "generated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(),
@@ -425,6 +657,12 @@ def auto_config(env=None) -> dict:
                                       DEFAULT_SWEEP_INTERVAL_HOURS, 1.0),
         "poll_minutes": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES",
                                     DEFAULT_POLL_MINUTES, 1.0),
+        "preserve": env.get("REVERSE_AGENT_WORKSPACE_RECLAIM_PRESERVE", "").strip() == "1",
+        "low_disk_gb": _env_number(env, "REVERSE_AGENT_WORKSPACE_RECLAIM_LOW_DISK_GB",
+                                   DEFAULT_LOW_DISK_GB, 0.0),
+        "low_disk_retention_days": _env_number(
+            env, "REVERSE_AGENT_WORKSPACE_RECLAIM_LOW_DISK_RETENTION_DAYS",
+            DEFAULT_LOW_DISK_RETENTION_DAYS, 0.25),
     }
 
 
@@ -452,7 +690,10 @@ class AutoReclaimer:
     def __init__(self, root, task_db, *, mode="report",
                  retention_days=DEFAULT_RETENTION_DAYS,
                  interval_hours=DEFAULT_SWEEP_INTERVAL_HOURS,
-                 poll_minutes=DEFAULT_POLL_MINUTES, state_path=None, clock=time.time):
+                 poll_minutes=DEFAULT_POLL_MINUTES, state_path=None, clock=time.time,
+                 preserve=False, low_disk_gb=DEFAULT_LOW_DISK_GB,
+                 low_disk_retention_days=DEFAULT_LOW_DISK_RETENTION_DAYS,
+                 disk_usage=shutil.disk_usage):
         if mode not in ("report", "apply"):
             raise ValueError(f"unsupported reclaim mode: {mode}")
         self.root = Path(root).absolute()
@@ -463,6 +704,12 @@ class AutoReclaimer:
         self.poll_seconds = float(poll_minutes) * 60
         self.state_path = Path(state_path) if state_path else None
         self.clock = clock
+        self.preserve = bool(preserve)
+        self.low_disk_gb = float(low_disk_gb)
+        # Pressure only ever shortens the retention.
+        self.low_disk_retention_days = min(float(low_disk_retention_days), self.retention_days)
+        self.disk_usage = disk_usage
+        self._last_pressure_sweep: float | None = None
         self._handled: set[tuple[str, str]] = set()
         self._memory_state: dict = {}
         self._stop = threading.Event()
@@ -505,13 +752,33 @@ class AutoReclaimer:
     def tick(self) -> dict:
         with self._mutex:
             now = self.clock()
+            disk = self.disk()
             finished = self.reclaim_finished(now)
-            swept = self.full_sweep(now) if self._sweep_due(now) else None
-            return {"finished": finished, "sweep": swept}
+            swept = None
+            if disk["low"]:
+                LOG.warning("workspace reclaim: disk low: %.1f GB free of %.1f GB (floor %g GB)",
+                            disk["free_gb"], disk["total_gb"], self.low_disk_gb)
+            last = self._last_pressure_sweep
+            if disk["low"] and (last is None or now - last >= LOW_DISK_SWEEP_SECONDS):
+                self._last_pressure_sweep = now
+                swept = self.full_sweep(now, retention_days=self.low_disk_retention_days)
+            elif self._sweep_due(now):
+                swept = self.full_sweep(now)
+            return {"finished": finished, "sweep": swept, "disk": disk}
+
+    def disk(self) -> dict:
+        try:
+            usage = self.disk_usage(self.root)
+        except OSError:
+            return {"free_gb": None, "total_gb": None, "low": False}
+        free = usage.free / 2 ** 30
+        return {"free_gb": round(free, 2), "total_gb": round(usage.total / 2 ** 30, 2),
+                "low": free < self.low_disk_gb}
 
     def _opts(self, now, statuses):
         return dict(now=now, retention_days=self.retention_days, include_clones=False,
-                    task_statuses=statuses)
+                    task_statuses=statuses, preserve=self.preserve,
+                    task_holds=_task_holds(self.task_db, now=now, retention_days=self.retention_days))
 
     def reclaim_finished(self, now: float) -> list[dict]:
         rows = _task_rows(self.task_db)
@@ -534,7 +801,10 @@ class AutoReclaimer:
                     or child.parent != self.root or not os.path.lexists(child)):
                 continue
             self._handled.add((task_id, updated_at))
-            record = _reclaim_one(child, self._opts(now, statuses), self.apply,
+            opts = self._opts(now, statuses)
+            if opts["task_holds"] is None:
+                break  # unreadable: the next full sweep looks again
+            record = _reclaim_one(child, opts, self.apply,
                                   self._stop.is_set)
             self._log(record)
             records.append(record)
@@ -553,9 +823,11 @@ class AutoReclaimer:
             return {}
         return data if isinstance(data, dict) else {}
 
-    def full_sweep(self, now: float) -> dict:
-        report = sweep([self.root], retention_days=self.retention_days, task_db=self.task_db,
-                       apply=self.apply, now=now, stop=self._stop.is_set)
+    def full_sweep(self, now: float, *, retention_days: float | None = None) -> dict:
+        retention = self.retention_days if retention_days is None else retention_days
+        report = sweep([self.root], retention_days=retention, task_db=self.task_db,
+                       apply=self.apply, now=now, stop=self._stop.is_set, preserve=self.preserve)
+        report["disk"] = self.disk()  # after the sweep: what it achieved
         for record in report["entries"]:
             self._log(record)
         LOG.info("workspace reclaim sweep: %d checked, %d reclaimable, %d removed, %d failed%s",
@@ -576,7 +848,8 @@ class AutoReclaimer:
 
     def _log(self, record: dict) -> None:
         if record.get("removed"):
-            LOG.info("workspace reclaim: removed %s", record["path"])
+            LOG.info("workspace reclaim: removed %s%s", record["path"],
+                     f" (work kept at {record['preserved_ref']})" if record.get("preserved_ref") else "")
         elif record.get("removed") is False:
             LOG.warning("workspace reclaim: kept %s: %s", record["path"], record.get("error"))
         elif record["reclaim"]:
@@ -592,7 +865,9 @@ def configured_reclaimer(workspace_root, task_db, env=None) -> AutoReclaimer | N
     return AutoReclaimer(workspace_root, task_db, mode=config["mode"],
                          retention_days=config["retention_days"],
                          interval_hours=config["interval_hours"],
-                         poll_minutes=config["poll_minutes"], state_path=state_path)
+                         poll_minutes=config["poll_minutes"], state_path=state_path,
+                         preserve=config["preserve"], low_disk_gb=config["low_disk_gb"],
+                         low_disk_retention_days=config["low_disk_retention_days"])
 
 
 def main(argv=None) -> int:
@@ -605,13 +880,17 @@ def main(argv=None) -> int:
     parser.add_argument("--include-clones", action="store_true",
                         help="also reclaim standalone clones that host no worktrees")
     parser.add_argument("--task-db", type=Path, help="TaskStore SQLite; keeps non-terminal tasks")
+    parser.add_argument("--preserve", action="store_true",
+                        help="with --task-db: also reclaim terminal tasks' worktrees that hold work, "
+                             "after keeping it under " + PRESERVE_PREFIX)
     parser.add_argument("--apply", action="store_true", help="delete; default is a dry run")
     parser.add_argument("--json", type=Path, help="write the full report here")
     args = parser.parse_args(argv)
     if args.retention_days < 0:
         parser.error("--retention-days must be >= 0")
     report = sweep(args.root, retention_days=args.retention_days, patterns=args.pattern,
-                   include_clones=args.include_clones, task_db=args.task_db, apply=args.apply)
+                   include_clones=args.include_clones, task_db=args.task_db, apply=args.apply,
+                   preserve=args.preserve)
     if args.json:
         args.json.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
     for e in report["entries"]:
