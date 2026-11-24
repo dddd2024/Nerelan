@@ -1,3 +1,4 @@
+import { quotaResetKey, quotaResetText } from "@/lib/quota-reset";
 import { AlertTriangle, CheckCircle2, Info, Users } from "lucide-react";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
@@ -268,6 +269,21 @@ export function AccountsPage() {
                   <a href={pool.codex_reset.source_url} target="_blank" rel="noreferrer" className="ml-2 text-ra-accent hover:underline">公告</a>
                 ) : null}
               </p>
+            ) : null}
+
+            {pool.quota_resets && pool.quota_resets.length > 0 ? (
+              <section aria-label="最近的额度重置" data-testid="pool-quota-resets"
+                className="rounded-lg border border-ra-border px-3.5 py-2.5 text-sm">
+                <h2 className="mb-1 text-xs font-medium text-ra-text-tertiary">最近的额度重置</h2>
+                <ul className="space-y-0.5">
+                  {pool.quota_resets.slice(0, 5).map((reset) => (
+                    <li key={quotaResetKey(reset)} className="flex flex-wrap justify-between gap-x-3 text-ra-text">
+                      <span>{quotaResetText(reset)}</span>
+                      <span className="text-xs text-ra-text-tertiary">{new Date(reset.observed_at).toLocaleString("zh-CN")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ) : null}
 
             <section aria-label="活动告警" className="rounded-lg border border-ra-border">

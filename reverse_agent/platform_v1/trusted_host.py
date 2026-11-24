@@ -315,12 +315,13 @@ class CombinedTrustedHost:
         connection = self._store.get_connection_public(binding["connection_id"])
         return self._reset_account(connection, binding), binding["model_id"]
 
-    def _quota_reset_released(self, binding_ref: str, failed_at: float) -> bool:
+    def _quota_reset_released(self, binding_ref: str, failed_at: float,
+                              stated_reset: "float | None" = None) -> bool:
         """Whether the account a failed attempt ran on reset since, with room again."""
         try:
             account, model = self._binding_reset_account(binding_ref)
             return account is not None and self._control_store.quota_resets.released(
-                account, model, hit_at=failed_at, now=time.time())
+                account, model, hit_at=failed_at, now=time.time(), stated_reset=stated_reset)
         except Exception:  # noqa: BLE001 - without evidence the ordinary backoff stands
             return False
 
@@ -1496,7 +1497,6 @@ class CombinedTrustedHost:
             # hour). Any other connection is one account, whatever its model ids look like.
             candidates = [b for b in candidates if _upstream_namespace(b) == namespace]
         bindings = [b["binding_id"] for b in candidates]
-        by_id = {b["binding_id"]: b for b in candidates}
         if not bindings:
             return None
         now = time.time()
@@ -1531,10 +1531,7 @@ class CombinedTrustedHost:
                 pass
             if stated is not None and stated <= now:
                 continue  # An expired stated failure cannot renew on a later quota window.
-            row_binding = by_id[row["binding_ref"]]
-            reset_account = self._reset_account(connection, row_binding)
-            if reset_account and self._control_store.quota_resets.released(
-                    reset_account, row_binding["model_id"], hit_at=hit_at, now=now, stated_reset=stated):
+            if self._quota_reset_released(row["binding_ref"], hit_at, stated):
                 continue  # The account's own readings show it reset after this refusal.
             if stated is not None:
                 # Only exhausted windows may extend a stated account hold.

@@ -449,6 +449,8 @@ def goal_to_dict(goal: GoalRecord, *, links: Sequence[Mapping[str, Any]] = ()) -
 class GoalService:
     """Owns persisted planning, approval and idempotent task materialization."""
 
+    quota_reset_released: Any | None = None
+
     def __init__(self, *, store: TaskStore, control_store: PlatformControlStore,
                  roster_resolver: Any | None = None, task_resolver: Any | None = None, quota_forecaster: Any | None = None, max_review_rounds: int = 3,
                  account_status_provider: Any | None = None, binding_account_resolver: Any | None = None,

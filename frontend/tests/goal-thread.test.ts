@@ -33,6 +33,15 @@ function timeline(steps: PlatformGoalTimeline["steps"]): PlatformGoalTimeline {
 }
 
 describe("goalThread", () => {
+  it("places quota resets in the conversation by time", () => {
+    const view = goalThread(goal([{ task_id: "a", plan_task_id: "T001", status: "RUNNING", title: "Implement" }]),
+      { ...timeline([{ plan_task_id: "T001", title: "Implement", status: "RUNNING",
+        attempts: [attempt(1, "a", "RUNNING", { started_at: "2026-11-24T04:00:00Z" })] }]),
+      quota_resets: [{ account_ref: "x", provider: "codex", window: "7 days", kind: "early", used_before: 100, used_after: 0,
+        observed_at: "2026-11-24T03:51:08Z", previous_resets_at: "2026-11-29T05:16:20Z", resets_at: null }] });
+    expect(view.messages.map((m) => m.role)).toEqual(["user", "system", "assistant"]);
+  });
+
   it("opens with the Owner's request, then attempts by start time across steps, unstarted last", () => {
     const g = goal([
       { task_id: "impl-2", plan_task_id: "T001", status: "READY_FOR_REVIEW", title: "Implement" },

@@ -6,6 +6,7 @@
  * Nerelan stays the source of truth: this only converts the goal timeline into
  * assistant-ui messages (`ThreadMessageLike`); nothing is sent back.
  */
+import { quotaResetKey, quotaResetText } from "@/lib/quota-reset";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 import type { PlatformGoal, PlatformRunActivityEvent, PlatformTimelineAttempt, PlatformTimelineStep } from "@/lib/platform-client";
 import { checkSummary, mergeTimelineSteps, hostRetried, cleanSpeech } from "@/components/goal-timeline";
@@ -158,6 +159,12 @@ export function goalThread(goal: PlatformGoal, timeline?: PlatformGoalTimeline):
         status: state === "running" ? { type: "running" } : { type: "complete", reason: "stop" },
       });
     }
+  }
+  for (const reset of timeline?.quota_resets ?? []) {
+    messages.push({
+      id: `quota-reset:${quotaResetKey(reset)}`, role: "system",
+      content: [{ type: "text", text: quotaResetText(reset) }], createdAt: new Date(reset.observed_at),
+    });
   }
   // One conversation in time order across steps; attempts that have not started go last.
   const [request, ...turns] = messages;

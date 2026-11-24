@@ -40,6 +40,15 @@ const TOOL_VERB: Record<string, [string, string]> = {
   read: ["读取", "个文件"], search: ["搜索", "次"], edit: ["修改", "处"], command: ["运行", "条命令"], test: ["运行", "项检查"],
 };
 
+/** A fact about the run's surroundings (a quota reset), not a turn of the conversation. */
+function SystemMessage() {
+  return (
+    <MessagePrimitive.Root className="mb-6 text-center text-xs text-ra-text-tertiary" data-testid="thread-system-message">
+      <MessagePrimitive.Parts />
+    </MessagePrimitive.Root>
+  );
+}
+
 function UserMessage() {
   const [open, setOpen] = useState(false);
   const text = useAuiState((state) => state.message.parts.map((part) => ("text" in part ? String(part.text) : "")).join(""));
@@ -376,7 +385,7 @@ export function GoalThread({ goal, timeline, composer }: {
               {timeline?.landing && <LandingStatus landing={timeline.landing} />}
               <StepStrip steps={thread.steps} roles={roles} />
               <ThreadPrimitive.Messages
-                components={{ UserMessage, AssistantMessage }}
+                components={{ UserMessage, AssistantMessage, SystemMessage }}
               />
             </div>
             <ThreadPrimitive.ScrollToBottom
