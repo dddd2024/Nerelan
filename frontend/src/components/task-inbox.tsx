@@ -11,6 +11,8 @@ interface TaskInboxProps {
   isLoading: boolean;
   isError: boolean;
   error?: unknown;
+  /** Why queued tasks are not dispatched right now, e.g. a nearly full disk. */
+  queueHold?: string;
 }
 
 /**
@@ -37,7 +39,7 @@ interface TaskInboxProps {
  * categories map to reverse-agent RunState groups.
  * License: MIT (inherited from OpenHands)
  */
-export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) {
+export function TaskInbox({ tasks, isLoading, isError, error, queueHold }: TaskInboxProps) {
   if (isLoading) {
     return (
       <div data-testid="task-inbox">
@@ -105,7 +107,9 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
             <Clock className="h-4 w-4 text-ra-text-tertiary" aria-hidden="true" />
             <h2>排队等待执行</h2>
             <span className="font-normal text-ra-text-tertiary tabular-nums">({queued.length})</span>
-            <span className="font-normal text-ra-text-tertiary">执行窗口开启后会自动派发</span>
+            <span className={cn("font-normal", queueHold ? "text-ra-status-warning" : "text-ra-text-tertiary")}>
+              {queueHold || "执行窗口开启后会自动派发"}
+            </span>
           </summary>
           <div className="overflow-hidden rounded-xl border border-ra-border bg-ra-base">
             <Cards tasks={queued} />

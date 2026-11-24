@@ -13,9 +13,10 @@ import {
   Users,
 } from "lucide-react";
 import { useAccountPool, useGoals, usePlatformStatus } from "@/hooks/use-platform";
-import type { PlatformGoal } from "@/lib/platform-client";
+import type { DiskState, PlatformGoal } from "@/lib/platform-client";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
+import { diskHoldLine } from "@/lib/disk-status";
 import { isCredentialError } from "@/lib/http-errors";
 import { GOAL_TONE_DOT, goalState, goalTitle } from "@/lib/goal-view";
 import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
@@ -100,11 +101,12 @@ const MENU_ROUTES = [
 ] as const;
 
 /** One label for the host state; an error never reads as a healthy green dot. */
-function hostStatus(coordinator: { enabled: boolean; last_error: string } | undefined, failed: boolean, error?: unknown) {
+function hostStatus(coordinator: { enabled: boolean; last_error: string; disk?: DiskState | null } | undefined, failed: boolean, error?: unknown) {
   if (failed && isCredentialError((error as { status?: number } | null)?.status)) {
     return { tone: "error", label: "请在启动器窗口中使用" } as const;
   }
   if (failed) return { tone: "error", label: coordinator ? "状态待刷新" : "服务未连接" } as const;
+  if (coordinator?.disk?.hold) return { tone: "warning", label: "磁盘空间不足" } as const;
   if (coordinator?.last_error) return { tone: "warning", label: "协调器需要处理" } as const;
   return coordinator?.enabled
     ? ({ tone: "ok", label: "协调器在线" } as const)
@@ -381,7 +383,7 @@ export function Sidebar({
           data-testid="sidebar-host-status"
           data-tone={host.tone}
           className="flex min-h-[30px] items-center gap-2 px-2.5 text-[11px] text-ra-text-tertiary"
-          title={platformQuery.data?.coordinator.last_error || undefined}
+          title={diskHoldLine(platformQuery.data?.coordinator.disk) || platformQuery.data?.coordinator.last_error || undefined}
         >
           <span
             aria-hidden="true"
