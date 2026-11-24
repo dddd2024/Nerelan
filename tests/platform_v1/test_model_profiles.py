@@ -429,3 +429,21 @@ def test_leaving_the_approved_scope_is_the_attempts_own_failure():
     failed = "deterministic_validation_failure"
     assert neutral_failure(failed, "functional_observation_failed:artifact_path_outside_allowlist") == ""
     assert neutral_failure(failed, "functional_observation_failed:OSError") == "functional_observation_failed"
+
+
+@pytest.mark.parametrize("classification, detail, neutral", [
+    ("network_provider_failure", "", True),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=502 message=Bad Gateway", True),
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x '
+                         '(504: you can retry your request)"}', True),
+    ("claude_code_turn_failed:api_error_502", "", True),
+    # A 500 can be the request's own doing, and quoted text is no upstream evidence.
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=500 message=boom", False),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=400 message=status=502", False),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero", False),
+    ("claude_code_turn_failed:api_error", "", False),
+    ("deterministic_validation_failure", "test says status=502 (502: you can retry your request)", False),
+])
+def test_only_structured_upstream_connection_failures_are_neutral(classification, detail, neutral):
+    from reverse_agent.platform_v1.model_profiles import neutral_failure
+    assert neutral_failure(classification, detail) == ("network_provider_failure" if neutral else "")

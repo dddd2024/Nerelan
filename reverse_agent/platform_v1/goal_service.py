@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
+from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, UPSTREAM_CONNECTION,
                                  OWNER_WINDOW_POOL_MISROUTE, transient_overload)
 from .goal_source_issue import GoalSourceIssues
 from typing import Any, Mapping, Sequence
@@ -1050,7 +1050,9 @@ class GoalService:
             except TaskStoreError:
                 continue
             attempts.append(attempt)
-            if attempt.failure_classification in LIVENESS_STALL_CLASSES and attempt.binding_ref not in avoided:
+            if ((attempt.failure_classification in LIVENESS_STALL_CLASSES
+                 or _attempt_failure_cause(attempt) == UPSTREAM_CONNECTION)
+                    and attempt.binding_ref not in avoided):
                 avoided.append(attempt.binding_ref)
         # The floor is the strongest tier this step was routed at: a stall never undoes an
         # escalation or moves the retained tree to a weaker model (#1596 review).
@@ -1648,7 +1650,8 @@ class GoalService:
             transient_reason = (f"{HOST_RETRY_REASON}:{cause}" if host_failure
                                 else "transient_overload")
             from .quota_guard import LIVENESS_STALL_CLASSES
-            stalled = host_failure and cause in LIVENESS_STALL_CLASSES
+            # A broken upstream connection also moves to another binding at once.
+            stalled = host_failure and (cause in LIVENESS_STALL_CLASSES or cause == UPSTREAM_CONNECTION)
             stall_route, stall_note = None, ""
             # One shared cap per plan step for every not-the-model's-fault retry (decision B).
             free_used = _free_retries_used(history, plan_task.id)
@@ -1726,9 +1729,18 @@ class GoalService:
             unavailable = (failed.failure_classification or "").split(":", 1)[0] == "MODEL_UNAVAILABLE"
             interrupted = interrupted_dispatch or interrupted_preparation
             if (not miss and not overloaded and not model_review and not refusal and not unavailable
-                    and not quota_failure and not interrupted
+                    and not quota_failure and not interrupted and not host_failure
                     and failed.failure_classification != "server_session_error"
                     and _NON_AGENT_FAILURE.search(failed.failure_classification or "")):
+                # Never retried automatically, but never silently either: the step says why it waits.
+                held = f"automatic_retry_not_allowed:{failed.failure_classification}"
+                if not any(e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == held
+                           for e in self.store.get_events(failed.id)):
+                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
+                                         title="Automatic retry not allowed",
+                                         description="This failure is not retried automatically. Correct its cause "
+                                                     "and use Owner retry.",
+                                         metadata={"reason": held, "cause": cause})
                 continue
             if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
                 continue  # the claim is still being recovered and its reservation settled
@@ -1897,24 +1909,28 @@ class GoalService:
                          if cause == EXECUTOR_TERMINATED
                          else "The host was redeployed while your previous attempt ran"
                          if cause == HOST_VERSION_CHANGED
+                         else "The connection to the model provider failed" if cause == UPSTREAM_CONNECTION
                          else "Your previous attempt stopped producing output" if host_failure
                          else "The provider was at capacity")
                 if stalled:
                     # The status says where the stalled step went and why (#1596).
+                    verb, noun = (("lost its upstream connection", "a connection failure")
+                                  if cause == UPSTREAM_CONNECTION else ("stalled", "a stall"))
                     self.store.add_event(
                         task.id, event_type="VALIDATED",
-                        title=("Retry on another binding after a stall" if stall_route is not None
-                               else "Retry on the same binding after a stall"),
-                        description=(f"{failed.binding_ref} stalled; retrying on {binding_ref}"
+                        title=(f"Retry on another binding after {noun}" if stall_route is not None
+                               else f"Retry on the same binding after {noun}"),
+                        description=(f"{failed.binding_ref} {verb}; retrying on {binding_ref}"
                                      if stall_route is not None else
-                                     f"{failed.binding_ref} stalled and no other binding is eligible "
+                                     f"{failed.binding_ref} {verb} and no other binding is eligible "
                                      f"({stall_note}); retrying it after backoff"),
                         metadata={"source_task_id": failed.id, "from_binding": failed.binding_ref,
                                   "binding_ref": binding_ref, "liveness_detail": stall_note,
                                   "liveness_retry": STALL_REROUTED if stall_route is not None
                                   else STALL_NO_ALTERNATIVE})
                 self.store.add_event(task.id, event_type="VALIDATED",
-                                     title="Retry after the agent was stopped" if host_failure
+                                     title="Retry after an upstream connection failure" if cause == UPSTREAM_CONNECTION
+                                     else "Retry after the agent was stopped" if host_failure
                                      else "Retry after provider overload",
                                      description=(snapshot["feedback"] if snapshot is not None else
                                                   feedback + "; your previous attempt was cut "
