@@ -1,9 +1,20 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { runtimeExplanation, runtimeMessage, runtimeTitle } from "@/lib/runtime-labels";
+import { dispatchBlockLabel, explainPaidGateway, runtimeExplanation, runtimeMessage, runtimeTitle } from "@/lib/runtime-labels";
 
 describe("runtime labels", () => {
+  it("explains in Chinese why a paid subscription is not dispatched through a gateway", () => {
+    expect(runtimeMessage("binding_resolution_failed:paid_subscription_gateway").label).toBe("付费订阅不能经网关派发");
+    for (const cause of ["provider:codex", "group_member:claude", "group_membership_unknown", "auto_membership_unknown",
+      "model_family:gpt", "model_unknown", "settings_unreadable"]) {
+      expect(dispatchBlockLabel(cause)).toMatch(/^不派发：.+付费订阅只能由官方工具执行。$/);
+      expect(dispatchBlockLabel(cause)).not.toContain(cause);
+    }
+    expect(dispatchBlockLabel("provider:codex")).toContain("codex");
+    expect(explainPaidGateway("m: paid_subscription_gateway")).toBe("m: 付费订阅不能经网关派发");
+  });
+
   it.each([
     "review_not_independent", "usage_budget_reached", "usage_reservation_overrun",
     "executor_dispatch_failed", "MODEL_UNAVAILABLE", "api_error_429", "quota_exhausted",

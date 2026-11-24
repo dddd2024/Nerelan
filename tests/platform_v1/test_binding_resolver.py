@@ -336,8 +336,8 @@ def test_unmatched_provider_prefix_is_namespaced_not_rejected() -> None:
 @pytest.mark.parametrize(
     ("raw_model_id", "expected_model_id"),
     [
-        ("openai-compatible/gpt-4o", "openai-compatible/gpt-4o"),
-        ("gpt-4o", "openai-compatible/gpt-4o"),
+        ("openai-compatible/fake-4o", "openai-compatible/fake-4o"),
+        ("fake-4o", "openai-compatible/fake-4o"),
     ],
 )
 def test_existing_model_id_forms_are_preserved(

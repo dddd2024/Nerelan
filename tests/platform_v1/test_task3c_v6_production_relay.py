@@ -98,7 +98,7 @@ def _make_e2e_snapshot(base_url: str, *, master_key: str) -> ExecutionSnapshot:
         binding_id="sse-binding",
         binding_enabled=True,
         executor_id="opencode",
-        raw_model_id="gpt-4o",
+        raw_model_id="fake-4o",
         connection_id="sse-conn",
         connection_enabled=True,
         provider="openai-compatible",
@@ -194,7 +194,7 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                 "name": "E2E fake binding",
                 "executor_id": "opencode",
                 "connection_id": CONN_ID,
-                "model_id": "gpt-4o",
+                "model_id": "fake-4o",
             })
 
             with tempfile.TemporaryDirectory() as tmpdir:
@@ -283,7 +283,7 @@ class TestCombinedTrustedHostInstalledOpenCodeE2E:
                         f"unexpected method: {req['method']}"
 
                     body_obj = json.loads(req["body"])
-                    assert body_obj.get("model") == "gpt-4o", \
+                    assert body_obj.get("model") == "fake-4o", \
                         f"unexpected model in body: {body_obj.get('model')}"
 
                     expected_auth = f"Bearer {MASTER}"
@@ -386,7 +386,7 @@ class TestRelaySSEFailClosed:
             )
 
             body = json.dumps({
-                "model": "gpt-4o",
+                "model": "fake-4o",
                 "messages": [{"role": "user", "content": "hi"}],
             }).encode("utf-8")
 
@@ -426,7 +426,7 @@ class TestRelaySSEFailClosed:
         try:
             lease = manager.create_lease(snap, relay_url=relay.url)
 
-            body = json.dumps({"model": "gpt-4o"}).encode("utf-8")
+            body = json.dumps({"model": "fake-4o"}).encode("utf-8")
 
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=10)
             conn.request(
@@ -483,7 +483,7 @@ class TestRelaySSEFailClosed:
                 upstream_url, "sse-master-ok"
             )
 
-            body = json.dumps({"model": "gpt-4o"}).encode("utf-8")
+            body = json.dumps({"model": "fake-4o"}).encode("utf-8")
 
             conn = HTTPConnection("127.0.0.1", relay._port, timeout=10)
             conn.request(

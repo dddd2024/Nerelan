@@ -686,7 +686,7 @@ def test_chain_review_real_availability_and_blocked_evidence(monkeypatch, tmp_pa
     host._store.upsert_binding({**mid, 'model_id': 'glm-5.3'})
     if independent:
         host._store.upsert_binding({**mid, 'binding_id': 'independent', 'name': 'Independent',
-                                   'model_id': 'gemini-flash-lite'})
+                                   'model_id': 'copilot/gemini-flash-lite'})
         # Non-Codex review needs a tool-less transport (#1283); this fixture's keyless
         # gateway stands in for an api_key relay connection without changing routing cost.
         from reverse_agent.platform_v1 import model_review_transport
