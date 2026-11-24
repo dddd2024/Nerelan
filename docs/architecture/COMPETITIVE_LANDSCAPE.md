@@ -55,4 +55,10 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+上述雷达是 **2026-11-08 初次发现的历史候选快照**，不代表当前仍未分诊。专项研究和最新状态以 [#1576 总索引](https://github.com/dddd2024/Nerelan/issues/1576)、各 pinned-source Issue 与 Draft PR 为准，不应据此重复研究。
+
+## 新增深度专项：smolagents（2026-11-17；研究分支，未合并）
+
+| 项目 / 固定 SHA | 归档 | 模块级复用结论 |
+|---|---|---|
+| [`huggingface/smolagents@e1249d3`](https://github.com/huggingface/smolagents/commit/e1249d373d58db6abc73882ee394f6bb3854c89f)，Apache-2.0 | [研究 Issue #1643](https://github.com/dddd2024/Nerelan/issues/1643) / [源码报告](reuse-study-2026-11-16/smolagents.md) | **BORROW_PATTERN**：Code-as-action 组织多次工具调用的实际成本假说、Tool 签名和 lazy setup、Code/Tool/Observation 可观测性、local/remote Python Executor 接口、JSON-safe serialization。**REJECT**：默认 LocalPythonExecutor 当隔离环境、`ThreadPoolExecutor` context timeout 当及时返回/Worker kill、`assert` final-answer check 当独立验收、remote CodeAgent 已支持 managed subagents、Hub/MCP Tool 信任当 Host approval、自动 pip 依赖/允许 Pickle、Token usage 当 Magpie 实际账单。本轮对超时与 `assert -O` 仅运行了两个**Python stdlib**语义微测试；上游 SDK/Provider/Windows E2E 未运行，未复制代码、未实施、未合并。 |
