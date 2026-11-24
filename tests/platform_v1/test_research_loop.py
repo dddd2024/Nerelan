@@ -1131,6 +1131,45 @@ class ResearchLoopTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(configured_loop(goal_service=self.goals, planner=self.planner))
 
+    def test_no_model_to_plan_with_is_a_visible_wait_not_a_failure(self):
+        from reverse_agent.platform_v1.run_store import TaskStoreError
+        self.config["binding_ref"] = ""
+        write_json(self.file, self.config)
+        start, retry = self.planner.start, [1795579344.0, 1795579400.0]
+
+        def held(*args, **kwargs):
+            error = TaskStoreError("no_runnable_model")
+            error.decision = {"excluded_candidates": [
+                {"binding_id": "a", "filter": "weekly_pace", "cause": "ahead_of_pace", "retry_at": retry[0]},
+                {"binding_id": "b", "filter": "capability_floor"}]}
+            raise error
+        self.planner.start = held
+        for _ in range(4):
+            self.tick()
+        retry[0] = retry[1]
+        self.tick()
+        waits = [row for row in self.round()["history"] if row["detail"].startswith("waiting for a model")]
+        self.assertEqual([row["detail"] for row in waits], [
+            "waiting for a model: no_runnable_model (ahead_of_pace, capability_floor); "
+            "earliest retry 2026-11-25T04:02Z"])
+        self.assertEqual((self.round()["state"], self.state()["state"], self.state()["failed_rounds"]),
+                         ("PLANNING", "RUNNING", 0))
+        self.planner.start = start
+        for _ in range(2):
+            self.tick()
+        self.assertEqual(self.round()["state"], "LAUNCHED")
+        self.assertEqual(self.goals.requests[0]["binding_ref"], "")
+
+    def test_other_planner_errors_still_surface(self):
+        from reverse_agent.platform_v1.run_store import TaskStoreError
+
+        def broken(*args, **kwargs):
+            raise TaskStoreError("goal_not_plannable")
+        self.planner.start = broken
+        with self.assertRaisesRegex(TaskStoreError, "goal_not_plannable"):
+            for _ in range(4):
+                self.tick()
+
     def test_real_goal_service_and_agent_planner_with_fake_runner(self):
         from reverse_agent.platform_v1.agent_planner import AgentPlanner
         from reverse_agent.platform_v1.autonomy import AutonomyService
