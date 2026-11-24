@@ -36,7 +36,6 @@ describe("disk status", () => {
   it("explains the hold, what waits and that it ends by itself", () => {
     render(<UnattendedStatus status={status(held)} now={now} quietWhenRunning />);
     const banner = screen.getByTestId("disk-status");
-    expect(banner).toHaveAttribute("role", "alert");
     expect(banner).toHaveTextContent(
       "磁盘空间不足，暂停启动新任务，3 个任务等待中 · 磁盘剩 1.8 GB（共 100 GB），低于下限 2 GB。正在运行的任务继续；空间恢复到 2.5 GB 后自动继续，不消耗重试次数。",
     );
@@ -45,7 +44,7 @@ describe("disk status", () => {
   });
   it("keeps the stall warning without a hold", () => {
     render(<UnattendedStatus status={status(healthy)} now={now} quietWhenRunning />);
-    expect(screen.getByRole("status")).toHaveTextContent("没有进展");
+    expect(screen.getByRole("status")).toHaveTextContent("没有进展"); // one banner only
     expect(screen.getByRole("status")).toHaveTextContent("磁盘剩 50 GB（共 100 GB）");
     expect(screen.queryByTestId("disk-status")).toBeNull();
   });
@@ -59,6 +58,8 @@ describe("disk status", () => {
     expect(diskFreeLine(null)).toBe("");
     expect(diskFreeLine({ ...healthy, free_gb: null })).toBe("");
     expect(diskHoldLine({ ...held, free_gb: null })).toContain("剩余空间暂时读不到");
+    expect(diskHoldLine({ ...held, free_gb: null })).not.toContain("低于下限");
+    expect(diskHoldLine({ ...held, free_gb: 2.2 })).toContain("磁盘剩 2.2 GB（共 100 GB）。正在运行");
     const { container } = render(<UnattendedStatus status={status(undefined, false)} now={now} />);
     expect(container).toBeEmptyDOMElement();
   });

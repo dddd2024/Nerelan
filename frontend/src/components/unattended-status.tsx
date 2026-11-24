@@ -17,7 +17,7 @@ export function UnattendedStatus(props: {
     <>
       {line && (
         <div
-          role={hold ? "alert" : "status"}
+          role="status"
           data-testid="disk-status"
           className={cn(
             "shrink-0 border-b px-4 py-3 text-sm sm:px-5",

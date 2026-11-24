@@ -380,10 +380,6 @@ class UnattendedCoordinator:
         except (TaskStoreError, KeyError):
             return None
 
-    def _landing_is_reviewed(self, goal: Any, task: Any) -> bool:
-        review = self._planned_review(goal, task)
-        return review is not None and self._has_retained_review(review)
-
     @staticmethod
     def _has_retained_review(review: Any) -> bool:
         from . import model_review
@@ -453,8 +449,10 @@ class UnattendedCoordinator:
                 landing = self.control_store.landing_progress(goal.id)
                 if goal.window_id != window.id:
                     continue
-                if self._disk_hold and not self._landing_is_reviewed(goal, task):
-                    continue  # publishing would start this goal's review task
+                if self._refresh_disk_hold():
+                    # publish_and_review may claim and run a review (a repaired step
+                    # relinks a fresh one), so even reviewed work waits for space.
+                    break
                 try:
                     if (landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)
                             and not self._republishes_rejected_head(goal, task, accepted, landing)):
@@ -488,7 +486,7 @@ class UnattendedCoordinator:
         self._ticks += 1
         if self._stop.is_set():
             return 0
-        self._disk_hold = bool((self._read_disk() or {}).get("hold"))
+        self._refresh_disk_hold()
         window = self.control_store.active_window()
         if window is None:
             self._disk_waiting = ()
@@ -559,7 +557,7 @@ class UnattendedCoordinator:
                 recovered += 1
                 self._executions += 1
                 continue
-            if self._disk_hold:
+            if self._refresh_disk_hold():  # a landing review or an earlier claim took time
                 # Before any receipt, quota check, claim or retry: a held task
                 # keeps its exact state and is seen again on the next tick.
                 disk_waiting.append(task_id)
@@ -997,6 +995,10 @@ class UnattendedCoordinator:
         except Exception as exc:  # noqa: BLE001 - a failed reading must never stop dispatch
             self._last_error = f"disk_check_failed:{type(exc).__name__}"
             return None
+
+    def _refresh_disk_hold(self) -> bool:
+        self._disk_hold = bool((self._read_disk() or {}).get("hold"))
+        return self._disk_hold
 
     def _disk_status(self) -> dict[str, Any] | None:
         disk = self._read_disk()

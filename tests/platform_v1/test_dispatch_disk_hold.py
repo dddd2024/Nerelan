@@ -239,27 +239,45 @@ def test_broken_guard_never_stops_dispatch(tmp_path):
     assert coordinator.status()["disk"] is None
 
 
-@pytest.mark.parametrize("reviewed", [False, True])
-def test_landing_starts_no_review_but_finishes_reviewed_work(tmp_path, monkeypatch, reviewed):
+def test_landing_starts_no_review_but_gated_merges_continue(tmp_path, monkeypatch):
     from reverse_agent.platform_v1 import artifact_handoff
     published, ticked = [], []
     host = Host(tmp_path, Disk(1.0))
-    goal_id, [task_id] = host.goal("landing")
+    _, [task_id] = host.goal("landing")
+    _, [queued] = host.goal("queued")
     host.store._conn.execute("UPDATE tasks SET status='READY_FOR_REVIEW' WHERE id=?", (task_id,))
     host.store._conn.commit()
     monkeypatch.setattr(artifact_handoff, "_load_evidence", lambda *a, **k: {"commit": "a" * 40})
     monkeypatch.setattr(host.control, "ready_window_tasks", lambda window_id: [task_id])
     monkeypatch.setattr(host.control, "landing_recovery_identity", lambda window: "recovery")
-    loop = SimpleNamespace(tick=lambda identity, **k: ticked.append(identity),
-                           publish_and_review=lambda task, **k: published.append(task))
+
+    def publish(task, **kwargs):
+        published.append(task)
+        host.disk.free_gb = 0.1  # the review it ran filled the disk
+
+    loop = SimpleNamespace(tick=lambda identity, **k: ticked.append(identity), publish_and_review=publish)
     coordinator = host.coordinator(landing_loop=loop, publication=object(), goals=host.goals)
-    monkeypatch.setattr(coordinator, "_landing_is_reviewed", lambda goal, task: reviewed)
     coordinator.tick()
-    assert ticked == ["recovery"], "the gated merge of landed work continues"
-    assert published == ([task_id] if reviewed else [])
+    assert ticked == ["recovery"] and published == []
     host.disk.free_gb = 50
     coordinator.tick()
-    assert published == [task_id] * (2 if reviewed else 1)
+    assert published == [task_id]
+    assert host.ran == [] and host.store.get_task(queued).status == "QUEUED"
+    assert coordinator.status()["disk"]["waiting_task_ids"] == [queued]
+
+
+def test_space_lost_between_claims_holds_the_rest(tmp_path):
+    host = Host(tmp_path, Disk(50))
+    _, tasks = host.goal("midway", count=3)
+
+    def prepare(_task):
+        host.disk.free_gb = 0.1
+
+    coordinator = host.coordinator(quota_preparer=prepare)
+    assert coordinator.tick() == 1
+    assert host.ran == tasks[:1]
+    assert sorted(coordinator.status()["disk"]["waiting_task_ids"]) == sorted(tasks[1:])
+    assert host.control.get_window(host.window.id).tasks_started == 1
 
 
 # --- chaos: random disk readings and coordinator restarts --------------------------------------

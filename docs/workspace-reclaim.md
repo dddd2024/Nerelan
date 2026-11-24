@@ -55,8 +55,8 @@ Always on, whatever the reclaim mode; it deletes nothing. Below
 `REVERSE_AGENT_DISPATCH_MIN_FREE_GB` (default `2`, `0` disables) free on the
 volume of the task workspaces, the unattended coordinator starts no task: no
 new attempt, resume or landing review, and so no claim, receipt or retry.
-Running tasks, result recovery and the landing of already reviewed work
-continue. Dispatch resumes by itself at 1.25 times the floor. An unreadable
+Running tasks, result recovery and gated merges continue; publishing waits,
+because it may start a review. Dispatch resumes by itself at 1.25 times the floor. An unreadable
 volume neither starts nor ends a hold. Entering and leaving are each logged
 once, and `/api/platform/status` shows `coordinator.disk` (free space, floor,
 `hold`, `reason`, `held_since`, waiting tasks), as does the workspace banner.
