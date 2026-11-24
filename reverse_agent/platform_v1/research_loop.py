@@ -42,9 +42,12 @@ def load_campaign(path):
             raise ValueError(name + " must be positive and finite")
         if name in {"max_rounds", "max_consecutive_failed_rounds"} and type(value) is not int:
             raise ValueError(name + " must be an integer")
-    for name in ("objective", "repository", "state_dir", "executor_kind", "binding_ref"):
+    for name in ("objective", "repository", "state_dir", "executor_kind"):
         if not isinstance(config.get(name), str) or not config[name].strip():
             raise ValueError(name + " required")
+    # "" pins nothing: each task is routed over the host's whole model pool.
+    if not isinstance(config.setdefault("binding_ref", ""), str):
+        raise ValueError("binding_ref must be a string")
     if type(config.get("push", False)) is not bool:
         raise ValueError("push must be boolean")
     return config
@@ -112,6 +115,16 @@ class ResearchLoop:
         record.setdefault("history", []).append(
             {"state": record["state"], "at": self.clock(), "detail": detail})
         self._save(record, path)
+
+    @staticmethod
+    def _model_wait(reason, decision):
+        causes = sorted({str(row.get("cause") or row.get("filter"))
+                         for row in decision.get("excluded_candidates", ()) if isinstance(row, dict)})
+        due = [row.get("retry_at") for row in (decision, *decision.get("excluded_candidates", ()))
+               if isinstance(row, dict)]
+        due = [value for value in due if type(value) in (int, float) and 0 < value < 1e11]
+        when = time.strftime("; earliest retry %Y-%m-%dT%H:%MZ", time.gmtime(min(due))) if due else ""
+        return f"waiting for a model: {reason} ({', '.join(causes) or 'no candidates'}){when}"
 
     def start(self):
         if self._thread is None:
@@ -234,7 +247,18 @@ class ResearchLoop:
                     record["goal_failed"] = True
                     self._event(record, "FAILED", status.get("error", "planning failed"), path)
                 elif status["status"] != "RUNNING":
-                    self.planner.start(goal["id"], expected_revision=goal["revision"])
+                    try:
+                        self.planner.start(goal["id"], expected_revision=goal["revision"])
+                    except TaskStoreError as exc:
+                        decision = getattr(exc, "decision", None)
+                        if not isinstance(decision, dict):
+                            raise
+                        # No model may plan now (quota, pacing, availability): a wait, not a
+                        # failure. Say why and until when, once, and look again next tick.
+                        detail = self._model_wait(str(exc), decision)
+                        # A moving retry time alone is not a new reason.
+                        if record["history"][-1]["detail"].split("; ")[0] != detail.split("; ")[0]:
+                            self._event(record, "PLANNING", detail, path)
                 return
             if goal["status"] == "PLANNED":
                 self.goals.approve(goal["id"], expected_revision=goal["revision"])
