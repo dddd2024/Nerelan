@@ -146,9 +146,27 @@ def weekly_pace_hold(candidate: Mapping[str, Any], *, now: float,
     the week. Use may run ahead of elapsed time by ``slack`` and never past
     ``1 - reserve``. Unknown usage or reset time makes no claim, so the existing
     quota rules alone decide, unless ``require_fresh`` is set: then the account
-    is held until a fresh reading shows where it stands.
+    is held until a fresh reading shows where it stands. In the last
+    ``reserve_release_hours`` before the reset the reserve is released: what is
+    still unused then would only expire.
     """
     return weekly_pace_decision(candidate, now=now, pace=pace)[0]
+
+
+def active_reserve(pace: Mapping[str, Any], *, resets: float, now: float) -> float:
+    """The weekly share kept for the Owner now; 0 in the release hours before the reset."""
+    release = float(pace.get("reserve_release_hours", 0)) * 3600
+    return 0. if 0 < resets - now <= release else float(pace.get("reserve", .10))
+
+
+def reserve_released(candidate: Mapping[str, Any], *, now: float, pace: Mapping[str, Any] | None) -> bool:
+    """Whether this paced account is in its release hours, so nothing of its week is held back."""
+    resets = candidate.get("weekly_resets_at")
+    return bool(pace and pace.get("enabled", False) and candidate.get("cost_class") == "subscription"
+                and (candidate.get("executor_id") in pace.get("executors", ())
+                     or candidate.get("paced_provider") in pace.get("providers", ()))
+                and type(resets) in (int, float) and math.isfinite(resets)
+                and active_reserve({**pace, "reserve": 1}, resets=resets, now=now) == 0)
 
 
 def weekly_pace_decision(candidate: Mapping[str, Any], *, now: float,
@@ -176,14 +194,16 @@ def weekly_pace_decision(candidate: Mapping[str, Any], *, now: float,
         return float(now + UNKNOWN_PACE_RETRY_SECONDS), cause
     need = candidate.get("task_weekly_fraction")
     need = need if type(need) in (int, float) and math.isfinite(need) and need >= 0 else UNKNOWN_WEEKLY_NEED
-    slack, reserve = float(pace.get("slack", .10)), float(pace.get("reserve", .10))
+    slack, reserve = float(pace.get("slack", .10)), active_reserve(pace, resets=resets, now=now)
     start = resets - WEEK_SECONDS
     elapsed = min(1., max(0., (now - start) / WEEK_SECONDS))
     demand = (1 - headroom) + need
     if demand <= min(1 - reserve, elapsed + slack):
         return None, ""
     if demand > 1 - reserve:
-        return float(resets), "weekly_reserve"  # only the reset frees it
+        # The reset frees it, or the release hours if the task fits the whole allowance.
+        release = float(pace.get("reserve_release_hours", 0)) * 3600
+        return float(max(now, resets - release) if reserve and demand <= 1 else resets), "weekly_reserve"
     return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack)))), "ahead_of_pace"
 
 
@@ -383,7 +403,9 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
               # An announced Codex reset drains to reset_buffer instead (Owner rule, #1248/#1281).
               and not (candidate["executor_id"] == "codex" and reset["drain"]) and any(
                 candidate.get(need) is not None and candidate.get(headroom) is not None
-                and candidate[need] > candidate[headroom] - quota_buffer
+                and candidate[need] > candidate[headroom] - (
+                    0 if headroom == "weekly_headroom" and reserve_released(candidate, now=now, pace=weekly_pace)
+                    else quota_buffer)
                 for need, headroom in (("task_weekly_fraction", "weekly_headroom"),
                                        ("task_short_fraction", "short_headroom")))):
             reason = "quota_capacity"
