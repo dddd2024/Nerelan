@@ -296,7 +296,10 @@ def _task_holds(db, *, now: float, retention_days: float) -> dict[str, str] | No
                 "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id AND s.phase = 'COMPLETE'), "
                 "EXISTS(SELECT 1 FROM platform_landing_state s WHERE s.goal_id = g.id "
                 "AND s.phase NOT IN ('COMPLETE', 'SUPERSEDED')) "
-                "FROM platform_goal_task_links l JOIN platform_goals g ON g.id = l.goal_id").fetchall()
+                # An escalation moves the link on, but a repair still reads the attempt it came from.
+                "FROM (SELECT goal_id, task_id FROM platform_goal_task_links "
+                "UNION SELECT goal_id, from_task_id FROM platform_task_escalations) l "
+                "JOIN platform_goals g ON g.id = l.goal_id").fetchall()
     except (sqlite3.Error, OSError, ValueError, KeyError):
         return None
     finally:
@@ -446,7 +449,7 @@ def inspect(path: Path, *, now: float, retention_days: float,
     reason = "clean, pushed, older than retention"
     if dirty or unpushed:
         # git add -N of an ignored file: no snapshot would hold its content.
-        if _git(["diff", "--no-ext-diff", "--name-only", "--diff-filter=A"], path) != "":
+        if _git(["diff", "--no-ext-diff", "--no-renames", "--name-only", "--diff-filter=A"], path) != "":
             return keep("intent-to-add entries")
         record["preserve"] = True
         reason = "terminal task, work preserved first, older than retention"

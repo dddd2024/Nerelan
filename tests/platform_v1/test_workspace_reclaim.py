@@ -773,7 +773,7 @@ def test_a_node_modules_junction_is_unlinked_not_followed(repo, root, tmp_path, 
     assert (tmp_path / "shared" / "precious.txt").exists()
 
 
-def _goal_db(path, task_status, goal_status, window="STOPPED", phase="", classification=""):
+def _goal_db(path, task_status, goal_status, window="STOPPED", phase="", classification="", escalated=False):
     with sqlite3.connect(path) as db:
         db.execute("CREATE TABLE tasks(id TEXT, status TEXT, updated_at TEXT, failure_classification TEXT)")
         db.execute("INSERT INTO tasks VALUES('task-1', ?, ?, ?)",
@@ -783,7 +783,9 @@ def _goal_db(path, task_status, goal_status, window="STOPPED", phase="", classif
         db.execute("CREATE TABLE platform_autonomous_windows(id TEXT, status TEXT)")
         db.execute("CREATE TABLE platform_landing_state(goal_id TEXT, phase TEXT)")
         db.execute("INSERT INTO platform_goals VALUES('g', ?, 'w')", (goal_status,))
-        db.execute("INSERT INTO platform_goal_task_links VALUES('g', 'task-1')")
+        db.execute("CREATE TABLE platform_task_escalations(goal_id TEXT, from_task_id TEXT)")
+        db.execute("INSERT INTO platform_task_escalations VALUES('g', 'task-1')" if escalated else
+                   "INSERT INTO platform_goal_task_links VALUES('g', 'task-1')")
         db.execute("INSERT INTO platform_autonomous_windows VALUES('w', ?)", (window,))
         if phase:
             db.execute("INSERT INTO platform_landing_state VALUES('g', ?)", (phase,))
@@ -797,6 +799,7 @@ def _goal_db(path, task_status, goal_status, window="STOPPED", phase="", classif
     (True, "READY_FOR_REVIEW", "COMPLETED", {"window": "ACTIVE"}),  # complete, not published yet
     (True, "READY_FOR_REVIEW", "COMPLETED", {"phase": "WAITING"}),
     (True, "READY_FOR_REVIEW", "RUNNING", {"phase": "COMPLETE"}),
+    (True, "READY_FOR_REVIEW", "RUNNING", {"window": "ACTIVE", "escalated": True}),  # a repair reads it
     (False, "FAILED", "BLOCKED", {}),
     (False, "READY_FOR_REVIEW", "COMPLETED", {}),
     (False, "READY_FOR_REVIEW", "COMPLETED", {"phase": "COMPLETE", "window": "ACTIVE"}),
@@ -842,11 +845,15 @@ def test_a_fixture_repository_that_is_not_ignored_blocks_preserve(repo, root, tm
     assert not _preserve_sweep(root, tmp_path)["reclaim"] and nested.exists()
 
 
-def test_intent_to_add_keeps_the_worktree(repo, root, tmp_path):
+@pytest.mark.parametrize("renamed", [False, True])
+def test_intent_to_add_keeps_the_worktree(repo, root, tmp_path, renamed):
     wt = add_worktree(repo, root, "task-1")
     _ignore(wt, "*.log")
     (wt / "x.log").write_text("x\n")
     git(wt, "add", "-N", "-f", "x.log")
+    if renamed:  # git would report the pair as a rename
+        (wt / "x.log").write_text((wt / "a.txt").read_text())
+        (wt / "a.txt").unlink()
     assert _preserve_sweep(root, tmp_path)["reason"] == "intent-to-add entries" and wt.exists()
 
 
