@@ -213,6 +213,37 @@ def test_no_release_for_a_window_missing_from_the_newest_reading_or_a_reset_befo
     assert resets.released("two", "gpt-6.1-sol", hit_at=T0 + 100, now=T0 + 1300)
 
 
+def test_another_tiers_fresh_reading_lends_no_freshness(resets):
+    other = ("Claude & GPT · 7 days", 50, T0 + 3 * DAY)
+    _feed(resets, T0, [("Gemini · 7 days", 90, T0 + 3 * DAY), other])
+    assert len(_feed(resets, T0 + 600, [("Gemini · 7 days", 0, T0 + 7 * DAY), other])) == 1
+    hit = T0 + 60
+    assert resets.released("acct", "gemini-3.5-flash", hit_at=hit, now=T0 + 700)
+    late = T0 + 600 + 2 * HOUR
+    _feed(resets, late, [other])  # the Gemini window is missing from the newest reading
+    assert not resets.released("acct", "gemini-3.5-flash", hit_at=hit, now=late + 60)
+    # Its own fresh reading answers again.
+    _feed(resets, late + 60, [("Gemini · 7 days", 1, T0 + 7 * DAY), other])
+    assert resets.released("acct", "gemini-3.5-flash", hit_at=hit, now=late + 120)
+
+
+@pytest.mark.parametrize("times", [(0, 60, 90), (0, 20, 40, 65), (0, 60, 61, 62, 63)])
+def test_frequent_readings_keep_the_anchor_of_a_window_without_a_length(resets, times):
+    reset = T0 + 20 * DAY
+    for i, offset in enumerate(times):  # the stated reset jitters by a second
+        assert _feed(resets, T0 + offset, [("Credits", 90, reset + i % 2)]) == []
+    (event,) = _feed(resets, T0 + 120, [("Credits", 0, reset + 30 * DAY)])
+    assert event["kind"] == "early"
+
+
+@pytest.mark.parametrize("step", [1, 3, 20, 59, 61, 1800])
+def test_a_sliding_window_never_anchors_at_any_read_rate(resets, step):
+    for i in range(100):
+        at = T0 + i * step
+        assert _feed(resets, at, [("Credits", 90, at + 30 * DAY)]) == []
+    assert _feed(resets, at + 1200, [("Credits", 0, at + 1200 + 30 * DAY)]) == []
+
+
 def test_a_loosely_named_spent_tier_blocks_the_release(resets):
     _feed(resets, T0, [("5 hours", 100, T0 + HOUR), ("7 days · Sonnet only", 100, T0 + 3 * DAY)])
     _feed(resets, T0 + HOUR + 60, [("5 hours", 0, T0 + 6 * HOUR), ("7 days · Sonnet only", 100, T0 + 3 * DAY)])

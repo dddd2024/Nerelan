@@ -132,17 +132,27 @@ def readings(snapshot: Any, *, now: float) -> list[dict[str, Any]]:
     return result
 
 
-def _anchored(name: str, at: float, reset: float, previous: Mapping[str, Any] | None) -> bool:
-    """Whether this reset time is a fixed point, not one that moves with every read."""
+def _baseline(name: str, at: float, used: float, reset: float, previous: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The reading to compare the next one with, and whether its reset time is a fixed point.
+
+    Stability counts from the first reading of this reset time (``since``), so frequent
+    readings neither prevent an anchor nor clear one. A sliding reset time moves by the
+    whole elapsed time and starts over.
+    """
+    since, since_reset = at, reset
     length = window_seconds(name)
-    if length is not None and reset < at + length - 300:
-        # Started before this read. A sliding window stays a full length ahead of it.
-        return True
-    if previous is None or previous.get("resets_at") is None:
-        return False
-    elapsed = at - previous["observed_at"]
-    shift = abs(reset - previous["resets_at"])
-    return elapsed >= 60 and shift <= min(300.0, elapsed / 2)
+    # Started before this read. A sliding window stays a full length ahead of it.
+    anchored = length is not None and reset < at + length - 300
+    if previous is not None:
+        first, first_reset = previous.get("since", previous["observed_at"]), previous.get("since_reset", previous["resets_at"])
+        elapsed, shift = at - first, abs(reset - first_reset)
+        if shift <= max(5.0, min(300.0, elapsed / 2)):
+            since, since_reset = first, first_reset
+        step = at - previous["observed_at"]
+        anchored = (anchored or (elapsed >= 60 and shift <= min(300.0, elapsed / 2))
+                    or (previous["anchored"] and abs(reset - previous["resets_at"]) <= min(300.0, step / 2)))
+    return {"observed_at": at, "used": used, "resets_at": reset, "anchored": anchored,
+            "since": since, "since_reset": since_reset}
 
 
 class QuotaResets:
@@ -190,8 +200,7 @@ class QuotaResets:
             event = self._event(reading, name, base, at, used, reset, now)
             self._retract(ref, name, at, reset, used, now)
         if reset is not None:
-            base = {"observed_at": at, "used": used, "resets_at": reset,
-                    "anchored": _anchored(name, at, reset, base)}
+            base = _baseline(name, at, used, reset, base)
         elif base is not None and at >= base["resets_at"]:
             base = None  # the old window is over and no new one has started
         self._conn.execute(
@@ -280,13 +289,16 @@ class QuotaResets:
                   and (stated_reset is None or abs(e["previous_resets_at"] - stated_reset) <= MIN_LATER_SECONDS)]
         if not events or not rows:
             return False
-        latest = max(state["latest_at"] for _, state in rows)
-        if not hit_at < latest or now - latest > READING_MAX_AGE_SECONDS:
+        # Each window answers with its own reading: another tier's fresh one says nothing here.
+        newest = max(state["latest_at"] for _, state in rows)
+        fresh = {name for name, state in rows
+                 if state["latest_at"] > hit_at and now - state["latest_at"] <= READING_MAX_AGE_SECONDS}
+        if not any(event["window"] in fresh for event in events):
             return False
         # A window missing from the newest reading still counts until its reset.
-        current = [state for name, state in rows if may_limit_model(name, model_id)
-                   and (state["latest_at"] == latest or (state["resets_at"] or 0) > now)]
-        return bool(current) and all(state["used"] < ROOM_LIMIT for state in current)
+        current = [(name, state) for name, state in rows if may_limit_model(name, model_id)
+                   and (name in fresh or state["latest_at"] == newest or (state["resets_at"] or 0) > now)]
+        return all(name in fresh and state["used"] < ROOM_LIMIT for name, state in current)
 
 
 def public_event(event: Mapping[str, Any]) -> dict[str, Any]:
