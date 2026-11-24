@@ -19,7 +19,8 @@ from typing import Any
 
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED,
                                  OWNER_WINDOW_POOL_MISROUTE, REVIEW_REFUSED_RE, external_termination,
-                                 no_credits_error, provider_rate_limit_reply, transient_overload)
+                                 no_credits_error, provider_rate_limit_reply, transient_overload,
+                                 UPSTREAM_CONNECTION, upstream_connection_failure)
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 from .quota_guard import LIMIT_HIT
@@ -87,6 +88,8 @@ def neutral_failure(classification: str, detail: str) -> str:
         return "review_refused_by_upstream"
     if LIMIT_HIT.search(lowered):
         return "quota_or_rate_limit"
+    if upstream_connection_failure(classification, detail):
+        return UPSTREAM_CONNECTION
     if lowered == "executor_nonzero":
         if provider_rate_limit_reply(detail):
             return "quota_or_rate_limit"

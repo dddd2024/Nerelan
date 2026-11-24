@@ -56,7 +56,26 @@ OWNER_WINDOW_POOL_MISROUTE = "owner_window_binding_outside_confirmed_pool"
 # Owner decision 2026-11-12 B: failures the host classifies as not the model's fault
 # (a stall with no output, an external kill, a redeploy under the run). Goal retries
 # and measured agent profiles both read this one definition.
-HOST_RETRY_CLASSES = frozenset({"executor_stalled", "server_stream_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED})
+# The connection to the provider broke, or a gateway in front of it answered 502/504
+# (or a 52x edge error). Nothing judged the model: #1505 stopped for good on an
+# ECONNRESET and spent max_retries on a 502 (2026-11-23).
+UPSTREAM_CONNECTION = "network_provider_failure"
+HOST_RETRY_CLASSES = frozenset({"executor_stalled", "server_stream_stalled", EXECUTOR_TERMINATED, HOST_VERSION_CHANGED,
+                                UPSTREAM_CONNECTION})
+_GATEWAY_STATUS = r"(?:502|504|52[0-7])"
+# Only the host's own diagnostic head (the structured status, or the "(502: you can
+# retry your request)" suffix a relay adds), never a status quoted in free prose.
+_GATEWAY_DETAIL_RE = re.compile(
+    rf"^opencode_nonzero:exit=\d+:executor_nonzero(?: name=\w+)?"
+    rf"(?: status={_GATEWAY_STATUS}\b| message=.*\({_GATEWAY_STATUS}: you can retry your request\))", re.DOTALL)
+_GATEWAY_CLASS_RE = re.compile(rf"(?:claude_code|codex)_turn_failed:api_error_{_GATEWAY_STATUS}")
+
+
+def upstream_connection_failure(classification: str, detail: str) -> bool:
+    """A broken provider connection or a gateway error: an upstream fault, not the model's."""
+    cls = (classification or "").strip().lower()
+    return (cls == UPSTREAM_CONNECTION or bool(_GATEWAY_CLASS_RE.fullmatch(cls))
+            or (cls == "executor_nonzero" and bool(_GATEWAY_DETAIL_RE.match((detail or "").strip()))))
 
 
 def external_termination(exit_code: int) -> bool:
