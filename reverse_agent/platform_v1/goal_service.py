@@ -1674,7 +1674,8 @@ class GoalService:
                 now_wall = time.time()
                 # The account reset after this refusal: its wait is over.
                 released = (quota_failure and failed_at is not None and self.quota_reset_released is not None
-                            and self.quota_reset_released(failed.binding_ref, failed_at))
+                            and self.quota_reset_released(failed.binding_ref, failed_at,
+                                                          _parse_utc(getattr(failed, "failure_reset_at", ""))))
                 if not released and (failed_at is None or now_wall < failed_at + wait):
                     if failed_at is not None:
                         remaining = failed_at + wait - now_wall

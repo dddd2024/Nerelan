@@ -44,7 +44,7 @@ def _snapshot(*accounts):
 
 @pytest.fixture
 def resets():
-    conn = sqlite3.connect(":memory:")
+    conn = sqlite3.connect(":memory:", isolation_level=None)
     conn.row_factory = sqlite3.Row
     for statement in SCHEMA:
         conn.execute(statement)
@@ -201,6 +201,29 @@ def test_no_release_while_another_window_of_the_account_is_spent(resets):
     _feed(resets, T0, [("5 hours", 100, T0 + HOUR), ("7 days", 99, T0 + 3 * DAY)])
     assert len(_feed(resets, T0 + HOUR + 60, [("5 hours", 0, T0 + 6 * HOUR), ("7 days", 99, T0 + 3 * DAY)])) == 1
     assert not resets.released("acct", "gpt-6.1-sol", hit_at=T0 + 60, now=T0 + HOUR + 120)
+
+
+def test_no_release_for_a_window_missing_from_the_newest_reading_or_a_reset_before_the_refusal(resets):
+    _feed(resets, T0, [("5 hours", 100, T0 + HOUR), ("7 days", 100, T0 + 3 * DAY)])
+    assert len(_feed(resets, T0 + HOUR + 60, [("5 hours", 0, T0 + 6 * HOUR)])) == 1
+    assert not resets.released("acct", "gpt-6.1-sol", hit_at=T0 + 60, now=T0 + HOUR + 120)
+    _feed(resets, T0, [("5 hours", 100, T0 + 300)], ref="two")
+    assert len(_feed(resets, T0 + 1200, [("5 hours", 10, T0 + 5 * HOUR)], ref="two")) == 1
+    assert not resets.released("two", "gpt-6.1-sol", hit_at=T0 + 900, now=T0 + 1300)
+    assert resets.released("two", "gpt-6.1-sol", hit_at=T0 + 100, now=T0 + 1300)
+
+
+def test_a_loosely_named_spent_tier_blocks_the_release(resets):
+    _feed(resets, T0, [("5 hours", 100, T0 + HOUR), ("7 days · Sonnet only", 100, T0 + 3 * DAY)])
+    _feed(resets, T0 + HOUR + 60, [("5 hours", 0, T0 + 6 * HOUR), ("7 days · Sonnet only", 100, T0 + 3 * DAY)])
+    assert not resets.released("acct", "claude-sonnet-5", hit_at=T0 + 60, now=T0 + HOUR + 120)
+    assert resets.released("acct", "claude-opus-5", hit_at=T0 + 60, now=T0 + HOUR + 120)
+
+
+def test_an_open_transaction_of_the_caller_is_left_alone(resets):
+    resets._conn.execute("BEGIN")
+    assert _feed(resets, T0, [("7 days", 1, T0 + DAY)]) == [] and resets._conn.in_transaction
+    resets._conn.execute("ROLLBACK")
 
 
 # ---- the host and the coordinator ----------------------------------------------------------

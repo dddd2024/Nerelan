@@ -61,6 +61,22 @@ def window_seconds(name: str) -> float | None:
     return 7 * 86400 if "weekly" in name.lower() else None
 
 
+def may_limit_model(window: str, model_id: str) -> bool:
+    """Whether a window could limit this model: the loose reading, for the room check only.
+
+    A window that shares a family with the model, or whose model has no known family,
+    counts; ``Gemini 4 Argon`` stays apart from other Gemini lines (a versioned name).
+    """
+    if applies_to_model(window, model_id):
+        return True
+    label, model = _LENGTH.sub(" ", window.lower()), str(model_id).lower().rsplit("/", 1)[-1]
+    named = [family for family in _FAMILIES if family in label]
+    if not any(family in model for family in _FAMILIES):
+        return True
+    shared = any(family in model for family in named)
+    return shared and not re.search(r"gemini\s+\d", label)
+
+
 def applies_to_model(window: str, model_id: str) -> bool:
     """Whether a window limits this model: a window naming model families limits only those.
 
@@ -130,7 +146,7 @@ def _anchored(name: str, at: float, reset: float, previous: Mapping[str, Any] | 
 
 
 class QuotaResets:
-    """Baselines and events, stored with the control data; every call is one transaction."""
+    """Baselines and events, stored with the control data; one snapshot is one transaction."""
 
     def __init__(self, conn: Any, lock: Any) -> None:
         self._conn, self._lock = conn, lock
@@ -138,13 +154,23 @@ class QuotaResets:
     def observe(self, snapshot: Any, *, now: float) -> list[dict[str, Any]]:
         """Record readings; return the resets this snapshot shows for the first time."""
         found = []
-        with self._lock, self._conn:
-            for reading in readings(snapshot, now=now):
-                for name, window in reading["windows"].items():
-                    event = self._observe_window(reading, name, window, now)
-                    if event is not None:
-                        found.append(event)
-            self._conn.execute("DELETE FROM platform_quota_resets WHERE observed_at < ?", (now - KEEP_SECONDS,))
+        rows = readings(snapshot, now=now)
+        with self._lock:
+            if not rows or self._conn.in_transaction:
+                return found  # never inside a caller's transaction; the next read sees the same facts
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                for reading in rows:
+                    for name, window in reading["windows"].items():
+                        event = self._observe_window(reading, name, window, now)
+                        if event is not None:
+                            found.append(event)
+                if found:
+                    self._conn.execute("DELETE FROM platform_quota_resets WHERE observed_at < ?", (now - KEEP_SECONDS,))
+                self._conn.execute("COMMIT")
+            except BaseException:
+                self._conn.execute("ROLLBACK")
+                raise
         return found
 
     def _observe_window(self, reading: Mapping[str, Any], name: str, window: Mapping[str, Any],
@@ -244,8 +270,10 @@ class QuotaResets:
         """
         with self._lock:
             events = self._conn.execute(
-                "SELECT window, previous_resets_at FROM platform_quota_resets "
-                "WHERE account_ref=? AND status='active' AND observed_at > ?", (account_ref, hit_at)).fetchall()
+                "SELECT window, previous_resets_at FROM platform_quota_resets WHERE account_ref=? AND status='active' "
+                # A stated reset that had already passed at the refusal does not answer it.
+                "AND observed_at > ? AND (kind='early' OR previous_resets_at > ?)",
+                (account_ref, hit_at, hit_at)).fetchall()
             rows = [(r["window"], json.loads(r["state_json"])) for r in self._conn.execute(
                 "SELECT window, state_json FROM platform_quota_reset_state WHERE account_ref=?", (account_ref,))]
         events = [e for e in events if applies_to_model(e["window"], model_id)
@@ -255,7 +283,9 @@ class QuotaResets:
         latest = max(state["latest_at"] for _, state in rows)
         if not hit_at < latest or now - latest > READING_MAX_AGE_SECONDS:
             return False
-        current = [state for name, state in rows if state["latest_at"] == latest and applies_to_model(name, model_id)]
+        # A window missing from the newest reading still counts until its reset.
+        current = [state for name, state in rows if may_limit_model(name, model_id)
+                   and (state["latest_at"] == latest or (state["resets_at"] or 0) > now)]
         return bool(current) and all(state["used"] < ROOM_LIMIT for state in current)
 
 

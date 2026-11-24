@@ -164,7 +164,6 @@ export interface PlatformGoalTaskLink {
   attempts?: PlatformTaskAttempt[];
 }
 
-/** GET /api/goals/<id>/timeline: one goal as one conversation. */
 /** A quota window that started over, as the account's own readings show it. */
 export interface QuotaReset {
   account_ref: string;
@@ -179,6 +178,7 @@ export interface QuotaReset {
   resets_at: string | null;
 }
 
+/** GET /api/goals/<id>/timeline: one goal as one conversation. */
 export interface PlatformGoalTimeline {
   goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
   plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
