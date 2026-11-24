@@ -34,7 +34,7 @@ def cause(model, connection=MAGPIE, executor="opencode", **owner):
 @pytest.mark.parametrize("model", [
     "claude/claude-opus-5-5", "codex/gpt-6-sol", "antigravity-bridge/gemini-4", "antigravity/gemini-4",
     "CODEX/gpt-6", " codex/gpt-6", "magpie/codex/gpt-6", "openai-compatible/magpie/claude/opus", "codex-2/gpt-6",
-    "codex2/gpt-6", "claude_code/opus", "openai-codex/gpt-6", "chatgpt/gpt-6", "relay/codex/gpt-6"])
+    "codex2/gpt-6", "claude_code/opus", "openai-codex/gpt-6", "chatgpt/gpt-6", "claudecode/opus", "codexcli/x", "relay/codex/gpt-6"])
 @pytest.mark.parametrize("connection", [
     MAGPIE, {**MAGPIE, "auth_method": "api_key"}, {**PUBLIC_KEY, "base_url": "https://relay.example.com/v1"},
     {**MAGPIE, "auth_method": "external_cli_session"}])
@@ -46,7 +46,7 @@ def test_a_paid_provider_namespace_is_refused_on_every_route(model, connection):
     "copilot/claude-opus-5.5", "copilot/gpt-6-sol", "copilot/auto", "workbuddy/auto", "workbuddy-ai/gpt-6-sol",
     "trae-cn/glm-5.3", "opencode-zen-free/big-pickle", "groq/openai/gpt-oss-120b", "openrouter/openai/gpt-6.1-terra",
     "openrouter/google/gemini-omni", "raccoon/sn-glm-5-3", "minimax-code/MiniMax-M3", "zcode/GLM-5.2", "glm-5.2",
-    "qwen3:8b", "gpt-oss:20b", "auto/glm-5.3", "auto/kimi-k3"])
+    "qwen3:8b", "gpt-oss:20b", "openai/gpt-oss-20b", "openai/text-embedding-3", "auto/glm-5.3", "auto/kimi-k3"])
 def test_other_sources_are_untouched(model):
     assert cause(model) == ""
 
@@ -57,6 +57,24 @@ def test_native_agents_and_vendor_api_keys_are_untouched():
     assert cause("gpt-6", PUBLIC_KEY) == ""
     assert cause("claude-opus-5-5", {"auth_method": "api_key", "base_url": "https://api.anthropic.com",
                                      "executor_provider_id": "anthropic-compatible"}, "claude_code") == ""
+
+
+def test_a_session_on_a_vendor_host_is_untouched_but_a_gateway_named_after_an_account_is_not():
+    zen = {"auth_method": "external_cli_session", "base_url": "https://opencode.ai/zen/v1", "executor_provider_id": "ai"}
+    assert cause("gpt-6", zen) == cause("glm-5.2", zen) == ""
+    assert cause("antigravity/swe-1", {**MAGPIE, "executor_provider_id": "antigravity"}) == "provider:antigravity"
+
+
+@pytest.mark.parametrize("auth", ["external_cli_session", "account_login"])
+@pytest.mark.parametrize("model", ["gpt-6-sol", "auto"])
+def test_a_session_connection_to_the_gateway_is_refused_at_dispatch(host, auth, model):
+    host._store.upsert_connection({"connection_id": "session", "name": "S", "provider": "openai-compatible",
+        "base_url": "http://127.0.0.1:3425/v1", "auth_method": auth, "enabled": True})
+    bind(host, "s", model, connection_id="session")
+    with pytest.raises(gate.PaidSubscriptionGatewayError):
+        host._store.resolve_execution_snapshot("s")
+    with pytest.raises(BindingResolutionError, match="^paid_subscription_gateway$"):
+        BindingResolver(transport=owner_window._store_transport(host._store)).resolve("s", task_executor="opencode")
 
 
 def test_a_native_executor_does_not_launder_a_gateway():
@@ -70,10 +88,12 @@ def test_a_native_executor_does_not_launder_a_gateway():
 
 @pytest.mark.parametrize("base_url", [
     "http://127.0.0.1:3425/v1", "http://localhost:3425", "http://[::1]:3425", "http://192.168.64.1:3425/v1",
-    "http://10.0.0.2", "http://gateway:8080", "http://host.docker.internal:3425", "http://pc.lan", "::bad[", ""])
-def test_a_bare_name_on_a_local_gateway_is_refused_even_with_a_key(base_url):
-    connection = {"auth_method": "api_key", "base_url": base_url}
-    for model in ("claude-opus-5-5", "sonnet", "gpt-6-sol", "gpt5", "o3-mini", "gemini-3.8-flash", "openai-compatible/gpt-6"):
+    "http://10.0.0.2", "http://127.1:3425", "http://0x7f.0.0.1:3425", "http://gateway:8080", "http://host.docker.internal:3425", "http://pc.lan", "::bad[", ""])
+@pytest.mark.parametrize("auth", ["api_key", "external_cli_session", "account_login"])
+def test_a_bare_name_on_a_local_gateway_is_refused_whatever_it_signs_in_with(base_url, auth):
+    connection = {"auth_method": auth, "base_url": base_url}
+    assert gate.block_cause("workbuddy/glm-5.3", connection, "opencode", None) == "settings_unreadable"
+    for model in ("claude-opus-5-5", "gpt4o", "openai/gpt-6", "anthropic/claude-opus-5-5", "google/gemini-4", "sonnet", "gpt-6-sol", "gpt5", "o3-mini", "gemini-3.8-flash", "openai-compatible/gpt-6"):
         assert cause(model, connection).startswith("model_family:"), model
     assert cause("auto", connection) == cause("", connection) == cause(None, connection) == "model_unknown"
     assert cause("glm-5.2", connection) == ""

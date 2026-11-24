@@ -53,7 +53,10 @@ without a binding. No pin, cost class, retry or fallback overrides it. Refused:
 - a `group/` with a declared paid member, an undeclared `group/`, and a declared one of
   a subscription model family without a valid member list;
 - an `auto/` id of such a family, even when declared: the gateway fills it by itself;
-- a name of such a family without a provider, on a keyless or local endpoint.
+- a name of such a family without a provider, or with only its vendor (`openai/...`),
+  on a keyless or local endpoint, whatever it signs in with.
+
+A task without a binding is judged by the defaults, not the setting.
 
 Native Codex and Claude Code, vendor API keys, Copilot, WorkBuddy, Trae and other
 sources are not affected. A declaration is trusted: Magpie's API reports no group

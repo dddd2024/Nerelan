@@ -13,6 +13,7 @@ from __future__ import annotations
 from ipaddress import ip_address
 from pathlib import Path
 import re
+from socket import inet_aton
 from typing import Any, Mapping
 from urllib.parse import urlsplit
 
@@ -25,6 +26,9 @@ BLOCKED_CLASS = f"binding_resolution_failed:{BLOCKED}"
 
 # A resolved model id carries its connection's provider in front of the gateway's own id.
 _TRANSPORT_PREFIXES = frozenset({"magpie", "openai-compatible", "litellm-proxy", "reverse-agent-relay"})
+# Magpie reads these vendors' accounts as the subscriptions themselves, so on a gateway the
+# vendor alone does not say "API key". ``openrouter/openai/...`` names its provider.
+_VENDOR_NAMES = frozenset({"openai", "anthropic", "google"})
 
 
 class PaidSubscriptionGatewayError(ValueError):
@@ -39,11 +43,14 @@ def _tokens(text: str) -> list[str]:
     return [token for token in re.split(r"[^a-z0-9]+", text.lower()) if token]
 
 
-def _named(text: str, names: Any) -> str:
-    """The configured name that is a word of ``text`` (``codex``, ``codex-2``, ``gpt5``), or ""."""
+def _named(text: str, names: Any, *, prefix: bool = False) -> str:
+    """The configured name that is a word of ``text`` (``codex-2``, ``gpt5``, ``gpt4o``), or "".
+
+    With ``prefix`` a longer word counts too (``claudecode``).
+    """
     for token in _tokens(text):
         for name in names:
-            if token.startswith(name) and (len(token) == len(name) or token[len(name):].isdigit()):
+            if token.startswith(name) and (prefix or len(token) == len(name) or token[len(name)].isdigit()):
                 return name
     return ""
 
@@ -68,7 +75,7 @@ def _segments(model_id: str, executor_provider: str = "") -> list[str]:
 
 
 def _paid_namespace(parts: list[str], owner: Mapping[str, Any]) -> str:
-    return next((name for part in parts[:-1] if (name := _named(part, _providers(owner)))), "")
+    return next((name for part in parts[:-1] if (name := _named(part, _providers(owner), prefix=True))), "")
 
 
 def is_native_route(executor_id: Any, connection: Mapping[str, Any]) -> bool:
@@ -84,21 +91,20 @@ def _local_address(url: Any) -> bool:
     except (TypeError, ValueError, AttributeError):
         return True
     try:
-        return not ip_address(host).is_global
-    except ValueError:
+        # inet_aton also reads the short and hexadecimal spellings a client accepts (127.1).
+        return not ip_address(host if ":" in host else inet_aton(host)).is_global
+    except (OSError, UnicodeError, ValueError):
         return "." not in host or host.endswith((".local", ".lan", ".internal", ".localhost"))
 
 
 def _local_gateway(connection: Mapping[str, Any]) -> bool:
     """Whether the endpoint can be a gateway holding the Owner's accounts.
 
-    Keyless, or on this machine/network; an unreadable address counts as one. A public
-    API with a key is that vendor's API, not a subscription.
+    Keyless, or on this machine/network whatever it signs in with; an unreadable address
+    counts as one. A public
+    endpoint with a key or an executor's own login is that vendor's, not a gateway.
     """
-    auth = connection.get("auth_method")
-    if auth in {"external_cli_session", "account_login"}:
-        return False
-    if auth != "api_key":
+    if connection.get("auth_method") not in {"api_key", "external_cli_session", "account_login"}:
         return True
     # Claude Code uses a connection's Anthropic endpoint, the other executors its base URL.
     urls = [url for url in (connection.get("base_url"), connection.get("anthropic_base_url")) if url]
@@ -137,7 +143,11 @@ def block_cause(model_id: Any, connection: Mapping[str, Any], executor_id: Any,
     local = _local_gateway(connection)
     if not isinstance(model_id, str) or not model_id.strip():
         return "model_unknown" if local else ""
-    parts = _segments(model_id, str(connection.get("executor_provider_id") or connection.get("provider") or ""))
+    own_provider = str(connection.get("executor_provider_id") or connection.get("provider") or "")
+    named = _named(own_provider, _providers(owner), prefix=True)
+    if named and local:
+        return f"provider:{named}"  # the connection itself is named after a paid account
+    parts = _segments(model_id, own_provider)
     paid = _paid_namespace(parts, owner)
     if paid:
         return f"provider:{paid}"
@@ -146,12 +156,13 @@ def block_cause(model_id: Any, connection: Mapping[str, Any], executor_id: Any,
         return "settings_unreadable"
     if group:
         return _group_cause(group, owner)
-    if local and len(parts) == 1:
-        # Without a namespace the gateway picks the account from the model name.
-        name = parts[0]
+    if local and (len(parts) == 1 or len(parts) == 2 and parts[0] in _VENDOR_NAMES):
+        # Without a provider of its own the gateway picks the account from the model name.
+        name = parts[-1]
         if name in {"auto", "default"}:
             return "model_unknown"
-        if not name.startswith("gpt-oss:"):  # an Ollama tag of the open-weight model
+        # The open-weight model as Ollama (gpt-oss:20b) and LM Studio (openai/gpt-oss-20b) name it.
+        if not name.startswith("gpt-oss:" if len(parts) == 1 else "gpt-oss"):
             family = _named(name, _families(owner))
             if family:
                 return f"model_family:{family}"
