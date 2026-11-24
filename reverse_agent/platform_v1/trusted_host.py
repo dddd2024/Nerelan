@@ -1229,6 +1229,10 @@ class CombinedTrustedHost:
             evidence = quota_reservation.aged_evidence(
                 self._aged_account_reading(connection, now=now), now=now) or evidence
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
+        pace = self._weekly_pace_policy()
+        if pace.get("enabled") and task.executor_kind in pace.get("executors", ()):
+            need = quota_reservation.release_weekly_reserve(
+                need, evidence, release_hours=float(pace.get("reserve_release_hours", 0)), now=time.time())
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
 

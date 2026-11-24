@@ -554,3 +554,69 @@ def test_the_pace_decision_names_its_cause():
     assert weekly_pace_decision(gateway, now=NOW, pace=strict)[1] == "gateway_account_ambiguous"
     assert weekly_pace_decision(native, now=NOW, pace=PACE) == (None, "")  # not strict: no claim
     assert weekly_pace_decision(paced(.5, .45), now=NOW, pace=PACE) == (None, "")
+
+
+def test_the_reserve_is_released_only_in_the_last_hours_before_the_reset():
+    from reverse_agent.platform_v1.model_router import weekly_pace_decision
+    pace = {**PACE, "reserve_release_hours": 6}
+    resets = NOW + 48 * 3600
+    row = {**paced(.5, .91), "weekly_resets_at": resets}
+    assert weekly_pace_decision(row, now=resets - 6 * 3600 - 1, pace=pace) == (resets - 6 * 3600, "weekly_reserve")
+    assert weekly_pace_decision(row, now=resets - 6 * 3600, pace=pace) == (None, "")
+    # Off by default: the reserve stays to the end.
+    assert weekly_pace_decision(row, now=resets - 60, pace=PACE) == (resets, "weekly_reserve")
+    # A task larger than what is left waits for the reset, released or not.
+    big = {**row, "weekly_headroom": .01}
+    for now in (resets - 7 * 3600, resets - 3600):
+        assert weekly_pace_decision(big, now=now, pace=pace)[0] == resets
+
+
+@pytest.mark.parametrize("value,ok", [(6, True), (0, True), (2.5, True), (-1, False), (73, False), (True, False), ("6", False)])
+def test_reserve_release_hours_are_validated(tmp_path, value, ok):
+    import json
+    from reverse_agent.platform_v1.routing_inputs import read_overrides, weekly_pace_config
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps({"weekly_pace": {"reserve_release_hours": value}}))
+    state = tmp_path / "model_setup_state.json"
+    if ok:
+        assert weekly_pace_config(read_overrides(state))["reserve_release_hours"] == value
+    else:
+        with pytest.raises(ValueError):
+            read_overrides(state)
+
+
+def test_selection_uses_the_released_reserve():
+    row = {**paced(.5, .91), "weekly_resets_at": NOW + 5 * 3600}
+    with pytest.raises(ModelSelectionError):
+        choose([row], difficulty=4, now=NOW, weekly_pace=PACE)
+    pace = {**PACE, "reserve_release_hours": 6}
+    assert choose([row], difficulty=4, now=NOW, weekly_pace=pace)["binding_ref"] == "sub"
+    for held in ({**row, "weekly_resets_at": NOW + 7 * 3600}, {**row, "weekly_headroom": .01},
+                 {**row, "short_headroom": .05, "task_short_fraction": .04}):
+        with pytest.raises(ModelSelectionError):
+            choose([held], difficulty=4, now=NOW, weekly_pace=pace)
+
+
+def test_admission_and_in_flight_use_the_released_reserve_for_that_window_only():
+    from reverse_agent.model_access.quota_forecast import iso
+    from reverse_agent.platform_v1 import quota_reservation as quota
+    from reverse_agent.platform_v1.quota_inflight import projection
+
+    def evidence(weekly_used=91, resets=NOW + 5 * 3600, short_used=10):
+        return {"account_ref": "a", "source": "cli", "observed_at": iso(NOW), "windows": [
+            {"window": "five_hour", "used_percent": short_used, "resets_at": iso(NOW + 3600)},
+            {"window": "weekly", "used_percent": weekly_used, "resets_at": iso(resets)}]}
+    need = {"account_ref": "a", "windows": {"five_hour": {"p80": 5}, "weekly": {"p80": 6}}}
+
+    def verdict(ev, marked):
+        return quota.admission(ev, marked, now=NOW)["decision"]
+    assert verdict(evidence(), need) == "quota_wait"
+    marked = quota.release_weekly_reserve(need, evidence(), release_hours=6, now=NOW)
+    assert verdict(evidence(), marked) == "ok" and "reserve_released_until" not in need["windows"]["weekly"]
+    assert verdict(evidence(weekly_used=95), marked) == "quota_wait"  # never past the allowance
+    assert verdict(evidence(short_used=90), marked) == "quota_wait"  # the 5-hour margin stays
+    assert verdict(evidence(resets=NOW + WEEK_SECONDS), marked) == "quota_wait"  # a renewed week
+    for hours, resets in ((4, NOW + 5 * 3600), (0, NOW + 5 * 3600), (6, NOW + 7 * 3600)):
+        assert quota.release_weekly_reserve(need, evidence(resets=resets), release_hours=hours, now=NOW) == need
+    kwargs = dict(reservation_id="r", spent={}, now=NOW)
+    assert projection(evidence(), need, (), **kwargs)["decision"] == "quota_wait"
+    assert projection(evidence(), marked, (), **kwargs)["decision"] == "ok"
