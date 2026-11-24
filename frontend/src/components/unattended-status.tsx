@@ -1,9 +1,38 @@
 import type { PlatformStatus } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import { diskHoldLine, diskFreeLine } from "@/lib/disk-status";
 import { runtimeMessage } from "@/lib/runtime-labels";
 import { useEffect, useState } from "react";
 
-export function UnattendedStatus({ status, now: fixedNow, quietWhenRunning = false }: {
+/** Disk first, also when no window runs: a full disk needs the Owner either way. */
+export function UnattendedStatus(props: {
+  status: PlatformStatus;
+  now?: number;
+  quietWhenRunning?: boolean;
+}) {
+  const disk = props.status.coordinator.disk;
+  const hold = diskHoldLine(disk);
+  const line = hold || (disk?.low ? `磁盘空间偏低 · ${diskFreeLine(disk)}` : "");
+  return (
+    <>
+      {line && (
+        <div
+          role={hold ? "alert" : "status"}
+          data-testid="disk-status"
+          className={cn(
+            "shrink-0 border-b px-4 py-3 text-sm sm:px-5",
+            hold ? "border-ra-status-warning/30 bg-ra-status-warning/10 text-ra-status-warning" : "border-ra-border text-ra-text-secondary",
+          )}
+        >
+          {line}
+        </div>
+      )}
+      <WindowStatus {...props} />
+    </>
+  );
+}
+
+function WindowStatus({ status, now: fixedNow, quietWhenRunning = false }: {
   status: PlatformStatus;
   now?: number;
   /** Render nothing while the window runs normally (a goal page says it in its header). */
@@ -36,7 +65,8 @@ export function UnattendedStatus({ status, now: fixedNow, quietWhenRunning = fal
     && (status.coordinator.recovering === true || status.coordinator.lifecycle === "RECOVERING"),
   );
   // Only warn while work is still waiting; an unused task budget with an empty queue is not a stall.
-  const stalled = active && !coordinatorRecovering && (status.autonomy.unfinished_tasks ?? 0) > 0 && idleAge !== null && idleAge >= 15;
+  // A disk hold already explains why nothing progresses.
+  const stalled = active && !coordinatorRecovering && !status.coordinator.disk?.hold && (status.autonomy.unfinished_tasks ?? 0) > 0 && idleAge !== null && idleAge >= 15;
   const coordinatorStopped = active && !coordinatorRecovering
     && (!status.coordinator.enabled || status.coordinator.accepting_work === false);
   const warning = stalled || coordinatorStopped || Boolean(recent && !active);
@@ -60,6 +90,7 @@ export function UnattendedStatus({ status, now: fixedNow, quietWhenRunning = fal
       {/* Progress only matters while the window can still make some. */}
       {active && !coordinatorRecovering && !coordinatorStopped && (stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`
         : progressAge !== null ? ` · 上次进展：${progressAge === 0 ? "刚刚" : `${progressAge} 分钟前`}` : "")}
+      {active && !status.coordinator.disk?.low && diskFreeLine(status.coordinator.disk) && ` · ${diskFreeLine(status.coordinator.disk)}`}
     </div>
   );
 }

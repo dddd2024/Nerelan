@@ -71,6 +71,9 @@ class UnattendedCoordinator:
 
     _recovering: bool = False
     _skip_sweep_thread: int | None = None
+    disk_guard: Any | None = None
+    _disk_hold: bool = False
+    _disk_waiting: tuple[str, ...] = ()
 
     def __init__(
         self,
@@ -96,7 +99,10 @@ class UnattendedCoordinator:
         idle_wait_hint: Any | None = None,
         quota_wait_target: str | None = None,
         landing_loop=None, publication=None, goals=None,
+        disk_guard: Any | None = None,
     ) -> None:
+        # check() -> {"hold": bool, ...}; on hold no task is started (nearly full disk).
+        self.disk_guard = disk_guard
         # goal_id -> escalations; hands FAILED agent_team tasks to stronger agents.
         self.landing_loop = landing_loop
         self.publication = publication
@@ -374,6 +380,10 @@ class UnattendedCoordinator:
         except (TaskStoreError, KeyError):
             return None
 
+    def _landing_is_reviewed(self, goal: Any, task: Any) -> bool:
+        review = self._planned_review(goal, task)
+        return review is not None and self._has_retained_review(review)
+
     @staticmethod
     def _has_retained_review(review: Any) -> bool:
         from . import model_review
@@ -443,6 +453,8 @@ class UnattendedCoordinator:
                 landing = self.control_store.landing_progress(goal.id)
                 if goal.window_id != window.id:
                     continue
+                if self._disk_hold and not self._landing_is_reviewed(goal, task):
+                    continue  # publishing would start this goal's review task
                 try:
                     if (landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)
                             and not self._republishes_rejected_head(goal, task, accepted, landing)):
@@ -476,8 +488,10 @@ class UnattendedCoordinator:
         self._ticks += 1
         if self._stop.is_set():
             return 0
+        self._disk_hold = bool((self._read_disk() or {}).get("hold"))
         window = self.control_store.active_window()
         if window is None:
+            self._disk_waiting = ()
             # An Owner-approved standing policy renews a time-expired window (#1310 D).
             try:
                 window = self.control_store.renew_standing_window()
@@ -500,6 +514,7 @@ class UnattendedCoordinator:
             running_slots = len(self._active_task_ids) if background else 0
             free_slots = max(0, window.max_concurrent_tasks - running_slots)
         if free_slots == 0:
+            self._disk_waiting = ()  # waiting for a slot, not for disk space
             return 0
         if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" and self.goals is not None:
             try:
@@ -508,6 +523,7 @@ class UnattendedCoordinator:
                 self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
         claimed: dict[str, int] = {}
         held: list[str] = []
+        disk_waiting: list[str] = []
         recovered = 0
         retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
@@ -542,6 +558,11 @@ class UnattendedCoordinator:
                     continue
                 recovered += 1
                 self._executions += 1
+                continue
+            if self._disk_hold:
+                # Before any receipt, quota check, claim or retry: a held task
+                # keeps its exact state and is seen again on the next tick.
+                disk_waiting.append(task_id)
                 continue
             if self.goals is not None:
                 goal_id = self.control_store.goal_id_for_task(task_id)
@@ -596,6 +617,7 @@ class UnattendedCoordinator:
             claimed[task_id] = epoch
             if self._stop.is_set():
                 break
+        self._disk_waiting = tuple(disk_waiting)
         if held:
             # A fully held goal claims nothing, so post-execution escalation never
             # runs for it: offer the held tasks to the rerouter here.
@@ -967,6 +989,23 @@ class UnattendedCoordinator:
                 except Exception as exc:  # noqa: BLE001 - escalation must never break the loop
                     self._last_error = f"goal_escalation_failed:{type(exc).__name__}"
 
+    def _read_disk(self) -> dict[str, Any] | None:
+        if self.disk_guard is None:
+            return None
+        try:
+            return dict(self.disk_guard.check())
+        except Exception as exc:  # noqa: BLE001 - a failed reading must never stop dispatch
+            self._last_error = f"disk_check_failed:{type(exc).__name__}"
+            return None
+
+    def _disk_status(self) -> dict[str, Any] | None:
+        disk = self._read_disk()
+        if disk is not None:
+            waiting = self._disk_waiting if disk.get("hold") else ()
+            disk["waiting_task_count"] = len(waiting)
+            disk["waiting_task_ids"] = list(waiting[:50])
+        return disk
+
     def status(self) -> dict[str, Any]:
         active = self.control_store.active_window()
         with self._lifecycle_lock:
@@ -1000,6 +1039,8 @@ class UnattendedCoordinator:
             # Unfinished work whose window can no longer dispatch; only an explicit rebind moves it.
             "stranded_goals": list(self.control_store.stranded_goals()),
             "workspace_root": self.workspace_root,
+            # Free space and, below the critical floor, the dispatch hold with its waiting tasks.
+            "disk": self._disk_status(),
         }
 
     def idle_wait(self, dispatched: int) -> float:
