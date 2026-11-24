@@ -199,15 +199,14 @@ def test_unanchored_ignore_write_rechecks_scratch_identity(repository, monkeypat
     from reverse_agent.platform_v1 import codex_executor
     root, _ = repository
     monkeypatch.setattr(codex_executor, "_ANCHORED_WRITE", False)
-    real_open = os.open
-    def open_then_swap(path, flags, *args, **kwargs):
-        handle = real_open(path, flags, *args, **kwargs)
-        scratch = Path(path).parent
-        if Path(path).name == ".gitignore" and scratch.parent == root:
-            scratch.rename(root / "moved")
-            scratch.mkdir()  # Same name, different directory.
-        return handle
-    monkeypatch.setattr(codex_executor.os, "open", open_then_swap)
+    real_lstat = Path.lstat
+    def swap_before_recheck(path, *args, **kwargs):
+        if (path.parent == root and path.name.startswith(".nt-")
+                and os.path.exists(path / ".gitignore") and not os.path.exists(root / "moved")):
+            path.rename(root / "moved")
+            path.mkdir()  # Same name, different directory.
+        return real_lstat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "lstat", swap_before_recheck)
     with pytest.raises(ExecutorRuntimeError, match="native_task_temp_unavailable"):
         _task_temp_env(root, {})
     assert (root / "moved" / ".gitignore").read_text() == "*\n"
