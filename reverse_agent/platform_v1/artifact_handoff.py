@@ -36,6 +36,37 @@ def normalize_input(value: Any) -> dict[str, str] | None:
     return {"plan_task_id": source}
 
 
+def published_plan_tasks(plan_tasks: Sequence[Mapping[str, Any]]) -> set[str]:
+    """Plan task ids whose result the host can publish as a Draft PR.
+
+    The host publishes only a task with a bound AcceptedArtifact, and that is
+    retained only for a task another task takes as its checked artifact input
+    (an implementation an independent review reruns the checks on).
+    """
+    published: set[str] = set()
+    for raw in plan_tasks:
+        try:
+            selected = normalize_input(raw.get("artifact_input"))
+        except TaskStoreError:
+            continue
+        if selected is not None:
+            published.add(selected["plan_task_id"])
+    return published
+
+
+def publication_blocker(plan_tasks: Sequence[Mapping[str, Any]], plan_task_id: str) -> str:
+    """Why the host will never publish this plan task, or "" when it can (#1462)."""
+    by_id = {str(raw.get("id", "")): raw for raw in plan_tasks}
+    task = by_id.get(plan_task_id)
+    if task is None:
+        return ""
+    if task.get("artifact_input") is not None or task.get("kind") == "review" or task.get("agent_role") == "reviewer":
+        return ""  # a consumer: its producer is what gets published
+    if plan_task_id in published_plan_tasks(plan_tasks):
+        return ""
+    return "no_review_handoff" if task.get("validation_checks") else "no_functional_checks"
+
+
 def validate_plan_inputs(tasks: Sequence[Any]) -> None:
     by_id = {task.id: task for task in tasks}
     for task in tasks:
@@ -210,7 +241,7 @@ def retain_validated_artifact(store: Any, task_id: str, identity: str, *,
     the same content-addressed object/ref; it cannot make a consumer accepted.
     Replaying this operation uses the original proof and identical commit bytes.
     """
-    from .functional_validation import git_output
+    from .functional_validation import git_output, load_contract, require_reviewable_patch
     task = store.get_task(task_id)
     contract = load_handoff_contract(task)
     if contract is None or not contract["export_required"]:
@@ -227,6 +258,12 @@ def retain_validated_artifact(store: Any, task_id: str, identity: str, *,
         raise TaskStoreError("artifact_proof_lease_mismatch")
     root = Path(worktree).resolve(strict=True)
     _verify_proof_workspace(task, proof, root)
+    functional_contract = load_contract(task) or {}
+    paths = tuple(functional_contract.get("allowed_paths", ()))
+    consumed = load_input_binding(task) if paths else None
+    require_reviewable_patch(root, proof["base_commit"], proof["tree"],
+                             allowed_paths=paths,
+                             scope_base=consumed["producer"]["commit"] if consumed else "")
     ref = _retention_ref(task)
     previous = _load_evidence(task, ACCEPTED_CATEGORY, task.execution_id)
     if previous is not None and previous.get("result_digest") != identity:

@@ -301,6 +301,12 @@ def test_child_environment_and_argv_preserve_policy_and_exclude_provider_authori
         build_codex_argv("native.exe", Path("."), "gpt-5.4", "danger-full-access")
 
 
+def test_child_environment_preserves_os_username_keys():
+    env = codex_child_env({"Path": "safe", "USERNAME": "u-win", "USER": "u-posix", "LOGNAME": "u-log",
+                           "OPENAI_API_KEY": "secret", "HTTP_PROXY": "http://user:password@host"})
+    assert env == {"Path": "safe", "USERNAME": "u-win", "USER": "u-posix", "LOGNAME": "u-log"}
+
+
 def test_project_provider_or_hook_configuration_is_denied_without_dispatch(repository, tmp_path):
     repo, base = repository
     executor, launched = fixture_executor(repo, base, SUCCESS_SCRIPT)

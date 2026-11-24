@@ -881,3 +881,14 @@ def test_provider_quota_limit_reaches_real_durable_failure_detail(
         assert outcome.failure_detail == persisted.failure_detail
     finally:
         store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
+
+
+@pytest.mark.parametrize("message,expected", [
+    # Provider answers seen on the run host, 2026-11-11 (#1460).
+    ("Copilot: The requested model is not supported.", "MODEL_UNAVAILABLE:model_is_not_supported"),
+    ("WorkBuddy AI: model [gpt-6.1-sol] is not allowed for user type [personal_free_user]",
+     "MODEL_UNAVAILABLE:not_allowed_for_user_type"),
+])
+def test_provider_entitlement_rejections_classify_as_model_unavailable(message: str, expected: str) -> None:
+    ev = {"type": "error", "error": {"name": "APIError", "data": {"message": message, "statusCode": 400}}}
+    assert _executor()._classify_exit(1, [ev]) == expected

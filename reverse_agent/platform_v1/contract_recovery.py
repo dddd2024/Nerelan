@@ -5,8 +5,10 @@ import json
 from datetime import datetime
 import subprocess
 
-from .artifact_handoff import _load_evidence
-from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene
+from .artifact_handoff import _load_evidence, load_input_binding
+from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene, require_reviewable_patch
+from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED
+from .quota_guard import LIVENESS_STALL_CLASSES
 from .run_store import TaskStoreError
 from reverse_agent.executor_neutral.core import _snapshot_workspace, safe_recovery_tree
 
@@ -16,6 +18,10 @@ KINDS = {"target_mismatch", "patch_hygiene"}
 OVERLOAD_KIND = "provider_overloaded"
 OVERLOAD_FEEDBACK = ("The provider was at capacity and your previous turn was cut off. Your workspace "
                      "already contains that attempt's changes: continue from them, do not start over.")
+TERMINATED_FEEDBACK = ("The machine stopped your previous turn (shutdown or a closed console). Your "
+                       "workspace already contains that attempt's changes: continue from them, do not start over.")
+HOST_VERSION_FEEDBACK = ("The host was redeployed while your previous turn ran, so it could not be resumed. "
+                         "Your workspace already contains that attempt's changes: continue from them, do not start over.")
 
 
 def attempt_worktree(store, task):
@@ -60,7 +66,10 @@ def retain_interrupted_tree(store, task_id, *, worktree):
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": "",
         "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
-        "feedback": OVERLOAD_FEEDBACK, "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
+        "feedback": (TERMINATED_FEEDBACK if task.failure_classification == EXECUTOR_TERMINATED
+                     else HOST_VERSION_FEEDBACK if task.failure_classification == HOST_VERSION_CHANGED
+                     else OVERLOAD_FEEDBACK),
+        "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
         if previous != document:
@@ -175,32 +184,50 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
     original, current = load_contract(source), load_contract(task)
     if (binding.get("snapshot_digest") != digest(snapshot)
             or binding.get("task_id") != task.id or binding.get("execution_id") != task.execution_id
-            or task.binding_ref != source.binding_ref or task.executor_kind != source.executor_kind
+            # A stalled attempt's tree may continue on another binding (#1596), and so may a
+            # tree the host cut off that escalation explicitly rerouted (continuous run, #1553;
+            # #1528 was refused here twice). Every other recovery, e.g. a contract fix-up,
+            # stays with the agent that wrote the tree.
+            or (source.failure_classification not in LIVENESS_STALL_CLASSES and binding.get("rerouted") is not True
+                and (task.binding_ref != source.binding_ref or task.executor_kind != source.executor_kind))
             or original is None or current is None
             or {k: v for k, v in current.items() if k != "task_id"}
                != {k: v for k, v in original.items() if k != "task_id"}):
         raise TaskStoreError("failed_snapshot_recovery_mismatch")
     previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     base = snapshot["base_commit"]
-    recovery_tree = safe_recovery_tree(root, base, snapshot["tree"])
+    source_input = load_input_binding(source)
+    destination_input = load_input_binding(task)
+    predecessor = source_input["producer"] if source_input else None
+    if predecessor != (destination_input["producer"] if destination_input else None):
+        raise TaskStoreError("failed_snapshot_predecessor_mismatch")
+    apply_base = predecessor["commit"] if predecessor else base
+    expected_tree = git_output(root, "rev-parse", f"{apply_base}^{{tree}}")
+    if predecessor and (expected_tree != predecessor["tree"]
+            or git_output(root, "merge-base", apply_base, snapshot["head"]) != apply_base):
+        raise TaskStoreError("failed_snapshot_predecessor_mismatch")
+    recovery_tree = safe_recovery_tree(root, apply_base, snapshot["tree"])
+    paths = tuple(current.get("allowed_paths", ()))
+    require_reviewable_patch(root, base, recovery_tree, allowed_paths=paths,
+                             scope_base=apply_base)
     restored_identity = {**binding, "source_tree": snapshot["tree"], "recovery_tree": recovery_tree}
     if previous is not None:
         if previous != restored_identity:
             raise TaskStoreError("failed_snapshot_restore_conflict")
         return  # Never overwrite work already executed after restoration.
-    _, tree, _, _ = _snapshot_workspace(root, base)
-    if git_output(root, "rev-parse", "HEAD") != base:
+    _, tree, _, _ = _snapshot_workspace(root, apply_base)
+    if git_output(root, "rev-parse", "HEAD") != apply_base:
         raise TaskStoreError("failed_snapshot_destination_head_changed")
-    if tree != git_output(root, "rev-parse", f"{base}^{{tree}}"):
+    if tree != expected_tree:
         # A crash after apply but before binding may only reuse the exact failed tree.
         if tree != recovery_tree:
             raise TaskStoreError("failed_snapshot_destination_changed")
     else:
-        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", base, recovery_tree, "--"], timeout=60)
+        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", apply_base, recovery_tree, "--"], timeout=60)
         if patch:
             subprocess.run(["git", "-C", str(root), "apply", "--whitespace=nowarn", "-"], input=patch, check=True,
                            capture_output=True, timeout=60)
-    if _snapshot_workspace(root, base)[1] != recovery_tree:
+    if _snapshot_workspace(root, apply_base)[1] != recovery_tree:
         raise TaskStoreError("failed_snapshot_restore_mismatch")
     store._bind_artifact_evidence(task.id, category="FailedTreeRestored", label=task.execution_id,
                                   document=restored_identity, lease=lease)

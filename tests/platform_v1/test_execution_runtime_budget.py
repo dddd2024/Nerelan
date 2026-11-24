@@ -319,7 +319,7 @@ def test_invalid_execution_timeout_rejected_without_lease_mutation(clock, second
         float("nan"),
         float("inf"),
         -float("inf"),
-        3601,
+        86401,  # past the unleased runaway cap (#1551)
         10**1000,
         -10**1000,
         "300",

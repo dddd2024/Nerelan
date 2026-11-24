@@ -206,12 +206,17 @@ def test_escalated_task_keeps_the_launch_base_when_head_moves(monkeypatch):
 
 @pytest.mark.parametrize("classification", ["auth_provider_route_failure", "cli_unavailable",
                                             "functional_contract_conflict", "budget_exhausted",
-                                            "network_provider_failure", "workspace_missing",
+                                            "workspace_missing",
                                             "claude_code_turn_failed:api_error_429", "claude_code_turn_failed:api_error"])
 def test_infrastructure_failures_never_escalate(monkeypatch, classification):
     store, control, goals, goal = _launched(monkeypatch)
-    _fail(store, _link(control, goal.id, "T001")["task_id"], classification=classification)
+    failed_id = _link(control, goal.id, "T001")["task_id"]
+    _fail(store, failed_id, classification=classification)
     assert goals.escalate_failed_tasks(goal.id) == ()
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    if not classification.endswith("429"):  # a rate limit has its own retry path
+        # The wait is visible, and repeated sweeps record it once.
+        assert [e.metadata["reason"] for e in store.get_events(failed_id) if e.type == "MODEL_SELECTION_FAILED"]             == [f"automatic_retry_not_allowed:{classification}"]
 
 
 def test_escalations_spend_the_window_retry_budget(monkeypatch):
@@ -298,3 +303,69 @@ def test_escalation_records_task_resolver_failure_on_failed_task(monkeypatch):
     assert store.get_task(first).status == "FAILED"
     assert _link(control, goal.id, "T001")["task_id"] == first
     assert control.list_task_escalations(goal.id) == ()
+
+
+def test_escalation_deduplicates_selection_failed_and_preserves_sweep_interval(monkeypatch):
+    from reverse_agent.platform_v1 import unattended_coordinator as uc
+
+    store, control, goals, goal = _launched(monkeypatch)
+    first = _link(control, goal.id, "T001")["task_id"]
+    store._conn.execute(
+        "UPDATE tasks SET status = 'FAILED', failure_classification = 'api_error_429', "
+        "updated_at = '2026-11-22T00:00:00Z' WHERE id = ?",
+        (first,),
+    )
+    store._conn.commit()
+    control.refresh_goal_status(goal.id)
+
+    reason_box = ["no_runnable_model"]
+
+    def unavailable(*args, **kwargs):
+        raise TaskStoreError(reason_box[0])
+
+    goals.task_resolver = unavailable
+    sweep_calls = []
+
+    def escalate(gid):
+        sweep_calls.append(gid)
+        return goals.escalate_failed_tasks(gid)
+
+    clock = [1000.0]
+    monkeypatch.setattr(uc.time, "monotonic", lambda: clock[0])
+    coordinator = uc.UnattendedCoordinator.__new__(uc.UnattendedCoordinator)
+    coordinator.control_store, coordinator._last_error, coordinator.goal_escalator = control, "", escalate
+
+    # Sweep 1 records MODEL_SELECTION_FAILED once and bumps tasks.updated_at from the baseline.
+    coordinator._sweep_escalations()
+    assert len(sweep_calls) == 1
+    first_updated_at = store.get_task(first).updated_at
+    assert first_updated_at != "2026-11-22T00:00:00Z"
+    assert [
+        e.metadata for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"
+    ] == [{"reason": "no_runnable_model"}]
+
+    # Sweep 2 sees the updated_at bump from sweep 1; repeating the same failure reason must
+    # not emit a second event or rewrite updated_at.
+    clock[0] += 30.0
+    coordinator._sweep_escalations()
+    assert len(sweep_calls) == 2
+    assert store.get_task(first).updated_at == first_updated_at
+    assert len([e for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+    # Sweep 3 within SWEEP_REPEAT_SECONDS skips escalation because updated_at stayed stable.
+    clock[0] += 30.0
+    coordinator._sweep_escalations()
+    assert len(sweep_calls) == 2
+
+    # Sweep 4 after SWEEP_REPEAT_SECONDS runs again without adding a duplicate event.
+    clock[0] += uc.SWEEP_REPEAT_SECONDS
+    coordinator._sweep_escalations()
+    assert len(sweep_calls) == 3
+    assert len([e for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+    # A changed selection failure reason still appends a new event.
+    reason_box[0] = "pinned_model_unavailable"
+    goals.escalate_failed_tasks(goal.id)
+    assert [
+        e.metadata for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"
+    ] == [{"reason": "no_runnable_model"}, {"reason": "pinned_model_unavailable"}]

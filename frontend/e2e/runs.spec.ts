@@ -19,17 +19,17 @@ test("confirms a queued cancellation and exposes its terminal state", async ({ a
   await queued.getByTestId("run-cancel-task-demo-queued").click();
   await expect(queued.getByTestId("run-cancel-confirm-task-demo-queued")).toBeVisible();
   await queued.getByRole("button", { name: "确认取消" }).click();
-  await expect(queued.getByTestId("run-state-task-demo-queued")).toContainText("CANCELLED");
+  await expect(queued.getByTestId("run-state-task-demo-queued")).toContainText("已取消");
 });
 
 test("identifies each run by task title in the collapsed row and toggle accessible name", async ({ appPage }) => {
   await open(appPage, "/runs");
   await settle(appPage);
   const first = appPage.getByTestId("run-task-demo-1");
-  await expect(first.getByText(/T001 分析目标与代码库/)).toBeVisible();
+  await expect(first.getByText(/完善无人值守多 Agent 平台 · 分析目标与代码库/)).toBeVisible();
   await expect(first.getByTestId("run-toggle-task-demo-1")).toHaveAttribute(
     "aria-label",
-    /运行：.*T001 分析目标与代码库/,
+    /运行：完善无人值守多 Agent 平台 · 分析目标与代码库/,
   );
 });
 
@@ -37,8 +37,8 @@ test("presents truthful usage for observed and all-unknown runs", async ({ appPa
   await open(appPage, "/runs");
   await settle(appPage);
   const observed = appPage.getByTestId("run-usage-task-demo-1");
-  await expect(observed).toContainText("Tokens 68,420");
-  await expect(observed).toContainText("Cost $0.8123");
+  await expect(observed).toContainText("用量 68,420 tokens");
+  await expect(observed).toContainText("费用 $0.81");
 
   const unknown = appPage.getByTestId("run-usage-task-demo-2");
   await expect(unknown).toContainText("用量未知：1 条观测均未提供数值");

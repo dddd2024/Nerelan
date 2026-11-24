@@ -18,10 +18,11 @@ credential relay used internally during execution.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
 import json
+import logging
 import os
 from pathlib import Path
 import subprocess
@@ -29,6 +30,7 @@ import threading
 import time
 from typing import Any, Mapping
 
+from ..model_access.exclusive_server import ExclusiveThreadingHTTPServer
 from ..model_access.contracts import NATIVE_CLI_PROVIDERS, ExecutionSnapshot
 from ..model_access.credential_relay import (
     CredentialRelayManager,
@@ -39,6 +41,7 @@ from ..model_access.os_vault import default_vault_adapter
 from ..model_access.account_auth import AccountAuthManager, ServerFactory
 from ..model_access.service import _handler_factory as _model_control_handler_factory
 from ..model_access.store import ModelProfileStore
+from ..agent_cli_detection import detect_agent_clis
 from .github_adapter import LiveGitHubAdapter
 from .opencode_executor import (
     ExecutionLeaseHandle,
@@ -56,10 +59,21 @@ from .autonomy import AutonomyService
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService
+from .goal_source_issue import GoalSourceIssues
 from .publication_controller import PublicationController
 from .unattended_coordinator import UnattendedCoordinator
 from .local_client_session import LocalClientSession
 from .remote_jobs import configured_broker
+
+
+
+def _upstream_namespace(binding: Mapping[str, Any] | None) -> str:
+    """The upstream a gateway binding routes to: ``trae-cn`` for ``trae-cn/glm-5.2``, else "".
+
+    A Magpie routing group is its own upstream, ``group:<id>`` (2026-11-17).
+    """
+    from .routing_inputs import upstream_namespace
+    return upstream_namespace((binding or {}).get("model_id"))
 
 
 class CombinedTrustedHost:
@@ -91,6 +105,7 @@ class CombinedTrustedHost:
         account_auth_server_factory: ServerFactory | None = None,
         codex_readiness_probe: Callable[[], str] | None = None,
         claude_code_readiness_probe: Callable[[], str] | None = None,
+        executor_detector: Callable[[], Mapping[str, str]] | None = None,
         reset_signal_reader: Callable[[], Mapping[str, Any]] | None = None,
         availability_probe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
         vault: Any = _PLATFORM_VAULT,
@@ -101,11 +116,26 @@ class CombinedTrustedHost:
         if auth_refresh_ttl_seconds < 0:
             raise ValueError("auth_refresh_ttl_seconds must be non-negative")
         self._landing_owner_decisions = landing_owner_decisions or (lambda state: ())
+        if reset_signal_reader is None and os.environ.get("REVERSE_AGENT_CODEX_RESET_WATCH") == "1":
+            from ..model_access.codex_reset_signals import CodexResetSignalReader
+            raw = os.environ.get("REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS", "24")
+            try:
+                hours = float(raw)
+            except ValueError:
+                hours = float("nan")
+            if not 1 <= hours <= 72:  # also false for NaN
+                # A typo must not keep the host down: use the documented default.
+                logging.getLogger(__name__).warning(
+                    "REVERSE_AGENT_CODEX_RESET_WITHIN_HOURS=%r is not 1-72 hours; using 24", raw)
+                hours = 24.0
+            reset_signal_reader = CodexResetSignalReader(within=timedelta(hours=hours))
         self._reset_signal_reader = reset_signal_reader
         self._availability_probe = availability_probe
         task_store = task_store or _make_task_store(task_db_path)
         if store is not None:
             self._store = store
+            if executor_detector is not None:
+                self._store.refresh_executor_availability(executor_detector)
         else:
             state_path = _resolve_store_state_path(task_store)
             # Platforms without a supported OS vault adapter (None) keep the
@@ -119,11 +149,16 @@ class CombinedTrustedHost:
             self._store = ModelProfileStore(
                 state_path=state_path,
                 vault=resolved_vault,
+                executor_detector=executor_detector,
             )
         from .magpie_launch import MagpieLaunch
         self._magpie = (magpie_factory or MagpieLaunch)(self._store.get_magpie)
         self._store.magpie_status = self._magpie.status
         self._task_store = task_store
+        # Review evidence checks read the Owner's declared Magpie routing groups (2026-11-17).
+        self._task_store.routing_groups = self._routing_groups
+        # A continuous Owner window routes and dispatches from the live pool (#1667).
+        self._task_store.live_window_pool = self._live_window_pool
         if codex_readiness_probe is not None:
             self._store.set_codex_readiness(codex_readiness_probe())
         if claude_code_readiness_probe is not None:
@@ -159,6 +194,7 @@ class CombinedTrustedHost:
             quota_forecaster=self._goal_quota_fit,
             account_status_provider=self._goal_account_status_provider,
             binding_account_resolver=self._binding_account_resolver,
+            source_issues=GoalSourceIssues(),
         )
         self._publication_controller: PublicationController | None = None
         self._coordinator: UnattendedCoordinator | None = None
@@ -182,10 +218,17 @@ class CombinedTrustedHost:
         self._trusted_client = None
         self._remote_job_broker = None
         self._research_loop = None
+        self._radar = None
         self._workspace_reclaimer = None
 
         from .native_goal_admission import NativeGoalAdmission
         self._native_goal_admission = NativeGoalAdmission(self)
+        from .owner_window import OwnerWindowAdmission
+        self._owner_window_admission = OwnerWindowAdmission(self)
+        from .supervisor_requests import SupervisorRequests
+        self._supervisor_requests = SupervisorRequests(self)
+        from .pool_verifier import PoolVerifier
+        self._pool_verifier = PoolVerifier(self)
 
         self.model_control_url = ""
         self.task_api_url = ""
@@ -216,6 +259,47 @@ class CombinedTrustedHost:
             return monitor.perceive()
         except Exception:  # noqa: BLE001 - perception failure must not break reroute
             return []
+
+    def _pool_snapshot(self) -> "Mapping[str, Any] | None":
+        """Magpie snapshot for the pool view, or ``None`` when Magpie is not in use."""
+        from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
+        settings = self._store.get_magpie()
+        if not (settings.get("enabled") or magpie_enabled(os.environ)):
+            return None
+        return fetch_magpie_snapshot(
+            os.environ.get("REVERSE_AGENT_MAGPIE_URL", settings.get("base_url") or "http://127.0.0.1:3425"))
+
+    def _pool_runtime_status(self) -> dict[str, Any]:
+        """Coordinator and active-window facts the alert rules read."""
+        coordinator = self._coordinator.status() if self._coordinator else {}
+        window = self._control_store.active_window()
+        if window is None:
+            return {"coordinator": coordinator, "window": None, "budget": None}
+        from .autonomy import window_to_dict
+        from .multi_account.pool_monitor import window_renews
+        return {"coordinator": coordinator, "window": window_to_dict(window),
+                "window_renews": window_renews(self._control_store, window),
+                "budget": self._control_store.window_budget_summary(window.id)}
+
+    def _build_pool_monitor(self) -> Any:
+        from .multi_account import MultiAccountConfig
+        from .multi_account.dispatch import get_orchestrator
+        from .multi_account.pool_monitor import PoolMonitor
+        return PoolMonitor(
+            config=MultiAccountConfig.from_env(),
+            fetch_snapshot=self._pool_snapshot,
+            stored_statuses=self._goal_account_status_provider,
+            runtime_status=self._pool_runtime_status,
+            brain=get_orchestrator,
+            persist_alerts=os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1",
+            weekly_pace=self._weekly_pace_policy,
+            reset_signal=self._routing_reset_signal,
+        )
+
+    def _weekly_pace_policy(self) -> Mapping[str, Any]:
+        """The pacing policy routing applies, for display."""
+        from .routing_inputs import read_overrides, weekly_pace_config
+        return weekly_pace_config(read_overrides(getattr(self._store, "_state_path", None)))
 
     def _binding_account_resolver(self, binding_ref: str) -> "str | None":
         """Map a candidate binding to its account_ref (or connection_id fallback)."""
@@ -288,6 +372,8 @@ class CombinedTrustedHost:
             "authentication_error", "invalid_api_key"})
         if provider_auth:
             kind = "account_abnormal"
+        elif code in {"timeout", "executor_timeout", "opencode_timeout", "codex_timeout", "claude_code_timeout"}:
+            kind = "timeout"
         elif "quota" in classification or "limit_hit" in classification:
             kind = "quota_exhausted"
         else:
@@ -331,6 +417,16 @@ class CombinedTrustedHost:
         account selection, or executor sandbox policy.
         """
         return self._native_goal_admission.admit(goal_id, unknown_claims_sha256=unknown_claims_sha256)
+
+    def _quick_start(self) -> Any:
+        """One sentence -> planned Goals; presets live beside the task store."""
+        from .quick_start import QuickStart
+        state_path = getattr(self._store, "_state_path", None)
+        return QuickStart(self._goal_service, state_dir=Path(state_path).parent if state_path else None)
+
+    def _owner_admit_window(self, **request: Any):
+        """Owner-confirmed window over exact Goals. Terminal entry only; never on a router."""
+        return self._owner_window_admission.admit(request.pop("goal_ids"), **request)
 
     @property
     def store(self) -> ModelProfileStore:
@@ -540,13 +636,15 @@ class CombinedTrustedHost:
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
-                            probe_availability: bool = True) -> dict[str, Any]:
+                            probe_availability: bool = True, avoid_bindings: Sequence[str] = (),
+                            stall_tier: int | None = None) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
         import random
-        from .model_router import capability, select_model
-        from .routing_inputs import read_overrides, binding_cost_class
+        from .model_router import capability, select_model, served_model
+        from .routing_inputs import inherit_group_availability, paced_group_provider
+        from .routing_inputs import read_overrides, weekly_pace_config
         from .routing_capabilities import read_capability_table
         try:
             owner = read_overrides(getattr(self._store, "_state_path", None))
@@ -560,6 +658,7 @@ class CombinedTrustedHost:
         by_id = {b["binding_id"]: b for b in bindings}
         connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
         runnable = self._runnable_bindings()
+        executors = {item["executor_id"]: item for item in self._store.list_executors_public()}
         profiles = self._usage_profiles()
         forecast_evidence = (self._forecast_evidence() if quota_evidence is None else quota_evidence) if forecast else {}
         role = task.agent_role or (
@@ -579,23 +678,46 @@ class CombinedTrustedHost:
                 chain_models.append(model)
                 chain_executors.append(by_id[binding_id]["executor_id"])
         candidates = []
+        window_pool = self._routing_window_pool(goal)
+        pool_refs = None
+        if window_pool is not None:
+            from .window_pool import pool_refs as _pool_refs
+            pool_refs = _pool_refs(window_pool["pool"])
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
         availability_history = self._routing_availability_history()
+        paced_providers = set(weekly_pace_config(owner).get("providers", ()))
+        from .resource_allowances import effective_cost
+        allowances = self._resource_allowances(refresh=not forecast)
+        allowance_now = time.time()
         for binding in bindings:
             connection = connections.get(binding["connection_id"], {})
             native = connection.get("auth_method") == "external_cli_session"
-            cost_class = binding_cost_class(binding, connection, owner)
+            # Magpie's time-limited allowances and expiring credits (#1471) adjust the class.
+            cost_class, resources = effective_cost(binding, connection, owner, allowances, now=allowance_now)
             quota = None if forecast else self._quota_check(binding)
+            # A gateway model naming a paced upstream ("claude/...") spends that account's
+            # weekly allowance, so it is paced against that account's own windows.
+            namespace = binding["model_id"].split("/", 1)[0] if "/" in binding["model_id"] else ""
+            paced_provider = namespace if not native and namespace in paced_providers else ""
+            if not native and not paced_provider:
+                # A declared group failing over onto a paced account spends it too.
+                paced_provider = paced_group_provider(binding["model_id"], owner.get("groups", {}), paced_providers)
+            pace_input = ""
             try:
                 # Headroom comes from this connection's own account, never the provider summary,
                 # and only while that observation is fresh now (persisted forecast evidence ages too).
                 account = connection.get("account_ref") or connection.get("connection_id")
-                quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
-                              if forecast else self._account_quota(connection)) if native else {}
+                if paced_provider:
+                    quota_view = {} if forecast else self._gateway_account_quota(paced_provider)
+                else:
+                    quota_view = (_usable_quota(account, [forecast_evidence[account]] if account in forecast_evidence else [])
+                                  if forecast else self._native_pace_quota(connection)) if native else {}
                 windows = quota_view.get("windows", ())
+                pace_input = str(quota_view.get("pace_input") or "")
             except Exception:  # noqa: BLE001 - unknown headroom is not evidence of exhaustion
                 windows = ()
+                pace_input = "gateway_quota_read_failed" if paced_provider else ""
             weekly_window = next((w for w in windows if w.get("window") in {"weekly", "7d", "week"}), {})
             short_window = next((w for w in windows if w.get("window") in {"5h", "five_hour", "five_hours"}), {})
             need = (quota or {}).get("need_units")
@@ -608,18 +730,23 @@ class CombinedTrustedHost:
             def fraction(window: Mapping[str, Any]) -> float | None:
                 capacity = (window.get("capacity_units") or {}).get("low")
                 return need / capacity if type(need) in (int, float) and type(capacity) in (int, float) and capacity > 0 else None
-            try:
-                raw_reset = short_window.get("resets_at")
-                short_reset = float(raw_reset) if type(raw_reset) in (int, float) else datetime.fromisoformat(raw_reset.replace("Z", "+00:00")).timestamp()
-            except (ValueError, TypeError, AttributeError, OverflowError):
-                short_reset = None
+            def reset_time(window: Mapping[str, Any]) -> float | None:
+                raw_reset = window.get("resets_at")
+                try:
+                    return float(raw_reset) if type(raw_reset) in (int, float) else datetime.fromisoformat(
+                        raw_reset.replace("Z", "+00:00")).timestamp()
+                except (ValueError, TypeError, AttributeError, OverflowError):
+                    return None
+            short_reset = reset_time(short_window)
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
+                                "executor_available": executors.get(binding["executor_id"], {}).get("cli_available"),
                                "account_ref": connection.get("account_ref") or connection.get("connection_id"),
                                "review_connection": {"auth_method": connection.get("auth_method"),
                                    "protocol_family": connection.get("protocol_family"),
                                    "relay_required": connection.get("auth_method") == "api_key",
+                                   "base_url": connection.get("base_url"),
                                    "native_endpoint": binding.get("native_endpoint", "")},
                                "review_lease_provider": review_lease_provider,
                                "metadata": metadata.get(binding["model_id"], {}),
@@ -629,7 +756,11 @@ class CombinedTrustedHost:
                                "task_weekly_fraction": fraction(weekly_window), "task_short_fraction": fraction(short_window),
                                "short_headroom": 1 - short_window["used_percent"] / 100 if type(short_window.get("used_percent")) in (int, float) else None,
                                "short_resets_at": short_reset,
-                               "cost_class": cost_class}
+                               "weekly_resets_at": reset_time(weekly_window),
+                               "paced_provider": paced_provider,
+                               # Where the weekly figure came from, or why there is none.
+                               "weekly_pace_input": pace_input,
+                               "cost_class": cost_class, "resources": resources}
             # Evaluate the same pure hard filters before spending a probe. A
             # catalog entry excluded by scope, quota or calibration costs no call.
             try:
@@ -639,7 +770,9 @@ class CombinedTrustedHost:
                     context_need=getattr(task, "context_need", 0) + self._routing_context_tokens(task, goal),
                     needs=getattr(task, "needs", ()), overrides=owner.get("bindings", {}),
                     refused_models=refused_models, author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
-                    reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03))
+                    reset_signal=signal, reset_buffer=owner.get("reset_buffer", .03),
+                    weekly_pace=weekly_pace_config(owner), groups=owner.get("groups", {}),
+                    window_pool=pool_refs)
                 can_probe = True
             except ValueError:
                 can_probe = False
@@ -649,13 +782,21 @@ class CombinedTrustedHost:
                 history=availability_history.get(binding["binding_id"], ()),
                 runnable=binding["binding_id"] in runnable)
             candidates.append(candidate)
+        inherit_group_availability(candidates, owner.get("groups", {}), paced_providers)
         # Legacy labels only identify optional pins; unpinned tasks use the full pool.
         entry = self._store.get_agent_roster_public()["roles"].get(role, {})
         pin = getattr(goal, "binding_ref", "") or (entry.get("binding_id", "") if entry.get("pin") else "")
         failed = by_id.get(failed_binding, {})
         tier = failed_tier if failed_tier is not None else (
-            capability(failed.get("model_id", ""), profiles.get(failed_binding, {}),
+            capability(served_model(failed.get("model_id", ""), owner.get("groups", {})), profiles.get(failed_binding, {}),
                        task.kind, task.difficulty)[0] if failed_binding else 0)
+        if avoid_bindings and (type(stall_tier) is not int or not 1 <= stall_tier <= 5):
+            # No recorded tier for the stalled attempt: its binding's own measured tier is the floor.
+            from .routing_capabilities import tier_detail
+            stall_tier = max((tier_detail(served_model(by_id[ref]["model_id"], owner.get("groups", {})),
+                                          profiles.get(ref, {}), task.kind, task.difficulty,
+                                          capability_table, owner.get("bindings", {}).get(ref, {}))["tier"]
+                              for ref in avoid_bindings if ref in by_id), default=0)
         feedback = None
         if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
             from .multi_account.dispatch import routing_feedback_snapshot
@@ -670,13 +811,54 @@ class CombinedTrustedHost:
                                 author_model=by_id.get(author_binding, {}).get("model_id", ""), author_models=chain_models, author_executors=chain_executors,
                                 failed_model=failed.get("model_id", ""), failed_tier=tier,
                                 exploration_draw=1.0 if forecast else random.random(),
-                                account_feedback=feedback)
+                                account_feedback=feedback, weekly_pace=weekly_pace_config(owner),
+                                avoid_bindings=tuple(avoid_bindings),
+                                stall_tier=stall_tier if avoid_bindings and type(stall_tier) is int else 0,
+                                groups=owner.get("groups", {}), window_pool=pool_refs)
             decision["context_packet_reservation"] = 16384 + 256
+            if window_pool is not None:
+                decision["pool_source"] = window_pool["pool_source"]
+                decision["pool_size"] = len(pool_refs)
+            if owner.get("group_errors"):
+                decision["group_errors"] = list(owner["group_errors"])
             return decision
         except ValueError as exc:
             error = TaskStoreError(str(exc))
             error.decision = getattr(exc, "decision", {"reason": str(exc)})
+            if owner.get("group_errors") and isinstance(error.decision, dict):
+                error.decision["group_errors"] = list(owner["group_errors"])
+            if window_pool is not None and isinstance(error.decision, dict):
+                error.decision["pool_source"] = window_pool["pool_source"]
+                error.decision["pool_size"] = len(pool_refs)
             raise error from exc
+
+    def _live_window_pool(self) -> list[dict[str, Any]]:
+        """Bindings a continuous Owner window's Goals may run on now (Owner decision 2026-11-17, #1667)."""
+        from .owner_window import live_pool
+        return live_pool(self._store)
+
+    def _routing_window_pool(self, goal: Any) -> dict[str, Any] | None:
+        """The pool routing must stay inside: the one dispatch will check, or None outside Owner windows.
+
+        A missing or unreadable admission receipt leaves routing unfiltered: dispatch
+        refuses that Task anyway, and an admission still being written has none yet.
+        """
+        from .window_pool import goal_window_pool
+        task_store = getattr(self, "_task_store", None)
+        if task_store is None or not goal or not getattr(goal, "window_id", "") or not getattr(goal, "id", ""):
+            return None
+        try:
+            return goal_window_pool(task_store, goal.id, goal.window_id)
+        except (ValueError, AttributeError):
+            return None
+
+    def _routing_groups(self) -> Mapping[str, Any]:
+        """The Owner's declared Magpie routing groups; unreadable overrides declare none."""
+        from .routing_inputs import read_overrides
+        try:
+            return read_overrides(getattr(self._store, "_state_path", None)).get("groups", {})
+        except ValueError:
+            return {}
 
     def _routing_paid_allowed(self, goal: Any, owner: Mapping[str, Any] | None = None) -> bool:
         # Owner configuration names a specific active window; a generic setting
@@ -718,7 +900,7 @@ class CombinedTrustedHost:
             authority = self._control_store.window_policy_binding(goal.window_id).get("authority", {})
             return (window.status == "ACTIVE"
                     and authority.get("model_call_limit") != 0 and authority.get("provider_call_limit") != 0
-                    and datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time())
+                    and (window.continuous or datetime.fromisoformat(window.expires_at.replace("Z", "+00:00")).timestamp() > time.time()))
         except (AttributeError, KeyError, TypeError, ValueError, TaskStoreError):
             return False
 
@@ -739,7 +921,9 @@ class CombinedTrustedHost:
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
                               history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
-        from .model_availability import AvailabilityCache, observation, native_owner_account
+        from .model_availability import (AvailabilityCache, NO_CREDITS, NO_CREDITS_TTL_SECONDS,
+                                          REVIEW_REFUSED_RE, REVIEW_REFUSED_TTL_SECONDS,
+                                          no_credits_error, observation, native_owner_account)
         cache = getattr(self, "_availability_cache", None)
         if cache is None:
             path = getattr(self._store, "_state_path", None)
@@ -767,8 +951,20 @@ class CombinedTrustedHost:
             classification = row["failure_classification"] or ""
             if row["status"] in {"COMPLETED", "READY_FOR_REVIEW"} or classification in {"MODEL_REFUSED", "deterministic_validation_failure"}:
                 cache.remember(binding, connection, observation(now=at, success=True))
-            elif classification == "MODEL_UNAVAILABLE":
-                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"]))
+            # Durable executors store "MODEL_UNAVAILABLE:<marker>"; the ordinary path stores the bare class.
+            elif (refused := REVIEW_REFUSED_RE.search(f"{classification} {row['failure_detail'] or ''}")):
+                cache.remember(binding, connection, observation(now=at, state="UNAVAILABLE",
+                    reason=refused.group(1), ttl_seconds=REVIEW_REFUSED_TTL_SECONDS))
+            elif classification == "MODEL_UNAVAILABLE" or classification.startswith("MODEL_UNAVAILABLE:"):
+                cache.remember(binding, connection, observation(now=at, error=row["failure_detail"] or classification))
+            # A billing refusal (402 "Insufficient credits", 429 "Credits exhausted")
+            # is not a rate limit: the upstream stays unpaid until credits are
+            # bought, so the binding is UNAVAILABLE for a week instead of being
+            # re-offered on every dispatch (#1525).
+            elif row["status"] == "FAILED" and no_credits_error(row["failure_detail"] or ""):
+                cache.remember(binding, connection, observation(
+                    now=at, state="UNAVAILABLE", reason=NO_CREDITS,
+                    ttl_seconds=NO_CREDITS_TTL_SECONDS))
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))
@@ -878,6 +1074,8 @@ class CombinedTrustedHost:
         if not entry or not entry["available"]:
             raise TaskStoreError(f"agent_role_unfilled:{role}")
         executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
+        if self._store.get_executor_public(executor_id).get("cli_available") is False:
+            raise TaskStoreError(f"executor_unavailable:{executor_id}")
         return self._quota_guarded(role, executor_id, binding_id, roster["roles"],
                                    standins=roster.get("standins", {}).get(role, ()))
 
@@ -1026,6 +1224,10 @@ class CombinedTrustedHost:
             self.__dict__.pop("_subscription_quota_cache", None)
             return self._account_quota_candidates(connection, self._subscription_quotas())
         evidence = quota_reservation.observation(account, read(account), refresh=read)
+        if not evidence["fresh"]:
+            now = time.time()
+            evidence = quota_reservation.aged_evidence(
+                self._aged_account_reading(connection, now=now), now=now) or evidence
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
         self._control_store.prepare_quota_admission(task_id=task.id,
             binding_ref=binding["binding_id"], account_ref=account, evidence=evidence, need=need, resume_route=resume_route)
@@ -1042,7 +1244,7 @@ class CombinedTrustedHost:
                 if isolation.get("skip"):
                     return {"decision": "switch", "reason": "account_quarantined",
                             "window": None, "retry_at": isolation["retry_at"]}
-            until = self._limit_hit_until(connection)
+            until = self._limit_hit_until(connection, binding)
             if until is not None:
                 # The account itself refused a recent run: exhausted until it resets, whatever the estimate says.
                 return {"decision": "switch", "reason": "limit_hit", "window": None,
@@ -1050,7 +1252,17 @@ class CombinedTrustedHost:
             records = _cached(self, "_task_records_cache", lambda: task_token_records(self._task_store))
             need, source = typical_need(records, binding, self._store.list_bindings_public())
             verdict = check(connection, {connection.get("executor_provider_id"): self._account_quota(connection)}, need)
-            return verdict | {"need_source": source} if verdict else None
+            verdict = verdict | {"need_source": source} if verdict else None
+            if verdict is None or verdict.get("decision") in {"ok", "warn"}:
+                # A recent stall on this upstream (#1596) only ranks a binding the account can
+                # still serve; real exhaustion above keeps its own exclusion and refusal.
+                cooling = self._liveness_cooldown(binding)
+                if cooling is not None:
+                    return {"decision": "switch", "reason": "liveness_cooldown", "window": None,
+                            "stalls": cooling["stalls"], "cooldown_seconds": cooling["seconds"],
+                            "upstream": cooling["upstream"], "quota_verdict": verdict,
+                            "until": datetime.fromtimestamp(cooling["until"], timezone.utc).isoformat().replace("+00:00", "Z")}
+            return verdict
         except Exception:  # noqa: BLE001 - a quota estimate must never block dispatch by itself
             return {"decision": "error", "reason": "quota_check_failed"}
 
@@ -1070,22 +1282,137 @@ class CombinedTrustedHost:
         local = [dict(own, account_ref=account)] if isinstance(own, Mapping) and not _external_quota(own) else []
         return local + [q for q in observed if not _external_quota(q)]
 
+    def _gateway_account_quota(self, provider: str) -> dict[str, Any]:
+        """The usable observation of the one Magpie account of ``provider``.
+
+        No account, or more than one (the gateway may use either), gives no headroom
+        claim; with ``require_fresh`` pacing then holds the model. Without windows the
+        view names why in ``pace_input``, so the hold can say so.
+
+        Magpie re-reads a subscription about every 13 minutes (median, Claude Pro on
+        2026-11-17; up to ~56), longer than the 600 s admission freshness. A weekly
+        window read up to ``GATEWAY_PACE_MAX_AGE_SECONDS`` ago still says where the week
+        stands: until the stated reset, use only grows, so an older reading can only
+        understate it, by at most that interval's spend, well inside the pacing slack.
+        """
+        quotas = self._subscription_quotas()
+        refs = getattr(self, "_magpie_provider_accounts", {}).get(provider, ())
+        if len(refs) != 1:
+            return {"windows": [], "pace_input": "no_gateway_account" if not refs else "gateway_account_ambiguous"}
+        usable = _usable_quota(refs[0], _account_observations(quotas, refs[0]))
+        if usable.get("windows"):
+            return usable
+        reading = getattr(self, "_magpie_account_readings", {}).get(refs[0])
+        paced = _gateway_pace_reading(reading, now=time.time())
+        return paced or dict(usable, windows=[], pace_input="no_fresh_gateway_quota")
+
     def _account_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
         """The usable observation of this connection's own account, or {} when there is none."""
         account = connection.get("account_ref") or connection.get("connection_id")
         candidates = self._account_quota_candidates(connection, self._subscription_quotas()) if account else []
         return _usable_quota(account, candidates)
 
-    def _limit_hit_until(self, connection: Mapping[str, Any]) -> float | None:
+    def _aged_account_reading(self, connection: Mapping[str, Any], *, now: float) -> dict[str, Any] | None:
+        """The linked Magpie account's own reading, up to GATEWAY_PACE_MAX_AGE_SECONDS old.
+
+        Only an explicit ``account_ref`` link identifies it; an unlinked login has none.
+        """
+        self._subscription_quotas()
+        ref = connection.get("account_ref")
+        reading = getattr(self, "_magpie_account_readings", {}).get(ref) if ref else None
+        return _gateway_pace_reading(reading, now=now)
+
+    def _native_pace_quota(self, connection: Mapping[str, Any]) -> dict[str, Any]:
+        """Weekly pacing view of a native account: fresh evidence, else its aged reading."""
+        usable = self._account_quota(connection)
+        if usable.get("windows"):
+            return usable
+        from .quota_reservation import ADMISSION_FRESHNESS_SECONDS
+        aged = self._aged_account_reading(connection, now=time.time())
+        # A reading no older than the contract was already judged above; never overrule that.
+        return aged if aged and aged["reading_age_seconds"] > ADMISSION_FRESHNESS_SECONDS else usable
+
+    def _liveness_upstream(self, binding: Mapping[str, Any],
+                           connections: Mapping[str, Mapping[str, Any]]) -> str:
+        """The upstream a stall cools down: the same identity as a limit-hit hold (#1522).
+
+        A Magpie gateway binding is its upstream namespace on that gateway; any other
+        binding is its recorded account, else its own connection.
+        """
+        from .resource_allowances import gateway_connection
+        connection = connections.get(binding.get("connection_id"), {})
+        account = connection.get("account_ref")
+        if account:
+            return f"account:{account}"
+        namespace = _upstream_namespace(binding)
+        if namespace and gateway_connection(connection):
+            return f"gateway:{binding.get('connection_id')}:{namespace}"
+        return f"connection:{binding.get('connection_id')}"
+
+    def _liveness_attempts(self) -> tuple[dict[str, str], dict[str, list[dict[str, Any]]]]:
+        """Recent stall/success rows grouped by upstream: one indexed query per store change.
+
+        Cached on the connection's change counter, so routing across every binding reads
+        the task table once, and a new stall or success is seen by the next routing call.
+        """
+        from .quota_guard import LIVENESS_LOOKBACK_SECONDS
+        conn = self._task_store._conn
+        key = conn.total_changes
+        cached = getattr(self, "_liveness_attempts_cache", None)
+        if cached is not None and cached[0] == key and time.monotonic() - cached[1] < 30:
+            return cached[2]
+        connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        upstreams = {b["binding_id"]: self._liveness_upstream(b, connections) for b in self._store.list_bindings_public()}
+        since = datetime.fromtimestamp(time.time() - LIVENESS_LOOKBACK_SECONDS,
+                                       timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in conn.execute(
+                "SELECT binding_ref, status, failure_classification, failure_at, updated_at FROM tasks "
+                "WHERE updated_at >= ? AND status IN ('FAILED', 'READY_FOR_REVIEW') AND binding_ref != ''",
+                (since,)).fetchall():
+            upstream = upstreams.get(row["binding_ref"])
+            if upstream is None:
+                continue
+            try:
+                at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
+            except (ValueError, TypeError, AttributeError):
+                continue
+            grouped.setdefault(upstream, []).append(
+                {"status": row["status"], "failure_classification": row["failure_classification"], "at": at})
+        for attempts in grouped.values():
+            attempts.sort(key=lambda item: item["at"], reverse=True)
+        self._liveness_attempts_cache = (key, time.monotonic(), (upstreams, grouped))
+        return upstreams, grouped
+
+    def _liveness_cooldown(self, binding: Mapping[str, Any]) -> dict[str, Any] | None:
+        """The active liveness cool-down of the binding's upstream (#1596), or None."""
+        from .quota_guard import liveness_cooldown
+        upstreams, grouped = self._liveness_attempts()
+        upstream = upstreams.get(binding["binding_id"])
+        if upstream is None:
+            return None
+        hold = liveness_cooldown(grouped.get(upstream, ()), now=time.time())
+        return None if hold is None else hold | {"upstream": upstream}
+
+    def _limit_hit_until(self, connection: Mapping[str, Any],
+                         binding: Mapping[str, Any] | None = None) -> float | None:
         """When a run on this account last failed for quota, and the account has not reset since."""
-        from .quota_guard import ACCOUNT_LIMIT, limit_hit_until
+        from .quota_guard import account_refusal_hold, limit_hit_until
         # A recorded account is shared by every connection naming it; an unbound login is only itself.
         account = connection.get("account_ref")
         connections = {c["connection_id"] for c in self._store.list_connections_public()
                        if c.get("account_ref") == account} if account else set()
         connections.add(connection.get("connection_id"))
-        bindings = [b["binding_id"] for b in self._store.list_bindings_public()
-                    if b["connection_id"] in connections]
+        candidates = [b for b in self._store.list_bindings_public() if b["connection_id"] in connections]
+        from .resource_allowances import gateway_connection
+        namespace = _upstream_namespace(binding) if binding is not None and not account else ""
+        if namespace and gateway_connection(connection):
+            # The local Magpie gateway fronts many upstream accounts behind one connection.
+            # One upstream's refusal holds only that upstream's models, never the whole
+            # gateway (2026-11-14: one 429 on workbuddy held all ~169 Magpie models for an
+            # hour). Any other connection is one account, whatever its model ids look like.
+            candidates = [b for b in candidates if _upstream_namespace(b) == namespace]
+        bindings = [b["binding_id"] for b in candidates]
         if not bindings:
             return None
         now = time.time()
@@ -1093,7 +1420,7 @@ class CombinedTrustedHost:
         # never from a later admission check. Keep those older failures discoverable.
         since = datetime.fromtimestamp(now - 7 * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self._task_store._conn.execute(
-            "SELECT failure_classification, failure_reset_at, failure_at, updated_at FROM tasks "
+            "SELECT failure_classification, failure_detail, failure_reset_at, failure_at, updated_at FROM tasks "
             "WHERE status IN ('FAILED', 'BLOCKED') "
             "AND updated_at >= ? AND binding_ref IN ({}) ORDER BY updated_at DESC".format(",".join("?" * len(bindings))),
             (since, *bindings)).fetchall()
@@ -1101,7 +1428,8 @@ class CombinedTrustedHost:
         holds = []
         for row in rows:
             # Host refusals are not fresh account evidence.
-            if not ACCOUNT_LIMIT.search(row["failure_classification"] or ""):
+            hold = account_refusal_hold(row["failure_classification"] or "", row["failure_detail"] or "")
+            if hold is None:
                 continue
             hit_at = datetime.fromisoformat((row["failure_at"] or row["updated_at"]).replace("Z", "+00:00")).timestamp()
             if hit_at > now:
@@ -1134,7 +1462,7 @@ class CombinedTrustedHost:
                         resets.append(reset)
                 holds.append(max(resets))
             elif hit_at >= now - 86400:
-                holds.append(limit_hit_until(hit_at, quota))
+                holds.append(limit_hit_until(hit_at, quota, hold))
         until = max(holds, default=0)
         return until if until > now else None
 
@@ -1214,6 +1542,7 @@ class CombinedTrustedHost:
         keys from :meth:`_merge_magpie_quotas`; provider lookups are unchanged.
         """
         if os.environ.get("REVERSE_AGENT_SUBSCRIPTION_QUOTA") == "0":
+            self._magpie_allowances = None  # quota reading off: no allowance is assumed either
             return {}
         from ..model_access.subscription_quota import claude_quota, codex_quota
         from .usage_ledger import latest_rate_limits
@@ -1242,12 +1571,19 @@ class CombinedTrustedHost:
         from ..model_access.magpie import fetch_magpie_snapshot, magpie_enabled
         from ..model_access.subscription_quota import magpie_account_quotas, magpie_quota_windows
         if not magpie_enabled(os.environ):
+            self._magpie_allowances = None
             return local
         try:
             snapshot = fetch_magpie_snapshot(
                 os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
         except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
+            self._magpie_allowances = None  # no reading now: no allowance is assumed
             return local
+        try:
+            from .resource_allowances import read_allowances
+            self._magpie_allowances = read_allowances(snapshot, now=time.time())
+        except Exception:  # noqa: BLE001 - allowances only add preferences; none is the safe default
+            self._magpie_allowances = None
         magpie = magpie_quota_windows(snapshot)
         merged = dict(local)
         for key, quota in magpie.items():
@@ -1259,10 +1595,35 @@ class CombinedTrustedHost:
         accounts = snapshot.get("accounts") if isinstance(snapshot, Mapping) else None
         if isinstance(accounts, list):
             refs = [a.get("account_ref") for a in accounts if isinstance(a, Mapping)]
+            providers: dict[str, list[str]] = {}
+            for item in accounts:
+                if (isinstance(item, Mapping) and isinstance(item.get("provider"), str)
+                        and isinstance(item.get("account_ref"), str) and item["account_ref"]):
+                    providers.setdefault(item["provider"], []).append(item["account_ref"])
+            self._magpie_provider_accounts = providers
+            # The parsed readings themselves, for weekly pacing of a gateway upstream.
+            self._magpie_account_readings = {
+                item["account_ref"]: item for item in accounts
+                if isinstance(item, Mapping) and isinstance(item.get("account_ref"), str) and item["account_ref"]
+                and refs.count(item["account_ref"]) == 1}
             for ref, quota in magpie_account_quotas(snapshot).items():
                 if refs.count(ref) == 1:
                     merged[_MAGPIE_ACCOUNT_KEY + ref] = quota
         return merged
+
+    def _resource_allowances(self, *, refresh: bool = True) -> dict[str, Any]:
+        """Magpie's model allowances and expiring credits (#1471) from the latest reading.
+
+        ``refresh`` reads through the shared quota cache (at most one Magpie call per
+        cache period); a forecast only reuses what the last reading found.
+        """
+        if refresh:
+            try:
+                self._subscription_quotas()
+            except Exception:  # noqa: BLE001 - no reading means no allowance, never a failure
+                pass
+        found = getattr(self, "_magpie_allowances", None)
+        return found if isinstance(found, dict) else {}
 
     def _claude_reset_quota_recheck(self) -> None:
         # Read-only official CLI telemetry; never change entitlement/limits.
@@ -1389,7 +1750,7 @@ class CombinedTrustedHost:
                 quota_guard_log=self._quota_guard_entries,
                 claude_reset_status=self._claude_reset_status,
             )
-            self._model_server = ThreadingHTTPServer(
+            self._model_server = ExclusiveThreadingHTTPServer(
                 (self._model_control_host, mcp), mc_handler
             )
             actual_mc_port = self._model_server.server_address[1]
@@ -1412,6 +1773,7 @@ class CombinedTrustedHost:
                 live_github = LiveGitHubAdapter()
             self._publication_controller = PublicationController(
                 landing_decisions=self._landing_owner_decisions,
+                source_issue_closed=self._goal_service.stop_if_source_closed,
                 store=self._task_store,
                 control_store=self._control_store,
                 autonomy=self._autonomy_service,
@@ -1422,7 +1784,8 @@ class CombinedTrustedHost:
             landing = LandingLoopController(control_store=self._control_store,
                 autonomy=self._autonomy_service,
                 github=RoutedLandingGitHubAdapter(self._control_store),
-                owner_decisions=self._landing_owner_decisions)
+                owner_decisions=self._landing_owner_decisions,
+                source_issue_closed=self._goal_service.stop_if_source_closed)
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -1441,6 +1804,9 @@ class CombinedTrustedHost:
                 quota_wait_target=self._quota_wait_target(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
             )
+            self._pool_monitor = self._build_pool_monitor()
+            if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":
+                self._pool_monitor.start()
             task_handler = _task_handler_factory(
                 self._task_store,
                 self._router,
@@ -1455,14 +1821,19 @@ class CombinedTrustedHost:
                 agent_planner=self._agent_planner(),
                 context_recovery=self._context_recovery(),
                 agent_policy=self._agent_policy(),
+                owner_window_preflight=self._owner_window_admission.preflight,
+                owner_window_activate=self._owner_window_admission.admit_from_card,
+                owner_window_card_request=self._owner_window_admission.card_request,
+                quick_start=self._quick_start(),
                 autonomy_service=self._autonomy_service,
                 capability_registry=self._capability_registry,
                 publication_controller=self._publication_controller,
                 coordinator=self._coordinator,
                 local_client_session=self._local_client_session,
                 magpie_status=self._magpie.status,
+                pool_monitor=self._pool_monitor,
             )
-            self._task_server = ThreadingHTTPServer(
+            self._task_server = ExclusiveThreadingHTTPServer(
                 (self._task_api_host, tap), task_handler
             )
             self._task_server.daemon_threads = True
@@ -1478,6 +1849,10 @@ class CombinedTrustedHost:
                 self._started_servers.append(server)
             if not coordinator_paused and os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and self._coordinator:
                 self._coordinator.start()
+                # Answers nothing unless the Owner's settings turn supervisor activation on.
+                self._supervisor_requests.start()
+                # Does nothing without an active window that permits model calls.
+                self._pool_verifier.start()
             self._remote_job_broker = configured_broker()
             if self._remote_job_broker is not None:
                 self._remote_job_broker.start()
@@ -1487,7 +1862,13 @@ class CombinedTrustedHost:
                 broker=self._remote_job_broker)
             if self._research_loop is not None:
                 self._research_loop.start()
-            # Off unless REVERSE_AGENT_WORKSPACE_RECLAIM is set; never deletes
+            # Off unless REVERSE_AGENT_RADAR names a config. Read-only collection,
+            # no model calls; findings become a PLANNED Goal it never launches.
+            from .radar import configured_radar
+            self._radar = configured_radar(goal_service=self._goal_service)
+            if self._radar is not None:
+                self._radar.start()
+            # On unless REVERSE_AGENT_WORKSPACE_RECLAIM is off; never deletes
             # dirty, unpushed, recent or still-running task workspaces.
             from .workspace_reclaim import configured_reclaimer
             self._workspace_reclaimer = configured_reclaimer(
@@ -1511,12 +1892,22 @@ class CombinedTrustedHost:
 
     def _cleanup_runtime_resources(self, *, close_account_auth: bool) -> None:
         self._magpie.stop()
+        self._supervisor_requests.stop()
+        verifier = getattr(self, "_pool_verifier", None)
+        if verifier is not None:
+            verifier.stop()
+        monitor, self._pool_monitor = getattr(self, "_pool_monitor", None), None
+        if monitor is not None:
+            monitor.stop()
         reclaimer, self._workspace_reclaimer = getattr(self, "_workspace_reclaimer", None), None
         if reclaimer is not None:
             reclaimer.stop()
         if self._research_loop is not None:
             self._research_loop.stop()
             self._research_loop = None
+        radar, self._radar = getattr(self, "_radar", None), None
+        if radar is not None:
+            radar.stop()
         if self._remote_job_broker is not None:
             self._remote_job_broker.stop()
             self._remote_job_broker = None
@@ -1615,8 +2006,47 @@ def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) 
     from . import quota_reservation
     if not account or not candidates:
         return {}
+    # A stored aged admission row is not capacity evidence here.
+    candidates = [dict(item, aged_admission=False) for item in candidates]
     selected = quota_reservation.observation(account, candidates, clock=time.time)
     return selected if selected["fresh"] else dict(selected, windows=[])
+
+
+# Weekly pacing of a Magpie gateway upstream accepts a reading up to this old (see
+# _gateway_account_quota). The quota guard keeps the 600 s contract; admission accepts an
+# older reading only as quota_reservation.aged_evidence, padded for unseen spend.
+GATEWAY_PACE_MAX_AGE_SECONDS = 3600
+
+
+def _gateway_pace_reading(reading: Any, *, now: float) -> dict[str, Any] | None:
+    """A Magpie account reading at most GATEWAY_PACE_MAX_AGE_SECONDS old, as a quota view.
+
+    Only windows whose stated reset is still ahead are kept: until then usage only
+    grows, so every figure is a lower bound and any hold it starts is real. A reading
+    Magpie marked stale keeps its windows in ``cached_windows``; nothing older,
+    undated, errored or without windows is used.
+    """
+    if not isinstance(reading, Mapping) or reading.get("state") not in {"FRESH", "STALE"}:
+        return None
+    ref = reading.get("account_ref")
+    windows = reading.get("windows") or reading.get("cached_windows") or []
+    if not isinstance(ref, str) or not ref or not isinstance(windows, list) or not windows:
+        return None
+    from ..model_access.quota_forecast import parse_time
+    from ..model_access.subscription_quota import magpie_account_quotas
+    from . import quota_reservation
+    projected = magpie_account_quotas({"status": "available", "accounts": [
+        dict(reading, state="FRESH", windows=windows)]}, now=now).get(ref)
+    if projected is None:
+        return None
+    selected = quota_reservation.observation(ref, [projected], clock=lambda: now,
+                                             freshness=GATEWAY_PACE_MAX_AGE_SECONDS)
+    observed = parse_time(selected.get("observed_at"))
+    active = [window for window in selected["windows"] if not window.get("reset_passed")]
+    if not selected["fresh"] or observed is None or not active:
+        return None
+    return dict(selected, windows=active, pace_input="gateway_reading_aged",
+                reading_age_seconds=round(now - observed))
 
 
 def _utc_now() -> str:
@@ -1745,7 +2175,8 @@ def _wait_for_owned_serving_threads(host: Any, *, poll_interval: float = 0.1) ->
 
 
 def run_combined_trusted_host(*, native_goal_id: str | None = None,
-                              unknown_claims_sha256: str | None = None) -> None:
+                              unknown_claims_sha256: str | None = None,
+                              owner_window: Mapping[str, Any] | None = None) -> None:
     """Run the official lifecycle; native_goal_entry validates explicit CLI requests.
 
     Admission follows successful port ownership and failures use normal cleanup.
@@ -1762,6 +2193,9 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
     auth_sha = _resolve_trusted_authority_sha()
     planning_sha = _resolve_trusted_planning_sha()
     host = CombinedTrustedHost(
+        # Only the real host process discovers installed CLIs; library and test
+        # hosts keep deterministic executor defaults (#1458).
+        executor_detector=detect_agent_clis,
         execution_authority_sha=auth_sha,
         planning_sha=planning_sha,
         model_control_host=os.environ.get("REVERSE_AGENT_MODEL_CONTROL_HOST", "127.0.0.1"),
@@ -1775,8 +2209,17 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
         claude_code_readiness_probe=(probe_claude_code_readiness
                                      if os.environ.get("REVERSE_AGENT_CLAUDE_CODE_ENABLED") == "1" else None),
     )
+    if owner_window is not None and native_goal_id is not None:
+        raise ValueError("invalid_native_admission_arguments")
     try:
-        if native_goal_id is None:
+        if owner_window is not None:
+            host.start(coordinator_paused=True)
+            window = host._owner_admit_window(**dict(owner_window))
+            print(f"Owner window {window.id} active until {window.expires_at}")
+            if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
+                host._coordinator.start()
+                host._pool_verifier.start()
+        elif native_goal_id is None:
             host.start()
         else:
             host.start(coordinator_paused=True)
@@ -1785,6 +2228,7 @@ def run_combined_trusted_host(*, native_goal_id: str | None = None,
                 if unknown_claims_sha256 is not None else {}))
             if os.environ.get("REVERSE_AGENT_AUTONOMOUS") == "1" and host._coordinator:
                 host._coordinator.start()
+                host._pool_verifier.start()
         if os.environ.get("REVERSE_AGENT_TRUSTED_CLIENT_UI") == "1":
             from .trusted_client import TrustedClient
             host._trusted_client = TrustedClient(

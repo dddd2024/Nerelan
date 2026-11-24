@@ -135,7 +135,7 @@ it.each(["pending", "error", "empty", "disabled"])("blocks unavailable %s metada
   await user.click(screen.getByRole("button", { name: "编辑目标配置" }));
   expect(screen.getByLabelText("目标模型绑定")).toHaveValue("coding-selected");
   expect(screen.getByRole("button", { name: "保存目标配置" })).toBeDisabled();
-  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false);
+  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false, expect.stringMatching(/\S/));
   if (state === "error") {
     expect(screen.getByRole("alert")).toHaveTextContent("模型绑定读取失败");
     expect(screen.queryByText(/暂无可用的 OpenCode/)).not.toBeInTheDocument();
@@ -165,16 +165,14 @@ it("completes Inbox capture, configuration, edited-plan review and explicit laun
   await waitFor(() => expect(screen.getByTestId("approval-plan-button")).toBeEnabled());
   await user.click(screen.getByTestId("approval-plan-button"));
   await user.click(await screen.findByRole("button", { name: "编辑当前计划" }));
-  expect(screen.getByTestId("approval-approve-button")).toBeDisabled();
+  expect(screen.queryByTestId("start-card")).not.toBeInTheDocument();
   await user.clear(screen.getByLabelText("任务 T001 说明"));
   await user.type(screen.getByLabelText("任务 T001 说明"), "Edited full journey implementation");
   await user.click(screen.getByRole("button", { name: "保存计划修改" }));
   await waitFor(() => expect(screen.getByTestId("approval-plan")).toHaveTextContent("Edited full journey implementation"));
-  await user.click(screen.getByTestId("approval-approve-button"));
-  expect(await screen.findByTestId("approval-launch-button")).toBeDisabled();
-  await user.click(screen.getByLabelText("确认启动当前计划"));
-  await user.click(screen.getByTestId("approval-launch-button"));
-  await screen.findByTestId("goal-progress-bar");
+  await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
+  await user.click(screen.getByTestId("start-button"));
+  await screen.findByTestId("goal-thread");
   const saved = await fetchGoal(goalId);
   expect(saved).toMatchObject({ id: goalId, status: "RUNNING", revision: 3, executor_kind: "opencode",
     repository: "owner/selected", binding_ref: "coding-selected", orchestration_mode: "sequential_team" });
@@ -242,4 +240,23 @@ it("limits each task to eight check pairs and leaves approved plans immutable", 
   await user.click(screen.getByRole("button", { name: "取消编辑" }));
   view.rerender(<GoalReviewEditor {...current} goal={{ ...current.goal, status: "APPROVED" }} />);
   expect(screen.queryByRole("button", { name: "编辑当前计划" })).not.toBeInTheDocument();
+});
+
+it("treats an unpinned Agent team goal as configured", () => {
+  const current = props({ ...fixture, executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "",
+    repository: "owner/selected" });
+  render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
+  expect(current.onConfigurationReady).toHaveBeenLastCalledWith(true, "");
+});
+
+it("still requires a known binding for a single-mode goal and for a pinned team", () => {
+  for (const goal of [
+    { ...fixture, executor_kind: "opencode", orchestration_mode: "single", binding_ref: "", repository: "owner/selected" },
+    { ...fixture, executor_kind: "opencode", orchestration_mode: "agent_team", binding_ref: "missing", repository: "owner/selected" },
+  ] as PlatformGoal[]) {
+    const current = props(goal);
+    const view = render(<QueryClientProvider client={new QueryClient()}><GoalReviewEditor {...current} /></QueryClientProvider>);
+    expect(current.onConfigurationReady).toHaveBeenLastCalledWith(false, expect.stringMatching(/\S/));
+    view.unmount();
+  }
 });

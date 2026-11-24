@@ -6,7 +6,6 @@ import * as platformClient from "@/lib/platform-client";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import {
-  launchExistingGoal,
   planExistingGoal,
   saveGoalConfiguration,
 } from "@/lib/goal-continuation-operation";
@@ -17,24 +16,6 @@ import {
   type PlatformGoal,
 } from "@/lib/platform-client";
 import { ApprovalsPage } from "@/routes/approvals";
-import { profileToPolicy } from "@/lib/profile-mapper";
-
-function approvedTemplate() {
-  const policy = profileToPolicy("ASK_FOR_APPROVAL");
-  policy.repository = "dddd2024/Nerelan";
-  policy.autonomousWindow.expiresAt = "2030-12-31T08:00:00Z";
-  return { available: true, policy_id: "approved-continuation-fixture", policy_revision: 1,
-    policy_digest: "a".repeat(64), window_id: "window-same", policy,
-    confirmation_provenance: { confirmation_mode: "DELEGATED_CONTROLLER", personally_human: false },
-    supported_operations: ["execute_task"], validation_command_id: "git_diff_check" };
-}
-
-function approvedWindow() {
-  const template = approvedTemplate();
-  return { id: template.window_id, policy_id: template.policy_id, policy_revision: template.policy_revision,
-    canonical_policy_digest: template.policy_digest, status: "ACTIVE", expires_at: template.policy.autonomousWindow.expiresAt,
-    repositories: [template.policy.repository], tasks_started: 1, tasks_completed: 0 };
-}
 
 const DEMO_GOAL_ID = "goal-demo-platform";
 
@@ -90,7 +71,7 @@ describe("Approvals continuation page", () => {
     vi.restoreAllMocks();
   });
 
-  it("deep-links the same Goal through explicit Plan, Approve, and Launch", async () => {
+  it("deep-links the same Goal through Plan and the start card", async () => {
     const user = userEvent.setup();
     renderWithProviders(<ApprovalsPage />, {
       initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`],
@@ -105,27 +86,33 @@ describe("Approvals continuation page", () => {
     expect(screen.getByTestId("approval-plan-button")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("approval-plan-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-approve-button")).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByTestId("start-card")).toBeInTheDocument());
     expect(screen.getByTestId("approval-plan")).toHaveTextContent(
       "实现并验证目标",
     );
+    expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
 
-    await user.click(screen.getByTestId("approval-approve-button"));
-    await waitFor(() =>
-      expect(screen.getByTestId("approval-launch-button")).toBeInTheDocument(),
-    );
-
-    await user.selectOptions(screen.getByLabelText("自治窗口时长"), "4");
-    expect(screen.getByTestId("approval-launch-button")).toBeDisabled();
-    await user.click(screen.getByLabelText("确认启动当前计划"));
-    await user.click(screen.getByTestId("approval-launch-button"));
+    await waitFor(() => expect(screen.getByTestId("start-bounds")).toHaveTextContent("持续运行，直到你停止"));
+    expect(screen.queryByTestId("start-preset-week")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("start-button")).toBeEnabled());
+    expect(screen.getByTestId("start-preflight")).toHaveTextContent("检查通过，可以开始。");
+    await user.click(screen.getByTestId("start-button"));
     await waitFor(() => expect(screen.getByText("运行中")).toBeInTheDocument());
 
     expect(screen.queryByTestId("approval-plan-button")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("start-card")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the replan path for an old approved Goal without querying the retired policy", async () => {
+    __setMockGoalStatus(DEMO_GOAL_ID, { status: "APPROVED" });
+    const policy = vi.spyOn(platformClient, "fetchApprovedPolicyIfConfigured");
+    renderWithProviders(<ApprovalsPage />, { initialEntries: [`/approvals?goal=${DEMO_GOAL_ID}`] });
+
+    expect(await screen.findByTestId("approval-legacy-approved")).toHaveTextContent("重新生成计划");
+    expect(screen.getByRole("button", { name: "编辑目标配置" })).toBeInTheDocument();
+    expect(screen.queryByTestId("approval-launch-button")).not.toBeInTheDocument();
+    expect(policy).not.toHaveBeenCalled();
   });
 
   it("collapses to a single actionable empty state when the queue is empty and nothing is selected", async () => {
@@ -228,14 +215,14 @@ describe("Approvals continuation page", () => {
   it("maps an explicit Goal revision/state mismatch to the fail-closed continuation error", async () => {
     vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
     const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(approvedTemplate()))
       .mockResolvedValueOnce(jsonResponse({ error: "goal_revision_or_state_mismatch" }, 409));
 
     await expect(planExistingGoal(goalFixture())).rejects.toMatchObject({
       code: "goal_revision_conflict",
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toMatch(/\/api\/goals\/goal-conflict-test\/plan$/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/api\/goals\/goal-conflict-test\/plan$/);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ expected_revision: 7 });
   });
 
   it("maps an explicit Goal configuration state conflict to the fail-closed continuation error", async () => {
@@ -274,111 +261,5 @@ describe("Approvals continuation page", () => {
       status: 409,
       code: "repository_workspace_unconfigured",
     });
-  });
-
-  it("reuses an active window for the same repository without activating another one", async () => {
-    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
-    const goal = goalFixture("APPROVED");
-    const running = { ...goal, status: "RUNNING" as const, window_id: "window-same" };
-    const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(approvedTemplate()))
-      .mockResolvedValueOnce(jsonResponse({
-        autonomy: {
-          active_window: approvedWindow(),
-        },
-      }))
-      .mockResolvedValueOnce(jsonResponse(running))
-      .mockResolvedValueOnce(jsonResponse(running));
-
-    const result = await launchExistingGoal(goal, 2);
-
-    expect(result).toMatchObject({ id: goal.id, revision: goal.revision, window_id: "window-same" });
-    expect(
-      fetchMock.mock.calls.some(([input]) => String(input).endsWith("/api/windows/activate")),
-    ).toBe(false);
-    const launchCall = fetchMock.mock.calls.find(([input]) =>
-      String(input).endsWith(`/api/goals/${goal.id}/launch`),
-    );
-    expect(JSON.parse(String(launchCall?.[1]?.body))).toEqual({
-      expected_revision: goal.revision,
-      window_id: "window-same",
-    });
-  });
-
-  it("replays the same approved revision without resetting spending or granting a fresh expiry", async () => {
-    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
-    const goal = goalFixture("APPROVED");
-    const fetchMock = vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(approvedTemplate()))
-      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
-      .mockResolvedValueOnce(jsonResponse(approvedWindow(), 201))
-      .mockResolvedValueOnce(jsonResponse({ error: "repository_workspace_unconfigured" }, 409))
-      .mockResolvedValueOnce(jsonResponse(approvedTemplate()))
-      .mockResolvedValueOnce(jsonResponse({ autonomy: { active_window: null } }))
-      .mockResolvedValueOnce(jsonResponse(approvedWindow(), 201))
-      .mockResolvedValueOnce(jsonResponse({ error: "repository_workspace_unconfigured" }, 409));
-
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      let observed: unknown;
-      try {
-        await launchExistingGoal(goal, 2);
-      } catch (error) {
-        observed = error;
-      }
-      expect(observed).toBeInstanceOf(platformClient.PlatformClientError);
-      expect(observed).toMatchObject({
-        status: 409,
-        code: "repository_workspace_unconfigured",
-      });
-    }
-
-    const activationCalls = fetchMock.mock.calls.filter(([input]) =>
-      String(input).endsWith("/api/windows/activate"),
-    );
-    expect(activationCalls).toHaveLength(2);
-    const firstPolicy = JSON.parse(String(activationCalls[0][1]?.body));
-    const secondPolicy = JSON.parse(String(activationCalls[1][1]?.body));
-
-    expect(firstPolicy).toEqual(secondPolicy);
-    expect(firstPolicy).toEqual({ policy_id: approvedTemplate().policy_id, policy_revision: 1, policy: approvedTemplate().policy });
-    expect(firstPolicy.policy.autonomousWindow.expiresAt).toBe("2030-12-31T08:00:00Z");
-    expect(firstPolicy).not.toHaveProperty("starts_at");
-    expect(firstPolicy).not.toHaveProperty("expires_at");
-    expect(firstPolicy).not.toHaveProperty("confirmation");
-    expect(firstPolicy).not.toHaveProperty("tasks_started");
-
-    const launchCalls = fetchMock.mock.calls.filter(([input]) =>
-      String(input).endsWith(`/api/goals/${goal.id}/launch`),
-    );
-    expect(launchCalls).toHaveLength(2);
-    expect(JSON.parse(String(launchCalls[0][1]?.body))).toEqual({
-      expected_revision: goal.revision,
-      window_id: approvedTemplate().window_id,
-    });
-    expect(JSON.parse(String(launchCalls[1][1]?.body))).toEqual({
-      expected_revision: goal.revision,
-      window_id: approvedTemplate().window_id,
-    });
-  });
-
-  it("refuses to replace an active window owned by another repository", async () => {
-    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(jsonResponse(approvedTemplate())).mockResolvedValueOnce(
-      jsonResponse({
-        autonomy: {
-          active_window: {
-            id: "window-other",
-            repositories: ["other/repository"],
-          },
-        },
-      }),
-    );
-
-    await expect(
-      launchExistingGoal(goalFixture("APPROVED"), 2),
-    ).rejects.toMatchObject({
-      code: "active_window_repository_conflict",
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

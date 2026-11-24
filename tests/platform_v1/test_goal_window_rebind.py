@@ -287,3 +287,21 @@ def test_activation_without_adoption_list_keeps_goal_stranded():
     assert s.control.get_goal(goal.id).window_id == old.id
     assert s.autonomy.summary(window.id)["adopted_goals"] == []
     assert [g["goal_id"] for g in s.control.stranded_goals()] == [goal.id]
+
+
+def test_progress_after_rebind_ignores_the_previous_window():
+    s, goal, old, tasks = _stranded()
+    task = tasks["T005"]
+    # The old claim and its events predate the new window.
+    s.store._conn.execute("UPDATE platform_coordinator_claims SET created_at = '2001-01-01T00:00:00Z' WHERE task_id = ?",
+                          (task,))
+    s.store._conn.execute("UPDATE platform_budget_reservations SET created_at = '2001-01-01T00:00:00Z' WHERE task_id = ?",
+                          (task,))
+    s.store._conn.execute("UPDATE task_events SET timestamp = '2002-01-01T00:00:00Z' WHERE task_id = ?", (task,))
+    new = s.autonomy.activate(_payload("new-window"))
+    s.goals.rebind(goal.id, window_id=new.id)
+    s.control.claim_task(window_id=new.id, task_id=task, owner="new-host", lease_ms=60_000)
+    assert _claim(s, task)["window_id"] == new.id
+    assert s.autonomy.status()["last_progress_at"] is None
+    event = s.store.add_event(task, event_type="EXECUTOR_PROGRESS", title="resumed")
+    assert s.autonomy.status()["last_progress_at"] == event.timestamp

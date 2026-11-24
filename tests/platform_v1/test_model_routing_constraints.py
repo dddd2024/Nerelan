@@ -206,6 +206,48 @@ def test_model_level_cost_override_round_trips_and_beats_connection(tmp_path):
     assert routing_inputs.binding_cost_class(row, {"auth_method": "api_key"}, owner) == "paid_api"
 
 
+def test_group_declarations_parse_and_invalid_entries_are_ignored_and_reported(tmp_path):
+    """Owner decision 2026-11-17: a Magpie routing group declares the model it serves."""
+    config = {"models": {"group/nerelan-glm-5-3": "subscription"}, "groups": {
+        "group/Nerelan-GLM-5-3": {"identity": " glm-5.3 "}, "auto/kimi": {"identity": "kimi-k3"},
+        "trae-cn/glm-5.3": {"identity": "glm-5.3"}, "group/": {"identity": "x"},
+        "group/empty": {"identity": ""}, "group/number": {"identity": 5}, "group/plain": "glm-5.3"}}
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps(config), encoding="utf-8")
+    owner = routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+    assert owner["groups"] == {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}, "auto/kimi": {"identity": "kimi-k3"}}
+    assert owner["group_errors"] == [f"invalid_model_routing_group:{key}" for key in
+                                     ("trae-cn/glm-5.3", "group/", "group/empty", "group/number", "group/plain")]
+    # The rest of the file still applies.
+    assert owner["models"] == {"group/nerelan-glm-5-3": "subscription"}
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps({"groups": ["group/x"]}), encoding="utf-8")
+    owner = routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+    assert owner["groups"] == {} and owner["group_errors"] == ["invalid_model_routing_groups"]
+    (tmp_path / "model_routing_overrides.json").write_text("{}", encoding="utf-8")
+    owner = routing_inputs.read_overrides(tmp_path / "model_setup_state.json")
+    assert owner["groups"] == {} and "group_errors" not in owner
+
+
+def test_host_routes_with_the_owners_group_declarations(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    (tmp_path / "model_routing_overrides.json").write_text(json.dumps({"groups": {
+        "group/nerelan-glm-5-3": {"identity": "glm-5.3"}, "bad/x": {"identity": "y"}}}), encoding="utf-8")
+    seen = {}
+    from reverse_agent.platform_v1 import model_router
+    original = model_router.select_model
+    def spy(*args, **kwargs):
+        seen["groups"] = kwargs.get("groups")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(model_router, "select_model", spy)
+    decision = host._resolve_task_model(PlannedTask("T1", "t", "i"))
+    assert seen["groups"] == {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}
+    assert decision["group_errors"] == ["invalid_model_routing_group:bad/x"]
+    # Review evidence checks read the same declarations through the task store.
+    assert model_router.store_groups(SimpleNamespace(routing_groups=host._routing_groups)) == seen["groups"]
+    assert model_router.store_groups(SimpleNamespace()) == {}
+    (tmp_path / "model_routing_overrides.json").write_text("{", encoding="utf-8")
+    assert host._routing_groups() == {}  # unreadable overrides declare no group
+
+
 def test_refusal_retry_same_difficulty_distinct_model_and_all_refuse(monkeypatch, tmp_path):
     from tests.platform_v1.test_agent_team import _team, _window_payload
     host = fixture_host(monkeypatch, tmp_path)

@@ -29,6 +29,7 @@ import { ThemeSelector } from "@/components/theme-selector";
 import { AgentTeamEditor } from "@/components/agent-team-editor";
 import { ResourceOverview } from "@/components/resource-overview";
 import { SettingsMigrationStatus } from "@/components/settings-migration-status";
+import { BindingList } from "@/components/binding-list";
 
 type EditorView = "connection" | "binding";
 
@@ -476,19 +477,19 @@ export function SettingsPage({ section = "all" }: { section?: SettingsSection })
                     <span className="truncate text-sm font-medium text-ra-text">
                       {conn.name}
                     </span>
-                    <span className="ml-auto shrink-0 text-[11px] font-medium text-ra-accent">
+                    <span className="ml-auto shrink-0 text-xs font-medium text-ra-accent">
                       {conn.enabled ? "启用" : "禁用"}
                     </span>
                   </span>
                   <span className="truncate text-xs text-ra-text-tertiary">
                     {conn.provider} · {conn.authMethod}
                   </span>
-                  <span className="text-[11px] text-ra-text-tertiary">
+                  <span className="text-xs text-ra-text-tertiary">
                     密钥：{secretStatusLabel(conn.secretStatus)}
                   </span>
                   {executorManagedAuth(conn.authMethod) && (
                     <span
-                      className="text-[11px] text-ra-text-tertiary"
+                      className="text-xs text-ra-text-tertiary"
                       data-testid={`connection-list-external-session-${conn.connectionId}`}
                     >
                       外部会话：{externalSessionStatusLabel(conn.externalSessionStatus)}
@@ -517,41 +518,17 @@ export function SettingsPage({ section = "all" }: { section?: SettingsSection })
                 还没有绑定。
               </p>
             ) : (
-              bindings.map((bind) => (
-                <button
-                  key={bind.bindingId}
-                  type="button"
-                  data-testid={`binding-item-${bind.bindingId}`}
-                  onClick={() => {
-                    clearMessages();
-                    setView("binding");
-                    setCreating(false);
-                    setSelectedBindId(bind.bindingId);
-                  }}
-                  className={cn(
-                    "flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    view === "binding" && !creating && selectedBindId === bind.bindingId
-                      ? "bg-ra-tertiary"
-                      : "hover:bg-ra-tertiary/70",
-                  )}
-                >
-                  <span className="flex w-full items-center gap-2">
-                    <span className="truncate text-sm font-medium text-ra-text">
-                      {bind.name}
-                    </span>
-                    <span className="ml-auto shrink-0 text-[11px] font-medium text-ra-accent">
-                      {bind.enabled ? "启用" : "禁用"}
-                    </span>
-                  </span>
-                  <span className="truncate text-xs text-ra-text-tertiary">
-                    {bind.executorId} · {bind.modelId}
-                  </span>
-                  <span className="text-[11px] text-ra-text-tertiary">
-                    连接：{bind.connectionId}
-                  </span>
-                </button>
-              ))
+              <BindingList
+                bindings={bindings}
+                connections={connections}
+                selectedId={view === "binding" && !creating ? selectedBindId : null}
+                onSelect={(bindingId) => {
+                  clearMessages();
+                  setView("binding");
+                  setCreating(false);
+                  setSelectedBindId(bindingId);
+                }}
+              />
             )}
             </> : null}
           </aside>

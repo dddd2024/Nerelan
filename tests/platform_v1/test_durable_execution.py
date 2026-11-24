@@ -1170,8 +1170,10 @@ def test_startup_reconciliation_no_model_calls(tmp_path) -> None:
     )
     run_id = lease.run_id
 
+    # Preparation finished: a stale lease past it is an interruption, not a
+    # pre-dispatch orphan (which closes FAILED orphaned_preparation instead).
     store._conn.execute(
-        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        "UPDATE durable_runs SET lease_expiry_ms = ?, worktree_prepared_at = 'prepared' WHERE run_id = ?",
         (int(time.time() * 1000) - 10000, run_id),
     )
 
@@ -1393,8 +1395,9 @@ def test_stale_running_lease_reconciled_to_interrupted(tmp_path) -> None:
     )
     run_id = lease.run_id
 
+    # Past preparation (a pre-dispatch orphan closes FAILED orphaned_preparation instead).
     store._conn.execute(
-        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        "UPDATE durable_runs SET lease_expiry_ms = ?, worktree_prepared_at = 'prepared' WHERE run_id = ?",
         (int(time.time() * 1000) - 1000, run_id),
     )
 
@@ -2605,17 +2608,17 @@ def test_pre_pre_resume_fails_before_claim(tmp_path) -> None:
     original_epoch = lease.epoch
     original_owner = lease.owner
 
-    # Manually expire and set to INTERRUPTED with orphan_stale_lease
+    # Manually expire and set to INTERRUPTED with orphan_stale_lease: the row a
+    # restart left before 2026-11-17 (reconcile now closes such a pre-dispatch run
+    # FAILED orphaned_preparation instead).
     now_ms = int(time.time() * 1000)
     store._conn.execute(
-        "UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?",
+        "UPDATE durable_runs SET lease_expiry_ms = ?, lease_owner = '', "
+        "recovery_classification = 'orphan_stale_lease' WHERE run_id = ?",
         (now_ms - 1000, run_id),
     )
-    svc = DurableExecutionService(
-        store=store, router=ExecutorRouter(),
-        execution_authority_sha="auth", planning_sha="plan",
-    )
-    svc.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+    store._conn.execute("UPDATE tasks SET status = 'INTERRUPTED' WHERE id = ?", (task.id,))
+    store._conn.commit()
 
     # Capture state before failed resume attempt
     task_before = store.get_task(task.id)
@@ -4332,6 +4335,55 @@ def test_reconcile_ownerless_preparation_fails_once(tmp_path):
     assert store.get_task(task.id).status == "FAILED"
     assert store.get_task(task.id).failure_classification == "orphaned_preparation"
     assert service.reconcile_expired_runs(now_ms=int(time.time() * 1000), max_age_ms=1000) == ()
+
+
+@pytest.mark.parametrize("trace", ["none", "worktree", "checkpoint", "external_operation", "claim_live",
+                                   "model_review"])
+def test_reconcile_closes_an_expired_pre_dispatch_preparation(tmp_path, monkeypatch, trace):
+    """2026-11-17: a restart during preparation left a dead owner's expired lease. With
+    nothing dispatched the run is closed FAILED orphaned_preparation (resume has no
+    reconstruction path for it); any trace of dispatch keeps the INTERRUPTED path."""
+    store = _make_store(tmp_path)
+    PlatformControlStore(store)  # coordinator claims live in the same database
+    task = store.create_task(title="restart-preparation", executor_kind="deterministic_fixture")
+    service = DurableExecutionService(store=store, router=ExecutorRouter(),
+                                      execution_authority_sha="test_authority",
+                                      planning_sha="test_planning")
+    lease = service._acquire_or_find_lease(task.id, "dead-host", "", str(tmp_path / "ws"))
+    store._fenced_transition_to(lease.run_id, task.id, "PREPARING_WORKSPACE", lease.owner, lease.epoch)
+    now_ms = int(time.time() * 1000)
+    store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = ? WHERE run_id = ?", (now_ms - 1000, lease.run_id))
+    if trace == "worktree":
+        store._conn.execute("UPDATE durable_runs SET worktree_prepared_at = 'now' WHERE run_id = ?", (lease.run_id,))
+    elif trace == "checkpoint":
+        store._conn.execute("UPDATE durable_runs SET accepted_checkpoint = 'PRE_PLANNER' WHERE run_id = ?",
+                            (lease.run_id,))
+    elif trace == "external_operation":
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, idempotency_key, "
+            "request_digest, state, created_at, updated_at) VALUES ('op', ?, ?, 'k', 'i', 'd', 'SUCCESS', 'n', 'n')",
+            (lease.run_id, task.id))
+    elif trace == "claim_live":
+        store._conn.execute("INSERT INTO platform_coordinator_claims VALUES (?, 'w', 'dead-host', 1, ?, 'ACTIVE', 'n', 'n')",
+                            (task.id, now_ms + 600_000))
+    elif trace == "model_review":
+        # A review calls its model without PRE_PLANNER and resumes from an empty checkpoint.
+        from reverse_agent.platform_v1 import artifact_handoff
+        monkeypatch.setattr(artifact_handoff, "model_review_input", lambda stored: stored.id == task.id)
+    store._conn.commit()
+    [record] = service.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000)
+    run = store._conn.execute("SELECT * FROM durable_runs WHERE run_id = ?", (lease.run_id,)).fetchone()
+    after = store.get_task(task.id)
+    assert run["lease_owner"] == ""  # the dead owner is fenced either way
+    if trace == "none":
+        assert record["recovery_classification"] == "orphaned_preparation"
+        assert (after.status, after.failure_classification) == ("FAILED", "orphaned_preparation")
+        [event] = [e for e in store.get_events(task.id) if e.title == "Orphaned preparation failed"]
+        assert event.metadata["lease_owner"] == "dead-host"
+    else:
+        assert record["recovery_classification"] == "orphan_stale_lease"
+        assert after.status == "INTERRUPTED" and not after.failure_classification
+    assert service.reconcile_expired_runs(now_ms=now_ms, max_age_ms=1000) == ()
 
 
 @pytest.mark.parametrize("publication", ["classification", "terminal"])

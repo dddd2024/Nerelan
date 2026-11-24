@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from ipaddress import ip_address
 import json
 import os
@@ -15,12 +15,13 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlsplit
 from urllib.request import Request
 
+from .exclusive_server import ExclusiveThreadingHTTPServer
 from .account_auth import AccountAuthManager
 from .http_safe import urlopen  # never follows redirects with the provider key
 from .contracts import Connection, ModelProfile, ProbeResult
 from .magpie import fetch_magpie_snapshot, magpie_enabled
 from .os_vault import VaultUnavailableError
-from .resources import RESOURCE_VIEW_MODES, build_resource_view
+from .resources import RESOURCE_VIEW_MODES, _read_external, build_resource_view
 from .store import ModelProfileStore
 
 ProbeTransport = Callable[[str, dict[str, str], float], tuple[int, bytes]]
@@ -423,9 +424,7 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
                 return
             if segments == ["api", "resources"]:
                 self.external_session_refresh(False, None)
-                config = self.store.get_magpie()
-                external = ((lambda: fetch_magpie_snapshot(config["base_url"])) if config["enabled"]
-                            else (_magpie_external if magpie_enabled(os.environ) else None))
+                external = self._magpie_source()
                 mode = _resource_view_mode(self.path)
                 self._send_json(HTTPStatus.OK, build_resource_view(
                     self.store, self.usage_profiles, tokens=self.token_usage, quotas=self.subscription_quotas,
@@ -511,6 +510,22 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             return
         try:
             segments = self._segments()
+            if (len(segments) == 4 and segments[:2] == ["api", "connections"]
+                    and segments[3] in {"link-magpie-account", "unlink-magpie-account"}):
+                payload = self._read_json()
+                snapshot = {}
+                ref = None
+                if segments[3] == "link-magpie-account":
+                    if (set(payload) != {"account_ref"} or not isinstance(payload["account_ref"], str)
+                            or not payload["account_ref"]):
+                        raise ValueError("link-magpie-account requires only a nonempty account_ref")
+                    ref = payload["account_ref"]
+                    source = self._magpie_source()
+                    snapshot = _read_external(source) if source else {}
+                else:
+                    _require_empty_payload(payload)
+                self._send_json(HTTPStatus.OK, self.store.set_native_account_link(segments[2], ref, snapshot))
+                return
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "model-profiles"]
@@ -594,6 +609,11 @@ class _ModelControlHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except Exception as error:  # handler boundary
             self._send_exception(error)
+
+    def _magpie_source(self) -> Callable[[], Mapping[str, Any]] | None:
+        config = self.store.get_magpie()
+        return ((lambda: fetch_magpie_snapshot(config["base_url"])) if config["enabled"]
+                else (_magpie_external if magpie_enabled(os.environ) else None))
 
     def _segments(self) -> list[str]:
         path = urlsplit(self.path).path
@@ -747,7 +767,8 @@ def _handler_factory(
 
 
 def store_from_environment() -> ModelProfileStore:
-    store = ModelProfileStore()
+    from ..agent_cli_detection import detect_agent_clis
+    store = ModelProfileStore(executor_detector=detect_agent_clis)
     raw = os.environ.get("REVERSE_AGENT_MODEL_PROFILES_JSON", "").strip()
     if not raw:
         return store
@@ -798,7 +819,7 @@ def run_model_control_service(
         "REVERSE_AGENT_MODEL_CONTROL_ORIGIN", "http://localhost:5173"
     )
     live_enabled = os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
-    server = ThreadingHTTPServer(
+    server = ExclusiveThreadingHTTPServer(
         (bind_host, bind_port),
         _handler_factory(
             store or store_from_environment(),

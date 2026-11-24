@@ -119,7 +119,8 @@ def parse_models(payload: Any) -> list[dict[str, Any]]:
             "native_endpoints": [endpoint for endpoint in item.get("native_endpoints", [])
                                  if isinstance(endpoint, str) and endpoint in {"/v1/responses", "/responses", "/v1/chat/completions", "/chat/completions", "responses", "chat/completions"}]
                 if isinstance(item.get("native_endpoints", []), list) else [],
-            "is_group": "/" not in model_id,
+            # A Magpie routing group or auto-router id, served by several member accounts.
+            "is_group": model_id.startswith(("group/", "auto/")),
         })
     return result
 
@@ -137,7 +138,18 @@ def _date(value: Any) -> datetime | None:
 def _account() -> dict[str, Any]:
     return dict(provider=None, kind=None, plan=None, account_ref=None, windows=[],
                 cached_windows=[], state="UNKNOWN", reason="invalid_schema", observed_at=None,
-                provenance="EXTERNAL_MAGPIE", source_version=None)
+                provenance="EXTERNAL_MAGPIE", source_version=None, reset_cards=None)
+
+
+def _reset_cards(raw: Any) -> dict[str, Any] | None:
+    """Count and soonest expiry of held Codex rate-limit resets; card ids are dropped."""
+    if not isinstance(raw, dict) or _number(raw.get("count"), 1000) is None:
+        return None
+    each = raw.get("each")
+    expiries = [_date(card.get("until")) for card in (each if isinstance(each, list) else ())
+                if isinstance(card, dict)]
+    soonest = min((date for date in expiries if date), default=None)
+    return {"count": int(raw["count"]), "next_expires_at": soonest.isoformat() if soonest else None}
 
 
 def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> list[dict[str, Any]]:
@@ -158,7 +170,7 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
         provider = _text(raw.get("provider"), secrets)
         user = raw.get("user")
         account.update(provider=provider, kind=raw.get("kind") if raw.get("kind") in ("subscription", "plan", "balance") else None,
-                       plan=_text(raw.get("plan"), secrets))
+                       plan=_text(raw.get("plan"), secrets), reset_cards=_reset_cards(raw.get("resets")))
         if provider:
             identity = json.dumps([provider, user if isinstance(user, str) else None], ensure_ascii=True)
             account["account_ref"] = hashlib.sha256(identity.encode()).hexdigest()[:12]
@@ -205,9 +217,17 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
                     reason = "invalid_window"
                     normalized = []
                     break
-                normalized.append(dict(name=name, used_percent=used, remaining_percent=remaining,
-                                       resets_at=reset.isoformat() if reset else None,
-                                       unlimited=window.get("unlimited", False)))
+                entry = dict(name=name, used_percent=used, remaining_percent=remaining,
+                             resets_at=reset.isoformat() if reset else None,
+                             unlimited=window.get("unlimited", False))
+                # Size and expiry of time-limited resources (#1471), kept only when Magpie
+                # states them; an unreadable value is dropped, never guessed.
+                if _number(window.get("limit")) is not None:
+                    entry["limit"] = window["limit"]
+                runs_out_at = _date(window.get("runsOutAt"))
+                if runs_out_at is not None and _number(window.get("runsOut")) is not None:
+                    entry.update(runs_out_at=runs_out_at.isoformat(), runs_out=window["runsOut"])
+                normalized.append(entry)
         if reason is None:
             account.update(state="UNDATED", reason="no_read_time") if undated else account.update(state="FRESH", reason=None)
             account.update(windows=normalized, cached_windows=[])

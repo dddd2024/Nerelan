@@ -29,7 +29,7 @@ imports OpenHands runtime, sandbox, backend API, model, or credential code.
 | `src/components/features/sidebar/sidebar-layout.ts` | `frontend/src/vendor/agent-canvas-v1.6.1/sidebar-layout.ts` | pinned direct source fork | Replaced `#/utils/utils` with `@/lib/cn`; mapped active color to `bg-ra-tertiary`; retained upstream row, icon-slot, collapsed-rail, and transition helpers. No runtime dependency existed. |
 | `src/components/features/sidebar/sidebar-collapsed-icon-slot.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot.tsx` | pinned direct source fork | Replaced local utility import; retained the nested background/glyph slot structure. It receives `active` and children from reverse-agent rather than OpenHands navigation state. |
 | `src/components/ui/resize-handle.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/resize-handle.tsx` | pinned direct source fork | Retained zero-width frame, 12px invisible drag target, one-pixel hover/drag line, and drag-state styling; added the existing reverse-agent keyboard slider contract and local token/imports. No external resize-hook dependency was added. |
-| `src/components/features/sidebar/sidebar.tsx` and `src/components/features/sidebar/sidebar-rail-body.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame.tsx` | directly derived pinned source fork | Retained 60/300px rail, collapsed empty-space expand behavior, header/action/navigation/footer layout, borders, and density. Replaced settings/config/navigation/backend health/registry/modal hooks with neutral React slots. |
+| `src/components/features/sidebar/sidebar.tsx` and `src/components/features/sidebar/sidebar-rail-body.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame.tsx` | directly derived pinned source fork | Retained the 60px rail and a 256px expanded width (upstream 300px), collapsed empty-space expand behavior, header/action/navigation/footer layout, borders, and density. Replaced settings/config/navigation/backend health/registry/modal hooks with neutral React slots. |
 | `src/components/features/conversation/conversation-main/conversation-main.tsx` | `frontend/src/vendor/agent-canvas-v1.6.1/agent-canvas-workbench-frame.tsx` | directly derived pinned source fork | Retained the primary/secondary flex workbench, header hierarchy, right tab strip, surface/border structure, transitions, and resize boundary. Replaced ChatInterface, conversation store/API, and responsive hook dependencies with reverse-agent-neutral panes, tabs, state, and refs. |
 
 The thin reverse-agent adapters are `frontend/src/components/sidebar.tsx` and
@@ -37,6 +37,21 @@ The thin reverse-agent adapters are `frontend/src/components/sidebar.tsx` and
 Task activity/changes/evidence/authority panels, and local collapse/resize
 state to the vendored presentation frames. No fake Agent Server API, backend
 registry, OpenHands provider, or second execution-state model is present.
+
+## Agent workbench presentation (2026-11)
+
+The shell follows the layout common to agent tools: a flat sidebar with actions,
+routes and a thread list; a composer-first home; a thread view with a docked
+composer; and a Ctrl/Cmd+K command palette.
+
+| Concern | Reused | Replacement boundary |
+|---|---|---|
+| Command palette list semantics and keyboard navigation | `cmdk` 1.1.1 (MIT) inside `frontend/src/components/conversation-panel.tsx` | Presentation only. Filtering stays local because task search is an exact substring match; removing `cmdk` touches this one file. |
+| Sidebar and workbench frames | Agent Canvas v1.6.1 fork above | Slots only; no OpenHands runtime. |
+
+Home selects a goal only from `?goal=`. It never invents a default selection, and
+the docked composer always creates a new goal: the platform has no follow-up
+message into a running goal, so the UI does not imply one.
 
 ## Historical OpenHands 1.8.0 structural map (PR #119 snapshot)
 

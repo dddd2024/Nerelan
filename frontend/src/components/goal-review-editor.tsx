@@ -11,7 +11,8 @@ interface Props {
   goal: PlatformGoal;
   busy: boolean;
   onEditingChange: (editing: boolean) => void;
-  onConfigurationReady: (ready: boolean) => void;
+  /** ``issue`` names the first unmet requirement when not ready. */
+  onConfigurationReady: (ready: boolean, issue?: string) => void;
   onSaveConfiguration: (goal: PlatformGoal, input: GoalConfigurationInput) => Promise<unknown>;
   onSavePlan: (goal: PlatformGoal, input: GoalPlanInput) => Promise<unknown>;
 }
@@ -55,11 +56,25 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
     && criteria.split("\n").some((line) => line.trim());
   const currentConfigurationReady = goal.executor_kind === "deterministic_fixture"
     || (!bindingsQuery.isError && !repositoriesQuery.isError
-      && bindings.some((binding) => binding.bindingId === goal.binding_ref)
+      // An unpinned Agent team routes each task by role, as configurationValid already allows.
+      && ((goal.orchestration_mode === "agent_team" && !goal.binding_ref)
+        || bindings.some((binding) => binding.bindingId === goal.binding_ref))
       && repositories.some((repository) => repository.full_name === goal.repository));
 
   useEffect(() => { onEditingChange(mode !== null); }, [mode, onEditingChange]);
-  useEffect(() => { onConfigurationReady(currentConfigurationReady); }, [currentConfigurationReady, onConfigurationReady]);
+  const configurationIssue = currentConfigurationReady ? ""
+    : repositoriesQuery.isError ? (repositoriesQuery.error?.message || "主机读不到 GitHub 仓库列表。")
+    : bindingsQuery.isError ? "读不到模型绑定列表，请稍后重试。"
+    : repositoriesQuery.isSuccess && !repositories.some((repository) => repository.full_name === goal.repository)
+      ? `仓库 ${goal.repository} 不在主机可用的仓库里：请编辑目标改用可用仓库，或确认 GitHub 账号有权限。`
+    : bindingsQuery.isSuccess && goal.binding_ref && !bindings.some((binding) => binding.bindingId === goal.binding_ref)
+      ? `模型绑定 ${goal.binding_ref} 不可用：请在设置里启用它，或编辑目标改用其他绑定。`
+    : bindingsQuery.isSuccess && !goal.binding_ref && goal.orchestration_mode !== "agent_team"
+      ? "这个目标还没有选择模型绑定：请编辑目标选择一个。"
+    : repositoriesQuery.isPending || bindingsQuery.isPending ? "正在读取仓库和模型绑定…"
+    : "当前执行配置尚不可用，请编辑目标配置并核对仓库和模型绑定。";
+  useEffect(() => { onConfigurationReady(currentConfigurationReady, configurationIssue); },
+    [currentConfigurationReady, configurationIssue, onConfigurationReady]);
 
   function reload(nextMode = mode) {
     setBase(structuredClone(goal));
@@ -146,6 +161,7 @@ export function GoalReviewEditor({ goal, busy, onEditingChange, onConfigurationR
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, title: event.target.value } : entry))} /></label>
           <label className="block text-sm">任务说明<textarea aria-label={`任务 ${task.id} 说明`} className={fieldClass} value={task.instruction ?? ""} disabled={busy} rows={4}
             onChange={(event) => setTasks(tasks.map((entry, item) => item === index ? { ...entry, instruction: event.target.value } : entry))} /></label>
+          {Boolean(task.allowed_paths?.length) && <p className="text-sm">允许修改：{task.allowed_paths?.join("、")}</p>}
           {goal.orchestration_mode === "agent_team" && <label className="block text-sm">负责 Agent<select aria-label={`任务 ${task.id} 负责 Agent`} className={fieldClass}
             value={task.agent_role ?? ""} disabled={busy}
             onChange={(event) => setTasks(tasks.map((entry, item) => {

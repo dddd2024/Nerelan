@@ -24,6 +24,7 @@ import { usePublishTask } from "@/hooks/use-task";
 import { cn } from "@/lib/cn";
 import { displayObjective, displayTitle } from "@/lib/display-title";
 import { taskActionCopy, taskBlockerCopy, taskReviewNotice } from "@/lib/task-status-copy";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import { taskProjectHref, taskProjectName } from "@/lib/task-project";
 import {
   authorityStatusLabel,
@@ -215,7 +216,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   if (isError || !displayTask) {
     return (
       <main data-testid="task-detail">
-        <ErrorState title="未找到任务" error={error} />
+        <ErrorState title={error instanceof Error && !error.message.startsWith("未找到") ? "读取任务失败" : "未找到任务"} error={error} />
         <div className="px-4">
           <Link
             to="/tasks"
@@ -255,105 +256,19 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
   const stateDotColor = state.dot;
   const objective = displayObjective(displayTask.title);
 
-  return (
-    <main
-      data-testid="task-detail"
-      className="flex flex-col h-full gap-3 p-3 md:p-0"
+  /*
+   * Thread opening: what was asked and where it stands, ahead of the activity
+   * stream, so the header stays one compact row and the conversation pane owns
+   * the reading flow.
+   */
+  const threadSummary = (
+    <section
+      aria-label="任务摘要"
+      data-testid="task-thread-summary"
+      className="mb-4 flex flex-col gap-2 rounded-xl border border-ra-border bg-ra-light px-3.5 py-3"
     >
-      <header className="flex flex-col gap-3 md:px-6 md:pt-5 md:pb-2" data-testid="task-detail-header">
-      <nav aria-label="任务归属" className="flex items-center gap-2 text-xs text-ra-text-tertiary" data-testid="task-project-context">
-        <Link to="/tasks" className="hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">任务</Link>
-        <span aria-hidden="true">/</span>
-        {taskProjectHref(displayTask.repository) ? (
-          <Link to={taskProjectHref(displayTask.repository)!} title={displayTask.repository}
-                data-testid="task-project-link" className="max-w-60 truncate hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">
-            {taskProjectName(displayTask.repository)}
-          </Link>
-        ) : <span data-testid="task-project-unassigned">未归属</span>}
-        <span aria-hidden="true">/</span>
-        {displayTask.goalId ? (
-          <Link to={`/approvals?goal=${encodeURIComponent(displayTask.goalId)}`}
-                data-testid="task-goal-link" className="max-w-44 truncate hover:text-ra-text">
-            目标 {displayTask.goalId}
-          </Link>
-        ) : <span data-testid="task-goal-unavailable">目标关联未提供</span>}
-      </nav>
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 pt-2 lg:pt-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="group relative flex-shrink-0">
-            <div
-              className={cn("w-4 h-4 rounded-full cursor-pointer", stateDotColor)}
-              aria-label={state.label}
-              title={state.label}
-            />
-          </div>
-          <div className="flex items-center gap-2 min-w-0">
-            <Link
-              to="/tasks"
-              aria-label="返回任务列表"
-              className="inline-flex h-6 w-6 items-center justify-center rounded text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
-            >
-              ←
-            </Link>
-            {displayTask.issueNumber ? (
-              <>
-                <span className="text-xs text-ra-text-tertiary font-mono">
-                  #{displayTask.issueNumber}
-                </span>
-                <span aria-hidden="true" className="text-ra-text-tertiary">
-                  ·
-                </span>
-              </>
-            ) : null}
-            <span className="font-mono text-xs text-ra-text-tertiary truncate">
-              {displayTask.branch}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge className={cn(state.badge)} dot={state.dot}>
-            {state.label}
-          </Badge>
-          <Badge className={cn(risk.badge)} dot={risk.dot}>
-            {risk.label}
-          </Badge>
-          <Badge className="border-ra-border bg-ra-tertiary text-ra-text-secondary">
-            {permissionModeLabel(displayTask.permissionProfile)}
-          </Badge>
-          <button
-            type="button"
-            aria-label="编辑权限"
-            onClick={() => {
-              setEditorPolicy(profileToPolicy(displayTask.permissionProfile));
-              setCustomEditorOpen(true);
-            }}
-            className={cn(
-              // min-h-6 guarantees the 24px minimum target regardless of the
-              // 14px icon vs 16px line box that made this button 22px tall.
-              "inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-2 py-1 text-xs text-ra-text-tertiary",
-              "hover:text-ra-text hover:bg-ra-tertiary",
-              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-            )}
-            title="编辑权限策略"
-          >
-            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      <div className="min-w-0">
-        <h1 className="text-lg font-semibold leading-6 text-ra-text">
-          {displayTitle(displayTask.title)}
-        </h1>
-        {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (
-          <p className="mt-2 text-sm text-ra-text-secondary">
-            {taskReviewNotice()}
-          </p>
-        )}
-
         {objective ? (
-          <details className="group mt-1.5" data-testid="task-objective-disclosure">
+          <details className="group" data-testid="task-objective-disclosure">
             <summary
               className={cn(
                 // min-h-6 holds the 24px minimum target: a bare `text-xs`
@@ -375,22 +290,20 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             </p>
           </details>
         ) : null}
-      </div>
-
       <dl
         className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs"
         data-testid="task-level-one-meta"
       >
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">下一步：</dt>
-          <dd className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
+          <dd title={displayTask.nextAction} className="text-ra-text-secondary">{taskActionCopy(displayTask.nextAction)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           {/* The 6px dt/dd gap read as a fused "阻塞无" next to the 20px group
               gap, so each pair now carries the same `标签：值` colon the rest of
               the product uses (阶段：/ 目标：/ 活跃度：). */}
           <dt className="text-ra-text-tertiary">阻塞项：</dt>
-          <dd className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker)}</dd>
+          <dd title={displayTask.blocker || displayTask.failureClassification} className="text-ra-text-secondary">{taskBlockerCopy(displayTask.blocker || displayTask.failureClassification)}</dd>
         </div>
         <div className="flex items-baseline gap-1.5">
           <dt className="text-ra-text-tertiary">验证：</dt>
@@ -436,6 +349,108 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
       </details>
 
       {displayTask.functionalValidation && <FunctionalValidationView evidence={displayTask.functionalValidation} executor={displayTask.executor} />}
+
+    </section>
+  );
+
+  return (
+    <main
+      data-testid="task-detail"
+      className="flex h-full flex-col gap-3 p-3 md:gap-0 md:p-0"
+    >
+      <header className="flex flex-col gap-1.5 md:border-b md:border-ra-border md:px-5 md:py-2.5" data-testid="task-detail-header">
+      <nav aria-label="任务归属" className="flex items-center gap-2 text-xs text-ra-text-tertiary" data-testid="task-project-context">
+        <Link to="/tasks" className="hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">任务</Link>
+        <span aria-hidden="true">/</span>
+        {taskProjectHref(displayTask.repository) ? (
+          <Link to={taskProjectHref(displayTask.repository)!} title={displayTask.repository}
+                data-testid="task-project-link" className="max-w-60 truncate hover:text-ra-text focus-visible:ring-2 focus-visible:ring-ra-accent">
+            {taskProjectName(displayTask.repository)}
+          </Link>
+        ) : <span data-testid="task-project-unassigned">未归属</span>}
+        <span aria-hidden="true">/</span>
+        {displayTask.goalId ? (
+          <Link to={`/approvals?goal=${encodeURIComponent(displayTask.goalId)}`}
+                data-testid="task-goal-link" className="max-w-44 truncate hover:text-ra-text">
+            目标 {displayTask.goalId}
+          </Link>
+        ) : <span data-testid="task-goal-unavailable">目标关联未提供</span>}
+      </nav>
+      <div className="flex flex-col justify-between gap-2 lg:flex-row lg:items-center">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="group relative flex-shrink-0">
+            <div
+              className={cn("h-2.5 w-2.5 rounded-full", stateDotColor)}
+              aria-label={state.label}
+              title={runtimeTitle(displayTask.state)}
+            />
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <Link
+              to="/tasks"
+              aria-label="返回任务列表"
+              className="inline-flex h-6 w-6 items-center justify-center rounded text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+            >
+              ←
+            </Link>
+            {displayTask.issueNumber ? (
+              <>
+                <span className="text-xs text-ra-text-tertiary font-mono">
+                  #{displayTask.issueNumber}
+                </span>
+                <span aria-hidden="true" className="text-ra-text-tertiary">
+                  ·
+                </span>
+              </>
+            ) : null}
+            <span className="font-mono text-xs text-ra-text-tertiary truncate">
+              {displayTask.branch}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge className={cn(state.badge)} dot={state.dot}>
+            <span title={runtimeTitle(displayTask.state)}>{state.label}</span>
+          </Badge>
+          <Badge className={cn(risk.badge)} dot={risk.dot}>
+            {risk.label}
+          </Badge>
+          <Badge className="border-ra-border bg-ra-tertiary text-ra-text-secondary">
+            {permissionModeLabel(displayTask.permissionProfile)}
+          </Badge>
+          <button
+            type="button"
+            aria-label="编辑权限"
+            onClick={() => {
+              setEditorPolicy(profileToPolicy(displayTask.permissionProfile));
+              setCustomEditorOpen(true);
+            }}
+            className={cn(
+              // min-h-6 guarantees the 24px minimum target regardless of the
+              // 14px icon vs 16px line box that made this button 22px tall.
+              "inline-flex min-h-6 min-w-6 items-center justify-center rounded-md px-2 py-1 text-xs text-ra-text-tertiary",
+              "hover:text-ra-text hover:bg-ra-tertiary",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+            )}
+            title="编辑权限策略"
+          >
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+
+      <div className="min-w-0">
+        <h1 title={displayTitle(displayTask.title)} className="truncate text-[15px] font-semibold leading-6 text-ra-text">
+          {displayTitle(displayTask.title)}
+        </h1>
+        {(displayTask.executor === "codex" || displayTask.executor === "claude_code") && displayTask.state === "READY_FOR_HUMAN" && (
+          <p className="mt-2 text-sm text-ra-text-secondary">
+            {taskReviewNotice()}
+          </p>
+        )}
+
+      </div>
 
       {displayTask.draftPr ? (
         <div
@@ -509,7 +524,12 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
               </span>
             </div>
           }
-          primaryPane={<ActivityStream events={displayTask.activity} />}
+          primaryPane={
+            <>
+              {threadSummary}
+              <ActivityStream events={displayTask.activity} />
+            </>
+          }
           resizeHandle={
             <ResizeHandle
               onMouseDown={(event) => {
@@ -573,6 +593,7 @@ export function TaskDetail({ task, isLoading, isError, error }: TaskDetailProps)
             data-testid="right-panel-content"
             data-active-pane={mobilePane}
           >
+            {mobilePane === "activity" ? threadSummary : null}
             {renderWorkspacePane(mobilePane, displayTask, policy)}
           </div>
         </div>

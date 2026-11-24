@@ -1,19 +1,15 @@
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "./test-utils";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GoalComposer } from "@/components/goal-composer";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
+import * as platformClient from "@/lib/platform-client";
 
-const approvedPolicyState = vi.hoisted(() => ({ data: undefined as undefined | {
-  supported_operations: string[]; validation_command_id: string;
-  goal_idempotency_key?: string;
-  policy: { autonomousWindow: { expiresAt: string } };
-} }));
-vi.mock("@/hooks/use-platform", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@/hooks/use-platform")>(),
-  useApprovedPolicy: () => ({ data: approvedPolicyState.data, isError: false }),
-}));
+vi.mock("@/hooks/use-model-access", () => {
+  const data = [{ bindingId: "available-opencode", name: "Available model", executorId: "opencode", enabled: true }];
+  return { useBindings: () => ({ data, isLoading: false }) };
+});
 
 function deferred() {
   let resolve!: () => void;
@@ -30,40 +26,110 @@ describe("GoalComposer compact progressive disclosure", () => {
 
   afterEach(() => {
     window.sessionStorage.clear();
-    approvedPolicyState.data = undefined;
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
-  it("describes the real checker instead of promising model code repair", async () => {
-    approvedPolicyState.data = { supported_operations: ["validate_task"], validation_command_id: "git_diff_check", goal_idempotency_key: "approved-frozen-checker-goal", policy: { autonomousWindow: { expiresAt: "2030-12-31T08:00:00Z" } } };
+  it("submits the draft without consulting the retired delegated policy", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "1");
+    const policy = vi.spyOn(platformClient, "fetchApprovedPolicyIfConfigured").mockResolvedValue(null);
     const onSubmit = vi.fn(async () => {});
     const user = userEvent.setup();
     renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
-    await user.type(screen.getByLabelText("描述最终目标"), "检查冻结范围内的差异格式");
-    expect(screen.getByTestId("approved-policy-summary")).toHaveTextContent("不实现代码或修复目标");
-    expect(screen.queryByLabelText("模型绑定")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("描述最终目标"), "核对失败重试后的任务状态");
     await user.click(screen.getByLabelText("创建并审阅目标"));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ executorKind: "opencode", bindingRef: "", checkerDraft: { idempotencyKey: "approved-frozen-checker-goal", executorKind: "opencode", orchestrationMode: "single", bindingRef: "" } }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ objective: "核对失败重试后的任务状态", teamMode: true }));
+    expect(policy).not.toHaveBeenCalled();
   });
 
-  it("starts compact and keeps secondary configuration out of the empty idle surface", async () => {
+  it("sends on Enter, keeps Shift+Enter a newline and leaves IME composition alone", async () => {
+    const onSubmit = vi.fn(async () => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} compact onSubmit={onSubmit} />);
+
+    const objective = screen.getByLabelText("描述最终目标");
+    expect(objective).toHaveAttribute("rows", "1");
+    await user.type(objective, "修复账户切换后的重试预算{Shift>}{Enter}{/Shift}第二行");
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(objective).toHaveValue("修复账户切换后的重试预算\n第二行");
+
+    fireEvent.keyDown(objective, { key: "Enter", isComposing: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    await user.type(objective, "{Enter}");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the repository visible and advanced controls hidden until opened, even after typing", async () => {
     const user = userEvent.setup();
     renderWithProviders(<GoalComposer busy={false} onSubmit={async () => {}} />);
 
     const objective = screen.getByLabelText("描述最终目标");
-    expect(objective).toHaveAttribute("rows", "1");
-    expect(screen.queryByTestId("goal-composer-options")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("执行模式")).not.toBeInTheDocument();
+    expect(objective).toHaveAttribute("rows", "2");
+    const summary = screen.getByTestId("goal-composer-execution-summary");
+    expect(summary).toBeVisible();
+    expect(summary).toHaveTextContent("自动选择执行方式和模型");
+    expect(summary.textContent).toMatch(/\S+\/\S+ · /);
+    expect(screen.getByLabelText("仓库")).not.toBeVisible();
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.queryByRole("combobox", { name: "执行模式" })).not.toBeInTheDocument();
+    await user.type(objective, "完成自动路由目标测试");
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
 
-    const options = screen.getByRole("button", { name: "输入选项" });
+    const options = screen.getByRole("button", { name: "高级" });
     expect(options).toHaveAttribute("aria-expanded", "false");
     await user.click(options);
 
     expect(options).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByTestId("goal-composer-options")).toBeInTheDocument();
-    expect(screen.getByLabelText("仓库")).toBeInTheDocument();
-    expect(screen.getByLabelText("执行模式")).toBeInTheDocument();
-    expect(screen.getByLabelText("模型绑定")).toBeInTheDocument();
+    expect(screen.getByLabelText("仓库")).toBeVisible();
+    expect(screen.getByLabelText("执行模式")).toBeVisible();
+    expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
+    await user.selectOptions(screen.getByLabelText("执行模式"), "opencode");
+    expect(screen.getByLabelText("模型绑定")).toBeVisible();
+    await user.click(options);
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.getByLabelText("模型绑定")).not.toBeVisible();
     expect(screen.getByText("先保存草稿，审阅并批准后再启动。")).toBeInTheDocument();
+  });
+
+  it("submits a new draft as an unpinned automatically routed team", async () => {
+    const onSubmit = vi.fn(async () => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText("描述最终目标"), "使用系统自动选择执行方式和模型");
+    await user.click(screen.getByLabelText("创建并审阅目标"));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      executorKind: "opencode", teamMode: true, bindingRef: "",
+    }));
+    await waitFor(() => expect(screen.getByLabelText("描述最终目标")).toHaveValue(""));
+    expect(screen.getByLabelText("执行模式")).toHaveValue("agent_team");
+    expect(screen.getByRole("button", { name: "高级" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("shows and submits an advanced mode and binding even after collapsing", async () => {
+    const onSubmit = vi.fn(async (_input: StartGoalInput) => {});
+    const user = userEvent.setup();
+    renderWithProviders(<GoalComposer busy={false} onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText("描述最终目标"), "使用指定绑定完成这个目标");
+    await user.click(screen.getByRole("button", { name: "高级" }));
+    await user.selectOptions(screen.getByLabelText("执行模式"), "codex");
+    await user.clear(screen.getByLabelText("模型绑定"));
+    await user.type(screen.getByLabelText("模型绑定"), "my-codex-binding");
+    await user.click(screen.getByRole("button", { name: "高级" }));
+
+    const summary = screen.getByTestId("goal-composer-execution-summary");
+    expect(summary).toBeVisible();
+    expect(summary).toHaveTextContent("Codex 单任务（ChatGPT 账号） · 模型绑定：my-codex-binding");
+    expect(screen.getByLabelText("模型绑定")).not.toBeVisible();
+    await user.click(screen.getByLabelText("创建并审阅目标"));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      executorKind: "codex", bindingRef: "my-codex-binding",
+    }));
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("teamMode");
   });
 
   it("keeps the submitted draft visible until success, then clears only that operation", async () => {
@@ -76,6 +142,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     const submit = screen.getByLabelText("创建并审阅目标");
 
     await user.type(objective, "完成 provider-free 多 Agent 验证");
+    await user.click(screen.getByRole("button", { name: "高级" }));
     await user.selectOptions(
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
@@ -91,8 +158,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       executorKind: "deterministic_fixture",
       autonomyHours: 2,
     });
-    // The binding is resolved from the bindings that exist, never hardcoded.
-    expect(sent.bindingRef).toBeTruthy();
+    expect(sent.bindingRef).toBe("");
     expect(sent.operationId).toMatch(/^[A-Za-z0-9._:-]{8,160}$/);
     expect(objective).toHaveValue("完成 provider-free 多 Agent 验证");
 
@@ -109,7 +175,7 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(secondSent.operationId).not.toBe(sent.operationId);
     second.resolve();
     await waitFor(() => expect(objective).toHaveValue(""));
-    expect(screen.queryByTestId("goal-composer-options")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
   });
 
   it("retains failed draft and operation identity across remount, then rotates identity after editing", async () => {
@@ -123,6 +189,7 @@ describe("GoalComposer compact progressive disclosure", () => {
       screen.getByLabelText("描述最终目标"),
       "恢复同一个 Goal 启动操作",
     );
+    await user.click(screen.getByRole("button", { name: "高级" }));
     await user.selectOptions(
       screen.getByLabelText("执行模式"),
       "deterministic_fixture",
@@ -147,6 +214,8 @@ describe("GoalComposer compact progressive disclosure", () => {
     expect(screen.getByLabelText("执行模式")).toHaveValue(
       "deterministic_fixture",
     );
+    expect(screen.getByLabelText("执行模式")).not.toBeVisible();
+    expect(screen.getByTestId("goal-composer-execution-summary")).toHaveTextContent("无模型演练");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("创建并审阅目标"));

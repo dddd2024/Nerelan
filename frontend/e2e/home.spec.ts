@@ -1,30 +1,80 @@
 import { test, expect, open, settle } from "./fixtures";
 
 test.describe("home workspace", () => {
-  test("shows the active Goal as the task-first workspace with desktop navigation", async ({ appPage }) => {
+  test("opens on the composer and lists recent goals", async ({ appPage }) => {
     await open(appPage, "/");
+    await settle(appPage);
+    await expect(appPage.getByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeVisible();
+    await expect(appPage.getByTestId("goal-composer-section")).toBeVisible();
+    await expect(appPage.getByTestId("recent-goals-section")).toBeVisible();
+    // A normally running window stays quiet on the home page.
+    await expect(appPage.getByText(/执行窗口运行中/)).toHaveCount(0);
+    await expect(appPage.getByTestId("active-goal-header")).toHaveCount(0);
+  });
+
+  test("shows a selected Goal as a thread with a docked composer", async ({ appPage }) => {
+    await open(appPage, "/?goal=goal-demo-platform");
     await settle(appPage);
     await expect(appPage.getByTestId("active-goal-header")).toBeVisible();
     await expect(
       appPage.getByRole("heading", { name: "完善无人值守多 Agent 平台" }),
     ).toBeVisible();
-    await expect(appPage.getByTestId("goal-composer-section")).toBeVisible();
     await expect(appPage.getByTestId("current-execution-section")).toBeVisible();
     await expect(appPage.getByTestId("active-goal-stream")).toBeVisible();
-    await expect(appPage.getByTestId("recent-goals-section")).toBeVisible();
-    await expect(appPage.getByTestId("autonomy-status")).toContainText("1/12");
+    await expect(appPage.getByTestId("goal-thread")).toBeVisible();
+    await expect(appPage.getByTestId("thread-user-message")).toBeVisible();
+    // A compact composer docks under the thread to start another goal.
+    const composer = appPage.getByTestId("goal-composer-section");
+    await expect(composer).toBeVisible();
+    await expect(composer.getByLabel("描述最终目标")).toHaveAttribute("placeholder", "另起一个新目标…");
+    await expect(appPage.getByTestId("autonomy-status")).toContainText(/执行窗口：.*\/12 个任务/);
     await expect(appPage.getByTestId("coordinator-status")).toContainText("协调器在线");
     await expect(appPage.getByText(/能力$/)).toHaveCount(0);
     if (await appPage.evaluate(() => window.innerWidth > 500)) {
-      await expect(appPage.getByTestId("new-task-button")).toBeVisible();
+      await expect(appPage.getByTestId("new-goal-button")).toBeVisible();
       await expect(appPage.getByTestId("toggle-conversation-panel")).toBeVisible();
       await expect(appPage.getByTestId("sidebar-section-recent")).toBeVisible();
-      await expect(appPage.getByTestId("sidebar-section-projects")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-section-projects")).toHaveCount(0);
+      await expect(appPage.getByTestId("sidebar-nav-目标")).toBeVisible();
+      await expect(appPage.getByTestId("sidebar-nav-设置")).toBeHidden();
+      await appPage.getByTestId("sidebar-menu").locator("summary").click();
       await expect(appPage.getByTestId("sidebar-nav-设置")).toBeVisible();
-      await expect(appPage.getByTestId("sidebar-nav-Agent 运行")).toBeHidden();
+      await expect(appPage.getByTestId("sidebar-nav-运行记录")).toBeVisible();
     } else {
       await expect(appPage.getByTestId("mobile-menu-button")).toBeVisible();
     }
+  });
+
+  test("新建目标 leaves a goal thread for a focused empty composer", async ({ appPage }) => {
+    await open(appPage, "/?goal=goal-demo-platform");
+    await settle(appPage);
+    if (await appPage.evaluate(() => window.innerWidth > 500)) {
+      await appPage.getByTestId("new-goal-button").click();
+    } else {
+      await appPage.getByTestId("mobile-menu-button").click();
+      await appPage.getByTestId("mobile-new-goal-button").click();
+    }
+    await expect(appPage.getByRole("heading", { name: /^(早上|下午|晚上)好，今天做点什么？$/ })).toBeVisible();
+    await expect(appPage.getByTestId("goal-composer-section").locator("textarea")).toBeFocused();
+  });
+
+  test("an unknown address says so", async ({ appPage }) => {
+    await open(appPage, "/no-such-page");
+    await settle(appPage);
+    await expect(appPage.getByTestId("not-found-page")).toBeVisible();
+    await expect(appPage.getByRole("heading", { name: "没有这个页面" })).toBeVisible();
+  });
+
+  test("opens the command palette with the keyboard", async ({ appPage }) => {
+    if (await appPage.evaluate(() => window.innerWidth <= 500)) test.skip();
+    await open(appPage, "/");
+    await settle(appPage);
+    await appPage.keyboard.press("Control+k");
+    await expect(appPage.getByTestId("conversation-panel")).toBeVisible();
+    await appPage.getByTestId("task-search-input").fill("运行");
+    await appPage.keyboard.press("Enter");
+    await expect(appPage.getByTestId("runs-page")).toBeVisible();
+    await expect(appPage.getByTestId("conversation-panel")).toHaveCount(0);
   });
 
   test("can open the mobile navigation overflow", async ({ appPage }) => {
@@ -32,7 +82,7 @@ test.describe("home workspace", () => {
     await open(appPage, "/");
     await appPage.getByTestId("mobile-menu-button").click();
     await expect(appPage.getByTestId("mobile-drawer")).toBeVisible();
-    await expect(appPage.getByTestId("mobile-nav-收件箱")).toBeVisible();
+    await expect(appPage.getByTestId("mobile-nav-审批")).toBeVisible();
     await appPage.getByTestId("mobile-drawer-close").click();
     await expect(appPage.getByTestId("mobile-drawer")).toBeHidden();
   });

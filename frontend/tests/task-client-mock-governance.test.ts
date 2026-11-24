@@ -25,6 +25,10 @@ const PANEL_TASK = vi.hoisted(() => ({
   repository: "dddd2024/Nerelan",
 }));
 
+vi.mock("@/hooks/use-platform", () => ({
+  useGoals: () => ({ data: [] }),
+}));
+
 vi.mock("@/hooks/use-tasks", () => ({
   useTasks: () => ({
     data: [PANEL_TASK],

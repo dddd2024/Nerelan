@@ -14,3 +14,14 @@ if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
     dispatchEvent: () => false,
   });
 }
+
+// cmdk measures its list and scrolls the selected item; jsdom implements neither.
+if (typeof window !== "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  Element.prototype.scrollIntoView ??= () => {};
+}

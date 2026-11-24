@@ -1,4 +1,5 @@
 import type { TestStatus } from "@/types";
+import { CLIENT_CREDENTIAL_MISSING, isCredentialError } from "@/lib/http-errors";
 import { functionalTestStatus, normalizeFunctionalValidation } from "@/lib/functional-validation";
 export type ExecutorKind = "deterministic_fixture" | "opencode" | "codex" | "claude_code";
 
@@ -307,7 +308,7 @@ export async function fetchTasks(): Promise<Record<string, unknown>[]> {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
-    throw new Error(`读取任务列表失败（HTTP ${response.status}）。`);
+    throw new Error(isCredentialError(response.status) ? CLIENT_CREDENTIAL_MISSING : `读取任务列表失败（HTTP ${response.status}）。`);
   }
   const payload = (await _json<BackendTaskListResponse>(response)) as Record<
     string,
@@ -332,7 +333,9 @@ export async function fetchTask(taskId: string) {
     throw new Error(
       response.status === 404
         ? `未找到该任务（${taskId}）。它可能已被移除。`
-        : `读取任务失败（HTTP ${response.status}）。`,
+        : isCredentialError(response.status)
+          ? CLIENT_CREDENTIAL_MISSING
+          : `读取任务失败（HTTP ${response.status}）。`,
     );
   }
   const payload = (await _json<BackendTaskDetailResponse>(response)) as Record<

@@ -29,9 +29,22 @@ RPC_OPERATION = "model_review_rpc"
 # Failures the reviewer call reports with a known outcome; anything else from
 # the call (timeout, lost reply, transport error) may have completed remotely.
 KNOWN_CALL_FAILURES = frozenset({"model_review_invalid_output", "review_not_independent",
-    "model_review_connection_unsupported", "model_review_sandbox_unsupported"})
+    "model_review_connection_unsupported", "model_review_sandbox_unsupported",
+    "MODEL_UNAVAILABLE"})  # the upstream refused the call: no completion exists
 # Receipt states that settle the reviewer call; any other row is unresolved.
 SETTLED_STATES = frozenset({"SUCCESS", "RECONCILED"})
+# A reviewer call is read-only and evidence binds only from a reply this host
+# saved, so a call that ended with no reply has no effect a replay could
+# duplicate; only tokens are lost (#1618). It settles as a failure and the
+# review retries as a non-model retry. Typed causes the call reports when no
+# reply reached the host; untyped exceptions raised by the call also qualify.
+ABANDONED_NO_REPLY = "model_review_abandoned_no_reply"
+NO_REPLY_CAUSES = frozenset({"timeout", "transport_error", "model_review_process_failed"})
+# Untyped causes a pre-#1618 BLOCKED detail may name for a call with no reply.
+# Other names may come from host writes after a reply arrived, so stay held.
+LEGACY_NO_REPLY_CAUSES = NO_REPLY_CAUSES | frozenset({"TimeoutError", "OSError", "ConnectionError",
+    "ConnectionResetError", "ConnectionAbortedError", "ConnectionRefusedError", "BrokenPipeError",
+    "URLError", "TimeoutExpired"})
 
 
 class CompletionUnknown(TaskStoreError):
@@ -238,6 +251,7 @@ def exact_diff(root, base, head):
 
 
 def review_authors(store, task, binding):
+    groups = model_router.store_groups(store)
     from .control_store import PlatformControlStore
     from .goal_service import GoalService
     control = PlatformControlStore(store)
@@ -259,29 +273,35 @@ def review_authors(store, task, binding):
         ids.update(row["from_task_id"] for row in history
                    if row["plan_task_id"] == source and int(row["goal_revision"]) == goal.revision)
         for author_id in ids:
-            observed = {model_router.model_identity(row.model_id)
-                        for row in store.list_usage_observations(author_id) if row.model_id}
+            observations = store.list_usage_observations(author_id)
+            observed = {model_router.model_identity(row.model_id, groups) for row in observations if row.model_id}
+            author_task = store.get_task(author_id)
+            if goals._discarded_without_usage(author_task, observations):
+                continue  # called no model and its tree was discarded: it authored nothing
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
-            author_task = store.get_task(author_id)
             if author_task.executor_kind in {"codex", "claude_code"}:
-                reported = {model_router.model_identity(model)
+                reported = {model_router.model_identity(model, groups)
                     for event in store.get_events(author_id) if event.type == "EXECUTOR_COMPLETED"
                     for model in event.metadata.get("models", ()) if isinstance(model, str) and model.strip()}
                 if not reported or reported != observed:
                     raise TaskStoreError("review_not_independent")
             actual.update(observed)
-    if actual != {model_router.model_identity(model) for model in authors["author_models"]}:
+    if actual != {model_router.model_identity(model, groups) for model in authors["author_models"]}:
         raise TaskStoreError("review_not_independent")
     return goal, selected, tuple(sorted(actual))
 
 
-def require_independent(actual_models, selected_model, authors):
+def require_independent(actual_models, selected_model, authors, groups=None):
+    """The reviewer ran exactly the selected model, and that model authored nothing.
+
+    ``groups``: the Owner's declared Magpie routing groups; a group is the model it serves.
+    """
     if (not isinstance(selected_model, str) or not selected_model or not isinstance(actual_models, (list, tuple)) or not actual_models or not authors
             or any(not isinstance(model, str) or not model.strip() for model in actual_models)):
         raise TaskStoreError("review_not_independent")
-    actual = {model_router.model_identity(model) for model in actual_models}
-    if (actual != {model_router.model_identity(selected_model)}
+    actual = {model_router.model_identity(model, groups) for model in actual_models}
+    if (actual != {model_router.model_identity(selected_model, groups)}
             or actual.intersection(authors) or "" in actual):
         raise TaskStoreError("review_not_independent")
 
@@ -316,14 +336,20 @@ def verified_evidence(store, task, run, *, require_accept=True):
                 or row["status"] != "BOUND" or evidence["evidence_kind"] != "model_review"
                 or evidence["run_id"] != run.run_id or evidence["execution_id"] != task.execution_id
                 or evidence["input_digest"] != digest(binding) or evidence["binding_ref"] != task.binding_ref
-                or evidence["authors"] != list(authors) or not 1 <= evidence["lease_epoch"] <= run.lease_epoch
+                or not isinstance(evidence["authors"], list)
+                or any(not isinstance(author, str) for author in evidence["authors"])
+                # Identities saved before the version-separator rule (glm-5.2 -> glm-5-2,
+                # 2026-11-17) compare equal once normalized again; identity is idempotent.
+                or sorted({model_router.model_identity(author) for author in evidence["authors"]}) != list(authors)
+                or not 1 <= evidence["lease_epoch"] <= run.lease_epoch
                 or evidence["head"] != binding["producer"]["commit"]
                 or evidence["tree"] != binding["producer"]["tree"] or evidence["base"] != binding["base_commit"]
                 or evidence["head"] != run.worktree_head_sha or evidence["base"] != run.repository_base_sha
                 or evidence["response_digest"] != hashlib.sha256(evidence["response"].encode()).hexdigest()
                 or parse_response(evidence["response"]) != evidence["result"]):
             raise TaskStoreError("model_review_evidence_invalid")
-        require_independent(evidence["actual_models"], evidence["selected_model"], authors)
+        require_independent(evidence["actual_models"], evidence["selected_model"], authors,
+                            model_router.store_groups(store))
         if require_accept and evidence["result"]["verdict"] != "ACCEPT":
             raise TaskStoreError("model_review_rejected")
         if workspace_identity(Path(run.worktree_path)) != evidence["workspace_identity"]:
@@ -345,6 +371,7 @@ def execute_review(service, task_id, workspace_root, lease):
         if not artifacts.model_review_input(task) or binding is None:
             raise TaskStoreError("model_review_artifact_input_required")
         goal, planned, authors = review_authors(store, task, binding)
+        groups = model_router.store_groups(store)
         run = store._get_durable_run(lease.run_id)
         if task.status in {"FAILED", "BLOCKED", "CANCELLED"}:
             raise TaskStoreError("model_review_terminal_task_requires_new_execution")
@@ -362,7 +389,7 @@ def execute_review(service, task_id, workspace_root, lease):
             if (not resolution or resolution.binding_ref != task.binding_ref
                     or resolution.executor_id != task.executor_kind):
                 raise TaskStoreError("review_not_independent")
-            require_independent([selected_model], selected_model, authors)
+            require_independent([selected_model], selected_model, authors, groups)
             toolless = task.executor_kind != "codex"
             executor = None
             if toolless:
@@ -417,10 +444,11 @@ def execute_review(service, task_id, workspace_root, lease):
                 ("binding_ref", "connection_id", "executor_id", "provider_id", "model_id", "auth_method")}
             operation = _claim_rpc_intent(store, task, lease, rpc_intent_digest(digest(request), binding_identity))
             _check_crash_seam("MODEL_REVIEW_AFTER_INTENT")
+            reply = None
             try:
                 if toolless:
                     from .model_review_transport import review
-                    reply = review(prompt, resolution, service.lease_provider)
+                    reply = review(prompt, resolution, service.lease_provider, groups=groups)
                     reply.update(binding_ref=task.binding_ref, execution_id=task.execution_id)
                     store.append_usage_observation(task_id, observation_id=reply["request_id"],
                         execution_id=task.execution_id, role="reviewer", model_id=reply["actual_models"][0],
@@ -428,26 +456,37 @@ def execute_review(service, task_id, workspace_root, lease):
                         source_id=reply["request_id"], status="UNKNOWN")
                 else:
                     reply = executor.execute_review_prepared(prepared, store, task_id=task_id, prompt=prompt)
-            except (TaskStoreError, ExecutorRuntimeError) as exc:
-                if str(exc).split(":", 1)[0] not in KNOWN_CALL_FAILURES:
-                    raise CompletionUnknown(f"model_review_completion_unknown:{str(exc).split(':', 1)[0]}: "
+            except Exception as exc:
+                typed = isinstance(exc, (TaskStoreError, ExecutorRuntimeError))
+                cause = str(exc).split(":", 1)[0] if typed else type(exc).__name__
+                if typed and cause in KNOWN_CALL_FAILURES:
+                    store._reconcile_external_operation(operation_id=operation.operation_id,
+                        external_operation_id="", result_state="failure",
+                        run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
+                    raise
+                if reply is not None:
+                    # The reply reached the host but a host write after it failed.
+                    raise CompletionUnknown(f"model_review_completion_unknown:response_unsaved: reviewer call "
+                        f"{operation.operation_id} completed but its response was not saved ({cause}); "
+                        "journal stays PENDING, not replayed, reconcile manually") from exc
+                if typed and cause not in NO_REPLY_CAUSES:
+                    raise CompletionUnknown(f"model_review_completion_unknown:{cause}: "
                         f"reviewer call {operation.operation_id} may have completed remotely; journal "
                         "stays PENDING, not replayed, reconcile manually") from exc
+                # No reply reached the host: nothing can bind, so settle and let escalation retry.
                 store._reconcile_external_operation(operation_id=operation.operation_id,
                     external_operation_id="", result_state="failure",
                     run_id=lease.run_id, owner=lease.owner, epoch=lease.epoch)
-                raise
-            except Exception as exc:
-                raise CompletionUnknown(f"model_review_completion_unknown:{type(exc).__name__}: "
-                    f"reviewer call {operation.operation_id} may have completed remotely; journal "
-                    "stays PENDING, not replayed, reconcile manually") from exc
+                raise TaskStoreError(f"{ABANDONED_NO_REPLY}:{cause}: reviewer call {operation.operation_id} "
+                    "ended with no reply; its read-only intent is settled as a failure and the review "
+                    "retries in a new execution") from exc
             _check_crash_seam("MODEL_REVIEW_AFTER_CALL")
             try:
                 if not isinstance(reply, dict):
                     raise TaskStoreError("model_review_invalid_output")
                 if workspace_identity(root) != before:
                     raise TaskStoreError("model_review_input_mutation")
-                require_independent(reply.get("actual_models"), selected_model, authors)
+                require_independent(reply.get("actual_models"), selected_model, authors, groups)
                 if (reply.get("binding_ref") != task.binding_ref or not isinstance(reply.get("request_id"), str) or not reply.get("request_id")
                         or reply.get("execution_id") != task.execution_id):
                     raise TaskStoreError("review_not_independent")

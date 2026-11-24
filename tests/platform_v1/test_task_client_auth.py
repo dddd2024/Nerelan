@@ -31,7 +31,6 @@ def authenticated_server(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "get_task", forbidden)
     monkeypatch.setattr(router, "dispatch_execute", forbidden)
     monkeypatch.setattr(handler.autonomy_service, "activate", forbidden)
-    monkeypatch.setattr(handler.autonomy_service, "activate_policy", forbidden)
     monkeypatch.setattr(handler.goal_service, "rebind", forbidden)
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     server.daemon_threads = True
@@ -70,7 +69,8 @@ def request(port, method, path, *, capability=None, origin=None, duplicate=False
     ("POST", "/api/tasks/unknown/execute"), ("POST", "/api/tasks/unknown/publish"),
     ("POST", "/api/tasks"), ("POST", "/api/windows/activate"),
     ("POST", "/api/goals/unknown/launch"), ("POST", "/api/inbox"),
-    ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/goals"),
+    ("GET", "/api/tasks"), ("GET", "/api/platform/status"), ("GET", "/api/platform/accounts"),
+    ("GET", "/api/goals"),
     ("GET", "/api/windows/policy"),
 ])
 def test_missing_capability_rejected_before_body_lookup_or_dispatch(authenticated_server, method, path):
@@ -175,6 +175,6 @@ def test_authenticated_client_assertions_cannot_activate_owner_window(authentica
                                     capability=TOKEN, origin=ORIGIN,
                                     body=json.dumps(candidate).encode())
         assert status == 409
-        assert result == {"error": "owner_selection_confirmation_unavailable"}
+        assert result["error"] == "owner_selection_confirmation_unavailable"
     assert not actions  # Neither activation path nor model dispatch was reached.
     assert store._conn.total_changes == before

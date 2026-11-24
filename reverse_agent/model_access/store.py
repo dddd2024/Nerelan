@@ -9,7 +9,7 @@ import json
 import os
 import re
 from threading import RLock
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping
 import tempfile
 
 from .contracts import (
@@ -396,6 +396,7 @@ class ModelProfileStore:
         state_path: str | Path | None = None,
         *,
         vault: VaultAdapter | None = None,
+        executor_detector: Callable[[], Mapping[str, str]] | None = None,
     ) -> None:
         self._state_path: Path | None = None
         if state_path is not None:
@@ -449,6 +450,11 @@ class ModelProfileStore:
                             self.record_model_catalog(connection_id, catalog.get("models", []), catalog.get("metadata", {}), persist=False)
             except (OSError, ValueError, TypeError):
                 self._routing_catalogs = {}
+
+        # Library/test stores retain deterministic legacy defaults. Real hosts
+        # inject discovery once per startup; observations are not persisted.
+        if executor_detector is not None:
+            self.refresh_executor_availability(executor_detector)
 
     def record_model_catalog(self, connection_id: str, models: list[str], metadata: Mapping[str, Any], *, persist: bool = True) -> None:
         """Save sanitized listing observations, never entitlement or credentials."""
@@ -849,6 +855,26 @@ class ModelProfileStore:
             )
             return stored.public(self._connection_secret_status(stored))
 
+    def set_native_account_link(self, connection_id: str, account_ref: str | None,
+                                snapshot: Mapping[str, Any]) -> dict[str, Any]:
+        """Confirm or clear identity through the normal save transaction, under its lock."""
+        from .resources import NATIVE_MAGPIE_PROVIDERS, native_account_link_suggestions
+
+        with self._lock:
+            current = self.get_connection_public(connection_id)
+            if (current.get("auth_method") != "external_cli_session"
+                    or current.get("executor_provider_id") not in NATIVE_MAGPIE_PROVIDERS):
+                raise ValueError("only native CLI connections support Magpie account links")
+            if account_ref is not None:
+                suggestion = native_account_link_suggestions(self.list_connections_public(), snapshot).get(connection_id)
+                if not suggestion or suggestion["account_ref"] != account_ref:
+                    raise ValueError("Magpie account link suggestion is no longer available")
+            # Public derived status fields are not accepted by the save path.
+            payload = {key: current[key] for key in (
+                "connection_id", "name", "provider", "base_url", "auth_method", "enabled",
+                "upstream_provider_id", "protocol_family", "executor_provider_id", "anthropic_base_url")}
+            return self.upsert_connection(dict(payload, account_ref=account_ref))
+
     def delete_connection(self, connection_id: str) -> None:
         with self._lock:
             self._ensure_connection_binding_ready()
@@ -955,6 +981,22 @@ class ModelProfileStore:
         with self._lock:
             return [executor.to_public_dict() for executor in self._executors.values()]
 
+    def refresh_executor_availability(self, detector: Callable[[], Mapping[str, str]]) -> None:
+        """Fresh host discovery invalidates previous process-local readiness."""
+        installed = detector()
+        with self._lock:
+            for executor_id, current in self._executors.items():
+                available = bool(installed.get(executor_id))
+                self._executors[executor_id] = replace(
+                    current, cli_available=available,
+                    operational=available and executor_id == "opencode",
+                    readiness_status=("cli_available" if executor_id == "opencode" else "not_probed")
+                    if available else "cli_unavailable",
+                )
+            for stored in self._connections.values():
+                if stored.connection.executor_provider_id in NATIVE_CLI_PROVIDERS:
+                    stored.external_session_status = "missing"
+
     def set_codex_readiness(self, status: str) -> None:
         self.set_native_readiness("codex", status)
 
@@ -969,9 +1011,10 @@ class ModelProfileStore:
             raise ValueError(f"{executor_id}_readiness_invalid")
         with self._lock:
             current = self._executors[executor_id]
-            self._executors[executor_id] = ExecutorDescriptor(
-                executor_id=executor_id, name=current.name, operational=status == "managed_login_ready",
-                capabilities=current.capabilities, readiness_status=status,
+            if current.cli_available is False:
+                status = "cli_unavailable"
+            self._executors[executor_id] = replace(
+                current, operational=status == "managed_login_ready", readiness_status=status,
             )
             for stored in self._connections.values():
                 if stored.connection.executor_provider_id == provider:
@@ -1199,6 +1242,21 @@ class ModelProfileStore:
             return {"roles": roles, "role_order": list(AGENT_ROLES), "policy": dict(self._agent_policy),
                     "standins": {role: ids for role, ids in standins.items() if ids}}
 
+    def _roster_models_differ(self, reviewer_model: str, coder_model: str) -> bool:
+        """The reviewer's model is provably not the coder's, Magpie groups included (2026-11-17).
+
+        A declared routing group is the model it serves; an undeclared group has no
+        identity and so is never proven different from anything.
+        """
+        from ..platform_v1.model_router import model_identity
+        from ..platform_v1.routing_inputs import read_overrides
+        try:
+            groups = read_overrides(self._state_path).get("groups", {})
+        except ValueError:
+            groups = {}
+        reviewer, coder = model_identity(reviewer_model, groups), model_identity(coder_model, groups)
+        return bool(reviewer and coder and reviewer != coder and reviewer_model != coder_model)
+
     def put_agent_roster(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         """Legacy role hints, or explicit {binding_id, pin: True} task-route pins."""
         roles = payload.get("roles") if isinstance(payload, Mapping) else None
@@ -1228,7 +1286,8 @@ class ModelProfileStore:
                 roster[role] = binding_id
             pins.intersection_update(roster)
             reviewer, coder = roster.get("reviewer"), roster.get("coder")
-            if reviewer and coder and self._bindings[reviewer].model_id == self._bindings[coder].model_id:
+            if reviewer and coder and not self._roster_models_differ(
+                    self._bindings[reviewer].model_id, self._bindings[coder].model_id):
                 # Independent review needs a different underlying model, not just another label.
                 raise ValueError("agent_reviewer_must_differ_from_coder")
             policy_raw = payload.get("policy") if isinstance(payload, Mapping) else None

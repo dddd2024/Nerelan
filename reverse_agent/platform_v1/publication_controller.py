@@ -38,12 +38,29 @@ class PublicationController:
         autonomy: AutonomyService,
         runner: CommandRunner | None = None,
         landing_decisions=None,
+        source_issue_closed: Callable[..., bool] | None = None,
     ) -> None:
         self.store = store
         self.control_store = control_store
         self.autonomy = autonomy
         self.runner = runner or self._run
         self.landing_decisions = landing_decisions
+        self.source_issue_closed = source_issue_closed
+
+    def _require_open_source(self, goal_id: str, *, fresh: bool = False) -> None:
+        if (self.control_store.get_goal(goal_id).status == "SUPERSEDED"
+                or (self.source_issue_closed is not None
+                    and self.source_issue_closed(goal_id, fresh=fresh))):
+            raise TaskStoreError("goal_source_issue_closed")
+
+    def _require_open_task_source(self, task_id: str, *, fresh: bool = False) -> None:
+        try:
+            goal_id = self.control_store.goal_id_for_task(task_id)
+        except TaskStoreError as exc:
+            if str(exc) == f"goal_link_not_found:{task_id}":
+                return
+            raise
+        self._require_open_source(goal_id, fresh=fresh)
 
     def publish(
         self,
@@ -56,14 +73,6 @@ class PublicationController:
         body: str = "",
     ) -> PublicationRecord:
         task = self.store.get_task(task_id)
-        if self.autonomy.delegated_mode or getattr(self.autonomy, "require_trusted_policy", False):
-            # The current trusted adapter proves only the fixed local checker.
-            # Reject before replay, Git, credentials or a publication side effect.
-            self.autonomy.authorize(window_id=window_id, operation="open_draft_pr",
-                repository=task.repository, subject_id=task_id,
-                input_payload={"task_id": task_id, "base_branch": base_branch,
-                               "allowed_paths": list(allowed_paths) if isinstance(allowed_paths, (list, tuple)) else []})
-            raise TaskStoreError("trusted_publication_adapter_not_supported")
         if task.status not in {"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE"}:
             raise TaskStoreError(f"publication_requires_validated_task:{task.status}")
         if base_branch in {"", "HEAD"} or not re.fullmatch(r"[A-Za-z0-9._/-]{1,200}", base_branch):
@@ -89,6 +98,7 @@ class PublicationController:
                 raise TaskStoreError("publication_request_digest_mismatch")
             if existing.status == "COMPLETE":
                 return existing
+        self._require_open_task_source(task_id)
 
         if not self.autonomy.authorize(
             window_id=window_id,
@@ -107,6 +117,7 @@ class PublicationController:
             head = self._git(workspace, "rev-parse", "HEAD").stdout.strip()
             if head != existing.commit_sha:
                 raise TaskStoreError("publication_committed_head_drift")
+            self._require_open_task_source(task_id, fresh=True)
             self._git(workspace, "push", "origin", existing.branch)
             pr = self._find_or_create_draft_pr(
                 workspace=workspace,
@@ -115,6 +126,7 @@ class PublicationController:
                 base_branch=base_branch,
                 title=title.strip() or f"{task.title.splitlines()[0]}",
                 body=body.strip() or self._default_body(task_id, digest, normalized_paths),
+                before_create=lambda: self._require_open_task_source(task_id, fresh=True),
             )
             if not bool(pr.get("isDraft", False)):
                 raise TaskStoreError("publication_pr_not_draft")
@@ -168,6 +180,7 @@ class PublicationController:
                 task_id=task_id, repository=task.repository, base_branch=base_branch, branch=branch,
                 status="COMMIT_CREATED", request_digest=digest, commit_sha=commit_sha,
             )
+            self._require_open_task_source(task_id, fresh=True)
             self._git(workspace, "push", "origin", branch)
             record = self.control_store.upsert_publication(
                 task_id=task_id, repository=task.repository, base_branch=base_branch, branch=branch,
@@ -180,6 +193,7 @@ class PublicationController:
                 base_branch=base_branch,
                 title=title.strip() or f"{task.title.splitlines()[0]}",
                 body=body.strip() or self._default_body(task_id, digest, actual_paths),
+                before_create=lambda: self._require_open_task_source(task_id, fresh=True),
             )
             if not bool(pr.get("isDraft", False)):
                 raise TaskStoreError("publication_pr_not_draft")
@@ -192,6 +206,8 @@ class PublicationController:
                 pr_number=int(pr.get("number", 0)), pr_url=str(pr.get("url", "")),
             )
         except Exception as exc:
+            if isinstance(exc, TaskStoreError) and str(exc) == "goal_source_issue_closed":
+                raise
             self.control_store.upsert_publication(
                 task_id=task_id, repository=task.repository, base_branch=base_branch, branch=branch,
                 status="FAILED", request_digest=digest, commit_sha=record.commit_sha,
@@ -212,6 +228,7 @@ class PublicationController:
         goal = self.control_store.get_goal(goal_id)
         if task.repository != goal.repository:
             raise TaskStoreError("publication_goal_repository_mismatch")
+        self._require_open_source(goal_id)
         if not self.autonomy.authorize(window_id=window_id, operation="open_draft_pr",
                 repository=goal.repository, subject_id=goal_id,
                 input_payload={"task_id": task_id, "goal_id": goal_id}):
@@ -259,6 +276,13 @@ class PublicationController:
                 status=status, request_digest=request, commit_sha=artifact["commit"],
                 pr_number=int((pr or {}).get("number", 0)), pr_url=str((pr or {}).get("url", "")))
         body = "Retained functionally validated artifact. Independent review pending."
+        from .goal_source_issue import source_issue
+        from .quick_start import MAX_ISSUE_BODY_CHARS
+        number = source_issue(goal)
+        if number is not None and len(goal.objective) < MAX_ISSUE_BODY_CHARS and len(artifacts.published_plan_tasks(goal.tasks)) == 1:
+            # The whole, uncut issue is this goal's objective and its review's subject; GitHub
+            # closes it when, and only when, the reviewed head reaches main.
+            body += f"\n\nCloses #{number}"
         if self.landing_decisions is not None:
             import fnmatch
             paths = self._git(workspace, "diff", "--no-renames", "--name-only", artifact["base_commit"], artifact["commit"]).stdout.splitlines()
@@ -274,12 +298,13 @@ class PublicationController:
             if r2 and not decisions:
                 raise TaskStoreError("r2_trusted_owner_decision_required")
             body += "\n" + "\n".join(decisions)
+        self._require_open_source(goal_id, fresh=True)
         save("PENDING")
         self._git(workspace, "push", "origin", artifact["commit"] + ":refs/heads/" + branch)
         save("PUSHED")
         pr = self._find_or_create_draft_pr(workspace=workspace, repository=goal.repository,
             branch=branch, base_branch=base_branch, title="Nerelan validated artifact",
-            body=body)
+            body=body, before_create=lambda: self._require_open_source(goal_id, fresh=True))
         if not pr.get("isDraft") or pr.get("headRefOid") != artifact["commit"]:
             raise TaskStoreError("publication_pr_head_or_draft_mismatch")
         return save("COMPLETE", pr)
@@ -293,6 +318,7 @@ class PublicationController:
         base_branch: str,
         title: str,
         body: str,
+        before_create: Callable[[], None] | None = None,
     ) -> Mapping[str, Any]:
         view_args = (
             "pr", "list", "--repo", repository, "--head", branch, "--state", "open",
@@ -302,6 +328,8 @@ class PublicationController:
         if isinstance(existing, list) and existing:
             pr = existing[0]
         else:
+            if before_create is not None:
+                before_create()
             self._gh(
                 workspace, "pr", "create", "--repo", repository, "--draft", "--head", branch,
                 "--base", base_branch, "--title", title[:240], "--body", body,

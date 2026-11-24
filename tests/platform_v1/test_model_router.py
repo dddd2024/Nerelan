@@ -104,6 +104,28 @@ def test_confirmed_quota_exhaustion_is_unavailable_even_for_pins(reason):
         choose([exhausted, candidate("b", "opus")], pin="a")
 
 
+def test_pinned_refusal_names_pin_filter_and_survives_row_cap():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate(f"x{i}", "opus", executor_available=False) for i in range(12)]
+    pool.append(dict(candidate("pinned", "opus"), enabled=False))
+    with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as caught:
+        choose(pool + [candidate("ok", "opus")], pin="pinned")
+    decision = caught.value.decision
+    assert decision["pin"] == "pinned"
+    assert decision["pin_filter"] == "executor_fitness"
+    assert decision["excluded_candidates"][0]["binding_id"] == "pinned"
+    assert len(decision["excluded_candidates"]) == 10
+    assert decision["excluded_summary"] == {"executor_unavailable": 12, "executor_fitness": 1}
+    json.dumps(decision, allow_nan=False)
+
+
+def test_pin_absent_from_candidates_is_reported():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as caught:
+        choose([candidate("a", "opus")], pin="missing")
+    assert caught.value.decision["pin_filter"] == "pin_not_candidate"
+
+
 @pytest.mark.parametrize("decision", ["warn", "switch"])
 def test_quota_ok_candidate_preferred_over_cheaper_shortfall(decision):
     result = choose([candidate("cheap", "flash-lite", quota={"decision": decision}),
@@ -123,6 +145,47 @@ def test_fitness_review_model_identity_and_pin_precedence():
     pool[0]["runnable"] = False
     pool[1]["enabled"] = False
     assert choose(pool)["binding_ref"] == "b"
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_routing_refuses_missing_executors_even_for_pins_and_exploration(installed):
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate(executor, "flash-lite", executor=executor,
+                      executor_available=executor in installed)
+            for executor in ("opencode", "codex", "claude_code")]
+    if not installed:
+        with pytest.raises(ModelSelectionError) as error:
+            choose(pool, exploration_draw=0)
+        assert error.value.decision["reason"] == "no_runnable_model"
+        assert {row["filter"] for row in error.value.decision["excluded_candidates"]} == {"executor_unavailable"}
+        # The refusal names each missing executor, not only the filter.
+        assert {row["executor_id"] for row in error.value.decision["excluded_candidates"]} == {
+            "opencode", "codex", "claude_code"}
+    else:
+        result = choose(pool, exploration_draw=0)
+        assert result["executor_kind"] in installed
+        assert {row["binding_id"] for row in result["excluded_candidates"]} == set(("opencode", "codex", "claude_code")) - set(installed)
+        if "opencode" not in installed:
+            with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as error:
+                choose(pool, pin="opencode")
+            assert error.value.decision["excluded_candidates"][0]["filter"] == "executor_unavailable"
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_host_startup_injects_discovery_before_readiness(tmp_path, installed):
+    from reverse_agent.platform_v1.run_store import TaskStore
+    calls = []
+    def detector():
+        calls.append(True)
+        return {executor: f"fixture/{executor}.cmd" for executor in installed}
+    task_store = TaskStore(str(tmp_path / "tasks.sqlite3"))
+    host = CombinedTrustedHost(task_store=task_store, vault=None, executor_detector=detector,
+                               codex_readiness_probe=lambda: "managed_login_ready",
+                               claude_code_readiness_probe=lambda: "managed_login_ready")
+    assert calls == [True]
+    for executor in host._store.list_executors_public():
+        assert executor["cli_available"] is (executor["executor_id"] in installed)
+        assert executor["operational"] is (executor["executor_id"] in installed)
 
 
 def test_escalation_prefers_higher_then_distinct_same_tier_model():
@@ -174,6 +237,39 @@ def fixture_host(monkeypatch, tmp_path):
             for row in host._store.list_bindings_public() if row["model_id"] in FIXTURE_TIERS}
     monkeypatch.setattr(host, "_usage_profiles", measured_profiles)
     return host
+
+
+@pytest.mark.parametrize("installed", [(), ("codex",), ("opencode", "codex", "claude_code")])
+def test_host_routes_using_detected_executor_state_and_real_resource_view(monkeypatch, tmp_path, installed):
+    host = fixture_host(monkeypatch, tmp_path)
+    # Restore the real resource-view admission used by production routing.
+    monkeypatch.delattr(host, "_runnable_bindings")
+    host._store.refresh_executor_availability(lambda: {executor: f"fixture/{executor}.cmd" for executor in installed})
+    host._store.set_codex_readiness("managed_login_ready")
+    host._store.set_native_readiness("claude_code", "managed_login_ready")
+    host._store.upsert_connection({"connection_id": "codex-account", "name": "Codex", "provider": "codex",
+                                   "base_url": "https://api.openai.com/v1", "auth_method": "external_cli_session"})
+    host._store.upsert_binding({"binding_id": "codex-model", "name": "Codex", "executor_id": "codex",
+                                "connection_id": "codex-account", "model_id": "gpt-6.1-sol"})
+    task = PlannedTask("T001", "t", "i", difficulty=2)
+    if not installed:
+        with pytest.raises(TaskStoreError, match="no_runnable_model") as error:
+            host._resolve_task_model(task)
+        assert {row["filter"] for row in error.value.decision["excluded_candidates"]} == {"executor_unavailable"}
+    else:
+        result = host._resolve_task_model(task)
+        assert result["executor_kind"] in installed
+        if installed == ("codex",):
+            assert result["binding_ref"] == "codex-model"
+            assert {row["filter"] for row in result["excluded_candidates"]} == {"executor_unavailable"}
+
+
+def test_legacy_role_routing_refuses_missing_executor(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    host._store.put_agent_roster({"roles": {"simple": "cheap"}})
+    host._store.refresh_executor_availability(lambda: {})
+    with pytest.raises(TaskStoreError, match="executor_unavailable:opencode"):
+        host._resolve_agent_role("simple")
 
 
 def test_host_routes_goal_tasks_records_events_and_learns_outcomes(monkeypatch, tmp_path):
@@ -461,3 +557,302 @@ def test_prior_higher_tier_not_capped_by_low_difficulty_measured():
     assert decision['binding_ref'] == 'm4-free'
     assert decision['tier'] == 4
     assert not decision['underpowered']
+
+
+# --- #1596: a stalled binding is avoided for its step and cooled down pool-wide ---------
+
+COOLING = {"decision": "switch", "reason": "liveness_cooldown", "until": "2026-11-16T10:15:00Z", "stalls": 1}
+
+
+def test_stalled_step_prefers_another_upstream_then_the_same_upstream():
+    pool = [candidate("m3", "minimax/m3", account_ref="magpie"),
+            candidate("m3-fast", "minimax/m3-fast", account_ref="magpie"),
+            candidate("glm", "zai/glm-5.3", account_ref="magpie", cost="subscription")]
+    result = choose(pool, avoid_bindings=("m3",))
+    # Same tier, pricier, but a different upstream account than the one that stalled.
+    assert result["binding_ref"] == "glm"
+    assert result["liveness"]["avoided_bindings"] == ["m3"]
+    assert result["liveness"]["avoided_upstreams"] == ["magpie|minimax"]
+    assert result["liveness"]["fallback"] is False
+    filters = {row["binding_id"]: row["filter"] for row in result["excluded_candidates"]}
+    assert filters == {"m3": "liveness_step_avoided", "m3-fast": "liveness_same_upstream"}
+    # Without another upstream, a sibling on the same upstream still beats the stalled binding.
+    result = choose(pool[:2], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3-fast" and result["liveness"]["fallback"] is False
+
+
+def test_another_goal_skips_a_cooling_binding_while_it_lasts():
+    pool = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3", cost="subscription")]
+    result = choose(pool)
+    assert result["binding_ref"] == "other" and result["reason"] == "cheapest_qualifying"
+    [row] = [row for row in result["excluded_candidates"] if row["binding_id"] == "m3"]
+    assert row["filter"] == "liveness_cooldown" and row["retry_at"] is not None
+    # Expired (no cooling verdict): the cheaper binding is chosen again.
+    pool[0]["quota"] = None
+    assert choose(pool)["binding_ref"] == "m3"
+
+
+def test_only_stalled_or_cooling_bindings_fall_back_with_an_explicit_reason():
+    stalled = [candidate("m3", "glm-5.3", quota=COOLING)]
+    result = choose(stalled, avoid_bindings=("m3",))
+    assert result["binding_ref"] == "m3" and result["reason"] == "liveness_same_binding_fallback"
+    assert result["liveness"]["fallback"] is True
+    result = choose(stalled + [candidate("cool", "glm-5.3", quota=COOLING)], avoid_bindings=("m3",))
+    assert result["binding_ref"] == "cool" and result["reason"] == "liveness_cooling_fallback"
+    assert choose(stalled)["reason"] == "liveness_cooling_fallback"
+
+
+def test_liveness_never_trades_away_capability_or_a_pin():
+    pool = [candidate("strong", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=5, avoid_bindings=("strong",))
+    # The only qualifying binding is the stalled one: it is retried rather than an underpowered model.
+    assert result["binding_ref"] == "strong" and result["liveness"]["fallback"] is True
+    assert not result["underpowered"]
+    pinned = [candidate("m3", "glm-5.3", quota=COOLING), candidate("other", "glm-5.3")]
+    assert choose(pinned, pin="m3")["binding_ref"] == "m3"
+
+
+def test_host_router_skips_a_binding_cooling_after_a_stall(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    monkeypatch.setattr(host, "_quota_check", lambda b: COOLING if b["binding_id"] == "cheap" else None)
+    task = PlannedTask("T001", "t", "i", difficulty=2)
+    result = host._resolve_task_model(task)
+    assert result["binding_ref"] != "cheap"
+    assert {"binding_id": "cheap", "model_id": "flash-lite", "filter": "liveness_cooldown"}.items() <= next(
+        row for row in result["excluded_candidates"] if row["binding_id"] == "cheap").items()
+    # A stalled step avoids its own binding even when no cool-down is recorded yet.
+    monkeypatch.setattr(host, "_quota_check", lambda b: None)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    result = host._resolve_task_model(task, avoid_bindings=("cheap",))
+    assert result["binding_ref"] != "cheap" and result["liveness"]["avoided_bindings"] == ["cheap"]
+
+
+def test_stall_retry_never_moves_below_the_stalled_tier_when_nothing_qualifies():
+    # Difficulty 5: nothing qualifies. The stalled tier-3 binding is the strongest present.
+    pool = [candidate("mid", "glm-5.3"), candidate("weak", "flash-lite")]
+    for stall_tier in (3, 0):
+        result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=stall_tier)
+        assert result["binding_ref"] == "mid" and result["liveness"]["fallback"] is True
+    result = choose(pool, difficulty=5, avoid_bindings=("mid",), stall_tier=3)
+    assert {"binding_id": "weak", "model_id": "flash-lite", "filter": "stall_tier_floor"} in result["excluded_candidates"]
+
+
+def test_an_escalated_stall_keeps_its_tier():
+    # Plan difficulty 1, but the step was escalated to a tier-5 model that then stalled.
+    pool = [candidate("opus", "opus"), candidate("weak", "flash-lite")]
+    result = choose(pool, difficulty=1, avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "opus" and result["reason"] == "liveness_same_binding_fallback"
+    # Another tier-5 binding is a real alternative; a tier-2 one never is.
+    result = choose(pool + [candidate("sonnet", "sonnet", "subscription")], difficulty=1,
+                    avoid_bindings=("opus",), stall_tier=5)
+    assert result["binding_ref"] == "sonnet" and result["liveness"]["fallback"] is False
+
+
+def test_host_router_uses_the_stalled_bindings_tier_when_none_is_recorded(monkeypatch, tmp_path):
+    host = fixture_host(monkeypatch, tmp_path)
+    task = PlannedTask("T001", "t", "i", difficulty=1)
+    assert host._resolve_task_model(task)["binding_ref"] == "cheap"
+    # "strong" (tier 5) stalled with no recorded tier: the floor is its own measured tier.
+    result = host._resolve_task_model(task, avoid_bindings=("strong",))
+    assert result["binding_ref"] == "strong" and result["liveness"]["stall_tier"] == 5
+    assert host._resolve_task_model(task, avoid_bindings=("strong",), stall_tier=2)["binding_ref"] == "cheap"
+
+
+def test_a_cooling_higher_tier_is_still_the_escalation_target():
+    # Review probe (#1601): kimi-k3 (tier 4) failed for capability; opus (tier 5) is only cooling.
+    pool = [candidate("failed", "kimi-k3"), candidate("big", "opus", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "big" and result["reason"] == "escalation_higher_tier"
+    assert result["liveness"]["fallback"] is True
+    # Same tier: a cooling distinct model still beats repeating the model that failed.
+    pool = [candidate("failed", "kimi-k3"), candidate("peer", "deepseek-v4-pro", quota=COOLING)]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    assert result["binding_ref"] == "peer" and result["reason"] == "retry_different_model"
+
+
+def test_escalation_prefers_a_clean_higher_tier_over_a_cooling_one():
+    pool = [candidate("failed", "kimi-k3"), candidate("cool", "opus", quota=COOLING),
+            candidate("clean", "sonnet", "paid_api")]
+    result = choose(pool, difficulty=3, failed_model="kimi-k3", failed_tier=4)
+    # Pricier, but not cooling: the cooling tier-5 binding is ranked after it.
+    assert result["binding_ref"] == "clean" and result["reason"] == "escalation_higher_tier"
+    assert any(row["binding_id"] == "cool" and row["filter"] == "liveness_cooldown"
+               for row in result["excluded_candidates"])
+
+
+# Magpie routing groups (Owner decision 2026-11-17, "route by Magpie group, not account").
+GROUPS = {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}
+
+
+def _filters(result):
+    return {row["binding_id"]: row["filter"] for row in result["excluded_candidates"]}
+
+
+def test_a_keyless_gateway_group_is_selectable_at_its_default_cost():
+    from reverse_agent.platform_v1.routing_inputs import binding_cost_class
+    keyless = {"auth_method": "none", "base_url": "http://127.0.0.1:3425/v1"}
+    row = {"binding_id": "magpie-group-nerelan-glm-5-3", "model_id": "group/nerelan-glm-5-3"}
+    declared = {"groups": {"group/nerelan-glm-5-3": {"identity": "glm-5.3"}}}
+    assert binding_cost_class(row, keyless, declared) == "subscription"
+    # #1661 review: an undeclared group and Magpie's own auto/<model> groups may hold
+    # per-token members (OpenRouter), so they keep the paid default with paid spend off.
+    assert binding_cost_class(row, keyless, {}) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "auto/glm-5.3"}, keyless, declared) == "paid_api"
+    assert binding_cost_class({**row, "model_id": "group/other"}, keyless, declared) == "paid_api"
+    # An explicit Owner override still wins; a keyed route is not the keyless gateway.
+    assert binding_cost_class(row, keyless, {"models": {"group/nerelan-glm-5-3": "free"}}) == "free"
+    assert binding_cost_class(row, keyless, {"bindings": {row["binding_id"]: {"cost_class": "paid_api"}}}) == "paid_api"
+    assert binding_cost_class(row, {"auth_method": "api_key"}, {}) == "paid_api"
+    pool = [candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription"),
+            candidate("paid", "gpt-6", "paid_api")]
+    result = choose(pool, allow_paid=False, groups=GROUPS)
+    assert result["binding_ref"] == "magpie-group-nerelan-glm-5-3"
+    assert _filters(result) == {"paid": "paid_spend_disabled"}
+
+
+def test_a_declared_group_has_the_identity_of_the_model_it_serves():
+    from reverse_agent.platform_v1.model_router import model_identity
+    assert model_identity("group/nerelan-glm-5-3", GROUPS) == model_identity("trae-cn/glm-5.3") == "glm-5-3"
+    assert model_identity("magpie/group/nerelan-glm-5-3", GROUPS) == "glm-5-3"
+    assert model_identity("group/NERELAN-GLM-5-3", GROUPS) == "glm-5-3"
+    # Undeclared: a group has no identity; an auto-router falls back to the model it names.
+    assert model_identity("group/nerelan-glm-5-3") == ""
+    assert model_identity("group/other", GROUPS) == ""
+    assert model_identity("auto/glm-5.3") == "glm-5-3"
+    assert model_identity("auto/group/x") == ""
+    assert model_identity("openrouter/auto") == "auto"
+
+
+def test_version_separators_compare_equal_without_merging_different_models():
+    from reverse_agent.platform_v1.model_router import model_identity
+    assert model_identity("glm-5.3") == model_identity("glm-5-3") == model_identity("zai/GLM-5.3:free")
+    assert model_identity("claude-3.5-sonnet") == model_identity("claude-3-5-sonnet")
+    for left, right in (("glm-5.3", "glm-5.2"), ("glm-5.3", "glm-5"), ("glm-5.3", "glm-53"),
+                        ("gpt-4.1", "gpt-41"), ("gpt-4.1-mini", "gpt-4.1"), ("qwen2.5-72b", "qwen2.5-7b"),
+                        ("v1.10", "v1.1"), ("model.v2", "model-v2")):
+        assert model_identity(left) != model_identity(right), (left, right)
+
+
+def test_a_declared_group_blocks_review_of_its_members_work_and_vice_versa():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    member = candidate("trae-glm", "trae-cn/glm-5.3", "subscription")
+    other = candidate("other", "kimi-k3", "subscription")
+    # The author ran on a member binding: the group serves the same model.
+    result = choose([group, other], kind="review", author_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    assert result["binding_ref"] == "other"
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "reviewer_is_author"
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([group], kind="review", author_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    # The author ran on the group: a member binding is not independent either.
+    result = choose([member, other], kind="review", author_models=["group/nerelan-glm-5-3"], groups=GROUPS)
+    assert result["binding_ref"] == "other" and _filters(result)["trae-glm"] == "reviewer_is_author"
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([member], kind="review", author_models=["group/nerelan-glm-5-3"], groups=GROUPS)
+    # The single-author path compares identities the same way.
+    result = choose([group, other], kind="review", author_model="glm-5-3", groups=GROUPS)
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "reviewer_is_author"
+
+
+def test_an_undeclared_group_is_never_independent():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    group = candidate("magpie-group-x", "group/x", "subscription")
+    other = candidate("other", "kimi-k3", "subscription")
+    result = choose([group, other], kind="review", author_models=["glm-5.3"])
+    assert result["binding_ref"] == "other" and _filters(result)["magpie-group-x"] == "review_identity_unknown"
+    result = choose([group, other], kind="review", author_model="glm-5.3")
+    assert _filters(result)["magpie-group-x"] == "review_identity_unknown"
+    for authors in ({"author_models": ["group/x"]}, {"author_model": "group/x"}):
+        with pytest.raises(ModelSelectionError, match="review_not_independent"):
+            choose([other], kind="review", **authors)
+    # Declaring another group does not declare this one.
+    with pytest.raises(ModelSelectionError, match="review_not_independent"):
+        choose([other], kind="review", author_models=["group/x"], groups=GROUPS)
+
+
+def test_escalation_and_refusal_treat_a_group_as_the_model_it_serves():
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    member = candidate("trae-glm", "trae-cn/glm-5.3", "free")
+    other = candidate("other", "gemini-flash", "subscription")
+    tiers = {"magpie-group-nerelan-glm-5-3": {"tiers": {"code": 3}}}
+    # Same tier everywhere: the distinct-model retry skips the group serving the failed model.
+    result = choose([group, member, other], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3,
+                    overrides=tiers, groups=GROUPS)
+    assert result["binding_ref"] == "other" and result["reason"] == "retry_different_model"
+    # With only the group and the member left, the retry knows it is the same model.
+    result = choose([group, member], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3,
+                    overrides=tiers, groups=GROUPS)
+    assert result["reason"] == "retry_only_model"
+    # Without the declaration the group is not known to be the failed model.
+    result = choose([group, member], failed_model="trae-cn/glm-5.3", failed_tier=3, difficulty=3, overrides=tiers)
+    assert result["binding_ref"] == "magpie-group-nerelan-glm-5-3" and result["reason"] == "retry_different_model"
+    result = choose([group, other], refused_models=["trae-cn/glm-5.3"], groups=GROUPS)
+    assert result["binding_ref"] == "other"
+    assert _filters(result)["magpie-group-nerelan-glm-5-3"] == "model_refused"
+
+
+def test_each_group_is_its_own_upstream():
+    from reverse_agent.platform_v1.model_router import upstream_key
+    from reverse_agent.platform_v1.routing_inputs import upstream_namespace
+    assert upstream_namespace("group/nerelan-glm-5-3") == "group:nerelan-glm-5-3"
+    assert upstream_namespace("magpie/group/nerelan-glm-5-3") == "group:nerelan-glm-5-3"
+    assert upstream_namespace("auto/glm-5.3") == "auto:glm-5.3"
+    assert upstream_namespace("trae-cn/glm-5.3") == "trae-cn"
+    assert upstream_namespace("openrouter/auto") == "openrouter"
+    assert upstream_key({"connection_id": "magpie", "model_id": "group/nerelan-glm-5-3"}) == "magpie|group:nerelan-glm-5-3"
+    pool = [candidate("g1", "group/nerelan-glm-5-3", account_ref="magpie"),
+            candidate("g2", "group/nerelan-kimi", "subscription", account_ref="magpie"),
+            candidate("m", "trae-cn/glm-5.3", "subscription", account_ref="magpie")]
+    result = choose(pool, avoid_bindings=("g1",), groups=GROUPS)
+    # A stall on one group marks neither another group nor a single binding as its upstream.
+    assert result["liveness"]["avoided_upstreams"] == ["magpie|group:nerelan-glm-5-3"]
+    assert _filters(result) == {"g1": "liveness_step_avoided"}
+
+
+def test_a_declared_group_is_judged_at_its_served_models_tier():
+    # glm-5.3 is tier 4 in this table; the group id itself has no entry.
+    table = {"glm-5.3": {"tiers": {"code": 4}}}
+    group = candidate("magpie-group-nerelan-glm-5-3", "group/nerelan-glm-5-3", "subscription")
+    result = choose([group], difficulty=3, capability_table=table, profiles={}, groups=GROUPS)
+    assert result["tier"] == 4 and result["tier_source"] == "owner_table" and not result["underpowered"]
+    # Undeclared, the group keeps today's unproven prior.
+    result = choose([group], difficulty=3, capability_table=table, profiles={})
+    assert result["tier"] == 2 and result["tier_source"] == "prior"
+    assert choose([candidate("x", "group/other", "subscription")], difficulty=3, capability_table=table,
+                  profiles={}, groups=GROUPS)["tier"] == 2
+    # The measured profile stays keyed by the binding.
+    measured = {"magpie-group-nerelan-glm-5-3": {"task_buckets": {
+        "code:3": {"attempts": 3, "success_rate": 1., "timeouts": 0}}}}
+    result = choose([group], difficulty=3, capability_table=table, profiles=measured, groups=GROUPS)
+    assert result["tier"] == 3 and result["tier_source"] == "measured"
+
+
+def test_window_pool_excludes_bindings_outside_it():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate("cheap", "flash-lite"), candidate("strong", "opus", "subscription")]
+    result = choose(pool, difficulty=3, window_pool={"strong"})
+    assert result["binding_ref"] == "strong"
+    assert _filters(result) == {"cheap": "outside_window_pool"}
+    assert result["excluded_summary"] == {"outside_window_pool": 1}
+    with pytest.raises(ModelSelectionError) as caught:
+        choose(pool, difficulty=3, window_pool={"strong"}, pin="cheap")
+    assert caught.value.decision["pin_filter"] == "outside_window_pool"
+    # No pool given (not an Owner window): nothing is filtered.
+    assert "outside_window_pool" not in choose(pool, difficulty=1)["excluded_summary"]
+
+
+def test_decision_summarizes_all_exclusions_and_hidden_ranked_candidates():
+    weak = [{**candidate(f"off-{i:02}", "flash-lite"), "enabled": False} for i in range(12)]
+    strong_off = {**candidate("zz-opus-off", "opus", "subscription"), "enabled": False}
+    paid = candidate("paid-sonnet", "sonnet", "paid_api")
+    ranked = [candidate(f"r{i}", model) for i, model in enumerate(
+        ("flash-lite", "gemini-flash", "glm-5.3", "kimi-k3", "deepseek-v4-pro", "gpt-6", "flash-lite"))]
+    result = choose([*weak, strong_off, paid, *ranked], difficulty=1, allow_paid=False)
+    assert result["excluded_summary"] == {"executor_fitness": 13, "paid_spend_disabled": 1}
+    # The 10-row cap keeps the strongest excluded bindings first.
+    shown = [row["binding_id"] for row in result["excluded_candidates"]]
+    assert len(shown) == 10 and set(shown[:2]) == {"zz-opus-off", "paid-sonnet"}
+    summary = result["ranked_summary"]
+    assert summary["count"] == 7 and summary["shown"] == len(result["candidates"]) == 5
+    assert sum(summary["hidden_tiers"].values()) == 2
+    assert all(isinstance(tier, str) for tier in summary["hidden_tiers"])

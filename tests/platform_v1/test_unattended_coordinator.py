@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 import threading
-import subprocess
 import time
 from types import SimpleNamespace
 
@@ -14,245 +13,6 @@ from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
 from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
-
-
-def _real_checker_fixture(tmp_path, monkeypatch, *, reopen=False):
-    """Synthetic authority loader plus actual Git/checker, durable DB and coordinator."""
-    from reverse_agent.platform_v1.authority_adapter import PolicyAuthority
-    from reverse_agent.platform_v1.autonomy import policy_digest
-    from reverse_agent.platform_v1.task_runtime import load_host_validation_contract
-    root = tmp_path / "repository"
-    database = tmp_path / "checker.sqlite3"
-    if not reopen:
-        root.mkdir()
-        subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
-        for name, value in (("core.autocrlf", "false"), ("user.name", "Fixture"), ("user.email", "fixture@example.invalid"),
-                            ("remote.origin.url", "https://github.com/dddd2024/Nerelan.git")):
-            subprocess.run(["git", "-C", str(root), "config", name, value], check=True)
-        (root / "input.txt").write_bytes(b"baseline\n")
-        subprocess.run(["git", "-C", str(root), "add", "input.txt"], check=True)
-        subprocess.run(["git", "-C", str(root), "commit", "-m", "fixture"], check=True, capture_output=True)
-    head = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
-    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(root))
-    store = TaskStore(str(database))
-    control = PlatformControlStore(store)
-    if reopen:
-        saved = control.window_policy_binding("checker-window")
-        policy = saved["canonical_policy"]
-        authority_binding = saved["authority"]
-    else:
-        now = datetime.now(timezone.utc)
-        quotas = {name: 0 for name in ("maxPrsOpened", "maxMergesToMain", "maxReleasesCreated", "maxDeploysToEnvironment")}
-        policy = {"mode": "CONTROLLER_REVIEW", "repository": "dddd2024/Nerelan",
-            "resourceAccess": {"filesystem": {"allowedPaths": ["input.txt"], "writablePaths": []},
-                "network": {"allowedDomains": [], "allowWrite": False},
-                "shell": {"allowedCommands": ["git_diff_check"], "deniedCommands": []},
-                "secrets": {"access": "none", "allowedKeys": []},
-                "workerApproval": {"required": False, "approvers": []}},
-            "githubCapabilities": [], "publicationCapabilities": [],
-            "publicationPolicy": {"allowedArtifactOrPackage": [], "allowedRegistry": [],
-                "allowedRepository": [], "allowedEnvironment": []},
-            "mergePolicy": {"allowedRepositories": [], "allowedBaseBranches": [], "requiredChecks": [],
-                "allowedMergeMethods": [], "requireExactHead": True},
-            "autonomousWindow": {"enabled": True, "startsAt": (now - timedelta(seconds=2)).isoformat(),
-                "expiresAt": (now + timedelta(hours=1)).isoformat(), **quotas,
-                "stopConditions": [{"type": "window_expired", "scope": "window"}]}, "budgets": dict(quotas)}
-        authority_binding = {"schema_version": 1, "confirmation_mode": "DELEGATED_CONTROLLER",
-            "personally_human": False, "controller_identity": "fixture-controller",
-            "upper_proposal_sha256": "a" * 64, "upper_expires_at": (now + timedelta(hours=2)).isoformat(),
-            "phase_ordinal": 6, "policy_id": "checker-policy", "policy_revision": 1, "policy": policy,
-            "policy_digest_sha256": policy_digest(policy), "window_id": "checker-window",
-            "delegation_slot_id": "checker-slot", "slot_ordinal": 1, "max_real_window_activations": 1,
-            "host_instance_id": "fixture-host", "runtime_instance_kind": "acceptance",
-            "database_path": str(database), "workspace_path": str(root), "allowed_operations": ["validate_task"],
-            "validation_command_ids": ["git_diff_check"], "validation_paths": ["input.txt"], "max_tasks": 1,
-            "max_retries": 0, "max_concurrent_tasks": 1, "model_call_limit": 0, "provider_call_limit": 0,
-            "github_write_limit": 0, "goal_idempotency_key": "checker-goal", "plan_task_id": "CHECK001"}
-    authority = PolicyAuthority("decision_fixture", "round_fixture", "b" * 64, head,
-        "c" * 64, "dddd2024/Nerelan", "codex/fixture", head, head, authority_binding)
-    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry(),
-        authority_loader=lambda: authority, task_scope_resolver=lambda task_id: load_host_validation_contract(store.get_task(task_id)))
-    goals = GoalService(store=store, control_store=control)
-    if not reopen:
-        window = autonomy.activate_policy({"policy_id": "checker-policy", "policy_revision": 1, "policy": policy})
-        goal = goals.create({"objective": "Check pinned hygiene", "repository": "dddd2024/Nerelan",
-            "idempotency_key": "checker-goal", "executor_kind": "opencode", "orchestration_mode": "single"})
-        goals.plan(goal.id, expected_revision=1, tasks=[{"id": "CHECK001", "title": "Hygiene",
-            "instruction": "Only check pinned paths", "capability": "validate_task", "validation_command_id": "git_diff_check"}])
-        goals.approve(goal.id, expected_revision=1)
-        goals.launch(goal.id, expected_revision=1, window_id=window.id)
-    else:
-        window = control.get_window("checker-window")
-        goal = control.list_window_goals(window.id)[0]
-    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
-    router = ExecutorRouter()
-    def forbidden(**kwargs):
-        pytest.fail("Provider/model executor reached by host checker")
-    monkeypatch.setattr(router, "create_executor", forbidden)
-    monkeypatch.setattr(router, "dispatch_execute", forbidden)
-    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=router,
-        workspace_root=tmp_path / "workspaces", execution_authority_sha=head, planning_sha=head)
-    return store, control, autonomy, goals, window, task_id, coordinator
-
-
-def test_actual_host_checker_coordinator_finalizes_zero_model_usage_and_exact_receipt(tmp_path, monkeypatch):
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(tmp_path, monkeypatch)
-    try:
-        assert coordinator.tick() == 1
-        task = store.get_task(task_id)
-        assert task.status == "READY_FOR_REVIEW" and task.validation_exit_code == 0
-        assert task.validation_command_id == "git_diff_check"
-        observed = store.get_latest_durable_run_observation(task_id)
-        assert observed.accepted_checkpoint == "POST_VALIDATION"
-        final = control.get_window(window.id)
-        assert (final.tasks_started, final.tasks_completed, final.retries_used) == (1, 1, 0)
-        assert final.unknown_observation_count == 0
-        assert (final.observed_token_units, final.observed_cost_micro_units) == (0, 0)
-        receipts = control.list_receipts(window_id=window.id)
-        completed = [row for row in receipts if row.operation_type == "task_execution"]
-        assert len(completed) == 1 and completed[0].capability == "validate_task"
-        assert completed[0].confirmation_mode == "DELEGATED_CONTROLLER"
-        assert completed[0].actor == "fixture-controller"
-        assert completed[0].policy_digest == final.policy_digest
-        assert store.list_usage_observations(task_id) == ()
-        assert coordinator.tick() == 0
-        assert control.get_window(window.id).tasks_started == 1
-    finally:
-        store._conn.close()
-
-
-@pytest.mark.parametrize("after_effect", [True, False])
-def test_host_checker_reopen_only_completes_accepted_result_without_new_retry(tmp_path, monkeypatch, after_effect):
-    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
-    class AfterEffectCrash(BaseException):
-        pass
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(tmp_path, monkeypatch)
-    runs = []
-    original_check = LocalValidationRunner.run
-    original_transition = store._fenced_transition_to
-    def observe_check(self, **kwargs):
-        if not after_effect:
-            raise AfterEffectCrash("fixture crash before checker")
-        runs.append(kwargs["task_id"])
-        return original_check(self, **kwargs)
-    def crash_after_result(*args, **kwargs):
-        if args[2] == "VALIDATING":
-            assert store._get_durable_run(args[0]).accepted_checkpoint == "POST_VALIDATION"
-            raise AfterEffectCrash("fixture crash after accepted checker result")
-        return original_transition(*args, **kwargs)
-    monkeypatch.setattr(LocalValidationRunner, "run", observe_check)
-    if after_effect:
-        monkeypatch.setattr(store, "_fenced_transition_to", crash_after_result)
-    with pytest.raises(AfterEffectCrash):
-        coordinator.tick()
-    before = control.get_window(window.id)
-    assert (before.tasks_started, before.tasks_completed, before.retries_used) == (1, 0, 0)
-    observed = store.get_latest_durable_run_observation(task_id)
-    assert observed.accepted_checkpoint == ("POST_VALIDATION" if after_effect else "POST_REVIEWER")
-    original_run = store._get_durable_run(observed.run_id)
-    assert original_run.lease_owner == coordinator.owner and original_run.lease_expiry_ms > 0
-    # Simulate expiration of the original process's admission claim; never
-    # rewrite spending, original result, policy, task identity or checkpoint.
-    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=1 WHERE task_id=?", (task_id,))
-    store._conn.execute("UPDATE durable_runs SET lease_expiry_ms=1 WHERE task_id=?", (task_id,))
-    store._conn.close()
-    def forbidden_check(*args, **kwargs):
-        pytest.fail("Recovery reran checker despite zero retry allowance")
-    monkeypatch.setattr(LocalValidationRunner, "run", forbidden_check)
-    reopened, next_control, next_autonomy, next_goals, next_window, same_task_id, restarted = _real_checker_fixture(
-        tmp_path, monkeypatch, reopen=True)
-    try:
-        assert same_task_id == task_id and next_window.id == window.id
-        restarted.reconcile()
-        assert reopened.get_task(task_id).status == "INTERRUPTED"
-        assert restarted.tick() == (1 if after_effect else 0)
-        final = next_control.get_window(window.id)
-        assert (final.tasks_started, final.tasks_completed, final.retries_used) == (1, 1 if after_effect else 0, 0)
-        assert reopened.get_task(task_id).status == ("READY_FOR_REVIEW" if after_effect else "INTERRUPTED")
-        assert len(runs) == (1 if after_effect else 0)
-        assert reopened._conn.execute("SELECT COUNT(*) FROM durable_runs WHERE task_id=?", (task_id,)).fetchone()[0] == 1
-        assert reopened.list_usage_observations(task_id) == ()
-        if after_effect:
-            complete = [row for row in next_control.list_receipts(window_id=window.id)
-                        if row.reason == "coordinator_claim_completed"]
-            assert len(complete) == 1 and complete[0].capability == "validate_task"
-            assert final.unknown_observation_count == 0
-        assert restarted.tick() == 0
-    finally:
-        reopened._conn.close()
-
-
-@pytest.mark.parametrize("checker_passes", [True, False])
-def test_terminal_host_effect_reopen_finalizes_original_claim_without_checker_or_counter_reset(
-    tmp_path, monkeypatch, checker_passes
-):
-    from reverse_agent.platform_v1.task_runtime import LocalValidationRunner
-    class BeforeClaimCompletionCrash(BaseException):
-        pass
-    store, control, autonomy, goals, window, task_id, coordinator = _real_checker_fixture(tmp_path, monkeypatch)
-    if not checker_passes:
-        (tmp_path / "repository" / "input.txt").write_bytes(b"actual trailing whitespace  \n")
-    actual_checks = []
-    original_check = LocalValidationRunner.run
-    def observed_check(self, **kwargs):
-        actual_checks.append(kwargs["task_id"])
-        return original_check(self, **kwargs)
-    def crash_before_claim_completion(**kwargs):
-        assert kwargs["task_id"] == task_id
-        actual = store.get_latest_durable_run_observation(task_id)
-        assert actual.accepted_checkpoint == "POST_VALIDATION"
-        raise BeforeClaimCompletionCrash("fixture producer exited before admission receipt")
-    monkeypatch.setattr(LocalValidationRunner, "run", observed_check)
-    monkeypatch.setattr(control, "complete_task_claim", crash_before_claim_completion)
-    with pytest.raises(BeforeClaimCompletionCrash):
-        coordinator.tick()
-    terminal = store.get_task(task_id)
-    expected_status = "READY_FOR_REVIEW" if checker_passes else "FAILED"
-    assert terminal.status == expected_status
-    assert (terminal.validation_exit_code == 0) is checker_passes
-    preserved_result = (terminal.validation_command_id, terminal.validation_exit_code, terminal.validation_output_digest)
-    before = control.get_window(window.id)
-    assert (before.tasks_started, before.tasks_completed, before.retries_used) == (1, 0, 0)
-    assert actual_checks == [task_id]
-    claim = store._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
-    original_epoch = claim["epoch"]
-    assert claim["status"] == "ACTIVE"
-    # Only the original admission lease timer expires. Terminal checker/run
-    # result and all spending remain exactly as the first producer wrote them.
-    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=1 WHERE task_id=?", (task_id,))
-    store._conn.close()
-    def forbidden_check(*args, **kwargs):
-        pytest.fail("Terminal-effect recovery reran checker")
-    monkeypatch.setattr(LocalValidationRunner, "run", forbidden_check)
-    reopened, resumed_control, resumed_autonomy, resumed_goals, same_window, same_task, restarted = _real_checker_fixture(
-        tmp_path, monkeypatch, reopen=True)
-    monkeypatch.setattr(restarted, "_execute_task", forbidden_check)
-    try:
-        restarted.reconcile()
-        assert same_task == task_id and same_window.id == window.id
-        linked_goal = resumed_control.list_window_goals(window.id)[0]
-        # An ordinary history read can already reconcile the Goal from the
-        # terminal Task. That read must not hide the unfinished original claim.
-        assert resumed_goals.detail(linked_goal.id)["status"] == ("COMPLETED" if checker_passes else "BLOCKED")
-        assert restarted.tick() == 1
-        final = reopened.get_task(task_id)
-        assert final.status == expected_status
-        assert (final.validation_command_id, final.validation_exit_code, final.validation_output_digest) == preserved_result
-        budget = resumed_control.get_window(window.id)
-        assert (budget.tasks_started, budget.tasks_completed, budget.retries_used) == (1, 1, 0)
-        assert budget.unknown_observation_count == 0
-        assert reopened.list_usage_observations(task_id) == ()
-        done = reopened._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id=?", (task_id,)).fetchone()
-        assert done["status"] == "COMPLETE" and done["epoch"] == original_epoch + 1
-        receipts = [row for row in resumed_control.list_receipts(window_id=window.id)
-                    if row.reason == "coordinator_claim_completed"]
-        assert len(receipts) == 1 and receipts[0].capability == "validate_task"
-        goal = resumed_control.list_window_goals(window.id)[0]
-        assert goal.status == ("COMPLETED" if checker_passes else "BLOCKED")
-        assert restarted.tick() == 0 and actual_checks == [task_id]
-        assert reopened._conn.execute("SELECT COUNT(*) FROM durable_runs WHERE task_id=?", (task_id,)).fetchone()[0] == 1
-    finally:
-        reopened._conn.close()
 
 
 def _ready_fixture(store: TaskStore, task_id: str):
@@ -683,7 +443,8 @@ def test_parallel_batch_isolates_worker_exception_and_claim_finalization(tmp_pat
     assert coordinator.status()["last_batch"]["accepted"] is False
 
 
-def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path):
+def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tmp_path, monkeypatch):
+    monkeypatch.setenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", "1")
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
     autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
@@ -728,6 +489,7 @@ def test_parallel_restart_reclaims_interrupted_task_once_with_retained_budget(tm
         router=ExecutorRouter(), workspace_root=tmp_path,
         task_executor=resume, owner="new-owner",
     )
+    coordinator._attempt_clock = lambda: pytest.fail("resume sampled fresh-attempt timing")
     assert coordinator.tick() == 1
     assert calls == [task_id]
     claim = control._conn.execute(
@@ -842,6 +604,135 @@ def _budget_window(
     })
 
 
+@pytest.mark.parametrize("exhausted", ["retries", "fresh_tasks"])
+def test_exhausted_attempt_budget_does_not_starve_other_work(tmp_path, exhausted):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "mixed-attempt-budgets", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 2 if exhausted == "retries" else 1,
+        "max_retries": 0 if exhausted == "retries" else 1, "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="mixed-attempt-budgets")
+    held_id, eligible_id = (link["task_id"] for link in control.list_goal_tasks(goal.id))
+    interrupted_id = held_id if exhausted == "retries" else eligible_id
+    control.claim_task(window_id=window.id, task_id=interrupted_id, owner="old", lease_ms=60000)
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?",
+                        (interrupted_id,))
+    store.set_state(interrupted_id, "INTERRUPTED")
+    assert control.reconcile_expired_budget_reservations() == (
+        f"budget_reservation_retained:{interrupted_id}",
+    )
+    dispatched = []
+
+    def execute(task_id):
+        dispatched.append(task_id)
+        if store.get_task(task_id).status == "INTERRUPTED":
+            store.transition_to(task_id, "RUNNING_FIXTURE")
+            store.transition_to(task_id, "VALIDATING")
+            store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
+            return SimpleNamespace(success=True)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute)
+    before = store.get_task(held_id).status
+    assert control.runnable_tasks(window.id, limit=1) == (held_id,)
+    assert control.runnable_tasks(window.id, limit=1, respect_attempt_limits=True) == (eligible_id,)
+    assert coordinator.tick() == 1
+    assert dispatched == [eligible_id]
+    assert store.get_task(held_id).status == before
+    assert control.get_window(window.id).retries_used == (1 if exhausted == "fresh_tasks" else 0)
+    assert coordinator.tick() == 0
+
+
+@pytest.mark.parametrize("budget_field,reservation_field", [
+    ("max_token_units", "per_task_token_reservation"),
+    ("max_cost_micro_units", "per_task_cost_reservation"),
+])
+@pytest.mark.parametrize("capacity,read_fails", [(100, False), (120, False), (120, True)])
+def test_budget_pressure_does_not_starve_retained_reservation(
+    tmp_path, monkeypatch, budget_field, reservation_field, capacity, read_fails,
+):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "retained-capacity", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 2, "max_tasks": 4, "max_retries": 1,
+        budget_field: capacity, reservation_field: 60,
+        "provider_quota_state": "OBSERVED", "confirmation": "ACTIVATE",
+    })
+    goal = _parallel_goal(goals, window.id, key="retained-capacity", count=4)
+    first, second, third, resumed = (link["task_id"] for link in control.list_goal_tasks(goal.id))
+    original_epoch, _ = control.claim_task(
+        window_id=window.id, task_id=resumed, owner="old", lease_ms=60_000,
+    )
+    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms=0 WHERE task_id=?",
+                        (resumed,))
+    store.set_state(resumed, "INTERRUPTED")
+    assert control.reconcile_expired_budget_reservations() == (f"budget_reservation_retained:{resumed}",)
+    dispatched = []
+    prepared = []
+
+    def execute(task_id):
+        dispatched.append(task_id)
+        if task_id == resumed:
+            store.transition_to(task_id, "RUNNING_FIXTURE")
+            store.transition_to(task_id, "VALIDATING")
+            store.transition_to(task_id, "READY_FOR_REVIEW_FIXTURE")
+            return SimpleNamespace(success=True)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path, task_executor=execute,
+        quota_preparer=lambda task: prepared.append(task.id))
+    assert control.runnable_tasks(window.id, limit=1) == (first,)
+    assert control.runnable_tasks(window.id, limit=1, respect_reservation_limits=True) == (
+        (resumed,) if capacity == 100 else (first,)
+    )
+    expected = {resumed} if capacity == 100 else {first, resumed}
+    with monkeypatch.context() as faults:
+        if read_fails:
+            import sqlite3
+
+            def fail_read(window_id):
+                raise sqlite3.OperationalError("fixture reservation lookup failure")
+
+            faults.setattr(control, "active_reservation_task_ids", fail_read)
+            expected = {first}
+        assert coordinator.tick() == len(expected)
+    assert set(dispatched) == expected
+    assert prepared == ([resumed] if capacity == 100 else
+                        [first, second] if read_fails else [first, second, resumed])
+    assert store.get_task(second).status == "QUEUED"
+    if read_fails:
+        assert coordinator.status()["last_error"] == "reservation_candidates_unavailable"
+        assert control.get_window(window.id).tasks_completed == 1
+        assert store.get_task(resumed).status == "INTERRUPTED"
+    for _ in range(3):
+        coordinator.tick()
+    rows = store._conn.execute(
+        "SELECT claim_epoch,state FROM platform_budget_reservations WHERE task_id=?", (resumed,),
+    ).fetchall()
+    assert [tuple(row) for row in rows] == [(original_epoch + 1, "RECONCILED")]
+    assert control.get_window(window.id).retries_used == 1
+    assert sorted(dispatched) == sorted([first, second, third, resumed])
+    assert control.get_window(window.id).tasks_completed == 4
+    assert coordinator.tick() == 0
+
+
 def test_concurrent_claims_cannot_reserve_past_token_budget(tmp_path):
     db_path = str(tmp_path / "concurrent-budget.sqlite3")
     store_a = TaskStore(db_path)
@@ -940,10 +831,11 @@ def test_crash_reuses_reservation_and_completion_is_exactly_once():
             epoch=epoch_two, result="replay",
         )
     budget = control.window_budget_summary(window.id)
-    assert budget["observed_token_units"] == 50
+    # #1504 cost-equivalent units: 30 + 10 + 5 + 5 * 0.1 = 45.5, rounded to 46.
+    assert budget["observed_token_units"] == 46
     assert budget["observed_cost_micro_units"] == 1000
     assert budget["reserved_token_units"] == 0
-    assert budget["remaining_token_units"] == 50
+    assert budget["remaining_token_units"] == 54
     assert control._conn.execute(
         "SELECT COUNT(*) AS c FROM platform_usage_charges"
     ).fetchone()["c"] == 1
@@ -1096,6 +988,129 @@ def test_unknown_usage_still_stops_a_zero_budget_hard_admission_window():
     control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
     stopped = control.get_window(window.id)
     assert (stopped.status, stopped.stop_reason, stopped.enforcement_class) == ("BLOCKED", "usage_unknown", "USAGE_UNKNOWN")
+
+
+def _owner_window_with_unknown_attempt(max_tokens, reservation, partial_units, *, already=0):
+    """An Owner window whose one attempt ended with partial (unknown) usage, e.g. a timeout."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="owner-unknown", max_tokens=max_tokens, reservation=reservation)
+    task = store.create_task(title="timed out", executor_kind="opencode", binding_ref="coding-glm")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    # Marked after the claim: Owner-window claim admission (receipts) is tested in test_owner_window;
+    # this exercises only the settlement of an unknown-usage attempt.
+    control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', "
+                          "enforcement_class='HARD_ADMISSION_ENFORCED', observed_token_units=? WHERE id=?",
+                          (already, window.id))
+    control._conn.commit()
+    store.append_usage_observation(task.id, observation_id="usage-partial", execution_id="exec-partial",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status="PARTIAL", input_units=partial_units, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    reservation_row = control._conn.execute(
+        "SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+    return control, window, reservation_row
+
+
+def test_unknown_usage_in_an_owner_window_charges_the_reservation_and_continues():
+    # Owner decision 2026-11-08: a timed-out attempt no longer stops the whole Owner window.
+    control, window, reservation = _owner_window_with_unknown_attempt(2_000_000, 200_000, 70_000)
+    after = control.get_window(window.id)
+    assert after.status == "ACTIVE" and after.stop_reason in ("", None)
+    assert after.observed_token_units == 200_000  # the whole reservation, not the 70k partial reading
+    assert after.unknown_observation_count == 1
+    assert (reservation["state"], reservation["observed_token_units"]) == ("UNKNOWN", None)  # not released
+    summary = control.window_budget_summary(window.id)
+    assert summary["remaining_token_units"] == 1_800_000  # charged once, not twice
+
+
+def test_partial_usage_above_the_reservation_is_charged_in_full():
+    control, window, _ = _owner_window_with_unknown_attempt(2_000_000, 200_000, 350_000)
+    assert control.get_window(window.id).observed_token_units == 350_000
+
+
+def test_a_charge_that_reaches_the_cap_stops_the_owner_window():
+    control, window, _ = _owner_window_with_unknown_attempt(1_000_000, 200_000, 10, already=850_000)
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_unknown_budget_reached")
+    assert stopped.observed_token_units == 1_050_000
+
+
+def _owner_window_attempt(max_tokens, reservation, units, *, status="OBSERVED", cost_class=None, already=0):
+    """An Owner window whose one attempt reported ``units`` tokens; optionally routed with a cost class."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="owner-attempt", max_tokens=max_tokens, reservation=reservation)
+    task = store.create_task(title="attempt", executor_kind="opencode", binding_ref="coding-glm")
+    if cost_class is not None:
+        store.add_event(task.id, event_type="MODEL_SELECTED", title="Model selected", description="routed",
+                        metadata={"binding_ref": "coding-glm", "reason": "cheapest_qualifying",
+                                  "candidates": [{"binding_id": "coding-glm", "cost_class": cost_class},
+                                                 {"binding_id": "other", "cost_class": "subscription"}]})
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', "
+                          "enforcement_class='HARD_ADMISSION_ENFORCED', observed_token_units=? WHERE id=?",
+                          (already, window.id))
+    control._conn.commit()
+    store.append_usage_observation(task.id, observation_id="usage-1", execution_id="exec-1",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status=status, input_units=units, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    row = control._conn.execute(
+        "SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?", (task.id,)).fetchone()
+    return control, window, row
+
+
+def test_an_owner_window_overrun_is_charged_in_full_and_the_window_continues():
+    # Owner decision 2026-11-09: 936k tokens against a 0 reservation stopped batch 1.
+    control, window, reservation = _owner_window_attempt(20_000_000, 100_000, 936_532)
+    after = control.get_window(window.id)
+    assert (after.status, after.stop_reason or "") == ("ACTIVE", "")
+    assert after.observed_token_units == 936_532
+    assert reservation["state"] == "OVERRUN"  # recorded truthfully
+
+
+def test_an_owner_window_overrun_that_reaches_the_cap_stops_it():
+    control, window, _ = _owner_window_attempt(1_000_000, 100_000, 300_000, already=800_000)
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_budget_reached")
+
+
+def test_other_windows_still_stop_on_an_overrun():
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="plain", max_tokens=20_000_000, reservation=100_000)
+    task = store.create_task(title="attempt", executor_kind="opencode", binding_ref="coding-glm")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    store.append_usage_observation(task.id, observation_id="usage-1", execution_id="exec-1",
+                                   role="executor", model_id="glm", provider_id="relay", source_kind="step_finish",
+                                   source_id="part-1", status="OBSERVED", input_units=936_532, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "usage_reservation_overrun")
+
+
+@pytest.mark.parametrize("status", ["OBSERVED", "PARTIAL"])
+def test_a_free_model_does_not_count_toward_the_owner_window_cap(status):
+    # Owner decision 2026-11-09: only Claude and Codex are paid; free usage is not charged.
+    control, window, reservation = _owner_window_attempt(1_000_000, 100_000, 5_000_000, status=status,
+                                                         cost_class="free", already=900_000)
+    after = control.get_window(window.id)
+    assert (after.status, after.stop_reason or "") == ("ACTIVE", "")
+    assert after.observed_token_units == 900_000
+    assert reservation["state"] in ("OVERRUN", "UNKNOWN")  # the observation itself is kept
+
+
+@pytest.mark.parametrize("cost_class", [None, "subscription", "paid_api"])
+def test_a_route_not_recorded_as_free_is_charged(cost_class):
+    control, window, _ = _owner_window_attempt(20_000_000, 100_000, 300_000, cost_class=cost_class)
+    assert control.get_window(window.id).observed_token_units == 300_000
 
 
 @pytest.mark.parametrize("mutation", ["owner", "epoch", "window", "status", "expired", "gone"])
@@ -1256,3 +1271,757 @@ def test_parallel_batch_execution_intervals_overlap_in_recorded_evidence(tmp_pat
     # Recorded overlap: the later task started strictly before the earlier
     # task's recorded finish — impossible under serial dispatch.
     assert second_start < first_end, intervals
+
+
+
+
+def _redeploy_stranded(tmp_path, *, old_sha="old-authority-sha", old_planning="old-planning-sha",
+                       new_sha="new-authority-sha", new_planning="new-planning-sha"):
+    """An INTERRUPTED task whose durable run started under the pre-redeploy code (#1515)."""
+    store = TaskStore(str(tmp_path / "redeploy.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "redeploy", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"],
+        "capabilities": ["execute_task", "resume_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1,
+        "confirmation": "ACTIVATE",
+    })
+    goal = goals.create({
+        "objective": "Survive a redeploy", "idempotency_key": "redeploy-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Work", "instruction": "Run"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+    task = store.get_task(task_id)
+    store._acquire_durable_lease(
+        task_id=task_id, execution_id=task.execution_id, lease_owner="old-host",
+        execution_authority_sha=old_sha, planning_sha=old_planning, task_status="QUEUED",
+    )
+    # The host restarted (redeployed); the lease expired and the task is INTERRUPTED.
+    store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = 1 WHERE task_id = ?", (task_id,))
+    store.set_state(task_id, "INTERRUPTED")
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy,
+        router=ExecutorRouter(), workspace_root=tmp_path / "workspaces",
+        execution_authority_sha=new_sha, planning_sha=new_planning, owner="new-host",
+    )
+    return store, control, coordinator, task_id
+
+
+def _claim_status(store, task_id):
+    row = store._conn.execute(
+        "SELECT status FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)).fetchone()
+    return None if row is None else row["status"]
+
+
+def test_redeploy_authority_mismatch_closes_the_attempt_as_host_version_changed(tmp_path):
+    """#1515: the resume keeps refusing on the old authority SHA, but the attempt is
+    closed as FAILED host_version_changed (a host fault) instead of being stranded."""
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert final.status == "FAILED"
+    assert final.failure_classification == "host_version_changed"
+    assert (final.failure_detail or "").startswith("authority_sha_mismatch:")
+    # The claim was settled through the normal completion path, not abandoned.
+    assert _claim_status(store, task_id) == "COMPLETE"
+    [event] = [e for e in store.get_events(task_id) if e.type == "EXECUTOR_FINISHED"]
+    assert event.metadata["failure_classification"] == "host_version_changed"
+    # The closed attempt is terminal; a second tick does not busy-loop it.
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "FAILED"
+
+
+def test_redeploy_planning_mismatch_is_also_a_host_version_change(tmp_path):
+    """#1515 names any version/identity mismatch: a changed planning SHA closes the attempt too."""
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", new_sha="same-sha")
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert final.status == "FAILED" and final.failure_classification == "host_version_changed"
+    assert (final.failure_detail or "").startswith("planning_sha_mismatch:")
+
+
+def test_redeploy_recovery_does_not_swallow_other_resume_refusals(tmp_path, monkeypatch):
+    """Only host-version refusals are recovered; any other resume refusal still strands as before."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", old_planning="same-sha", new_sha="same-sha", new_planning="same-sha")
+
+    def refuse(self, task_id, *, lease_owner="", **kwargs):
+        raise DurableResumeError("worktree_not_found:/gone")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", refuse)
+    assert coordinator.tick() == 0
+    assert store.get_task(task_id).status == "INTERRUPTED"
+    assert _claim_status(store, task_id) != "ACTIVE"
+
+
+@pytest.mark.parametrize("trace", ["none", "worktree", "checkpoint", "external_operation"])
+def test_pre_dispatch_resume_refusal_closes_the_attempt_as_orphaned_preparation(tmp_path, monkeypatch, trace):
+    """2026-11-17: a run a restart stopped before PRE_PLANNER has nothing to reconstruct.
+    While nothing of it was dispatched the refusal closes the attempt, fenced like a
+    redeploy close; with any trace of dispatch the refusal still strands as before."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(
+        tmp_path, old_sha="same-sha", old_planning="same-sha", new_sha="same-sha", new_planning="same-sha")
+    run_id = store._conn.execute("SELECT run_id FROM durable_runs WHERE task_id = ?", (task_id,)).fetchone()[0]
+    if trace == "worktree":
+        store._conn.execute("UPDATE durable_runs SET worktree_prepared_at = 'now' WHERE run_id = ?", (run_id,))
+    elif trace == "checkpoint":
+        store._conn.execute("UPDATE durable_runs SET accepted_checkpoint = 'PRE_PLANNER' WHERE run_id = ?", (run_id,))
+    elif trace == "external_operation":
+        store._conn.execute(
+            "INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, idempotency_key, "
+            "request_digest, state, created_at, updated_at) VALUES ('op', ?, ?, 'k', 'i', 'd', 'SUCCESS', 'n', 'n')",
+            (run_id, task_id))
+    store._conn.commit()
+
+    def refuse(self, task_id, *, lease_owner="", **kwargs):
+        raise DurableResumeError(f"pre_pre_planner_no_reconstruction_path:{task_id}:accepted_checkpoint_empty_fail_closed")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", refuse)
+    feedback = []
+    monkeypatch.setattr(coordinator, "_report_account_feedback", lambda *a, **k: feedback.append(a))
+    if trace != "none":
+        assert coordinator.tick() == 0
+        assert store.get_task(task_id).status == "INTERRUPTED"
+        assert _claim_status(store, task_id) == "FAILED"
+        return
+    assert coordinator.tick() == 1
+    final = store.get_task(task_id)
+    assert (final.status, final.failure_classification) == ("FAILED", "orphaned_preparation")
+    assert final.failure_detail.startswith("pre_pre_planner_no_reconstruction_path:")
+    assert _claim_status(store, task_id) == "COMPLETE"
+    [event] = [e for e in store.get_events(task_id) if e.type == "EXECUTOR_FINISHED"]
+    assert event.metadata["failure_classification"] == "orphaned_preparation"
+    assert feedback == []  # a host fault is not account evidence
+    assert coordinator.tick() == 0
+
+
+def test_free_host_resume_in_a_continuous_window_spends_no_retry(tmp_path):
+    """#1538 / decision B: re-claiming a host-interrupted task in a continuous window is not
+    gated by, and does not spend, retries_used; a resume that failed since, or a window
+    with an expiry, still is."""
+    store, control, _coordinator, task_id = _redeploy_stranded(tmp_path)
+    window = control.active_window()
+    store._conn.execute("UPDATE durable_runs SET recovery_classification = 'orphan_stale_lease' WHERE task_id = ?",
+                        (task_id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET retries_used = max_retries WHERE id = ?", (window.id,))
+    store._conn.commit()
+    # A window with an expiry: exhausted retries gate the INTERRUPTED task as before.
+    assert task_id not in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    with pytest.raises(TaskStoreError, match="window_retry_budget_exhausted"):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+    goal_id = control.goal_id_for_task(task_id)
+    control.append_receipt(window_id=window.id, operation_type="owner_window_admission",
+                           capability="execute_task", repository="dddd2024/reverse-agent", subject_id=goal_id,
+                           decision="allowed", reason="test", input_payload={}, result="ok")
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute("UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? "
+                        "WHERE subject_id = ?", (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal_id))
+    store._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+                        (OWNER_WINDOW_MODE, window.id))
+    store._conn.commit()
+    assert control.get_window(window.id).continuous
+    assert task_id in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    before = control.get_window(window.id)
+    epoch, after = control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+    assert (after.retries_used, after.tasks_started) == (before.retries_used, before.tasks_started)
+    # That resume fails and abandons its claim: the next re-claim is a normal retry again.
+    control.abandon_task_claim(window_id=window.id, task_id=task_id, owner="new-host", epoch=epoch,
+                               reason="resume_refused")
+    assert task_id not in control.runnable_tasks(window.id, respect_attempt_limits=True)
+    with pytest.raises(TaskStoreError, match="window_retry_budget_exhausted"):
+        control.claim_task(window_id=window.id, task_id=task_id, owner="new-host", lease_ms=60_000)
+
+
+@pytest.mark.parametrize("successor", ["durable_resume", "claim_takeover", "re_leased"])
+def test_redeploy_close_is_fenced_against_a_successor_that_won_the_race(tmp_path, monkeypatch, successor):
+    """Review blocker on 952b366f: a successor that resumes, re-claims or re-runs the task
+    between the coordinator's read and its close must never be overwritten as FAILED."""
+    from reverse_agent.platform_v1.durable_execution import DurableResumeError, DurableExecutionService
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    future_ms = int(time.time() * 1000) + 600000
+
+    def resume_then_lose_the_race(self, task_id, *, lease_owner="", **kwargs):
+        # The refusal is computed, then a successor wins before the close transaction.
+        if successor == "durable_resume":
+            store._conn.execute(
+                "UPDATE durable_runs SET lease_owner = 'successor', lease_epoch = lease_epoch + 1, "
+                "lease_expiry_ms = ? WHERE task_id = ?", (future_ms, task_id))
+            store._conn.execute("UPDATE tasks SET status = 'RUNNING' WHERE id = ?", (task_id,))
+        elif successor == "claim_takeover":
+            store._conn.execute(
+                "UPDATE platform_coordinator_claims SET owner = 'successor-host', epoch = epoch + 1 "
+                "WHERE task_id = ?", (task_id,))
+        else:
+            # Re-leased by another owner (one durable run per task), status not yet moved.
+            store._conn.execute(
+                "UPDATE durable_runs SET lease_owner = 'successor', lease_epoch = lease_epoch + 1, "
+                "lease_expiry_ms = ? WHERE task_id = ?", (future_ms, task_id))
+        raise DurableResumeError("authority_sha_mismatch:old-authority-sha!=new-authority-sha")
+    monkeypatch.setattr(DurableExecutionService, "resume_single", resume_then_lose_the_race)
+    refusals = []
+    close = coordinator._fail_redeploy_stranded_task
+
+    def recording_close(*args, **kwargs):
+        try:
+            return close(*args, **kwargs)
+        except TaskStoreError as exc:
+            refusals.append(str(exc))
+            raise
+    monkeypatch.setattr(coordinator, "_fail_redeploy_stranded_task", recording_close)
+    assert coordinator.tick() == 0  # the stale handler wrote nothing and abandoned its own claim
+    final = store.get_task(task_id)
+    assert final.failure_classification != "host_version_changed"
+    assert final.status == ("RUNNING" if successor == "durable_resume" else "INTERRUPTED")
+    assert not [e for e in store.get_events(task_id)
+                if e.metadata.get("failure_classification") == "host_version_changed"]
+    assert refusals and refusals[0].startswith(f"host_version_close_fenced:{task_id}:"), refusals
+
+
+def test_redeploy_close_requires_the_callers_claim(tmp_path):
+    """The close is only made under the executing worker's own claim identity."""
+    store, _control, coordinator, task_id = _redeploy_stranded(tmp_path)
+    with pytest.raises(TaskStoreError, match="host_version_close_unfenced"):
+        coordinator._fail_redeploy_stranded_task(task_id, detail="authority_sha_mismatch:x!=y",
+                                                 observed=coordinator._latest_durable_run_identity(task_id))
+    assert store.get_task(task_id).status == "INTERRUPTED"
+
+
+def _failed_and_queued_fixture(tmp_path, *, failed_count=1):
+    store = TaskStore(str(tmp_path / "coordinator.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "nonblocking-startup-sweep", "policy_revision": 1, "owner_identity": "owner",
+        "starts_at": (now - timedelta(seconds=2)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/reverse-agent"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 1, "confirmation": "ACTIVATE",
+    })
+    for idx in range(failed_count):
+        goal = goals.create({
+            "objective": f"Failed goal {idx}", "idempotency_key": f"failed-goal-{idx}",
+            "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+        })
+        goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "failed", "instruction": "fail"}])
+        goals.approve(goal.id, expected_revision=1)
+        goals.launch(goal.id, expected_revision=1, window_id=window.id)
+        failed_task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='deterministic_validation_failure' WHERE id=?",
+            (failed_task_id,),
+        )
+    queued_goal = goals.create({
+        "objective": "Runnable goal", "idempotency_key": "runnable-goal",
+        "executor_kind": "deterministic_fixture", "orchestration_mode": "single",
+    })
+    goals.plan(queued_goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "run", "instruction": "run"}])
+    goals.approve(queued_goal.id, expected_revision=1)
+    goals.launch(queued_goal.id, expected_revision=1, window_id=window.id)
+    store._conn.commit()
+    return store, control, autonomy
+
+
+def test_start_returns_before_slow_first_escalation_sweep_and_sweeps_before_first_dispatch(tmp_path):
+    store, control, autonomy = _failed_and_queued_fixture(tmp_path, failed_count=1)
+    order: list[str] = []
+    order_lock = threading.Lock()
+    sweep_entered = threading.Event()
+    allow_finish = threading.Event()
+    dispatched_done = threading.Event()
+
+    def escalator(_goal_id: str) -> tuple:
+        with order_lock:
+            order.append("sweep_start")
+        sweep_entered.set()
+        allow_finish.wait(timeout=10.0)
+        with order_lock:
+            order.append("sweep_end")
+        return ()
+
+    def execute(task_id: str):
+        with order_lock:
+            order.append("dispatch")
+        result = _ready_fixture(store, task_id)
+        dispatched_done.set()
+        return result
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces", goal_escalator=escalator,
+        task_executor=execute, poll_interval=0.05,
+    )
+    try:
+        started_at = time.monotonic()
+        coordinator.start()
+        assert time.monotonic() - started_at < 2.0
+        assert sweep_entered.wait(timeout=5.0)
+        status = coordinator.status()
+        assert status["enabled"] is True
+        assert status["lifecycle"] == "RECOVERING"
+        assert status["recovering"] is True
+        assert status["accepting_work"] is False
+        assert status["ticks"] == 0
+        assert coordinator.tick() == 0
+        assert coordinator.tick(background=True) == 0
+        with order_lock:
+            assert "dispatch" not in order
+
+        allow_finish.set()
+        assert dispatched_done.wait(timeout=5.0)
+        deadline = time.monotonic() + 2.0
+        while coordinator.status()["recovering"] and time.monotonic() < deadline:
+            time.sleep(0.02)
+        with order_lock:
+            assert order[:3] == ["sweep_start", "sweep_end", "dispatch"]
+        running = coordinator.status()
+        assert running["lifecycle"] == "RUNNING"
+        assert running["recovering"] is False
+        assert running["accepting_work"] is True
+    finally:
+        allow_finish.set()
+        coordinator.stop(timeout=5.0)
+        store._conn.close()
+
+
+def test_stop_during_startup_sweep_halts_remaining_goals_without_dispatch(tmp_path):
+    store, control, autonomy = _failed_and_queued_fixture(tmp_path, failed_count=2)
+    swept: list[str] = []
+    dispatched: list[str] = []
+    sweep_entered = threading.Event()
+    allow_finish = threading.Event()
+
+    def escalator(goal_id: str) -> tuple:
+        swept.append(goal_id)
+        sweep_entered.set()
+        allow_finish.wait(timeout=10.0)
+        return ()
+
+    def execute(task_id: str):
+        dispatched.append(task_id)
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces", goal_escalator=escalator,
+        task_executor=execute, poll_interval=0.05,
+    )
+    stopper = None
+    try:
+        coordinator.start()
+        assert sweep_entered.wait(timeout=5.0)
+        stopper = threading.Thread(target=lambda: coordinator.stop(timeout=5.0), daemon=True)
+        stopper.start()
+        deadline = time.monotonic() + 2.0
+        while not coordinator._stop.is_set() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert coordinator._stop.is_set()
+        draining = coordinator.status()
+        assert draining["lifecycle"] == "DRAINING"
+        assert draining["recovering"] is False
+        allow_finish.set()
+        stopper.join(timeout=5.0)
+        assert not stopper.is_alive()
+        assert len(swept) == 1
+        assert dispatched == []
+        stopped = coordinator.status()
+        assert stopped["lifecycle"] == "STOPPED"
+        assert stopped["recovering"] is False
+    finally:
+        allow_finish.set()
+        coordinator.stop(timeout=5.0)
+        if stopper is not None:
+            stopper.join(timeout=2.0)
+        store._conn.close()
+
+
+def _backoff_sweep_case(monkeypatch, *, two_steps: bool = False):
+    from reverse_agent.platform_v1 import goal_service as gs
+    from reverse_agent.platform_v1 import unattended_coordinator as uc
+
+    wall = [1_800_000_000.0]
+    mono = [1000.0]
+    monkeypatch.setattr(gs.time, "time", lambda: wall[0])
+    monkeypatch.setattr(uc.time, "monotonic", lambda: mono[0])
+    monkeypatch.setattr(gs, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(gs, "repository_base", lambda repository: "b" * 40)
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(
+        store=store,
+        control_store=control,
+        task_resolver=lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        },
+    )
+    plan_tasks = [{"id": "T001", "title": "Step 1", "instruction": "Step 1", "agent_role": "coder"}]
+    if two_steps:
+        plan_tasks.append({"id": "T002", "title": "Step 2", "instruction": "Step 2", "agent_role": "coder"})
+    goal = goals.create({
+        "objective": "Backoff sweep scheduling",
+        "repository": "dddd2024/Nerelan",
+        "idempotency_key": f"sweep-backoff-{two_steps}",
+        "executor_kind": "opencode",
+        "orchestration_mode": "agent_team",
+        "binding_ref": "",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=plan_tasks)
+    goals.approve(goal.id, expected_revision=1)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "continuous-sweep-test",
+        "policy_revision": 1,
+        "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 2,
+        "max_tasks": 10,
+        "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    control.append_receipt(
+        window_id=window.id,
+        operation_type="owner_window_admission",
+        capability="execute_task",
+        repository="dddd2024/Nerelan",
+        subject_id=goal.id,
+        decision="allowed",
+        reason="test",
+        input_payload={},
+        result="ok",
+    )
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute(
+        "UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? WHERE subject_id = ?",
+        (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal.id),
+    )
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+        (OWNER_WINDOW_MODE, window.id),
+    )
+    store._conn.commit()
+
+    calls: list[str] = []
+
+    def escalator(gid: str) -> tuple:
+        calls.append(gid)
+        return goals.escalate_failed_tasks(gid)
+
+    coordinator = uc.UnattendedCoordinator.__new__(uc.UnattendedCoordinator)
+    coordinator.control_store = control
+    coordinator._last_error = ""
+    coordinator.goals = goals
+    coordinator.goal_escalator = escalator
+
+    def advance(seconds: float) -> None:
+        wall[0] += seconds
+        mono[0] += seconds
+
+    def link_task(plan_task_id: str) -> str:
+        return next(
+            row["task_id"] for row in control.list_goal_tasks(goal.id)
+            if row["plan_task_id"] == plan_task_id
+        )
+
+    return store, control, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs
+
+
+def test_sweep_reexamines_patient_429_on_first_tick_after_backoff_expiry(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, _, gs = _backoff_sweep_case(monkeypatch)
+    try:
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        task_id = link_task("T001")
+        age = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age, task_id),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+        assert link_task("T001") == task_id
+
+        advance(15.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 1  # still inside 30 s backoff
+
+        advance(16.0)  # 31 s after initial sweep: 1 s past backoff expiry
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        replacement = link_task("T001")
+        assert replacement != task_id
+        assert store.get_task(replacement).status == "QUEUED"
+        assert goals.next_backoff_delay(goal.id) is None
+    finally:
+        store._conn.close()
+
+
+def test_sweep_reexamines_stalled_step_after_backoff_and_clamps_long_backoff(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs = _backoff_sweep_case(monkeypatch)
+    try:
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        goals.roster_resolver = lambda role: ("opencode", "bind-a")
+        goals.task_resolver = None  # same binding resumes once backoff expires
+        task_id = link_task("T001")
+        # 30 s remaining on a 120 s stall backoff.
+        age_30 = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='server_stream_stalled', "
+            "failure_detail='opencode_server:server_stream_stalled', updated_at=? WHERE id=?",
+            (age_30, task_id),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+        advance(31.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        second_task = link_task("T001")
+        assert second_task != task_id
+
+        # A backoff longer than SWEEP_REPEAT_SECONDS (2000 s left) clamps to 900 s upper bound.
+        monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 2500)
+        age_2000 = datetime.fromtimestamp(wall[0] - 500.0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age_2000, second_task),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+        # Second retry (free_used=1): 2500 * 2**1 - 500 = 4500 s remaining, clamped to 900 s.
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(4500.0)
+
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+        assert link_task("T001") == second_task
+    finally:
+        store._conn.close()
+
+
+def test_sweep_keeps_repeat_interval_for_unroutable_and_earliest_for_mixed_steps(monkeypatch):
+    store, _, goals, goal, coordinator, wall, calls, advance, link_task, uc, gs = _backoff_sweep_case(
+        monkeypatch, two_steps=True
+    )
+    try:
+        # Both steps initially unroutable / held -> SWEEP_REPEAT_SECONDS applies without event spam.
+        t1 = link_task("T001")
+        t2 = link_task("T002")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', updated_at='2026-11-22T00:00:00Z' WHERE id=?",
+            (t1,),
+        )
+        store._conn.execute("UPDATE tasks SET status='BLOCKED' WHERE id=?", (t2,))
+        store._conn.commit()
+
+        def no_model(*args, **kwargs):
+            raise TaskStoreError("no_runnable_model")
+
+        goals.task_resolver = no_model
+        coordinator._sweep_escalations()
+        assert len(calls) == 1
+        assert goals.next_backoff_delay(goal.id) is None
+        assert len([e for e in store.get_events(t1) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+        # Sweep 2 sees t1.updated_at updated by Sweep 1; after that, unchanged tasks wait 900 s.
+        advance(10.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 2
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 3
+        assert len([e for e in store.get_events(t1) if e.type == "MODEL_SELECTION_FAILED"]) == 1
+
+        # Mixed goal: T001 held BLOCKED, T002 has a 30 s patient backoff -> wakes at 30 s for T002.
+        monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+        goals.task_resolver = lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        }
+        store._conn.execute("UPDATE tasks SET status='BLOCKED' WHERE id=?", (t1,))
+        age_30 = datetime.fromtimestamp(wall[0] - (gs.TRANSIENT_BACKOFF_SECONDS - 30.0), timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        store._conn.execute(
+            "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+            "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+            (age_30, t2),
+        )
+        store._conn.commit()
+
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+        assert goals.next_backoff_delay(goal.id) == pytest.approx(30.0)
+
+        advance(29.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 4
+
+        advance(2.0)  # 31 s: T002 escalates to QUEUED, leaving only held T001
+        coordinator._sweep_escalations()
+        assert len(calls) == 5
+        assert link_task("T002") != t2
+        assert goals.next_backoff_delay(goal.id) is None
+
+        # Next sweep observes the smaller stuck set ([T001] only) once and settles on 900 s.
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 6
+        assert goals.next_backoff_delay(goal.id) is None
+
+        # Only held T001 remains -> next sweep waits the full SWEEP_REPEAT_SECONDS.
+        advance(uc.SWEEP_REPEAT_SECONDS - 1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 6
+        advance(1.0)
+        coordinator._sweep_escalations()
+        assert len(calls) == 7
+    finally:
+        store._conn.close()
+
+
+def test_live_coordinator_runs_due_backoff_sweep_before_reconcile_interval(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import goal_service as gs
+
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 1)
+    monkeypatch.setattr(gs, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(gs, "repository_base", lambda repository: "b" * 40)
+
+    store = TaskStore(str(tmp_path / "live_backoff.sqlite3"))
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(
+        store=store,
+        control_store=control,
+        task_resolver=lambda plan_task, *, goal, **kw: {
+            "binding_ref": "bind-a",
+            "executor_kind": "opencode",
+            "model_id": "m/a",
+            "tier": 3,
+            "reason": "fixture",
+            "context_window": 128000,
+        },
+    )
+    goal = goals.create({
+        "objective": "Live backoff wake",
+        "repository": "dddd2024/Nerelan",
+        "idempotency_key": "live-backoff-wake",
+        "executor_kind": "opencode",
+        "orchestration_mode": "agent_team",
+        "binding_ref": "",
+    })
+    goals.plan(goal.id, expected_revision=1, tasks=[{"id": "T001", "title": "Step", "instruction": "Step", "agent_role": "coder"}])
+    goals.approve(goal.id, expected_revision=1)
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "live-backoff-window",
+        "policy_revision": 1,
+        "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"],
+        "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1,
+        "max_tasks": 10,
+        "max_retries": 0,
+        "confirmation": "ACTIVATE",
+    })
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    control.append_receipt(
+        window_id=window.id,
+        operation_type="owner_window_admission",
+        capability="execute_task",
+        repository="dddd2024/Nerelan",
+        subject_id=goal.id,
+        decision="allowed",
+        reason="test",
+        input_payload={},
+        result="ok",
+    )
+    from reverse_agent.platform_v1.control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    store._conn.execute(
+        "UPDATE platform_operation_receipts SET operation_type = ?, confirmation_mode = ? WHERE subject_id = ?",
+        (OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE, goal.id),
+    )
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET confirmation_mode = ?, expires_at = '' WHERE id = ?",
+        (OWNER_WINDOW_MODE, window.id),
+    )
+    store._conn.commit()
+
+    first_task = control.list_goal_tasks(goal.id)[0]["task_id"]
+    # Failed at current second -> 1 s backoff expires in ~1 s, well before 60 s reconcile_interval.
+    recent = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+        "failure_detail='opencode_server:api_error_429', updated_at=? WHERE id=?",
+        (recent, first_task),
+    )
+    store._conn.commit()
+
+    dispatched = threading.Event()
+
+    def fake_execute(task_id: str):
+        if task_id != first_task:
+            dispatched.set()
+        return _ready_fixture(store, task_id)
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces",
+        goal_escalator=goals.escalate_failed_tasks,
+        goals=goals,
+        task_executor=fake_execute,
+        poll_interval=0.1,
+        reconcile_interval=60.0,
+    )
+    try:
+        coordinator.start()
+        assert dispatched.wait(timeout=5.0)
+        replacement = control.list_goal_tasks(goal.id)[0]["task_id"]
+        assert replacement != first_task
+    finally:
+        coordinator.stop(timeout=5.0)
+        store._conn.close()

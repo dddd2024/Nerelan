@@ -1,4 +1,5 @@
 import type { FunctionalCheckInput, FunctionalValidation, PolicyContract } from "@/types";
+import { httpErrorMessage } from "@/lib/http-errors";
 import { policySchema } from "@/schemas/policy";
 import { serializePolicy } from "@/lib/policy-serializer";
 
@@ -116,7 +117,8 @@ export type GoalStatus =
   | "RUNNING"
   | "COMPLETED"
   | "BLOCKED"
-  | "INVALIDATED";
+  | "INVALIDATED"
+  | "SUPERSEDED";
 
 export interface PlatformGoal {
   id: string;
@@ -127,7 +129,7 @@ export interface PlatformGoal {
   revision: number;
   spec_markdown: string;
   plan_markdown: string;
-  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null; agent_role?: string }>;
+  tasks: Array<{ id: string; title: string; instruction?: string; capability?: string; validation_command_id?: string; dependencies: string[]; validation_checks?: FunctionalCheckInput[]; artifact_input?: { plan_task_id: string } | null; agent_role?: string; allowed_paths?: string[] }>;
   acceptance_criteria: string[];
   artifact_digest: string;
   executor_kind: "opencode" | "codex" | "claude_code" | "deterministic_fixture";
@@ -138,6 +140,7 @@ export interface PlatformGoal {
   updated_at: string;
   completion_scope?: "EXECUTION_ONLY";
   remote_acceptance?: "NOT_OBSERVED";
+  stop_reason?: "source_issue_closed";
   task_links?: PlatformGoalTaskLink[];
 }
 
@@ -151,9 +154,104 @@ export interface PlatformGoalTaskLink {
   binding_ref?: string;
   functional_validation?: FunctionalValidation;
   publication?: PlatformAgentRun["publication"];
+  /** Why the host will not publish this finished task as a Draft PR ("" when it can). */
+  publication_blocked?: string;
+  /** Newest public event of this task (live progress while it runs). */
+  activity?: PlatformTaskActivity | null;
+  /** Why this task stopped, when it did. */
+  failure?: PlatformTaskFailure | null;
+  /** Earlier attempts of the same plan task, oldest first. */
+  attempts?: PlatformTaskAttempt[];
+}
+
+/** GET /api/goals/<id>/timeline: one goal as one conversation. */
+export interface PlatformGoalTimeline {
+  goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
+  plan: Array<{ plan_task_id: string; title: string; role: string; instruction: string }>;
+  steps: PlatformTimelineStep[];
+  landing?: {
+    phase: string;
+    pr_number: number;
+    parking_reason: string;
+  } | null;
+  awaiting_landing?: boolean;
+  /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
+  retry?: PlatformRetryOptions;
+}
+
+export interface PlatformRetryOptions {
+  available: boolean;
+  /** Why not, e.g. owner_retry_no_active_window. */
+  reason: string;
+  revision: number;
+  /** Models the Owner confirmed for the window; empty when only the automatic choice is offered. */
+  pool: Array<{ binding_ref: string; model_id: string; executor_id: string }>;
+  /** Free retries left per plan step for failures that were not the model's (decision B). */
+  automatic_retries_left: Record<string, number>;
+  routing_retries_left: number;
+}
+
+export interface PlatformTimelineStep {
+  plan_task_id: string;
+  title: string;
+  status: string;
+  functional_validation?: FunctionalValidation;
+  publication?: PlatformAgentRun["publication"];
+  publication_blocked?: string;
+  attempts: PlatformTimelineAttempt[];
+}
+
+export interface PlatformTimelineAttempt {
+  index: number;
+  task_id: string;
+  status: string;
+  executor_kind?: string;
+  binding_ref?: string;
+  started_at?: string;
+  updated_at?: string;
+  retry_reason?: string;
+  failure?: PlatformTaskFailure | null;
+  events: PlatformRunActivityEvent[];
+  events_total: number;
+  events_truncated: boolean;
+  changed_files: PlatformRunChangedFile[];
+  validation?: { command_id: string; status: string; exit_code?: number | null } | null;
+  /** Only on the current attempt. */
+  live?: { state: string; last_activity_at?: string; stage?: string } | null;
+  /** The agent's own sentences kept from its exit evidence (runs before live progress). */
+  narration?: Array<{ timestamp: string; text: string }>;
+  /** Tool calls recorded at exit; their details were not kept for older runs. */
+  tool_actions?: number;
+  /** The agent's final response. */
+  summary?: string;
+}
+
+export interface PlatformTaskActivity {
+  type: string;
+  title: string;
+  description: string;
+  timestamp: string;
+}
+
+export interface PlatformTaskFailure {
+  classification: string;
+  detail: string;
+  /** The host's own last explanation, e.g. "OpenCode stalled: ...". */
+  message: string;
+}
+
+export interface PlatformTaskAttempt {
+  task_id: string;
+  status: string;
+  executor_kind?: string;
+  binding_ref?: string;
+  updated_at?: string;
+  retry_reason?: string;
+  failure?: PlatformTaskFailure | null;
 }
 
 export interface PlatformWindow {
+  continuous?: boolean;
   id: string;
   policy_id: string;
   policy_revision?: number;
@@ -162,6 +260,9 @@ export interface PlatformWindow {
   policy_digest_sha256?: string;
   status: string;
   expires_at: string;
+  starts_at?: string;
+  updated_at?: string;
+  stop_reason?: string;
   repositories: string[];
   capabilities: string[];
   max_tasks: number;
@@ -236,10 +337,17 @@ export interface PlatformStatus {
   autonomy: {
     autonomy_enabled: boolean;
     active_window: PlatformWindow | null;
+    latest_window?: PlatformWindow | null;
+    last_progress_at?: string | null;
+    unfinished_tasks?: number;
     mode: string;
   };
   coordinator: {
     enabled: boolean;
+    lifecycle?: string;
+    recovering?: boolean;
+    accepting_work?: boolean;
+    stranded_goals?: { goal_id: string; title?: string; window_id?: string; window_status?: string }[];
     executions?: number;
     last_error: string;
     active_window_id: string;
@@ -248,6 +356,73 @@ export interface PlatformStatus {
   goal_count: number;
   capability_count: number;
   live_model_calls: boolean;
+}
+
+export type AccountHealth = "HEALTHY" | "DEGRADED" | "EXHAUSTED" | "ABNORMAL" | "STALE" | "UNKNOWN";
+
+export interface PoolAccount {
+  account_ref: string;
+  provider: string | null;
+  health: AccountHealth;
+  headroom_pct: number | null;
+  next_reset_at: number | null;
+  anomaly_flags: string[];
+  dispatchable: boolean;
+  /** False when no route claims the provider, so its windows never reach admission. */
+  admission_evidence: boolean;
+  cooldown: { until: number; kind: string; tier: string; streak: number } | null;
+  /** Weekly pacing for Claude and Codex: spend may not run ahead of the week. */
+  weekly_pace?: { used: number; deviation: number; line: number; held_until: number | null; resets_at: number;
+                  draining?: boolean } | null;
+  /** Held Codex rate-limit resets, as Magpie reports them. */
+  reset_cards?: { count: number; next_expires_at: string | null } | null;
+  score: {
+    attempts: number;
+    successes: number;
+    reliability: number;
+    mean_cost_units: number | null;
+    mean_wall_seconds: number | null;
+  } | null;
+}
+
+export interface PoolAlert {
+  code: string;
+  severity: "critical" | "warning" | "info";
+  subject: string;
+  detail: string;
+  since: number;
+}
+
+export interface PoolBudget {
+  max_cost_micro_units: number | null;
+  remaining_cost_micro_units: number | null;
+  max_token_units: number | null;
+  remaining_token_units: number | null;
+}
+
+export interface PoolPolicy {
+  enabled?: boolean;
+  revision?: number;
+  effective?: { reliability_weight: number; cost_weight: number; latency_weight: number };
+}
+
+export interface AccountPool {
+  source: string;
+  observed_at?: number;
+  monitoring: boolean;
+  summary: {
+    total_accounts: number;
+    dispatchable_accounts: number;
+    cooling_accounts: number;
+    best_headroom_pct: number | null;
+    earliest_capacity_at: number | null;
+  } | null;
+  accounts: PoolAccount[];
+  budget: PoolBudget | null;
+  policy: PoolPolicy;
+  alerts: { active: PoolAlert[]; recent: PoolAlert[] };
+  /** A current Codex reset announcement, as routing reads it. */
+  codex_reset?: { state: string; expected_reset_at: string | null; source_url: string | null; assumed?: boolean } | null;
 }
 
 export interface StartGoalInput {
@@ -348,6 +523,10 @@ export interface PlatformRunActivityEvent {
   category: PlatformRunActivityCategory;
   title: string;
   description: string;
+  /** The host event type, e.g. EXECUTOR_PROGRESS. */
+  type?: string;
+  /** "text" when a live progress event is the agent speaking. */
+  progress_kind?: string;
   status?: string;
   stage?: PlatformRunStage;
   agent_id?: string;
@@ -976,30 +1155,118 @@ function materializeMockGoalRuns(goal: PlatformGoal) {
   mockRuns.unshift(...generated);
 }
 
+export interface RequestDiagnostics {
+  method: string;
+  route: string;
+  elapsedMs: number;
+  requestId?: string;
+  serverElapsedMs?: number;
+}
+
 export class PlatformClientError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly errorClass: string;
+  readonly retryable: boolean;
+  readonly diagnostics?: Readonly<RequestDiagnostics>;
 
-  constructor(status: number, code: string) {
-    super("平台请求未完成");
+  constructor(status: number, code: string, errorClass = "", retryable?: boolean, diagnostics?: RequestDiagnostics) {
+    super(httpErrorMessage(status, code, errorClass));
     this.name = "PlatformClientError";
     this.status = status;
     this.code = code;
+    this.errorClass = errorClass;
+    this.retryable = status === 401 || status === 403 || errorClass === "cancelled" ? false : (retryable ?? status >= 500);
+    this.diagnostics = diagnostics;
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
-  });
-  const text = await response.text();
-  const payload = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
-  if (!response.ok) {
-    const code = typeof payload.error === "string" ? payload.error : "platform_request_failed";
-    throw new PlatformClientError(response.status, code);
+  const started = performance.now();
+  let response: Response | undefined;
+  const diagnostics = (): RequestDiagnostics => {
+    const requestId = response?.headers.get("X-Nerelan-Request-Id") ?? "";
+    const elapsed = response?.headers.get("X-Nerelan-Elapsed-Ms");
+    const serverElapsed = elapsed && /^\d{1,8}$/.test(elapsed) ? Number(elapsed) : undefined;
+    return {
+      method: (init?.method ?? "GET").toUpperCase(), route: path.split("?")[0].slice(0, 240),
+      elapsedMs: Math.max(0, Math.round(performance.now() - started)),
+      requestId: /^[a-f0-9]{16,64}$/.test(requestId) ? requestId : undefined,
+      serverElapsedMs: serverElapsed,
+    };
+  };
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...init?.headers },
+    });
+    const text = await response.text();
+    let payload: T & { error?: string; error_class?: string; retryable?: boolean };
+    try {
+      payload = text ? JSON.parse(text) : {};
+    } catch {
+      throw new PlatformClientError(response.status, "invalid_response", "invalid_response", response.ok || response.status >= 500, diagnostics());
+    }
+    if (!response.ok) {
+      const code = typeof payload?.error === "string" && /^[A-Za-z0-9_.:-]{1,160}$/.test(payload.error)
+        ? payload.error : "platform_request_failed";
+      const errorClass = typeof payload?.error_class === "string" && /^[a-z_]{1,64}$/.test(payload.error_class) ? payload.error_class : "";
+      const retryable = typeof payload?.retryable === "boolean" ? payload.retryable : response.status >= 500;
+      throw new PlatformClientError(response.status, code, errorClass, retryable, diagnostics());
+    }
+    return payload;
+  } catch (error) {
+    if (error instanceof PlatformClientError) throw error;
+    const name = error instanceof Error || error instanceof DOMException ? error.name : "";
+    if (name === "AbortError") throw new PlatformClientError(response?.status ?? 0, "aborted", "cancelled", false, diagnostics());
+    if (name === "TimeoutError") throw new PlatformClientError(response?.status ?? 0, "timeout", "timeout", true, diagnostics());
+    throw new PlatformClientError(response?.status ?? 0, "network_error", "network_error", true, diagnostics());
   }
-  return payload;
+}
+
+function mockAccountPool(): AccountPool {
+  const now = Date.now() / 1000;
+  const account = (provider: string, health: AccountHealth, headroom: number | null,
+                   extra: Partial<PoolAccount> = {}): PoolAccount => ({
+    account_ref: `${provider}:demo`, provider, health, headroom_pct: headroom, next_reset_at: now + 7200,
+    anomaly_flags: [], dispatchable: health === "HEALTHY" || health === "DEGRADED",
+    admission_evidence: true, cooldown: null, score: null, ...extra,
+  });
+  const score = (attempts: number, successes: number, seconds: number) => ({
+    attempts, successes, reliability: successes / attempts, mean_cost_units: null, mean_wall_seconds: seconds,
+  });
+  return {
+    source: "magpie", observed_at: now, monitoring: true,
+    summary: { total_accounts: 5, dispatchable_accounts: 2, cooling_accounts: 1, best_headroom_pct: 72, earliest_capacity_at: now + 1800 },
+    accounts: [
+      account("claude", "HEALTHY", 72, { score: score(24, 22, 41.2) }),
+      account("workbuddy", "DEGRADED", 12, { admission_evidence: false }),
+      account("codex", "HEALTHY", 26, {
+        dispatchable: false, score: score(18, 15, 63.5),
+        weekly_pace: { used: 0.74, deviation: 0.26, line: 0.58, held_until: now + 115200, resets_at: now + 300000 },
+        reset_cards: { count: 2, next_expires_at: new Date((now + 2_000_000) * 1000).toISOString() },
+      }),
+      account("copilot", "HEALTHY", 55, {
+        dispatchable: false, score: score(6, 2, 12.1),
+        cooldown: { until: now + 300, kind: "account_abnormal", tier: "quarantine", streak: 2 },
+      }),
+      account("openrouter", "STALE", null, { admission_evidence: false, next_reset_at: null }),
+    ],
+    budget: { max_cost_micro_units: 5_000_000, remaining_cost_micro_units: 3_250_000, max_token_units: null, remaining_token_units: null },
+    policy: { enabled: true, revision: 3, effective: { reliability_weight: 0.55, cost_weight: 0.3, latency_weight: 0.15 } },
+    alerts: {
+      active: [
+        { code: "account_quarantined", severity: "warning", subject: "copilot:demo", detail: "copilot 已隔离：account_abnormal", since: now - 120 },
+        { code: "account_exhausted", severity: "info", subject: "codex:demo", detail: "codex 额度已用尽", since: now - 900 },
+      ],
+      recent: [],
+    },
+  };
+}
+
+export async function fetchAccountPool(): Promise<AccountPool> {
+  if (isMock()) return mockAccountPool();
+  return request<AccountPool>("/api/platform/accounts");
 }
 
 export async function fetchPlatformStatus(): Promise<PlatformStatus> {
@@ -1103,9 +1370,63 @@ export async function fetchAgentPlanStatus(goalId: string): Promise<AgentPlanSta
   return request<AgentPlanStatus>(`/api/goals/${encodeURIComponent(goalId)}/agent-plan`);
 }
 
-export async function fetchGoal(goalId: string): Promise<PlatformGoal> {
+/** Owner retry of a stopped step inside the goal's active window; an empty bindingRef lets the router choose. */
+export async function retryGoalStep(goalId: string, planTaskId: string, revision: number,
+  bindingRef = ""): Promise<PlatformGoal> {
+  return request<PlatformGoal>(
+    `/api/goals/${encodeURIComponent(goalId)}/tasks/${encodeURIComponent(planTaskId)}/retry`, {
+      method: "POST", body: JSON.stringify({ expected_revision: revision, binding_ref: bindingRef }),
+    });
+}
+
+export async function fetchGoalTimeline(goalId: string): Promise<PlatformGoalTimeline> {
+  if (isMock()) return mockGoalTimeline(goalId);
+  return request<PlatformGoalTimeline>(`/api/goals/${encodeURIComponent(goalId)}/timeline`);
+}
+
+/** Mock mode: the same shape the host builds, from the mock goal and its mock runs. */
+function mockGoalTimeline(goalId: string): PlatformGoalTimeline {
+  const goal = mockGoals.find((item) => item.id === goalId) ?? mockGoal;
+  const steps = (goal.task_links ?? []).map((link) => {
+    const earlier = (link.attempts ?? []).map((attempt, index) => ({
+      index: index + 1, task_id: attempt.task_id, status: attempt.status, executor_kind: attempt.executor_kind,
+      binding_ref: attempt.binding_ref, started_at: attempt.updated_at, updated_at: attempt.updated_at,
+      retry_reason: attempt.retry_reason, failure: attempt.failure ?? null, events: [], events_total: 0,
+      events_truncated: false, changed_files: [], validation: null, live: null,
+    }));
+    const run = mockRuns.find((item) => item.task_id === link.task_id);
+    const events = run ? [...(run.activity ?? run.events ?? [])] : [];
+    const current = {
+      index: earlier.length + 1, task_id: link.task_id, status: link.status,
+      executor_kind: link.executor_kind ?? run?.executor_kind, binding_ref: link.binding_ref,
+      started_at: run?.created_at, updated_at: run?.updated_at, retry_reason: "", failure: link.failure ?? null,
+      events, events_total: run?.activity_total ?? events.length, events_truncated: (run?.activity_total ?? events.length) > events.length,
+      changed_files: run?.changed_files ?? [], validation: null,
+      live: run ? { state: typeof run.liveness === "object" ? String(run.liveness?.state ?? "") : String(run.liveness ?? ""),
+        last_activity_at: run.last_activity_at, stage: String(run.stage ?? "") } : null,
+    };
+    return {
+      plan_task_id: link.plan_task_id, title: link.title, status: link.status,
+      functional_validation: link.functional_validation, publication: link.publication,
+      publication_blocked: link.publication_blocked, attempts: [...earlier, current],
+    };
+  });
+  return {
+    goal: { id: goal.id, title: goal.title, objective: goal.objective, status: goal.status, repository: goal.repository },
+    plan: goal.tasks.map((task) => ({ plan_task_id: task.id, title: task.title, role: "", instruction: "" })),
+    steps,
+  };
+}
+
+export async function fetchGoal(goalId: string, signal?: AbortSignal): Promise<PlatformGoal> {
   if (isMock()) return mockGoals.find((goal) => goal.id === goalId) ?? mockGoal;
-  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`);
+  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goalId)}`, { signal });
+}
+
+export function submitGoalRevision(goal: Pick<PlatformGoal, "id" | "revision">, action: "amend" | "plan", input: object) {
+  return request<PlatformGoal>(`/api/goals/${encodeURIComponent(goal.id)}/${action}`, {
+    method: "POST", body: JSON.stringify({ ...input, expected_revision: goal.revision }),
+  });
 }
 
 export async function createGoalDraftRecord(input: StartGoalInput, idempotencyKey: string): Promise<PlatformGoal> {
@@ -1316,6 +1637,184 @@ export async function fetchRun(taskId: string): Promise<PlatformAgentRunDetail> 
     };
   }
   return request<PlatformAgentRunDetail>(`/api/runs/${encodeURIComponent(taskId)}`);
+}
+
+export interface QuickStartDraftInput {
+  text: string;
+  repository: string;
+  preset?: string;
+}
+
+export interface QuickStartDraftGoal {
+  id: string;
+  title: string;
+  status: string;
+  tasks: Array<Record<string, unknown>>;
+  publishes_draft_pr: boolean;
+}
+
+export interface QuickStartWindowRequest {
+  continuous?: boolean;
+  goal_ids: string[];
+  hours: number;
+  max_tasks: number;
+  max_concurrent: number;
+  max_retries: number;
+  capabilities: string[];
+  max_token_units: number;
+  max_cost_micro_units: number;
+}
+
+export interface QuickStartDraftResult {
+  goals: QuickStartDraftGoal[];
+  preset: string;
+  presets: Record<string, Record<string, number>>;
+  request: QuickStartWindowRequest;
+}
+
+export async function draftQuickStart({ text, repository, preset = "" }: QuickStartDraftInput): Promise<QuickStartDraftResult> {
+  return request<QuickStartDraftResult>("/api/quick-start/draft", {
+    method: "POST",
+    body: JSON.stringify({ text, repository, preset }),
+  });
+}
+
+export interface OwnerWindowPreflightCheck {
+  check: string;
+  ok: boolean;
+  reason: string;
+  detail: string;
+}
+
+export interface OwnerWindowPreflightScope {
+  repository: string;
+  base_sha: string;
+  /** The goals at the revisions the card digest covers. */
+  goals: Array<{ id: string; revision?: number; objective: string; mode: string; tasks: Array<{ id: string | null; title: string | null }> }>;
+  /** Every binding Start authorizes for the window (routing may move between them). */
+  pool: Array<{ binding: string; executor: string; model: string; cost: string; weekly_paced?: boolean }>;
+  /** Bindings not offered, with the reason. */
+  pool_skipped: string[];
+  envelope: Record<string, unknown>;
+  paid_api: unknown;
+}
+
+export interface OwnerWindowPreflightResult {
+  ok: boolean;
+  checks: OwnerWindowPreflightCheck[];
+  /** Not refusals: what the window would do that the Owner may not expect. */
+  warnings?: Array<{ warning: string; goal_id?: string; detail?: string }>;
+  preview: string[];
+  scope: OwnerWindowPreflightScope | null;
+  card_digest?: string;
+  confirmation?: string;
+}
+
+export interface OwnerWindowPreflightRequest {
+  continuous?: boolean;
+  goal_ids: string[];
+  hours: number;
+  max_tasks: number;
+  max_concurrent: number;
+  max_retries: number;
+  capabilities: string[];
+  max_token_units?: number;
+  max_cost_micro_units?: number;
+}
+
+export interface OwnerWindowPreset {
+  label?: string;
+  hours: number;
+  max_concurrent: number;
+  max_retries: number;
+  max_token_units: number;
+}
+
+/** POST /api/owner-window/request: the presets and the request one gives (read-only). */
+export interface OwnerWindowCard {
+  preset: string;
+  presets: Record<string, OwnerWindowPreset>;
+  request: OwnerWindowPreflightRequest & { max_token_units: number; max_cost_micro_units: number };
+  confirmation: "ui" | "terminal";
+}
+
+const MOCK_PRESETS: Record<string, OwnerWindowPreset> = {
+  continuous: { label: "持续运行", hours: 0, max_concurrent: 3, max_retries: 2, max_token_units: 0 },
+  trial: { label: "试跑", hours: 2, max_concurrent: 1, max_retries: 1, max_token_units: 300_000 },
+  day: { label: "一天", hours: 24, max_concurrent: 1, max_retries: 2, max_token_units: 2_000_000 },
+  week: { label: "一周", hours: 168, max_concurrent: 2, max_retries: 2, max_token_units: 10_000_000 },
+};
+
+export async function fetchOwnerWindowCard(goalIds: string[], preset = ""): Promise<OwnerWindowCard> {
+  if (isMock()) {
+    const chosen = preset || "continuous";
+    const values = MOCK_PRESETS[chosen];
+    if (!values) throw new PlatformClientError(409, "owner_window_preset_invalid");
+    const tasks = goalIds.reduce((sum, id) => sum + (mockGoals.find((goal) => goal.id === id)?.tasks.length ?? 0), 0);
+    return { preset: chosen, presets: MOCK_PRESETS, confirmation: "ui", request: {
+      goal_ids: goalIds, hours: values.hours, max_tasks: chosen === "continuous" ? 0 : Math.max(tasks, 1) * (1 + values.max_retries),
+      ...(chosen === "continuous" ? { continuous: true } : {}),
+      max_concurrent: values.max_concurrent, max_retries: values.max_retries,
+      capabilities: [
+        "execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr",
+        ...(chosen === "continuous" ? ["land_reviewed_pr"] : []),
+      ],
+      max_token_units: values.max_token_units, max_cost_micro_units: 0,
+    } };
+  }
+  return request<OwnerWindowCard>("/api/owner-window/request", {
+    method: "POST",
+    body: JSON.stringify({ goal_ids: goalIds, preset }),
+  });
+}
+
+/**
+ * Start on the confirmation card (Owner decision 2026-11-09): the host rereads the
+ * scope, compares it with ``cardDigest`` from the preflight the Owner saw, and
+ * activates in one transaction, or refuses with ``owner_window_scope_changed``.
+ */
+export async function activateOwnerWindow(activation: OwnerWindowPreflightRequest, cardDigest: string): Promise<PlatformWindow> {
+  if (isMock()) {
+    for (const goalId of activation.goal_ids) {
+      const goal = mockGoals.find((entry) => entry.id === goalId);
+      if (!goal || goal.status !== "PLANNED") throw new PlatformClientError(409, `owner_window_goal_not_admissible:${goalId}`);
+    }
+    activation.goal_ids.forEach((goalId) => __launchMockGoal(goalId));
+    mockWindow.continuous = activation.continuous ?? false;
+    mockWindow.expires_at = activation.continuous ? "" : new Date(Date.now() + activation.hours * 3_600_000).toISOString();
+    mockWindow.max_tasks = activation.max_tasks;
+    mockWindow.max_token_units = activation.max_token_units ?? 0;
+    return { ...mockWindow };
+  }
+  return request<PlatformWindow>("/api/owner-window/activate", {
+    method: "POST",
+    body: JSON.stringify({ ...activation, card_digest: cardDigest }),
+  });
+}
+
+export async function preflightOwnerWindow(preflightRequest: OwnerWindowPreflightRequest): Promise<OwnerWindowPreflightResult> {
+  if (isMock()) {
+    const goals = preflightRequest.goal_ids.map((id) => mockGoals.find((goal) => goal.id === id));
+    const admissible = goals.every((goal) => goal?.status === "PLANNED");
+    return {
+      ok: admissible,
+      checks: [{ check: "goals", ok: admissible, reason: admissible ? "" : "owner_window_goal_not_admissible", detail: "" }],
+      preview: goals.flatMap((goal) => goal?.tasks.map((task) => `- ${goal.id} ${task.id}: free (token-sensenova/glm-5.2, mock_route)`) ?? []),
+      scope: admissible ? {
+        repository: goals[0]?.repository ?? "", base_sha: "",
+        goals: goals.flatMap((goal) => goal ? [{ id: goal.id, revision: goal.revision, objective: goal.objective,
+          mode: goal.orchestration_mode ?? "", tasks: goal.tasks.map((task) => ({ id: task.id, title: task.title }))}] : []),
+        pool: [{ binding: "token-sensenova-glm-5.2", executor: "opencode", model: "token-sensenova/glm-5.2", cost: "free" }],
+        pool_skipped: [], envelope: {}, paid_api: "excluded",
+      } : null,
+      card_digest: "0".repeat(64),
+      confirmation: "ui",
+    };
+  }
+  return request<OwnerWindowPreflightResult>("/api/owner-window/preflight", {
+    method: "POST",
+    body: JSON.stringify(preflightRequest),
+  });
 }
 
 export async function cancelRun(taskId: string): Promise<PlatformRunCancelResult> {

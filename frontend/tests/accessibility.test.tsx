@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "./test-utils";
 import { PermissionSelector } from "@/components/permission-selector";
@@ -68,7 +68,8 @@ describe("accessibility", () => {
     ).toBeInTheDocument();
   });
 
-  it("sidebar nav items are keyboard reachable and labelled", () => {
+  it("sidebar nav items are keyboard reachable and labelled", async () => {
+    const user = userEvent.setup();
     renderWithProviders(
       <div>
         <Sidebar
@@ -79,14 +80,39 @@ describe("accessibility", () => {
         />
       </div>,
     );
-    const tasksLink = screen.getByTestId("sidebar-nav-任务");
-    expect(tasksLink).toHaveAttribute("href", "/tasks");
+    // Top routes are plain links, reachable by Tab.
     const homeLink = screen.getByTestId("sidebar-nav-首页");
     expect(homeLink).toHaveAttribute("href", "/");
-    expect(screen.getByTestId("sidebar-nav-收件箱")).toHaveAttribute("href", "/inbox");
-    expect(screen.getByTestId("sidebar-nav-路线图")).toHaveAttribute("href", "/roadmap");
-    expect(screen.getByTestId("sidebar-nav-Agent 运行")).toHaveAttribute("href", "/runs");
-    expect(screen.getByTestId("sidebar-nav-设置")).toHaveAttribute("href", "/settings");
+    const goalsLink = screen.getByTestId("sidebar-nav-目标");
+    expect(goalsLink).toHaveAttribute("href", "/goals");
+    expect(goalsLink).not.toHaveAttribute("tabindex", "-1");
+    expect(screen.queryByTestId("sidebar-nav-收件箱")).not.toBeInTheDocument();
+
+    // The rest live in the 更多 menu: a focusable summary that opens a labelled nav of links.
+    const menu = screen.getByTestId("sidebar-menu");
+    const summary = within(menu).getByText("更多").closest("summary") as HTMLElement;
+    expect(summary).toHaveAccessibleName("更多");
+    expect(summary).not.toHaveAttribute("tabindex", "-1");
+    summary.focus();
+    expect(summary).toHaveFocus();
+    expect(menu).not.toHaveAttribute("open");
+    await user.click(summary);
+    expect(menu).toHaveAttribute("open");
+    const nav = within(menu).getByRole("navigation", { name: "更多" });
+    const expected: Record<string, string> = {
+      审批: "/approvals", 运行记录: "/runs", 任务: "/tasks", 账户: "/accounts", 设置: "/settings",
+    };
+    for (const [label, href] of Object.entries(expected)) {
+      const link = screen.getByTestId(`sidebar-nav-${label}`);
+      expect(nav).toContainElement(link);
+      expect(link).toHaveAttribute("href", href);
+      expect(link).toHaveAccessibleName(new RegExp(label));
+      expect(link).not.toHaveAttribute("tabindex", "-1");
+    }
+    // Tab from the summary reaches the first menu link.
+    summary.focus();
+    await user.tab();
+    expect(screen.getByTestId("sidebar-nav-审批")).toHaveFocus();
   });
 
   it("custom policy editor traps focus (Tab cycles within dialog)", async () => {
@@ -130,41 +156,32 @@ describe("accessibility", () => {
     expect(screen.getByTestId("body")).toBeInTheDocument();
   });
 
+  const LIGHT_SURFACES = ["#f4f2ec", "#ffffff", "#efece4", "#ebe7dd", "#f7f5f0", "#faf9f5"];
+  const DARK_SURFACES = ["#1b1b19", "#262624", "#20201e", "#181816", "#2f2e2b"];
+
   it("keeps tertiary text at WCAG AA contrast on every surface it renders on", () => {
     const css = read("src/index.css");
 
-    expect(css).not.toContain("--ra-text-tertiary: #77786f;");
-    expect(css).toContain("--ra-text-tertiary: #66675f;");
-    // #8f8e88 only reached 4.34:1 on the dark tertiary surface and 4.16:1 on
-    // the dark input surface, where the task-detail tabs and the settings hint
-    // text actually sit.
-    expect(css).not.toContain("--ra-text-tertiary: #8f8e88;");
-    expect(css).toContain("--ra-text-tertiary: #979690;");
-
-    for (const surface of ["#fffefa", "#f1eee6", "#ece8de", "#ebe7dd", "#f7f4ed"]) {
-      expect(contrastRatio("#66675f", surface)).toBeGreaterThanOrEqual(4.5);
+    expect(css).toContain("--ra-text-tertiary: #605c53;");
+    expect(css).toContain("--ra-text-tertiary: #a09d94;");
+    for (const surface of LIGHT_SURFACES) {
+      expect(contrastRatio("#605c53", surface)).toBeGreaterThanOrEqual(4.5);
     }
-    for (const surface of ["#171816", "#232421", "#1d1e1c", "#1a1b19", "#2a2b27", "#2d2e2a"]) {
-      expect(contrastRatio("#979690", surface)).toBeGreaterThanOrEqual(4.5);
+    for (const surface of DARK_SURFACES) {
+      expect(contrastRatio("#a09d94", surface)).toBeGreaterThanOrEqual(4.5);
     }
   });
 
   it("keeps the light accent and status hues at WCAG AA contrast on every light surface", () => {
     const css = read("src/index.css");
 
-    // The light accents were previously tuned against `--ra-base` only, so
-    // #507f7a measured 3.65:1 and #2f7d50 4.08:1 on `--ra-tertiary`.
-    // Compare against the *declared* tone values, not the raw file text: the
-    // comments above each list deliberately quote the old hexes to explain why
-    // they were replaced.
-    expect(declaredAccentTones(css)).not.toContain("507f7a");
     // The light accent lives in the theme's tone list; `html[data-accent="…"]`
     // only points at it, so the literal must be asserted there.
-    expect(css).toContain("--ra-accent-tone-cyan: #456e6a;");
+    expect(css).toContain("--ra-accent-tone-cyan: #0d6a76;");
 
-    const lightSurfaces = ["#f1eee6", "#fffefa", "#ece8de", "#ebe7dd", "#f7f4ed"];
-    for (const value of ["#456e6a", "#2b734a", "#8c5d12", "#a83c35", "#65665f"]) {
-      for (const surface of lightSurfaces) {
+    for (const value of ["#0d6a76", "#1f7346", "#855a0e", "#b03a33", "#5e6169"]) {
+      expect(css).toContain(value);
+      for (const surface of LIGHT_SURFACES) {
         expect(contrastRatio(value, surface)).toBeGreaterThanOrEqual(4.5);
       }
     }
@@ -174,18 +191,15 @@ describe("accessibility", () => {
     const css = read("src/index.css");
 
     // `text-ra-accent` is used for run state, activity verbs and inline links,
-    // so each accent has to hold up as *text* on all six dark surfaces, not
-    // just as a fill on the workspace. The original seeds were tuned against
-    // the workspace alone: blue measured 4.10:1, violet 3.58:1 and rose
-    // 3.93:1 on `--ra-input`.
+    // so each accent has to hold up as *text* on every dark surface, not just
+    // as a fill on the workspace.
     for (const stale of ["438cf4", "8a6cf1", "e45b72"]) {
       expect(declaredAccentTones(css), `${stale} must not survive as a dark accent`).not.toContain(stale);
     }
 
-    const darkSurfaces = ["#171816", "#232421", "#1d1e1c", "#1a1b19", "#2a2b27", "#2d2e2a"];
-    for (const value of ["#7ea7a2", "#5597f5", "#9e85f3", "#d88a19", "#e87185"]) {
+    for (const value of ["#5ab4c0", "#6ba6f7", "#a892f5", "#e0992f", "#ee8598"]) {
       expect(css, `${value} must be declared as a dark accent tone`).toContain(value);
-      for (const surface of darkSurfaces) {
+      for (const surface of DARK_SURFACES) {
         expect(
           contrastRatio(value, surface),
           `${value} on ${surface}`,
@@ -205,14 +219,5 @@ describe("accessibility", () => {
       "*::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }",
     );
     expect(css).toContain('@import "tailwindcss"');
-  });
-
-  it("keeps light error text at WCAG AA contrast on both light surfaces", () => {
-    const css = read("src/index.css");
-
-    expect(css).not.toContain("--ra-status-error: #b9473f;");
-    expect(css).toContain("--ra-status-error: #a83c35;");
-    expect(contrastRatio("#a83c35", "#fffefa")).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio("#a83c35", "#f1eee6")).toBeGreaterThanOrEqual(4.5);
   });
 });

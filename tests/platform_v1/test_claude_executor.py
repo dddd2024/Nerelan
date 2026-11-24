@@ -160,6 +160,12 @@ def test_child_environment_strips_api_credentials():
     assert env == {"PATH": "p", "USERPROFILE": "u", "CLAUDE_CONFIG_DIR": "c", "SystemRoot": "s"}
 
 
+def test_child_environment_preserves_os_username_keys():
+    env = claude_child_env({"PATH": "p", "USERNAME": "u-win", "USER": "u-posix", "LOGNAME": "u-log",
+                            "ANTHROPIC_API_KEY": "k", "OPENAI_API_KEY": "o", "HTTPS_PROXY": "h"})
+    assert env == {"PATH": "p", "USERNAME": "u-win", "USER": "u-posix", "LOGNAME": "u-log"}
+
+
 def _runner(status_payload, *, help_text=None, status_code=0):
     help_text = help_text or ("--print --output-format --permission-mode --strict-mcp-config "
                               "--restricted --tools --permission-prompts --no-session-persistence")

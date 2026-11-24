@@ -23,6 +23,7 @@ Boundaries:
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import math
@@ -248,12 +249,13 @@ _MAX_MODEL_ID_LENGTH = 128
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
-# Non-secret OS user/temp location keys. On Windows, CPython derives its
-# user base from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); a
+# Non-secret OS user/temp location and user-identity keys. On Windows, CPython derives
+# its user base from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); a
 # child without any of them makes ``site.getusersitepackages()`` resolve to
 # the *literal* ``~`` directory, so a tooling install writes a ``~/...`` tree
 # inside the workspace the executor is editing and the artifact hygiene gate
-# rejects the patch. These are filesystem locations, never credentials.
+# rejects the patch. Likewise, Windows lacks POSIX ``pwd``, so ``getpass.getuser()``
+# fails unless a non-secret OS user-identity key is preserved.
 _BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
     "USERPROFILE",
     "HOMEDRIVE",
@@ -264,6 +266,9 @@ _BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
     "TMP",
     "TMPDIR",
     "HOME",
+    "USERNAME",
+    "USER",
+    "LOGNAME",
 )
 
 _BINDING_CHILD_ENV_ALLOWLIST = (
@@ -378,9 +383,46 @@ _OPENCODE_DISABLE_ENV = {
 }
 
 
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def _selected_model_limits(store: Any, task_id: str) -> tuple[int | None, int | None]:
+    """Read context_window and max_output_tokens from the task's latest MODEL_SELECTED event."""
+    get_events = getattr(store, "get_events", None)
+    if not callable(get_events):
+        return None, None
+    try:
+        events = list(get_events(task_id))
+    except Exception:
+        return None, None
+    for event in reversed(events):
+        if getattr(event, "type", "") != "MODEL_SELECTED":
+            continue
+        meta = getattr(event, "metadata", None)
+        if not isinstance(meta, Mapping):
+            continue
+        chars = meta.get("characteristics")
+        chars = chars if isinstance(chars, Mapping) else {}
+        context_window = _positive_int(meta.get("context_window")) or _positive_int(
+            chars.get("context_window")
+        )
+        max_output_tokens = _positive_int(chars.get("max_output_tokens")) or _positive_int(
+            meta.get("max_output_tokens")
+        )
+        if context_window is not None:
+            return context_window, max_output_tokens
+    return None, None
+
+
 def build_binding_config_content(
     resolution: OpenCodeBindingResolution,
     lease: ExecutionLeaseHandle | None = None,
+    *,
+    context_window: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> str:
     """Build transient non-secret provider metadata for one OpenCode child.
 
@@ -416,13 +458,22 @@ def build_binding_config_content(
         provider_key = resolution.provider_id or _TRANSIENT_PROVIDER_ID
         options = {"baseURL": resolution.base_url}
         provider_facing_model = _extract_provider_facing_model(resolution.model_id)
+    model_config: dict[str, Any] = {}
+    context_limit = _positive_int(context_window)
+    if context_limit is not None:
+        output_limit = _positive_int(max_output_tokens)
+        if output_limit is None:
+            output_limit = min(32768, max(4096, context_limit // 4))
+            if output_limit >= context_limit:
+                output_limit = max(1, context_limit // 2)
+        model_config = {"limit": {"context": context_limit, "output": output_limit}}
     payload = {
         "provider": {
             provider_key: {
                 "npm": "@ai-sdk/openai" if resolution.native_endpoint == "/responses" else _TRANSIENT_PROVIDER_NPM,
                 "name": _TRANSIENT_PROVIDER_NAME,
                 "options": options,
-                "models": {provider_facing_model: {}},
+                "models": {provider_facing_model: model_config},
             }
         }
     }
@@ -1152,6 +1203,30 @@ _ROLE_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+# The language the agent writes its progress notes and final summary in, so
+# the Owner reads its turn without a translation step. Code, identifiers,
+# paths, commands, commit messages, comments and handoff files stay English.
+# REVERSE_AGENT_AGENT_LANGUAGE: "zh-CN" (default) or "en" to leave it unset.
+_OUTPUT_LANGUAGE_RULES = {
+    "zh-CN": ("OUTPUT LANGUAGE: Write your progress notes and your final summary for the Owner "
+              "in Simplified Chinese (\u7b80\u4f53\u4e2d\u6587). Keep code, identifiers, file paths, "
+              "commands, commit messages, code comments and handoff files in English."),
+}
+
+
+def output_language_rule() -> str:
+    """The prompt line that sets the agent's prose language ("" for English)."""
+    value = os.environ.get("REVERSE_AGENT_AGENT_LANGUAGE", "zh-CN").strip()
+    if value.lower() in {"", "en", "en-us", "english", "off", "none"}:
+        return ""
+    return _OUTPUT_LANGUAGE_RULES.get(value, _OUTPUT_LANGUAGE_RULES["zh-CN"])
+
+
+def _language_block() -> str:
+    rule = output_language_rule()
+    return f"{rule}\n" if rule else ""
+
+
 def build_prompt(task_title: str, worktree: str) -> str:
     """Build the bounded authority envelope wrapping the user task."""
     return (
@@ -1159,6 +1234,7 @@ def build_prompt(task_title: str, worktree: str) -> str:
         f"{_PROMPT_CONSTRAINTS}\n"
         f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
+        f"{_language_block()}"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"
@@ -1196,6 +1272,7 @@ def build_role_prompt(
         f"{_ROLE_END_STATE_DISCLAIMER}\n"
         f"Worktree: {worktree}\n"
         f"{_AUTHORITY_FOOTER}\n"
+        f"{_language_block()}"
         f"{_USER_TASK_HEADER}\n"
         f"{task_title}\n"
         f"{_USER_TASK_FOOTER}"
@@ -1306,13 +1383,17 @@ def build_opencode_argv(
 # relay adds a fixed setup margin on top; the combined lease lifetime is
 # capped separately, and neither value is extendable from here.
 _EXECUTION_TIMEOUT_HARD_CAP_SECONDS = 3600
+# An invocation with no relay lease and a working stall guard may run longer: in a
+# continuous Owner window it is stopped by silence, not by total time (Owner decision
+# 2026-11-15, #1551), and this runaway guard is its only total bound.
+_UNLEASED_RUNAWAY_CAP_SECONDS = 24 * 3600
 
 
 def _validate_execution_timeout(timeout: object) -> int | float:
     """Reject an invalid execution budget before any lease or transport work."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ExecutorRuntimeError("invalid_execution_timeout")
-    if not 0 < timeout <= _EXECUTION_TIMEOUT_HARD_CAP_SECONDS:
+    if not 0 < timeout <= _UNLEASED_RUNAWAY_CAP_SECONDS:
         raise ExecutorRuntimeError("invalid_execution_timeout")
     if isinstance(timeout, float) and not math.isfinite(timeout):
         raise ExecutorRuntimeError("invalid_execution_timeout")
@@ -1324,6 +1405,13 @@ def _validate_execution_timeout(timeout: object) -> int | float:
 # consuming and the child is never allowed to grow an unbounded in-memory
 # buffer. Partial diagnostics stay within these bounds.
 _OWNED_STDOUT_BOUND_BYTES = 8 * 1024 * 1024
+
+# Receives each complete stdout line while the CLI runs (live progress).
+# A ContextVar rather than a parameter: the call site keeps its signature and
+# a sink failure can never affect the owned process or its bounded buffers.
+_STDOUT_LINE_SINK: contextvars.ContextVar[Callable[[bytes], None] | None] = (
+    contextvars.ContextVar("opencode_stdout_line_sink", default=None))
+_MAX_SINK_LINE_BYTES = 256 * 1024
 _OWNED_STDERR_BOUND_BYTES = 256 * 1024
 
 
@@ -1348,6 +1436,32 @@ class OwnedCliProcessResult:
     timed_out: bool
     cleanup_confirmed: bool
     output_truncated: bool = False
+    # Stopped because the CLI wrote nothing for ``stall_seconds`` (#1473), not
+    # because the overall timeout ran out. ``timed_out`` is also True then.
+    stalled: bool = False
+
+
+# A CLI that writes nothing for this long is stopped (#1473). OpenCode streams JSON
+# events while it works; it goes silent while it waits out a provider's 429 (once
+# for an hour). REVERSE_AGENT_EXECUTOR_STALL_SECONDS overrides; 0 turns it off.
+DEFAULT_STALL_SECONDS = 900
+MIN_STALL_SECONDS = 120
+
+
+def executor_stall_seconds() -> float | None:
+    environ = getattr(os, "environ", None) or {}
+    raw = str(environ.get("REVERSE_AGENT_EXECUTOR_STALL_SECONDS", "")).strip()
+    if not raw:
+        return float(DEFAULT_STALL_SECONDS)
+    try:
+        value = float(raw)
+    except ValueError:
+        return float(DEFAULT_STALL_SECONDS)
+    if value == 0:
+        return None
+    if not math.isfinite(value) or value < 0:
+        return float(DEFAULT_STALL_SECONDS)
+    return max(float(MIN_STALL_SECONDS), value)
 
 
 def _run_owned_cli_process(
@@ -1357,6 +1471,8 @@ def _run_owned_cli_process(
     env: Mapping[str, str],
     timeout: int | float,
     encoding: str = "utf-8",
+    stall_seconds: Any = "env",
+    poll_seconds: float = 5.0,
 ) -> OwnedCliProcessResult:
     """Launch the CLI as an owned process tree and return its bounded output.
 
@@ -1371,6 +1487,8 @@ def _run_owned_cli_process(
     from .functional_validation import _WindowsJob
     from .native_quota import stop_and_confirm
 
+    if stall_seconds == "env":
+        stall_seconds = executor_stall_seconds()  # host setting (#1473); tests pass their own
     job = _WindowsJob() if os.name == "nt" else None
     proc: subprocess.Popen[bytes] | None = None
     stdout_buf = bytearray()
@@ -1381,22 +1499,46 @@ def _run_owned_cli_process(
     cleanup_confirmed = False
     process_error: BaseException | None = None
     output_truncated = False
+    stalled = False
+    last_output = time.monotonic()
+    line_sink = _STDOUT_LINE_SINK.get()
 
-    def _drain(pipe: Any, sink: bytearray, cap: int) -> None:
-        nonlocal output_truncated
+    def _deliver_lines(pending: bytearray, chunk: bytes) -> None:
+        pending.extend(chunk)
+        while True:
+            newline = pending.find(b"\n")
+            if newline < 0:
+                if len(pending) > _MAX_SINK_LINE_BYTES:
+                    pending.clear()  # an oversized line is not progress; the buffer keeps it
+                return
+            line = bytes(pending[:newline])
+            del pending[:newline + 1]
+            try:
+                line_sink(line)
+            except Exception:
+                pass
+
+    def _drain(pipe: Any, sink: bytearray, cap: int, live: bool = False) -> None:
+        nonlocal output_truncated, last_output
+        pending = bytearray()
         while not stopping.is_set():
             try:
-                chunk = pipe.read(4096)
+                # read1: return what is available instead of waiting for a full block,
+                # so the stall clock sees each event as it is written.
+                chunk = pipe.read1(4096) if hasattr(pipe, "read1") else pipe.read(4096)
             except (OSError, ValueError):
                 break
             if not chunk:
                 break
             with lock:
+                last_output = time.monotonic()
                 remaining = cap - len(sink)
                 if len(chunk) > remaining:
                     output_truncated = True
                 if remaining > 0:
                     sink.extend(chunk[:remaining])
+            if live and line_sink is not None:
+                _deliver_lines(pending, chunk)
 
     try:
         if job is not None:
@@ -1435,7 +1577,7 @@ def _run_owned_cli_process(
         readers = [
             threading.Thread(
                 target=_drain,
-                args=(proc.stdout, stdout_buf, _OWNED_STDOUT_BOUND_BYTES),
+                args=(proc.stdout, stdout_buf, _OWNED_STDOUT_BOUND_BYTES, True),
                 daemon=True,
             ),
             threading.Thread(
@@ -1448,10 +1590,23 @@ def _run_owned_cli_process(
             reader.start()
 
         timed_out = False
-        try:
-            proc.wait(timeout=float(timeout))
-        except subprocess.TimeoutExpired:
-            timed_out = True
+        deadline = time.monotonic() + float(timeout)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                timed_out = True
+                break
+            try:
+                proc.wait(timeout=min(remaining, poll_seconds) if stall_seconds else remaining)
+                break
+            except subprocess.TimeoutExpired:
+                pass
+            if stall_seconds:
+                with lock:
+                    silent = time.monotonic() - last_output
+                if silent >= stall_seconds:
+                    timed_out = stalled = True
+                    break
     except BaseException as exc:
         process_error = exc
         raise
@@ -1514,6 +1669,7 @@ def _run_owned_cli_process(
         timed_out=timed_out,
         cleanup_confirmed=cleanup_confirmed,
         output_truncated=output_truncated,
+        stalled=stalled,
     )
 
 
@@ -1533,8 +1689,16 @@ class OpenCodeExecutor:
         use_auto: bool = True,
         transport_kind: str = "cli",
         lease_provider: LeaseProvider | None = None,
+        context_window: int | None = None,
+        max_output_tokens: int | None = None,
     ) -> None:
         timeout = _validate_execution_timeout(timeout)
+        if timeout > _EXECUTION_TIMEOUT_HARD_CAP_SECONDS and (
+                (binding_resolution is not None and binding_resolution.relay_required)
+                or executor_stall_seconds() is None):
+            # A relay lease never outlives the 1 h cap, and without the stall guard
+            # nothing but total time would stop a silent attempt.
+            timeout = _EXECUTION_TIMEOUT_HARD_CAP_SECONDS
         self._binding_resolution = binding_resolution
         self._lease_provider = lease_provider
         if binding_resolution is not None:
@@ -1569,6 +1733,14 @@ class OpenCodeExecutor:
         if transport_kind not in {"cli", "server"}:
             raise ExecutorRuntimeError("opencode_transport_kind_invalid")
         self._transport_kind = transport_kind
+        self._context_window = _positive_int(context_window)
+        self._max_output_tokens = _positive_int(max_output_tokens)
+
+    def _resolve_model_limits(self, store: Any, task_id: str) -> tuple[int | None, int | None]:
+        """Use constructor-supplied limits when present, else fall back to store events."""
+        if self._context_window is not None:
+            return self._context_window, self._max_output_tokens
+        return _selected_model_limits(store, task_id)
 
     def execute(
         self,
@@ -1693,9 +1865,12 @@ class OpenCodeExecutor:
             try:
                 role = role_context.role
                 if self._binding_resolution is not None:
+                    context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                     config_content = build_binding_config_content(
                         self._binding_resolution,
                         lease=lease_handle,
+                        context_window=context_window,
+                        max_output_tokens=max_output_tokens,
                     )
                     child_env = build_role_child_env(
                         self._parent_env,
@@ -1708,12 +1883,18 @@ class OpenCodeExecutor:
                         None,
                         role,
                     )
-                owned = _run_owned_cli_process(
-                    cli_argv,
-                    cwd=str(worktree),
-                    env=child_env,
-                    timeout=self._timeout,
-                )
+                sink_token = _STDOUT_LINE_SINK.set(_progress_sink(
+                    event_callback, task_id,
+                    execution_id=execution_id, role=role_context.role))
+                try:
+                    owned = _run_owned_cli_process(
+                        cli_argv,
+                        cwd=str(worktree),
+                        env=child_env,
+                        timeout=self._timeout,
+                    )
+                finally:
+                    _STDOUT_LINE_SINK.reset(sink_token)
             finally:
                 if lease_handle is not None:
                     try:
@@ -1768,6 +1949,8 @@ class OpenCodeExecutor:
         stderr = owned.stderr or ""
         timed_out = owned.timed_out
         cleanup_confirmed = owned.cleanup_confirmed
+        stalled = bool(getattr(owned, "stalled", False))
+        timeout_class = "executor_stalled" if stalled else "timeout"
 
         if timed_out:
             # Preserve bounded, sanitized partial diagnostics while keeping
@@ -1833,7 +2016,7 @@ class OpenCodeExecutor:
                     "description": "First partial text retained; completion was cut off",
                     "metadata": {
                         "execution_id": execution_id,
-                        "failure_classification": "timeout",
+                        "failure_classification": timeout_class,
                         "role": role_context.role,
                         "partial_text": redact_secrets(partial_text_parts[0])[:MAX_EVIDENCE_STRING_LEN],
                         "is_partial": True,
@@ -1848,7 +2031,7 @@ class OpenCodeExecutor:
                     "description": "Bounded stderr retained for timeout diagnosis",
                     "metadata": {
                         "execution_id": execution_id,
-                        "failure_classification": "timeout",
+                        "failure_classification": timeout_class,
                         "role": role_context.role,
                         "stderr_summary": stderr_redacted[:512],
                         "is_partial": True,
@@ -1857,12 +2040,14 @@ class OpenCodeExecutor:
 
             _emit(event_callback, task_id, {
                 "type": "EXECUTOR_FINISHED",
-                "title": "OpenCode timeout",
-                "description": "OpenCode CLI exceeded timeout",
+                "title": "OpenCode stalled" if stalled else "OpenCode timeout",
+                "description": ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
+                                if stalled else "OpenCode CLI exceeded timeout"),
                 "metadata": {
                     "execution_id": execution_id,
                     "timeout": self._timeout,
-                    "failure_classification": "timeout",
+                    "stall_seconds": executor_stall_seconds() if stalled else None,
+                    "failure_classification": timeout_class,
                     "role": role_context.role,
                     "cleanup_confirmed": cleanup_confirmed,
                     "partial_usage_observations": len(partial_observations),
@@ -1876,6 +2061,8 @@ class OpenCodeExecutor:
             # descendants may still be mutating them.
             changed_files = _collect_changed_files(worktree) if cleanup_confirmed else []
             error = "opencode_timeout:%s" % self._timeout
+            if stalled:
+                error = "opencode_stalled:%s" % int(executor_stall_seconds() or 0)
             if not cleanup_confirmed:
                 error = "opencode_timeout:cleanup_unconfirmed:%s" % self._timeout
             return ExecutorResult(
@@ -1889,7 +2076,8 @@ class OpenCodeExecutor:
                 workspace=str(worktree),
                 execution_id=execution_id,
                 process_exit_code=-1,
-                failure_classification="timeout",
+                # Cleanup uncertainty keeps the plain timeout path and its retry guard.
+                failure_classification=timeout_class if cleanup_confirmed else "timeout",
             )
 
         if not cleanup_confirmed:
@@ -2123,9 +2311,12 @@ class OpenCodeExecutor:
             role = role_context.role
             config_content: str | None = None
             if self._binding_resolution is not None:
+                context_window, max_output_tokens = self._resolve_model_limits(store, task_id)
                 config_content = build_binding_config_content(
                     self._binding_resolution,
                     lease=lease_handle,
+                    context_window=context_window,
+                    max_output_tokens=max_output_tokens,
                 )
             child_env = build_role_child_env(
                 self._parent_env,
@@ -2344,6 +2535,7 @@ class OpenCodeExecutor:
                 event_callback=None,
                 classification=result.failure_classification or "server_transport_failed",
                 abort_state=result.abort_state,
+                failure_reset_at=result.failure_reset_at,
             )
         return self._validate_server_success(
             task_id=task_id,
@@ -2363,6 +2555,7 @@ class OpenCodeExecutor:
         event_callback: ExecutorCallback | None,
         classification: str,
         abort_state: str,
+        failure_reset_at: str = "",
     ) -> ExecutorResult:
         _emit(event_callback, task_id, {
             "type": "EXECUTOR_FINISHED",
@@ -2389,6 +2582,7 @@ class OpenCodeExecutor:
             execution_id=execution_id,
             process_exit_code=-1,
             failure_classification=classification,
+            failure_reset_at=failure_reset_at,
         )
 
     def _validate_server_success(
@@ -3558,6 +3752,9 @@ def _classify_exit(
         return "cli_unavailable"
     if exit_code in (124, 137, 143):
         return "timeout"
+    from .model_availability import EXECUTOR_TERMINATED, external_termination
+    if external_termination(exit_code):
+        return EXECUTOR_TERMINATED
     for payload in _extract_error_payloads(events_raw):
         status = _pick_error_status(payload)
         text = _pick_error_str(payload)
@@ -3577,6 +3774,10 @@ def _classify_exit(
                 if _QUOTA_EXHAUSTED_RE.search(text):
                     return "quota_exhausted"
                 return "api_error_429"
+            # HTTP 402 Payment Required is a billing answer, never a rate limit:
+            # the upstream account has no credits left to pay for the call.
+            if status == 402:
+                return "quota_exhausted"
             if status in (401, 403):
                 return "auth_provider_route_failure"
             if status in (503, 529):
@@ -3590,6 +3791,9 @@ def _classify_exit(
 
         if _QUOTA_EXHAUSTED_RE.search(text):
             return "quota_exhausted"
+        from .model_availability import provider_rate_limit_reply
+        if provider_rate_limit_reply(text):
+            return "api_error_429"
         if _AUTH_ERROR_RE.search(text):
             return "auth_provider_route_failure"
         if _OVERLOAD_ERROR_RE.search(text):
@@ -3610,7 +3814,22 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     r"quota\s+has\s+been\s+exhausted|"
     r"quota\s+is\s+exhausted|"
     r"quota\s+was\s+exhausted|"
-    r"usage[_ -]?limit[_ -]?reached)\b",
+    r"usage[_ -]?limit[_ -]?reached|"
+    # A used-up token/coding plan answers HTTP 429 like a rate limit, but it
+    # does not recover in seconds (#1497).
+    r"(?:plan\s+)?entitlement\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    r"plan\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    # Billing answers are exhaustion too, not a rate limit: OpenRouter answers
+    # 402 "Insufficient credits", WorkBuddy answers 429 "Credits exhausted".
+    # Wording that names credits or a balance is the signal; a bare 429 stays a
+    # rate limit (#1525).
+    r"insufficient[_ -]?credits?|"
+    r"credits?[_ -]?(?:exhausted|exceeded|depleted|used[_ -]?up|spent|gone|lacking|insufficient)|"
+    r"exhausted[_ -]?credits?|"
+    r"(?:out\s+of|ran\s+out\s+of|not\s+enough|no)\s+credits?|"
+    r"credits?\s+(?:are\s+|is\s+|have\s+been\s+|has\s+been\s+)?(?:exhausted|depleted|exceeded|used\s+up|spent|gone|empty)|"
+    r"insufficient[_ -]?balance|"
+    r"balance\s+(?:is\s+|has\s+been\s+)?(?:insufficient|exhausted|depleted|too\s+low))\b",
     re.IGNORECASE,
 )
 # One exact structured message names a provider-side quota limit. Only that
@@ -3651,6 +3870,106 @@ _MODEL_UNAVAILABLE_RE = re.compile(
 # ---------------------------------------------------------------------------
 # Emit helper
 # ---------------------------------------------------------------------------
+
+MAX_PROGRESS_EVENTS = 300
+PROGRESS_TEXT_INTERVAL_SECONDS = 5.0
+_PROGRESS_TARGET_KEYS = ("filePath", "path", "file", "command", "pattern", "url", "query", "description")
+# Control bytes inside a secret could split a redaction pattern; drop them first.
+_PROGRESS_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_PROGRESS_TOOL_KINDS = {
+    "read": "READ", "list": "READ", "ls": "READ",
+    "grep": "SEARCH", "glob": "SEARCH", "search": "SEARCH", "codesearch": "SEARCH", "websearch": "SEARCH",
+    "edit": "EDIT", "write": "EDIT", "patch": "EDIT", "multiedit": "EDIT", "apply_patch": "EDIT",
+    "bash": "COMMAND", "shell": "COMMAND",
+}
+
+
+def progress_activity_kind(summary: Mapping[str, str]) -> str:
+    """The run read-model category for one live summary (unknown tools are planning steps)."""
+    if summary.get("kind") == "error":
+        return "BLOCKED"
+    return _PROGRESS_TOOL_KINDS.get(str(summary.get("tool", "")).lower(), "PLAN")
+
+
+def progress_summary(event: Any) -> dict[str, str] | None:
+    """One public line for a live OpenCode JSON event, or None to skip it.
+
+    Only the tool name, a short target, a short text excerpt or an allowlisted
+    error diagnostic leave the process; tool output and file contents never do.
+    """
+    if not isinstance(event, Mapping):
+        return None
+    kind = event.get("type")
+    part = event.get("part") if isinstance(event.get("part"), Mapping) else {}
+    if kind == "tool_use":
+        tool = part.get("tool") or event.get("tool") or event.get("name")
+        if not isinstance(tool, str) or not tool:
+            return None
+        state = part.get("state") if isinstance(part.get("state"), Mapping) else {}
+        tool_input = state.get("input") if isinstance(state.get("input"), Mapping) else (
+            event.get("input") if isinstance(event.get("input"), Mapping) else {})
+        target = next((tool_input[key] for key in _PROGRESS_TARGET_KEYS
+                       if isinstance(tool_input.get(key), str) and tool_input[key].strip()), "")
+        if not target and isinstance(state.get("title"), str):
+            target = state["title"]
+        target = redact_secrets(" ".join(_PROGRESS_CONTROL.sub("", str(target)).split()))[:160]
+        return {"kind": "tool", "tool": tool[:40], "target": target,
+                "text": f"{tool[:40]} {target}".strip()}
+    if kind == "text":
+        text = part.get("text") if part.get("type") == "text" else None
+        if not isinstance(text, str) or not text.strip():
+            return None
+        excerpt = redact_secrets(" ".join(_PROGRESS_CONTROL.sub("", text).split()))[:200]
+        return {"kind": "text", "tool": "", "target": "", "text": excerpt}
+    error = event.get("error")
+    if kind in ("error", "session.error") or isinstance(error, Mapping):
+        payload = error if isinstance(error, Mapping) else event
+        message = _single_error_diagnostic(payload, 240)
+        return {"kind": "error", "tool": "", "target": "", "text": message or "error"}
+    return None
+
+
+def _progress_sink(
+    callback: ExecutorCallback | None,
+    task_id: str,
+    *,
+    execution_id: str,
+    role: str,
+) -> Callable[[bytes], None] | None:
+    """Bounded live EXECUTOR_PROGRESS events; final evidence is still built at exit."""
+    if callback is None:
+        return None
+    state = {"count": 0, "last_text": 0.0}
+    guard = threading.Lock()
+
+    def sink(line: bytes) -> None:
+        try:
+            event = json.loads(line.decode("utf-8", errors="replace"))
+        except ValueError:
+            return
+        summary = progress_summary(event)
+        if summary is None:
+            return
+        with guard:
+            if state["count"] >= MAX_PROGRESS_EVENTS:
+                return
+            now = time.monotonic()
+            if summary["kind"] == "text":
+                if now - state["last_text"] < PROGRESS_TEXT_INTERVAL_SECONDS:
+                    return
+                state["last_text"] = now
+            state["count"] += 1
+        _emit(callback, task_id, {
+            "type": "EXECUTOR_PROGRESS", "title": "OpenCode",
+            "description": summary["text"],
+            "metadata": {"executor_kind": "opencode", "execution_id": execution_id, "role": role,
+                         "progress_kind": summary["kind"], "tool": summary["tool"],
+                         "target": summary["target"],
+                         "activity_kind": progress_activity_kind(summary)},
+        })
+
+    return sink
+
 
 def _emit(
     callback: ExecutorCallback | None,

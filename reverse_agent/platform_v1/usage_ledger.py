@@ -17,11 +17,90 @@ Nothing here reads provider output beyond the persisted, allowlisted event metad
 
 from __future__ import annotations
 
+from contextlib import nullcontext
+from functools import wraps
 import json
-from typing import Any
+import math
+from typing import Any, Mapping
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
 COUNTERS = ("input", "cache_read", "cache_write", "output", "reasoning")
+
+# Cost-equivalent weights (#1504): a window's token budget is charged in
+# weighted units, not the raw counter sum, so a prompt-cache read (about 10%
+# of fresh input's list price on most providers) no longer exhausts a window
+# as fast as fresh input. Module constants; a window policy may override
+# individual counters later.
+COST_EQUIVALENT_WEIGHTS: dict[str, float] = {
+    "input": 1.0,
+    "cache_read": 0.1,
+    "cache_write": 1.25,
+    "output": 1.0,
+    "reasoning": 1.0,
+}
+_UNIT_FIELDS = {
+    "input": "input_units",
+    "cache_read": "cache_read_units",
+    "cache_write": "cache_write_units",
+    "output": "output_units",
+    "reasoning": "reasoning_units",
+}
+
+
+def cost_equivalent_units(
+    observation: Any,
+    weights: Mapping[str, float] | None = None,
+    *,
+    unknown_as_zero: bool = False,
+) -> int | None:
+    """Cost-equivalent token units of one usage observation (#1504).
+
+    Fresh input counts 1.0, a cache read 0.1, a cache write 1.25 and output
+    1.0. OpenCode reports reasoning beside output, so it counts 1.0 too;
+    ``native_summary`` rows already fold reasoning into output and must not
+    count it twice (the per-executor rules above). An override mapping
+    replaces only the counters it names. Unknown usage stays unknown
+    (``None``, never a silent zero); ``unknown_as_zero`` serves only the
+    Owner window's partial-reading fallback charge, which by Owner decision
+    2026-11-08 charges what partial readings say with the reservation as
+    the floor. Accepts mappings and ``sqlite3.Row`` observations.
+    """
+    if not isinstance(observation, Mapping):
+        try:
+            observation = dict(observation)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(observation, Mapping):
+        return None
+    charged = {**COST_EQUIVALENT_WEIGHTS, **(weights or {})}
+    if observation.get("status") != "OBSERVED" and not unknown_as_zero:
+        return None
+    total = 0.0
+    for counter, weight in charged.items():
+        value = _int(observation.get(_UNIT_FIELDS.get(counter, f"{counter}_units")))
+        if value is None:
+            if not unknown_as_zero:
+                return None
+            continue
+        if counter == "reasoning" and observation.get("source_kind") == "native_summary":
+            continue
+        total += value * weight
+    return int(math.floor(total + 0.5))
+
+
+def _store_locked(function):
+    """Read through the TaskStore's own lock.
+
+    The store shares one SQLite connection across the host's threads. Reading it
+    unlocked while the coordinator writes interleaves cursors: a planning request
+    then sees another query's rows or a half-written reservation (2026-11-14).
+    The lock is re-entrant, so callers that already hold it are unaffected.
+    """
+    @wraps(function)
+    def locked(store: Any, *args: Any, **kwargs: Any) -> Any:
+        with getattr(store, "_lock", None) or nullcontext():
+            return function(store, *args, **kwargs)
+    return locked
 
 
 def _int(value: Any) -> int | None:
@@ -41,6 +120,7 @@ def _native(usage: dict[str, Any], executor_kind: str) -> dict[str, int | None] 
             "output": output, "reasoning": None}
 
 
+@_store_locked
 def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     """Normalized token counters for the most recent ``limit`` finished, model-backed tasks."""
     conn = store._conn
@@ -91,6 +171,7 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     return records
 
 
+@_store_locked
 def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     """Claim-level measured history without changing the task accounting projection."""
     records = task_token_records(store, limit=limit)
@@ -102,7 +183,12 @@ def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
         if "settlement_json" in columns:
             learned = []
             for row in conn.execute("SELECT * FROM platform_budget_reservations WHERE state<>'ACTIVE' ORDER BY rowid DESC LIMIT ?", (limit,)):
-                fact = json.loads(row["settlement_json"])
+                try:
+                    fact = json.loads(row["settlement_json"])
+                except (TypeError, ValueError):
+                    continue  # a reservation without a readable settlement teaches nothing
+                if not isinstance(fact, dict):
+                    continue
                 estimate = fact.get("estimate", {}).get("estimate", {})
                 if not estimate or not fact.get("tokens") or any(fact["tokens"].get(k) is None for k in ("input", "cache_read", "output")):
                     continue
@@ -117,6 +203,7 @@ def estimation_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     return records
 
 
+@_store_locked
 def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200) -> tuple[list, str] | None:
     """The newest persisted ``rate_limits`` notices among tasks of these bindings, with their time."""
     if not binding_refs:
@@ -135,6 +222,7 @@ def latest_rate_limits(store: Any, binding_refs: list[str], *, limit: int = 200)
     return None
 
 
+@_store_locked
 def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     """List-price cost (USD) and wall time of one task, for per-account feedback.
 
@@ -148,7 +236,9 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     returns the account captured by its reservation plus a stable outcome id.
     One unknown model or missing token counter keeps the whole cost UNKNOWN.
     Manual task lifetime remains available for reporting, labelled as including
-    waits; it is not an attempt's response latency.
+    waits; it is not an attempt's response latency. Completed claims may instead
+    expose a monotonic executor interval recorded by the host in their fenced
+    settlement. Missing/recovered intervals stay UNKNOWN, not task age.
 
     ``cost_units`` is a **list-price estimate**, not
     money billed: Magpie's ``usage --csv`` carries the real per-request
@@ -182,7 +272,7 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             if claim["status"] != "COMPLETE" or "platform_budget_reservations" not in tables:
                 return metrics
             reservation = conn.execute(
-                "SELECT account_ref, state, estimate_json FROM platform_budget_reservations "
+                "SELECT account_ref, state, estimate_json, settlement_json FROM platform_budget_reservations "
                 "WHERE task_id=? AND window_id=? AND claim_epoch=?",
                 (task_id, claim["window_id"], claim["epoch"])).fetchone()
             if reservation is None or reservation["state"] not in {"RECONCILED", "UNKNOWN", "OVERRUN"}:
@@ -192,6 +282,9 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             metrics.update(scope="claim_attempt", account_ref=frozen_account or None,
                            outcome_id=f"{task_id}:{claim['window_id']}:{claim['epoch']}",
                            wall_time_basis="UNKNOWN")
+            wall = _settled_attempt_seconds(reservation["settlement_json"])
+            if wall is not None:
+                metrics.update(wall_seconds=wall, wall_time_basis="attempt_elapsed")
             where = "task_id=? AND window_id=? AND claim_epoch=?"
             params = (task_id, claim["window_id"], claim["epoch"])
         rows = conn.execute(
@@ -233,6 +326,20 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
     except Exception:  # noqa: BLE001
         metrics["wall_seconds"] = None
     return metrics
+
+
+def _settled_attempt_seconds(raw: Any) -> float | None:
+    import math
+    try:
+        timing = json.loads(raw or "{}").get("attempt_metrics", {})
+        wall = timing.get("wall_seconds")
+        if (type(timing.get("schema_version")) is int and timing["schema_version"] == 1
+                and timing.get("state") == "OBSERVED" and timing.get("basis") == "executor_attempt_elapsed"
+                and type(wall) in (int, float) and math.isfinite(wall) and wall >= 0):
+            return float(wall)
+    except (ValueError, TypeError, AttributeError, OverflowError, RecursionError):
+        pass
+    return None
 
 
 def _elapsed_seconds(start: Any, end: Any) -> float | None:

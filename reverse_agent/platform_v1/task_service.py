@@ -23,7 +23,7 @@ import hashlib
 import os
 import time
 import re
-from threading import Thread
+from threading import BoundedSemaphore, Thread
 from typing import Any, Mapping, Sequence
 from urllib.parse import unquote, urlsplit
 import tempfile
@@ -43,7 +43,6 @@ from .task_runtime import (
 )
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
-from .authority_adapter import AuthorityBundleError, load_policy_authority
 from .task_runtime import load_host_validation_contract
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
@@ -75,6 +74,7 @@ FAILURE_CLASSIFICATION_TO_TEST_STATUS: dict[str, str] = {
     "timeout": "PENDING",
     "malformed_executor_output": "FAIL",
     "executor_nonzero": "FAIL",
+    "executor_terminated": "PENDING",
     "deterministic_validation_failure": "FAIL",
     "policy_worktree_violation": "FAIL",
 }
@@ -87,6 +87,44 @@ _WORKFLOW_STATUSES = frozenset(
     {"SUCCESS", "FAILURE", "PENDING", "RUNNING", "NEUTRALIZED", "UNKNOWN"}
 )
 _GOVERNANCE_MISSING = object()
+_POLLED_IN_FLIGHT = 4
+_POLLED_SLOTS = {
+    path: BoundedSemaphore(_POLLED_IN_FLIGHT)
+    for path in ("/api/goals", "/api/goals/*", "/api/runs", "/api/tasks",
+                 "/api/platform/status", "/api/goals/*/timeline")
+}
+_TIMELINE_PATH = re.compile(r"^/api/goals/[^/]+/timeline$")
+_GOAL_DETAIL_PATH = re.compile(r"^/api/goals/[^/]+$")
+
+_ERROR_CLASS_FOR_STATUS: dict[int, str] = {
+    400: "bad_request",
+    401: "auth",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    500: "server_error",
+    502: "server_unavailable",
+    503: "service_unavailable",
+    504: "gateway_timeout",
+}
+
+
+def _error_class(status: int, payload: Mapping[str, Any]) -> str:
+    if status == 503 and payload.get("error") == "busy":
+        return "busy"
+    return _ERROR_CLASS_FOR_STATUS.get(status, "unknown")
+
+
+def _is_retryable(status: int, payload: Mapping[str, Any]) -> bool:
+    if status == 503 and payload.get("error") == "busy":
+        return True
+    if status >= 500:
+        return True
+    return False
+
+
+def _new_request_id() -> str:
+    return hashlib.sha256(os.urandom(16)).hexdigest()[:16]
 
 
 class _EventView:
@@ -334,6 +372,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
     agent_planner: Any | None = None
     context_recovery: Any | None = None
     agent_policy: Any | None = None
+    owner_window_preflight: Any | None = None
+    owner_window_activate: Any | None = None
+    owner_window_card_request: Any | None = None
+    quick_start: Any | None = None
     autonomy_service: AutonomyService
     capability_registry: CapabilityRegistry
     publication_controller: PublicationController
@@ -348,6 +390,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
     def setup(self) -> None:
         super().setup()
         self.connection.settimeout(5.0)
+        self._request_started_at = time.monotonic()
+        self._request_id = _new_request_id()
+
     def log_message(self, format: str, *args: object) -> None:
         return
 
@@ -361,6 +406,30 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        # Clients poll these lists every few seconds. If answers ever get slower
+        # than the polling interval, requests must not queue up behind the store
+        # lock and starve task execution: surplus polls are refused at once.
+        path = urlsplit(self.path).path.rstrip("/")
+        if _TIMELINE_PATH.match(path):
+            slot_key = "/api/goals/*/timeline"
+        elif _GOAL_DETAIL_PATH.match(path):
+            slot_key = "/api/goals/*"
+        else:
+            slot_key = path
+        slot = _POLLED_SLOTS.get(slot_key)
+        if slot is None:
+            self._do_get()
+            return
+        if not slot.acquire(blocking=False):
+            if self._check_origin():
+                self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "busy", "retry": True})
+            return
+        try:
+            self._do_get()
+        finally:
+            slot.release()
+
+    def _do_get(self) -> None:
         if not self._check_origin():
             return
         if self.path.split("?", 1)[0] == "/api/health":
@@ -372,6 +441,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
             segments = self._segments()
             if segments == ["api", "platform", "status"]:
                 self._send_json(HTTPStatus.OK, self._platform_status_response())
+                return
+            if segments == ["api", "platform", "accounts"]:
+                self._send_json(HTTPStatus.OK, self._platform_accounts_response())
                 return
             if segments == ["api", "platform", "doctor"]:
                 from .system_doctor import SystemDoctor
@@ -433,6 +505,19 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     {"windows": [window_to_dict(window) for window in windows], "total": len(windows)},
                 )
                 return
+            if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "timeline":
+                try:
+                    snapshot = self.goal_service.timeline_snapshot(segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
+                    return
+                timeline = self.run_read_model.goal_timeline(snapshot)
+                try:
+                    timeline["retry"] = self.goal_service.retry_options(segments[2])
+                except TaskStoreError:
+                    pass  # the timeline still renders; the UI then offers no retry
+                self._send_json(HTTPStatus.OK, timeline)
+                return
             if len(segments) == 4 and segments[:2] == ["api", "goals"] and segments[3] == "agent-plan":
                 from .agent_planner import planner_status_payload
                 self._send_json(HTTPStatus.OK, dict(planner_status_payload(self.agent_planner, segments[2])))
@@ -443,11 +528,9 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.OK, self.agent_policy.get(segments[3]))
                 return
             if segments == ["api", "windows", "policy"]:
-                try:
-                    template = self.autonomy_service.policy_template()
-                except TaskStoreError:
-                    template = {"available": False, "reason": "trusted_policy_unavailable"}
-                self._send_json(HTTPStatus.OK, template)
+                # The delegated policy authority is retired (#1575); the
+                # renderer reads this as "use the Owner window".
+                self._send_json(HTTPStatus.OK, {"available": False, "reason": "trusted_policy_unavailable"})
                 return
             if len(segments) == 4 and segments[:2] == ["api", "windows"] and segments[3] == "receipts":
                 limit, cursor = parse_history_query(urlsplit(self.path).query)
@@ -466,6 +549,19 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "window not found"})
                     return
                 self._send_json(HTTPStatus.OK, summary)
+                return
+            if (
+                len(segments) == 4
+                and segments[:2] == ["api", "windows"]
+                and segments[3] == "report"
+            ):
+                from .window_report import build_report
+                try:
+                    report = build_report(self.control_store, self.store, segments[2])
+                except TaskStoreError:
+                    self._send_json(HTTPStatus.NOT_FOUND, {"error": "window not found"})
+                    return
+                self._send_json(HTTPStatus.OK, report)
                 return
             if len(segments) == 2 and segments == ["api", "tasks"]:
                 self._send_json(HTTPStatus.OK, self._list_tasks_response())
@@ -737,6 +833,18 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     )
                     self._send_json(HTTPStatus.OK, self.goal_service.detail(goal.id))
                     return
+            if (len(segments) == 6 and segments[:2] == ["api", "goals"] and segments[3] == "tasks"
+                    and segments[5] == "retry"):
+                # Owner decision 2026-11-12 A: retry a stopped step inside the Goal's active window.
+                payload = self._read_json(optional=True)
+                binding_ref = payload.get("binding_ref", "")
+                if not isinstance(binding_ref, str):
+                    raise TaskStoreError("owner_retry_model_invalid")
+                self.goal_service.owner_retry(segments[2], segments[4],
+                                              expected_revision=self._expected_revision(payload),
+                                              binding_ref=binding_ref)
+                self._send_json(HTTPStatus.OK, self.goal_service.detail(segments[2]))
+                return
             if segments[:2] == ["api", "agent-policy"]:
                 if self.agent_policy is None:
                     raise TaskStoreError("agent_policy_unavailable")
@@ -748,20 +856,57 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._discard_bounded_request_body()
                     self._send_json(HTTPStatus.OK, self.agent_policy.apply(segments[3]))
                     return
+            if segments == ["api", "quick-start", "draft"]:
+                # Creates and plans Goals only; activation still needs the Owner's confirmation.
+                if self.quick_start is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("quick_start_unavailable")
+                payload = self._read_json()
+                if not isinstance(payload, dict) or not all(
+                        isinstance(payload.get(key, ""), str) for key in ("text", "repository", "preset")):
+                    raise TaskStoreError("quick_start_request_invalid")
+                self._send_json(HTTPStatus.CREATED, self.quick_start.draft(
+                    payload.get("text", ""), payload.get("repository", ""), preset=payload.get("preset", "")))
+                return
+            if segments == ["api", "owner-window", "activate"]:
+                # Owner decision 2026-11-09: Start on the confirmation card activates. The
+                # local client session authenticates; the card digest pins what was shown.
+                if self.owner_window_activate is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_activation_unavailable")
+                payload = self._read_json()
+                card_digest = payload.pop("card_digest", None) if isinstance(payload, dict) else None
+                request = owner_window_request(payload)
+                window = self.owner_window_activate(request.pop("goal_ids"), card_digest=card_digest, **request)
+                self._send_json(HTTPStatus.CREATED, window_to_dict(window))
+                return
+            if segments == ["api", "owner-window", "request"]:
+                # Read-only: presets and the window request one gives for these Goals.
+                if self.owner_window_card_request is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_preflight_unavailable")
+                payload = self._read_json()
+                if not isinstance(payload.get("preset", ""), str):
+                    raise TaskStoreError("owner_window_request_invalid")
+                self._send_json(HTTPStatus.OK, self.owner_window_card_request(
+                    payload.get("goal_ids"), payload.get("preset", "")))
+                return
+            if segments == ["api", "owner-window", "preflight"]:
+                # Read-only report for the confirmation card; it authorizes nothing.
+                if self.owner_window_preflight is None:
+                    self._discard_bounded_request_body()
+                    raise TaskStoreError("owner_window_preflight_unavailable")
+                request = owner_window_request(self._read_json())
+                self._send_json(HTTPStatus.OK, self.owner_window_preflight(request.pop("goal_ids"), **request))
+                return
             if segments == ["api", "windows", "activate"]:
                 # Native session possession authenticates the client, not a human
                 # selection. No host-native Goal confirmation channel exists yet.
                 # Do not accept renderer assertions (including ACTIVATE) as proof.
-                if not self.autonomy_service.delegated_mode:
-                    # Renderer assertions cannot authenticate an Owner choice.
-                    # Reject before JSON parsing; incomplete framed bodies
-                    # must not turn this policy denial into a timeout/500.
-                    self._discard_bounded_request_body()
-                    raise TaskStoreError("owner_selection_confirmation_unavailable")
-                payload = self._read_json()
-                window = self.autonomy_service.activate_policy(payload)
-                self._send_json(HTTPStatus.CREATED, window_to_dict(window))
-                return
+                # Reject before JSON parsing; incomplete framed bodies must not
+                # turn this policy denial into a timeout/500.
+                self._discard_bounded_request_body()
+                raise TaskStoreError("owner_selection_confirmation_unavailable")
             if (
                 len(segments) == 4
                 and segments[:2] == ["api", "windows"]
@@ -978,30 +1123,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
         task = self.store.get_task(task_id)
         contract = load_host_validation_contract(task)
         if contract is None:
-            # With a pinned authority, autonomous-window tasks run only as approved
-            # host tasks. The default owner launch keeps main's direct execution.
-            if self.autonomy_service.delegated_mode or (getattr(self.autonomy_service, "require_trusted_policy", False)
-                                                       and task.permission_profile == "AUTONOMOUS_WINDOW"):
-                self._discard_bounded_request_body()
-                raise TaskStoreError("direct_execution_requires_approved_host_task")
             return False
-        try:
-            self.autonomy_service.check_task_scope(task_id, "validate_task")
-        except Exception:
-            self._discard_bounded_request_body()
-            raise
-        if resume:
-            # This selected policy grants zero retries; the coordinator owns
-            # original live handles and durable recovery admission.
-            self._discard_bounded_request_body()
-            raise TaskStoreError("delegated_policy_retry_not_granted")
-        coordinator = getattr(self, "coordinator", None)
-        if coordinator is None:
-            self._discard_bounded_request_body()
-            raise TaskStoreError("host_check_coordinator_unavailable")
-        coordinator.tick()
-        self._send_json(HTTPStatus.OK, self._task_response(self.store.get_task(task_id)))
-        return True
+        # Approved host checks were scoped by the retired delegated policy
+        # authority (#1575); a task that still carries one cannot run.
+        self._discard_bounded_request_body()
+        raise TaskStoreError("delegated_policy_authority_unavailable")
 
     def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
@@ -1053,9 +1179,11 @@ class _TaskHandler(BaseHTTPRequestHandler):
         return revision
 
     def _list_tasks_response(self) -> dict[str, Any]:
-        tasks = self.store.list_tasks(limit=_TASKS_LIMIT)
+        # The list is polled; each task's events and evidence are read from
+        # /api/tasks/<id> when its page opens, so the list carries only counts.
+        tasks = self.store.list_tasks(limit=_TASKS_LIMIT, event_limit=0)
         return {
-            "tasks": [self._task_response(t) for t in tasks],
+            "tasks": [self._task_response(t, list_view=True) for t in tasks],
             "total": self.store.count_tasks(),
         }
 
@@ -1079,6 +1207,14 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "live_model_calls": bool(getattr(self, "live_enabled", False)),
             "multi_account": self._multi_account_status(),
         }
+
+    def _platform_accounts_response(self) -> dict[str, Any]:
+        """Account pool read model. Read-only: nothing here mutates account state."""
+        monitor = getattr(self, "pool_monitor", None)
+        if monitor is None:
+            return {"source": "none", "summary": None, "accounts": [], "routing": {}, "policy": {},
+                    "budget": None, "alerts": {"active": [], "recent": []}, "monitoring": False}
+        return monitor.view()
 
     def _multi_account_status(self) -> dict[str, Any]:
         """Who selects accounts, and whether any are cooling down (read-only).
@@ -1106,7 +1242,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             pass
         return view
 
-    def _task_response(self, task: Any) -> dict[str, Any]:
+    def _task_response(self, task: Any, *, list_view: bool = False) -> dict[str, Any]:
         events = task.events
         if events and isinstance(events[0], Mapping):
             events = [
@@ -1130,6 +1266,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 "base_branch": publication.base_branch,
                 "failure_classification": publication.failure_classification,
             }
+        frontend_task = _map_task_to_frontend(task)
+        if list_view:
+            # Functional status above was derived from the full evidence.
+            frontend_task["activity"] = []
+            frontend_task["evidence"] = []
+            evidence = []
         return {
             "id": task.id,
             "title": task.title,
@@ -1156,9 +1298,10 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "usage": self.store.usage_summary(task.id),
             "changed_files": list(changed),
             "evidence": list(evidence),
-            "events": self._events_response(events),
+            "events": [] if list_view else self._events_response(events),
+            "event_count": int(getattr(task, "event_count", 0) or 0),
             "publication": publication_view,
-            "frontend_task": _map_task_to_frontend(task),
+            "frontend_task": frontend_task,
         }
 
     def _events_response(self, events: Sequence[Any]) -> list[dict[str, Any]]:
@@ -1204,6 +1347,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
         return payload
 
     def _send_json(self, status: HTTPStatus, payload: object) -> None:
+        if isinstance(payload, dict) and int(status) >= 400:
+            status_int = int(status)
+            if "error_class" not in payload:
+                payload = {**payload, "error_class": _error_class(status_int, payload)}
+            if "retryable" not in payload:
+                payload = {**payload, "retryable": _is_retryable(status_int, payload)}
         body = json.dumps(
             payload, ensure_ascii=False, default=str, separators=(",", ":")
         ).encode("utf-8")
@@ -1211,6 +1360,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
+        request_id = getattr(self, "_request_id", "")
+        if request_id:
+            self.send_header("X-Nerelan-Request-Id", request_id)
+        started_at = getattr(self, "_request_started_at", None)
+        if started_at is not None:
+            self.send_header("X-Nerelan-Elapsed-Ms", str(int((time.monotonic() - started_at) * 1000)))
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         try:
@@ -1219,13 +1374,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             pass
 
     def _send_forbidden(self) -> None:
-        body = b'{"error":"forbidden"}'
-        self.send_response(HTTPStatus.FORBIDDEN)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self._send_json(HTTPStatus.FORBIDDEN, {"error": "forbidden"})
 
     def _check_origin(self) -> bool:
         origin = self.headers.get("Origin")
@@ -1281,7 +1430,30 @@ class _TaskHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin")
         if origin and origin == self.allowed_origin:
             self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Expose-Headers", "X-Nerelan-Request-Id, X-Nerelan-Elapsed-Ms")
             self.send_header("Vary", "Origin")
+
+
+def owner_window_request(payload: Any) -> dict[str, Any]:
+    """Shape-check an Owner window request body; the admission validates the values."""
+    if not isinstance(payload, dict):
+        raise TaskStoreError("owner_window_request_invalid")
+    goal_ids, capabilities = payload.get("goal_ids"), payload.get("capabilities")
+    hours = payload.get("hours")
+    integers = ("max_tasks", "max_concurrent", "max_retries", "max_token_units", "max_cost_micro_units")
+    if (type(payload.get("continuous", False)) is not bool
+            or not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
+            or not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities)
+            or isinstance(hours, bool) or not isinstance(hours, (int, float))
+            or not -1e6 < hours < 1e6  # a huge integer must not overflow float() into a 500
+            or any(isinstance(payload.get(key, 0), bool) or not isinstance(payload.get(key, 0), int)
+                   for key in integers)
+            or any(key not in payload for key in integers[:3])
+            or any(payload.get(key, 0) < 0 for key in integers)):
+        raise TaskStoreError("owner_window_request_invalid")
+    return {"goal_ids": goal_ids, "hours": float(hours), "capabilities": capabilities,
+            **({"continuous": True} if payload.get("continuous") else {}),
+            **{key: int(payload.get(key, 0)) for key in integers}}
 
 
 class _CallableWrapper:
@@ -1310,17 +1482,23 @@ def _handler_factory(
     agent_planner: Any | None = None,
     context_recovery: Any | None = None,
     agent_policy: Any | None = None,
+    owner_window_preflight: Callable | None = None,
+    owner_window_activate: Callable | None = None,
+    owner_window_card_request: Callable | None = None,
+    quick_start: Any | None = None,
     autonomy_service: AutonomyService | None = None,
     capability_registry: CapabilityRegistry | None = None,
     publication_controller: PublicationController | None = None,
     coordinator: Any | None = None,
     local_client_session: Any | None = None,
     magpie_status: Callable | None = None,
+    pool_monitor: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
     ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
+    ConfiguredHandler.pool_monitor = pool_monitor
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin
@@ -1349,6 +1527,16 @@ def _handler_factory(
     ConfiguredHandler.agent_planner = agent_planner
     ConfiguredHandler.context_recovery = context_recovery
     ConfiguredHandler.agent_policy = agent_policy
+    ConfiguredHandler.quick_start = quick_start
+    ConfiguredHandler.owner_window_activate = (
+        _CallableWrapper(owner_window_activate) if owner_window_activate else None
+    )
+    ConfiguredHandler.owner_window_preflight = (
+        _CallableWrapper(owner_window_preflight) if owner_window_preflight else None
+    )
+    ConfiguredHandler.owner_window_card_request = (
+        _CallableWrapper(owner_window_card_request) if owner_window_card_request else None
+    )
     ConfiguredHandler.publication_controller = publication_controller or PublicationController(
         store=store, control_store=configured_control, autonomy=configured_autonomy
     )
@@ -1365,66 +1553,14 @@ def _handler_factory(
 
 def _configured_autonomy(store: TaskStore, control: PlatformControlStore,
                          capabilities: CapabilityRegistry) -> AutonomyService:
-    raw = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "")
-    try:
-        pins = json.loads(raw) if raw else None
-    except ValueError:
-        pins = {}
-    source_dir = os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_REPO_DIR", "") or os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-
-    def authority_loader():
-        if not isinstance(pins, dict):
-            raise AuthorityBundleError("invalid_policy_host_pins")
-        return load_policy_authority(repo_dir=source_dir, pins=dict(pins),
-            database_path=store.db_path, host_instance_id=pins.get("host_instance_id", ""))
-
-    def task_scope(task_id: str) -> Mapping[str, Any]:
-        task = store.get_task(task_id)
-        contract = load_host_validation_contract(task)
-        if contract is None:
-            raise TaskStoreError("approved_host_contract_required")
-        goal_id = control.goal_id_for_task(task_id)
-        goal = control.get_goal(goal_id)
-        links = [link for link in control.list_goal_tasks(goal_id) if link["task_id"] == task_id]
-        window = control.get_window(contract["window_id"])
-        if (len(links) != 1 or contract["goal_id"] != goal.id
-                or contract["goal_revision"] != goal.revision
-                or contract["goal_artifact_digest"] != goal.artifact_digest
-                or contract["goal_idempotency_key"] != goal.idempotency_key
-                or contract["plan_task_id"] != links[0]["plan_task_id"]
-                or goal.window_id != window.id or goal.repository != task.repository
-                or task.policy_ref != window.id or task.permission_profile != "AUTONOMOUS_WINDOW"
-                or contract["policy_digest"] != window.policy_digest):
-            raise TaskStoreError("approved_host_goal_link_mismatch")
-        planned = [item for item in goal.tasks if item.get("id") == contract["plan_task_id"]]
-        if (len(planned) != 1 or planned[0].get("capability") != "validate_task"
-                or planned[0].get("validation_command_id") != "git_diff_check"):
-            raise TaskStoreError("approved_host_plan_mismatch")
-        return contract
-
-    service = AutonomyService(control_store=control, capabilities=capabilities,
-        authority_loader=authority_loader if raw else None, task_scope_resolver=task_scope)
-    # Trusted-policy enforcement applies when the host pins a delegated authority;
-    # Owner HTTP activation separately requires a host-native confirmation channel.
-    service.require_trusted_policy = bool(raw)
-    return service
+    # Owner windows are the only authority; the delegated policy-authority
+    # mode (REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON) was retired in #1575.
+    return AutonomyService(control_store=control, capabilities=capabilities)
 
 
 def _instance_metadata(store: TaskStore, autonomy: AutonomyService | None = None) -> dict[str, str]:
     digest = hashlib.sha256(os.path.normcase(os.path.abspath(store.db_path)).encode("utf-8")).hexdigest()[:12]
-    metadata = {"id": f"workspace-{digest}", "kind": "workspace"}
-    try:
-        pins = json.loads(os.environ.get("REVERSE_AGENT_POLICY_AUTHORITY_PIN_JSON", "null"))
-        if autonomy is not None and autonomy.delegated_mode and isinstance(pins, dict) and os.path.normcase(os.path.abspath(pins.get("database_path", ""))) == os.path.normcase(os.path.abspath(store.db_path)):
-            identity = pins.get("host_instance_id", "")
-            if isinstance(identity, str) and re.fullmatch(r"[A-Za-z0-9._:-]{3,160}", identity):
-                authority = autonomy._authority()
-                if authority.binding.get("host_instance_id") != identity:
-                    raise TaskStoreError("instance_authority_mismatch")
-                metadata = {"id": identity, "kind": "acceptance"}
-    except (ValueError, TypeError, TaskStoreError, OSError):
-        pass
-    return metadata
+    return {"id": f"workspace-{digest}", "kind": "workspace"}
 
 
 def validate_bind_host(host: str) -> str:

@@ -102,6 +102,7 @@ export interface ModelControlClient {
 
   listConnections(): Promise<Connection[]>;
   upsertConnection(input: ConnectionInput): Promise<Connection>;
+  setMagpieAccountLink(connectionId: string, accountRef: string | null): Promise<void>;
   deleteConnection(connectionId: string): Promise<void>;
   testConnection(connectionId: string): Promise<ConnectionProbeResult>;
   listConnectionModels(connectionId: string): Promise<ConnectionModelsResult>;
@@ -428,6 +429,14 @@ export function createHttpModelControlClient(
         },
       );
       return normalizeConnection(payload);
+    },
+
+    async setMagpieAccountLink(connectionId, accountRef) {
+      const action = accountRef === null ? "unlink-magpie-account" : "link-magpie-account";
+      await requestJson(`${connectionsUrl}/${encodeURIComponent(connectionId)}/${action}`, {
+        method: "POST",
+        body: JSON.stringify(accountRef === null ? {} : { account_ref: accountRef }),
+      });
     },
 
     async deleteConnection(connectionId) {
@@ -928,6 +937,10 @@ export function createMockModelControlClient(
       }
       rosterAssignments = { ...roles };
       return mockRoster();
+    },
+
+    async setMagpieAccountLink() {
+      throw new Error("演示模式没有可关联的 Magpie 账号");
     },
 
     async getResources(mode) {

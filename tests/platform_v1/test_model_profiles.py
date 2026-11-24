@@ -35,11 +35,13 @@ def test_profile_reports_rates_durations_tokens_and_failure_kinds():
     _task(store, "glm", "FAILED", "provider_rate_limited:429")
     _task(store, "glm", "QUEUED")  # not finished: not an attempt
     profile = compute_agent_profiles(store)["glm"]
-    assert (profile["attempts"], profile["ok"], profile["failed"], profile["timeouts"], profile["rate_limited"]) == (4, 2, 2, 1, 1)
-    assert profile["success_rate"] == 0.5
+    # A rate limit is the account's answer: shown, but neither an attempt nor a failure.
+    assert (profile["attempts"], profile["ok"], profile["failed"], profile["timeouts"], profile["rate_limited"]) == (3, 2, 1, 1, 1)
+    assert profile["success_rate"] == 0.67
     assert profile["median_ok_seconds"] == 780 and profile["p90_ok_seconds"] == 840
     assert profile["median_ok_tokens"] == 2000
-    assert profile["failure_kinds"] == {"timeout": 1, "provider_rate_limited": 1}
+    assert profile["failure_kinds"] == {"timeout": 1}
+    assert profile["neutral_failures"] == {"quota_or_rate_limit": 1}
 
 
 def test_observed_tokens_total_every_finished_attempt_that_reported_them():
@@ -222,16 +224,226 @@ def test_PROVIDER_QUOTA_LIMIT_classification_is_not_capability_evidence():
     store._conn.close()
 
 
-def test_account_quota_and_provider_quota_are_not_interchangeable():
+@pytest.mark.parametrize("detail", ["", "message=quota exhausted; previous status=402",
+                                         "status=4020 message=quota exhausted"])
+def test_account_quota_and_provider_quota_are_not_interchangeable(detail):
     from reverse_agent.platform_v1.quota_guard import ACCOUNT_LIMIT, LIMIT_HIT
     store = TaskStore(":memory:")
     _task(store, "glm", "READY_FOR_REVIEW", start="2026-10-13T06:00:00Z", end="2026-10-13T06:10:00Z")
     _task(store, "glm", "FAILED", "provider_quota_limit", tokens=300)
-    _task(store, "glm", "FAILED", "quota_exhausted")
+    exhausted = _task(store, "glm", "FAILED", "quota_exhausted")
+    store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, exhausted.id))
+    store._conn.commit()
     profile = compute_agent_profiles(store)["glm"]
-    # Only the account's own answer counts as a rate limit, and it keeps its own kind.
-    assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (2, 1, 1)
-    assert profile["failure_kinds"] == {"quota_exhausted": 1}
+    # Only the account's own answer counts as a rate limit; like every quota answer it
+    # is availability evidence, never an attempt or a failure of the model.
+    assert (profile["attempts"], profile["failed"], profile["rate_limited"]) == (1, 0, 1)
+    assert profile["failure_kinds"] == {} and profile["neutral_failures"] == {"quota_or_rate_limit": 1}
     assert profile["provider_quota_limited"] == 1
     assert not ACCOUNT_LIMIT.search("provider_quota_limit") and not LIMIT_HIT.search("provider_quota_limit")
     store._conn.close()
+
+
+@pytest.mark.parametrize("status,message", [
+    (402, "OpenRouter: Insufficient credits. This account never purchased credits"),
+    (429, "WorkBuddy AI: Credits exhausted. Please purchase add-on packs"),
+    (402, "Payment required"),
+])
+def test_billing_error_is_not_counted_as_a_model_failure(status, message):
+    from reverse_agent.platform_v1.opencode_executor import OpenCodeExecutor, _bounded_error_diagnostic
+
+    events = [{"type": "error", "error": {"name": "APIError", "data": {
+        "statusCode": status, "message": message}}}]
+    classification = OpenCodeExecutor(model_id="fixture/model")._classify_exit(1, events)
+    assert classification == "quota_exhausted"
+    detail = "opencode_nonzero:exit=1:quota_exhausted " + _bounded_error_diagnostic(events)
+    store = TaskStore(":memory:")
+    try:
+        _task(store, "billing", "READY_FOR_REVIEW", tokens=100)
+        for tokens in (40, None):
+            refused = _task(store, "billing", "FAILED", classification, tokens=tokens)
+            store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, refused.id))
+            store._conn.execute(
+                "INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                "VALUES (?, ?, 'MODEL_SELECTED', '2026-11-16T08:00:00Z', '', '', '', ?)",
+                (f"sel-{refused.id}", refused.id,
+                 '{"kind":"code","difficulty":3,"content_class":"private"}'))
+        store._conn.commit()
+        profile = compute_agent_profiles(store)["billing"]
+        assert (profile["attempts"], profile["ok"], profile["failed"]) == (1, 1, 0)
+        assert profile["success_rate"] == 1.0
+        assert profile["failure_kinds"] == {} and profile["rate_limited"] == 0
+        assert profile["content_attempts"] == {"code": {"attempts": 1, "refusals": 0}}
+        assert "task_buckets" not in profile
+        assert profile["observed_tokens"] == 140  # missing usage is not guessed
+        assert profile["billing_refused"] == 2
+        assert store._conn.execute("SELECT COUNT(*) FROM tasks WHERE status='FAILED'").fetchone()[0] == 2
+    finally:
+        store._conn.close()
+
+
+@pytest.mark.parametrize("classification,detail,cause", [
+    ("executor_stalled", "opencode_stalled:900", "executor_stalled"),
+    ("executor_terminated", "", None),  # already skipped before any counting
+    ("host_version_changed", "", None),
+    ("orphaned_preparation", "interrupted before anything was dispatched", "orphaned_preparation"),
+    ("api_error_429", "", "quota_or_rate_limit"),
+    ("quota_exhausted:limit_hit", "", "quota_or_rate_limit"),
+    ("codex_usage_limit", "", "quota_or_rate_limit"),
+    ("model_review_abandoned_no_reply", "model_review_abandoned_no_reply:timeout: reviewer call op-1 ended with no reply",
+     "model_review_abandoned_no_reply"),
+    ("review_not_independent", "review_not_independent", "review_not_independent"),
+    ("ambiguous_external_operation", "external operation already recorded", "ambiguous_external_operation"),
+    ("executor_dispatch_failed", "executor_dispatch_failed", "executor_dispatch_failed"),
+    ("cleanup_unconfirmed", "opencode_cleanup_unconfirmed", "cleanup_unconfirmed"),
+    ("review_diff_too_large", "review_diff_too_large", "review_diff_too_large"),
+    ("codex_frame_limit_exceeded", "codex_frame_limit_exceeded", "codex_frame_limit_exceeded"),
+    ("claude_code_frame_limit_exceeded", "", "claude_code_frame_limit_exceeded"),
+    ("deterministic_validation_failure", "functional_base_mismatch", "functional_base_mismatch"),
+    ("deterministic_validation_failure", "functional_worktree_root_required", "functional_worktree_root_required"),
+    ("deterministic_validation_failure", "functional_contract_invalid_or_stale", "functional_contract_invalid_or_stale"),
+    ("deterministic_validation_failure", "functional_observation_failed:OSError", "functional_observation_failed"),
+    # 2026-11-19 live (#1551): host-side failures that had spent the goal's max_retries.
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x: rpm '
+     'exhausted (429: you can retry your request)","type":"api_error"', "quota_or_rate_limit"),
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x: '
+     'inference exceeds tpm/rpm limit (429: you can retry your request)"', "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=429 message=slow down",
+     "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero message=OpenCode Zen Free: Free usage limit reached",
+     "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero message=(out of its allowance: not asked again before 07:06 UTC-4)",
+     "quota_or_rate_limit"),
+    ("executor_nonzero", "opencode_nonzero:exit=1073807364:executor_nonzero", "executor_terminated"),
+    ("owner_window_binding_outside_confirmed_pool", "owner_window_binding_outside_confirmed_pool",
+     "owner_window_binding_outside_confirmed_pool"),
+    ("stream_budget_abort_confirmed", "stream_budget_abort_confirmed", "stream_budget_abort_confirmed"),
+    ("stream_budget_abort_unknown", "stream_budget_abort_unknown", "stream_budget_abort_unknown"),
+    ("stream_budget_usage_unknown_before_dispatch", "stream_budget_usage_unknown_before_dispatch",
+     "stream_budget_usage_unknown_before_dispatch"),
+    ("stream_budget_exhausted_before_dispatch", "stream_budget_exhausted_before_dispatch",
+     "stream_budget_exhausted_before_dispatch"),
+    ("server_budget_snapshot_unavailable", "server_budget_snapshot_unavailable",
+     "server_budget_snapshot_unavailable"),
+    ("server_budget_snapshot_invalid", "server_budget_snapshot_invalid", "server_budget_snapshot_invalid"),
+    ("server_transport_failed", "server_transport_failed", "server_transport_failed"),
+    ("server_transport_internal_failure", "server_transport_internal_failure", "server_transport_internal_failure"),
+    ("server_stream_stalled", "server_stream_stalled", "server_stream_stalled"),
+    ("server_event_too_large", "server_event_too_large", "server_event_too_large"),
+    ("server_event_disconnected", "server_event_disconnected", "server_event_disconnected"),
+    ("server_http_request_failed", "server_http_request_failed", "server_http_request_failed"),
+    ("server_process_exited_before_health", "server_process_exited_before_health",
+     "server_process_exited_before_health"),
+    ("server_health_timeout", "server_health_timeout", "server_health_timeout"),
+])
+def test_host_and_quota_failures_are_neither_attempts_nor_failures(classification, detail, cause):
+    """Live 2026-11-17: stalls and the #1526 base mismatch demoted GLM-5.3 from tier 4 to 2."""
+    store = TaskStore(":memory:")
+    for _ in range(3):
+        _task(store, "glm", "READY_FOR_REVIEW")
+    for _ in range(3):
+        failed = _task(store, "glm", "FAILED", classification, tokens=200)
+        store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, failed.id))
+    store._conn.execute("INSERT INTO task_events (id, task_id, type, timestamp, title, description, raw_log, metadata) "
+                        "SELECT 'sel-' || id, id, 'MODEL_SELECTED', '', '', '', '', "
+                        "'{\"kind\": \"code\", \"difficulty\": 3}' FROM tasks")
+    store._conn.commit()
+    profile = compute_agent_profiles(store)["glm"]
+    assert (profile["attempts"], profile["ok"], profile["failed"]) == (3, 3, 0)
+    assert profile["failure_kinds"] == {} and profile["success_rate"] == 1.0
+    assert profile["task_buckets"]["code:3"]["attempts"] == 3
+    assert profile["content_attempts"] == {"code": {"attempts": 3, "refusals": 0}}
+    if cause is not None:
+        assert profile["neutral_failures"] == {cause: 3}
+        assert profile["observed_tokens"] == 600  # tokens spent are still counted
+    store._conn.close()
+
+
+@pytest.mark.parametrize("classification,detail,kind", [
+    ("deterministic_validation_failure", "functional_check_failed", "deterministic_validation_failure"),
+    ("deterministic_validation_failure", "functional_implementation_missing", "deterministic_validation_failure"),
+    # The patch the model left broke hygiene (e.g. test artifacts in the tree): its work.
+    ("deterministic_validation_failure", "functional_patch_hygiene_failed", "deterministic_validation_failure"),
+    # The model ended its turn without changing the product: its work.
+    ("codex_no_product_changes", "", "codex_no_product_changes"),
+    ("timeout", "opencode_timeout:3600", "timeout"),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero", "executor_nonzero"),
+    # A message that only mentions a number is not a rate limit; other API errors stay the model's.
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=500 message=line 1429",
+     "executor_nonzero"),
+    ("codex_event_limit_exceeded", "", "codex_event_limit_exceeded"),
+    ("model_review_invalid_output", "", "model_review_invalid_output"),
+])
+def test_real_model_failures_still_count(classification, detail, kind):
+    store = TaskStore(":memory:")
+    _task(store, "glm", "READY_FOR_REVIEW")
+    failed = _task(store, "glm", "FAILED", classification)
+    store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, failed.id))
+    store._conn.commit()
+    profile = compute_agent_profiles(store)["glm"]
+    assert (profile["attempts"], profile["ok"], profile["failed"]) == (2, 1, 1)
+    assert profile["failure_kinds"] == {kind: 1} and "neutral_failures" not in profile
+    store._conn.close()
+
+
+def test_neutral_classes_reuse_the_host_definitions():
+    from reverse_agent.platform_v1 import goal_service, model_profiles, model_review
+    assert goal_service.HOST_RETRY_CLASSES is model_profiles.HOST_RETRY_CLASSES
+    assert model_review.ABANDONED_NO_REPLY in model_profiles.HOST_PLUMBING_CLASSES
+
+
+def test_provider_rate_limit_reply_recognizes_free_usage_limit_and_allowance():
+    from reverse_agent.platform_v1.model_availability import no_credits_error, provider_rate_limit_reply
+    magpie_msg = (
+        "AI_APICallError: OpenCode Zen Free: Free usage limit reached. Free models work in OpenCode "
+        "(https://opencode.ai); subscribe to OpenCode Go to keep going: https://opencode.ai/go "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+    assert provider_rate_limit_reply("Free usage limit reached") is True
+    assert provider_rate_limit_reply("out of its allowance") is True
+    assert provider_rate_limit_reply(magpie_msg) is True
+    assert no_credits_error(magpie_msg) is None
+    assert provider_rate_limit_reply("HTTP 429 Credits exhausted") is False
+    assert provider_rate_limit_reply("status=429 insufficient credits") is False
+    assert provider_rate_limit_reply("Internal server error 500") is False
+
+
+def test_server_budget_and_transport_classes_remain_non_agent_failures():
+    from reverse_agent.platform_v1 import goal_service
+    server_plumbing = (
+        "stream_budget_abort_confirmed",
+        "stream_budget_abort_unknown",
+        "stream_budget_usage_unknown_before_dispatch",
+        "stream_budget_exhausted_before_dispatch",
+        "server_budget_snapshot_unavailable",
+        "server_budget_snapshot_invalid",
+        "server_transport_failed",
+        "server_transport_internal_failure",
+    )
+    for cls in server_plumbing:
+        assert goal_service._NON_AGENT_FAILURE.search(cls), cls
+
+
+def test_leaving_the_approved_scope_is_the_attempts_own_failure():
+    from reverse_agent.platform_v1.model_profiles import neutral_failure
+    failed = "deterministic_validation_failure"
+    assert neutral_failure(failed, "functional_observation_failed:artifact_path_outside_allowlist") == ""
+    assert neutral_failure(failed, "functional_observation_failed:OSError") == "functional_observation_failed"
+
+
+@pytest.mark.parametrize("classification, detail, neutral", [
+    ("network_provider_failure", "", True),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=502 message=Bad Gateway", True),
+    ("executor_nonzero", 'opencode_nonzero:exit=1:executor_nonzero name=UnknownError message={"message":"x '
+                         '(504: you can retry your request)"}', True),
+    ("claude_code_turn_failed:api_error_502", "", True),
+    # A 500 can be the request's own doing, and quoted text is no upstream evidence.
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=500 message=boom", False),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero name=APIError status=400 message=status=502", False),
+    ("executor_nonzero", "opencode_nonzero:exit=1:executor_nonzero", False),
+    ("claude_code_turn_failed:api_error", "", False),
+    ("deterministic_validation_failure", "test says status=502 (502: you can retry your request)", False),
+])
+def test_only_structured_upstream_connection_failures_are_neutral(classification, detail, neutral):
+    from reverse_agent.platform_v1.model_profiles import neutral_failure
+    assert neutral_failure(classification, detail) == ("network_provider_failure" if neutral else "")

@@ -96,6 +96,12 @@ def _build_executor_kwargs(
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
         kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
                               else str(_map_task_field(task, "branch", "")))
+        if not kwargs["base_ref"] and store is not None:
+            from .functional_validation import frozen_base
+            try:
+                kwargs["base_ref"] = frozen_base(store.get_task(str(_map_task_field(task, "id", ""))))
+            except TaskStoreError:
+                pass
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"
@@ -277,9 +283,12 @@ class TaskExecutionService:
                 },
             )
         else:
+            # Provider detail follows the trusted executor prefix; its
+            # arbitrary text must not override the typed failure class.
             classification = (
                 "blocked"
                 if "unapproved" in exec_result.get("error", "")
+                and not exec_result.get("error", "").startswith("opencode_nonzero:exit=")
                 else exec_result.get("failure_classification", "failed")
             )
             if classification == "":

@@ -1,7 +1,7 @@
 import "./index.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router";
+import { BrowserRouter, Routes, Route } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { HomePage } from "@/routes/home";
@@ -14,6 +14,8 @@ import { InboxPage } from "@/routes/inbox";
 import { RoadmapPage } from "@/routes/roadmap";
 import { RunsPage } from "@/routes/runs";
 import { GoalsPage } from "@/routes/goals";
+import { AccountsPage } from "@/routes/accounts";
+import { NotFoundPage } from "@/routes/not-found";
 import { initializeAppearance } from "@/lib/theme";
 
 initializeAppearance();
@@ -54,7 +56,8 @@ createRoot(rootEl).render(
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/runs" element={<RunsPage />} />
             <Route path="/goals" element={<GoalsPage />} />
-            <Route path="*" element={<Navigate to="/tasks" replace />} />
+            <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </AppShell>
       </BrowserRouter>

@@ -57,6 +57,23 @@ def test_roster_rejects_invalid_assignments(tmp_path, roles, error):
     assert not (tmp_path / "agent_roster.json").exists()
 
 
+def test_roster_reviewer_must_differ_from_coder_by_model_identity_including_groups(tmp_path):
+    """Owner decision 2026-11-17: a declared Magpie group is the model it serves."""
+    store = _models(tmp_path)
+    for binding_id, model in (("group-glm", "group/nerelan-glm-5-2"), ("group-x", "group/undeclared"),
+                              ("alias", "zai/glm-5.2")):
+        store.upsert_binding({"binding_id": binding_id, "name": binding_id, "executor_id": "opencode",
+                              "connection_id": "free-api", "model_id": model, "enabled": True})
+    (tmp_path / "model_routing_overrides.json").write_text(
+        json.dumps({"groups": {"group/nerelan-glm-5-2": {"identity": "glm-5.2"}}}), encoding="utf-8")
+    for reviewer in ("group-glm", "group-x", "alias"):
+        with pytest.raises(ValueError, match="agent_reviewer_must_differ_from_coder"):
+            store.put_agent_roster({"roles": {"coder": "mid", "reviewer": reviewer}})
+    with pytest.raises(ValueError, match="agent_reviewer_must_differ_from_coder"):
+        store.put_agent_roster({"roles": {"coder": "group-x", "reviewer": "cheap"}})
+    store.put_agent_roster({"roles": {"coder": "group-glm", "reviewer": "cheap"}})
+
+
 def test_owner_stand_ins_persist_survive_role_edits_and_validate(tmp_path):
     store = _models(tmp_path)
     store.put_agent_roster({"roles": {"complex": "strong"}, "standins": {"complex": ["mid", "mid", ""]}})

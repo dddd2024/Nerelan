@@ -6,11 +6,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useBindings } from "@/hooks/use-model-access";
-import { useApprovedPolicy } from "@/hooks/use-platform";
 import type { StartGoalInput } from "@/lib/goal-start-operation";
 import { cn } from "@/lib/cn";
 
 interface GoalComposerProps {
+  /** One-line form for the composer docked under a goal thread. */
+  compact?: boolean;
+  placeholder?: string;
+  /** Changes when the Owner asks for a new goal: the text box takes focus. */
+  focusKey?: unknown;
   busy: boolean;
   onSubmit: (input: StartGoalInput) => Promise<void>;
 }
@@ -19,7 +23,7 @@ interface GoalComposerDraft extends StartGoalInput {
   confirmed: boolean;
 }
 
-const MAX_TEXTAREA_HEIGHT = 144;
+const MAX_TEXTAREA_HEIGHT = 192;
 const DRAFT_STORAGE_KEY = "nerelan.goal-composer.draft.v1";
 const OPERATION_ID_PATTERN = /^[A-Za-z0-9._:-]{8,160}$/;
 
@@ -35,12 +39,8 @@ function freshDraft(): GoalComposerDraft {
     objective: "",
     repository: "dddd2024/Nerelan",
     executorKind: "opencode",
-    /*
-     * Deliberately empty. A hardcoded binding name is a promise the frontend
-     * cannot keep: if that binding is renamed, disabled, or routed to an
-     * unavailable provider, the goal fails server-side with a bare KeyError.
-     * The composer fills this from the bindings that actually exist.
-     */
+    teamMode: true,
+    // An unpinned team lets the system route each task to a model.
     bindingRef: "",
     autonomyHours: 2,
     operationId: createOperationId(),
@@ -119,19 +119,23 @@ function resizeObjectiveTextarea(element: HTMLTextAreaElement) {
   }
 }
 
-export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
+export function GoalComposer({
+  busy,
+  onSubmit,
+  compact = false,
+  placeholder = "让 Nerelan 做点什么…",
+  focusKey,
+}: GoalComposerProps) {
   const [draft, setDraft] = useState<GoalComposerDraft>(readDraft);
-  const [optionsOpen, setOptionsOpen] = useState(
-    () => draft.objective.trim().length > 0,
-  );
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const [bindingTouched, setBindingTouched] = useState(false);
   const draftRef = useRef(draft);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (focusKey) textareaRef.current?.focus();
+  }, [focusKey]);
 
   const bindingsQuery = useBindings();
-  const approvedPolicyQuery = useApprovedPolicy();
-  const approvedPolicy = approvedPolicyQuery.data;
-  const checkerOnly = approvedPolicy?.supported_operations.length === 1 && approvedPolicy.supported_operations[0] === "validate_task";
   const usableBindings = useMemo(
     () =>
       (bindingsQuery.data ?? []).filter(
@@ -147,11 +151,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
    * Runs once, and never overwrites a binding the user typed themselves.
    */
   useEffect(() => {
-    if (checkerOnly || bindingTouched || bindingsQuery.data === undefined) return;
+    if (draft.teamMode || draft.executorKind === "deterministic_fixture" || bindingTouched || bindingsQuery.data === undefined) return;
     const usable = usableBindings[0];
     if (!usable || draftRef.current.bindingRef) return;
     replaceDraft({ ...draftRef.current, bindingRef: usable.bindingId });
-  }, [checkerOnly, bindingTouched, bindingsQuery.data, usableBindings]);
+  }, [draft.teamMode, draft.executorKind, bindingTouched, bindingsQuery.data, usableBindings]);
 
   function replaceDraft(next: GoalComposerDraft, persist = true) {
     draftRef.current = next;
@@ -167,8 +171,16 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
     });
   }
 
-  const showOptions = optionsOpen || draft.objective.trim().length > 0;
-  const needsBinding = draft.executorKind !== "deterministic_fixture" && !checkerOnly && !draft.teamMode;
+  const executionSummary = draft.teamMode
+    ? "自动选择执行方式和模型"
+    : `${{
+          opencode: "OpenCode：规划 → 编码 → 审查",
+          claude_code: "Claude Code 单任务（Claude 账号）",
+          codex: "Codex 单任务（ChatGPT 账号）",
+          deterministic_fixture: "无模型演练（只验证平台流程）",
+        }[draft.executorKind]}${draft.executorKind !== "deterministic_fixture"
+          ? ` · 模型绑定：${draft.bindingRef || "未选择"}` : ""}`;
+  const needsBinding = draft.executorKind !== "deterministic_fixture" && !draft.teamMode;
   const bindingMissing = needsBinding && draft.bindingRef.trim().length === 0;
   const objectiveLength = draft.objective.trim().length;
   const repositoryReady = draft.repository.includes("/");
@@ -200,22 +212,18 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
 
   return (
     <form
-      className="rounded-2xl border border-ra-border bg-ra-workspace shadow-[0_2px_8px_-4px_var(--ra-border-strong)] transition-[border-color,box-shadow] focus-within:border-ra-accent focus-within:shadow-[0_0_0_3px_color-mix(in_srgb,var(--ra-accent)_12%,transparent)]"
+      className="rounded-3xl border border-ra-border/70 bg-ra-input shadow-[var(--ra-shadow-2)] transition-[border-color,box-shadow] focus-within:border-ra-border-strong"
       onSubmit={async (event) => {
         event.preventDefault();
         if (!ready) return;
         const submitted: StartGoalInput = {
           objective: draftRef.current.objective.trim(),
           repository: draftRef.current.repository.trim(),
-          executorKind: checkerOnly ? "opencode" : draftRef.current.executorKind,
-          bindingRef: checkerOnly ? "" : draftRef.current.bindingRef,
+          executorKind: draftRef.current.executorKind,
+          bindingRef: draftRef.current.bindingRef,
           autonomyHours: 2,
           operationId: draftRef.current.operationId,
-          ...(!checkerOnly && draftRef.current.teamMode ? { teamMode: true } : {}),
-          ...(checkerOnly && approvedPolicy?.goal_idempotency_key ? { checkerDraft: {
-            idempotencyKey: approvedPolicy.goal_idempotency_key,
-            executorKind: "opencode" as const, orchestrationMode: "single" as const, bindingRef: "" as const,
-          } } : {}),
+          ...(draftRef.current.teamMode ? { teamMode: true } : {}),
         };
 
         try {
@@ -232,17 +240,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
         if (textareaRef.current) textareaRef.current.style.height = "auto";
       }}
     >
-      <div className="flex min-h-14 items-end gap-1.5 px-2 py-2.5">
-        <button
-          type="button"
-          aria-label="输入选项"
-          aria-expanded={showOptions}
-          onClick={() => setOptionsOpen((value) => !value)}
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ra-text-tertiary transition hover:bg-ra-light/60 hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
-        >
-          <Settings2 className="h-4 w-4" aria-hidden="true" />
-        </button>
-
+      <div className="px-2 pt-2">
         <label htmlFor="goal-objective" className="sr-only">
           描述最终目标
         </label>
@@ -254,11 +252,34 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
             editDraft({ objective: event.target.value });
             resizeObjectiveTextarea(event.target);
           }}
-          placeholder="让 Nerelan 做点什么…"
-          rows={1}
-          className="min-h-9 max-h-36 min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-2 py-2 text-[15px] leading-5 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
+          onKeyDown={(event) => {
+            // IME composition uses Enter to commit a candidate, not to send.
+            // Safari reports the committing keydown with isComposing false and keyCode 229.
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.keyCode === 229) return;
+            event.preventDefault();
+            if (ready) event.currentTarget.form?.requestSubmit();
+          }}
+          placeholder={placeholder}
+          rows={compact ? 1 : 2}
+          className="block max-h-48 min-h-9 w-full resize-none overflow-y-auto bg-transparent px-2 py-1.5 text-[15px] leading-6 text-ra-text placeholder:text-ra-text-tertiary focus:outline-none"
         />
 
+      </div>
+      {/* One quiet card, as agent chats have it: the details live behind 高级. */}
+      <div className="flex items-center gap-1.5 px-2 pb-2">
+        <button
+          type="button"
+          aria-expanded={optionsOpen}
+          aria-controls="goal-composer-advanced"
+          onClick={() => setOptionsOpen((value) => !value)}
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-xs text-ra-text-tertiary transition hover:bg-ra-light/60 hover:text-ra-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+        >
+          <Settings2 className="h-4 w-4" aria-hidden="true" />
+          高级
+        </button>
+        <span data-testid="goal-composer-execution-summary" className="min-w-0 flex-1 truncate text-xs text-ra-text-tertiary" title={executionSummary}>
+          {draft.repository}{compact ? "" : ` · ${executionSummary}`}
+        </span>
         <button
           type="submit"
           disabled={!ready}
@@ -266,7 +287,7 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           aria-describedby={blockedReason ? "goal-composer-blocked" : undefined}
           title={blockedReason ?? "创建并审阅目标"}
           className={cn(
-            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition",
+            "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition",
             ready
               ? "bg-ra-accent text-ra-base hover:bg-ra-accent-hover"
               : "bg-ra-tertiary/60 text-ra-text-tertiary",
@@ -285,28 +306,40 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
           {blockedReason}
         </p>
       ) : null}
-
-      {showOptions && (
-        <div
-          data-testid="goal-composer-options"
-          className="border-t border-ra-border/60 px-3 py-2.5"
+      {bindingMissing ? (
+        <p
+          role="status"
+          data-testid="goal-composer-binding-hint"
+          className="px-3 pb-2 text-xs text-ra-status-warning"
         >
-          <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="inline-flex items-center gap-2 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text-secondary">
-                <GitBranch className="h-3.5 w-3.5" aria-hidden="true" />
-                <input
-                  aria-label="仓库"
-                  value={draft.repository}
-                  onChange={(event) => editDraft({ repository: event.target.value })}
-                  className="w-44 bg-transparent text-ra-text focus:outline-none"
-                />
-              </label>
+          {bindingsQuery.isLoading
+            ? "正在获取可用的模型绑定…"
+            : "没有可用的 OpenCode 绑定。请先在设置页创建连接与绑定，或直接填写绑定名称。"}
+        </p>
+      ) : null}
+
+      <div
+        data-testid="goal-composer-options"
+        hidden={!optionsOpen}
+        className="border-t border-ra-border/60 px-3 py-2.5"
+      >
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text-secondary">
+              <GitBranch className="h-3.5 w-3.5" aria-hidden="true" />
+              <input
+                aria-label="仓库"
+                value={draft.repository}
+                onChange={(event) => editDraft({ repository: event.target.value })}
+                className="w-44 bg-transparent text-ra-text focus:outline-none"
+              />
+            </label>
+            <div id="goal-composer-advanced" hidden={!optionsOpen} className={cn("flex-wrap items-center gap-2", optionsOpen ? "flex" : "hidden")}>
               <label className="inline-flex items-center gap-2 rounded-lg border border-ra-border/70 bg-ra-base/30 px-2.5 py-1.5 text-xs text-ra-text-secondary">
                 <Bot className="h-3.5 w-3.5" aria-hidden="true" />
                 <select
                   aria-label="执行模式"
-                  value={draft.teamMode && !checkerOnly ? "agent_team" : draft.executorKind}
+                  value={draft.teamMode ? "agent_team" : draft.executorKind}
                   onChange={(event) =>
                     editDraft(event.target.value === "agent_team"
                       ? { executorKind: "opencode", teamMode: true, bindingRef: "" }
@@ -314,11 +347,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                   }
                   className="bg-transparent text-ra-text focus:outline-none"
                 >
-                  <option value="opencode">{checkerOnly ? "固定仓库检查（不调用模型）" : "OpenCode 多 Agent"}</option>
-                  {!checkerOnly && <option value="agent_team">多 Agent 分工（按 Agent 团队派发）</option>}
-                  {!checkerOnly && <option value="claude_code">Claude Code 单任务（Claude 账号）</option>}
-                  {!checkerOnly && <option value="codex">Codex 单任务（ChatGPT 账号）</option>}
-                  <option value="deterministic_fixture">无模型验证</option>
+                  <option value="agent_team">自动（按任务选择 Agent 和模型）</option>
+                  <option value="opencode">OpenCode：规划 → 编码 → 审查</option>
+                  <option value="claude_code">Claude Code 单任务（Claude 账号）</option>
+                  <option value="codex">Codex 单任务（ChatGPT 账号）</option>
+                  <option value="deterministic_fixture">无模型演练（只验证平台流程）</option>
                 </select>
               </label>
               {needsBinding && (
@@ -349,28 +382,11 @@ export function GoalComposer({ busy, onSubmit }: GoalComposerProps) {
                 </>
               )}
             </div>
-
-            <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
           </div>
-          {approvedPolicy && <p role="status" className="mt-2 text-xs text-ra-text-secondary" data-testid="approved-policy-summary">
-            已批准的委托窗口：{approvedPolicy.validation_command_id}，截止 {approvedPolicy.policy.autonomousWindow.expiresAt}。
-            {approvedPolicy.task_budget && `任务额度 ${approvedPolicy.task_budget.max_tasks}，重试 ${approvedPolicy.task_budget.max_retries}；模型调用 ${approvedPolicy.task_budget.model_call_limit}。`}
-            {checkerOnly ? "仅检查冻结范围内的差异格式，不实现代码或修复目标；不调用模型，也不发布。" : "可用操作以服务端批准范围为准。"}
-          </p>}
-          {approvedPolicyQuery.isError && <p role="status" className="mt-2 text-xs text-ra-status-warning">当前没有可验证的已批准运行窗口；可以保存草稿，不能据此获得执行授权。</p>}
-          {bindingMissing ? (
-            <p
-              role="status"
-              data-testid="goal-composer-binding-hint"
-              className="mt-2 text-xs text-ra-status-warning"
-            >
-              {bindingsQuery.isLoading
-                ? "正在获取可用的模型绑定…"
-                : "没有可用的 OpenCode 绑定。请先在设置页创建连接与绑定，或直接填写绑定名称。"}
-            </p>
-          ) : null}
+
+          <p className="text-xs text-ra-text-secondary">先保存草稿，审阅并批准后再启动。</p>
         </div>
-      )}
+      </div>
     </form>
   );
 }

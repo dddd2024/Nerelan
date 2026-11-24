@@ -29,11 +29,11 @@ const roadmap: PlatformRoadmapPhase[] = [{
 const clients: QueryClient[] = [];
 let platform: PlatformStatus;
 
-function mount(page: ReactElement, seeds: Array<[unknown[], unknown]> = []) {
+function mount(page: ReactElement, seeds: Array<[unknown[], unknown]> = [], path = "/") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
   clients.push(queryClient);
   for (const [key, data] of seeds) queryClient.setQueryData(key, data, { updatedAt: 1 });
-  render(<QueryClientProvider client={queryClient}><MemoryRouter>{page}</MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={queryClient}><MemoryRouter initialEntries={[path]}>{page}</MemoryRouter></QueryClientProvider>);
   return queryClient;
 }
 
@@ -43,6 +43,7 @@ beforeEach(async () => {
   vi.spyOn(client, "fetchGoals").mockResolvedValue([goal]);
   vi.spyOn(client, "fetchGoal").mockResolvedValue(goal);
   vi.spyOn(client, "fetchRuns").mockResolvedValue([]);
+  vi.spyOn(client, "fetchGoalTimeline").mockResolvedValue({ goal: { id: goal.id, title: goal.title, objective: goal.objective, status: goal.status, repository: goal.repository }, plan: [], steps: [] });
 });
 afterEach(() => {
   cleanup();
@@ -105,17 +106,17 @@ describe("Home independent reads", () => {
     expect(screen.queryByText("协调器在线")).not.toBeInTheDocument();
   });
 
-  it("reports unavailable run activity without removing the selected Goal", async () => {
-    vi.mocked(client.fetchRuns).mockRejectedValue(new Error("Runs unavailable"));
-    mount(<HomePage />);
-    expect(await screen.findByText("运行活动加载失败")).toBeInTheDocument();
+  it("reports an unavailable goal timeline without removing the selected Goal", async () => {
+    vi.mocked(client.fetchGoalTimeline).mockRejectedValue(new Error("Timeline unavailable"));
+    mount(<HomePage />, [], `/?goal=${goal.id}`);
+    expect(await screen.findByText("执行过程加载失败")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-stream")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-header")).toHaveTextContent(goal.title);
   });
 
   it("retains the same cached Goal detail and exposes a retry after background failure", async () => {
     vi.mocked(client.fetchGoal).mockRejectedValue(new Error("Goal detail unavailable"));
-    mount(<HomePage />, [[["goals", goal.id], goal]]);
+    mount(<HomePage />, [[["goals", goal.id], goal]], `/?goal=${goal.id}`);
     expect(await screen.findByText("目标详情更新失败，显示上次内容")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-stream")).toBeInTheDocument();
     expect(screen.getByTestId("active-goal-header")).toHaveTextContent(goal.title);

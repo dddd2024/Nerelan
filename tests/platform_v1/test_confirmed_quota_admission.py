@@ -213,9 +213,10 @@ def reset_host(monkeypatch):
     monkeypatch.setattr(host, "_subscription_quotas", lambda: {})
     connection = {"connection_id": "account", "executor_provider_id": "codex"}
 
-    def fail(reset="", age=0, classification="codex_usage_limit"):
+    def fail(reset="", age=0, classification="codex_usage_limit", detail=""):
         task = tasks.create_task(title="failure", repository="o/r", executor_kind="codex", binding_ref="b")
-        task = tasks.classify_failure(task.id, classification=classification, failure_reset_at=reset)
+        task = tasks.classify_failure(task.id, classification=classification, detail=detail,
+                                      failure_reset_at=reset)
         tasks._conn.execute("UPDATE tasks SET failure_at = ?, updated_at = ? WHERE id = ?",
                             (_iso(now - age), _iso(now - age), task.id))
         tasks._conn.commit()
@@ -383,3 +384,123 @@ def test_weekly_only_router_capacity_blocks_without_reset_signal():
                       weekly_headroom=.12, task_weekly_fraction=.03),
             candidate("fit", "opus", "subscription")]
     assert choose(pool, difficulty=5)["binding_ref"] == "fit"
+
+
+_PLAN_EXHAUSTED = "opencode_nonzero:exit=1:quota_exhausted name=APIError status=429 message=token plan entitlement exhausted"
+
+
+def test_executor_reported_plan_exhaustion_holds_longer_than_a_rate_limit(reset_host):
+    """#1497: a used-up plan stays held for hours; a plain 429 an hour."""
+    host, connection, now, fail = reset_host
+    fail(age=2 * 3600, classification="api_error_429",
+         detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429 message=too many requests")
+    assert host._limit_hit_until(connection) is None
+    fail(age=2 * 3600, classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    assert host._limit_hit_until(connection) == now + 3 * 3600
+
+
+def test_stated_reset_still_beats_the_plan_exhaustion_fallback(reset_host):
+    host, connection, now, fail = reset_host
+    fail(_iso(now + 600), classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    assert host._limit_hit_until(connection) == now + 600
+
+
+@pytest.mark.parametrize("detail", ["quota_exhausted:limit_hit", "quota_exhausted:limit_hit:no_alternative", ""])
+def test_host_quota_refusals_are_not_account_evidence(reset_host, detail):
+    host, connection, now, fail = reset_host
+    fail(classification="quota_exhausted", detail=detail)
+    assert host._limit_hit_until(connection) is None
+
+
+def test_plan_exhausted_binding_is_not_selected_again_in_the_window(monkeypatch):
+    """The next dispatch after a plan-exhaustion failure switches away while the hold lasts."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    store = ModelProfileStore()
+    store.upsert_connection({"connection_id": "glm-plan", "name": "GLM", "provider": "openai_compatible",
+                             "base_url": "https://example.invalid/v1", "auth_method": "api_key",
+                             "enabled": True})
+    store.upsert_binding({"binding_id": "coding-glm", "name": "GLM", "connection_id": "glm-plan",
+                          "executor_id": "opencode", "model_id": "glm-test", "enabled": True})
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {}, raising=False)
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="opencode", binding_ref="coding-glm")
+    tasks.classify_failure(failed.id, classification="quota_exhausted", detail=_PLAN_EXHAUSTED)
+    verdict = host._quota_check(store.list_bindings_public()[0])
+    assert (verdict["decision"], verdict["reason"]) == ("switch", "limit_hit")
+
+
+def _gateway_host(monkeypatch, *, account_ref=None, base_url="http://127.0.0.1:3425/v1", auth_method="none"):
+    """One gateway connection (as Magpie) fronting two upstreams, plus a second model of the first."""
+    from reverse_agent.platform_v1.run_store import TaskStore
+    monkeypatch.delenv("REVERSE_AGENT_MAGPIE_URL", raising=False)
+    store = ModelProfileStore()
+    connection = {"connection_id": "gateway", "name": "Gateway", "provider": "openai_compatible",
+                  "base_url": base_url, "auth_method": auth_method, "enabled": True}
+    if account_ref:
+        connection["account_ref"] = account_ref
+    store.upsert_connection(connection)
+    for binding_id, model in (("trae-glm", "trae-cn/glm-5.2"), ("trae-deepseek", "trae-cn/deepseek-v4.1-flash"),
+                              ("copilot-sonnet", "copilot/claude-sonnet-5.5")):
+        store.upsert_binding({"binding_id": binding_id, "name": binding_id, "connection_id": "gateway",
+                              "executor_id": "opencode", "model_id": model, "enabled": True})
+    tasks = TaskStore(":memory:")
+    host = object.__new__(CombinedTrustedHost)
+    host._store, host._task_store = store, tasks
+    monkeypatch.setattr(host, "_subscription_quotas", lambda: {}, raising=False)
+    failed = tasks.create_task(title="t", repository="o/r", executor_kind="opencode", binding_ref="trae-deepseek")
+    tasks.classify_failure(failed.id, classification="api_error_429",
+                           detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429 message=rpm exhausted")
+    bindings = {b["binding_id"]: b for b in store.list_bindings_public()}
+    return host, store.get_connection_public("gateway"), bindings
+
+
+def test_a_gateway_refusal_holds_only_that_upstream(monkeypatch):
+    """2026-11-14: one upstream's 429 held every model behind Magpie for an hour."""
+    host, connection, bindings = _gateway_host(monkeypatch)
+    assert host._limit_hit_until(connection, bindings["trae-glm"]) is not None  # same upstream account
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is None  # another upstream
+    verdict = host._quota_check(bindings["copilot-sonnet"])
+    assert verdict is None or verdict.get("reason") != "limit_hit"
+    assert host._quota_check(bindings["trae-glm"])["reason"] == "limit_hit"
+
+
+def test_a_refusal_on_one_magpie_group_holds_no_other_group_or_binding(monkeypatch):
+    """Owner decision 2026-11-17: every group/* id is its own upstream, not one shared "group"."""
+    host, connection, bindings = _gateway_host(monkeypatch)
+    for binding_id, model in (("group-glm", "group/nerelan-glm-5-3"), ("group-kimi", "group/nerelan-kimi"),
+                              ("auto-glm", "auto/glm-5.3")):
+        host._store.upsert_binding({"binding_id": binding_id, "name": binding_id, "connection_id": "gateway",
+                                    "executor_id": "opencode", "model_id": model, "enabled": True})
+    failed = host._task_store.create_task(title="t", repository="o/r", executor_kind="opencode",
+                                          binding_ref="group-glm")
+    host._task_store.classify_failure(failed.id, classification="api_error_429",
+                                      detail="opencode_nonzero:exit=1:api_error_429 name=APIError status=429")
+    bindings = {b["binding_id"]: b for b in host._store.list_bindings_public()}
+    assert host._limit_hit_until(connection, bindings["group-glm"]) is not None
+    assert host._limit_hit_until(connection, bindings["group-kimi"]) is None
+    assert host._limit_hit_until(connection, bindings["auto-glm"]) is None
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is None
+    # The earlier trae-cn refusal still holds only trae-cn models, never a group.
+    assert host._limit_hit_until(connection, bindings["trae-glm"]) is not None
+    connections = {connection["connection_id"]: connection}
+    assert host._liveness_upstream(bindings["group-glm"], connections) == "gateway:gateway:group:nerelan-glm-5-3"
+    assert host._liveness_upstream(bindings["group-kimi"], connections) == "gateway:gateway:group:nerelan-kimi"
+
+
+def test_a_recorded_account_still_holds_every_model_it_serves(monkeypatch):
+    host, connection, bindings = _gateway_host(monkeypatch, account_ref="one-account")
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is not None
+
+
+def test_without_a_binding_the_whole_connection_is_held_as_before(monkeypatch):
+    host, connection, _ = _gateway_host(monkeypatch)
+    assert host._limit_hit_until(connection) is not None
+
+
+def test_a_single_account_connection_with_vendor_prefixes_is_held_whole(monkeypatch):
+    """Review of #1522: an OpenRouter-style key serves z-ai/* and moonshotai/* from one account."""
+    host, connection, bindings = _gateway_host(monkeypatch, base_url="https://openrouter.ai/api/v1",
+                                               auth_method="api_key")
+    assert host._limit_hit_until(connection, bindings["copilot-sonnet"]) is not None

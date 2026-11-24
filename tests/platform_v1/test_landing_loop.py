@@ -1,5 +1,6 @@
 """Provider-free contract tests and reusable landing adapter fake."""
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
@@ -36,6 +37,9 @@ class FakeGitHubAdapter:
 
     def update_branch(self, state, claim_id):
         self.calls.append(("update_branch", claim_id))
+
+    def ready_target_current(self, state):
+        return True
 
     def mark_ready(self, state, claim_id):
         self.calls.append(("mark_ready", claim_id))
@@ -107,7 +111,7 @@ def test_claim_exclusive_across_connections_and_retry_fenced(tmp_path, monkeypat
     assert len(store.landing_receipts(identity)) == 3
 
 
-@pytest.mark.parametrize("restriction", ["repository", "missing", "stopped", "expired", "trusted"])
+@pytest.mark.parametrize("restriction", ["repository", "missing", "stopped", "expired"])
 def test_denied_authority_has_no_adapter_calls(tmp_path, restriction):
     store, window, state, fake, loop = setup_loop(
         tmp_path / "tasks.sqlite3",
@@ -117,8 +121,6 @@ def test_denied_authority_has_no_adapter_calls(tmp_path, restriction):
         store.stop_window(window.id)
     if restriction == "expired":
         store._conn.execute("UPDATE platform_autonomous_windows SET expires_at='2000-01-01T00:00:00Z'")
-    if restriction == "trusted":
-        loop.autonomy.require_trusted_policy = True
     with pytest.raises(TaskStoreError, match="landing_denied"):
         loop.claim(state["identity"], "merge", window_id=window.id)
     assert not fake.calls
@@ -273,6 +275,23 @@ def test_restart_after_comment_creation_reconciles_without_repost(review_setup):
     assert [r["outcome"] for r in reopened.landing_receipts(state["identity"])] == ["CLAIMED", "SUCCEEDED"]
 
 
+def test_source_closure_after_review_claim_keeps_unsent_comment_absent(review_setup, monkeypatch):
+    assert run_review(review_setup).success
+    control, goal, state, github, loop = review_loop(review_setup)
+    claim = loop.claim
+
+    def close_after_claim(*args, **kwargs):
+        result = claim(*args, **kwargs)
+        assert result and control.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+        return result
+
+    monkeypatch.setattr(loop, "claim", close_after_claim)
+    with pytest.raises(TaskStoreError, match="goal_source_issue_closed"):
+        loop.post_review(state["identity"], review_setup[3], window_id=goal.window_id)
+    assert github.comments == {}
+    assert control.landing_operation(state["identity"], "review_comment")["status"] == "ABSENT"
+
+
 @pytest.mark.parametrize("stale", ["head", "evidence"])
 def test_stale_review_never_posts(review_setup, monkeypatch, stale):
     assert run_review(review_setup).success
@@ -339,10 +358,18 @@ def test_router_selected_toolless_executor_runs_publication_review(toolless, bud
 
 def test_review_comment_can_use_publication_grant_without_landing_grant(tmp_path):
     control, window, state, github, loop = setup_loop(tmp_path / "tasks.sqlite3",
-        capabilities=("open_draft_pr",))
-    assert loop.claim(state["identity"], "review_comment", window_id=window.id)
+        capabilities=tuple(sorted(control_module.OWNER_WINDOW_CAPABILITIES)))
+    identity = state["identity"]
+    assert loop.claim(identity, "review_comment", window_id=window.id)
     with pytest.raises(TaskStoreError, match="landing_denied"):
-        loop.claim(state["identity"], "merge", window_id=window.id)
+        loop.claim(identity, "merge", window_id=window.id)
+
+    parked = loop.tick(identity, window_id=window.id)
+    assert parked["phase"] == "BLOCKED"
+    assert parked["parking_reason"] == "landing_denied_by_window"
+    assert control.landing_operation(identity, "mark_ready") is None
+    assert control.landing_operation(identity, "merge") is None
+    assert github.calls == []
 
 
 class ProgressGitHub(FakeGitHubAdapter):
@@ -379,6 +406,9 @@ class ProgressGitHub(FakeGitHubAdapter):
         elif self.bad_check == "stale":
             checks["baseline"]["head_sha"] = "f" * 40
         return {"checks": checks}
+
+    def observe_main(self, state, main_sha):
+        return {"held": False, "rerun": []}
 
     def invoke_verdict(self, state, claim_id):
         passed = self.accepted if claim_id == "assessment" else self.premerge
@@ -439,6 +469,71 @@ def test_unattended_accept_to_merge_and_restart_receipt(tmp_path, monkeypatch):
         control_store=reopened, capabilities=CapabilityRegistry()), github=github)
     assert step(recovered, state, window, now)["phase"] == "COMPLETE"
     assert len([c for c in github.calls if c[0] == "merge"]) == 1
+
+
+@pytest.mark.parametrize("noticed_in_tick", [False, True])
+def test_source_closure_stops_existing_landing_before_merge(tmp_path, monkeypatch, noticed_in_tick):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    goal_id = state["goal_id"]
+    if noticed_in_tick:
+        loop.source_issue_closed = lambda goal_id, *, fresh: fresh and store.supersede_closed_issue_goal(
+            goal_id, revision=1,
+        )
+    else:
+        assert store.supersede_closed_issue_goal(goal_id, revision=1)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == "SUPERSEDED"
+    assert progress["parking_reason"] == "goal_source_issue_closed"
+    assert not github.merged
+    operation = store.landing_operation(state["identity"], "merge")
+    assert operation is None or operation["status"] == "ABSENT"
+
+
+@pytest.mark.parametrize("observed_merge", [False, True])
+def test_source_closure_reconciles_prior_landing_without_writing(tmp_path, monkeypatch, observed_merge):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    identity = state["identity"]
+    claim = loop.claim(identity, "merge", window_id=window.id)
+    assert claim
+    if observed_merge:
+        github.merged = True
+        github.main = "d" * 40
+    assert store.supersede_closed_issue_goal(state["goal_id"], revision=1)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == ("COMPLETE" if observed_merge else "BLOCKED")
+    assert store.landing_operation(identity, "merge")["status"] == ("SUCCEEDED" if observed_merge else "UNKNOWN")
+    assert not github.calls
+    with pytest.raises(TaskStoreError, match="goal_source_issue_closed"):
+        loop.claim(identity, "mark_ready", window_id=window.id)
+
+
+def test_source_issue_close_preserves_verified_landing(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    assert step(loop, state, window, now)["phase"] == "RECONCILING"
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+    before = store.get_goal(state["goal_id"])
+    assert store.supersede_closed_issue_goal(before.id, revision=before.revision)
+    assert store.get_goal(before.id) == before
+
+
+def test_source_closure_during_final_verdict_leaves_unsent_merge_absent(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    verdict = github.invoke_verdict
+
+    def close_during_verdict(current, claim):
+        result = verdict(current, claim)
+        if claim != "assessment":
+            assert store.supersede_closed_issue_goal(state["goal_id"], revision=1)
+        return result
+
+    monkeypatch.setattr(github, "invoke_verdict", close_during_verdict)
+    progress = step(loop, state, window, now)
+    assert progress["phase"] == "SUPERSEDED"
+    assert not github.merged
+    assert store.landing_operation(state["identity"], "merge")["status"] == "ABSENT"
 
 
 @pytest.mark.parametrize("bad", ["red", "missing", "stale"])
@@ -519,8 +614,28 @@ def test_live_adapter_commands_are_head_matched_and_checker_unchanged(tmp_path, 
     assert adapter.invoke_verdict(state, "merge-claim")["passed"]
     adapter.merge_head_matched(state, "merge-claim")
     assert calls[0][1:4] == ["-m", "reverse_agent.landing_review", "verdict"]
+    assert calls[0][-2:] == ["--auth-source", "gh"]
     assert calls[1][-3:] == ["--merge", "--match-head-commit", "a" * 40]
     assert not any(arg in {"--admin", "--rebase", "--force"} for call in calls for arg in call)
+
+
+@pytest.mark.parametrize("head,expected", [("a" * 40, True), ("b" * 40, False)])
+def test_live_ready_target_reads_the_current_head(tmp_path, monkeypatch, head, expected):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    state = dict(repository="dddd2024/Nerelan", pr_number=1266, head_sha="a" * 40)
+    calls = []
+
+    def observe(_state, suffix):
+        assert suffix == "pulls/1266"
+        return {"head": {"sha": head}, "base": {"ref": "main", "repo": {"full_name": state["repository"]}},
+                "draft": True, "state": "open"}
+
+    monkeypatch.setattr(adapter, "_api", observe)
+    monkeypatch.setattr(adapter, "_run", lambda args, **_kwargs: calls.append(args))
+    assert adapter.ready_target_current(state) is expected
+    assert calls == []
 
 
 def test_publish_review_accept_merge_via_unattended_entry(toolless, monkeypatch):
@@ -667,3 +782,474 @@ def test_unattended_revoked_window_parks_without_adapter_calls(tmp_path, monkeyp
     coordinator.tick()
     assert store.get_landing(state["identity"])["phase"] == "BLOCKED"
     assert not github.calls
+
+
+def _coordinator_toolless_harness(toolless, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    s = toolless
+    control = PlatformControlStore(s["store"])
+    goal = control.get_goal(control.goal_id_for_task(s["producer"]))
+    s["store"]._conn.execute(
+        "UPDATE platform_autonomous_windows SET capabilities_json=?",
+        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),),
+    )
+    producer = s["store"].get_task(s["producer"])
+    retained = artifact_handoff._load_evidence(producer, artifact_handoff.ACCEPTED_CATEGORY, producer.execution_id)
+    github = ProgressGitHub()
+    github.head = retained["commit"]
+    github.accepted = False
+    github.comments = {}
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + retained["commit"] in body
+
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN",
+    )
+    loop = LandingLoopController(
+        control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+        github=github,
+    )
+    goals = GoalService(store=s["store"], control_store=control)
+    coordinator = UnattendedCoordinator(
+        store=s["store"], control_store=control, autonomy=loop.autonomy,
+        router=s["service"].router, workspace_root=s["root"], landing_loop=loop,
+        publication=SimpleNamespace(publish_artifact=lambda task_id, **kwargs: SimpleNamespace(
+            commit_sha=retained["commit"], pr_number=1266)),
+        goals=goals,
+    )
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: s["service"])
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+    return s, control, goal, producer, retained, github, goals, coordinator, now
+
+
+def test_coordinator_resumes_landing_after_retried_review_succeeds(review_setup, monkeypatch):
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    from test_functional_execution import durable
+    from test_model_review_execution import ACCEPT, Reviewer
+
+    store, router, producer, review_id, _, options, root = review_setup
+    control = PlatformControlStore(store)
+    goal = control.get_goal(control.goal_id_for_task(producer))
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal.id,))
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET capabilities_json = ?, max_retries = 10",
+        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),),
+    )
+    retained = artifact_handoff._load_evidence(
+        store.get_task(producer), artifact_handoff.ACCEPTED_CATEGORY, store.get_task(producer).execution_id)
+    github = ProgressGitHub()
+    github.head = retained["commit"]
+    github.accepted = False
+    github.comments = {}
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + retained["commit"] in body
+
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN",
+    )
+    loop = LandingLoopController(
+        control_store=control,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+        github=github,
+    )
+    goals = GoalService(
+        store=store, control_store=control,
+        task_resolver=lambda *a, **kw: {
+            "executor_kind": "opencode", "binding_ref": store.get_task(review_id).binding_ref,
+            "model_id": "local/test", "reason": "retry",
+        },
+    )
+    service = durable(store, router)
+    coordinator = UnattendedCoordinator(
+        store=store, control_store=control, autonomy=loop.autonomy,
+        router=router, workspace_root=root, landing_loop=loop,
+        publication=SimpleNamespace(publish_artifact=lambda task_id, **kwargs: SimpleNamespace(
+            commit_sha=retained["commit"], pr_number=1266)),
+        goals=goals,
+    )
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: service)
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+
+    options["response"] = "unparseable review"
+    coordinator.tick()
+    assert control.landing_progress(goal.id)["phase"] == "BLOCKED"
+    assert github.comments == {}
+
+    from reverse_agent.platform_v1 import functional_validation
+    retry_outcome, = goals.escalate_failed_tasks(goal.id)
+    retried_review_id = retry_outcome["to_task_id"]
+    assert retried_review_id != review_id
+    producer_task = store.get_task(producer)
+    source = artifact_handoff._producer_worktree(
+        store, producer_task, functional_validation.functional_evidence(producer_task))
+    router.replace("opencode", lambda **kw: Reviewer(source, kw["base_ref"], response=ACCEPT))
+    assert durable(store, router).execute_durable_single(retried_review_id, workspace_root=str(root / "retry")).success
+    control.refresh_goal_status(goal.id)
+    assert control.get_goal(goal.id).status == "COMPLETED"
+
+    coordinator.tick()
+    assert github.accepted and not github.draft and len(github.comments) == 1
+    assert ("Nerelan-Review: ACCEPT " + retained["commit"]) in next(iter(github.comments.values()))
+    now[0] += 60001
+    coordinator.tick()
+    now[0] += 60001
+    coordinator.tick()
+    assert control.landing_progress(goal.id)["phase"] == "COMPLETE"
+    assert len(github.comments) == 1
+
+
+@pytest.mark.parametrize("case", ["no_retained_review", "with_parking_reason", "with_review_comment_op"])
+def test_coordinator_does_not_reenter_blocked_landing_without_retained_review_or_with_parking_reason(
+    toolless, monkeypatch, case,
+):
+    s, control, goal, producer, retained, github, goals, coordinator, _ = _coordinator_toolless_harness(
+        toolless, monkeypatch)
+    if case != "no_retained_review":
+        assert s["service"].execute_durable_single(task_id=s["consumer"], workspace_root=s["root"]).success
+    state = control.ensure_landing(
+        repository=goal.repository, goal_id=goal.id, pr_number=1266,
+        head_sha=retained["commit"], review_round=1,
+    )
+    if case == "with_review_comment_op":
+        claim = control.claim_landing_operation(state["identity"], "review_comment", window_id=goal.window_id)
+        assert claim
+    if case == "with_parking_reason":
+        control.finish_landing_tick(state["identity"], "BLOCKED", "landing_denied_by_window", 0)
+    else:
+        control.schedule_landing(state["identity"], expected_phase=state["phase"], phase="BLOCKED")
+
+    called = []
+    monkeypatch.setattr(coordinator.landing_loop, "publish_and_review", lambda *a, **kw: called.append(a))
+    monkeypatch.setattr(coordinator.landing_loop, "tick", lambda *a, **kw: called.append(("tick", a)))
+    coordinator.tick()
+    assert called == []
+
+
+@pytest.mark.parametrize("scenario", ["accepted", "no_reviewer_first", "closed_pr", "github_error", "interrupted_push"])
+def test_coordinator_publishes_an_accepted_repair_of_a_rejected_head(review_setup, monkeypatch, scenario):
+    """P0-D2 r8 follow-up: after REJECT and repair the new head was never published again."""
+    from reverse_agent.platform_v1 import functional_validation
+    from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+    from reverse_agent.platform_v1.goal_service import GoalService
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    from test_functional_execution import LocalImplementation, durable, ordinary
+    from test_model_review_execution import ACCEPT, REJECT, Reviewer
+
+    store, router, producer, review_id, _, options, root = review_setup
+    control = PlatformControlStore(store)
+    goal = control.get_goal(control.goal_id_for_task(producer))
+    store._conn.execute("UPDATE platform_goals SET orchestration_mode = 'agent_team' WHERE id = ?", (goal.id,))
+    store._conn.execute("UPDATE platform_autonomous_windows SET capabilities_json = ?, max_retries = 10",
+                        (json.dumps(["execute_task", "validate_task", "open_draft_pr", "land_reviewed_pr"]),))
+
+    def accepted(task_id):
+        task = store.get_task(task_id)
+        return artifact_handoff._load_evidence(task, artifact_handoff.ACCEPTED_CATEGORY, task.execution_id)
+
+    def linked(kind):
+        plan = next(raw["id"] for raw in goal.tasks if (raw.get("kind") == "review") is (kind == "review"))
+        return next(row["task_id"] for row in control.list_goal_tasks(goal.id) if row["plan_task_id"] == plan)
+    github = ProgressGitHub()
+    github.accepted, github.comments, published, reviewer = False, {}, [], [True]
+    github.pr_state = "OPEN"
+    observe = github.observe_pr
+    github.observe_pr = lambda state: dict(observe(state), state=github.pr_state)
+
+    def verdict(state, claim_id):
+        # As landing_review answers: a head nobody reviewed is not a rejected head.
+        named = [body for body in github.comments.values() if state["head_sha"] in body]
+        passed = any("ACCEPT" in body for body in named)
+        return dict(passed=passed, reason="accepted" if passed else
+                    "latest_review_verdict_rejects_head" if named else "independent_review_verdict_missing")
+    github.invoke_verdict = verdict
+
+    def publish(task_id, **kwargs):
+        github.head = accepted(task_id)["commit"]
+        github.accepted = False  # no verdict names the new head yet
+        published.append(github.head)
+        if broken[0] and scenario == "interrupted_push" and github.head != published[0]:
+            broken[0] = False
+            raise TaskStoreError("publication_pr_head_or_draft_mismatch")  # after the push
+        return SimpleNamespace(commit_sha=github.head, pr_number=1266)
+    broken = [scenario in {"github_error", "interrupted_push"}]
+
+    def post(state, claim, body):
+        github.comments[claim] = body
+        github.accepted = "Nerelan-Review: ACCEPT " + github.head in body
+    github.post_review_comment = post
+    github.reconcile_review_comment = lambda state, claim: dict(
+        identity=state["identity"], operation="review_comment", claim_id=claim,
+        outcome="SUCCEEDED" if claim in github.comments else "UNKNOWN")
+    loop = LandingLoopController(control_store=control, github=github,
+        autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()))
+
+    def resolve(plan, **kwargs):
+        if plan.kind == "review" and not reviewer[0]:
+            raise TaskStoreError("no_runnable_model")
+        model = "local/test" if plan.kind == "review" else "local/repair-author"
+        return {"executor_kind": "opencode", "binding_ref": "local-test-binding", "model_id": model, "reason": "t"}
+    goals = GoalService(store=store, control_store=control, task_resolver=resolve)
+    coordinator = UnattendedCoordinator(store=store, control_store=control, autonomy=loop.autonomy, router=router,
+        workspace_root=root, landing_loop=loop, publication=SimpleNamespace(publish_artifact=publish), goals=goals)
+    monkeypatch.setattr(coordinator, "_durable_service", lambda: durable(store, router))
+    now = [control_module._utc_now_ms()]
+    monkeypatch.setattr(control_module, "_utc_now_ms", lambda: now[0])
+    window = control.active_window()
+
+    def ticks(count):
+        for _ in range(count):
+            now[0] += 60001
+            coordinator._advance_landing(window)
+    if scenario == "interrupted_push":
+        github.bad_check = "missing"  # the rejected head never turns green: its landing stays WAITING
+    options["response"] = REJECT
+    coordinator._advance_landing(window)
+    first = accepted(producer)["commit"]
+    assert published == [first] and "REJECT " + first in next(iter(github.comments.values()))
+    ticks(2)
+    assert published == [first]  # the REJECT alone publishes nothing
+
+    repair = linked("implement")
+    assert repair != producer
+    old = store.get_task(producer)
+    source = artifact_handoff._producer_worktree(store, old, functional_validation.functional_evidence(old))
+    router.replace("opencode", lambda **kw: LocalImplementation(source, first, "value = 2\n# repaired\n"))
+    assert ordinary(store, router).execute(repair, workspace_root=str(root / "repair")).success
+    store.append_usage_observation(repair, observation_id="repair-author", execution_id=store.get_task(repair).execution_id,
+        role="executor", model_id="local/repair-author", provider_id="local", source_kind="assistant_message",
+        source_id="repair-turn", status="UNKNOWN")
+    second = accepted(repair)["commit"]
+    assert second != first
+    if scenario == "no_reviewer_first":
+        # Nothing is pushed while nobody can review it, however often this repeats.
+        reviewer[0] = False
+        for _ in range(3):
+            assert goals.escalate_failed_tasks(goal.id) == ()
+            ticks(1)
+        assert store.get_task(review_id).status == "BLOCKED" and published == [first]
+        reviewer[0] = True
+    refreshed, = goals.escalate_failed_tasks(goal.id)
+    ticks(2)
+    assert published == [first]  # reviewed first
+    router.replace("opencode", lambda **kw: Reviewer(source, kw["base_ref"], response=ACCEPT))
+    assert durable(store, router).execute_durable_single(refreshed["to_task_id"], workspace_root=str(root / "fresh")).success
+    if scenario == "closed_pr":
+        github.pr_state = "CLOSED"
+        ticks(4)
+        assert published == [first] and len(github.comments) == 1
+        return
+    if scenario == "github_error":
+        failing = github.observe_pr
+
+        def once(state):
+            if broken[0] and published[-1:] == [second] and state["head_sha"] == second:
+                broken[0] = False
+                raise GitHubAdapterError("rate_limit")
+            return failing(state)
+        github.observe_pr = once
+    if scenario == "interrupted_push":
+        assert control.landing_progress(goal.id)["phase"] == "WAITING"
+        ticks(1)
+        assert control.landing_progress(goal.id)["parking_reason"] == "landing_head_race"
+        github.bad_check = None
+    ticks(7)
+    assert not broken[0]
+    assert github.merged and control.landing_progress(goal.id)["phase"] == "COMPLETE"
+    assert published[0] == first and set(published[1:]) == {second}
+    assert sorted(body.split("Nerelan-Review: ")[1] for body in github.comments.values()) == [
+        "ACCEPT " + second, "REJECT " + first]
+
+
+@pytest.mark.parametrize("change, allowed", [
+    ({}, True), ({"phase": "WAITING", "parking_reason": "fresh_current_head_checks_required"}, True),
+    ({"parking_reason": "latest_review_verdict_rejects_head"}, True), ({"pr_head": "b" * 40}, True), ({"chain": True}, True),
+    ({"parking_reason": "landing_head_race", "pr_head": "b" * 40}, True),
+    ({"parking_reason": "landing_head_race"}, False), ({"parking_reason": "landing_head_race", "pr_head": "c" * 40}, False),
+    ({"phase": "COMPLETE"}, False), ({"phase": "RECONCILING"}, False), ({"parking_reason": "pull_request_closed"}, False),
+    ({"parking_reason": "landing_denied_by_window"}, False), ({"parking_reason": "r2_trusted_owner_decision_required"}, False),
+    ({"head_sha": "b" * 40}, False), ({"comment": "UNKNOWN"}, False), ({"comment": None}, False),
+    ({"repairs": "c" * 40}, False), ({"repairs": None}, False), ({"review": "QUEUED"}, False), ({"review": "FAILED"}, False),
+    ({"reviewed": False}, False), ({"pr_state": "CLOSED"}, False), ({"draft": False}, False), ({"pr_head": "c" * 40}, False)])
+def test_only_an_accepted_repair_of_the_rejected_head_is_republished(monkeypatch, change, allowed):
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    case = {"phase": "BLOCKED", "parking_reason": "", "head_sha": "a" * 40, "comment": "SUCCEEDED", "repairs": "a" * 40,
+            "review": "READY_FOR_REVIEW", "reviewed": True, "pr_state": "OPEN", "draft": True, "pr_head": "a" * 40,
+            "chain": False, **change}
+    coordinator = UnattendedCoordinator.__new__(UnattendedCoordinator)
+    coordinator.control_store = SimpleNamespace(landing_operation=lambda identity, op: (
+        {"status": case["comment"]} if case["comment"] else None))
+    coordinator.store = SimpleNamespace(get_task=lambda task_id: SimpleNamespace(id=task_id, execution_id=task_id))
+    coordinator.landing_loop = SimpleNamespace(github=SimpleNamespace(observe_pr=lambda state: {
+        "state": case["pr_state"], "draft": case["draft"], "head_sha": case["pr_head"]}))
+    monkeypatch.setattr(coordinator, "_planned_review", lambda goal, task: SimpleNamespace(status=case["review"]))
+    monkeypatch.setattr(coordinator, "_has_retained_review", lambda review: case["reviewed"])
+
+    def repair_of(task, category, label):
+        if not case["repairs"]:
+            return None
+        if case["chain"] and task.id == "new":  # an unpublished repair that was itself rejected
+            return {"producer": {"commit": "e" * 40, "task_id": "middle"}}
+        return {"producer": {"commit": case["repairs"], "task_id": "new"}}
+    monkeypatch.setattr(artifact_handoff, "_load_evidence", repair_of)
+    landing = {"identity": "i", **{k: case[k] for k in ("phase", "parking_reason", "head_sha")}}
+    assert coordinator._republishes_rejected_head(
+        None, SimpleNamespace(id="new", execution_id="e"), {"commit": "b" * 40}, landing) is allowed
+
+
+def _hold_main(github, held, rerun=()):
+    github.main_reads, github.reruns = [], []
+
+    def observe(state, main_sha):
+        github.main_reads.append(main_sha)
+        return {"held": held, "rerun": list(rerun)}
+    github.observe_main = observe
+    github.rerun_failed_jobs = lambda state, run_id: github.reruns.append(run_id)
+
+
+@pytest.mark.parametrize("rerun_fails", [False, True])
+def test_a_red_main_holds_the_merge_until_it_is_green(tmp_path, monkeypatch, rerun_fails):
+    from reverse_agent.platform_v1.github_adapter import GitHubAdapterError
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    _hold_main(github, True, [7])
+    if rerun_fails:
+        def refuse(*args):
+            github.reruns.append(args[1])
+            raise GitHubAdapterError("forbidden")
+        github.rerun_failed_jobs = refuse
+    held = step(loop, state, window, now)
+    assert (held["phase"], held["parking_reason"]) == ("WAITING", "main_checks_failed")
+    assert not github.merged and store.landing_operation(state["identity"], "merge") is None
+    assert github.reruns == [7]
+    step(loop, state, window, now)  # inside the recheck delay: nothing is read
+    assert len(github.main_reads) == 1
+    _hold_main(github, True)  # the rerun is under way: still held, nothing more to rerun
+    now[0] += 5 * 60001
+    assert loop.tick(state["identity"], window_id=window.id)["parking_reason"] == "main_checks_failed"
+    assert github.reruns == [] and not github.merged
+    _hold_main(github, False)
+    for _ in range(8):
+        step(loop, state, window, now)
+    assert github.merged and store.get_landing(state["identity"])["phase"] == "COMPLETE"
+
+
+def test_red_main_does_not_hold_ready(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    _hold_main(github, True, [7])
+    step(loop, state, window, now)
+    assert not github.draft and not github.merged and github.main_reads == []
+
+
+MAIN = "a" * 40
+_CHECK = dict(id=1, name="baseline", head_sha=MAIN, status="completed", conclusion="failure", completed_at="t",
+              app={"slug": "github-actions"}, check_suite={"id": 50})
+_RUN = dict(id=9, head_sha=MAIN, status="completed", run_attempt=1, conclusion="failure", check_suite_id=50)
+
+
+@pytest.mark.parametrize("check, run, held, rerun", [
+    ({}, {}, True, [9]),
+    ({"conclusion": "timed_out"}, {"conclusion": "timed_out"}, True, [9]),
+    ({}, {"run_attempt": 2}, True, []),                                             # failed twice: only a person
+    ({"status": "in_progress", "conclusion": None}, {"status": "in_progress", "run_attempt": 2, "conclusion": None}, True, []),
+    ({"status": "queued", "conclusion": None}, {"status": "queued", "run_attempt": 1, "conclusion": None}, False, []),
+    ({"conclusion": "success"}, {"run_attempt": 2, "conclusion": "success"}, False, []),
+    ({"conclusion": "success"}, {}, False, []),                                     # another job of the run failed
+    ({"name": "repository-diagnostic"}, {}, False, []),
+    ({"app": {"slug": "other"}}, {}, False, []),
+    ({"head_sha": "b" * 40}, {}, False, []),
+    ({}, {"check_suite_id": 51}, True, []),                                         # an unrelated workflow is not rerun
+])
+def test_live_adapter_reads_mains_own_required_checks(tmp_path, monkeypatch, check, run, held, rerun):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    monkeypatch.setattr(adapter, "_run", lambda args, **kwargs: [{"check_runs": [{**_CHECK, **check}]}])
+    monkeypatch.setattr(adapter, "_api", lambda state, suffix: {"workflow_runs": [{**_RUN, **run}]})
+    state = dict(repository="o/r", head_sha="c" * 40, pr_number=1)
+    assert adapter.observe_main(state, MAIN) == {"held": held, "rerun": rerun}
+
+
+def test_a_merge_that_main_has_moved_past_is_confirmed(tmp_path, monkeypatch):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    github.draft = False
+    assert step(loop, state, window, now)["phase"] == "RECONCILING"
+    observe = github.observe_pr
+    github.observe_pr = lambda current: dict(observe(current), main_sha="e" * 40, merge_on_main=True)
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+
+
+@pytest.mark.parametrize("before, tasks, after", [("RUNNING", "READY_FOR_REVIEW", "COMPLETED"), ("RUNNING", "QUEUED", "RUNNING"),
+                                                  ("COMPLETED", "QUEUED", "COMPLETED"), ("BLOCKED", "READY_FOR_REVIEW", "BLOCKED")])
+def test_completion_only_moves_a_finished_goal_forward(tmp_path, monkeypatch, before, tasks, after):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    goal = store.get_goal(state["goal_id"])
+    task = store.task_store.create_task(title="t", repository=goal.repository)
+    store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (tasks, task.id))
+    store._conn.execute("INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+                        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, task.id))
+    store._conn.execute("UPDATE platform_goals SET status = ? WHERE id = ?", (before, goal.id))
+    github.draft = False
+    step(loop, state, window, now)
+    assert store.get_goal(goal.id).status == before
+    assert step(loop, state, window, now)["phase"] == "COMPLETE"
+    assert store.get_goal(goal.id).status == after
+
+
+@pytest.mark.parametrize("status, superseded", [("SUCCEEDED", False), ("UNKNOWN", True), ("ABSENT", True), ("CLAIMED", True)])
+def test_only_a_confirmed_merge_keeps_its_goal_when_the_issue_closes(tmp_path, monkeypatch, status, superseded):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    claim = store.claim_landing_operation(state["identity"], "merge", window_id=window.id)
+    if status != "CLAIMED":
+        store.record_landing_outcome(state["identity"], "merge", claim, outcome=status, evidence={"x": 1})
+    goal = store.get_goal(state["goal_id"])
+    store.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+    assert (store.get_goal(goal.id).status == "SUPERSEDED") is superseded
+
+
+@pytest.mark.parametrize("merged, tasks, status", [(True, "READY_FOR_REVIEW", "COMPLETED"), (True, "QUEUED", "SUPERSEDED"),
+                                                   (False, "READY_FOR_REVIEW", "SUPERSEDED")])
+def test_a_goal_superseded_by_its_own_merge_is_restored_once_confirmed(tmp_path, monkeypatch, merged, tasks, status):
+    store, window, state, github, loop, now = progress_loop(tmp_path, monkeypatch)
+    goal = store.get_goal(state["goal_id"])
+    task = store.task_store.create_task(title="t", repository=goal.repository)
+    store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (tasks, task.id))
+    store._conn.execute("INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+                        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, task.id))
+    claim = store.claim_landing_operation(state["identity"], "merge", window_id=window.id)
+    store.record_landing_outcome(state["identity"], "merge", claim, outcome="UNKNOWN", evidence={"x": 1})
+    assert store.supersede_closed_issue_goal(goal.id, revision=goal.revision)
+    github.draft, github.merged = False, merged
+    github.main = "d" * 40 if merged else github.main
+    for _ in range(3):
+        step(loop, state, window, now)
+    assert not any(call[0] == "merge" for call in github.calls)
+    assert store.get_goal(goal.id).status == status
+
+
+@pytest.mark.parametrize("status, on_main", [("ahead", True), ("identical", True), ("behind", False), ("diverged", False)])
+def test_live_adapter_confirms_a_merge_by_ancestry(tmp_path, monkeypatch, status, on_main):
+    from reverse_agent.platform_v1.live_landing import LiveLandingGitHubAdapter
+    adapter = LiveLandingGitHubAdapter(tmp_path)
+    head, merge, main = "a" * 40, "c" * 40, "d" * 40
+    answers = {"pulls/1": {"head": {"sha": head}, "base": {"repo": {"full_name": "o/r"}, "ref": "main"}, "draft": False,
+                           "state": "closed", "merged": True, "merge_commit_sha": merge, "changed_files": 0},
+               "git/ref/heads/main": {"object": {"sha": main}}, f"compare/{main}...{head}": {"behind_by": 1},
+               f"compare/{merge}...{main}": {"status": status}}
+    monkeypatch.setattr(adapter, "_api", lambda state, suffix: answers[suffix])
+    monkeypatch.setattr(adapter, "_pages", lambda state, suffix: [])
+    state = dict(repository="o/r", pr_number=1, head_sha=head, identity="i")
+    assert adapter.observe_pr(state)["merge_on_main"] is on_main
+    outcome = adapter.reconcile_operation(state, "merge", "claim")["outcome"]
+    assert outcome == ("SUCCEEDED" if on_main else "UNKNOWN")

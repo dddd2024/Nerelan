@@ -37,6 +37,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request
 
+from .exclusive_server import ExclusiveThreadingHTTPServer
 from .http_safe import urlopen  # never follows redirects with the provider key
 
 from .contracts import ANTHROPIC_PROTOCOL, ExecutionSnapshot
@@ -784,7 +785,7 @@ def run_credential_relay_server(
         (_RelayHandler,),
         {"manager": manager, "upstream_timeout": upstream_timeout},
     )
-    server = ThreadingHTTPServer((host, port), handler_cls)
+    server = ExclusiveThreadingHTTPServer((host, port), handler_cls)
     return server
 
 

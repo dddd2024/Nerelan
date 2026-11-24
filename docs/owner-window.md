@@ -1,0 +1,209 @@
+# Owner 窗口：在本机确认一组目标的自治窗口
+
+Owner 决定（2026-11-07）：补上正式的 Owner 激活，用于多目标、长时间的无人值守运行。采用简化方案：
+在宿主终端输入一次性确认码，代替原生对话框。
+
+## 为什么需要它
+
+| 途径 | 能否激活多目标长时窗口 |
+|---|---|
+| 浏览器/HTTP `POST /api/windows/activate` | 否。设计上拒绝渲染端声称的 Owner 选择（`owner_selection_confirmation_unavailable`） |
+| 原生单任务准入（`native_goal_entry`，#1207） | 否。恰好 1 个钉死的 Codex 任务、30 分钟、不重试 |
+| 委托授权（Decision 包） | 否。只授权固定检查类任务 |
+| **Owner 窗口（本文）** | 是。最多 20 个目标、7 天、100 个任务、并发 8、重试 5 |
+
+## 用法
+
+先创建并规划好目标（`PLANNED`、未绑定窗口、同一个仓库），然后在宿主所用的环境里运行：
+
+```bash
+python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 --max-tasks 10 --max-concurrent 1 --max-retries 2 --capability execute_task --capability resume_task
+```
+
+它会启动宿主，打印完整范围：每个目标的全文、任务、窗口时长和上限、能力、可用模型池（含"受周配速约束"标记，
+付费 API 不提供），以及一个一次性确认码。在同一个终端输入这个码才会激活，输入其他内容即取消。激活后这个进程
+继续作为宿主运行；重启后用普通方式启动宿主即可，窗口和目标都在数据库里。
+
+范围太大显示不下时直接拒绝，不截断。确认码必须在交互式终端输入，管道输入会被拒绝。确认有效期 5 分钟，
+窗口时间从打印范围之前开始计算。
+
+### 为目标授予合并权限（限时单目标与持续运行多目标）
+
+按 Owner 决定（2026-11-22，[#1718](https://github.com/dddd2024/Nerelan/issues/1718#issuecomment-7075002630)），持续运行窗口（`--continuous --land-reviewed-pr`，或 `continuous` 预设经确认卡片/监督者激活）可携带 `land_reviewed_pr`，在独立审查、当前提交 CI、匹配 SHA 合并和 `main` 核验通过后，对同一仓库内的多个已确认 Goal（含后续追加或接管的 Goal）持续受控自动合并，不再要求每个 Goal 单独到宿主终端输入确认码。
+
+在非持续的限时窗口中，仍保留原有的单 Goal 终端 opt-in 边界：在宿主终端命令中加入 `--land-reviewed-pr`，同时指定一个 `--goal`、有限的 `--hours`，以及 `--capability validate_task` 和 `--capability open_draft_pr`。窗口停止或到期后，授权随之失效；非持续窗口的确认卡片和监督者预设不开启此选项。
+
+已完成执行、因缺少窗口授权而暂停的 PR，可在原窗口结束后使用
+`--goal <GOAL_ID> --hours 1 --resume-parked-landing`。终端显示待恢复的仓库、PR 和完整提交 SHA。
+确认后，新窗口只处理这条合并记录，先核对旧操作回执，再检查独立审查和 CI。它不重新执行 Goal，
+也不更新 PR 分支。PR 已关闭、提交变化或分支落后时会再次暂停。
+宿主在读取来源 Issue 后再次核对 PR 提交再发出 Ready 请求。GitHub 的 Ready 接口没有预期 SHA 参数，
+因此读写之间仍可能发生变化。合并由 GitHub 按预期 SHA 执行。
+
+### 激活前预检
+
+宿主运行时，`POST /api/owner-window/preflight` 接受与命令行相同的参数（`goal_ids`、`hours`、`max_tasks`、
+`max_concurrent`、`max_retries`、`capabilities`、`max_token_units`、`max_cost_micro_units`），逐项报告会让激活
+被拒或让窗口启动后立即 BLOCKED 的原因，而不是遇到第一个就停：
+
+| 检查 | 内容 |
+|---|---|
+| `request` | 参数本身：目标数量、时长、能力 |
+| `leftover_claims` | 是否有遗留的 ACTIVE 协调器认领；有则先对账或隔离 |
+| `goals` | 目标是否可激活：`PLANNED`、未绑定窗口、同一仓库、任务数不超上限、钉死绑定在模型池内 |
+| `model_pool` | 提供给窗口的模型池，以及未提供的绑定及原因（付费 API、不可用） |
+| `routing` | 每个任务按启动时的同一套选路能否落到池内绑定（含周配速、额度、评审独立性） |
+
+报告同时给出每个任务的预计模型和范围摘要，供确认卡片显示。预检不创建窗口、不批准目标、不写回执，
+不能代替确认；它做的副作用与激活前相同（绑定新发现的模型、刷新登录会话、选路时刷新额度）。
+
+### 一句话成稿与预设
+
+`POST /api/quick-start/draft`（`text`、`repository`，可选 `preset`）把一句话变成可激活的目标：
+
+- 识别 Issue 链接和 `#编号`（只认本仓库），用已登录的 `gh` 读取标题和正文；Issue 必须是 OPEN。没有 Issue 时，
+  整句话作为一个目标。
+- 每个 Issue 一个 `agent_team` 目标，不钉死绑定，确定性规划，保证启动时按池选路。
+  同一句话、同一份 Issue 文本得到同一个目标；已被窗口用过的目标不复用，下一次另建。
+- Issue 正文点名了测试（`tests/....py`，或前端的 `npm test`）时，目标是两个任务：`implement`（带这些功能检查）
+  和 `review`（以实现结果为输入、重跑同样的检查、不改文件）。评审由选路分到与作者不同家族的模型；实现通过检查后，
+  宿主自动把结果开成 Draft PR，评审结论由 landing 流程记录。没有点名测试的 Issue 只有一个 `implement` 任务，
+  不会自动开 PR，成稿结果里 `publishes_draft_pr` 为 false。
+- 根据"试跑 / 一天 / 一周"等字样选预设，默认"一天"，返回对应的窗口参数，供预检和确认使用。
+
+| 预设 | 时长 | 并发 | 重试 | Token 上限 |
+|---|---|---|---|---|
+| `trial` 试跑 | 2 小时 | 1 | 1 | 300,000 |
+| `day` 一天（默认） | 24 小时 | 1 | 2 | 2,000,000 |
+| `week` 一周 | 168 小时 | 2 | 2 | 10,000,000 |
+
+数值来自 Owner 决定（2026-11-09；`continuous` 预设含 `land_reviewed_pr` 见 2026-11-22 决定），可以在任务库旁边的 `owner_window_presets.json` 里改（只能改限时预设的这四项）。
+限时预设（`trial`/`day`/`week`）只开 Draft PR，`continuous` 预设支持受控自动合并，付费 API 均不在模型池里；任务数上限按"任务数 ×（1 + 重试）"计算。一周预设是一个 7 天窗口，
+正好在 Owner 窗口的上限内；超过 7 天需要 standing renewal（#1310 D），不在预设里。
+
+成稿只创建并规划目标，不批准、不启动、不激活。
+
+### 确认卡片激活（默认）
+
+Owner 决定（2026-11-09）：确认卡片上的"开始"就是 Owner 的确认。`POST /api/owner-window/activate`
+接受与预检相同的参数，外加预检返回的 `card_digest`：
+
+- 请求仍需本机客户端会话（由启动器发放），渲染端之外的进程拿不到。
+- `card_digest` 覆盖卡片显示的全部内容：每个目标的修订和产物摘要、仓库和基线、时长与各项上限、能力、
+  模型池；不含每次请求不同的窗口编号和时钟时间。宿主在询问前按当前持久化数据重算，不一致就拒绝
+  （`owner_window_scope_changed`），卡片应重新预检后再确认。
+- 之后与终端路径完全相同：事务内再读一次并逐字节比对，窗口、批准、启动和每个目标一条回执一起提交，
+  回执记录确认方式为"owner pressed Start on the Nerelan confirmation card"。
+- 严格模式：任务库旁的 `owner_window_settings.json` 写 `{"confirmation": "terminal"}` 后，卡片不能激活
+  （`owner_window_terminal_confirmation_required`），只能用终端确认码。预检结果的 `confirmation` 字段
+  告诉界面当前模式。
+
+### 监督者请求（可选，默认关闭）
+
+Owner 决定（2026-11-10）：监督 Nerelan 的 Agent 可以在预设边界内代为激活窗口，不必先问。它拿不到
+启动器发放的客户端会话，也不该伪造终端，所以由正在运行的宿主读取任务库旁 `supervisor_requests/`
+目录里的请求文件来完成：
+
+```text
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> draft \
+    --text "#1411 #1412" --repository owner/repo --preset day
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> preflight \
+    --preset day --goal <目标> --goal <目标>
+python -m reverse_agent.platform_v1.supervisor_requests --state-dir <任务库目录> activate \
+    --preset day --goal <目标> --goal <目标> --card-digest <预检返回的摘要>
+```
+
+- 默认关闭。Owner 在任务库旁的 `owner_window_settings.json` 写 `{"supervisor_activation": true}` 才生效；
+  关闭时请求会得到 `owner_window_supervisor_activation_disabled`，什么都不做。
+- 宿主在启动时读取这个开关：打开后要重启宿主才生效，关闭则立即生效。这样宿主运行期间，以同一用户运行的
+  任务改写设置文件也打不开它。
+- 严格模式（`"confirmation": "terminal"`）下拒绝激活；起草和预检不授权任何事，仍然可用。
+- 设置文件格式不对（包括 `supervisor_activation` 不是布尔值）时，监督者请求和确认卡片都被拒绝
+  （`owner_window_settings_invalid`），直到 Owner 改好。
+- 请求里不能写边界。请求只给出预设名（试跑 / 一天 / 一周）、目标和预检摘要，时长、并发、重试、任务数和
+  Token 上限由宿主按预设计算；带了其他字段的请求被拒绝（`supervisor_request_invalid`）。
+  预设的数值可以被 Owner 的 `owner_window_presets.json` 改写，所以"预设边界"指的是这个文件当前的内容；
+  它和设置文件都能被同一用户下的进程改写，数据库的硬上限仍然适用，回执里记录实际使用的边界。
+- 激活走与确认卡片相同的准入：摘要与当前范围不一致就拒绝，窗口、批准、启动和每个目标一条回执一起
+  提交。回执的确认方式记为"supervisor request file under the Owner's standing delegation; preset
+  bounds only"，并记下请求方自报的名字（`requested_by`）。
+- 宿主先删除请求文件再处理，所以一个请求最多执行一次；结果写到同目录的 `<编号>.result.json`。
+- 命令行等不到结果时会撤回自己的请求（`supervisor_request_unanswered`）。如果宿主已经取走了请求，它可能
+  仍在执行：命令行会继续等一段时间，仍没有结果就报 `supervisor_request_taken_result_pending` 并给出结果
+  文件的路径，不会把它说成没有发生。每个回答都带 `request_id`。
+- 它不验证身份：以同一系统用户运行的任何进程都能写这个文件。打开这个设置就是接受这一点。
+- 只有协调器在运行的宿主才处理请求（`REVERSE_AGENT_AUTONOMOUS=1`）。
+
+## 保证
+
+激活在一个 SQLite `BEGIN IMMEDIATE` 事务里完成，沿用单任务原生准入的约束：
+
+- 打印前读取持久化数据，事务内再读一次并逐字节比对；目标在此期间被改动就整体回滚。
+- 窗口、标记、批准、启动和每个目标一条回执同时提交，否则什么都不留下。
+- 回调中禁止 COMMIT/ROLLBACK（SQLite authorizer），提交前再做一次 SQLite 时钟闸门。
+- 数据库对窗口范围施加硬上限，与调用方请求无关；能力只能取
+  `execute_task`、`resume_task`、`reconcile_task`、`validate_task`、`open_draft_pr`，且必须包含 `execute_task`。
+  单目标的限时终端 opt-in 以及持续运行（`continuous`）窗口还可授予 `land_reviewed_pr`。
+- 存在未清理的 ACTIVE 认领时拒绝（与原生准入相同）。
+
+激活之后，只有 Owner 确认过的目标能在这个窗口里运行：
+
+| 位置 | 检查 |
+|---|---|
+| 启动目标 `GoalService._launch` | Owner 窗口只接受准入流程内的启动 |
+| 重新绑定 `_rebind_goal_locked` | 不能把其他目标移入 Owner 窗口；窗口到期后移出仍然可以 |
+| 认领任务 `check_strict_task_admission`（候选扫描、认领事务、恢复） | 任务所属目标必须有本窗口的准入回执 |
+| 执行前 `durable_execution` | 实际使用的绑定必须在回执记录的模型池里，所有执行器都检查；没有绑定的任务被拒绝 |
+
+选路发生在事务内，禁止可用性探测（探测会调用模型）。准入前会先触发一次自动绑定新发现模型，
+避免事务内选到 Owner 没看到的绑定。
+
+## 用量未知时
+
+任务超时或用量报告丢失时，这次执行的用量记为未知。普通硬准入窗口会因此停止；Owner 窗口按 Owner 决定
+（2026-11-08）改为：把这次执行按整份预留量计入已用（部分读数更大时按部分读数），用量仍标为未知，
+预留不释放，窗口继续运行；只有计入后达到 Token 或成本上限时才停止（`usage_unknown_budget_reached`）。
+预算汇总里，已计入的未知预留不再重复扣减。
+
+## 局限
+
+- 确认码证明的是有人在这个终端读了范围并输入了它，不能证明这个人就是仓库 Owner。能操控这个终端的
+  任何进程都能输入它。原生对话框同样防不住同一用户下的自动化，所以两者实际强度相近。
+- Owner 决定（2026-11-09）：系统不再默认严防同机其他 Agent。默认由确认卡片的"开始"激活（见上文"确认卡片激活"），
+  终端确认码是可选的严格模式。Owner 决定（2026-11-10）：监督 Nerelan 的 Agent 可以不先询问就代为激活，
+  只用预设边界，事后向 Owner 报告窗口编号和范围；途径是上文的"监督者请求"，需要 Owner 先打开设置。
+- 模型池是确认那一刻的快照。之后新增的绑定不在池里，被选中时执行前会被拒绝。
+- 激活前逐任务预先选路，并在确认界面列出每个任务预计使用的模型。钉死绑定的目标沿用其绑定；路由的
+  `agent_team` 目标在关闭可用性探测的前提下选路；路由的 `single`、`sequential_team` 目标在启动时
+  不会选路，因此直接拒绝，并提示改用 `agent_team` 或钉死绑定。任何任务选不到池内绑定都在询问 Owner
+  之前拒绝。事务内启动后再检查一次：若有任务仍无绑定（例如额度在确认期间变化），整个激活回滚，
+  不会出现启动后立即失败、窗口 BLOCKED 的情况（2026-11-08 首次长跑遇到过）。
+- 确认界面显示的是预计模型；事务内的选路仍可能在模型池内换成另一个绑定。
+- 每个窗口只覆盖一个仓库，因为宿主只能映射一个本地仓库（`REVERSE_AGENT_REPO_DIR`）。
+
+## 开机恢复
+
+Owner 窗口和目标都写在任务数据库里，重启后宿主自动恢复，无需重新激活。运行时需要的环境变量
+（例如 `REVERSE_AGENT_MULTI_ACCOUNT_ENABLED`、`REVERSE_AGENT_MAGPIE_EXE`）不会自动保存：
+Owner 需要在任务数据库目录下自己创建一次 `run.env.json`，例如
+
+```json
+{
+  "REVERSE_AGENT_MULTI_ACCOUNT_ENABLED": "1",
+  "REVERSE_AGENT_MAGPIE_EXE": "C:/Tools/magpie/magpie.exe"
+}
+```
+
+开机自启脚本 `scripts/windows/Start-NerelanAtLogon.ps1` 在没有显式 `-EnvFile` 时读取它：
+
+- 优先读 `REVERSE_AGENT_TASK_DB_DIR` 指向的目录；未设置时用默认宿主目录
+  `%LOCALAPPDATA%\Nerelan\platform-v1`。
+- 只应用 `REVERSE_AGENT_*` 键；名称含 `KEY`/`TOKEN`/`SECRET`/`PASSWORD`/`CREDENTIAL` 的键
+  会被拒绝，密钥仍留在密钥库。
+- 路径值统一转为正斜杠（反斜杠路径曾导致宿主启动失败）。
+- 显式 `-EnvFile` 仍优先，适用于需要临时覆盖的场合。
+
+创建好 `run.env.json` 后，用 `scripts/windows/Install-HostAutostart.ps1` 安装开机启动项；它会把
+宿主注册到当前用户的启动文件夹，登录后自动启动 Magpie 与宿主。注意：如果任务数据库目录只在
+`run.env.json` 里指定，登录时脚本找不到这个文件；这种情况下请把 `REVERSE_AGENT_TASK_DB_DIR`
+设为用户环境变量，或安装时传入 `-EnvFile`。

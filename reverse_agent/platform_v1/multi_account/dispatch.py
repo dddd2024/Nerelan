@@ -111,9 +111,16 @@ def routing_feedback_snapshot(store_path: Optional[Path] = None) -> Optional[dic
         brain = get_orchestrator(store_path)
         if not brain.config.enable_feedback_routing or not brain.config.enable_account_scoring:
             return None
-        state = (brain.store.section("accounts") if brain.config.persist_account_state
-                 else brain.scores.snapshot())
-        return routing_snapshot(brain.config, state, owner=brain.routing()["owner"], now=brain._clock())
+        from .policy_lifecycle import effective_weights
+        with brain._feedback_lock:
+            state = brain._account_feedback_store.account_routing_state()
+            accounts = state["accounts"] if brain.config.persist_account_state else brain.scores.snapshot()
+            effective = effective_weights(state["account_policy"], brain.config)
+            from .config import MultiAccountConfig
+            config = MultiAccountConfig(**{**brain.config.model_dump(), **effective})
+            revision = state["account_policy"].get("revision", 0) if brain.config.enable_policy_evolution else None
+            return routing_snapshot(config, accounts, owner=brain.routing()["owner"], now=brain._clock(),
+                                    evolution_revision=revision)
     except Exception:  # noqa: BLE001 - optional advice does not replace hard admission
         return None
 

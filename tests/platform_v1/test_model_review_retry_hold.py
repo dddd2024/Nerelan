@@ -6,15 +6,16 @@ must then schedule nothing and record one typed hold. Fake providers and
 disposable Git/SQLite only; no real reboot or billing behaviour is proven.
 """
 import sqlite3
+import time
 
 import pytest
 
 from test_goal_functional_checks import goal_checks
-from test_model_review_execution import review_setup, Reviewer
+from test_model_review_execution import review_setup
 from test_model_review_toolless import toolless
 from test_model_review_rpc_journal import harness, journal, escalate, fail_entry_binding
 from test_model_review_feedback import rejected
-from reverse_agent.platform_v1 import artifact_handoff, model_review, model_review_transport as transport
+from reverse_agent.platform_v1 import artifact_handoff, goal_service, model_review, model_review_transport as transport
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.goal_service import GoalService
 from reverse_agent.platform_v1.run_store import TaskStoreError
@@ -22,19 +23,19 @@ from reverse_agent.platform_v1.run_store import TaskStoreError
 HOLD = "model_review_intent_unresolved"
 
 
-def lose_reply(h, monkeypatch):
-    """The fake reviewer accepts the request, then its reply is lost."""
-    if h["kind"] == "toolless":
-        s = h["state"]
-        def accepted_then_timeout(handle, body):
-            s["calls"].append(body)
-            raise TimeoutError("synthetic reply lost")
-        monkeypatch.setattr(transport, "chat", accepted_then_timeout)
-    else:
-        def accepted_then_lost(self, prepared, store, *, task_id, prompt):
-            self.calls.append("reviewer")
-            raise TimeoutError("synthetic reply lost")
-        monkeypatch.setattr(Reviewer, "execute_review_prepared", accepted_then_lost)
+def unsave_reply(h, monkeypatch):
+    """The reviewer replies, then saving the reply fails: its outcome stays unknown.
+
+    A call that ended with no reply settles instead (#1618), so the unresolved
+    intent these tests need comes from a reply the host could not save.
+    """
+    store = h["store"]
+    original = store._bind_artifact_evidence
+    def fail(*args, **kwargs):
+        if kwargs.get("category") == model_review.CATEGORY:
+            raise TaskStoreError("synthetic_evidence_write_failed")
+        return original(*args, **kwargs)
+    monkeypatch.setattr(store, "_bind_artifact_evidence", fail)
 
 
 def fail_blocked_writers(store, monkeypatch, attempts, *, all_writers=False):
@@ -65,7 +66,7 @@ def failed_over_pending(h, monkeypatch, *, all_writers=False):
     scheduler outcome is asserted by the callers.
     """
     store = h["store"]
-    lose_reply(h, monkeypatch)
+    unsave_reply(h, monkeypatch)
     attempts = []
     restore = fail_blocked_writers(store, monkeypatch, attempts, all_writers=all_writers)
     with pytest.raises(TaskStoreError, match="synthetic_blocked_state_write_failed"):
@@ -190,3 +191,84 @@ def test_non_review_task_ignores_review_journal(review_setup, monkeypatch):
     assert len(store.get_events(producer)) == events
     # The same unreadable journal does hold the review task.
     assert service._review_intent_hold(store.get_task(consumer), planned["B"]) is True
+
+
+# Legacy parks (#1618): before the fix a call with no reply parked BLOCKED forever.
+GRACE = transport.TIMEOUT_SECONDS + goal_service.NO_REPLY_GRACE_SECONDS
+
+
+def legacy_park(h, monkeypatch, *, age, cause="timeout"):
+    """A pre-#1618 park: BLOCKED model_review_completion_unknown:<cause> over its PENDING intent."""
+    store = h["store"]
+    original = store._bind_artifact_evidence
+    unsave_reply(h, monkeypatch)
+    h["run"]()
+    monkeypatch.setattr(store, "_bind_artifact_evidence", original)
+    row, = journal(store, h["consumer"])
+    assert row["state"] == "PENDING"
+    store._conn.execute("UPDATE tasks SET failure_detail = ? WHERE id = ?", (
+        f"model_review_completion_unknown:{cause}: reviewer call {row['operation_id']} may have completed "
+        "remotely; journal stays PENDING, not replayed, reconcile manually", h["consumer"]))
+    started = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - age))
+    store._conn.execute("UPDATE durable_external_operations SET created_at = ? WHERE operation_id = ?",
+                        (started, row["operation_id"]))
+    # The parked invocation's lease has long expired.
+    store._conn.execute("UPDATE durable_runs SET lease_expiry_ms = ? WHERE task_id = ?",
+                        (int((time.time() - age) * 1000), h["consumer"]))
+    task = store.get_task(h["consumer"])
+    assert task.status == "BLOCKED" and not [r for r in task.evidence_refs if r["category"] == model_review.CATEGORY]
+    return row
+
+
+def recoveries(store, task_id):
+    return [event for event in store.get_events(task_id) if event.type == "MODEL_SELECTION_FAILED"
+            and event.metadata.get("reason") == model_review.ABANDONED_NO_REPLY]
+
+
+def test_legacy_no_reply_park_past_grace_is_settled_and_retried_once(harness, monkeypatch):
+    row = legacy_park(harness, monkeypatch, age=GRACE + 60)
+    store = harness["store"]
+    replacements, before, after = escalate(harness)
+    assert len(replacements) == 1 and after != before
+    assert replacements[0]["reason"] == f"host_retry:{model_review.ABANDONED_NO_REPLY}"
+    settled, = journal(store, harness["consumer"])
+    assert (settled["operation_id"], settled["state"], settled["result_state"]) == (
+        row["operation_id"], "RECONCILED", "failure")
+    event, = recoveries(store, harness["consumer"])
+    assert event.metadata["operation_id"] == row["operation_id"] and event.metadata["cause"] == "timeout"
+    count = store.count_tasks()
+    for _ in range(2):  # later ticks neither retry again nor record a second event
+        assert escalate(harness)[0] == ()
+    assert store.count_tasks() == count and len(recoveries(store, harness["consumer"])) == 1
+    assert harness["calls"]() == 1 and not holds(store, harness["consumer"])
+
+
+def test_legacy_no_reply_park_inside_grace_stays_held(harness, monkeypatch):
+    row = legacy_park(harness, monkeypatch, age=transport.TIMEOUT_SECONDS)
+    store = harness["store"]
+    count = store.count_tasks()
+    replacements, before, after = escalate(harness)
+    assert replacements == () and after == before and store.count_tasks() == count
+    current, = journal(store, harness["consumer"])
+    assert (current["operation_id"], current["state"]) == (row["operation_id"], "PENDING")
+    assert not recoveries(store, harness["consumer"])
+
+
+@pytest.mark.parametrize("cause", ["response_unsaved", "receipt_conflict", "intent_scope_conflict",
+                                   "intent_pending", "OperationalError"])
+def test_legacy_parks_with_a_reply_or_unknown_scope_stay_held(harness, monkeypatch, cause):
+    legacy_park(harness, monkeypatch, age=GRACE + 60, cause=cause)
+    store = harness["store"]
+    assert escalate(harness)[0] == ()
+    assert [r["state"] for r in journal(store, harness["consumer"])] == ["PENDING"]
+    assert not recoveries(store, harness["consumer"])
+
+
+def test_legacy_no_reply_park_with_live_lease_stays_held(harness, monkeypatch):
+    legacy_park(harness, monkeypatch, age=GRACE + 60)
+    store = harness["store"]
+    store._conn.execute("UPDATE durable_runs SET lease_owner = 'still-running', lease_expiry_ms = ? WHERE task_id = ?",
+                        (int(time.time() * 1000) + 600000, harness["consumer"]))
+    assert escalate(harness)[0] == ()
+    assert [r["state"] for r in journal(store, harness["consumer"])] == ["PENDING"]
+    assert not recoveries(store, harness["consumer"])

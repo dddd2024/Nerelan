@@ -1,21 +1,62 @@
-"""Single-request tool-less review over an execution-scoped host relay lease.
+"""Single-request tool-less review.
+
+Two transports, one request shape and one set of answer checks:
+
+- an API-key connection goes through an execution-scoped host relay lease, so the
+  key never leaves the host;
+- a keyless gateway on this machine (a loopback ``http`` base URL with
+  ``auth_method: none``, such as Magpie) is called directly: there is no credential
+  to lease, and its accounts stay inside the gateway.
 
 This module accepts only prompt text and connection identity, never a workspace.
 """
 import json
+from urllib.parse import urlsplit
 from urllib.request import Request
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
-from ..model_access.http_safe import urlopen
+from ..model_access.http_safe import urlopen_direct
 from ..model_access.credential_relay import _normalize_model_id
 from .run_store import TaskStoreError
 from .task_runtime import ExecutorRuntimeError
 
-TIMEOUT_SECONDS = 60
+# One non-streaming request carries the whole frozen diff to a (often reasoning) model
+# and waits for the full JSON verdict. 60 s timed out on every real review on
+# 2026-11-17 (#1632); the durable heartbeat covers the call, so the bound only
+# needs to stop a call that will never answer. Same as the default executor timeout.
+TIMEOUT_SECONDS = 600
 MAX_RESPONSE_BYTES = 512 * 1024
+# The upstream answered that it will not serve this request on this binding. Sending the
+# same request to it again cannot help; another binding may. 408, 409, 425, 429 and 5xx
+# stay transport errors and retry. 400 and 403 can also be about the prompt, so the
+# marker says only what was observed.
+REFUSED_STATUSES = frozenset({400, 401, 402, 403, 404, 410, 413, 422})
+
+
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+def keyless_gateway(resolution):
+    """True for a keyless OpenCode connection whose base URL is plain http on this machine."""
+    if (resolution.executor_id != "opencode" or resolution.auth_method != "none"
+            or getattr(resolution, "relay_required", False)
+            or getattr(resolution, "native_endpoint", "") != "/chat/completions"):
+        return False
+    base_url = getattr(resolution, "base_url", "")
+    if not isinstance(base_url, str) or not base_url:
+        return False
+    try:
+        parsed = urlsplit(base_url)
+        port = parsed.port
+    except ValueError:
+        return False
+    return (parsed.scheme == "http" and parsed.hostname in _LOOPBACK_HOSTS and port is not None
+            and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment)
 
 
 def validate_connection(resolution, lease_provider):
+    if keyless_gateway(resolution):
+        return
     if (resolution.executor_id != "opencode" or resolution.auth_method != "api_key"
             or not resolution.relay_required
             or getattr(resolution, "native_endpoint", "") != "/chat/completions"
@@ -24,10 +65,21 @@ def validate_connection(resolution, lease_provider):
 
 
 def chat(lease, body):
-    request = Request(lease.relay_url.rstrip("/") + "/chat/completions",
+    return _post(lease.relay_url, body, {"Authorization": "Bearer " + lease.lease_id})
+
+
+def gateway_chat(base_url, body):
+    """One request to a keyless loopback gateway; no credential is sent."""
+    return _post(base_url, body, {})
+
+
+def _post(base_url, body, headers):
+    # Both destinations are loopback-only (relay URL and keyless gateway are
+    # validated as such); never hand the diff or a lease token to a proxy.
+    request = Request(base_url.rstrip("/") + "/chat/completions",
         data=json.dumps(body).encode("utf-8"),
-        headers={"Authorization": "Bearer " + lease.lease_id, "Content-Type": "application/json"})
-    with urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+        headers={**headers, "Content-Type": "application/json"})
+    with urlopen_direct(request, timeout=TIMEOUT_SECONDS) as response:
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
         raise TaskStoreError("model_review_invalid_output")
@@ -41,25 +93,52 @@ def chat(lease, body):
     return json.loads(raw, object_pairs_hook=unique)
 
 
-def review(prompt, resolution, lease_provider):
+def group_member_served(selected, served, groups):
+    """A Magpie routing group answered from one of its members (Owner decision 2026-11-17).
+
+    Magpie may echo the group id (equal to the selection, checked by the caller) or
+    the member model that served. A member passes only when the selected group is
+    declared and the member has that same declared identity; another group, an
+    undeclared group or a different identity never passes.
+    """
+    from .model_router import model_identity
+    from .routing_inputs import routing_group_id
+    identity = model_identity(selected, groups)
+    return bool(routing_group_id(selected) and identity and not routing_group_id(served)
+                and model_identity(served, groups) == identity)
+
+
+def review(prompt, resolution, lease_provider, groups=None):
     validate_connection(resolution, lease_provider)
     lease = None
     try:
-        lease = lease_provider(resolution)
-        lease.bind_execution_deadline(TIMEOUT_SECONDS)
-        prefix = "reverse-agent-relay/"
-        if not lease.model_id.startswith(prefix):
-            raise TaskStoreError("review_not_independent")
-        model = lease.model_id[len(prefix):]
-        if _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
-            raise TaskStoreError("review_not_independent")
-        payload = chat(lease, {"model": model, "messages": [{"role": "user", "content": prompt}],
-            "stream": False, "max_tokens": 8192})
+        if keyless_gateway(resolution):
+            # The binding's model id is the gateway's own id under the connection's provider prefix.
+            prefix = resolution.provider_id + "/"
+            model = (resolution.model_id[len(prefix):] if resolution.model_id.startswith(prefix)
+                     else resolution.model_id)
+            if not model or _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
+                raise TaskStoreError("review_not_independent")
+            payload = gateway_chat(resolution.base_url, {"model": model, "stream": False, "max_tokens": 8192,
+                "messages": [{"role": "user", "content": prompt}]})
+        else:
+            lease = lease_provider(resolution)
+            lease.bind_execution_deadline(TIMEOUT_SECONDS)
+            prefix = "reverse-agent-relay/"
+            if not lease.model_id.startswith(prefix):
+                raise TaskStoreError("review_not_independent")
+            model = lease.model_id[len(prefix):]
+            if _normalize_model_id(resolution.provider_id, model) != resolution.model_id:
+                raise TaskStoreError("review_not_independent")
+            payload = chat(lease, {"model": model, "messages": [{"role": "user", "content": prompt}],
+                "stream": False, "max_tokens": 8192})
         if not isinstance(payload, dict):
             raise TaskStoreError("model_review_invalid_output")
         actual = payload.get("model")
-        if (not isinstance(actual, str) or not actual.strip()
-                or _normalize_model_id(resolution.provider_id, actual) != resolution.model_id):
+        if not isinstance(actual, str) or not actual.strip():
+            raise TaskStoreError("review_not_independent")
+        served = _normalize_model_id(resolution.provider_id, actual)
+        if served != resolution.model_id and not group_member_served(resolution.model_id, served, groups):
             raise TaskStoreError("review_not_independent")
         choices = payload.get("choices")
         if not isinstance(choices, list) or len(choices) != 1:
@@ -76,12 +155,18 @@ def review(prompt, resolution, lease_provider):
         request_id = payload.get("id")
         if not isinstance(request_id, str) or not request_id.strip():
             raise TaskStoreError("model_review_invalid_output")
-        return {"response": text, "actual_models": [resolution.model_id], "request_id": request_id,
+        # A group's member echo is recorded as itself: the evidence names what served.
+        return {"response": text, "actual_models": [served], "request_id": request_id,
                 "quota_observations": []}
     except (TaskStoreError, ExecutorRuntimeError):
         raise
     except TimeoutError as exc:
         raise TaskStoreError("timeout") from exc
+    except HTTPError as exc:
+        exc.close()
+        if exc.code in REFUSED_STATUSES:
+            raise TaskStoreError(f"MODEL_UNAVAILABLE:review_http_{exc.code}") from exc
+        raise TaskStoreError("transport_error") from exc
     except URLError as exc:
         reason = "timeout" if isinstance(exc.reason, TimeoutError) else "transport_error"
         raise TaskStoreError(reason) from exc

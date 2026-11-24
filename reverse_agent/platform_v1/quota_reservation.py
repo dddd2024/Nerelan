@@ -23,6 +23,14 @@ _WINDOW_NAMES = {"five_hour": "five_hour", "5 hours": "five_hour", "5h": "five_h
                  "weekly": "weekly", "7 days": "weekly", "7d": "weekly", "week": "weekly"}
 
 
+# An idle subscription account is re-read by the gateway only every 13 to 56 minutes, so
+# the 600 s freshness alone can hold an unused account. An older reading may still admit
+# when it leaves room for spend it cannot have seen: percentage points per hour of age.
+ADMISSION_FRESHNESS_SECONDS = 600
+AGED_MAX_SECONDS = 3600
+AGED_POINTS_PER_HOUR = {"five_hour": 40.0, "weekly": 8.0}
+
+
 def canonical_window(name: Any) -> Any:
     """Observation sources name windows differently ("5 hours", "7 days"); admission needs one name."""
     return _WINDOW_NAMES.get(str(name).strip().lower(), name) if name is not None else name
@@ -35,6 +43,10 @@ def _canonical_windows(windows: Iterable[Mapping[str, Any]]) -> list[dict[str, A
 
 def _number(value: Any) -> bool:
     return type(value) in (int, float) and math.isfinite(value) and value >= 0
+
+
+def _padded(used: float, window: str, age: float) -> float:
+    return min(100.0, used + AGED_POINTS_PER_HOUR[window] * age / 3600)
 
 
 def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
@@ -63,10 +75,16 @@ def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
                     2 if basis == "OFFICIAL_VIA_CLI" or source in {"cli", "claude_rate_limit_event"} else
                     1 if basis == "ESTIMATED_FROM_HISTORY" or source == "estimated" else 0)
             known = rank > 0 and bool(item.get("windows")) and item.get("state") != "UNKNOWN"
-            fresh = known and at is not None and 0 <= now - at <= freshness
+            aged = rank == 3 and item.get("aged_admission") is True
+            limit = max(freshness, AGED_MAX_SECONDS) if aged else freshness
+            fresh = known and at is not None and 0 <= now - at <= limit
+            windows = _canonical_windows(item.get("windows") or ())
+            if aged and fresh:  # the margin grows with the reading's age, also after it was stored
+                windows = [dict(w, used_percent=_padded(w["observed_percent"], w["window"], now - at))
+                           if w["window"] in AGED_POINTS_PER_HOUR and _number(w.get("observed_percent")) else w
+                           for w in windows]
             result.append((fresh, rank if known else 0, at if at is not None else -math.inf,
-                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh),
-                                windows=_canonical_windows(item.get("windows") or ()))))
+                           dict(item, observed_at=quota_forecast.iso(at), fresh=bool(fresh), windows=windows)))
         return result
 
     choices = normalize(candidates)
@@ -79,6 +97,35 @@ def observation(account_ref: str, candidates: Iterable[Mapping[str, Any]], *,
     return evidence | {"eligible": not uncertain or small_task, "uncertain": uncertain,
                        "eligibility_reason": "fresh" if not uncertain else
                        "explicit_small_task" if small_task else "refresh_required"}
+
+
+def aged_evidence(selected: Mapping[str, Any] | None, *, now: float) -> dict[str, Any] | None:
+    """A provider reading past the admission freshness, charged for the spend it cannot show.
+
+    Usage only grows before a stated reset, so the reading is a lower bound; each window is
+    raised by AGED_POINTS_PER_HOUR. Needs a provider reading of both windows, no older than
+    AGED_MAX_SECONDS and with no reset passed. The result is for admission only: calibration
+    ignores it, and ``observed_at`` stays the real reading time so spend settled since then
+    is still counted on top.
+    """
+    if not selected or selected.get("source") not in {"magpie", "official"} or selected.get("aged_admission"):
+        return None
+    at = quota_forecast.parse_time(selected.get("observed_at"))
+    if at is None or not ADMISSION_FRESHNESS_SECONDS < now - at <= AGED_MAX_SECONDS:
+        return None
+    windows = []
+    for window in _canonical_windows(selected.get("windows") or ()):
+        used, points = window.get("used_percent"), AGED_POINTS_PER_HOUR.get(window["window"])
+        if points is None:
+            continue
+        reset_raw = window.get("resets_at")
+        reset = float(reset_raw) if _number(reset_raw) else quota_forecast.parse_time(reset_raw)
+        if not _number(used) or (reset_raw is not None and reset is None) or (reset is not None and reset <= now):
+            return None
+        windows.append(dict(window, observed_percent=used, used_percent=_padded(used, window["window"], now - at)))
+    if sorted(w["window"] for w in windows) != sorted(AGED_POINTS_PER_HOUR):
+        return None
+    return dict(selected, windows=windows, aged_admission=True, reading_age_seconds=round(now - at))
 
 
 def task_need(records: Iterable[Mapping[str, Any]], *, binding: str, kind: str,
@@ -161,7 +208,7 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
     selected = observation(account, [evidence], clock=lambda: now,
                            freshness=freshness, small_task=small_task)
     waits = []
-    windows = {w["window"]: w for w in _canonical_windows(evidence.get("windows", ()))}
+    windows = {w["window"]: w for w in _canonical_windows(selected.get("windows", ()))}
     observed = quota_forecast.parse_time(selected.get("observed_at"))
     provider_reported = (selected.get("source") in {"magpie", "official", "cli", "claude_rate_limit_event"}
                          or selected.get("provenance") == "OFFICIAL_VIA_CLI")
@@ -276,6 +323,8 @@ def delta_calibration(task_id, before, after, settlements):
     start = quota_forecast.parse_time(before.get("observed_at"))
     end = quota_forecast.parse_time(after.get("observed_at"))
     account = after.get("account_ref")
+    if before.get("aged_admission") or after.get("aged_admission"):
+        return {}  # an aged reading's percentages are padded, not measured
     provider = {"official", "magpie", "cli", "claude_rate_limit_event"}
     # Both ends must be provider readings: an estimated start could overstate usage
     # and shrink the delta, which would make the rate optimistic.
@@ -323,6 +372,8 @@ def attributable_calibration(before, after, settlements):
     start = quota_forecast.parse_time(before.get("observed_at"))
     end = quota_forecast.parse_time(after.get("observed_at"))
     ids = after.get("attributed_observation_ids")
+    if before.get("aged_admission") or after.get("aged_admission"):
+        return {}
     if (before.get("account_ref") != after.get("account_ref") or not ids or
             len(ids) != len(set(ids)) or start is None or end is None or start >= end):
         return {}

@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol
 
+from .model_availability import OWNER_WINDOW_POOL_MISROUTE
 from .run_store import (
     InvalidTransitionError,
     TaskStore,
@@ -42,7 +43,8 @@ from .repository_workspace import (
 )
 from .task_execution import TaskExecutionError, TaskExecutionService
 from .task_runtime import ExecutorRuntimeError, ExecutorRouter
-from .functional_validation import CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, run_task_validation
+from .functional_validation import (CONTRACT_CATEGORY, FUNCTIONAL_COMMAND_ID, accepted_checkpoint_proof, frozen_base,
+                                   run_task_validation)
 from .artifact_handoff import bind_consumer_input, load_input_binding, prepared_original_base, validation_only_input, model_review_input
 
 
@@ -85,6 +87,9 @@ EXTERNAL_OP_STATES = frozenset({
 
 LEASE_DEFAULT_EXPIRY_MS = 300_000
 LEASE_HEARTBEAT_WINDOW_MS = 60_000
+# Wall-clock time passing this much faster than monotonic time between two
+# heartbeats means the machine slept (#1321).
+SUSPEND_GAP_SECONDS = 30.0
 HEARTBEAT_STORAGE_MAX_FAILURES = 3
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -555,14 +560,21 @@ class _HeartbeatContext:
     def _heartbeat_loop(self) -> None:
         failures = 0
         renewal_deadline = time.monotonic() + self.expiry_ms / 1000.0
+        last_wall, last_mono = time.time(), time.monotonic()
         while not self._stop_event.is_set():
             attempt_at = time.monotonic()
-            if attempt_at >= renewal_deadline:
+            # The monotonic clock stops while the machine sleeps on some platforms; the wall
+            # clock and the persisted expiry do not. A gap between them means this holder
+            # slept (#1321). Where monotonic time counts sleep, the deadline below would
+            # trip first, so a detected sleep skips it and asks the store instead.
+            slept = (time.time() - last_wall) - (attempt_at - last_mono) >= SUSPEND_GAP_SECONDS
+            if attempt_at >= renewal_deadline and not slept:
                 self.stop_reason = "lease_expired"
                 break
             try:
                 self.store._heartbeat_durable_lease(
                     self.run_id, self.owner, self.epoch, self.expiry_ms,
+                    **({"renew_expired": True} if slept else {}),
                 )
             except TaskStoreError as exc:
                 cause = exc.__cause__
@@ -587,6 +599,7 @@ class _HeartbeatContext:
                 self._stop_event.wait(timeout=min(1.0, self.heartbeat_window_ms / 1000.0 * 0.1, remaining))
                 continue
             failures = 0
+            last_wall, last_mono = time.time(), time.monotonic()
             # Conservative deadline: SQL may itself have waited for a writer.
             # The store also checks persisted expiry inside its write transaction.
             renewal_deadline = attempt_at + self.expiry_ms / 1000.0
@@ -632,6 +645,89 @@ def executor_timeout_seconds() -> int:
         return DEFAULT_EXECUTOR_TIMEOUT_SECONDS
     return max(60, min(value, MAX_EXECUTOR_TIMEOUT_SECONDS))
 
+# Total bound on one attempt in a continuous Owner window (#1551): a runaway guard, not
+# the stop condition. REVERSE_AGENT_EXECUTOR_RUNAWAY_SECONDS overrides within the range.
+DEFAULT_RUNAWAY_SECONDS = 24 * 3600
+MIN_RUNAWAY_SECONDS = MAX_EXECUTOR_TIMEOUT_SECONDS
+
+
+def executor_runaway_seconds() -> int:
+    raw = os.environ.get("REVERSE_AGENT_EXECUTOR_RUNAWAY_SECONDS", "").strip()
+    try:
+        value = int(raw) if raw else DEFAULT_RUNAWAY_SECONDS
+    except ValueError:
+        value = DEFAULT_RUNAWAY_SECONDS
+    return max(MIN_RUNAWAY_SECONDS, min(value, DEFAULT_RUNAWAY_SECONDS))
+
+
+def _continuous_owner_task(store: TaskStore, task_id: str) -> bool:
+    """True when ``task_id`` belongs to a Goal of a continuous (no-expiry) Owner window."""
+    from .control_store import OWNER_WINDOW_MODE
+    try:
+        with store._lock:
+            row = store._conn.execute(
+                "SELECT 1 FROM platform_goal_task_links l "
+                "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                "WHERE l.task_id=? AND w.confirmation_mode=? AND w.expires_at='' LIMIT 1",
+                (task_id, OWNER_WINDOW_MODE)).fetchone()
+    except sqlite3.Error:
+        return False  # no control tables (library store): an ordinary bounded attempt
+    return row is not None
+
+
+def _require_owner_window_pool(store: TaskStore, task: Any, resolution: Any, policy_ref: str) -> None:
+    """In an Owner window, the binding a Task runs on must be one the Owner was shown.
+
+    Routing picks the binding per Task and may reroute on quota, so the Owner
+    confirms a pool, not one binding. A continuous window checks the live pool
+    instead (Owner decision 2026-11-17, #1667); the receipt must still exist.
+    Read-only guard, before any CLI launch.
+    """
+    from .window_pool import eligible_pool
+    from .control_store import OWNER_WINDOW_MODE, OWNER_WINDOW_RECEIPT
+    try:
+        with store._lock:
+            window = store._conn.execute(
+                "SELECT w.id,w.confirmation_mode,w.expires_at FROM platform_goal_task_links l "
+                "JOIN platform_goals g ON g.id=l.goal_id AND g.revision=l.goal_revision "
+                "JOIN platform_autonomous_windows w ON w.id=g.window_id "
+                "WHERE l.task_id=?", (task.id,)).fetchone()
+            # Adoption keeps frozen task contracts, including their policy_ref.
+            # Enforce the current Owner receipt rather than the source's wider pool.
+            if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
+                window = store._conn.execute(
+                "SELECT id, confirmation_mode, expires_at FROM platform_autonomous_windows "
+                "WHERE policy_id = ? ORDER BY created_at DESC LIMIT 1", (policy_ref,)).fetchone()
+            if window is None or window["confirmation_mode"] != OWNER_WINDOW_MODE:
+                return
+            rows = store._conn.execute(
+                "SELECT r.evidence_json FROM platform_operation_receipts r "
+                "JOIN platform_goal_task_links l ON l.goal_id = r.subject_id "
+                "WHERE l.task_id = ? AND r.window_id = ? AND r.operation_type = ? "
+                "AND r.decision = 'allowed' AND r.confirmation_mode = ?",
+                (task.id, window["id"], OWNER_WINDOW_RECEIPT, OWNER_WINDOW_MODE)).fetchall()
+        if len(rows) != 1:
+            raise ValueError("missing_or_ambiguous_receipt")
+        if resolution is None:
+            raise ValueError("no_binding")
+        pool, _source = eligible_pool(store, json.loads(rows[0]["evidence_json"])["approved_pool"],
+                                      continuous=window["expires_at"] == "")
+        observed = {
+            "binding_ref": resolution.binding_ref,
+            "model_id": resolution.model_id,
+            "connection_id": resolution.connection_id,
+            "executor_id": resolution.executor_id,
+            "provider_id": resolution.provider_id,
+            "auth_method": resolution.auth_method,
+            "base_url": resolution.base_url,
+        }
+        if not isinstance(pool, list) or observed not in pool:
+            raise ValueError("binding_outside_confirmed_pool")
+    except Exception as exc:
+        raise ExecutorRuntimeError(OWNER_WINDOW_POOL_MISROUTE) from exc
+
+
 def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolution: Any) -> None:
     """Enforce the exact nonsecret binding approved in a native Owner receipt.
 
@@ -641,7 +737,10 @@ def _require_native_owner_execution_binding(store: TaskStore, task: Any, resolut
     substitute a different model or connection. Read-only guard, before CLI launch.
     """
     policy_ref = getattr(task, "policy_ref", "")
-    if getattr(task, "executor_kind", "") != "codex" or not policy_ref:
+    if not policy_ref:
+        return
+    _require_owner_window_pool(store, task, resolution, policy_ref)
+    if getattr(task, "executor_kind", "") != "codex":
         return
     try:
         with store._lock:
@@ -941,6 +1040,8 @@ class DurableExecutionService:
             code = str(exc).split(":", 1)[0]
             if code and all(c.isascii() and (c.isalnum() or c == "_") for c in code):
                 classification = f"binding_resolution_failed:{code}"
+        elif isinstance(exc, ExecutorRuntimeError) and str(exc) == OWNER_WINDOW_POOL_MISROUTE:
+            classification = OWNER_WINDOW_POOL_MISROUTE
         try:
             if self.store.get_task(task_id).status not in TERMINAL_STATUSES:
                 self.store._fenced_terminalize(
@@ -1031,14 +1132,18 @@ class DurableExecutionService:
         try:
             executor_kwargs = self._build_executor_kwargs(task)
         except ExecutorRuntimeError as exc:
-            if not str(exc).startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
+            code = str(exc)
+            if code == OWNER_WINDOW_POOL_MISROUTE:
+                # The binding was refused before workspace preparation or a provider call.
+                # Persist the known outcome and release the lease like other pre-dispatch failures.
+                self._fail_dispatch(task_id, lease, exc)
+            elif code.startswith(("quota_exhausted", "native_owner_execution_binding_changed_or_missing")):
+                self.store._fenced_classify_failure(
+                    lease.run_id, task_id, classification=code[:120], detail=code,
+                    owner=lease.owner, epoch=lease.epoch,
+                )
+            else:
                 raise
-            # No external call has started. Record a durable failure instead of
-            # leaving a stale RUNNING task or retrying with another model.
-            self.store._fenced_classify_failure(
-                lease.run_id, task_id, classification=str(exc)[:120], detail=str(exc),
-                owner=lease.owner, epoch=lease.epoch,
-            )
             final = self.store.get_task(task_id)
             return TaskExecutionOutcome(
                 task_id=task_id, execution_id=final.execution_id, success=False,
@@ -1138,6 +1243,7 @@ class DurableExecutionService:
 
             try:
                 repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+                _require_frozen_base(self.store.get_task(task_id), repo_base_sha)
             except TaskStoreError as exc:
                 return self._artifact_failure(task_id, lease, exc)
 
@@ -1350,6 +1456,13 @@ class DurableExecutionService:
                 and not exec_result.error.startswith("opencode_nonzero:exit=")
                 else exec_result.failure_classification or "failed"
             ) or "failed"
+            # A failed attempt still shows what it changed (the run page's
+            # file count); executors return [] when the tree was unsafe to read.
+            if exec_result.changed_files:
+                self.store._fenced_set_changed_files(
+                    lease.run_id, task_id, tuple(exec_result.changed_files),
+                    lease.owner, lease.epoch,
+                )
             self.store._accept_checkpoint(
                 lease.run_id, "POST_PLANNER",
                 _digest(str(exec_result.error)),
@@ -2003,6 +2116,7 @@ class DurableExecutionService:
 
         try:
             repo_base_sha = prepared_original_base(self.store.get_task(task_id), wt_head_sha)
+            _require_frozen_base(self.store.get_task(task_id), repo_base_sha)
         except TaskStoreError as exc:
             return self._artifact_failure(task_id, lease, exc)
 
@@ -2413,23 +2527,41 @@ class DurableExecutionService:
             return {**native, "timeout": timeout}
         if getattr(task, "executor_kind", "") == "opencode":
             binding_ref = getattr(task, "binding_ref", "") or ""
+            policy_ref = getattr(task, "policy_ref", "") or ""
             if binding_ref and self.binding_resolver is not None:
                 kwargs["binding_resolution"] = self.binding_resolver.resolve(
                     binding_ref, task_executor="opencode"
                 )
+                if policy_ref:
+                    _require_owner_window_pool(self.store, task, kwargs["binding_resolution"], policy_ref)
             else:
+                if policy_ref:
+                    # A default model is no binding at all: never inside an Owner window.
+                    _require_owner_window_pool(self.store, task, None, policy_ref)
                 model_id = (
                     getattr(task, "model_profile_ref", "") or ""
                 ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
                 kwargs["model_id"] = model_id
             kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
             kwargs["base_ref"] = (artifact_input["producer"]["commit"] if artifact_input is not None
-                                   else getattr(task, "branch", "") or "")
+                                   else getattr(task, "branch", "") or frozen_base(self.store.get_task(task.id)))
             kwargs["transport_kind"] = os.environ.get(
                 "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
             ).strip() or "cli"
             if self.lease_provider is not None:
                 kwargs["lease_provider"] = self.lease_provider
+            from .opencode_executor import _selected_model_limits
+            context_window, max_output_tokens = _selected_model_limits(self.store, task.id)
+            if context_window is not None:
+                kwargs["context_window"] = context_window
+                if max_output_tokens is not None:
+                    kwargs["max_output_tokens"] = max_output_tokens
+            if _continuous_owner_task(self.store, task.id):
+                # Owner decision 2026-11-15 (#1551): a long attempt that keeps producing
+                # output is not cut at a fixed total duration; the executor's stall guard
+                # stops a silent one. Only the runaway guard bounds the total, and the
+                # executor keeps the 1 h cap where a relay lease or no stall guard applies.
+                timeout = executor_runaway_seconds()
             kwargs["timeout"] = timeout
         return kwargs
 
@@ -4381,6 +4513,8 @@ class DurableExecutionService:
         *,
         now_ms: int | None = None,
         max_age_ms: int | None = None,
+        live_owner: str = "",
+        live_task_ids: Any = (),
     ) -> tuple[dict[str, Any], ...]:
         """Find expired active run leases, mark stale tasks INTERRUPTED,
         record orphan/stale-lease classification.
@@ -4392,6 +4526,8 @@ class DurableExecutionService:
         return quota_records + self.store._reconcile_expired_runs(
             now_ms=current_ms,
             max_age_ms=max_age_ms or self.expiry_ms,
+            live_owner=live_owner,
+            live_task_ids=live_task_ids,
         )
 
     # ---------------------------------------------------------------
@@ -4446,6 +4582,19 @@ class DurableExecutionService:
         return tuple(c.checkpoint_name for c in cps)
 
 
+def _require_frozen_base(task: Any, prepared_base: str) -> None:
+    """Refuse before any model call when the worktree was not prepared at the frozen base (#1526).
+
+    An artifact consumer (review, repair) is bound to its producer's commit instead,
+    which ``prepared_original_base`` has already checked.
+    """
+    if load_input_binding(task) is not None:
+        return
+    frozen = frozen_base(task)
+    if frozen and prepared_base != frozen:
+        raise TaskStoreError("functional_base_mismatch")
+
+
 # ---------------------------------------------------------------------------
 # Executor kwargs helper
 # ---------------------------------------------------------------------------
@@ -4473,7 +4622,7 @@ def _build_resume_executor_kwargs(
             ) or os.environ.get("REVERSE_AGENT_OPENCODE_MODEL", "")
             kwargs["model_id"] = model_id
         kwargs["repo_dir"] = os.environ.get("REVERSE_AGENT_REPO_DIR", "")
-        kwargs["base_ref"] = getattr(stored_task, "branch", "") or ""
+        kwargs["base_ref"] = getattr(stored_task, "branch", "") or frozen_base(stored_task)
         kwargs["transport_kind"] = os.environ.get(
             "REVERSE_AGENT_OPENCODE_TRANSPORT", "cli"
         ).strip() or "cli"

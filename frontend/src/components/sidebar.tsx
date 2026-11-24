@@ -2,25 +2,23 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import {
   Bot,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Folder,
-  Inbox,
   ListChecks,
-  Map,
-  MoreHorizontal,
   Plus,
   Search,
   Settings,
+  ShieldCheck,
+  Target,
+  Users,
 } from "lucide-react";
-import { useTasks } from "@/hooks/use-tasks";
-import { usePlatformStatus } from "@/hooks/use-platform";
+import { useAccountPool, useGoals, usePlatformStatus } from "@/hooks/use-platform";
+import type { PlatformGoal } from "@/lib/platform-client";
 import { NerelanMark, NerelanWordmark } from "@/components/brand-logo";
 import { cn } from "@/lib/cn";
-import { displayTitle } from "@/lib/display-title";
-import { taskProjectName } from "@/lib/task-project";
-import { runStateStyle } from "@/lib/format";
+import { isCredentialError } from "@/lib/http-errors";
+import { GOAL_TONE_DOT, goalState, goalTitle } from "@/lib/goal-view";
+import { isPrimaryShortcut, shortcutLabel } from "@/lib/shortcuts";
 import { AgentCanvasSidebarFrame } from "@/vendor/agent-canvas-v1.6.1/agent-canvas-sidebar-frame";
 import { SidebarCollapsedIconSlot } from "@/vendor/agent-canvas-v1.6.1/sidebar-collapsed-icon-slot";
 import {
@@ -29,7 +27,6 @@ import {
   sidebarNavLabelClassName,
   sidebarNavRowClassName,
 } from "@/vendor/agent-canvas-v1.6.1/sidebar-layout";
-import type { Task } from "@/types";
 
 interface SidebarProps {
   onNewTask: () => void;
@@ -45,34 +42,78 @@ interface SidebarActionProps {
   text?: string;
   testId: string;
   icon: ReactNode;
+  hint?: string;
   onClick: () => void;
 }
 
-const SECONDARY_ROUTES = [
-  { to: "/tasks", label: "任务", icon: ListChecks },
-  { to: "/inbox", label: "收件箱", icon: Inbox },
-  { to: "/roadmap", label: "路线图", icon: Map },
-  { to: "/runs", label: "Agent 运行", icon: Bot },
+const COLLAPSE_PREF_KEY = "nerelan.sidebar-collapsed.v1";
+const RECENT_GOAL_LIMIT = 12;
+
+/** The issue a goal resolves (its "#1234" title or issues/1234 link), so retries of it show once. */
+export function goalIssueKey(goal: Pick<PlatformGoal, "id" | "title" | "objective" | "repository">): string {
+  const fromTitle = /^#(\d+)\b/.exec(goal.title ?? "")?.[1];
+  const fromLink = /\/issues\/(\d+)\b/.exec(goal.objective ?? "")?.[1];
+  const issue = fromTitle ?? fromLink;
+  return issue ? `${goal.repository ?? ""}#${issue}` : goal.id;
+}
+
+/** Newest goal per issue, newest first. Older goals of the same issue stay in 所有目标. */
+export function recentGoals(goals: PlatformGoal[], limit = RECENT_GOAL_LIMIT): PlatformGoal[] {
+  const newest: Record<string, PlatformGoal> = {};
+  for (const goal of goals) {
+    const key = goalIssueKey(goal);
+    const kept = newest[key];
+    if (!kept || timestamp(goal.updated_at) > timestamp(kept.updated_at)) newest[key] = goal;
+  }
+  return Object.values(newest).sort((a, b) => timestamp(b.updated_at) - timestamp(a.updated_at)).slice(0, limit);
+}
+
+function savedCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSE_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function persistCollapsed(collapsed: boolean) {
+  try {
+    window.localStorage.setItem(COLLAPSE_PREF_KEY, collapsed ? "1" : "0");
+  } catch {
+    // Storage may be unavailable; the preference then lasts for this page only.
+  }
+}
+
+// Goal first, like an agent tool's session list: goals, what waits on the Owner,
+// the agents' runs, then the raw tasks. Inbox and roadmap stay one search away.
+const PRIMARY_ROUTES = [
+  { to: "/goals", label: "目标", icon: Target },
 ] as const;
+
+/** Everything else lives behind one menu, the way agent chats keep their sidebar to the conversations. */
+const MENU_ROUTES = [
+  { to: "/approvals", label: "审批", icon: ShieldCheck },
+  { to: "/runs", label: "运行记录", icon: Bot },
+  { to: "/tasks", label: "任务", icon: ListChecks },
+  { to: "/accounts", label: "账户", icon: Users },
+  { to: "/settings", label: "设置", icon: Settings },
+] as const;
+
+/** One label for the host state; an error never reads as a healthy green dot. */
+function hostStatus(coordinator: { enabled: boolean; last_error: string } | undefined, failed: boolean, error?: unknown) {
+  if (failed && isCredentialError((error as { status?: number } | null)?.status)) {
+    return { tone: "error", label: "请在启动器窗口中使用" } as const;
+  }
+  if (failed) return { tone: "error", label: coordinator ? "状态待刷新" : "服务未连接" } as const;
+  if (coordinator?.last_error) return { tone: "warning", label: "协调器需要处理" } as const;
+  return coordinator?.enabled
+    ? ({ tone: "ok", label: "协调器在线" } as const)
+    : ({ tone: "warning", label: "协调器未运行" } as const);
+}
 
 function timestamp(value: string) {
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function projectLabel(repository: string) {
-  const pieces = repository.split("/").filter(Boolean);
-  return pieces.at(-1) ?? repository;
-}
-
-/**
- * The sidebar is a third renderer of the same authoritative task state, so it
- * must not keep its own colour table: it previously painted `BLOCKED_EXTERNAL`
- * amber while the task list and Home painted it red. It reads the shared
- * mapping instead.
- */
-function stateDot(task: Task) {
-  return runStateStyle(task.state).dot;
 }
 
 function SidebarAction({
@@ -82,6 +123,7 @@ function SidebarAction({
   text = label,
   testId,
   icon,
+  hint,
   onClick,
 }: SidebarActionProps) {
   return (
@@ -103,7 +145,10 @@ function SidebarAction({
       ) : (
         <>
           <span className={SIDEBAR_ICON_SLOT_CLASS}>{icon}</span>
-          <span className={sidebarNavLabelClassName(false)}>{text}</span>
+          <span className={cn(sidebarNavLabelClassName(false), "flex-1 text-left")}>{text}</span>
+          {hint ? (
+            <kbd className="shrink-0 font-sans text-[10px] text-ra-text-tertiary">{hint}</kbd>
+          ) : null}
         </>
       )}
     </button>
@@ -135,39 +180,40 @@ export function Sidebar({
   onConversationPanelClose,
   conversationPanelOpen,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(savedCollapsed);
   const location = useLocation();
   const navigate = useNavigate();
-  const { data: tasks = [], isLoading, isError } = useTasks({ watch: true });
+  const { data: goals = [], isLoading, isError } = useGoals();
   const platformQuery = usePlatformStatus();
+  const activeAlerts = useAccountPool().data?.alerts.active ?? [];
+  const urgentAlerts = activeAlerts.filter((alert) => alert.severity !== "info").length;
+  const criticalAlert = activeAlerts.some((alert) => alert.severity === "critical");
+  const host = hostStatus(platformQuery.data?.coordinator, platformQuery.isError, platformQuery.error);
+  const instance = platformQuery.data?.instance;
+  // Only an acceptance instance needs saying: its tasks are not the real ones.
+  const instanceLabel = instance?.kind === "acceptance" ? `验收实例（独立任务数据） · ${instance.id}` : "";
 
   useEffect(() => {
     onConversationPanelClose();
-    setMoreOpen(false);
   }, [location.pathname, onConversationPanelClose]);
 
-  const recentTasks = useMemo(
-    () =>
-      [...tasks]
-        .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt))
-        .slice(0, 4),
-    [tasks],
-  );
+  useEffect(() => {
+    persistCollapsed(collapsed);
+  }, [collapsed]);
 
-  const projects = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          tasks
-            .map((task) => task.repository?.trim() ?? "")
-            .filter((repository) => repository.length > 0),
-        ),
-      ).slice(0, 5),
-    [tasks],
-  );
+  useEffect(() => {
+    const toggle = (event: KeyboardEvent) => {
+      if (isPrimaryShortcut(event, "b")) {
+        event.preventDefault();
+        setCollapsed((value) => !value);
+      }
+    };
+    window.addEventListener("keydown", toggle);
+    return () => window.removeEventListener("keydown", toggle);
+  }, []);
 
-  const selectedRepository = new URLSearchParams(location.search).get("repository");
+  const recent = useMemo(() => recentGoals(goals), [goals]);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const logo = (
     <button
@@ -211,17 +257,18 @@ export function Sidebar({
     <>
       <SidebarAction
         collapsed={collapsed}
-        label="新建任务"
-        text="新建任务"
-        testId="new-task-button"
+        label="新建目标"
+        text="新建目标"
+        testId="new-goal-button"
         icon={<Plus className="h-4 w-4" />}
         onClick={onNewTask}
       />
       <SidebarAction
         collapsed={collapsed}
         active={conversationPanelOpen}
-        label={conversationPanelOpen ? "关闭任务列表" : "打开任务列表"}
-        text="任务列表"
+        label={conversationPanelOpen ? "关闭搜索" : "打开搜索"}
+        text="搜索"
+        hint={shortcutLabel("K")}
         testId="toggle-conversation-panel"
         icon={<Search className="h-4 w-4" />}
         onClick={
@@ -230,6 +277,43 @@ export function Sidebar({
             : onOpenConversationPanel
         }
       />
+      <div className="mt-2 flex flex-col gap-0.5" role="group" aria-label="主导航">
+        {PRIMARY_ROUTES.map((item) => {
+          const Icon = item.icon;
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              title={item.label}
+              data-testid={`sidebar-nav-${item.label}`}
+              className={({ isActive }) =>
+                cn(
+                  sidebarNavRowClassName({ collapsed }),
+                  isActive
+                    ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
+                    : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                )
+              }
+            >
+              {({ isActive }) =>
+                collapsed ? (
+                  <SidebarCollapsedIconSlot active={isActive}>
+                    <Icon className="h-4 w-4" />
+                  </SidebarCollapsedIconSlot>
+                ) : (
+                  <>
+                    <span className={SIDEBAR_ICON_SLOT_CLASS}>
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>{item.label}</span>
+                  </>
+                )
+              }
+            </NavLink>
+          );
+        })}
+      </div>
     </>
   );
 
@@ -239,176 +323,96 @@ export function Sidebar({
         首页
       </Link>
 
-      <section aria-label="最近任务">
-        <SectionLabel testId="sidebar-section-recent">最近任务</SectionLabel>
-        {platformQuery.data?.instance && <p className="px-2.5 py-1 text-[11px] text-ra-text-tertiary" data-testid="sidebar-instance">
-          {platformQuery.data.instance.kind === "acceptance" ? "验收实例（独立任务数据）" : "工作实例"} · {platformQuery.data.instance.id}
-        </p>}
+      <section aria-label="最近目标">
+        <SectionLabel testId="sidebar-section-recent">最近目标</SectionLabel>
         {isError && (
           <p role="alert" className="px-2.5 py-1 text-[11px] text-ra-text-secondary">
-            最近任务读取失败，请检查服务连接
+            最近目标读取失败，请检查服务连接
           </p>
         )}
         <div className="flex flex-col gap-0.5">
-          {recentTasks.length > 0 ? (
-            recentTasks.map((task) => {
-              const selected = location.pathname === `/tasks/${task.id}`;
+          {recent.length > 0 ? (
+            recent.map((goal) => {
+              const selected = location.pathname === "/" && new URLSearchParams(location.search).get("goal") === goal.id;
               return (
-                <div key={task.id} className="relative min-w-0">
+                <div key={goal.id} className="relative min-w-0">
                 <Link
-                  to={`/tasks/${task.id}`}
-                  data-testid={`sidebar-recent-task-${task.id}`}
+                  to={`/?goal=${encodeURIComponent(goal.id)}`}
+                  data-testid={`sidebar-recent-goal-${goal.id}`}
                   data-selected={String(selected)}
                   className={cn(
-                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md pl-2.5 pr-24 text-[13px] leading-4",
+                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md px-2.5 text-[13px] leading-4",
                     "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
                     selected
                       ? "bg-ra-tertiary text-ra-text"
                       : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
                   )}
-                  title={displayTitle(task.title)}
+                  title={`${goalTitle(goal, 300)} · ${goalState(goal).label}`}
                 >
                   <span
-                    className={cn("h-1.5 w-1.5 shrink-0 rounded-full", stateDot(task))}
+                    className={cn(
+                      "h-1.5 w-1.5 shrink-0 rounded-full",
+                      GOAL_TONE_DOT[goalState(goal).tone],
+                      goalState(goal).key === "running" && "ra-pulse",
+                    )}
                     aria-hidden="true"
                   />
-                  <span className="min-w-0 flex-1 truncate">{displayTitle(task.title)}</span>
+                  <span className="min-w-0 flex-1 truncate">{goalTitle(goal)}</span>
                 </Link>
-                <span className="pointer-events-none absolute right-2.5 top-1.5 max-w-20 truncate text-[10px] text-ra-text-tertiary"
-                      data-testid={`sidebar-recent-project-${task.id}`}
-                      title={task.repository?.trim() || "未归属"}>
-                  {taskProjectName(task.repository)}
-                </span>
                 </div>
               );
             })
           ) : !isError ? (
             <p role="status" className="px-2.5 py-1 text-[11px] text-ra-text-tertiary">
-              {isLoading ? "正在加载最近任务…" : "暂无最近任务"}
+              {isLoading ? "正在加载最近目标…" : "暂无最近目标"}
             </p>
           ) : null}
         </div>
       </section>
 
-      <section aria-label="项目" className="mt-2">
-        <SectionLabel testId="sidebar-section-projects">项目</SectionLabel>
-        <div className="flex flex-col gap-0.5">
-          {projects.length > 0 ? (
-            projects.map((repository) => {
-              const selected =
-                location.pathname === "/tasks" && selectedRepository === repository;
-              return (
-                <Link
-                  key={repository}
-                  to={`/tasks?repository=${encodeURIComponent(repository)}`}
-                  data-testid={`sidebar-project-${repository}`}
-                  data-selected={String(selected)}
-                  className={cn(
-                    "flex h-[30px] min-h-[30px] min-w-0 items-center gap-2 rounded-md px-2.5 text-[12px] leading-4",
-                    "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    selected
-                      ? "font-medium text-ra-text"
-                      : "text-ra-text-tertiary hover:bg-ra-tertiary hover:text-ra-text-secondary",
-                  )}
-                  title={repository}
-                >
-                  <Folder className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  <span className="min-w-0 flex-1 truncate">{projectLabel(repository)}</span>
-                </Link>
-              );
-            })
-          ) : !isError ? (
-            <p className="px-2.5 py-1 text-[11px] text-ra-text-tertiary">
-              {isLoading ? "正在加载项目…" : "暂无项目"}
-            </p>
-          ) : null}
-        </div>
-      </section>
     </>
   );
 
+  const menuActive = MENU_ROUTES.some((item) => location.pathname.startsWith(item.to));
   const footer = (
     <>
-      <div className="relative">
-        <button
-          type="button"
-          aria-label="更多导航"
-          aria-expanded={moreOpen}
-          data-testid="sidebar-more-toggle"
-          onClick={() => setMoreOpen((value) => !value)}
+      {!collapsed && (platformQuery.data || platformQuery.isError) && host.tone !== "ok" ? (
+        <div
+          data-testid="sidebar-host-status"
+          data-tone={host.tone}
+          className="flex min-h-[30px] items-center gap-2 px-2.5 text-[11px] text-ra-text-tertiary"
+          title={platformQuery.data?.coordinator.last_error || undefined}
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "h-1.5 w-1.5 shrink-0 rounded-full",
+              host.tone === "error" && "bg-ra-status-error",
+              host.tone === "warning" && "bg-ra-status-warning",
+            )}
+          />
+          <span className="shrink-0">{host.label}</span>
+          {instanceLabel && (
+            <span data-testid="sidebar-instance" title={instanceLabel} className="min-w-0 flex-1 truncate text-right">
+              {instanceLabel}
+            </span>
+          )}
+        </div>
+      ) : null}
+
+      <details className="group relative" data-testid="sidebar-menu" open={menuOpen}
+        onToggle={(event) => setMenuOpen((event.currentTarget as HTMLDetailsElement).open)}>
+        <summary
           className={cn(
             sidebarNavRowClassName({ collapsed }),
-            moreOpen
-              ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
-              : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
+            menuActive ? SIDEBAR_ROW_INTERACTIVE_CLASS.active : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
+            "cursor-pointer list-none focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent [&::-webkit-details-marker]:hidden",
           )}
+          title="更多"
+          aria-label={urgentAlerts > 0 ? `更多（${urgentAlerts} 条账户告警）` : "更多"}
         >
           {collapsed ? (
-            <SidebarCollapsedIconSlot active={moreOpen}>
-              <MoreHorizontal className="h-4 w-4" />
-            </SidebarCollapsedIconSlot>
-          ) : (
-            <>
-              <span className={SIDEBAR_ICON_SLOT_CLASS}>
-                <MoreHorizontal className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left">更多</span>
-              <ChevronDown
-                className={cn("h-3.5 w-3.5 transition-transform", moreOpen && "rotate-180")}
-                aria-hidden="true"
-              />
-            </>
-          )}
-        </button>
-
-        <div
-          data-testid="sidebar-more-menu"
-          hidden={!moreOpen}
-          aria-hidden={!moreOpen}
-          className="absolute bottom-[34px] left-0 z-30 w-[205px] rounded-lg border border-ra-border/70 bg-ra-workspace p-1 shadow-[var(--ra-shadow-2)]"
-        >
-          {SECONDARY_ROUTES.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                data-testid={`sidebar-nav-${item.label}`}
-                onClick={() => setMoreOpen(false)}
-                className={({ isActive }) =>
-                  cn(
-                    "flex h-8 items-center gap-2 rounded-md px-2 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                    isActive
-                      ? "bg-ra-tertiary text-ra-text"
-                      : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
-                  )
-                }
-              >
-                <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                {item.label}
-              </NavLink>
-            );
-          })}
-        </div>
-      </div>
-
-      <NavLink
-        to="/settings"
-        data-testid="sidebar-nav-设置"
-        className={({ isActive }) =>
-          cn(
-            sidebarNavRowClassName({ collapsed }),
-            isActive
-              ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
-              : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
-            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-          )
-        }
-        title="设置"
-      >
-        {({ isActive }) =>
-          collapsed ? (
-            <SidebarCollapsedIconSlot active={isActive}>
+            <SidebarCollapsedIconSlot active={menuActive}>
               <Settings className="h-4 w-4" />
             </SidebarCollapsedIconSlot>
           ) : (
@@ -416,11 +420,45 @@ export function Sidebar({
               <span className={SIDEBAR_ICON_SLOT_CLASS}>
                 <Settings className="h-4 w-4" />
               </span>
-              <span className={sidebarNavLabelClassName(false)}>设置</span>
+              <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>更多</span>
             </>
-          )
-        }
-      </NavLink>
+          )}
+          {urgentAlerts > 0 && (
+            <span
+              data-testid="sidebar-alert-count"
+              aria-hidden="true"
+              className={cn("h-1.5 w-1.5 shrink-0 rounded-full", criticalAlert ? "bg-ra-status-error" : "bg-ra-status-warning",
+                collapsed && "absolute right-3 top-2")}
+            />
+          )}
+        </summary>
+        <nav aria-label="更多" className="absolute bottom-full left-0 z-20 mb-1 w-52 rounded-xl border border-ra-border bg-ra-base p-1 shadow-[var(--ra-shadow-2)]">
+          {MENU_ROUTES.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                data-testid={`sidebar-nav-${item.label}`}
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) => cn(
+                  "flex h-8 items-center gap-2.5 rounded-lg px-2.5 text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
+                  isActive ? "bg-ra-tertiary text-ra-text" : "text-ra-text-secondary hover:bg-ra-tertiary hover:text-ra-text",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="flex-1">{item.label}</span>
+                {item.to === "/accounts" && urgentAlerts > 0 && (
+                  <span className={cn("text-[11px] tabular-nums", criticalAlert ? "text-ra-status-error" : "text-ra-status-warning")}
+                    aria-label={`${urgentAlerts} 条账户告警`}>
+                    {urgentAlerts}
+                  </span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </details>
     </>
   );
 

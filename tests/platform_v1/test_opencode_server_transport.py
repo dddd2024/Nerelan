@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import base64
 from contextlib import contextmanager
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import socket
 from threading import Event, Thread
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from reverse_agent.platform_v1.opencode_server_transport import (
+    _DeadlineReader,
+    _DeadlineSSEStream,
     OpenCodeServerClient,
     OpenCodeServerTransportError,
     ServerTransportResult,
@@ -185,6 +190,645 @@ def _client(base_url: str) -> OpenCodeServerClient:
         password=PASSWORD,
         timeout=3.0,
     )
+
+
+def _timed_role(monkeypatch, chunks, *, timeout=100, idle_timeout=5, abort_result=True, usage_observer=None):
+    """A fake clock and one-read response exercise the production SSE reader."""
+    from types import SimpleNamespace
+    import reverse_agent.platform_v1.opencode_server_transport as transport
+    clock = [0.0]
+    monkeypatch.setattr(transport, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    class Response:
+        def __init__(self):
+            self.chunks = list(chunks)
+            self.timeouts = []
+            self.closed = False
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self))
+        def settimeout(self, value):
+            self.timeouts.append(value)
+        def read1(self, limit):
+            if not self.chunks:
+                clock[0] += self.timeouts[-1]
+                raise TimeoutError
+            delay, content = self.chunks.pop(0)
+            if delay >= self.timeouts[-1]:
+                clock[0] += self.timeouts[-1]
+                raise TimeoutError
+            clock[0] += delay
+            if len(content) > limit:
+                self.chunks.insert(0, (0, content[limit:]))
+            return content[:limit]
+        def close(self):
+            self.closed = True
+    response = Response()
+    client = OpenCodeServerClient(base_url="http://127.0.0.1:12345", username="test", password=PASSWORD,
+                                  timeout=timeout, idle_timeout=idle_timeout)
+    monkeypatch.setattr(client, "health", lambda **kw: "test")
+    monkeypatch.setattr(client, "_open_sse", lambda **kw: response)
+    monkeypatch.setattr(client, "create_session", lambda **kw: "session-exact")
+    monkeypatch.setattr(client, "prompt_async", lambda **kw: None)
+    calls = []
+    def abort(**kwargs):
+        calls.append(kwargs)
+        if abort_result is None:
+            raise OpenCodeServerTransportError("server_http_request_failed")
+        return abort_result
+    monkeypatch.setattr(client, "abort", abort)
+    def run():
+        return client.run_role(directory=".", title="test", prompt="PROMPT_SENTINEL", provider_id="p",
+                               model_id="m", agent="", usage_observer=usage_observer or (lambda _: False))
+    return run, response, calls, clock
+
+
+def _event(kind, properties=None):
+    return b"data: " + json.dumps({"type": kind, "properties": properties or {}}).encode() + b"\n\n"
+
+
+@pytest.mark.parametrize("abort_result", [True, False, None])
+@pytest.mark.parametrize("status", [
+    {"message": "Too Many Requests PROVIDER_SENTINEL"},
+    {"message": "PROVIDER_SENTINEL", "action": {"reason": "account_rate_limit"}},
+    {"message": "PROVIDER_SENTINEL: rpm exhausted (429: you can retry your request)"},
+    {"message": "PROVIDER_SENTINEL: OpenCode Zen Free: Free usage limit reached. Free models work in OpenCode; subscribe to OpenCode Go (out of its allowance: not asked again before 07:06 UTC-4)"},
+    {"message": "PROVIDER_SENTINEL (out of its allowance: not asked again before 07:06 UTC-4)"},
+])
+def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status, abort_result):
+    retry = {"type": "retry", "attempt": 1, "next": 1_800_000_000_000, **status}
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {"sessionID": "session-exact", "status": retry})),
+        (6, _event("session.idle", {"sessionID": "session-exact"})),
+    ], abort_result=abort_result)
+    result = run()
+    assert not result.success
+    assert result.failure_classification == "api_error_429"
+    assert result.abort_state == ("STREAM_ABORT_CONFIRMED" if abort_result else "STREAM_ABORT_UNKNOWN")
+    assert clock[0] == 1
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+    assert "PROVIDER_SENTINEL" not in repr(result)
+
+
+@pytest.mark.parametrize("message", ["connection reset", "HTTP 429 Credits exhausted"])
+def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message):
+    run, _, calls, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {
+            "sessionID": "foreign", "status": {"type": "retry", "message": "Too Many Requests"},
+        })),
+        (1, _event("session.status", {
+            "sessionID": "session-exact", "status": {"type": "retry", "message": message},
+        })),
+        (1, _event("session.idle", {"sessionID": "session-exact"})),
+    ])
+    assert run().success
+    assert calls == []
+
+
+@pytest.mark.parametrize("error_payload,expected", [
+    ({"name": "APIError", "data": {"message": "OpenCode Zen Free: Free usage limit reached (out of its allowance: not asked again before 07:06 UTC-4)"}}, "api_error_429"),
+    ({"message": "Too Many Requests"}, "api_error_429"),
+    ("out of its allowance", "api_error_429"),
+    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "server_session_error"),
+    ({"message": "Internal model execution failed"}, "server_session_error"),
+])
+def test_session_error_classifies_rate_limit_without_masking_billing_or_generic_errors(monkeypatch, error_payload, expected):
+    run, stream, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {"sessionID": "session-exact", "error": error_payload})),
+    ])
+    result = run()
+    assert not result.success
+    assert result.failure_classification == expected
+    assert stream.closed
+
+
+def test_rate_limit_results_extract_validated_reset_timestamp(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import codex_protocol
+
+    fixed_now = datetime.fromisoformat("2026-11-22T06:00:00-04:00")
+    monkeypatch.setattr(codex_protocol, "local_now", lambda: fixed_now)
+    magpie_msg = (
+        "OpenCode Zen Free: Free usage limit reached "
+        "(out of its allowance: not asked again before 07:06 UTC-4)"
+    )
+
+    run_retry, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {
+            "sessionID": "session-exact",
+            "status": {"type": "retry", "attempt": 1, "message": magpie_msg},
+        })),
+    ])
+    retry_res = run_retry()
+    assert retry_res.failure_classification == "api_error_429"
+    assert retry_res.failure_reset_at == "2026-11-22T11:06:00Z"
+
+    run_err, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"name": "APIError", "data": {"message": magpie_msg}},
+        })),
+    ])
+    err_res = run_err()
+    assert err_res.failure_classification == "api_error_429"
+    assert err_res.failure_reset_at == "2026-11-22T11:06:00Z"
+
+    run_no_reset, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"message": "Too Many Requests"},
+        })),
+    ])
+    assert run_no_reset().failure_reset_at == ""
+
+    run_non_429, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"message": "Internal model execution failed (try again at 07:06 UTC-4)"},
+        })),
+    ])
+    non_429_res = run_non_429()
+    assert non_429_res.failure_classification == "server_session_error"
+    assert non_429_res.failure_reset_at == ""
+
+
+@pytest.mark.parametrize("oversized_event", [
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-user-380k",
+                "sessionID": "session-exact",
+                "role": "user",
+                "summary": {"diffs": [{"file": "a.py", "patch": "x" * 380_000}]},
+            }
+        },
+    },
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-user-1m5",
+                "sessionID": "session-exact",
+                "role": "user",
+                "summary": {"diffs": [{"file": "a.py", "patch": "x" * 1_500_000}]},
+            }
+        },
+    },
+    {
+        "type": "message.part.updated",
+        "properties": {
+            "part": {
+                "id": "prt-read-1m5",
+                "sessionID": "session-exact",
+                "type": "tool",
+                "state": {"status": "completed", "output": "y" * 1_500_000},
+            }
+        },
+    },
+])
+def test_oversized_non_accounting_sse_events_are_tolerated_without_losing_usage(monkeypatch, oversized_event):
+    observed = []
+    run, stream, calls, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event(oversized_event["type"], oversized_event["properties"])),
+        (1, _event("message.updated", _usage_event()["properties"])),
+        (1, _event("session.idle", {"sessionID": "session-exact"})),
+    ], usage_observer=lambda info: observed.append(dict(info)) or False)
+    result = run()
+    assert result.success
+    assert result.usage_event_count == 1
+    assert len(observed) == 1
+    assert calls == []
+    assert stream.closed
+
+
+@pytest.mark.parametrize("oversized_event", [
+    {
+        "type": "message.updated",
+        "properties": {
+            "info": {
+                "id": "msg-assistant-1m5",
+                "sessionID": "session-exact",
+                "role": "assistant",
+                "time": {"completed": 123},
+                "padding": "z" * 1_500_000,
+            }
+        },
+    },
+    {
+        "type": "session.status",
+        "properties": {
+            "sessionID": "session-exact",
+            "status": {"type": "retry", "message": "x" * 1_500_000},
+        },
+    },
+])
+def test_oversized_accounting_or_control_sse_events_fail_closed(monkeypatch, oversized_event):
+    run, stream, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event(oversized_event["type"], oversized_event["properties"])),
+    ])
+    with pytest.raises(OpenCodeServerTransportError, match="server_event_too_large"):
+        run()
+    assert stream.closed
+
+
+@pytest.mark.parametrize("abort_result", [True, False, None])
+def test_idle_deadline_ignores_keepalives_and_foreign_session(monkeypatch, abort_result):
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (2, b": keepalive\n\n"),
+        (2, _event("message.part.delta", {"sessionID": "foreign", "field": "text", "delta": "SECRET"})),
+        (2, _event("session.idle", {"sessionID": "session-exact"})),
+    ], abort_result=abort_result)
+    result = run()
+    assert result.failure_classification == "server_stream_stalled" and clock[0] == 5
+    assert result.abort_state == ("STREAM_ABORT_CONFIRMED" if abort_result else "STREAM_ABORT_UNKNOWN")
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+    assert "SECRET" not in repr(result) and "PROMPT_SENTINEL" not in repr(result) and PASSWORD not in repr(result)
+
+
+def test_session_progress_refreshes_idle_without_extending_total_deadline(monkeypatch):
+    events = [(0, _event("server.connected")),
+              (4, _event("message.part.delta", {"sessionID": "session-exact", "field": "text", "delta": "progress"})),
+              (4, _event("session.idle", {"sessionID": "session-exact"}))]
+    run, stream, calls, clock = _timed_role(monkeypatch, events)
+    assert run().success and clock[0] == 8 and calls == [] and stream.closed
+    run, stream, calls, clock = _timed_role(monkeypatch, events, timeout=7)
+    result = run()
+    assert result.failure_classification == "server_role_deadline_exceeded" and clock[0] == 7
+    assert len(calls) == 1 and stream.closed
+
+
+def test_repeated_identical_tool_update_is_not_fresh_progress(monkeypatch):
+    tool = {"part": {"id": "tool", "sessionID": "session-exact", "type": "tool", "state": {"status": "running"}}}
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (4, _event("message.part.updated", tool)),
+        (4, _event("message.part.updated", tool)), (3, b": keepalive\n\n")])
+    assert run().failure_classification == "server_stream_stalled" and clock[0] == 9
+    assert stream.closed and len(calls) == 1
+
+
+@pytest.mark.parametrize("kind", ["part", "message"])
+def test_replay_beyond_recent_identity_capacity_cannot_extend_idle(monkeypatch, kind):
+    def event(index):
+        if kind == "part":
+            return _event("message.part.updated", {"part": {
+                "id": f"tool-{index}", "sessionID": "session-exact", "type": "tool",
+                "state": {"status": "running"}}})
+        properties = _usage_event()["properties"]
+        properties["info"]["id"] = f"message-{index}"
+        return _event("message.updated", properties)
+
+    events = [event(index) for index in range(513)]
+    chunks = [(0, _event("server.connected"))]
+    chunks += [(0.001, data) for data in events] + [(0.05, data) for data in events]
+    chunks.append((0.01, _event("session.idle", {"sessionID": "session-exact"})))
+    run, stream, calls, clock = _timed_role(monkeypatch, chunks, idle_timeout=0.1)
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == pytest.approx(0.613)
+    assert stream.closed and len(calls) == 1
+
+
+def test_new_and_updated_tools_keep_progress_beyond_recent_identity_capacity(monkeypatch):
+    def update(index, state):
+        return _event("message.part.updated", {"part": {
+            "id": f"tool-{index}", "sessionID": "session-exact", "type": "tool",
+            "state": {"status": state}}})
+
+    chunks = [(0, _event("server.connected"))]
+    chunks += [(0.04, update(index, "running")) for index in range(1024)]
+    chunks += [(0.04, update(index, "completed")) for index in range(1024)]
+    chunks.append((0.04, _event("session.idle", {"sessionID": "session-exact"})))
+    run, stream, calls, _ = _timed_role(monkeypatch, chunks, idle_timeout=0.1)
+    assert run().success
+    assert stream.closed and calls == []
+
+
+@pytest.mark.parametrize("stop", [False, True])
+def test_saturated_progress_filter_stays_bounded_without_losing_usage(monkeypatch, stop):
+    import reverse_agent.platform_v1.opencode_server_transport as transport
+
+    progress = transport._ProgressFilter()
+    size = len(progress.bits)
+    progress.bits[:] = b"\xff" * size  # worst-case false positives are conservative
+    monkeypatch.setattr(transport, "_ProgressFilter", lambda: progress)
+    observed = []
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (4, _event("message.updated", _usage_event()["properties"])),
+        (4, _event("session.idle", {"sessionID": "session-exact"})),
+    ], usage_observer=lambda info: observed.append(info) or stop)
+    result = run()
+    assert result.failure_classification == ("stream_budget_abort_confirmed" if stop else "server_stream_stalled")
+    assert clock[0] == (4 if stop else 5)
+    assert result.usage_event_count == len(observed) == 1
+    assert stream.closed and len(calls) == 1
+    assert len(progress.bits) == size == transport.PROGRESS_FILTER_BYTES
+
+
+def test_dribbled_partial_sse_line_cannot_extend_idle_deadline(monkeypatch):
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (2, b"data: {"), (2, b'"type":'), (2, b'"session.idle"}')])
+    assert run().failure_classification == "server_stream_stalled" and clock[0] == 5
+    assert stream.closed and len(calls) == 1
+
+
+def test_alternating_identical_part_updates_do_not_refresh_idle(monkeypatch):
+    tool_a = {
+        "part": {
+            "id": "tool-a",
+            "sessionID": "session-exact",
+            "type": "tool",
+            "state": {"status": "running"},
+        }
+    }
+    tool_b = {
+        "part": {
+            "id": "tool-b",
+            "sessionID": "session-exact",
+            "type": "tool",
+            "state": {"status": "running"},
+        }
+    }
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (4, _event("message.part.updated", tool_a)),
+        (4, _event("message.part.updated", tool_b)),
+        (4, _event("message.part.updated", tool_a)),
+        (4, _event("message.part.updated", tool_b)),
+        (4, _event("session.idle", {"sessionID": "session-exact"})),
+    ])
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == 13
+    assert result.abort_state == "STREAM_ABORT_CONFIRMED"
+    assert stream.closed and len(calls) == 1
+
+
+def test_replayed_completed_message_does_not_refresh_idle(monkeypatch):
+    properties = _usage_event()["properties"]
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (4, _event("message.updated", properties)),
+        (1, _event("message.updated", properties)),
+        (4, b": keepalive\n\n"),
+    ])
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == 9
+    assert result.usage_event_count == 1
+    assert stream.closed and len(calls) == 1
+
+
+def test_absolute_deadline_holds_below_real_chunked_framing() -> None:
+    client_sock, peer_sock = socket.socketpair()
+    stop = Event()
+
+    def dribble() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+            # HTTPResponse parses the chunk-size/extension line through a
+            # buffered readline; dribbling bytes keeps that readline alive.
+            for _ in range(200):
+                if stop.is_set():
+                    break
+                peer_sock.sendall(b"a")
+                time.sleep(0.02)
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    responder = Thread(target=dribble, daemon=True)
+    responder.start()
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        stream.deadline = time.monotonic() + 0.1
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            stream.readline(1024)
+        assert time.monotonic() - started < 0.5
+    finally:
+        stop.set()
+        try:
+            response.close()
+        finally:
+            client_sock.close()
+        responder.join(timeout=2.0)
+
+
+def test_dribbled_chunk_extension_times_out_near_absolute_deadline() -> None:
+    """#1548/#1549 counterexample: one chunk-extension byte every 0.03 s.
+
+    Before the fix a per-read relative timeout let this peer hold a 0.1 s
+    absolute deadline open for about 0.366 s.  Each underlying read is now
+    armed with the remaining absolute budget, so the read stops near 0.1 s.
+    """
+
+    client_sock, peer_sock = socket.socketpair()
+    stop = Event()
+
+    def dribble() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+                b"40;ext="
+            )
+            for _ in range(100):
+                if stop.is_set():
+                    break
+                peer_sock.sendall(b"x")
+                time.sleep(0.03)
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    responder = Thread(target=dribble, daemon=True)
+    responder.start()
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        started = time.monotonic()
+        stream.deadline = started + 0.1
+        with pytest.raises(TimeoutError):
+            stream.readline(1024)
+        elapsed = time.monotonic() - started
+        assert 0.09 <= elapsed < 0.25, elapsed
+    finally:
+        stop.set()
+        try:
+            response.close()
+        finally:
+            client_sock.close()
+        responder.join(timeout=2.0)
+
+
+def _chunked_socketpair(
+    *, split_chunk_header: bool = False, chunk_extension: bool = False
+) -> tuple[socket.socket, socket.socket, Thread]:
+    """Open a real socketpair that serves one complete chunked SSE body."""
+
+    client_sock, peer_sock = socket.socketpair()
+    body = b'data: {"type":"server.connected","properties":{}}\n\n'
+
+    def serve() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+            size = b"%x" % len(body)
+            if chunk_extension:
+                size += b";chunk-ext=1"
+            if split_chunk_header:
+                # Deliver the chunk-size line across two reads so the
+                # framing line is only complete after a second read.
+                peer_sock.sendall(size[:1])
+                time.sleep(0.05)
+                peer_sock.sendall(size[1:] + b"\r\n")
+            else:
+                peer_sock.sendall(size + b"\r\n")
+            peer_sock.sendall(body + b"\r\n")
+            peer_sock.sendall(b"0\r\n\r\n")
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    thread = Thread(target=serve, daemon=True)
+    thread.start()
+    return client_sock, peer_sock, thread
+
+
+def _read_chunked_line(client_sock: socket.socket, peer_sock: socket.socket) -> bytes:
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        stream.deadline = time.monotonic() + 5.0
+        return stream.readline(1024)
+    finally:
+        response.close()
+        client_sock.close()
+
+
+def test_healthy_chunked_response_is_not_reported_as_incomplete_read() -> None:
+    """A complete chunked session must not fail as IncompleteRead(0 bytes)."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair()
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_chunk_size_line_split_across_reads_is_reassembled() -> None:
+    """A chunk-size line delivered in two reads must still frame the body."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair(split_chunk_header=True)
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_chunk_extension_line_does_not_break_framing() -> None:
+    """A chunk-extension line must be stripped, not treated as payload."""
+
+    client_sock, peer_sock, thread = _chunked_socketpair(chunk_extension=True)
+    try:
+        line = _read_chunked_line(client_sock, peer_sock)
+    finally:
+        peer_sock.close()
+        thread.join(timeout=2.0)
+
+    assert line.startswith(b'data: {"type":"server.connected"')
+
+
+def test_peek_with_partial_pending_reads_forward_and_arms_deadline() -> None:
+    """peek() must not spin on the bytes it already holds."""
+
+    class FakeStream:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def read1(self, size: int) -> bytes:
+            self.calls += 1
+            if self.calls > 2:
+                raise TimeoutError("no more data")
+            return b"ab"
+
+    class FakeSocket:
+        def __init__(self) -> None:
+            self.timeouts: list[float] = []
+
+        def settimeout(self, value: float) -> None:
+            self.timeouts.append(value)
+
+    stream = FakeStream()
+    sock = FakeSocket()
+    reader = _DeadlineReader(stream, sock, lambda: time.monotonic() + 5.0)
+    reader.pending.extend(b"xy")
+
+    with pytest.raises(TimeoutError):
+        reader.peek(4096)
+
+    # The held bytes survive, the underlying stream was actually read and
+    # the loop terminated instead of re-inserting the same bytes forever.
+    assert bytes(reader.pending[:2]) == b"xy"
+    assert stream.calls > 1
+    # Every read below the deadline armed the socket with the remaining
+    # absolute budget instead of extending it.
+    assert sock.timeouts
+    assert all(0 < value <= 5.0 for value in sock.timeouts)
+
+
+def test_peek_raises_when_the_absolute_deadline_has_passed() -> None:
+    class EmptyStream:
+        def read1(self, size: int) -> bytes:
+            raise AssertionError("an expired deadline must not reach the socket")
+
+    reader = _DeadlineReader(EmptyStream(), None, lambda: time.monotonic() - 1.0)
+    reader.pending.extend(b"partial")
+
+    with pytest.raises(TimeoutError):
+        reader.peek(4096)
+
+
+def test_peek_returns_pending_bytes_when_the_stream_is_exhausted() -> None:
+    class EmptyStream:
+        def read1(self, size: int) -> bytes:
+            return b""
+
+    reader = _DeadlineReader(EmptyStream(), None, lambda: time.monotonic() + 5.0)
+    reader.pending.extend(b"partial")
+
+    assert reader.peek(4096) == b"partial"
+    assert bytes(reader.pending) == b"partial"
 
 
 def test_server_client_runs_exact_session_and_projects_usage(tmp_path) -> None:

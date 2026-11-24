@@ -3,25 +3,28 @@ import { test, expect, open, settle } from "./fixtures";
 const routes = [
   ["/", "platform-home"],
   ["/tasks", "tasks-page"],
-  ["/inbox", "inbox-page"],
-  ["/roadmap", "roadmap-page"],
+  ["/goals", "goals-page"],
+  ["/approvals", "approvals-page"],
   ["/runs", "runs-page"],
+  ["/accounts", "accounts-page"],
   ["/settings", "settings-hub"],
 ] as const;
 
 function routeLabel(path: string) {
   return path === "/tasks"
     ? "任务"
-    : path === "/inbox"
-      ? "收件箱"
-      : path === "/roadmap"
-        ? "路线图"
+    : path === "/goals"
+      ? "目标"
+      : path === "/approvals"
+        ? "审批"
         : path === "/runs"
-          ? "Agent 运行"
-          : "设置";
+          ? "运行记录"
+          : path === "/accounts"
+            ? "账户"
+            : "设置";
 }
 
-test("keeps all six product routes reachable through task-first desktop IA", async ({ appPage }) => {
+test("keeps every product route reachable through task-first desktop IA", async ({ appPage }) => {
   await open(appPage, "/");
   await settle(appPage);
   if (await appPage.evaluate(() => window.innerWidth <= 500)) {
@@ -37,9 +40,17 @@ test("keeps all six product routes reachable through task-first desktop IA", asy
       await expect(appPage.getByTestId("mobile-drawer")).toBeHidden();
     }
   } else {
+    // 目标 is a top route; every other route sits in the bottom 更多 menu, which closes after a choice.
+    const menu = appPage.getByTestId("sidebar-menu");
+    const openMenu = async () => {
+      if (!(await menu.evaluate((el) => (el as HTMLDetailsElement).open))) {
+        await menu.locator("summary").click();
+      }
+    };
     for (const [path, testId] of routes.slice(1, -1)) {
-      await appPage.getByTestId("sidebar-more-toggle").click();
-      const link = appPage.getByTestId("sidebar-nav-" + routeLabel(path));
+      const label = routeLabel(path);
+      if (label !== "目标") await openMenu();
+      const link = appPage.getByTestId("sidebar-nav-" + label);
       await expect(link).toBeVisible();
       await link.focus();
       await expect(link).toBeFocused();
@@ -48,11 +59,13 @@ test("keeps all six product routes reachable through task-first desktop IA", asy
       await expect(appPage.getByTestId(testId)).toBeVisible();
     }
 
+    await openMenu();
     const settings = appPage.getByTestId("sidebar-nav-设置");
     await expect(settings).toBeVisible();
     await settings.click();
     await settle(appPage);
     await expect(appPage.getByTestId("settings-hub")).toBeVisible();
-    await expect(settings).toHaveClass(/bg-ra-tertiary/);
+    await openMenu();
+    await expect(settings).toHaveAttribute("aria-current", "page");
   }
 });

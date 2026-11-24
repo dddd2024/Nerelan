@@ -137,6 +137,47 @@ class InflightCheckpointTests(unittest.TestCase):
         self.assertEqual(self.control.tick(self.evidence(10), self.need(), [], reservation_id="own",
             refresh=lambda account: self.evidence(90)), "REQUESTED")
 
+    def test_evidence_age_alone_does_not_stop_a_running_task(self):
+        old = dict(self.evidence(), observed_at="1970-01-01T00:01:40Z")  # 900 s before the clock
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        tick = lambda **kw: self.control.tick(old, need, [], reservation_id="own", **kw)
+        self.assertEqual(tick(), "RUNNING")
+        # Observed pressure still stops it.
+        self.control.pressure = {"weekly": 99}
+        self.assertEqual(tick(), "REQUESTED")
+
+    def test_an_allowed_notice_without_a_figure_does_not_stop_the_task(self):
+        from reverse_agent.platform_v1.claude_protocol import _rate_limit
+        blank = {"sequences": {}, "sources": {}, "high_water": {}, "pressure": {}, "uncertain": False, "estimate": {}}
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        for notice, expected in (
+                ({"rateLimitType": "five_hour", "status": "allowed"}, "ok"),
+                ({"rateLimitType": "seven_day", "status": "allowed"}, "ok"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": None, "isUsingOverage": False}, "ok"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "isUsingOverage": True}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed_warning"}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "rejected"}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": 0.99}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": 101}, "quota_wait"),
+                ({"rateLimitType": "five_hour", "status": "allowed", "utilization": "0.99"}, "quota_wait"),
+                ({"status": "allowed"}, "quota_wait")):
+            state, _ = inflight.reduce_signal(blank, "claude_code", 0, {"rate_limit": _rate_limit(notice)})
+            self.assertEqual(inflight.projection(self.evidence(), need, [], reservation_id="own", now=self.now,
+                spent=state["high_water"], pressure=state["pressure"])["decision"], expected, notice)
+
+    def test_aged_admission_margin_is_frozen_while_running(self):
+        old = dict(self.evidence(), observed_at="1970-01-01T00:01:40Z", aged_admission=True)
+        for window in old["windows"]:
+            window["observed_percent"] = 79  # growing it 900 s later would cross the buffer
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        self.assertEqual(self.control.tick(old, need, [], reservation_id="own"), "RUNNING")
+
+    def test_a_stale_refresh_still_requests_a_checkpoint(self):
+        old = dict(self.evidence(), observed_at="1970-01-01T00:01:40Z")
+        need = {"windows": {name: {"p80": 5} for name in ("five_hour", "weekly")}}
+        self.assertEqual(self.control.tick(self.evidence(), need, [], reservation_id="own",
+                                           refresh=lambda account: old), "REQUESTED")
+
     def test_ambiguous_resume_is_not_dispatched_again(self):
         self.tick()
         self.control.saved("cp-1", self.payload)

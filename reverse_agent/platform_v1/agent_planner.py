@@ -81,6 +81,8 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "focused test files (unit tests for the modules the task changes), not large integration suites. "
         "Do not list slow existing suites or untargeted whole-suite checks. "
         "Tell each task: your tests must be in exactly these files: followed by its validation targets. "
+        "When the objective explicitly limits changes, add allowed_paths to the implementation task with checks. "
+        "Use repository-relative files or directory/** patterns and include only the requested scope. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "difficulty": 3, "kind": "code", '
@@ -140,7 +142,7 @@ def extract_plan(text: str) -> dict[str, Any]:
     # Approved checks and predecessor artifacts let a chain build on earlier work; GoalService
     # validation still requires catalog profiles and an artifact from a declared dependency.
     allowed = {"id", "title", "instruction", "agent_role", "difficulty", "kind", "dependencies",
-               "validation_checks", "artifact_input", "context_need", "needs"}
+               "validation_checks", "artifact_input", "context_need", "needs", "allowed_paths"}
     tasks = []
     for raw in plan["tasks"]:
         if not isinstance(raw, dict):

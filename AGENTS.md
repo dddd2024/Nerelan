@@ -4,7 +4,7 @@ Operating entry for `dddd2024/Nerelan` under **Governance v2.1 — lean controll
 
 ## Repository purpose
 
-Nerelan is a local-first governed multi-Agent development platform: persistent goals, bounded autonomous windows, reusable planning/execution adapters, deterministic checks, independent review and controlled publication. Keep custom authority, risk, budgets and evidence handling thin; reuse mature runtimes rather than copying them. The adapter layer is `reverse_agent/platform_v1/`; product boundaries are in [the reference](docs/agents/governance-reference.md#product-boundaries).
+Nerelan is a local-first governed multi-Agent development platform: persistent goals, Owner-started continuous runs bounded by real account quotas, reusable planning/execution adapters, deterministic checks, independent review and controlled publication. Keep custom authority, risk, budgets and evidence handling thin; reuse mature runtimes rather than copying them. The adapter layer is `reverse_agent/platform_v1/`; product boundaries are in [the reference](docs/agents/governance-reference.md#product-boundaries).
 
 The ultimate goal is a platform that, inside pre-authorized bounds, lands independently verified changes without per-PR human ceremony. This repository dogfoods that model.
 
@@ -80,6 +80,8 @@ An Owner-authorized development goal covers ordinary R1 implementation, focused 
 
 An Owner-activated window may carry a **standing renewal** policy (Owner decision 2026-10-21, #1310 D): when it expires by time, the host activates a successor with identical bounds (at most 7 days each, never past the policy's `renew_until`, at most 90 days after activation) and moves unfinished goals into it. Stopping a window or revoking the policy ends renewal immediately. Details: [standing windows](docs/agents/governance-reference.md#standing-windows).
 
+**Continuous run** (Owner decision 2026-11-15, #1538; amended 2026-11-22, #1718): an Owner-activated window runs without expiry, token or task caps until stopped, admitting new/stranded goals and carrying `land_reviewed_pr` under exact-head review, CI and matched-head merge (self-governance R2 needs independent refutation; R3 stays gated). Limits: account quotas, runaway guard, concurrency and paid money cap. Details: [continuous run](docs/agents/governance-reference.md#continuous-run).
+
 ## Test commands
 
 Use the checks relevant to the change. CI `baseline` runs the focused suites in `.github/workflows/ci.yml`; `tests/platform_v1` is the blocking platform suite; `frontend` uses `npm test` (Vitest) and `npm run build`. Report the actual commands, head and results, and which checks were not run. A self-run or fixture is not product acceptance, and do not label unverified work complete.
@@ -90,4 +92,4 @@ Use the checks relevant to the change. CI `baseline` runs the focused suites in 
 
 ## Legacy governance
 
-Path A / Path B, Decision packets, command plans and transition preflight were the v1 process. Their code remains part of the product library and its tests, but they are not required for changes to this repository. History and semantics: [legacy-governance-v1](docs/agents/legacy-governance-v1.md).
+Path A / Path B, Decision packets, command plans and transition preflight were the v1 process. They are not required for changes to this repository, and their code was removed from `main` under Owner decision D1 (2026-11-10; #1575); it was deleted as no longer needed and remains only in Git history (last held at commit a7b62777). History and semantics: [legacy-governance-v1](docs/agents/legacy-governance-v1.md).

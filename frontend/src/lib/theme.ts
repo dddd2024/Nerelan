@@ -1,6 +1,8 @@
 export const APPEARANCE_STORAGE_KEY = "nerelan.appearance";
 export const LEGACY_APPEARANCE_STORAGE_KEY = "reverse-agent.appearance";
 
+export const APPEARANCE_CHANGED_EVENT = "nerelan:appearance-changed";
+
 export const THEME_MODES = ["system", "light", "dark"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
@@ -14,7 +16,8 @@ export interface Appearance {
 
 export const DEFAULT_APPEARANCE: Appearance = {
   mode: "system",
-  accent: "cyan",
+  // A warm accent matches the warm neutral palette.
+  accent: "amber",
 };
 
 function defaultStorage(): Storage | undefined {
@@ -43,8 +46,8 @@ const accentLabels: Record<Accent, string> = {
  * Preview swatch for the accent picker.
  *
  * These must be the colours the chosen accent will actually render, and an
- * accent resolves to a *different* value per theme (e.g. cyan is #7ea7a2 in
- * dark and #456e6a in light). The swatches therefore read the theme-scoped
+ * accent resolves to a *different* value per theme (e.g. cyan is #5ab4c0 in
+ * dark and #0d6a76 in light). The swatches therefore read the theme-scoped
  * `--ra-swatch-*` tokens from `index.css` instead of hardcoding hexes: the old
  * hardcoded set advertised #18c6cf for "青色", a colour no theme ever painted.
  */
@@ -138,6 +141,8 @@ export function setAppearance(
   const normalized = normalizeAppearance(appearance);
   applyAppearance(normalized, root);
   persistAppearance(normalized, storage);
+  // Keeps a mounted selector honest when another surface changes the theme.
+  window.dispatchEvent(new CustomEvent<Appearance>(APPEARANCE_CHANGED_EVENT, { detail: normalized }));
   return normalized;
 }
 

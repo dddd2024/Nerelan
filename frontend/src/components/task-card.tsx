@@ -2,8 +2,10 @@ import { Link } from "react-router";
 import type { Task } from "@/types";
 import { cn } from "@/lib/cn";
 import { displayTitle } from "@/lib/display-title";
+import { taskTitle } from "@/lib/goal-view";
 import { taskProjectName } from "@/lib/task-project";
 import { taskActionCopy, taskBlockerCopy } from "@/lib/task-status-copy";
+import { runtimeTitle } from "@/lib/runtime-labels";
 import {
   formatRelativeTime,
   permissionModeLabel,
@@ -43,8 +45,9 @@ export function TaskCard({ task }: TaskCardProps) {
   const risk = riskTierStyle(task.riskTier);
   // Same product copy as the detail header; the raw code stays in the
   // tooltip and in the detail page's diagnostics disclosure.
-  const rawNote = task.blocker ?? task.nextAction;
-  const note = task.blocker ? taskBlockerCopy(task.blocker) : task.nextAction ? taskActionCopy(task.nextAction) : undefined;
+  const blocker = task.blocker || task.failureClassification;
+  const rawNote = blocker || task.nextAction;
+  const note = blocker ? taskBlockerCopy(blocker) : task.nextAction ? taskActionCopy(task.nextAction) : undefined;
 
   /*
    * Row shape follows `#448` §7 (high-density / low-noise rows): identity and
@@ -70,20 +73,21 @@ export function TaskCard({ task }: TaskCardProps) {
         <span
           className={cn("h-1.5 w-1.5 shrink-0 rounded-full", state.dot)}
           aria-label={state.label}
-          title={state.label}
+          title={runtimeTitle(task.state)}
         />
         <span
           className="min-w-0 flex-1 truncate text-[13px] font-medium leading-5 text-ra-text"
           title={displayTitle(task.title, 160)}
         >
-          {task.issueNumber ? `#${task.issueNumber} — ` : ""}{displayTitle(task.title)}
+          {taskTitle(task.title)}
         </span>
-        <span className="shrink-0 text-[11px] tabular-nums text-ra-text-tertiary">
+        <span title={runtimeTitle(task.state)} className="shrink-0 text-xs text-ra-text-secondary">{state.label}</span>
+        <span className="shrink-0 text-xs tabular-nums text-ra-text-tertiary">
           {formatRelativeTime(task.updatedAt)}
         </span>
       </div>
 
-      <div className="mt-1 flex items-center gap-2 pl-3.5 text-[11px] text-ra-text-tertiary">
+      <div className="mt-1 flex items-center gap-2 pl-3.5 text-xs text-ra-text-tertiary">
         <span className="max-w-40 shrink-0 truncate text-ra-text-secondary"
               data-testid={`task-project-${task.id}`} title={task.repository?.trim() || "未归属"}>
           项目：{taskProjectName(task.repository)}
@@ -116,7 +120,7 @@ export function TaskCard({ task }: TaskCardProps) {
                 signal, matching the intent recorded in riskTierStyle. */}
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-medium",
+                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs font-medium",
                 risk.badge,
               )}
             >
@@ -128,7 +132,7 @@ export function TaskCard({ task }: TaskCardProps) {
       </div>
 
       {note ? (
-        <p className="mt-1 truncate pl-3.5 text-[11px] leading-4 text-ra-text-secondary" title={rawNote}>
+        <p className="mt-1 truncate pl-3.5 text-xs leading-4 text-ra-text-secondary" title={rawNote}>
           {note}
         </p>
       ) : null}

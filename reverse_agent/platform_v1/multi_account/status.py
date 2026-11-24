@@ -72,6 +72,8 @@ class AccountStatus(BaseModel):
     headroom_pct: Optional[float] = None       # min over active windows of 100-used
     anomaly_flags: list[str] = Field(default_factory=list)
     windows: list[WindowStatus] = Field(default_factory=list)
+    # Held Codex rate-limit resets as Magpie reports them: count and soonest expiry.
+    reset_cards: Optional[dict[str, Any]] = None
     raw: dict[str, Any] = Field(default_factory=dict)
 
     def public_view(self) -> dict[str, Any]:
@@ -88,6 +90,7 @@ class AccountStatus(BaseModel):
             "freshness_age": self.freshness_age,
             "headroom_pct": self.headroom_pct,
             "anomaly_flags": list(self.anomaly_flags),
+            "reset_cards": dict(self.reset_cards) if self.reset_cards else None,
             "windows": [w.model_dump(exclude={"extra"}) for w in self.windows],
             "next_reset_at": min(
                 (w.resets_at for w in self.windows
@@ -283,6 +286,51 @@ class MultiAccountStatusMonitor:
         data["extra"] = unknown
         return WindowStatus(**data)
         return WindowStatus(**data)
+
+    def diagnose(self, snapshot: Mapping[str, Any], *,
+                 now: Optional[float] = None) -> list[AccountStatus]:
+        """Every Magpie account, for operators; never admission evidence.
+
+        :func:`pool_account_quotas` keeps only accounts a route here claims, which
+        is right for admission and hides the rest of the pool. This projection
+        keeps them all so that nobody reads "2 accounts" off an 11-account pool.
+        The STALE/UNKNOWN verdict from Magpie stands: those windows are not re-judged.
+        """
+        now = self._clock() if now is None else now
+        statuses: list[AccountStatus] = []
+        unidentified = 0
+        for account in snapshot.get("accounts") or ():
+            if not isinstance(account, Mapping):
+                continue
+            provider = account.get("provider")
+            ref = account.get("account_ref")
+            if not ref:
+                unidentified += 1
+                ref = f"{provider or 'unknown'}:unidentified:{unidentified}"
+            try:
+                windows = []
+                for window in account.get("windows") or ():
+                    if isinstance(window, Mapping):
+                        resets_at = _parse_iso(window.get("resets_at"))
+                        windows.append({**window, "window": window.get("name"), "resets_at": resets_at,
+                                        "reset_passed": resets_at is not None and resets_at <= now})
+                status = self._build_status(str(ref), {
+                    "provider": provider, "windows": windows,
+                    "observed_at": account.get("observed_at")}, now)
+            except Exception:  # noqa: BLE001 - one malformed account must not empty the pool
+                status = AccountStatus(account_ref=str(ref), provider=str(provider or "") or None,
+                                       health=AccountHealth.UNKNOWN, anomaly_flags=["perception_error"])
+            state = account.get("state")
+            if state in {"STALE", "UNKNOWN"}:
+                reason = account.get("reason")
+                status = status.model_copy(update={
+                    "health": AccountHealth[state],
+                    "anomaly_flags": sorted({*status.anomaly_flags, *([str(reason)] if reason else [])}),
+                })
+            cards = account.get("reset_cards")
+            statuses.append(status.model_copy(update={
+                "raw": {}, "reset_cards": dict(cards) if isinstance(cards, Mapping) else None}))
+        return statuses
 
     @staticmethod
     def health_summary(statuses: Iterable[AccountStatus]) -> dict[str, Any]:

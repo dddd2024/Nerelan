@@ -1,17 +1,18 @@
-import { ChevronRight, Loader2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import { useMemo } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { NerelanMark } from "@/components/brand-logo";
 import { GoalComposer } from "@/components/goal-composer";
-import { GoalCurrentActivity } from "@/components/goal-current-activity";
-import { GoalProgress } from "@/components/goal-progress";
+import { GoalThread } from "@/components/goal-thread";
+import { runtimeMessage } from "@/lib/runtime-labels";
 import { ErrorState } from "@/components/error-state";
 import { LoadingState } from "@/components/loading-state";
-import { useGoal, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
-import { useRuns } from "@/hooks/use-runs";
-import type { PlatformGoal } from "@/lib/platform-client";
-import { goalStatusLabel } from "@/lib/goal-status-label";
-import { displayTitle } from "@/lib/display-title";
+import { UnattendedStatus } from "@/components/unattended-status";
+import { useGoal, useGoalTimeline, useGoals, usePlatformStatus, useCreateGoalDraft } from "@/hooks/use-platform";
 import { cn } from "@/lib/cn";
+import { recentGoals } from "@/components/sidebar";
+import { GOAL_TONE_DOT, GOAL_TONE_TEXT, goalState, goalTitle, issueRef } from "@/lib/goal-view";
+import { PlatformClientError } from "@/lib/platform-client";
 
 function relativeTime(value: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -21,328 +22,297 @@ function relativeTime(value: string) {
   return `${Math.floor(seconds / 86400)} 天前`;
 }
 
-function goalStatusTextClass(status: string) {
-  if (status === "COMPLETED") return "text-ra-status-running";
-  if (status === "BLOCKED" || status === "INVALIDATED") return "text-ra-status-error";
-  if (status === "RUNNING") return "text-ra-accent";
-  return "text-ra-text-tertiary";
-}
-
 function ReadFeedback({ query, label }: {
-  query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown };
+  query: { data: unknown; isPending: boolean; isError: boolean; error: unknown; dataUpdatedAt?: number; refetch: () => unknown };
   label: string;
 }) {
   if (query.isPending) return <LoadingState label={`正在加载${label}…`} />;
   if (!query.isError) return null;
+  const failure = query.error instanceof PlatformClientError ? query.error : undefined;
+  if (failure?.errorClass === "cancelled") return null;
   return <ErrorState
     title={query.data === undefined ? `${label}加载失败` : `${label}更新失败，显示上次内容`}
     error={query.error}
     onRetry={() => void query.refetch()}
-  />;
+  >
+    {query.dataUpdatedAt ? <p className="text-xs">上次成功更新：{new Date(query.dataUpdatedAt).toLocaleTimeString()}。</p> : null}
+    {failure?.retryable && <p className="text-xs">{label === "目标详情" ? "页面会在 30 秒内自动重试；当前内容会保留。" : "可稍后重试；当前内容会保留。"}</p>}
+    {failure?.diagnostics && <details className="text-xs">
+      <summary>请求详情</summary>
+      <p>{failure.diagnostics.method} {failure.diagnostics.route} · {failure.diagnostics.elapsedMs} 毫秒 · HTTP {failure.status || "未收到响应"}</p>
+      {failure.diagnostics.requestId && <p>请求编号：{failure.diagnostics.requestId}</p>}
+      {failure.diagnostics.serverElapsedMs !== undefined && <p>服务处理：{failure.diagnostics.serverElapsedMs} 毫秒</p>}
+    </details>}
+  </ErrorState>;
 }
 
-/** Objectives are long machine-written paragraphs: keep them to a summary. */
-const OBJECTIVE_CLAMP_THRESHOLD = 140;
+const RECENT_GOAL_LIMIT = 5;
 
-/**
- * Goal objective on the workspace header.
- *
- * The objective is context for the goal, not the page subject, so a long one
- * is clamped to two lines with an explicit expansion. Short objectives render
- * as ordinary prose with no affordance to learn.
- */
-function ObjectiveDisclosure({ objective }: { objective: string }) {
-  if (objective.length <= OBJECTIVE_CLAMP_THRESHOLD) {
-    return (
-      <p className="ra-measure mt-2 text-sm leading-5 text-ra-text-secondary">
-        {objective}
-      </p>
-    );
-  }
-  return (
-    <details className="group mt-2" data-testid="goal-objective-disclosure">
-      <summary
-        className={cn(
-          "cursor-pointer list-none",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-          "[&::-webkit-details-marker]:hidden",
-        )}
-      >
-        <p className="ra-measure line-clamp-2 text-sm leading-5 text-ra-text-secondary group-open:line-clamp-none">
-          {objective}
-        </p>
-        <span className="mt-1 inline-flex items-center gap-1 text-xs text-ra-text-tertiary">
-          <ChevronRight
-            className="h-3 w-3 transition-transform group-open:rotate-90"
-            aria-hidden="true"
-          />
-          展开目标全文
-        </span>
-      </summary>
-    </details>
-  );
+/** A short greeting by the time of day, the way agent chats open. */
+function greeting(now = new Date()): string {
+  const hour = now.getHours();
+  if (hour < 5) return "夜深了，有什么要做的？";
+  if (hour < 12) return "早上好，今天做点什么？";
+  if (hour < 18) return "下午好，今天做点什么？";
+  return "晚上好，今天做点什么？";
+}
+
+/** "执行窗口：剩 23 小时 · 已开始 1/30 个任务". */
+function windowLine(window: { expires_at: string; tasks_started?: number; tasks_completed: number; max_tasks: number }): string {
+  const hours = Math.max(0, Math.round((new Date(window.expires_at).getTime() - Date.now()) / 3_600_000));
+  const left = hours >= 1 ? `剩 ${hours} 小时` : "即将到期";
+  const started = window.tasks_started ?? window.tasks_completed;
+  return `执行窗口：${left} · 已开始 ${Math.min(started, window.max_tasks)}/${window.max_tasks} 个任务`;
+}
+
+/** "task_unsuccessful:task-…" reads as a sentence; the raw code stays in the tooltip. */
+function coordinatorNotice(code: string): string {
+  const message = runtimeMessage(code);
+  return message.nextStep ? `${message.label}：${message.nextStep}` : `调度需要处理：${code}`;
 }
 
 export function HomePage() {
   const statusQuery = usePlatformStatus();
   const goalsQuery = useGoals();
-  const runsQuery = useRuns();
   const startGoal = useCreateGoalDraft();
   const navigate = useNavigate();
+  const location = useLocation();
+  const newGoalRequest = (location.state as { newGoal?: number } | null)?.newGoal;
   const goals = useMemo(() => goalsQuery.data ?? [], [goalsQuery.data]);
-  const runs = useMemo(() => runsQuery.data ?? [], [runsQuery.data]);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [defaultId, setDefaultId] = useState<string | undefined>();
-  const selectedId = searchParams.get("goal") || defaultId;
+  const selectedId = searchParams.get("goal") || undefined;
   const setSelectedId = (goalId: string) => setSearchParams((previous) => {
     const next = new URLSearchParams(previous);
     next.set("goal", goalId);
     return next;
   });
 
-  useEffect(() => {
-    if (!defaultId && goals[0]) setDefaultId(goals[0].id);
-  }, [goals, defaultId]);
-
   const detailQuery = useGoal(selectedId);
+  const timelineQuery = useGoalTimeline(selectedId);
   const detailGoal = detailQuery.data;
-  const recent = useMemo(() => goals.slice(0, 3), [goals]);
+  const detailState = detailGoal ? goalState(detailGoal) : null;
+  const detailIssue = detailGoal ? issueRef(detailGoal) : null;
+  const recent = useMemo(() => recentGoals(goals, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
   const activeWindow = platform?.autonomy.active_window;
   const coordinatorError = platform?.coordinator.last_error;
 
-  function handleStarted(goal: PlatformGoal) {
-    setSelectedId(goal.id);
+  const coordinatorStatus = platform ? (
+    <span
+      data-testid="coordinator-status"
+      className={cn(
+        platform.coordinator.enabled && !statusQuery.isError
+          ? "sr-only"
+          : cn("inline-flex items-center gap-1.5 text-xs", statusQuery.isError ? "text-ra-status-error" : "text-ra-text-secondary"),
+      )}
+    >
+      {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "协调器未运行"}
+    </span>
+  ) : null;
+
+  const notices = (
+    <>
+      <ReadFeedback query={statusQuery} label="平台状态" />
+      {coordinatorError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start gap-3 rounded-lg border border-ra-status-error/30 bg-ra-status-error/10 px-3.5 py-2.5 text-sm text-ra-status-error"
+        >
+          <span
+            className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ra-status-error"
+            aria-hidden="true"
+          />
+          <span title={coordinatorError}>{coordinatorNotice(coordinatorError)}</span>
+        </div>
+      )}
+    </>
+  );
+
+  const composer = (dock: boolean) => (
+    <section data-testid="goal-composer-section">
+      <GoalComposer
+        busy={startGoal.isPending}
+        compact={dock}
+        focusKey={dock ? undefined : newGoalRequest}
+        placeholder={dock ? "另起一个新目标…" : undefined}
+        onSubmit={async (input) => {
+          const goal = await startGoal.mutateAsync(input);
+          setSelectedId(goal.id);
+          navigate(`/approvals?goal=${encodeURIComponent(goal.id)}`);
+        }}
+      />
+      {startGoal.isError && (
+        <p role="alert" className="mt-2 text-sm text-ra-status-error">
+          {startGoal.error.message}
+        </p>
+      )}
+    </section>
+  );
+
+  if (!selectedId) {
+    return (
+      <main
+        data-testid="platform-home"
+        className="flex min-h-full flex-col bg-ra-workspace"
+      >
+        {platform && <UnattendedStatus status={platform} quietWhenRunning />}
+        <div className="mx-auto my-auto w-full max-w-[784px] px-4 py-10 sm:px-8">
+          <header className="mb-7 text-center">
+            <h1 className="inline-flex items-center gap-3 text-[32px] font-normal tracking-[-0.02em] text-ra-text">
+              <NerelanMark className="h-7 w-7 text-ra-accent" />
+              {greeting()}
+            </h1>
+            <p className="sr-only">今天想完成什么？给出最终目标，平台会协调 Agent 完成，并把结果留给你审查。</p>
+            {coordinatorStatus}
+          </header>
+
+          {notices}
+          {composer(false)}
+
+          <section
+            data-testid="recent-goals-section"
+            aria-label="最近目标"
+            className="mt-8"
+          >
+            <div className="mb-1.5 flex items-center justify-between gap-3 px-2.5">
+              <h2 className="text-xs font-medium text-ra-text-tertiary">最近目标</h2>
+              <Link to="/goals" className="inline-flex min-h-6 items-center rounded px-1 text-xs text-ra-text-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
+            </div>
+
+            <ReadFeedback query={goalsQuery} label="目标列表" />
+            {goalsQuery.isSuccess && recent.length === 0 && (
+              <p className="px-2.5 py-3 text-sm text-ra-text-tertiary">还没有目标。</p>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {recent.map((goal) => {
+                const state = goalState(goal);
+                return (
+                <button
+                  type="button"
+                  key={goal.id}
+                  data-testid={`recent-goal-${goal.id}`}
+                  onClick={() => setSelectedId(goal.id)}
+                  className="flex min-h-9 w-full items-center gap-3 rounded-md px-2.5 py-1.5 text-left transition-colors hover:bg-ra-tertiary focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
+                >
+                  <span aria-hidden="true" className={cn("h-2 w-2 shrink-0 rounded-full", GOAL_TONE_DOT[state.tone])} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ra-text" title={goalTitle(goal, 300)}>
+                      {goalTitle(goal)}
+                    </span>
+                    <span data-testid={`goal-progress-line-${goal.id}`} className={cn("block truncate text-xs", GOAL_TONE_TEXT[state.tone])}>
+                      {state.label}{state.detail ? `：${state.detail}` : ""}
+                    </span>
+                  </span>
+                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-ra-text-tertiary">
+                    {relativeTime(goal.updated_at)}
+                  </span>
+                </button>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      </main>
+    );
   }
 
   return (
     <main
       data-testid="platform-home"
-      className="min-h-full bg-ra-workspace px-4 py-7 sm:px-8 lg:px-12 lg:py-9"
+      className="flex h-full min-h-0 flex-col bg-ra-workspace"
     >
-      <div className="mx-auto max-w-[1080px]">
-        {detailGoal ? (
-          <header
-            data-testid="active-goal-header"
-            className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-xs font-medium tracking-wide text-ra-text-tertiary">
-                {detailGoal.repository || "Workspace"}
-              </p>
-              <h1 className="mt-1.5 text-[28px] font-medium tracking-[-0.03em] text-ra-text sm:text-[32px]">
-                {displayTitle(detailGoal.title, 120)}
-              </h1>
-              {detailGoal.objective ? (
-                <ObjectiveDisclosure objective={detailGoal.objective} />
-              ) : null}
-              <h2 className="sr-only">今天想完成什么？</h2>
-            </div>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 pt-1 text-xs">
-              <span
-                data-testid="goal-state-label"
-                className={cn("rounded-full border border-ra-border/70 bg-ra-light/60 px-2.5 py-1 font-medium", goalStatusTextClass(detailGoal.status))}
-              >
-                {goalStatusLabel(detailGoal.status)}
-              </span>
-              {activeWindow ? (
-                <span
-                  data-testid="autonomy-status"
-                  className="inline-flex items-center gap-1.5 text-ra-text-tertiary"
-                  title={`自治窗口已完成 ${activeWindow.tasks_completed} 项任务，本窗口上限 ${activeWindow.max_tasks} 项`}
-                >
-                  <Loader2
-                    className={cn(
-                      "h-3.5 w-3.5",
-                      activeWindow.status === "ACTIVE" && "animate-spin",
-                    )}
-                    aria-hidden="true"
-                  />
-                  {/* The absolute count is cumulative but `max_tasks` is the
-                      per-window budget, so a raw "8/1" ratio asserts an
-                      impossible "8 of 1" whenever the window has already been
-                      exceeded. Below the budget the ratio is the denser and
-                      more informative form; above it the ratio is dropped. */}
-                  {activeWindow.tasks_completed <= activeWindow.max_tasks
-                    ? `自治 ${activeWindow.tasks_completed}/${activeWindow.max_tasks}`
-                    : `自治已完成 ${activeWindow.tasks_completed}`}
-                </span>
-              ) : null}
-              {platform ? (
-                <span
-                  data-testid="coordinator-status"
-                  className={cn(
-                    platform.coordinator.enabled && !statusQuery.isError
-                      ? "sr-only"
-                      : "inline-flex items-center gap-1.5 text-ra-status-error",
-                  )}
-                >
-                  {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}
-                </span>
-              ) : null}
-            </div>
-          </header>
-        ) : (
-          <header className="mb-6">
-            <h1 className="text-[28px] font-medium tracking-[-0.03em] text-ra-text sm:text-[32px]">
-              今天想完成什么？
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-ra-text-secondary">
-              给出最终目标。平台会生成规格与任务，协调 Agent，保存检查点，并把结果留给你审查。
-            </p>
-            {platform ? (
-              <span
-                data-testid="coordinator-status"
-                className={cn(
-                  platform.coordinator.enabled && !statusQuery.isError
-                    ? "sr-only"
-                    : "mt-3 inline-flex items-center gap-1.5 text-xs text-ra-status-error",
-                )}
-              >
-                {statusQuery.isError ? "平台状态待刷新" : platform.coordinator.enabled ? "协调器在线" : "手动模式"}
-              </span>
-            ) : null}
-          </header>
-        )}
-
-        <ReadFeedback query={statusQuery} label="平台状态" />
-
-        {coordinatorError && (
-          <div
-            role="alert"
-            className="mb-5 flex items-start gap-3 rounded-xl border border-ra-status-error/30 bg-ra-status-error/10 px-4 py-3 text-sm text-ra-status-error"
-          >
-            <span
-              className="mt-1 h-2 w-2 shrink-0 rounded-full bg-ra-status-error"
-              aria-hidden="true"
-            />
-            <span>协调器需要处理：{coordinatorError}</span>
-          </div>
-        )}
-
-        <section data-testid="goal-composer-section" className="mb-7">
-          <GoalComposer
-            busy={startGoal.isPending}
-            onSubmit={async (input) => {
-              const goal = await startGoal.mutateAsync(input);
-              handleStarted(goal);
-              navigate(`/approvals?goal=${encodeURIComponent(goal.id)}`);
-            }}
-          />
-          {startGoal.isError && (
-            <p role="alert" className="mt-3 text-sm text-ra-status-error">
-              {startGoal.error.message}
-            </p>
-          )}
-        </section>
-
-        <section
-          data-testid="current-execution-section"
-          aria-label="当前执行"
-          className="mb-9"
+      {platform && <UnattendedStatus status={platform} quietWhenRunning />}
+      <header
+        data-testid="active-goal-header"
+        className="flex shrink-0 items-center gap-3 border-b border-ra-border px-4 py-2.5 sm:px-5"
+      >
+        <Link
+          to="/"
+          aria-label="返回新目标"
+          data-testid="goal-thread-back"
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ra-text-tertiary hover:bg-ra-tertiary hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent"
         >
-          {selectedId && detailQuery.isPending ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="border-t border-ra-border/60 py-12 text-center text-sm text-ra-text-tertiary"
-            >
-              正在加载所选目标的执行进度…
-            </div>
-          ) : selectedId && detailQuery.isError && !detailGoal ? (
-            <div className="border-t border-ra-border/60 py-10 text-center">
-              <p role="alert" className="text-sm text-ra-status-error">
-                当前所选目标的执行进度暂时无法加载，请重试。
-              </p>
-              <button
-                type="button"
-                onClick={() => void detailQuery.refetch()}
-                disabled={detailQuery.isFetching}
-                className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
-              >
-                {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
-              </button>
-            </div>
-          ) : detailGoal ? (
-            <div data-testid="active-goal-stream" className="space-y-5">
-              <ReadFeedback query={detailQuery} label="目标详情" />
-              <GoalProgress goal={detailGoal} />
-              <ReadFeedback query={runsQuery} label="运行活动" />
-              {runsQuery.data !== undefined && <GoalCurrentActivity goal={detailGoal} runs={runs} />}
-            </div>
-          ) : !selectedId && goalsQuery.isSuccess ? (
-            <div className="border-t border-ra-border/60 py-12 text-center text-sm text-ra-text-tertiary">
-              第一个目标会在这里显示 Agent 的执行进度。
-            </div>
-          ) : selectedId ? (
-            <div
-              role="status"
-              aria-live="polite"
-              className="border-t border-ra-border/60 py-12 text-center text-sm text-ra-text-tertiary"
-            >
-              正在加载所选目标的执行进度…
-            </div>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[15px] font-semibold leading-6 text-ra-text" title={detailGoal ? goalTitle(detailGoal, 300) : undefined}>
+            {detailGoal ? goalTitle(detailGoal, 120) : "目标"}
+          </h1>
+          {detailGoal ? (
+            <p className="flex min-w-0 items-center gap-2 truncate text-xs text-ra-text-tertiary">
+              {detailIssue ? (
+                <a href={detailIssue.url} target="_blank" rel="noreferrer" data-testid="goal-issue-link"
+                  className="inline-flex items-center gap-0.5 hover:text-ra-text focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">
+                  Issue #{detailIssue.number}<ExternalLink className="h-3 w-3" aria-hidden="true" />
+                </a>
+              ) : null}
+              <span className="truncate">{detailGoal.repository}</span>
+            </p>
           ) : null}
-        </section>
-
-        <section
-          data-testid="recent-goals-section"
-          aria-label="最近目标"
-          className="border-t border-ra-border/60 pt-6"
-        >
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold text-ra-text">最近目标</h2>
-            <span className="text-[11px] tabular-nums text-ra-text-tertiary">
-              {goalsQuery.data === undefined ? "—" : `最近 ${recent.length} 项`}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs">
+          {detailState ? (
+            <span
+              data-testid="goal-state-label"
+              className={cn("inline-flex items-center gap-1.5 font-medium", GOAL_TONE_TEXT[detailState.tone])}
+            >
+              <span aria-hidden="true" className={cn("h-1.5 w-1.5 rounded-full", GOAL_TONE_DOT[detailState.tone])} />
+              {detailState.label}
             </span>
-            <Link to="/goals" className="inline-flex min-h-6 items-center rounded px-1 text-xs text-ra-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent">所有目标</Link>
-          </div>
+          ) : null}
+          {activeWindow && detailGoal?.window_id === activeWindow.id ? (
+            <span
+              data-testid="autonomy-status"
+              className="hidden text-ra-text-tertiary sm:inline"
+              title="这个目标所在的执行窗口：窗口到期、任务数或 Token 用完就会停下"
+            >
+              {windowLine(activeWindow)}
+            </span>
+          ) : null}
+          {coordinatorStatus}
+        </div>
+      </header>
 
-          <ReadFeedback query={goalsQuery} label="目标列表" />
-          {goalsQuery.isSuccess && recent.length === 0 && <p className="py-4 text-sm text-ra-text-tertiary">还没有目标。</p>}
-          <div className="space-y-2">
-            {recent.map((goal) => (
-              <button
-                type="button"
-                key={goal.id}
-                onClick={() => setSelectedId(goal.id)}
-                className={cn(
-                  "group w-full rounded-xl border border-ra-border/60 px-3.5 py-3 text-left transition-colors",
-                  "hover:border-ra-border-strong hover:bg-ra-light/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent",
-                  detailGoal?.id === goal.id && "bg-ra-light/60",
-                )}
-              >
-                <div className="flex items-baseline gap-4">
-                  <p className="min-w-0 flex-1 text-sm leading-5 text-ra-text">
-                    <span className="line-clamp-1" title={displayTitle(goal.title, 160)}>{displayTitle(goal.title)}</span>
-                  </p>
-                  <span
-                    className={cn(
-                      /*
-                       * A terminal COMPLETED row states the product meaning
-                       * ("execution finished, review still pending") because a
-                       * bare `COMPLETED` in a secondary row reads as delivery.
-                       * Non-terminal states keep their machine name: it is the
-                       * honest value while the run is still in flight, and the
-                       * tone class already carries the urgency.
-                       */
-                      "shrink-0 rounded-md bg-ra-tertiary/50 px-1.5 py-0.5 text-[10px] font-medium tracking-[0.04em]",
-                      goalStatusTextClass(goal.status),
-                    )}
-                  >
-                    {goal.status === "COMPLETED" ? goalStatusLabel(goal.status) : goal.status}
-                  </span>
-                </div>
-                <div className="mt-0.5 flex items-center gap-4 text-[11px] text-ra-text-tertiary">
-                  <span className="min-w-0 flex-1 truncate" title={goal.objective}>{goal.objective}</span>
-                  <span className="shrink-0 tabular-nums">{relativeTime(goal.updated_at)}</span>
-                </div>
-              </button>
-            ))}
+      {detailGoal ? (
+        // The goal as an agent conversation: thread, docked composer and side panel.
+        <section data-testid="current-execution-section" aria-label="当前执行" className="flex min-h-0 flex-1 flex-col">
+          <div data-testid="active-goal-stream" className="flex min-h-0 flex-1 flex-col">
+            <div className="mx-auto w-full max-w-[760px] px-4 sm:px-6 empty:hidden">
+              {notices}
+              <ReadFeedback query={detailQuery} label="目标详情" />
+              <ReadFeedback query={timelineQuery} label="执行过程" />
+            </div>
+            <GoalThread goal={detailGoal} timeline={timelineQuery.data} composer={composer(true)} />
           </div>
         </section>
-      </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="mx-auto w-full max-w-[760px] px-4 py-5 sm:px-6">
+            {notices}
+            <section data-testid="current-execution-section" aria-label="当前执行">
+              {detailQuery.isError ? (
+                <div className="py-10 text-center">
+                  <p role="alert" className="text-sm text-ra-status-error">
+                    当前所选目标的执行进度暂时无法加载，请重试。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void detailQuery.refetch()}
+                    disabled={detailQuery.isFetching}
+                    className="mt-4 rounded-lg border border-ra-border px-3 py-2 text-xs text-ra-text-secondary transition hover:bg-ra-light/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ra-accent disabled:cursor-wait disabled:opacity-60"
+                  >
+                    {detailQuery.isFetching ? "正在重试…" : "重试加载当前目标"}
+                  </button>
+                </div>
+              ) : (
+                <div role="status" aria-live="polite" className="py-12 text-center text-sm text-ra-text-tertiary">
+                  正在加载所选目标的执行进度…
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

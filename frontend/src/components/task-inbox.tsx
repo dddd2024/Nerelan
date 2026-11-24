@@ -66,9 +66,13 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
     );
   }
 
+  // A queued task waits for a window to dispatch it, not for the Owner: it gets
+  // its own folded group, so 需要你处理 lists only what the Owner can act on.
+  const queuedOnly = (t: Task) => t.state === "WAITING_FOR_OWNER" && !t.blocker;
   const needsAttention = tasks.filter(
-    (t) => t.state === "WAITING_FOR_OWNER" || t.state === "READY_FOR_HUMAN",
+    (t) => t.state === "READY_FOR_HUMAN" || (t.state === "WAITING_FOR_OWNER" && !queuedOnly(t)),
   );
+  const queued = tasks.filter(queuedOnly);
   const running = tasks.filter((t) => t.state === "RUNNING");
   const recent = tasks.filter(
     (t) =>
@@ -80,7 +84,7 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
   return (
     <div data-testid="task-inbox" className="space-y-5">
       <Section
-        title="需要 Owner 关注"
+        title="需要你处理"
         testId="section-needs-attention"
         icon={<Flag className="h-4 w-4 text-ra-text-tertiary" />}
         count={needsAttention.length}
@@ -95,6 +99,19 @@ export function TaskInbox({ tasks, isLoading, isError, error }: TaskInboxProps) 
       >
         <Cards tasks={running} />
       </Section>
+      {queued.length > 0 ? (
+        <details data-testid="section-queued" className="group">
+          <summary className="flex cursor-pointer select-none items-baseline gap-2 px-1 pb-1.5 pt-2 text-xs font-semibold text-ra-text-secondary">
+            <Clock className="h-4 w-4 text-ra-text-tertiary" aria-hidden="true" />
+            <h2>排队等待执行</h2>
+            <span className="font-normal text-ra-text-tertiary tabular-nums">({queued.length})</span>
+            <span className="font-normal text-ra-text-tertiary">执行窗口开启后会自动派发</span>
+          </summary>
+          <div className="overflow-hidden rounded-xl border border-ra-border bg-ra-base">
+            <Cards tasks={queued} />
+          </div>
+        </details>
+      ) : null}
       <Section
         title="最近任务"
         testId="section-recent"

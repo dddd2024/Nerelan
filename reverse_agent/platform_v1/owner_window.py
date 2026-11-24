@@ -1,0 +1,801 @@
+"""Owner-confirmed autonomous window over exact Goals (Owner decision 2026-11-07).
+
+    python -m reverse_agent.platform_v1.owner_window --goal G1 --goal G2 --hours 24 \
+        --max-tasks 10 --max-concurrent 1 --max-retries 2 --capability execute_task
+
+Starts the host, prints the exact scope, and activates only after the Owner types
+the one-time code it shows in this terminal. Then it keeps running as the host.
+
+Why it exists: the native single-Task path admits one Codex Task for 30 minutes. This admits several Goals for
+hours under the same discipline: persisted truth is read before the prompt and again
+inside the activation transaction, the window, approvals, launches and one receipt
+per Goal commit together or not at all, and the store enforces hard ceilings.
+
+The receipt records the binding pool the Owner was shown. Only these Goals can run
+in the window (launch, rebind and claim refuse others) and a Task may only run on a
+binding from that pool (checked before every executor launch).
+
+What the typed code proves: someone at this terminal read the scope and typed it.
+It does not authenticate the OS user as the repository Owner, and any process that
+can drive this terminal could type it.
+
+Other surfaces run the same admission: the confirmation card's Start (Owner decision
+2026-11-09) and, when the Owner turns it on, a supervisor request served by the
+running host with preset bounds only (Owner decision 2026-11-10, see
+:mod:`supervisor_requests`).
+"""
+from __future__ import annotations
+
+import argparse
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
+import getpass
+from pathlib import Path
+import json
+import re
+import secrets
+import sys
+import threading
+import time
+from typing import Any
+from urllib.parse import unquote, urlsplit
+
+from .binding_resolver import BindingResolver
+from .control_store import (
+    OWNER_LANDING_CAPABILITY,
+    OWNER_LANDING_RECOVERY_RECEIPT,
+    OWNER_TERMINAL_MECHANISM,
+    OWNER_WINDOW_CAPABILITIES,
+    OWNER_WINDOW_MAX_GOALS,
+    OWNER_WINDOW_MAX_MINUTES,
+    OWNER_WINDOW_MODE,
+    OWNER_WINDOW_RECEIPT,
+    canonical_json,
+    sha256_json,
+)
+from .artifact_handoff import published_plan_tasks
+from .functional_validation import repository_base
+from .repository_workspace import resolve_repository_workspace
+from .run_store import TaskStoreError
+
+CONFIRM_SECONDS = 300
+MAX_SCOPE_CHARS = 40_000
+_GOAL_ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]{0,255}")
+_EXECUTORS = {"opencode", "codex", "claude_code"}
+_MODES = {"single", "sequential_team", "agent_team"}
+_MECHANISMS = {
+    "terminal": OWNER_TERMINAL_MECHANISM,
+    "ui": "owner pressed Start on the Nerelan confirmation card",
+    "supervisor": "supervisor request file under the Owner's standing delegation; preset bounds only",
+}
+
+
+def _utc(moment: datetime) -> str:
+    return moment.isoformat().replace("+00:00", "Z")
+
+
+def _store_transport(store: Any) -> Callable[[str, float, int], tuple[int, Any]]:
+    """A ``BindingResolver`` transport answering from the persisted public views.
+
+    Mirrors the model-control GET routes for bindings, connections and executors,
+    minus their external-session refresh. A session whose persisted status is not
+    usable is therefore not offered, which only ever narrows the pool.
+    """
+    getters = {"bindings": store.get_binding_public, "connections": store.get_connection_public,
+               "executors": store.get_executor_public}
+
+    def transport(url: str, _timeout: float, _limit: int) -> tuple[int, Any]:
+        segments = [unquote(part) for part in urlsplit(url).path.strip("/").split("/")]
+        if len(segments) != 3 or segments[0] != "api" or segments[1] not in getters:
+            return 404, {"error": "route not found"}
+        try:
+            return 200, getters[segments[1]](segments[2])
+        except KeyError:
+            return 404, {"error": "not found"}
+
+    return transport
+
+
+def resolve_pool(model_store: Any, owner: Mapping[str, Any]
+                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """(pool entries, display rows, skipped) over the enabled bindings, as admission offers them."""
+    from .routing_inputs import binding_cost_class, weekly_pace_config
+    pace = weekly_pace_config(owner)
+    # Same validation and normalization as dispatch, but read from the store in
+    # this process: no HTTP to our own server (its handler needs the store lock we
+    # hold), no session refresh, no quota or login probe inside the transaction.
+    resolver = BindingResolver(transport=_store_transport(model_store))
+    connections = {c["connection_id"]: c for c in model_store.list_connections_public()}
+    pool, shown, skipped = [], [], []
+    for binding in sorted(model_store.list_bindings_public(), key=lambda b: b["binding_id"]):
+        if not binding.get("enabled"):
+            continue
+        connection = connections.get(binding.get("connection_id"), {})
+        cost = binding_cost_class(binding, connection, owner)
+        if cost == "paid_api":
+            skipped.append(f"{binding['binding_id']} (paid API)")
+            continue
+        try:
+            resolution = resolver.resolve(binding["binding_id"], task_executor=binding["executor_id"])
+        except Exception as exc:  # noqa: BLE001 - an unusable binding is simply not offered
+            skipped.append(f"{binding['binding_id']} ({type(exc).__name__})")
+            continue
+        entry = {"binding_ref": resolution.binding_ref, "model_id": resolution.model_id,
+                 "connection_id": resolution.connection_id, "executor_id": resolution.executor_id,
+                 "provider_id": resolution.provider_id, "auth_method": resolution.auth_method,
+                 "base_url": resolution.base_url}
+        pool.append(entry)
+        shown.append({"binding": entry["binding_ref"], "executor": entry["executor_id"],
+                      "model": entry["model_id"], "cost": cost,
+                      "weekly_paced": bool(pace.get("enabled") and entry["executor_id"] in pace.get("executors", ()))})
+    return pool, shown, skipped
+
+
+def live_pool(model_store: Any) -> list[dict[str, Any]]:
+    """The pool a continuous window's Goals use now (Owner decision 2026-11-17, #1667).
+
+    The bindings admission would offer at this moment, minus any the Owner
+    ``exclude``s in the routing overrides. Unreadable overrides raise ``ValueError``,
+    so a caller refuses rather than guesses.
+    """
+    from .routing_inputs import read_overrides
+    owner = read_overrides(getattr(model_store, "_state_path", None))
+    excluded = {ref for ref, override in owner.get("bindings", {}).items()
+                if isinstance(override, Mapping) and override.get("exclude") is True}
+    return [entry for entry in resolve_pool(model_store, owner)[0] if entry["binding_ref"] not in excluded]
+
+
+class OwnerWindowAdmission:
+    """One typed Owner confirmation -> one atomic window over exactly these Goals."""
+
+    def __init__(self, host: Any) -> None:
+        self._host = host
+        self._instance = secrets.token_hex(16)
+        self._lock = threading.Lock()
+
+    # --- what the Owner is shown ---------------------------------------------
+
+    def _pool(self) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+        """Bindings a Task may run on, resolved exactly as dispatch resolves them."""
+        from .routing_inputs import read_overrides
+        store = self._host._store
+        return resolve_pool(store, read_overrides(getattr(store, "_state_path", None)))
+
+    def _scope(self, goal_ids: Sequence[str], envelope: dict[str, Any]) -> dict[str, Any]:
+        """Persisted truth for the prompt and for the in-transaction recheck."""
+        host = self._host
+        control = host._control_store
+        current = control.active_window()
+        appending = bool(envelope.get("continuous") and current and current.continuous
+                         and current.id == envelope["window_id"])
+        held = control.claim_holds()["live"]
+        if appending:
+            held -= control._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
+                (current.id,)).fetchone()[0]
+        if held > 0:
+            raise TaskStoreError("owner_window_old_active_claims_hold")
+        goals = [control.get_goal(goal_id) for goal_id in goal_ids]
+        repositories = {goal.repository for goal in goals}
+        if len(repositories) != 1:
+            raise TaskStoreError("owner_window_requires_one_repository")
+        task_count = 0
+        for goal in goals:
+            if (goal.status != "PLANNED" or goal.window_id or not goal.artifact_digest
+                    or goal.executor_kind not in _EXECUTORS or goal.orchestration_mode not in _MODES
+                    or not goal.tasks or control.list_goal_tasks(goal.id)):
+                raise TaskStoreError(f"owner_window_goal_not_admissible:{goal.id}")
+            for task in goal.tasks:
+                if task.get("capability", "execute_task") not in envelope["capabilities"]:
+                    raise TaskStoreError(f"owner_window_capability_missing:{goal.id}")
+            task_count += len(goal.tasks)
+        if not envelope.get("continuous") and task_count > envelope["max_tasks"]:
+            raise TaskStoreError("owner_window_max_tasks_below_planned_tasks")
+        repository = repositories.pop()
+        if appending and repository not in current.repositories:
+            raise TaskStoreError("owner_window_requires_one_repository")
+        workspace = resolve_repository_workspace(repository)
+        if workspace.repository != repository:
+            raise TaskStoreError("owner_window_repository_changed")
+        pool, shown, skipped = self._pool()
+        pinned = {goal.binding_ref for goal in goals if goal.binding_ref}
+        if not pinned <= {entry["binding_ref"] for entry in pool}:
+            raise TaskStoreError("owner_window_pinned_binding_outside_pool")
+        return {"goals": [asdict(goal) for goal in goals], "repository": repository,
+                "workspace": str(workspace.repo_dir), "base_sha": repository_base(repository),
+                "envelope": envelope, "approved_pool": pool, "pool_display": shown,
+                "pool_skipped": skipped, "paid_api": "excluded",
+                "host_instance": self._instance, "os_user": getpass.getuser()}
+
+    @staticmethod
+    def render(scope: dict[str, Any], code: str, preview: Sequence[str] = ()) -> str:
+        """Everything the Owner approves, in full. Too much to show is refused, never cut."""
+        env = scope["envelope"]
+        lines = ["Nerelan: activate an autonomous window over exactly these Goals", "",
+                 f"Repository:     {scope['repository']}",
+                 f"Workspace:      {scope['workspace']}  (base {scope['base_sha'][:12]})"]
+        if env.get("continuous"):
+            lines += ["Run:            until Owner stops", f"Concurrency:    {env['max_concurrent_tasks']}",
+                      f"Retries:        {env['max_retries']}", f"Cost cap:       {env['max_cost_micro_units'] or 'none'}"]
+        else:
+            lines += [f"Window:         {env['starts_at']} -> {env['expires_at']}",
+                      f"Limits:         {env['max_tasks']} tasks, {env['max_concurrent_tasks']} at a time, {env['max_retries']} retries",
+                      f"Budget caps:    tokens {env['max_token_units'] or 'none'}, cost {env['max_cost_micro_units'] or 'none'}"]
+        lines += [f"Capabilities:   {', '.join(env['capabilities'])}", f"Paid API:       {scope['paid_api']}"]
+        if OWNER_LANDING_CAPABILITY in env["capabilities"]:
+            lines.append("Landing:        GitHub Ready and merge after independent review and all required checks")
+        lines += ["", f"Goals ({len(scope['goals'])}):"]
+        for goal in scope["goals"]:
+            lines += [f"- {goal['id']} rev {goal['revision']}  {goal['executor_kind']}/{goal['orchestration_mode']}"
+                      f"{'  pinned ' + goal['binding_ref'] if goal['binding_ref'] else '  routed'}",
+                      f"  digest {goal['artifact_digest']}",
+                      f"  {goal['title']}", "  objective:"]
+            lines += ["    " + line for line in goal["objective"].splitlines() or [""]]
+            lines += [f"  task {task.get('id')}: {task.get('title')}" for task in goal["tasks"]]
+        lines += ["", "Bindings a Task may run on:"]
+        lines += [f"- {row['binding']}: {row['executor']} {row['model']} ({row['cost']}"
+                  f"{', weekly paced' if row['weekly_paced'] else ''})" for row in scope["pool_display"]]
+        if scope["pool_skipped"]:
+            lines += ["Not offered: " + ", ".join(scope["pool_skipped"])]
+        if preview:
+            lines += ["", "Expected model per task (routing may still change it within the pool above):", *preview]
+        lines += ["", f"Scope digest: {sha256_json(scope)}",
+                  f"Type {code} to activate. Anything else cancels."]
+        text = "\n".join(lines)
+        if len(text) > MAX_SCOPE_CHARS:
+            raise TaskStoreError("owner_window_scope_too_large")
+        return text
+
+    def _route_preview(self, scope: dict[str, Any]) -> list[str]:
+        """The binding each task is expected to launch on; refuses a scope where any has none.
+
+        Uses the same routing as launch (``GoalService._route_tasks``), with availability
+        probes off, so reviews are routed with their authors' identity. Routing creates
+        nothing, but like launch it may refresh quota and bind newly discovered models.
+        A routed ``single``/``sequential_team`` Goal gets no binding at launch, so an Owner
+        window cannot run it.
+        """
+        goals = self._host._goal_service
+        pool = {entry["binding_ref"]: entry for entry in scope["approved_pool"]}
+        lines, problems = [], []
+        for snapshot in scope["goals"]:
+            if not snapshot["binding_ref"] and (snapshot["orchestration_mode"] != "agent_team"
+                                                or goals.task_resolver is None):
+                problems.append(f"{snapshot['id']}:routed_{snapshot['orchestration_mode']}_goal_gets_no_binding"
+                                f"_use_agent_team_or_pin_a_binding")
+                continue
+            goal = self._host._control_store.get_goal(snapshot["id"])
+            planned = tuple(goals._normalize_task(raw, seq=seq) for seq, raw in enumerate(snapshot["tasks"]))
+            try:
+                routes, decisions = goals._route_tasks(goal, planned, window_id="", probe_availability=False)
+            except TaskStoreError as exc:
+                problems.append(f"{snapshot['id']}:{exc}")
+                continue
+            for seq, item in enumerate(planned):
+                binding = routes[seq][1]
+                decision = decisions.get(seq) or {}
+                if not binding:
+                    problems.append(f"{snapshot['id']}:{item.id}:{decision.get('reason') or 'no_binding'}")
+                    continue
+                if binding not in pool:
+                    problems.append(f"{snapshot['id']}:{item.id}:{binding}_outside_pool")
+                    continue
+                model = decision.get("model_id") or pool[binding].get("model_id", "?")
+                why = decision.get("reason", "routed") if decisions.get(seq) is not None else "pinned"
+                lines.append(f"- {snapshot['id']} {item.id}: {binding} ({model}, {why})")
+        if problems:
+            raise TaskStoreError("owner_window_task_unroutable:" + "; ".join(problems)[:2000])
+        return lines
+
+    # --- activation -------------------------------------------------------------
+
+    def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
+                 max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
+                 max_cost_micro_units: int = 0, continuous: bool = False,
+                 terminal: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
+        """Validate the request and fix the envelope; binds discovered models first."""
+        host = self._host
+        goal_ids = tuple(goal_ids)
+        if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
+                or any(not isinstance(g, str) or not _GOAL_ID.fullmatch(g) for g in goal_ids)):
+            raise TaskStoreError("owner_window_goals_invalid")
+        if type(continuous) is not bool:
+            raise TaskStoreError("owner_window_mode_invalid")
+        if not continuous and not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+            raise TaskStoreError("owner_window_duration_invalid")
+        # Same ranges as the command line, so a preflight never reports ok for a request
+        # that activation would refuse.
+        if (not (max_tasks == 0 if continuous else 1 <= max_tasks <= 100)
+                or not 1 <= max_concurrent <= 8 or not 0 <= max_retries <= 5):
+            raise TaskStoreError("owner_window_limits_invalid")
+        if max_token_units < 0 or max_cost_micro_units < 0:
+            raise TaskStoreError("owner_window_budget_invalid")
+        if continuous and (hours != 0 or max_token_units != 0):
+            raise TaskStoreError("continuous_run_has_window_bounds")
+        capabilities = tuple(dict.fromkeys(capabilities))
+        allowed_capabilities = OWNER_WINDOW_CAPABILITIES
+        if terminal or continuous:
+            allowed_capabilities |= {OWNER_LANDING_CAPABILITY}
+        if "execute_task" not in capabilities or not set(capabilities) <= allowed_capabilities:
+            raise TaskStoreError("owner_window_capabilities_invalid")
+        if OWNER_LANDING_CAPABILITY in capabilities and (
+                (not continuous and len(goal_ids) != 1)
+                or not {"open_draft_pr", "validate_task"} <= set(capabilities)):
+            raise TaskStoreError("owner_window_landing_scope_invalid")
+        # Discovered models bind now, so routing inside the transaction cannot
+        # pick a binding the Owner was never shown.
+        host._routing_bind_discovered()
+        # The model-control routes refresh OpenCode login sessions on read; the pool
+        # reads the store directly under the lock, so refresh once here, before it.
+        host._refresh_external_session_auth(False, None)
+        # SQLite's current clock is millisecond precision on Windows. Floor both
+        # envelope boundaries so sub-millisecond rounding cannot start it in the future.
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        # Times are fixed before the prompt; reading time spends the window.
+        envelope = {"window_id": "owner-" + secrets.token_hex(16),
+                    "policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                    "owner_identity": f"os-user:{getpass.getuser()}",
+                    "starts_at": _utc(now), "expires_at": "" if continuous else _utc(now + timedelta(hours=hours)),
+                    "repositories": [], "capabilities": list(capabilities),
+                    "max_tasks": max_tasks, "max_concurrent_tasks": max_concurrent,
+                    "max_retries": max_retries, "max_token_units": max_token_units,
+                    "max_cost_micro_units": max_cost_micro_units,
+                    # Without a reservation every use of a capped window was an overrun
+                    # (2026-11-09). Reserve an even share of each cap per task.
+                    "per_task_token_reservation": max_token_units // max(max_tasks, 1),
+                    "per_task_cost_reservation": max_cost_micro_units // max(max_tasks, 1),
+                    "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
+        if continuous:
+            envelope["continuous"] = True
+            active = host._control_store.active_window()
+            if active and active.continuous:
+                if (active.max_concurrent_tasks != max_concurrent or active.max_retries != max_retries
+                        or active.capabilities != capabilities or active.max_cost_micro_units != max_cost_micro_units):
+                    raise TaskStoreError("continuous_run_settings_changed")
+                for key in envelope:
+                    if hasattr(active, key):
+                        envelope[key] = getattr(active, key)
+                envelope["window_id"] = active.id
+                envelope["append_to_window"] = active.id
+        return goal_ids, envelope
+
+    @staticmethod
+    def card_digest(scope: Mapping[str, Any]) -> str:
+        """What the confirmation card shows, without per-request identities and times.
+
+        Goals at their revisions and artifact digests, repository and base, every
+        bound, the model pool. A request activates only if this is unchanged since
+        the card was drawn (Owner decision 2026-11-09: the card's Start is the
+        confirmation).
+        """
+        raw = scope["envelope"]
+        envelope = {key: value for key, value in raw.items()
+                    if key not in {"window_id", "policy_id", "starts_at", "expires_at", "owner_identity"}}
+        # The window's length is a bound the card shows; its clock times are per request.
+        envelope["duration_seconds"] = 0 if raw.get("continuous") else round((
+            datetime.fromisoformat(raw["expires_at"].replace("Z", "+00:00"))
+            - datetime.fromisoformat(raw["starts_at"].replace("Z", "+00:00"))).total_seconds())
+        return sha256_json({**{key: value for key, value in scope.items()
+                               if key not in {"envelope", "host_instance", "os_user"}}, "envelope": envelope})
+
+    def _state_dir(self) -> Path | None:
+        state_path = getattr(self._host._store, "_state_path", None)
+        return Path(state_path).parent if state_path else None
+
+    def _settings(self) -> dict[str, Any]:
+        """The Owner's owner_window_settings.json beside the task store; absent means defaults."""
+        state_dir = self._state_dir()
+        if state_dir is None:
+            return {}
+        try:
+            data = json.loads((state_dir / "owner_window_settings.json").read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as exc:
+            raise TaskStoreError("owner_window_settings_invalid") from exc
+        if (not isinstance(data, dict) or data.get("confirmation", "ui") not in {"ui", "terminal"}
+                or not isinstance(data.get("supervisor_activation", False), bool)):
+            raise TaskStoreError("owner_window_settings_invalid")
+        return data
+
+    def confirmation_mode(self) -> str:
+        """``ui`` (default) or ``terminal``, from the Owner's owner_window_settings.json."""
+        return self._settings().get("confirmation", "ui")
+
+    def supervisor_enabled(self) -> bool:
+        """Off unless the Owner's settings say ``"supervisor_activation": true``."""
+        return self._settings().get("supervisor_activation", False) is True
+
+    def _digest_confirm(self, card_digest: Any) -> Callable[..., bool]:
+        if not isinstance(card_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", card_digest):
+            raise TaskStoreError("owner_window_card_digest_invalid")
+
+        def confirm(_text: str, _code: str, *, scope: Mapping[str, Any]) -> bool:
+            if self.card_digest(scope) != card_digest:
+                raise TaskStoreError("owner_window_scope_changed")
+            return True
+        return confirm
+
+    def supervisor_request(self, goal_ids: Any, preset: Any) -> dict[str, Any]:
+        """The window request a preset gives for these Goals; a supervisor cannot ask for another."""
+        from .quick_start import presets, window_request
+        options = presets(self._state_dir())
+        if not isinstance(preset, str) or preset not in options:
+            raise TaskStoreError("owner_window_preset_invalid")
+        if (not isinstance(goal_ids, (list, tuple)) or not goal_ids
+                or not all(isinstance(goal_id, str) and _GOAL_ID.fullmatch(goal_id) for goal_id in goal_ids)):
+            raise TaskStoreError("owner_window_request_invalid")
+        host = self._host
+        with host._task_store._lock, host._store._lock:
+            tasks = sum(len(host._control_store.get_goal(goal_id).tasks) for goal_id in goal_ids)
+        request = window_request(options[preset], list(goal_ids), tasks=tasks)
+        del request["goal_ids"]
+        return request
+
+    def card_request(self, goal_ids: Any, preset: Any = "") -> dict[str, Any]:
+        """The confirmation card's starting point: the presets and the request one gives.
+
+        Read-only and authorizes nothing; the card still runs preflight and the
+        activation rereads everything. An empty preset means the default.
+        """
+        from .quick_start import DEFAULT_PRESET, presets
+        options = presets(self._state_dir())
+        chosen = preset or DEFAULT_PRESET
+        request = self.supervisor_request(goal_ids, chosen)
+        return {"preset": chosen, "request": {"goal_ids": list(goal_ids), **request},
+                "presets": {name: dict(values) for name, values in options.items()},
+                "confirmation": self.confirmation_mode()}
+
+    def admit_from_supervisor(self, goal_ids: Any, *, preset: Any, card_digest: Any,
+                              requested_by: Any = "") -> Any:
+        """Activation a supervising agent asks the running host for (Owner decision 2026-11-10).
+
+        Off unless the Owner's settings turn it on, and never in strict ``terminal``
+        mode. The bounds are a preset's, computed here; the request names only the
+        preset, the Goals and the digest of the preflight it read. Everything else is
+        the card path: scope reread, one atomic commit, one receipt per Goal, and the
+        receipt says a supervisor asked.
+        """
+        if self.confirmation_mode() != "ui" or not self.supervisor_enabled():
+            raise TaskStoreError("owner_window_supervisor_activation_disabled")
+        if not isinstance(requested_by, str):
+            raise TaskStoreError("owner_window_request_invalid")
+        # A self-reported label for the receipt: printable text only, bounded.
+        label = "".join(char for char in requested_by if char.isprintable())[:200]
+        confirm = self._digest_confirm(card_digest)
+        request = self.supervisor_request(goal_ids, preset)
+        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor", requested_by=label)
+
+    def admit_from_card(self, goal_ids: Sequence[str], *, card_digest: str, **request: Any) -> Any:
+        """Activation from the confirmation card's Start (Owner decision 2026-11-09).
+
+        The local client session authenticates the caller; the Start click is the
+        Owner's confirmation. The card's digest must match the scope read now, and
+        everything else is the terminal path: persisted truth reread inside the
+        transaction, one atomic commit, one receipt per Goal. With the Owner's
+        strict mode (``terminal``) the card cannot activate.
+        """
+        if self.confirmation_mode() != "ui":
+            raise TaskStoreError("owner_window_terminal_confirmation_required")
+        return self.admit(goal_ids, **request, confirm=self._digest_confirm(card_digest), surface="ui")
+
+    def preflight(self, goal_ids: Sequence[str], **request: Any) -> dict[str, Any]:
+        """Everything that would refuse activation or block the window, reported, not raised.
+
+        Changes nothing beyond what admission does first anyway (binding discovered
+        models, refreshing login sessions, routing). Authorizes nothing: no window,
+        no approval, no receipt.
+        """
+        checks: list[dict[str, Any]] = []
+
+        def add(check: str, reason: str = "", detail: str = "") -> None:
+            checks.append({"check": check, "ok": not reason, "reason": reason, "detail": detail})
+
+        # Not refusals: what the window would do but the Owner may not expect.
+        warnings: list[dict[str, str]] = []
+        result: dict[str, Any] = {"ok": False, "checks": checks, "warnings": warnings, "preview": [], "scope": None}
+        try:
+            goal_ids, envelope = self._prepare(goal_ids, **request)
+        except TaskStoreError as exc:
+            add("request", str(exc))
+            return result
+        host = self._host
+        control = host._control_store
+        scope = None
+        with host._task_store._lock, host._store._lock:
+            holds = control.claim_holds()
+            held = holds["live"]
+            active = control.active_window()
+            appending = bool(envelope.get("continuous") and active and active.continuous
+                             and active.id == envelope["window_id"])
+            if appending:
+                own = control._conn.execute(
+                    "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
+                    (active.id,)).fetchone()[0]
+                held = max(0, held - own)
+            add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
+                f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
+            if active and not appending:
+                runnable = sum(goal.status == "RUNNING"
+                               for goal in control.list_window_goals(active.id))
+                expiry = active.expires_at or "never (continuous run)"
+                add("active_window", f"active_window_already_exists:{active.id}",
+                    f"{active.id} expires {expiry}; {runnable} of its goals still runnable; "
+                    "stop it or wait for it")
+            else:
+                add("active_window", "", f"appending to {active.id}" if appending else "none")
+            if holds["stale"]:
+                warnings.append({"warning": "stale_claims_retired",
+                                 "detail": f"{holds['stale']} expired claims of closed windows no longer hold "
+                                           "admission; those without unknown outside effects are retired, their "
+                                           "attempts abandoned and their usage counted as unknown"})
+            if held:
+                add("goals", "skipped_while_claims_hold")
+            else:
+                try:
+                    envelope["repositories"] = [control.get_goal(goal_ids[0]).repository]
+                    scope = json.loads(canonical_json(self._scope(goal_ids, envelope)))
+                except TaskStoreError as exc:
+                    add("goals", str(exc))
+        if scope is not None:
+            tasks = sum(len(goal["tasks"]) for goal in scope["goals"])
+            add("goals", "", f"{len(scope['goals'])} goals, {tasks} tasks in {scope['repository']}")
+            if "open_draft_pr" in scope["envelope"]["capabilities"]:
+                for goal in scope["goals"]:
+                    if not published_plan_tasks(goal["tasks"]):
+                        # #1462: such a goal turns COMPLETED and nothing is ever published.
+                        warnings.append({"warning": "goal_unpublishable", "goal_id": goal["id"],
+                                         "detail": "no task hands a checked result to a review, so the host "
+                                                   "will not open a Draft PR for this goal"})
+            add("model_pool", "" if scope["approved_pool"] else "owner_window_pool_empty",
+                f"{len(scope['approved_pool'])} bindings offered, {len(scope['pool_skipped'])} not offered")
+            try:
+                result["preview"] = self._route_preview(scope)
+                add("routing", "", f"{len(result['preview'])} tasks placed")
+            except TaskStoreError as exc:
+                add("routing", str(exc))
+            env = scope["envelope"]
+            result["scope"] = {
+                "repository": scope["repository"], "base_sha": scope["base_sha"],
+                "goals": [{"id": goal["id"], "revision": goal["revision"], "objective": goal["objective"],
+                           "mode": goal["orchestration_mode"],
+                           "tasks": [{"id": task.get("id"), "title": task.get("title")} for task in goal["tasks"]]}
+                          for goal in scope["goals"]],
+                "pool": scope["pool_display"], "pool_skipped": scope["pool_skipped"],
+                "envelope": {key: env[key] for key in (
+                    "starts_at", "expires_at", "capabilities", "max_tasks", "max_concurrent_tasks",
+                    "max_retries", "max_token_units", "max_cost_micro_units")},
+                "paid_api": scope["paid_api"]}
+            result["scope"]["envelope"]["continuous"] = bool(env.get("continuous"))
+            result["card_digest"] = self.card_digest(scope)
+            result["confirmation"] = self.confirmation_mode()
+        result["ok"] = all(check["ok"] for check in checks)
+        return result
+
+    def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
+              max_retries: int, capabilities: Sequence[str], confirm: Callable[..., bool],
+              max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal",
+              requested_by: str = "", continuous: bool = False, resume_parked_landing: bool = False) -> Any:
+        if surface not in _MECHANISMS:
+            raise TaskStoreError("owner_window_surface_invalid")
+        if resume_parked_landing and (surface != "terminal" or tuple(capabilities) != (OWNER_LANDING_CAPABILITY,)
+                or continuous or len(goal_ids) != 1):
+            raise TaskStoreError("landing_recovery_scope_invalid")
+        if not self._lock.acquire(blocking=False):
+            raise TaskStoreError("owner_window_admission_in_progress")
+        try:
+            if resume_parked_landing:
+                return self._resume_parked_landing(goal_ids[0], hours=hours, confirm=confirm)
+            host = self._host
+            goal_ids, envelope = self._prepare(
+                goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
+                max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
+                max_cost_micro_units=max_cost_micro_units, continuous=continuous, terminal=surface == "terminal")
+            deadline = time.monotonic() + CONFIRM_SECONDS
+            with host._task_store._lock, host._store._lock:
+                goal = host._control_store.get_goal(goal_ids[0])
+                envelope["repositories"] = [goal.repository]
+                before = canonical_json(self._scope(goal_ids, envelope))
+            # Outside the locks: routing may refresh quota. A task that would launch with no
+            # binding is refused at dispatch, so it is refused here, before the Owner is asked.
+            preview = self._route_preview(json.loads(before))
+            code = secrets.token_hex(3).upper()
+            confirmed = (confirm("", code, scope=json.loads(before)) if surface != "terminal"
+                         else confirm(self.render(json.loads(before), code, preview), code))
+            if confirmed is not True:
+                raise TaskStoreError("owner_window_confirmation_refused")
+            if time.monotonic() >= deadline:
+                raise TaskStoreError("owner_window_confirmation_expired")
+            for goal_id in goal_ids:
+                if host._goal_service.stop_if_source_closed(goal_id, fresh=True):
+                    raise TaskStoreError(f"goal_source_issue_closed:{goal_id}")
+            approved = json.loads(before)
+
+            def validate() -> None:
+                if canonical_json(self._scope(goal_ids, envelope)) != before:
+                    raise TaskStoreError("owner_window_scope_changed")
+                if time.monotonic() >= deadline:
+                    raise TaskStoreError("owner_window_confirmation_expired")
+
+            def sql_admit(window_id: str) -> None:
+                validate()  # BEGIN IMMEDIATE is held: reread persisted truth.
+                control = host._control_store
+                control.retire_stale_claims(to_window_id=window_id)
+                marked = control._conn.execute(
+                    "UPDATE platform_autonomous_windows SET confirmation_mode = ? WHERE id = ?",
+                    (OWNER_WINDOW_MODE, window_id))
+                if marked.rowcount != 1:
+                    raise TaskStoreError("owner_window_missing")
+                provenance_base = {"host_instance_id": self._instance, "os_user": approved["os_user"],
+                                   "scope_digest": sha256_json(approved), "goals": list(goal_ids),
+                                   "envelope": envelope, "approved_pool": approved["approved_pool"],
+                                   "workspace": approved["workspace"], "base_sha": approved["base_sha"],
+                                   "mechanism": _MECHANISMS[surface]}
+                if surface == "supervisor":
+                    provenance_base["requested_by"] = requested_by
+                for goal_snapshot in approved["goals"]:
+                    provenance = {**provenance_base, "goal_id": goal_snapshot["id"],
+                                  "goal_revision": goal_snapshot["revision"],
+                                  "artifact_digest": goal_snapshot["artifact_digest"]}
+                    receipt = control.append_receipt(
+                        window_id=window_id, operation_type=OWNER_WINDOW_RECEIPT, capability="execute_task",
+                        repository=approved["repository"], subject_id=goal_snapshot["id"], decision="allowed",
+                        reason="owner_window_exact_scope", input_payload={"goal_id": goal_snapshot["id"]},
+                        result=sha256_json(provenance))
+                    stored = control._conn.execute(
+                        "UPDATE platform_operation_receipts SET evidence_json = ?, confirmation_mode = ? "
+                        "WHERE id = ? AND window_id = ? AND operation_type = ?",
+                        (canonical_json(provenance), OWNER_WINDOW_MODE, receipt.id, window_id, OWNER_WINDOW_RECEIPT))
+                    if stored.rowcount != 1:
+                        raise TaskStoreError("owner_window_receipt_missing")
+                    host._goal_service.approve(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
+                                               policy_ref=envelope["policy_id"])
+                    host._goal_service._launch(goal_snapshot["id"], expected_revision=goal_snapshot["revision"],
+                                               window_id=window_id, probe_availability=False,
+                                               _owner_window_admission=True)
+                    # Routing inside the transaction can still come back empty (quota moved since
+                    # the preview); an unbound task would fail at dispatch and block the window.
+                    for link in control.list_goal_tasks(goal_snapshot["id"]):
+                        if not host._task_store.get_task(link["task_id"]).binding_ref:
+                            raise TaskStoreError(
+                                f"owner_window_task_unbound:{goal_snapshot['id']}:{link['plan_task_id']}")
+                if time.monotonic() >= deadline:
+                    raise TaskStoreError("owner_window_confirmation_expired")
+
+            with host._task_store._lock, host._store._lock:
+                validate()
+                active = host._control_store.active_window()
+                if continuous and active and active.continuous and active.id == envelope["window_id"]:
+                    # Append Goals with the same atomic approval/receipt/launch callback.
+                    return host._control_store.append_owner_window_goals(active.id, goal_ids, sql_admit)
+                return host._control_store.activate_window(
+                    envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
+                    _host_expected_goal_ids=goal_ids)
+        finally:
+            self._lock.release()
+
+    def _resume_parked_landing(self, goal_id: str, *, hours: float, confirm: Callable[..., bool]) -> Any:
+        """Confirm an exact parked PR and schedule it without re-admitting the Goal."""
+        if not _GOAL_ID.fullmatch(goal_id) or not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+            raise TaskStoreError("landing_recovery_scope_invalid")
+        control = self._host._control_store
+
+        def scope() -> dict[str, Any]:
+            with control._lock:
+                state = control.recoverable_landing(goal_id)
+                goal = control.get_goal(goal_id)
+                return {"state": state, "goals": [goal_id], "goal_revision": goal.revision,
+                        "artifact_digest": goal.artifact_digest, "source_window_id": goal.window_id,
+                        "mechanism": OWNER_TERMINAL_MECHANISM}
+
+        approved = scope()
+        state = approved["state"]
+        now = datetime.now(timezone.utc).replace(microsecond=0)
+        envelope = {"policy_id": "owner-" + secrets.token_hex(16), "policy_revision": 1,
+                    "owner_identity": f"os-user:{getpass.getuser()}", "starts_at": _utc(now),
+                    "expires_at": _utc(now + timedelta(hours=hours)), "repositories": [state["repository"]],
+                    "capabilities": [OWNER_LANDING_CAPABILITY], "max_tasks": 1,
+                    "max_concurrent_tasks": 1, "max_retries": 0}
+        evidence = {**approved, "envelope": envelope}
+        digest = sha256_json(evidence)
+        code = secrets.token_hex(3).upper()
+        deadline = time.monotonic() + CONFIRM_SECONDS
+        text = (f"Nerelan: resume landing of {state['repository']} PR #{state['pr_number']}\n"
+                f"Goal: {goal_id} rev {approved['goal_revision']}\nHead: {state['head_sha']}\n"
+                f"Expires: {envelope['expires_at']}\nRead back prior receipts, then Ready and merge if all checks pass.\n"
+                f"Scope digest: {digest}\nType {code} to activate. Anything else cancels.")
+        if confirm(text, code) is not True:
+            raise TaskStoreError("owner_window_confirmation_refused")
+
+        def sql_admit(window_id: str) -> None:
+            if time.monotonic() >= deadline:
+                raise TaskStoreError("owner_window_confirmation_expired")
+            if scope() != approved:
+                raise TaskStoreError("landing_recovery_scope_changed")
+            control._conn.execute("UPDATE platform_autonomous_windows SET confirmation_mode=? WHERE id=?",
+                                  (OWNER_WINDOW_MODE, window_id))
+            receipt = control.append_receipt(window_id=window_id, operation_type=OWNER_LANDING_RECOVERY_RECEIPT,
+                capability=OWNER_LANDING_CAPABILITY, repository=state["repository"], subject_id=state["identity"],
+                decision="allowed", reason="owner_landing_recovery_exact_scope", input_payload=state, result=digest)
+            control._conn.execute("UPDATE platform_operation_receipts SET evidence_json=?, confirmation_mode=? WHERE id=?",
+                                  (canonical_json(evidence), OWNER_WINDOW_MODE, receipt.id))
+            control.finish_landing_tick(state["identity"], "WAITING", "", 0)
+
+        return control.activate_window(envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
+            _host_expected_goal_ids=(goal_id,), _host_recovery_identity=state["identity"])
+
+
+# --- command line ---------------------------------------------------------------
+
+def terminal_confirm(text: str, code: str, *, stdin: Any = None, stdout: Any = None) -> bool:
+    """Show the scope and read the code from an interactive terminal only."""
+    stdin = stdin or sys.stdin
+    stdout = stdout or sys.stdout
+    if not stdin.isatty():
+        stdout.write("Refused: the code must be typed at an interactive terminal.\n")
+        return False
+    stdout.write(text + "\n> ")
+    stdout.flush()
+    answer = stdin.readline().strip()
+    return secrets.compare_digest(answer.upper(), code)
+
+
+def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
+    parser.add_argument("--goal", action="append", required=True, metavar="GOAL_ID")
+    parser.add_argument("--continuous", action="store_true")
+    parser.add_argument("--hours", type=float, default=0)
+    parser.add_argument("--max-tasks", type=int, default=0)
+    parser.add_argument("--max-concurrent", type=int, default=1)
+    parser.add_argument("--max-retries", type=int, default=0)
+    parser.add_argument("--capability", action="append", default=[],
+                        choices=sorted(OWNER_WINDOW_CAPABILITIES))
+    landing = parser.add_mutually_exclusive_group()
+    landing.add_argument("--land-reviewed-pr", action="store_true",
+                        help="authorize Ready and merge for one Goal in this confirmed, expiring window")
+    landing.add_argument("--resume-parked-landing", action="store_true",
+                         help="confirm Ready and merge of one parked PR at its exact head, without running tasks")
+    parser.add_argument("--max-token-units", type=int, default=0)
+    parser.add_argument("--max-cost-micro-units", type=int, default=0)
+    args = parser.parse_args(argv)
+    if (len(args.goal) > OWNER_WINDOW_MAX_GOALS or len(set(args.goal)) != len(args.goal)
+            or any(not _GOAL_ID.fullmatch(g) for g in args.goal)):
+        parser.error("--goal values must be distinct Goal IDs")
+    if not args.continuous and not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
+        parser.error("--hours must be above 0 and at most 168")
+    if args.resume_parked_landing:
+        if (args.continuous or len(args.goal) != 1 or args.capability or args.max_tasks or args.max_concurrent != 1
+                or args.max_retries or args.max_token_units or args.max_cost_micro_units):
+            parser.error("--resume-parked-landing accepts one Goal and an expiring window, without task options")
+        args.capability = [OWNER_LANDING_CAPABILITY]
+        return args
+    if (not (args.max_tasks == 0 if args.continuous else 1 <= args.max_tasks <= 100)
+            or not 1 <= args.max_concurrent <= 8 or not 0 <= args.max_retries <= 5):
+        parser.error("limits out of range")
+    if "execute_task" not in args.capability:
+        parser.error("--capability execute_task is required")
+    if args.max_token_units < 0 or args.max_cost_micro_units < 0:
+        parser.error("budget caps must not be negative")
+    if args.continuous and (args.hours or args.max_token_units):
+        parser.error("continuous runs have no window duration or token cap")
+    if args.land_reviewed_pr:
+        if (not args.continuous and len(args.goal) != 1) or not {"open_draft_pr", "validate_task"} <= set(args.capability):
+            parser.error("--land-reviewed-pr requires validate_task and open_draft_pr, and one Goal unless --continuous")
+        args.capability.append(OWNER_LANDING_CAPABILITY)
+    return args
+
+
+def main(argv: Sequence[str] | None = None) -> None:
+    args = parse(argv)  # before importing or starting the host
+    from .trusted_host import run_combined_trusted_host
+    run_combined_trusted_host(owner_window={
+        "goal_ids": tuple(args.goal), "hours": args.hours, "max_tasks": args.max_tasks,
+        "max_concurrent": args.max_concurrent, "max_retries": args.max_retries,
+        "capabilities": tuple(args.capability), "max_token_units": args.max_token_units,
+        "max_cost_micro_units": args.max_cost_micro_units, "continuous": args.continuous, "confirm": terminal_confirm,
+        "resume_parked_landing": args.resume_parked_landing})
+
+
+if __name__ == "__main__":
+    main()

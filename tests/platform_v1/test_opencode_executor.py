@@ -337,6 +337,52 @@ def test_server_executor_reservation_threshold_returns_confirmed_abort(
     assert sum(event["type"] == "STREAM_ABORT_CONFIRMED" for event in events) == 1
 
 
+def test_server_executor_forwards_failure_reset_at(tmp_path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    _init_git_repo(tmp_path)
+    store = TaskStore(":memory:")
+    task = store.create_task(
+        title="server 429 reset", executor_kind="opencode", model_profile_ref="p/m"
+    )
+
+    def fake_server(**kwargs):
+        return ServerTransportResult(
+            success=False,
+            failure_classification="api_error_429",
+            abort_state="STREAM_ABORT_CONFIRMED",
+            server_version="test-1",
+            session_digest="session-digest",
+            usage_event_count=0,
+            failure_reset_at="2026-11-22T11:06:00Z",
+        )
+
+    monkeypatch.setattr(exec_mod, "run_managed_server_role", fake_server)
+    executor = OpenCodeExecutor(
+        model_id="p/m",
+        opencode_exe="/fake/opencode",
+        transport_kind="server",
+    )
+    result = executor._run_executor_core(
+        task_id=task.id,
+        store=store,
+        worktree=tmp_path,
+        base_sha="base",
+        execution_id="exec-429-reset",
+        cli_path="/fake/opencode",
+        is_cmd=False,
+        event_callback=None,
+        role_context=exec_mod.RoleContext(
+            role="executor", task_id=task.id, workspace=tmp_path
+        ),
+    )
+
+    assert result.success is False
+    assert result.failure_classification == "api_error_429"
+    assert result.error == "opencode_server:api_error_429"
+    assert result.failure_reset_at == "2026-11-22T11:06:00Z"
+
+
 def test_server_executor_threshold_uses_cumulative_task_usage(
     tmp_path, monkeypatch
 ) -> None:
@@ -2559,6 +2605,41 @@ def test_role_binding_child_env_matches_binding_helper_validation() -> None:
         assert role_child.get(key) == binding_child.get(key)
 
 
+def test_role_and_binding_child_env_preserve_valid_os_user_keys_only() -> None:
+    valid_parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERNAME": "builder-win",
+        "USER": "builder-posix",
+        "LOGNAME": "builder-logname",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0004",
+    }
+    invalid_parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERNAME": "bad\x00user",
+        "USER": "",
+        "LOGNAME": "builder\nnewline",
+    }
+
+    for child in (
+        build_role_child_env(valid_parent, None, "executor"),
+        build_binding_child_env(valid_parent, _role_binding_config()),
+    ):
+        assert child["USERNAME"] == "builder-win"
+        assert child["USER"] == "builder-posix"
+        assert child["LOGNAME"] == "builder-logname"
+        assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+
+    for child in (
+        build_role_child_env(invalid_parent, None, "executor"),
+        build_binding_child_env(invalid_parent, _role_binding_config()),
+    ):
+        assert "USERNAME" not in child
+        assert "USER" not in child
+        assert "LOGNAME" not in child
+
+
 @needs_real_interpreter
 def test_role_binding_child_env_real_interpreter_resolves_user_site(
     tmp_path: Path,
@@ -3502,6 +3583,103 @@ def test_binding_config_content_executor_managed_preserves_metadata_and_secret_f
     lowered = content.lower()
     for forbidden in ("apikey", "token", "password", "credential", "cookie"):
         assert forbidden not in lowered, f"secret indicator {forbidden!r} leaked into config"
+
+
+def test_binding_config_content_includes_model_limits_when_provided() -> None:
+    resolution = _executor_managed_binding_resolution()
+    empty_models = json.loads(build_binding_config_content(resolution))["provider"]["openai-compatible"]["models"]
+    assert empty_models == {"sense-coding-fast": {}}
+
+    with_default_output = json.loads(
+        build_binding_config_content(resolution, context_window=128_000)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_default_output == {
+        "sense-coding-fast": {"limit": {"context": 128_000, "output": 32_000}}
+    }
+
+    with_capped_default_output = json.loads(
+        build_binding_config_content(resolution, context_window=200_000)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_capped_default_output == {
+        "sense-coding-fast": {"limit": {"context": 200_000, "output": 32_768}}
+    }
+
+    with_small_context = json.loads(
+        build_binding_config_content(resolution, context_window=4_096)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_small_context == {
+        "sense-coding-fast": {"limit": {"context": 4_096, "output": 2_048}}
+    }
+
+    with_explicit_output = json.loads(
+        build_binding_config_content(resolution, context_window=200_000, max_output_tokens=32_000)
+    )["provider"]["openai-compatible"]["models"]
+    assert with_explicit_output == {
+        "sense-coding-fast": {"limit": {"context": 200_000, "output": 32_000}}
+    }
+
+
+def test_selected_model_limits_extracts_latest_model_selected_event() -> None:
+    from reverse_agent.platform_v1.opencode_executor import _selected_model_limits
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    store = TaskStore(":memory:")
+    task = store.create_task(title="t", executor_kind="opencode", binding_ref="b", repository="o/r")
+    assert _selected_model_limits(store, task.id) == (None, None)
+
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selected",
+        description="first",
+        metadata={"context_window": 64_000, "characteristics": {"context_window": 64_000, "max_output_tokens": None}},
+    )
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selected",
+        description="latest",
+        metadata={"context_window": 128_000, "characteristics": {"context_window": 128_000, "max_output_tokens": 8_192}},
+    )
+    assert _selected_model_limits(store, task.id) == (128_000, 8_192)
+
+    # A subsequent quota-reroute or skip MODEL_SELECTED without limits must not mask earlier limits.
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selection skipped",
+        description="Model selection skipped; using fallback",
+        metadata={"reason": "quota_held"},
+    )
+    assert _selected_model_limits(store, task.id) == (128_000, 8_192)
+    store._conn.close()
+
+
+def test_opencode_executor_resolve_model_limits_with_fenced_store(tmp_path: Path) -> None:
+    from reverse_agent.platform_v1.durable_execution import _DurableFencedExecutorStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    store = TaskStore(db_path=str(tmp_path / "tasks.sqlite3"))
+    task = store.create_task(title="t", executor_kind="opencode", binding_ref="b", repository="o/r")
+    facade = _DurableFencedExecutorStore(store, "run-1", task.id, "owner", 1)
+    assert not hasattr(facade, "get_events")
+
+    executor = OpenCodeExecutor(
+        binding_resolution=_executor_managed_binding_resolution(),
+        context_window=128_000,
+        max_output_tokens=8_192,
+    )
+    ctx_limit, out_limit = executor._resolve_model_limits(facade, task.id)
+    assert (ctx_limit, out_limit) == (128_000, 8_192)
+    models = json.loads(
+        build_binding_config_content(
+            _executor_managed_binding_resolution(),
+            context_window=ctx_limit,
+            max_output_tokens=out_limit,
+        )
+    )["provider"]["openai-compatible"]["models"]
+    assert models == {"sense-coding-fast": {"limit": {"context": 128_000, "output": 8_192}}}
+    store._conn.close()
 
 
 def test_preexecution_boundary_preserves_and_rejects_unrelated_dirt(tmp_path):

@@ -14,6 +14,7 @@ state.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -82,6 +83,13 @@ class MultiAccountConfig(BaseModel):
         5.0, description="Max headroom-equivalent points an account loses for being the slowest.")
     max_recorded_runs: int = Field(
         500, description="Bounded ledger size; the oldest goal outcomes are dropped so an unattended run cannot grow forever.")
+    enable_policy_evolution: bool = Field(False, description="Opt in to audited, bounded account-weight evolution.")
+    policy_min_new_attempts: int = Field(30, ge=3, le=10000)
+    policy_step_ratio: float = Field(0.1, gt=0, le=0.25)
+    policy_max_weight_drift_ratio: float = Field(0.25, ge=0, le=1)
+    policy_target_success_rate: float = Field(0.85, gt=0, le=1)
+    policy_audit_limit: int = Field(64, ge=2, le=256)
+    policy_observation_max_age_seconds: float = Field(86400, gt=0, le=30 * 86400)
 
     # --- self-evolution (domain E) ---------------------------------------------
     enable_self_evolution: bool = Field(
@@ -101,6 +109,21 @@ class MultiAccountConfig(BaseModel):
                     "'auto' (magpie only when enabled and switching behaviour is acknowledged).")
 
     # --- unattended keepalive (domain D) ---------------------------------------
+    alert_interval_seconds: float = Field(30.0, ge=5, le=3600,
+        description="How often the pool monitor re-reads the pool and re-evaluates alerts.")
+    alert_min_usable_accounts: int = Field(2, ge=0, le=1000,
+        description="Warn when fewer accounts than this can take work.")
+    alert_budget_warn_ratio: float = Field(0.2, ge=0, le=1,
+        description="Warn when a window budget's remaining share drops below this.")
+    alert_stall_seconds: float = Field(300.0, ge=30, le=86400,
+        description="Raise when a running coordinator finishes no tick for this long.")
+    alert_log_path: Path = Field(
+        Path(".platform_v1_runtime/multi_account_alerts.jsonl"),
+        description="JSONL log of alert transitions; written only while the brain is enabled.")
+    alert_notify: Literal["", "toast"] = Field(
+        "", description="Outbound delivery of raised warning/critical alerts: '' (log only) or 'toast' (Windows).")
+    alert_log_max_bytes: int = Field(1_000_000, ge=10_000, le=100_000_000)
+    alert_log_backups: int = Field(3, ge=0, le=20)
     standby_keepalive_interval_seconds: float = Field(
         60.0, description="Heartbeat interval so a sleeping/hibernated host still reconciles leases on wake.")
 
@@ -153,6 +176,8 @@ class MultiAccountConfig(BaseModel):
 
     @model_validator(mode="after")
     def _consistent_windows(self) -> "MultiAccountConfig":
+        if self.enable_policy_evolution and self.policy_min_new_attempts > self.max_recorded_runs:
+            raise ValueError("policy_min_new_attempts must fit the retained feedback window")
         if self.observation_freshness_seconds > self.magpie_max_age_seconds:
             raise ValueError(
                 "observation_freshness_seconds must not exceed magpie_max_age_seconds")

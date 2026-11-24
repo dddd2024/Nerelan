@@ -73,9 +73,26 @@ afterEach(() => {
 
 
 describe("Agent Runs page", () => {
+  it("explains failures and window stops while preserving their exact codes", async () => {
+    vi.stubEnv("VITE_TASK_CLIENT_USE_HTTP", "true");
+    const run = {
+      ...httpRun("task-http-explained"),
+      failure_classification: "MODEL_UNAVAILABLE:not_allowed_for_user_type",
+      budget: { stop_reason: "window_expired" },
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ runs: [run] })));
+    renderWithProviders(<RunsPage />);
+    const failure = await screen.findByTestId("run-failure-task-http-explained");
+    expect(failure).toHaveTextContent("模型不可用：请检查模型权限或选择其他可用模型。");
+    expect(failure).toHaveAttribute("title", run.failure_classification);
+    const stop = screen.getByTestId("run-stop-reason-task-http-explained");
+    expect(stop).toHaveTextContent("授权窗口已到期：请由负责人启用新的授权窗口后再继续。");
+    expect(stop).toHaveAttribute("title", "window_expired");
+  });
+
   it("renders the derived run timeline with state badges", async () => {
     renderWithProviders(<RunsPage />);
-    expect(screen.getByRole("heading", { name: /Agent 运行/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /运行记录/ })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("run-task-demo-1")).toBeInTheDocument(),
     );
@@ -111,29 +128,31 @@ describe("Agent Runs page", () => {
   it("states the read-model contract in the page copy", () => {
     renderWithProviders(<RunsPage />);
     expect(
-      screen.getByText(/由任务库、目标链接与发布记录派生的只读时间线/),
+      screen.getByText(/每个 Agent 尝试的完整记录，用来排查问题；日常查看进度请打开目标。/),
     ).toBeInTheDocument();
   });
 
   it("shows numeric usage and only draws a bar for hard admission", async () => {
     renderWithProviders(<RunsPage />);
     const observed = await screen.findByTestId("run-usage-task-demo-1");
-    expect(observed.textContent).toContain("Tokens 68,420");
-    expect(observed.textContent).toContain("Cost $0.8123");
+    expect(observed.textContent).toContain("用量 68,420 tokens");
+    expect(observed.textContent).toContain("费用 $0.81");
     expect(screen.getByTestId("run-enforcement-task-demo-1").textContent).toBe(
-      "派发前硬预算",
+      "有预算上限",
     );
     expect(within(observed).getByRole("progressbar")).toHaveAttribute(
       "aria-valuemax",
       "240000",
     );
+    expect(screen.getByTestId("run-budget-task-demo-1").textContent).toContain("执行窗口的 Token 预算");
+    expect(screen.getByTestId("run-budget-task-demo-1").textContent).toMatch(/已用约 \d+%/);
     expect(screen.getByTestId("run-usage-overrun-task-demo-1").textContent).toContain(
       "仅在完成后发现",
     );
 
     const unknown = screen.getByTestId("run-usage-task-demo-2");
     expect(screen.getByTestId("run-enforcement-task-demo-2").textContent).toBe(
-      "用量未知，已停派发",
+      "用量未知，已暂停派发",
     );
     expect(within(unknown).queryByRole("progressbar")).not.toBeInTheDocument();
     expect(screen.getByTestId("run-usage-unknown-task-demo-2").textContent).toContain(
@@ -230,7 +249,7 @@ describe("Agent Runs page", () => {
     expect(within(region).getByText(/仅显示最近 3 条结构化活动/)).toBeInTheDocument();
     const commandActivity = within(region).getByTestId("run-activity-activity-demo-5");
     expect(within(commandActivity).getByText(/git_diff_check/)).toBeInTheDocument();
-    expect(within(commandActivity).getByText(/RUNNING/)).toBeInTheDocument();
+    expect(within(commandActivity).getByText("正在执行")).toHaveAttribute("title", expect.stringContaining("RUNNING"));
     expect(within(region).getByTestId("run-files-task-demo-2")).toContainElement(
       within(region).getByText("reverse_agent/platform_v1/task_service.py"),
     );
@@ -267,7 +286,7 @@ describe("Agent Runs page", () => {
     await user.click(screen.getByRole("button", { name: "确认取消" }));
     await waitFor(() => expect(screen.getByTestId("run-cancel-task-demo-queued")).toBeDisabled());
     expect(screen.getByTestId("run-cancel-help-task-demo-queued").textContent).toContain("任务已取消");
-    expect(screen.getByTestId("run-state-task-demo-queued").textContent).toBe("CANCELLED");
+    expect(screen.getByTestId("run-state-task-demo-queued").textContent).toBe("已取消");
   });
 
   it("uses the real 409 error path, refetches run and list, then shows the fixed conflict", async () => {
@@ -468,22 +487,22 @@ describe("Agent Runs page", () => {
     renderWithProviders(<RunsPage />);
 
     const observedZeroUsage = await screen.findByTestId("run-usage-task-usage-observed-zero");
-    expect(observedZeroUsage.textContent).toContain("Tokens 0");
-    expect(observedZeroUsage.textContent).toContain("Cost $0.0000");
+    expect(observedZeroUsage.textContent).toContain("用量 0 tokens");
+    expect(observedZeroUsage.textContent).toMatch(/费用 \$0（已观测为 0）/);
     expect(observedZeroUsage.textContent).toContain("已观测为 0");
     expect(observedZeroUsage.textContent).not.toContain("用量未知");
 
     const noObservations = await screen.findByTestId("run-usage-task-usage-no-obs");
     expect(noObservations.textContent).toContain("尚无用量观测记录");
-    expect(noObservations.textContent).not.toContain("Tokens");
+    expect(noObservations.textContent).not.toContain("tokens");
 
     const allUnknownUsage = await screen.findByTestId("run-usage-task-usage-all-unknown");
     expect(allUnknownUsage.textContent).toContain("用量未知：1 条观测均未提供数值");
-    expect(allUnknownUsage.textContent).not.toContain("Tokens");
+    expect(allUnknownUsage.textContent).not.toContain("tokens");
 
     const partialUsage = await screen.findByTestId("run-usage-task-usage-partial");
-    expect(partialUsage.textContent).toContain("Tokens 1,500（部分）");
-    expect(partialUsage.textContent).toContain("Cost $0.0050（部分）");
+    expect(partialUsage.textContent).toContain("用量 1,500 tokens（部分）");
+    expect(partialUsage.textContent).toContain("费用 $0.0050（部分）");
     expect(partialUsage.textContent).toContain("1 条未知");
     expect(partialUsage.textContent).not.toContain("尚无可信数值观测");
 
@@ -491,25 +510,25 @@ describe("Agent Runs page", () => {
     // the zero truthfully and mark it partial, never hiding behind
     // no-trustworthy-observation copy.
     const partialZeroUsage = await screen.findByTestId("run-usage-task-usage-partial-zero");
-    expect(partialZeroUsage.textContent).toContain("Tokens 0（部分）");
-    expect(partialZeroUsage.textContent).toContain("Cost $0.0000（部分）");
+    expect(partialZeroUsage.textContent).toContain("用量 0 tokens（部分）");
+    expect(partialZeroUsage.textContent).toContain("费用 $0（部分）");
     expect(partialZeroUsage.textContent).toContain("1 条未知");
     expect(partialZeroUsage.textContent).not.toContain("尚无可信数值观测");
     expect(partialZeroUsage.textContent).not.toContain("已观测为 0");
 
     // The provider-reported cost disclaimer lives once at the page level instead
     // of repeating in every observed row.
-    expect(screen.getByTestId("runs-cost-context").textContent).toContain("成本为 Provider");
-    expect(screen.getByTestId("runs-cost-context").textContent).toContain("不代表免费");
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("用量和费用是本地观测值，不是账单");
+    expect(screen.getByTestId("runs-cost-context").textContent).toContain("没有记录的用量不会当成 0");
   });
 
   it("identifies each run by task title in the toggle accessible name", async () => {
     renderWithProviders(<RunsPage />);
     const toggle = await screen.findByTestId("run-toggle-task-demo-1");
     const label = toggle.getAttribute("aria-label") ?? "";
-    expect(label).toMatch(/运行：.*T001 分析目标与代码库/);
+    expect(label).toMatch(/运行：完善无人值守多 Agent 平台 · 分析目标与代码库/);
     expect(label).toContain("等待人工审查");
-    expect(screen.getByText(/T001 分析目标与代码库/)).toBeInTheDocument();
+    expect(screen.getByText(/完善无人值守多 Agent 平台 · 分析目标与代码库/)).toBeInTheDocument();
   });
 
   it("progressively discloses unavailable controls while keeping applicable ones prominent", async () => {
@@ -706,8 +725,9 @@ describe("Agent Runs page", () => {
     expect(labelA).not.toStrictEqual(labelB);
     expect(labelA).toContain("task-collision-a");
     expect(labelB).toContain("task-collision-b");
-    expect(labelA).toContain("QUEUED");
-    expect(labelB).toContain("QUEUED");
+    // The accessible name states the status in plain language, not the machine code.
+    expect(labelA).toContain("排队中");
+    expect(labelB).toContain("排队中");
   });
 
   it("renders a long public task id verbatim and expands the run by keyboard", async () => {

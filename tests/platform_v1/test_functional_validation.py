@@ -450,3 +450,54 @@ def test_expected_red_rejects_an_interrupted_run(red_phase):
     check = result["checks"][0]
     assert check["expected_red_met"] is False
     assert check["exit_code"] != 1  # pytest was interrupted, not merely failing
+
+
+def test_npm_gets_separate_empty_user_and_global_config(tmp_path):
+    """2026-11-14: both pointing at the null device made npm 10+ refuse to start."""
+    env = fv._environment(tmp_path, tmp_path)
+    user, global_ = env["NPM_CONFIG_USERCONFIG"], env["NPM_CONFIG_GLOBALCONFIG"]
+    assert user != global_
+    assert Path(user).read_text(encoding="utf-8") == "" and Path(global_).read_text(encoding="utf-8") == ""
+    assert Path(user).parent == tmp_path
+
+
+def test_real_npm_starts_in_the_check_environment(tmp_path):
+    import shutil
+    import subprocess
+    npm = shutil.which("npm")
+    if npm is None:
+        pytest.skip("npm not installed")
+    env = fv._environment(tmp_path, tmp_path)
+    result = subprocess.run([npm, "config", "get", "offline"], cwd=tmp_path, env=env,
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "true"
+
+
+def test_os_username_retained_in_child_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", "nerelan-win-user")
+    monkeypatch.setenv("USER", "nerelan-posix-user")
+    monkeypatch.setenv("LOGNAME", "nerelan-logname")
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    monkeypatch.setenv("GITHUB_TOKEN", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    assert env["USERNAME"] == "nerelan-win-user"
+    assert env["USER"] == "nerelan-posix-user"
+    assert env["LOGNAME"] == "nerelan-logname"
+    assert not {"OPENAI_API_KEY", "GITHUB_TOKEN"} & env.keys()
+
+
+def test_python_getuser_runs_under_sanitized_child_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", os.environ.get("USERNAME") or "nerelan-check-user")
+    monkeypatch.setenv("OPENAI_API_KEY", "isolated-test-sentinel")
+    env = fv._environment(tmp_path)
+    result = subprocess.run(
+        [sys.executable, "-c", "import getpass; print(getpass.getuser())"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip()

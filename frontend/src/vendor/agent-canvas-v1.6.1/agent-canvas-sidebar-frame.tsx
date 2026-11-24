@@ -53,7 +53,7 @@ export function AgentCanvasSidebarFrame({
         "border-r border-[var(--oh-border)] transition-[width,min-width] duration-200",
         collapsed
           ? "w-[60px] min-w-[60px] px-2.5 sidebar-collapsed"
-          : "w-[232px] min-w-[232px] pb-2 pl-2.5 pr-0 sidebar-expanded",
+          : "w-[256px] min-w-[256px] pb-2 pl-2.5 pr-0 sidebar-expanded",
       )}
     >
       <div className="flex min-h-0 flex-1 flex-col items-stretch pt-2">

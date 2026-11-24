@@ -6,7 +6,7 @@ Companion to [AGENTS.md](../../AGENTS.md). Read only the section the current act
 
 Nerelan's thin adapter layer is `reverse_agent/platform_v1/`. Reuse GitHub Spec Kit-compatible planning, LangGraph topology/checkpoints, OpenCode repository execution/model bindings and OpenHands presentation patterns; do not copy their runtimes or replicate GitHub Issue/PR state.
 
-The trusted host owns one TaskStore database for task, goal, window, receipt, claim, run and publication truth. The unattended coordinator requires `REVERSE_AGENT_AUTONOMOUS=1` and an owner-activated bounded window before doing work. Live model/API probes require an explicit Owner instruction. Provider-free startup and CI make zero model calls. Runtime/module/environment names such as `reverse_agent` remain compatibility identifiers, not a request for a broader rename.
+The trusted host owns one TaskStore database for task, goal, window, receipt, claim, run and publication truth. The unattended coordinator requires `REVERSE_AGENT_AUTONOMOUS=1` and an owner-activated window (bounded, or continuous per [continuous run](#continuous-run)) before doing work. Live model/API probes require an explicit Owner instruction. Provider-free startup and CI make zero model calls. Runtime/module/environment names such as `reverse_agent` remain compatibility identifiers, not a request for a broader rename.
 
 ## Why v2
 
@@ -72,6 +72,16 @@ After ACCEPT and green checks on the current head H: mark Ready, wait for `landi
 
 Owner decision 2026-10-21 (#1310 D). The Owner may activate a window with `standing_renewal: {"window_hours": h, "renew_until": t}` (1 ≤ h ≤ 168; `renew_until` after the first window's expiry and at most 90 days after activation). The Owner's activation approves the policy once. When the current window of that policy expires **by time**, the host activates a successor with confirmation `STANDING_RENEWAL`, the next policy revision and exactly the same repositories, capabilities, concurrency, task, retry and budget bounds, lasting `min(h, renew_until − now)`; it records a `standing_window_renewal` receipt. RUNNING goals stranded on earlier windows of the same policy are rebound with reason `standing_window_adoption`; goals with in-flight or held work are retried later, never forced. A window that was stopped or blocked never renews; stopping any window of the policy, or revoking the policy, ends renewal immediately. Delegated and trusted-policy windows cannot carry a standing policy.
 
+## Continuous run
+
+Owner decision 2026-11-15 (#1538). Window expiry, the total token budget (`max_token_units`) and the task cap (`max_tasks`) are not stop conditions for an Owner continuous run and are not shown to the user. A continuous run lasts until the Owner stops it. While it runs, PLANNED goals may be admitted into it, and RUNNING goals stranded on earlier stopped or exhausted Owner windows may be adopted with their tasks and retained workspaces (the standing-renewal adoption path). Goals the Owner stopped stay stopped unless the Owner retries them.
+
+The limits that remain are real ones: provider account quotas (5-hour, weekly, credits), which routing paces and avoids when they are exhausted; a per-attempt runaway guard that reports its reason when it trips; the concurrency setting; and a money cap whenever paid API is enabled. Usage stays recorded per task and per account. Stopping a continuous run is final for that run.
+
+Under Owner decision 2026-11-22 ([#1718](https://github.com/dddd2024/Nerelan/issues/1718#issuecomment-7075002630)), a continuous window (including the `continuous` quick-start/supervisor preset and terminal `--continuous --land-reviewed-pr`) may also carry `land_reviewed_pr` across multiple confirmed, appended and adopted Goals on the same repository without per-Goal terminal confirmation. Ordinary R1 and recoverable code changes auto-merge once independent exact-head review, exact-head CI, matched-head merge and `main` verification pass. Self-governance R2 paths (`AGENTS.md`, `.github/workflows/**`, `reverse_agent/landing_review.py`) may also auto-merge when backed by independent challenge/refutation confirming no gate is weakened beyond the cited Owner decision.
+
+Bounded non-continuous windows, delegated and trusted-policy windows, `max_retries` semantics (Owner decision 2026-11-12 B), independent review, exact-head CI, matched-head merge, the provider-free CI rule, and irreversible or R3 actions (production host/DB mutations, credentials, deletions and releases) remain separately gated.
+
 ## Bounded operational grants
 
 An operational grant requires an explicit Owner instruction naming the repository, allowed operations, environment/host and data paths, version or accepted-version rule, expiry, concurrency/retry/cost limits and stop/revocation conditions. Record the exact instruction and bounds in existing execution evidence before use. If the active host cannot represent or enforce them, park the action; this document does not implement a runtime permission mechanism. Within a live grant, repeated covered actions do not need new per-action confirmation.
@@ -94,6 +104,8 @@ Owner decision 2026-10-21 (#1310 E). A failing required check, a REJECT, or unex
 - 2026-10-21, Owner `dddd2024` in chat: "approve governance changes A, C, D and E as proposed; implement them as one R2 PR citing this decision" (#1310). B, F and G were not approved.
 
 - 2026-11-04, Owner `dddd2024` in chat: after authorizing PR #1374 landing, clarified "我的意思是现在的agent.md已经影响了我们长时间无人运行的目标了". This amendment addresses vendor-locked development, redundant per-PR ceremony and all-work stoppage. The developer role is vendor-neutral; ordinary development authorization continues within its bounds. The bounded operational grant policy requires a separate explicit scoped Owner instruction before any covered R3 action; it creates no standing grant and does not expand the consumed PR #1374 authorization.
+
+- 2026-11-15, Owner `dddd2024` in chat: "我认为现在这个执行窗口，时间和token上限其实已经不重要了，正常的agent工具也没这个，同时这对用户也不是很友好", then accepted the supervisor's proposal ("Yes, as proposed"): no window expiry, token budget or task cap; keep account quota, a per-attempt runaway guard, concurrency, a paid-API money cap and a stop switch (#1538). Recorded as [continuous run](#continuous-run).
 
 Ordinary development delegation does not cover R3. An explicit bounded operational grant may cover only its enumerated actions and bounds under AGENTS.md. No release, deployment, recovery, secret transfer or other R3 authority is inferred from this amendment; no runtime enforcement is claimed. Independent review and all CI/landing gates remain mandatory, including a separate-context R2 review confirming this amendment stays within the cited Owner direction.
 
