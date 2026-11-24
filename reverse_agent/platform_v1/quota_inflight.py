@@ -98,6 +98,9 @@ def projection(evidence, need, outstanding=(), *, reservation_id, spent, now, he
             raise ValueError("invalid live spend")
         remaining = max(0, total - used) if quota_reservation._number(total) and used is not None else None
         windows[name] = {"p80": remaining}
+        released = need.get("windows", {}).get(name, {}).get("reserve_released_until")
+        if released is not None:
+            windows[name]["reserve_released_until"] = released
         prior = baseline.get(name, {}).get("used_percent")
         current = window.get("used_percent")
         measured = prior + used if quota_reservation._number(prior) and used is not None else None

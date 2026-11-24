@@ -194,6 +194,18 @@ def window_need(need: Mapping[str, Any], account_ref: str,
             "uncertain": need["uncertain"] or bool(prior) or any(v is None for w in windows.values() for v in w.values())}
 
 
+def release_weekly_reserve(need, evidence, *, release_hours, now):
+    """Mark the weekly need when the Owner's reserve is released for this very window."""
+    for window in _canonical_windows(evidence.get("windows", ())):
+        raw = window.get("resets_at")
+        reset = float(raw) if _number(raw) else quota_forecast.parse_time(raw)
+        weekly = (need.get("windows") or {}).get("weekly")
+        if (window["window"] == "weekly" and isinstance(weekly, Mapping) and reset is not None
+                and 0 < reset - now <= release_hours * 3600):
+            return {**need, "windows": {**need["windows"], "weekly": {**weekly, "reserve_released_until": reset}}}
+    return need
+
+
 def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
               buffer=10, small_task=False):
     """Check percentage-point p80 against both windows. Never infer reset usage.
@@ -254,7 +266,12 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
                 waits.append((name, reset if reset is not None and reset > now else None))
                 continue
             reserved += amount
-        if p80 + reserved > 100 - used - buffer:
+        released = need["windows"][name].get("reserve_released_until")
+        # Only for the window it was released for: a renewed week keeps its reserve.
+        margin = (0 if name == "weekly" and _number(released) and reset is not None
+                  and now < released and abs(reset - released) <= 900 else buffer)
+        # A spent window always waits, however small the need.
+        if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
             waits.append((name, reset if reset is not None and reset > now else None))
     return {"decision": "quota_wait" if waits else "ok", "reason": "quota_capacity" if waits else "quota_fit",
             "state": "UNKNOWN" if uncertain else "OBSERVED", "blocking_windows": [w for w, _ in waits],

@@ -176,6 +176,8 @@ def inherit_group_availability(candidates: list[dict[str, Any]], groups: Mapping
 DEFAULT_WEEKLY_PACE: dict[str, Any] = {
     "enabled": True, "executors": ["codex", "claude_code"], "providers": ["codex", "claude"],
     "slack": .10, "reserve": .10,
+    # The reserve is released this many hours before the weekly reset; 0 keeps it to the end.
+    "reserve_release_hours": 0,
     # True: a paced account whose weekly usage is unknown or stale is held, not
     # left to the other quota rules (Owner decision 2026-11-08, long-run plan).
     "require_fresh": False}
@@ -422,7 +424,10 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
                                     or any(not isinstance(x, str) or not x for x in pace[key]))
                    for key in ("executors", "providers"))
             or any(key in pace and (type(pace[key]) not in (int, float) or not 0 <= pace[key] <= .5)
-                   for key in ("slack", "reserve"))):
+                   for key in ("slack", "reserve"))
+            or "reserve_release_hours" in pace and (
+                type(pace["reserve_release_hours"]) not in (int, float)
+                or not 0 <= pace["reserve_release_hours"] <= 72)):
         raise ValueError("invalid_model_routing_overrides")
     return data
 
