@@ -107,8 +107,10 @@ class PoolMonitor:
                  persist_alerts: bool = False,
                  weekly_pace: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
                  reset_signal: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
+                 quota_resets: Callable[[], list[Mapping[str, Any]]] = lambda: [],
                  clock: Callable[[], float] = time.time) -> None:
         self._config = config
+        self._quota_resets = quota_resets
         self._reset_signal = reset_signal
         self._weekly_pace = weekly_pace
         self._fetch_snapshot = fetch_snapshot
@@ -186,6 +188,13 @@ class PoolMonitor:
         return {key: signal.get(key) for key in
                 ("state", "expected_reset_at", "source_url", "assumed", "announced_at")}
 
+    def _recent_resets(self) -> list[dict[str, Any]]:
+        """Resets seen in account readings, newest first."""
+        try:
+            return [dict(event) for event in self._quota_resets()]
+        except Exception:  # noqa: BLE001
+            return []
+
     def _aged_statuses(self, now: float) -> list[AccountStatus]:
         """Last known rows; past the freshness budget they stop claiming health."""
         age = now - self._last_statuses_at if self._last_statuses_at is not None else 0.0
@@ -226,6 +235,7 @@ class PoolMonitor:
         except Exception:  # noqa: BLE001 - a bad Owner file must not blank the view
             pace = None
         codex_reset = self._codex_reset()
+        resets = self._recent_resets()
         drain_since = None
         if (codex_reset and codex_reset.get("state") == "PLAN_ONLY"
                 and (epoch_seconds(codex_reset.get("expected_reset_at")) or 0) > now):
@@ -255,6 +265,7 @@ class PoolMonitor:
                 "policy": policy,
                 "budget": runtime.get("budget") or None,
                 "codex_reset": codex_reset,
+                "quota_resets": resets,
                 "alerts": {"active": self._ledger.active(), "recent": self._ledger.recent()},
                 "monitoring": self._thread is not None,
             }

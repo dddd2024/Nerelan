@@ -36,6 +36,14 @@ describe("Accounts page", () => {
     expect(screen.getByText("数据来自 Magpie")).toBeInTheDocument();
   });
 
+  it("lists quota resets seen in the accounts' own readings", async () => {
+    mount(pool({ quota_resets: [{ account_ref: "a", provider: "antigravity-bridge", window: "Gemini · 7 days", kind: "early",
+      used_before: 83.93, used_after: 0, observed_at: "2026-11-24T03:51:08Z",
+      previous_resets_at: "2026-11-29T05:16:20Z", resets_at: "2026-12-01T03:51:07Z" }] }));
+    expect(await screen.findByTestId("pool-quota-resets"))
+      .toHaveTextContent("antigravity-bridge 的 Gemini · 7 days 额度提前重置：已用 84% → 0%");
+  });
+
   it("keeps unknown headroom unknown instead of showing zero", async () => {
     mount(pool({ accounts: [account({ health: "STALE", headroom_pct: null, dispatchable: false })] }));
     const row = await screen.findByTestId("pool-account-codex");

@@ -512,6 +512,12 @@ class _TaskHandler(BaseHTTPRequestHandler):
                     self._send_json(HTTPStatus.NOT_FOUND, {"error": "goal not found"})
                     return
                 timeline = self.run_read_model.goal_timeline(snapshot)
+                resets = getattr(self, "goal_quota_resets", None)
+                if resets is not None:
+                    try:
+                        timeline["quota_resets"] = resets(snapshot)
+                    except Exception:  # noqa: BLE001 - the timeline still renders without them
+                        timeline["quota_resets"] = []
                 try:
                     timeline["retry"] = self.goal_service.retry_options(segments[2])
                 except TaskStoreError:
@@ -1493,12 +1499,14 @@ def _handler_factory(
     local_client_session: Any | None = None,
     magpie_status: Callable | None = None,
     pool_monitor: Any | None = None,
+    goal_quota_resets: Any | None = None,
 ) -> type[_TaskHandler]:
     class ConfiguredHandler(_TaskHandler):
         pass
 
     ConfiguredHandler.magpie_status = staticmethod(magpie_status) if magpie_status else None
     ConfiguredHandler.pool_monitor = pool_monitor
+    ConfiguredHandler.goal_quota_resets = staticmethod(goal_quota_resets) if goal_quota_resets else None
     ConfiguredHandler.store = store
     ConfiguredHandler.router = router
     ConfiguredHandler.allowed_origin = allowed_origin

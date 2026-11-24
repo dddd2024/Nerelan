@@ -162,6 +162,7 @@ def _coordinator(**attrs):
     coordinator = object.__new__(UnattendedCoordinator)
     coordinator._last_error = ""
     coordinator._stop = threading.Event()
+    coordinator._reevaluate = threading.Event()
     coordinator.quota_wait_target = None
     for key, value in attrs.items():
         setattr(coordinator, key, value)
@@ -226,7 +227,9 @@ def test_coordinator_passes_its_stop_event_as_the_cancel_token(monkeypatch):
     seen = {}
 
     def fake_wait(target, *, timeout, cancel):
-        seen["is_stop"] = cancel is coordinator._stop
+        before = cancel.is_set()
+        coordinator._stop.set()
+        seen["is_stop"] = not before and cancel.is_set()
         return {"available": False, "reason": "cancelled", "waited_seconds": 0.2}
 
     monkeypatch.setattr(magpie_wait, "wait_for_allowance", fake_wait)
@@ -272,7 +275,7 @@ def test_idle_loop_shares_one_wait_budget(
             return {"available": False, "reason": "cancelled"}
         clock += spent
         if cancelled:
-            cancel.set()
+            coordinator._stop.set()
             return {"available": False, "reason": "cancelled"}
         return {"available": available, "reason": "allowance_available" if available else "timeout"}
 
@@ -291,4 +294,5 @@ def test_idle_loop_shares_one_wait_budget(
     coordinator._run()
 
     assert ticks == expected_ticks
-    assert sleeps == expected_sleep
+    # The local wait is taken in slices, so a quota reset can end it.
+    assert sum(sleeps) == sum(expected_sleep)

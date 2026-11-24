@@ -459,6 +459,9 @@ class PlatformControlStore:
             # Owner-approved standing window policies (Governance v2.1 D, #1310).
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_standing_windows (policy_id TEXT PRIMARY KEY, window_hours INTEGER NOT NULL, renew_until TEXT NOT NULL, status TEXT NOT NULL, stop_reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_observations (account_ref TEXT PRIMARY KEY, observed_at TEXT NOT NULL, evidence_json TEXT NOT NULL)")
+            from .quota_resets import SCHEMA as QUOTA_RESET_SCHEMA
+            for statement in QUOTA_RESET_SCHEMA:
+                self._conn.execute(statement)
             self._conn.execute("CREATE TABLE IF NOT EXISTS platform_quota_calibrations (account_ref TEXT PRIMARY KEY, rates_json TEXT NOT NULL, evidence_json TEXT NOT NULL)")
             quota_columns = {r["name"] for r in self._conn.execute("PRAGMA table_info(platform_budget_reservations)")}
             for column, definition in (("account_ref", "TEXT NOT NULL DEFAULT ''"), ("binding_ref", "TEXT NOT NULL DEFAULT ''"), ("quota_windows_json", "TEXT NOT NULL DEFAULT '{}'"), ("quota_state", "TEXT NOT NULL DEFAULT 'UNKNOWN'"), ("settlement_json", "TEXT NOT NULL DEFAULT '{}'"), ("estimate_json", "TEXT NOT NULL DEFAULT '{}'")):
@@ -2309,6 +2312,12 @@ class PlatformControlStore:
                 return False
             self._conn.execute("DELETE FROM platform_quota_admissions WHERE task_id=?", (task_id,))
             return True
+
+    @property
+    def quota_resets(self) -> Any:
+        """Resets seen in account readings; evidence only, never capacity."""
+        from .quota_resets import QuotaResets
+        return QuotaResets(self._conn, self._lock)
 
     def quota_hold(self, task_id: str) -> dict[str, Any] | None:
         """A hold is dispatch state, not observed usage or an executor failure."""

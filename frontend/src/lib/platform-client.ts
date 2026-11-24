@@ -164,6 +164,20 @@ export interface PlatformGoalTaskLink {
   attempts?: PlatformTaskAttempt[];
 }
 
+/** A quota window that started over, as the account's own readings show it. */
+export interface QuotaReset {
+  account_ref: string;
+  provider: string;
+  window: string;
+  /** early: before the stated reset time; scheduled: at it. */
+  kind: "early" | "scheduled";
+  used_before: number;
+  used_after: number;
+  observed_at: string;
+  previous_resets_at: string;
+  resets_at: string | null;
+}
+
 /** GET /api/goals/<id>/timeline: one goal as one conversation. */
 export interface PlatformGoalTimeline {
   goal: Pick<PlatformGoal, "id" | "title" | "objective" | "status" | "repository"> & Record<string, unknown>;
@@ -175,6 +189,8 @@ export interface PlatformGoalTimeline {
     parking_reason: string;
   } | null;
   awaiting_landing?: boolean;
+  /** Quota resets of the accounts this goal runs on. */
+  quota_resets?: QuotaReset[];
   /** Whether the Owner can retry a stopped step now (Owner decision 2026-11-12 A). */
   retry?: PlatformRetryOptions;
 }
@@ -436,6 +452,8 @@ export interface AccountPool {
   budget: PoolBudget | null;
   policy: PoolPolicy;
   alerts: { active: PoolAlert[]; recent: PoolAlert[] };
+  /** Resets seen in the accounts' own readings, newest first. */
+  quota_resets?: QuotaReset[];
   /** A current Codex reset announcement, as routing reads it. */
   codex_reset?: { state: string; expected_reset_at: string | null; source_url: string | null; assumed?: boolean } | null;
 }
