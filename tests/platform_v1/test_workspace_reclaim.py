@@ -434,15 +434,16 @@ def _reclaimer(root, db, mode="apply", **kw):
 
 def test_auto_config_is_off_by_default_and_rejects_bad_values():
     assert workspace_reclaim.auto_config({}) == {
-        "mode": "off", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0}
+        "mode": "off", "retention_days": 3.0, "interval_hours": 24.0, "poll_minutes": 15.0,
+        "preserve": False, "low_disk_gb": 10.0, "low_disk_retention_days": 1.0}
     config = workspace_reclaim.auto_config({
         "REVERSE_AGENT_WORKSPACE_RECLAIM": "delete-all",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "-1",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_INTERVAL_HOURS": "nan",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_POLL_MINUTES": "0.1",
     })
-    assert config == {"mode": "off", "retention_days": 3.0, "interval_hours": 24.0,
-                      "poll_minutes": 15.0}
+    assert (config["mode"], config["retention_days"], config["interval_hours"],
+            config["poll_minutes"]) == ("off", 3.0, 24.0, 15.0)
     config = workspace_reclaim.auto_config({
         "REVERSE_AGENT_WORKSPACE_RECLAIM": " Apply ",
         "REVERSE_AGENT_WORKSPACE_RECLAIM_RETENTION_DAYS": "7"})
@@ -577,3 +578,162 @@ def test_finished_pass_ignores_task_ids_that_are_not_plain_children(repo, root, 
                     ("a/b", "FAILED", done)])
     assert _reclaimer(root, db).reclaim_finished(LATER) == []
     assert root.exists()
+
+
+def _preserve_sweep(root, tmp_path, status="FAILED", name="task-1", **kw):
+    db = tmp_path / "tasks.sqlite3"
+    if not db.exists():
+        _store_db(db, [(name, status, _iso(LATER - 5 * 86400))])
+    return by_name(sweep([root], now=LATER, apply=True, task_db=db, preserve=True, **kw))[name]
+
+
+def test_preserve_keeps_every_kind_of_work_before_removing(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    git(wt, "commit", "-q", "--allow-empty", "-m", "reflog only")
+    orphan = git(wt, "rev-parse", "HEAD")
+    git(wt, "reset", "-q", "--hard", "origin/main")
+    git(wt, "commit", "-q", "--allow-empty", "-m", "unpushed")
+    head = git(wt, "rev-parse", "HEAD")
+    (wt / "a.txt").write_text("staged\n")
+    git(wt, "add", "a.txt")
+    (wt / "a.txt").write_text("unstaged\n")
+    (wt / "new.txt").write_text("untracked\n")
+    entry = _preserve_sweep(root, tmp_path)
+    assert entry["removed"] is True and not wt.exists()
+    ref = entry["preserved_ref"]
+    assert ref.startswith("refs/nerelan/reclaimed/task-1/")
+    assert git(repo, "show", f"{ref}:a.txt") == "unstaged"
+    assert git(repo, "show", f"{ref}:new.txt") == "untracked"
+    assert git(repo, "show", f"{ref}^2:a.txt") == "staged"
+    reachable = git(repo, "rev-list", ref).split()
+    assert head in reachable and orphan in reachable
+
+
+def test_preserve_keeps_a_deleted_file_deleted(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "a.txt").unlink()
+    ref = _preserve_sweep(root, tmp_path)["preserved_ref"]
+    assert git(repo, "ls-tree", "--name-only", ref) == ""
+
+
+@pytest.mark.parametrize("status", ["RUNNING", "QUEUED", "INTERRUPTED"])
+def test_preserve_never_touches_an_unfinished_task(repo, root, tmp_path, status):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "a.txt").write_text("x\n")
+    assert _preserve_sweep(root, tmp_path, status)["reclaim"] is False and wt.exists()
+
+
+def test_preserve_needs_a_known_task(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "unknown")
+    (wt / "a.txt").write_text("x\n")
+    db = _store_db(tmp_path / "tasks.sqlite3", [])
+    for task_db in (None, db):
+        entry = by_name(sweep([root], now=LATER, apply=True, task_db=task_db, preserve=True))["unknown"]
+        assert entry["reason"] == "uncommitted or untracked changes" and wt.exists()
+
+
+@pytest.mark.parametrize("block", ["ignored", "hidden", "locked", "conflict"])
+def test_preserve_relaxes_no_other_check(repo, root, tmp_path, block):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "new.txt").write_text("x\n")
+    if block == "ignored":
+        _ignore(wt, "*.env")
+        (wt / "secret.env").write_text("k\n")
+    elif block == "hidden":
+        git(wt, "update-index", "--assume-unchanged", "a.txt")
+    elif block == "locked":
+        git(repo, "worktree", "lock", str(wt))
+    else:
+        blob = git(wt, "hash-object", "-w", "a.txt")
+        subprocess.run(["git", "update-index", "--index-info"], cwd=wt, check=True,
+                       input=(f"0 {'0' * 40}\ta.txt\n100644 {blob} 1\ta.txt\n"
+                              f"100644 {blob} 2\ta.txt\n").encode())
+    entry = _preserve_sweep(root, tmp_path)
+    assert not entry.get("removed") and wt.exists() and (wt / "new.txt").exists()
+
+
+def test_work_written_during_preservation_keeps_the_checkout(repo, root, tmp_path, monkeypatch):
+    wt = add_worktree(repo, root, "task-1")
+    (wt / "new.txt").write_text("x\n")
+    real, calls = workspace_reclaim._snapshot, []
+
+    def racing(path, head):
+        calls.append(1)
+        if len(calls) == 2:
+            (wt / "late.txt").write_text("late\n")
+        return real(path, head)
+
+    monkeypatch.setattr(workspace_reclaim, "_snapshot", racing)
+    entry = _preserve_sweep(root, tmp_path)
+    assert entry["removed"] is False and (wt / "late.txt").exists()
+
+
+def _fixture_repo(path, content="x\n"):
+    git(path.parent, "init", "-q", str(path))
+    (path / "fixture.txt").write_text(content)
+    return path
+
+
+@pytest.mark.parametrize("nested", ["task-1794752891525-b7316c826cf2",
+                                    "task_workspaces/task-1794752891525-b7316c826cf2"])
+def test_test_fixture_repositories_do_not_block(repo, root, nested):
+    wt = add_worktree(repo, root, "task-1")
+    _ignore(wt, "task-[0-9]*-*/", "task_workspaces/")
+    (wt / nested).parent.mkdir(exist_ok=True)
+    _fixture_repo(wt / nested)
+    assert by_name(sweep([root], now=LATER, apply=True))["task-1"]["removed"] is True
+    assert not wt.exists()
+
+
+@pytest.mark.parametrize("change", ["remote", "extra", "name", "untracked"])
+def test_other_nested_repositories_still_block(repo, root, change):
+    wt = add_worktree(repo, root, "task-1")
+    if change != "untracked":
+        _ignore(wt, "task-*/")
+    nested = _fixture_repo(wt / ("task-notes" if change == "name" else "task-1794752891525-b7316c826cf2"))
+    if change == "remote":
+        git(nested, "remote", "add", "origin", "https://example.invalid/x.git")
+    elif change == "extra":
+        (nested / "work.py").write_text("x\n")
+    assert not by_name(sweep([root], now=LATER, apply=True))["task-1"]["reclaim"]
+    assert nested.exists()
+
+
+def _disk(free_gb):
+    return lambda path: type("U", (), {"free": int(free_gb * 2 ** 30), "total": 100 * 2 ** 30})()
+
+
+def test_low_disk_sweeps_early_with_the_shorter_retention(repo, root, tmp_path):
+    age = os.stat(add_worktree(repo, root, "task-1")).st_mtime
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(age))])
+    state = tmp_path / "state.json"
+    clock = [age + 2 * 86400]
+    state.write_text(json.dumps({"last_sweep_at": clock[0]}))
+
+    def reclaimer(free):
+        return workspace_reclaim.AutoReclaimer(root, db, mode="apply", state_path=state,
+                                               clock=lambda: clock[0], disk_usage=_disk(free))
+
+    assert reclaimer(50).tick()["sweep"] is None and (root / "task-1").exists()
+    low = reclaimer(5)
+    result = low.tick()
+    assert result["disk"]["low"] is True and result["sweep"]["removed"] == 1
+    assert json.loads(state.read_text())["report"]["disk"]["free_gb"] == 5
+    clock[0] += 900
+    assert low.tick()["sweep"] is None  # at most hourly
+    clock[0] += 3600
+    assert low.tick()["sweep"] is not None
+
+
+def test_low_disk_never_lengthens_retention_or_deletes_in_report_mode(repo, root, tmp_path):
+    wt = add_worktree(repo, root, "task-1")
+    db = _store_db(tmp_path / "tasks.sqlite3", [("task-1", "FAILED", _iso(LATER - 5 * 86400))])
+    reclaimer = _reclaimer(root, db, mode="report", retention_days=0.5, disk_usage=_disk(1))
+    assert reclaimer.low_disk_retention_days == 0.5
+    assert reclaimer.tick()["sweep"]["applied"] is False and wt.exists()
+
+
+def test_unreadable_disk_is_not_low(root, tmp_path):
+    def broken(path):
+        raise OSError("gone")
+    assert _reclaimer(root, tmp_path / "x", disk_usage=broken).disk()["low"] is False
