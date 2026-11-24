@@ -23,6 +23,11 @@ The host starts the remote job broker first, when configured.
 }
 ```
 
+`binding_ref` pins every task to one binding; leave it empty to route each task
+over the host's enabled models. While no model may plan (quota, weekly pacing,
+availability) the round stays in PLANNING and its history says why and when it
+is worth retrying.
+
 The loop creates idempotent agent-team Goals and uses the existing planner,
 approval and launch services. Planning and execution require a current ACTIVE
 window covering the repository. The loop never activates or extends windows.

@@ -72,7 +72,7 @@ def _make_snapshot(**overrides: Any) -> ExecutionSnapshot:
         binding_id="test-binding",
         binding_enabled=True,
         executor_id="opencode",
-        raw_model_id="gpt-4o",
+        raw_model_id="fake-4o",
         connection_id="test-conn",
         connection_enabled=True,
         provider="openai-compatible",
@@ -91,7 +91,7 @@ def _make_binding_resolution(**overrides: Any) -> OpenCodeBindingResolution:
         connection_id="test-conn",
         executor_id="opencode",
         provider_id="openai-compatible",
-        model_id="openai-compatible/gpt-4o",
+        model_id="openai-compatible/fake-4o",
         base_url="https://models.example.test/v1",
         auth_method="api_key",
         external_session_status="not_applicable",
@@ -183,7 +183,7 @@ class TestTrustedHostLeaseRelease:
             "name": "B",
             "executor_id": "opencode",
             "connection_id": "th-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
         host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
@@ -236,7 +236,7 @@ class TestTrustedHostLeaseRelease:
         handle = ExecutionLeaseHandle(
             lease_id="no-cb-lease",
             relay_url="http://127.0.0.1:9000",
-            model_id="reverse-agent-relay/gpt-4o",
+            model_id="reverse-agent-relay/fake-4o",
         )
         assert handle._release_callback is None
         handle.release()
@@ -249,7 +249,7 @@ class TestTrustedHostLeaseRelease:
         handle = ExecutionLeaseHandle(
             lease_id="bad-cb-lease",
             relay_url="http://127.0.0.1:9000",
-            model_id="reverse-agent-relay/gpt-4o",
+            model_id="reverse-agent-relay/fake-4o",
             _release_callback=_bad_release,
         )
         handle.release()
@@ -471,7 +471,7 @@ class TestTaskApiApiKeyWiring:
             "name": "API binding",
             "executor_id": "opencode",
             "connection_id": "api-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
 
         fake_srv, received = _start_fake_provider(port)
@@ -579,7 +579,7 @@ class TestTaskApiApiKeyWiring:
             "name": "B",
             "executor_id": "opencode",
             "connection_id": "http-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
 
         fake_srv, received = _start_fake_provider(port)
@@ -774,7 +774,7 @@ class TestTOCTOUComparison:
             "name": "B",
             "executor_id": "opencode",
             "connection_id": "toc-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
         host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
@@ -830,7 +830,7 @@ class TestTOCTOUComparison:
                 binding_ref="toc-binding",
                 connection_id="toc-conn",
                 provider_id="litellm-proxy",
-                model_id="litellm-proxy/gpt-4o",
+                model_id="litellm-proxy/fake-4o",
                 base_url="http://127.0.0.1:1",
             )
             with pytest.raises(RuntimeError, match="provider_drift_before_lease"):
@@ -899,7 +899,7 @@ class TestTOCTOUComparison:
             "name": "B",
             "executor_id": "opencode",
             "connection_id": "norm-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
         host = CombinedTrustedHost(store=store, local_client_session=client_session(activate=False),)
         host.start()
@@ -907,11 +907,11 @@ class TestTOCTOUComparison:
             resolution = _make_binding_resolution(
                 binding_ref="norm-binding",
                 connection_id="norm-conn",
-                model_id="openai-compatible/gpt-4o",
+                model_id="openai-compatible/fake-4o",
                 base_url="http://127.0.0.1:1",
             )
             handle = host._lease_provider_factory()(resolution)
-            assert handle.model_id == "reverse-agent-relay/gpt-4o"
+            assert handle.model_id == "reverse-agent-relay/fake-4o"
             assert host.relay_manager.has_active_lease(handle.lease_id)
             handle.release()
         finally:
@@ -923,7 +923,7 @@ class TestTOCTOUComparison:
             resolution = _make_binding_resolution(
                 binding_ref="toc-binding",
                 connection_id="toc-conn",
-                model_id="openai-compatible/gpt-4o",
+                model_id="openai-compatible/fake-4o",
                 base_url="http://127.0.0.1:1",
             )
             handle = host._lease_provider_factory()(resolution)
@@ -971,7 +971,7 @@ class TestCleartextUpstream:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="gpt-4o",
+                model="fake-4o",
             )
 
             from reverse_agent.model_access.credential_relay import forward_to_upstream
@@ -993,7 +993,7 @@ class TestCleartextUpstream:
             lease.lease_id,
             method="POST",
             path="/chat/completions",
-            model="gpt-4o",
+            model="fake-4o",
         )
 
         from reverse_agent.model_access.credential_relay import forward_to_upstream
@@ -1032,7 +1032,7 @@ class TestCleartextUpstream:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="gpt-4o",
+                model="fake-4o",
             )
 
             from reverse_agent.model_access.credential_relay import forward_to_upstream
@@ -1071,7 +1071,7 @@ class TestCleartextUpstream:
                 lease.lease_id,
                 method="POST",
                 path="/chat/completions",
-                model="gpt-4o",
+                model="fake-4o",
             )
 
             from reverse_agent.model_access.credential_relay import forward_to_upstream
@@ -1091,7 +1091,7 @@ class TestCleartextUpstream:
             lease.lease_id,
             method="POST",
             path="/chat/completions",
-            model="gpt-4o",
+            model="fake-4o",
         )
 
         from reverse_agent.model_access.credential_relay import forward_to_upstream
@@ -1150,7 +1150,7 @@ class TestRelaySseViaHandler:
             )
             with relay:
                 body = json.dumps({
-                    "model": "gpt-4o",
+                    "model": "fake-4o",
                     "messages": [{"role": "user", "content": "hi"}],
                 }).encode("utf-8")
 
@@ -1200,7 +1200,7 @@ class TestRelaySseViaHandler:
                 manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0
             )
             with relay:
-                body = b'{"model":"gpt-4o"}'
+                body = b'{"model":"fake-4o"}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST",
@@ -1236,7 +1236,7 @@ class TestRelaySseViaHandler:
                 manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0
             )
             with relay:
-                body = b'{"model":"gpt-4o"}'
+                body = b'{"model":"fake-4o"}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST",
@@ -1276,7 +1276,7 @@ class TestRelaySseViaHandler:
                 manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0
             )
             with relay:
-                body = b'{"model":"gpt-4o"}'
+                body = b'{"model":"fake-4o"}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST",
@@ -1312,7 +1312,7 @@ class TestRelaySseViaHandler:
             )
             with relay:
                 body = json.dumps({
-                    "model": "gpt-4o",
+                    "model": "fake-4o",
                     "messages": [{"role": "user", "content": "hi"}],
                 }).encode("utf-8")
 
@@ -1377,7 +1377,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
                 binding_id="installed-smoke-binding",
                 binding_enabled=True,
                 executor_id="opencode",
-                raw_model_id="gpt-4o",
+                raw_model_id="fake-4o",
                 connection_id="installed-smoke-conn",
                 connection_enabled=True,
                 provider="openai-compatible",
@@ -1397,7 +1397,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
                 assert lease.lease_id.startswith("sk-")
 
                 # Step 1: Verify the relay chain works with a direct HTTP client
-                body = json.dumps({"model": "gpt-4o", "messages": [{"role": "user", "content": "hi"}]}).encode()
+                body = json.dumps({"model": "fake-4o", "messages": [{"role": "user", "content": "hi"}]}).encode()
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST", "/chat/completions", body=body,
@@ -1420,7 +1420,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
                     "provider": {"reverse-agent-relay": {"npm": "@ai-sdk/openai-compatible", "name": "Reverse Agent Relay", "options": {
                         "baseURL": fake_url,
                         "apiKey": lease.lease_id,
-                    }, "models": {"gpt-4o": {}}}}
+                    }, "models": {"fake-4o": {}}}}
                 }, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
                 assert self.FAKE_MASTER not in direct_config
 
@@ -1447,7 +1447,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
                         "run",
                         "--pure",
                         "--model",
-                        "reverse-agent-relay/gpt-4o",
+                        "reverse-agent-relay/fake-4o",
                         "--dir",
                         str(worktree),
                         "--format",
@@ -1509,7 +1509,7 @@ class TestInstalledOpenCodeFakeProviderSmoke:
                     assert self.FAKE_MASTER not in oc_req["authorization"]
 
                     body_obj = json.loads(oc_req["body"])
-                    assert body_obj.get("model") == "gpt-4o"
+                    assert body_obj.get("model") == "fake-4o"
 
                     assert relay_json_verified
                     assert manager.has_active_lease(lease.lease_id)

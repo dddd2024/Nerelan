@@ -121,6 +121,14 @@ class BindingResolver:
         if connection.get("connection_id") != connection_id:
             raise BindingResolutionError("connection_identity_mismatch")
 
+        # A paid subscription behind a gateway (#1743). The host reports its verdict, made
+        # with the Owner's settings; one that reports none is judged by the defaults.
+        from .subscription_gateway import BLOCKED, block_cause
+        verdict = binding.get("dispatch_block")
+        if verdict or not isinstance(verdict, str) and block_cause(
+                binding.get("model_id"), connection, executor_id, {}):
+            raise BindingResolutionError(BLOCKED)
+
         executor = self._get_object("executor", "/api/executors", executor_id)
         if executor.get("executor_id") != executor_id:
             raise BindingResolutionError("executor_identity_mismatch")

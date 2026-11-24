@@ -817,6 +817,7 @@ class CombinedTrustedHost:
             short_reset = reset_time(short_window)
             remaining = [1 - w["used_percent"] / 100 for w in windows
                          if type(w.get("used_percent")) in (int, float) and not w.get("reset_passed")]
+            # ``binding`` carries the host's ``dispatch_block`` verdict (subscription_gateway).
             candidate = {**binding, "runnable": binding["binding_id"] in runnable, "quota": quota,
                                 "executor_available": executors.get(binding["executor_id"], {}).get("cli_available"),
                                "account_ref": connection.get("account_ref") or connection.get("connection_id"),
@@ -1153,8 +1154,12 @@ class CombinedTrustedHost:
         executor_id, binding_id = self._prefer_measured_pairing(role, entry["executor_id"], entry["binding_id"])
         if self._store.get_executor_public(executor_id).get("cli_available") is False:
             raise TaskStoreError(f"executor_unavailable:{executor_id}")
-        return self._quota_guarded(role, executor_id, binding_id, roster["roles"],
-                                   standins=roster.get("standins", {}).get(role, ()))
+        executor_id, binding_id = self._quota_guarded(role, executor_id, binding_id, roster["roles"],
+                                                      standins=roster.get("standins", {}).get(role, ()))
+        if self._store.get_binding_public(binding_id).get("dispatch_block"):
+            from .subscription_gateway import BLOCKED
+            raise TaskStoreError(BLOCKED)
+        return executor_id, binding_id
 
     def _forecast_evidence(self):
         """Only persisted account observations; never refresh or read credentials."""
@@ -1735,7 +1740,7 @@ class CombinedTrustedHost:
         ready = {item["executor_id"] for item in self._store.list_executors_public() if item.get("operational")}
         ready &= self.ROLE_EXECUTORS.get(role, ready)
         siblings = [item["binding_id"] for item in bindings.values()
-                    if item["binding_id"] != binding_id and item.get("enabled")
+                    if item["binding_id"] != binding_id and item.get("enabled") and not item.get("dispatch_block")
                     and item["connection_id"] == chosen["connection_id"] and item["model_id"] == chosen["model_id"]
                     and item["executor_id"] in ready]
         if not siblings:
@@ -1754,6 +1759,9 @@ class CombinedTrustedHost:
                 binding_info = host._store.get_binding_public(binding_ref)
                 if not host._store.magpie_connection_runnable(binding_info["connection_id"]):
                     raise BindingResolutionError("magpie_unreachable")
+                if binding_info.get("dispatch_block"):
+                    from .subscription_gateway import BLOCKED
+                    raise BindingResolutionError(BLOCKED)
                 host._routing_refresh_quota_for_signal()
                 snapshot = host._store.resolve_execution_snapshot(binding_ref)
                 binding = next((b for b in host._store.list_bindings_public() if b["binding_id"] == binding_ref), None)

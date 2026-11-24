@@ -119,7 +119,9 @@ def resolve_pool(model_store: Any, owner: Mapping[str, Any]
         try:
             resolution = resolver.resolve(binding["binding_id"], task_executor=binding["executor_id"])
         except Exception as exc:  # noqa: BLE001 - an unusable binding is simply not offered
-            skipped.append(f"{binding['binding_id']} ({type(exc).__name__})")
+            from .subscription_gateway import BLOCKED
+            why = BLOCKED if str(exc) == BLOCKED else type(exc).__name__
+            skipped.append(f"{binding['binding_id']} ({why})")
             continue
         entry = {"binding_ref": resolution.binding_ref, "model_id": resolution.model_id,
                  "connection_id": resolution.connection_id, "executor_id": resolution.executor_id,

@@ -140,7 +140,7 @@ export function GoalComposer({
     () =>
       (bindingsQuery.data ?? []).filter(
         // Fixture drafts retain the existing display binding; native CLI executors never borrow it.
-        (binding) => binding.enabled && binding.executorId === (
+        (binding) => binding.enabled && !binding.dispatchBlock && binding.executorId === (
           draft.executorKind === "codex" || draft.executorKind === "claude_code" ? draft.executorKind : "opencode"),
       ),
     [bindingsQuery.data, draft.executorKind],

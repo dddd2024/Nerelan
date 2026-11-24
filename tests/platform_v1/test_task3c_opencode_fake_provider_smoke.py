@@ -51,7 +51,7 @@ def _make_snapshot(base_url: str, *, master_key: str = FAKE_MASTER_KEY) -> Execu
         binding_id="smoke-binding",
         binding_enabled=True,
         executor_id="opencode",
-        raw_model_id="gpt-4o",
+        raw_model_id="fake-4o",
         connection_id="smoke-conn",
         connection_enabled=True,
         provider="openai-compatible",
@@ -68,7 +68,7 @@ def _make_binding_resolution(base_url: str) -> OpenCodeBindingResolution:
         connection_id="smoke-conn",
         executor_id="opencode",
         provider_id="openai-compatible",
-        model_id="reverse-agent-relay/gpt-4o",
+        model_id="reverse-agent-relay/fake-4o",
         base_url=base_url,
         auth_method="api_key",
         external_session_status="not_applicable",
@@ -145,7 +145,7 @@ class TestFakeProviderSmoke:
         lease = ExecutionLeaseHandle(
             lease_id=FAKE_LEASE_ID,
             relay_url="http://127.0.0.1:9000",
-            model_id="reverse-agent-relay/gpt-4o",
+            model_id="reverse-agent-relay/fake-4o",
         )
 
         config_content = build_binding_config_content(resolution, lease=lease)
@@ -155,7 +155,7 @@ class TestFakeProviderSmoke:
         assert config_obj["provider"]["reverse-agent-relay"]["options"]["baseURL"] == "http://127.0.0.1:9000"
         assert config_obj["provider"]["reverse-agent-relay"]["options"]["apiKey"] == FAKE_LEASE_ID
         assert config_obj["provider"]["reverse-agent-relay"]["npm"] == "@ai-sdk/openai-compatible"
-        assert "gpt-4o" in config_obj["provider"]["reverse-agent-relay"]["models"]
+        assert "fake-4o" in config_obj["provider"]["reverse-agent-relay"]["models"]
         assert FAKE_MASTER_KEY not in config_content
         assert "provider-master" not in config_content
 
@@ -174,7 +174,7 @@ class TestFakeProviderSmoke:
         lease = ExecutionLeaseHandle(
             lease_id=FAKE_LEASE_ID,
             relay_url="http://127.0.0.1:9000",
-            model_id="reverse-agent-relay/gpt-4o",
+            model_id="reverse-agent-relay/fake-4o",
         )
         config_content = build_binding_config_content(resolution, lease=lease)
         child_env = build_binding_child_env(
@@ -201,7 +201,7 @@ class TestFakeProviderSmoke:
             relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
             with relay:
                 body = json.dumps({
-                    "model": "gpt-4o",
+                    "model": "fake-4o",
                     "messages": [{"role": "user", "content": "hello"}],
                 }).encode("utf-8")
 
@@ -244,7 +244,7 @@ class TestFakeProviderSmoke:
 
             relay = CredentialRelayServer(manager, host="127.0.0.1", port=_free_port(), upstream_timeout=5.0)
             with relay:
-                body = b'{"model":"gpt-4o","messages":[]}'
+                body = b'{"model":"fake-4o","messages":[]}'
                 conn = HTTPConnection("127.0.0.1", relay._port, timeout=5)
                 conn.request(
                     "POST",
@@ -279,7 +279,7 @@ class TestFakeProviderSmoke:
             "name": "Smoke binding",
             "executor_id": "opencode",
             "connection_id": "smoke-conn",
-            "model_id": "gpt-4o",
+            "model_id": "fake-4o",
         })
 
         snap = store.resolve_execution_snapshot("smoke-binding")

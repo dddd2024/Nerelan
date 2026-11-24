@@ -25,6 +25,7 @@ from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_V
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 from .quota_guard import LIMIT_HIT
 from .run_store import ORPHANED_PREPARATION
+from .subscription_gateway import BLOCKED_CLASS
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
 # OpenCode's typed provider-side quota limit: capacity evidence, never a capability
@@ -51,6 +52,8 @@ HOST_PLUMBING_CLASSES = frozenset({
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
     OWNER_WINDOW_POOL_MISROUTE,
+    # The host refused a paid subscription behind a gateway before any model call (#1743).
+    BLOCKED_CLASS,
     # Host-enforced OpenCode Server stream budget guards and transport plumbing (#1267, #1718).
     "stream_budget_abort_confirmed", "stream_budget_abort_unknown",
     "stream_budget_usage_unknown_before_dispatch", "stream_budget_exhausted_before_dispatch",

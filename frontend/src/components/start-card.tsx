@@ -12,6 +12,7 @@ import {
   type PlatformGoal,
 } from "@/lib/platform-client";
 import { cn } from "@/lib/cn";
+import { explainPaidGateway } from "@/lib/runtime-labels";
 
 const CHECK_LABELS: Record<string, string> = {
   request: "窗口参数",
@@ -225,7 +226,7 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
               </ul>
               {report.scope.pool_skipped?.length ? (
                 <p data-testid="start-pool-skipped" className="mt-1 text-ra-text-tertiary">
-                  不会使用：{report.scope.pool_skipped.join("、")}
+                  不会使用：{explainPaidGateway(report.scope.pool_skipped.join("、"))}
                 </p>
               ) : null}
             </div>

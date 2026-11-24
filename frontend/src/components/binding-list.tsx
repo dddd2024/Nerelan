@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import type { Binding, Connection } from "@/schemas/model-access";
 import { cn } from "@/lib/cn";
+import { dispatchBlockLabel } from "@/lib/runtime-labels";
 
 interface BindingListProps {
   bindings: Binding[];
@@ -116,6 +117,11 @@ export function BindingList({ bindings, connections, selectedId, onSelect }: Bin
                     <span className="truncate text-xs text-ra-text-tertiary">
                       {bind.executorId} · {bind.modelId}
                     </span>
+                    {bind.dispatchBlock ? (
+                      <span data-testid={`binding-blocked-${bind.bindingId}`} className="text-xs text-ra-status-warning">
+                        {dispatchBlockLabel(bind.dispatchBlock)}
+                      </span>
+                    ) : null}
                     {twins > 1 ? (
                       <span data-testid={`binding-duplicate-${bind.bindingId}`} className="text-xs text-ra-status-warning">
                         同一连接下有 {twins} 个同名绑定，可能是测试遗留
