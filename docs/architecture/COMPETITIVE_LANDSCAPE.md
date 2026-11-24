@@ -55,4 +55,10 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | `boadij/pi-herdsman` | multi-agent coding orchestration | 异步子 Agent 与并行编码 Agent 编排 |
 | `y5ez3g/facadecode` | multi-agent coding orchestration | VS Code 中的多 Agent 编排，跨窗口和机器运行 Claude Code、Codex |
 
-这些尚未分诊；`pi-harness` 自述的"治理、故障恢复、评测"与 Nerelan 定位最接近，建议优先查看。
+以上雷达是 **2026-11-08 的历史候选快照**，不代表当前仍未分诊。各项目最新的 pinned-source 研究状态请查询 [#1576 总索引](https://github.com/dddd2024/Nerelan/issues/1576) 与后续研究 Issue / Draft PR。
+
+## 专项补充：TaskWeaver（2026-11-17，研究分支）
+
+| 项目 | 已核验上游 / 研究归档 | 结合 Nerelan 的结论 |
+|---|---|---|
+| [`microsoft/TaskWeaver`](https://github.com/microsoft/TaskWeaver) · [`d44ddef23`](https://github.com/microsoft/TaskWeaver/commit/d44ddef23f90059fb17999d3095db4240e98f955) · MIT · **2026-03-23 上游归档为只读** | [Issue #1641](https://github.com/dddd2024/Nerelan/issues/1641) / [固定源码报告](reuse-study-2026-11-16/taskweaver.md) | **BORROW_PATTERN**：Plugin YAML manifest 与 Python 实现分离；按 Session 的 `Kernel–Code–Artifact` 执行溯源、Role-specific Memory；Model 可见 Plugin vs 实际加载/执行权限分开。**REJECT**：YAML `do_validate=False` 路径的未验证 schema、所有 enabled Plugin 在首次执行时预加载、Local Kernel `os.environ.copy()` 继承秘密、AST `code_verification_on=False` 默认以及 AST 当沙箱、可变 Docker `:latest` 和临时 Jupyter 内存作为持久 Goal 真相。Archived upstream，不建议直接接入运行时。此审计只读，未安装/测试/合入 main。 |
