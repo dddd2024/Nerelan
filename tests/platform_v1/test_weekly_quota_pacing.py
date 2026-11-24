@@ -620,3 +620,50 @@ def test_admission_and_in_flight_use_the_released_reserve_for_that_window_only()
     kwargs = dict(reservation_id="r", spent={}, now=NOW)
     assert projection(evidence(), need, (), **kwargs)["decision"] == "quota_wait"
     assert projection(evidence(), marked, (), **kwargs)["decision"] == "ok"
+    spent = {"five_hour": 5, "weekly": 9}
+    assert projection(evidence(weekly_used=100), marked, (), **{**kwargs, "spent": spent})["decision"] == "quota_wait"
+
+
+def test_an_unreadable_policy_releases_nothing_and_does_not_raise(monkeypatch):
+    import inspect
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1 import quota_reservation, trusted_host
+
+    owner = next(cls for _, cls in inspect.getmembers(trusted_host, inspect.isclass)
+                 if "_prepare_task_quota" in vars(cls))
+    prepared = []
+
+    class Host:
+        _prepare_task_quota = vars(owner)["_prepare_task_quota"]
+        _store = SimpleNamespace(
+            list_bindings_public=lambda: [{"binding_id": "b", "connection_id": "c"}],
+            get_connection_public=lambda _id: {"connection_id": "c", "account_ref": "a",
+                                               "auth_method": "external_cli_session",
+                                               "executor_provider_id": provider})
+        _task_store = SimpleNamespace(get_task=lambda _id: task)
+        _control_store = SimpleNamespace(prepare_quota_admission=lambda **kw: prepared.append(kw["need"]),
+                                         goal_id_for_task=lambda _id: None)
+
+        def _account_quota_candidates(self, *_):
+            return []
+
+        def _subscription_quotas(self):
+            return []
+
+        def _aged_account_reading(self, *_, **__):
+            return None
+
+        def _account_task_need(self, *_):
+            return need
+
+        def _weekly_pace_policy(self):
+            raise ValueError("invalid_model_routing_overrides")
+
+    from reverse_agent.model_access.contracts import NATIVE_CLI_PROVIDERS
+    provider = next(iter(NATIVE_CLI_PROVIDERS))
+    need = {"windows": {"weekly": {"p80": 6}}}
+    task = SimpleNamespace(id="t", binding_ref="b", executor_kind="codex", status="QUEUED")
+    monkeypatch.setattr(quota_reservation, "observation", lambda *a, **k: {"fresh": True, "windows": []})
+    monkeypatch.setattr("reverse_agent.platform_v1.usage_ledger.estimation_records", lambda store: [], raising=False)
+    Host()._prepare_task_quota(task)
+    assert prepared == [need]

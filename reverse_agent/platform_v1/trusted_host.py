@@ -1229,7 +1229,10 @@ class CombinedTrustedHost:
             evidence = quota_reservation.aged_evidence(
                 self._aged_account_reading(connection, now=now), now=now) or evidence
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
-        pace = self._weekly_pace_policy()
+        try:
+            pace = self._weekly_pace_policy()
+        except (OSError, ValueError):
+            pace = {}  # an unreadable policy releases nothing and never stops the tick
         if pace.get("enabled") and task.executor_kind in pace.get("executors", ()):
             need = quota_reservation.release_weekly_reserve(
                 need, evidence, release_hours=float(pace.get("reserve_release_hours", 0)), now=time.time())

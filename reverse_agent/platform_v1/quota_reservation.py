@@ -270,7 +270,8 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         # Only for the window it was released for: a renewed week keeps its reserve.
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
-        if p80 + reserved > 100 - used - margin:
+        # A spent window always waits, however small the need.
+        if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
             waits.append((name, reset if reset is not None and reset > now else None))
     return {"decision": "quota_wait" if waits else "ok", "reason": "quota_capacity" if waits else "quota_fit",
             "state": "UNKNOWN" if uncertain else "OBSERVED", "blocking_windows": [w for w, _ in waits],
