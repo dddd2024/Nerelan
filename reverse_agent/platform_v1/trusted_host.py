@@ -1305,7 +1305,10 @@ class CombinedTrustedHost:
             evidence = quota_reservation.aged_evidence(
                 self._aged_account_reading(connection, now=now), now=now) or evidence
         need = self._account_task_need(binding, task, evidence, estimation_records(self._task_store))
-        pace = self._weekly_pace_policy()
+        try:
+            pace = self._weekly_pace_policy()
+        except (OSError, ValueError):
+            pace = {}  # an unreadable policy releases nothing and never stops the tick
         if pace.get("enabled") and task.executor_kind in pace.get("executors", ()):
             need = quota_reservation.release_weekly_reserve(
                 need, evidence, release_hours=float(pace.get("reserve_release_hours", 0)), now=time.time())
@@ -1874,6 +1877,7 @@ class CombinedTrustedHost:
                 github=RoutedLandingGitHubAdapter(self._control_store),
                 owner_decisions=self._landing_owner_decisions,
                 source_issue_closed=self._goal_service.stop_if_source_closed)
+            from .workspace_reclaim import configured_disk_guard
             self._coordinator = UnattendedCoordinator(
                 store=self._task_store,
                 control_store=self._control_store,
@@ -1891,6 +1895,8 @@ class CombinedTrustedHost:
                 idle_wait_hint=self._multi_account_idle_wait,
                 quota_wait_target=self._quota_wait_target(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
+                # Independent of REVERSE_AGENT_WORKSPACE_RECLAIM: works when reclaim is off.
+                disk_guard=configured_disk_guard(workspace_root),
             )
             self._pool_monitor = self._build_pool_monitor()
             if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1":

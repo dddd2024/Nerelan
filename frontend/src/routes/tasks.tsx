@@ -2,6 +2,8 @@ import { Link, useSearchParams } from "react-router";
 import { useEffect, useMemo } from "react";
 import { ListChecks } from "lucide-react";
 import { useTasks } from "@/hooks/use-tasks";
+import { usePlatformStatus } from "@/hooks/use-platform";
+import { diskHoldLine } from "@/lib/disk-status";
 import { TaskInbox } from "@/components/task-inbox";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/cn";
@@ -16,6 +18,7 @@ export const TASK_LIST_REFRESH_INTERVAL_MS = 2_500;
  */
 export function TasksPage() {
   const { data, isLoading, isError, error, refetch } = useTasks();
+  const platform = usePlatformStatus();
   const [searchParams] = useSearchParams();
   const repository = searchParams.get("repository")?.trim() ?? "";
   const filtered = useMemo(
@@ -87,6 +90,7 @@ export function TasksPage() {
           isLoading={isLoading}
           isError={isError}
           error={error}
+          queueHold={diskHoldLine(platform.data?.coordinator.disk)}
         />
       </div>
     </main>
