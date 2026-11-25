@@ -52,6 +52,8 @@ def capability(model: str, profile: Mapping[str, Any], kind: str, difficulty: in
 
 # A dot between two digits is a version separator: "glm-5.3" and "glm-5-3" are one model.
 _VERSION_DOT = re.compile(r"(?<=\d)\.(?=\d)")
+_CLAUDE_ALIASES = frozenset({"sonnet", "opus", "haiku"})
+_CLAUDE_ALIAS_RE = re.compile(r"^claude-(sonnet|opus|haiku)(?:-[0-9a-z.-]+)?$")
 
 
 def _base_identity(model: str) -> str:
@@ -59,6 +61,21 @@ def _base_identity(model: str) -> str:
     while identity.endswith((":free", "-free")):
         identity = identity.removesuffix(":free").removesuffix("-free")
     return _VERSION_DOT.sub("-", identity)
+
+
+def same_model_identity(left: str, right: str, groups: Mapping[str, Any] | None = None) -> bool:
+    """Whether ``left`` and ``right`` name the same model identity, or bare/pinned Claude aliases."""
+    a, b = model_identity(left, groups), model_identity(right, groups)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    for bare, concrete in ((a, b), (b, a)):
+        if bare in _CLAUDE_ALIASES:
+            match = _CLAUDE_ALIAS_RE.fullmatch(concrete)
+            if match and match.group(1) == bare:
+                return True
+    return False
 
 
 def model_identity(model: str, groups: Mapping[str, Any] | None = None) -> str:
@@ -205,6 +222,23 @@ def weekly_pace_decision(candidate: Mapping[str, Any], *, now: float,
         release = float(pace.get("reserve_release_hours", 0)) * 3600
         return float(max(now, resets - release) if reserve and demand <= 1 else resets), "weekly_reserve"
     return float(max(now, min(resets, start + WEEK_SECONDS * (demand - slack)))), "ahead_of_pace"
+
+
+def weekly_pace_penalty(candidate: Mapping[str, Any], *, now: float,
+                        pace: Mapping[str, Any] | None) -> float:
+    """Soft scoring penalty when a paced account is ahead of elapsed week without hitting reserve."""
+    _, cause = weekly_pace_decision(candidate, now=now, pace=pace)
+    if cause != "ahead_of_pace":
+        return 0.0
+    headroom = candidate.get("weekly_headroom")
+    resets = candidate.get("weekly_resets_at")
+    need = candidate.get("task_weekly_fraction")
+    need = need if type(need) in (int, float) and math.isfinite(need) and need >= 0 else UNKNOWN_WEEKLY_NEED
+    slack = float((pace or {}).get("slack", .10))
+    elapsed = min(1., max(0., (now - (resets - WEEK_SECONDS)) / WEEK_SECONDS))
+    demand = (1 - headroom) + need
+    overshoot = max(0., min(1., demand - (elapsed + slack)))
+    return round(min(1.5, overshoot * 3.0), 4)
 
 
 # Most mirror reset events confirm a reset that already landed ("the reset has been
@@ -359,11 +393,19 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         # #1248/#1281): allowance that the reset will void is not saved for later.
         pace_hold, pace_cause = (None, "") if candidate["executor_id"] == "codex" and reset["drain"] else (
             weekly_pace_decision(candidate, now=now, pace=weekly_pace))
+        soft_pace = bool((weekly_pace or {}).get("soft_pacing", True))
+        pace_penalty = 0.0
+        if pace_cause == "ahead_of_pace" and soft_pace:
+            pace_penalty = weekly_pace_penalty(candidate, now=now, pace=weekly_pace)
+            pace_hold = None
         reason = ""
         review_transport = ""
         if artifact_review:
             if candidate["executor_id"] == "codex":
                 review_transport = "codex"
+            elif candidate["executor_id"] == "claude_code" and not (
+                    candidate.get("review_connection") or {}).get("relay_required"):
+                review_transport = "claude_code"
             else:
                 try:
                     connection = candidate.get("review_connection") or {}
@@ -432,7 +474,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             reason = "refusal_rate"
         elif reviewing and not identity(candidate["model_id"]):
             reason = "review_identity_unknown"  # an undeclared routing group is never independent
-        elif reviewing and identity(candidate["model_id"]) in authors:
+        elif reviewing and any(same_model_identity(candidate["model_id"], author, groups) for author in authors):
             reason = "reviewer_is_author"
         elif candidate.get("cost_class", "paid_api") == "paid_api" and not allow_paid:
             reason = "paid_spend_disabled"
@@ -482,15 +524,26 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         availability_penalty = candidate.get("availability", {}).get("penalty", 0.)
         # Use a time-limited allowance or expiring credits before they lapse (#1471).
         resource_urgency = urgency(candidate.get("resources"), now=now)
+        success = bucket.get("success_rate")
+        reliability_penalty = (
+            round(2.5 * (1.0 - max(0.0, min(1.0, float(success)))), 4)
+            if success is not None and type(bucket.get("attempts")) is int and bucket["attempts"] >= MIN_SAMPLES
+            else 0.0
+        )
         adjusted = (cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty
-                    - context_bonus - resource_urgency)
+                    + pace_penalty + reliability_penalty - context_bonus - resource_urgency)
         breakdown = {"availability_rank": int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),
                      "base_cost": base_cost, "tool_penalty": tool_penalty, "availability_penalty": availability_penalty,
                      "resource_urgency": resource_urgency,
+                     "pace_penalty": pace_penalty, "reliability_penalty": reliability_penalty,
                      "refusal_penalty": refusal_penalty, "context_bonus": context_bonus,
                      "latency_penalty": latency_penalty, "reset_adjustment": cost - base_cost,
                      "quota_pressure": 1. - headroom if observed_headroom is not None else None, "quota_penalty": quota_penalty}
-        success = bucket.get("success_rate")
+        if pace_penalty > 0:
+            breakdown["pace_cause"] = "ahead_of_pace"
+            pace_retry, _ = weekly_pace_decision(candidate, now=now, pace=weekly_pace)
+            if pace_retry is not None:
+                breakdown["pace_retry_at"] = pace_retry
         speed = override.get("median_ok_seconds", bucket.get("median_ok_seconds"))
         characteristics = {key: metadata.get(key) for key in
                            ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
@@ -583,7 +636,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
             pool = [c for c in pool if c["tier"] == max(item["tier"] for item in pool)]
     if artifact_review and codex_authored and not pinned:
         best_availability = min(c["availability_rank"] for c in pool)
-        independent_toolless = [c for c in pool if c["review_transport"] == "toolless"
+        independent_toolless = [c for c in pool if c["review_transport"] in {"toolless", "claude_code"}
                                 and c["availability_rank"] == best_availability]
         pool = independent_toolless or pool
     exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]

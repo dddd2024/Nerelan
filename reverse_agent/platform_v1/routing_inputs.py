@@ -178,6 +178,9 @@ DEFAULT_WEEKLY_PACE: dict[str, Any] = {
     "slack": .10, "reserve": .10,
     # The reserve is released this many hours before the weekly reset; 0 keeps it to the end.
     "reserve_release_hours": 0,
+    # True (Owner decision 2026-11-25): ahead-of-pace slows selection via soft
+    # penalty rather than hard exclusion; reserve and freshness holds stay hard.
+    "soft_pacing": True,
     # True: a paced account whose weekly usage is unknown or stale is held, not
     # left to the other quota rules (Owner decision 2026-11-08, long-run plan).
     "require_fresh": False}
@@ -419,7 +422,7 @@ def read_overrides(state_path: Path | None) -> dict[str, Any]:
         raise ValueError("invalid_model_routing_overrides")
     pace = data.get("weekly_pace", {})
     if (not isinstance(pace, dict) or set(pace) - set(DEFAULT_WEEKLY_PACE)
-            or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh"))
+            or any(key in pace and type(pace[key]) is not bool for key in ("enabled", "require_fresh", "soft_pacing"))
             or any(key in pace and (not isinstance(pace[key], list)
                                     or any(not isinstance(x, str) or not x for x in pace[key]))
                    for key in ("executors", "providers"))

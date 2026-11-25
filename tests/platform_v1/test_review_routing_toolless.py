@@ -186,3 +186,21 @@ def test_retained_attempt_executors_and_models_reach_review_routing():
             candidate("tool", "supported", "subscription")]
     facts.pop("author_bindings")
     assert choose(pool, kind="review", **facts)["binding_ref"] == "tool"
+
+
+def test_native_claude_code_can_review_codex_and_opencode_without_self_review():
+    native_claude = candidate("claude-sonnet", "sonnet", "subscription", executor="claude_code")
+    native_claude["review_connection"] = {"auth_method": "external_cli_session", "relay_required": False,
+                                          "native_endpoint": "/chat/completions"}
+    native_claude["review_lease_provider"] = None
+    codex = candidate("codex", "gpt-6.1-sol", "subscription", executor="codex")
+    # Native claude_code is accepted for review and preferred over codex when codex authored or as independent peer.
+    assert choose([native_claude, codex], kind="review", author_models=["gpt-6.1-sol"],
+                  author_executors=["codex"])["binding_ref"] == "claude-sonnet"
+    assert choose([native_claude], kind="review", author_models=["kimi-k3"],
+                  author_executors=["opencode"])["binding_ref"] == "claude-sonnet"
+    # Concrete claude-sonnet author blocks sonnet alias reviewer, while distinct tier opus remains allowed.
+    with pytest.raises(ModelSelectionError, match="review_not_independent") as caught:
+        choose([native_claude], kind="review", author_models=["claude-sonnet-5-5"])
+    assert caught.value.decision["excluded_candidates"][0]["filter"] == "reviewer_is_author"
+    assert choose([native_claude], kind="review", author_models=["opus"])["binding_ref"] == "claude-sonnet"

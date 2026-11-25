@@ -40,7 +40,8 @@ def pace_state(status: AccountStatus, pace: Optional[Mapping[str, Any]], now: fl
     (``drain_since`` is its announcement time) lifts the hold here too, unless
     this account's week began after it: then its reset happened, as in routing.
     """
-    from ..model_router import RENEWAL_MARGIN_SECONDS, WEEK_SECONDS, active_reserve, weekly_pace_hold
+    from ..model_router import (RENEWAL_MARGIN_SECONDS, WEEK_SECONDS, active_reserve,
+                                 weekly_pace_decision, weekly_pace_penalty)
     executor = _PACED_EXECUTOR.get(magpie_route_provider(status.provider) or "")
     weekly = next((w for w in status.windows if w.window in {"7 days", "weekly", "7d", "week"}
                    and w.used_percent is not None and w.resets_at is not None and not w.reset_passed), None)
@@ -51,11 +52,14 @@ def pace_state(status: AccountStatus, pace: Optional[Mapping[str, Any]], now: fl
     elapsed = min(1., max(0., (now - (weekly.resets_at - WEEK_SECONDS)) / WEEK_SECONDS))
     draining = (executor == "codex" and drain_since is not None
                 and weekly.resets_at - WEEK_SECONDS <= drain_since - RENEWAL_MARGIN_SECONDS)
+    hold, cause = weekly_pace_decision(candidate, now=now, pace=pace)
+    soft_ahead = (not draining) and cause == "ahead_of_pace" and bool(pace.get("soft_pacing", True))
     return {"used": weekly.used_percent / 100,
             # Same reading as the Magpie panel's "配速 +20%": spend minus elapsed share of the week.
             "deviation": weekly.used_percent / 100 - elapsed,
             "line": min(1 - active_reserve(pace, resets=weekly.resets_at, now=now), elapsed + float(pace.get("slack", .1))),
-            "held_until": None if draining else weekly_pace_hold(candidate, now=now, pace=pace),
+            "held_until": None if (draining or soft_ahead) else hold,
+            "soft_penalty": weekly_pace_penalty(candidate, now=now, pace=pace) if soft_ahead else 0.0,
             "draining": draining,
             "resets_at": weekly.resets_at}
 

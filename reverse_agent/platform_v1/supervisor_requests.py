@@ -77,6 +77,8 @@ _FIELDS = {
     # and retry a stopped step, as the Owner can in the client.
     "status": {"action", "goal_id"},
     "stop_window": {"action", "window_id", "reason"},
+    "pause_dispatch": {"action", "reason"},
+    "resume_dispatch": {"action"},
     "retry_step": {"action", "goal_id", "step", "revision", "binding_ref"},
 }
 _REF = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
@@ -231,6 +233,21 @@ class SupervisorRequests:
                 label = _printable(reason)[:160]
                 result = window_to_dict(self._host._control_store.stop_window(
                     window_id, reason="supervisor_stopped" + (f": {label}" if label else "")))
+            elif action == "pause_dispatch":
+                reason = payload.get("reason", "")
+                if not isinstance(reason, str):
+                    raise TaskStoreError("supervisor_request_invalid")
+                coordinator = getattr(self._host, "_coordinator", None)
+                if coordinator is None:
+                    raise TaskStoreError("coordinator_unavailable")
+                coordinator.stop(timeout=0.0)
+                result = {**coordinator.status(), **({"reason": _printable(reason)[:160]} if _printable(reason) else {})}
+            elif action == "resume_dispatch":
+                coordinator = getattr(self._host, "_coordinator", None)
+                if coordinator is None:
+                    raise TaskStoreError("coordinator_unavailable")
+                coordinator.start()
+                result = coordinator.status()
             else:
                 goal_id, step = payload.get("goal_id"), payload.get("step")
                 revision, binding_ref = payload.get("revision"), payload.get("binding_ref", "")
@@ -274,14 +291,18 @@ class SupervisorRequests:
         """Read-only: the active window and the recent Goals, or one Goal with its retry options."""
         control = self._host._control_store
         active = control.active_window()
+        coordinator = getattr(self._host, "_coordinator", None)
+        coord_status = coordinator.status() if coordinator is not None else None
         if goal_id:
             if not _ref(goal_id):
                 raise TaskStoreError("supervisor_request_invalid")
             goal = control.get_goal(goal_id)
             return {"active_window": window_to_dict(active) if active else None,
+                    "coordinator": coord_status,
                     "goal": self._goal_summary(goal), "retry": self._host._goal_service.retry_options(goal.id)}
         goals = control.list_goals(limit=STATUS_GOALS)
         return {"active_window": window_to_dict(active) if active else None,
+                "coordinator": coord_status,
                 "goals": [self._goal_summary(goal) for goal in goals]}
 
 
@@ -373,6 +394,9 @@ def main(argv: list[str] | None = None) -> int:
     stop = actions.add_parser("stop_window")
     stop.add_argument("--window", required=True, dest="window_id")
     stop.add_argument("--reason", default="")
+    pause = actions.add_parser("pause_dispatch")
+    pause.add_argument("--reason", default="")
+    actions.add_parser("resume_dispatch")
     retry = actions.add_parser("retry_step")
     retry.add_argument("--goal", required=True, dest="goal_id")
     retry.add_argument("--step", required=True)

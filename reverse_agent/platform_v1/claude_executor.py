@@ -130,9 +130,10 @@ def probe_claude_code_readiness(exe: str | None = None, *, runner=subprocess.run
         return "cli_unavailable"
 
 
-def build_claude_argv(cli: str, model: str, sandbox: str, *, relay_mode: bool = False) -> list[str]:
+def build_claude_argv(cli: str, model: str, sandbox: str, *, relay_mode: bool = False,
+                      review_only: bool = False) -> list[str]:
     if sandbox == "read-only":
-        tools, mode = READ_TOOLS, "dontAsk"
+        tools, mode = (() if review_only else READ_TOOLS), "dontAsk"
     elif sandbox == "workspace-write":
         # acceptEdits approves edits to files inside the working directory only.
         tools, mode = READ_TOOLS + WRITE_TOOLS, "acceptEdits"
@@ -211,6 +212,17 @@ class ClaudeCodeExecutor(CodexExecutor):
             self._relay_env = {}
             lease.release()
 
+    def enforces_read_only_review(self):
+        return self.KIND == "claude_code" and self._sandbox == "read-only" and not self.relay_mode
+
+    def execute_review_prepared(self, prepared, store, *, task_id, prompt):
+        """Run toolless official CLI review inside the confined read-only session."""
+        self._review_only = True
+        try:
+            return super().execute_review_prepared(prepared, store, task_id=task_id, prompt=prompt)
+        finally:
+            self._review_only = False
+
     def _validate_options(self) -> None:
         build_claude_argv("claude", self._model_id, self._sandbox, relay_mode=self.relay_mode)
 
@@ -219,7 +231,8 @@ class ClaudeCodeExecutor(CodexExecutor):
 
     def _argv(self, prepared) -> list[str]:
         # The workspace is the process cwd; the prompt arrives on stdin.
-        return build_claude_argv(prepared.cli_path, self._model_id, self._sandbox, relay_mode=self.relay_mode)
+        return build_claude_argv(prepared.cli_path, self._model_id, self._sandbox, relay_mode=self.relay_mode,
+                                 review_only=bool(getattr(self, "_review_only", False)))
 
     def _child_env(self) -> dict[str, str]:
         return {**claude_child_env(self._parent_env), **getattr(self, "_relay_env", {})}

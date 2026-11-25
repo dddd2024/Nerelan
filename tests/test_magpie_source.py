@@ -265,6 +265,17 @@ def test_fetch():
     assert all(secret not in json.dumps(result) for secret in PRIVATE)
 
 
+def test_fetch_active_refresh_omits_kept_query():
+    calls = []
+    raw = quota()
+    raw["readAt"] = datetime.now(timezone.utc).isoformat()
+    result = fetch_magpie_snapshot(opener=fixture_opener([
+        {"name": "magpie", "version": "0.1.1250"}, envelope({"id": "workbuddy/glm-5.2"}), envelope(raw)], calls),
+        refresh=True)
+    assert result["status"] == "available"
+    assert [r.full_url for r in calls] == ["http://127.0.0.1:3425/api/hello", "http://127.0.0.1:3425/v1/models", "http://127.0.0.1:3425/v1/magpie/quotas"]
+
+
 def test_not_magpie_stops():
     calls = []
     result = fetch_magpie_snapshot(opener=fixture_opener([{"name": "other"}], calls))

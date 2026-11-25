@@ -745,3 +745,29 @@ def test_native_pacing_uses_the_aged_lower_bound_unpadded(monkeypatch):
     view = h.host._native_pace_quota(h.connection)
     assert {w["window"]: w["used_percent"] for w in view["windows"]} == {"five_hour": 5.0, "weekly": 12.0}
     assert h.host._account_quota(h.connection).get("windows", []) == []  # the guard keeps its contract
+
+
+def test_stale_paced_account_triggers_bounded_active_refresh(monkeypatch):
+    stale = _aged("claude-acct", used=2.0, weekly=45.0, age=2400, provider="claude")
+    fresh = _account("claude-acct", used=2.0, weekly=45.0, provider="claude", age=5)
+    calls = []
+
+    def fetch(*args, **kwargs):
+        refresh = bool(kwargs.get("refresh", False))
+        calls.append(refresh)
+        return _snapshot(fresh if refresh else stale)
+
+    h = _host(monkeypatch, _snapshot(stale), account_ref="claude-acct", provider="claude")
+    monkeypatch.setattr(magpie, "fetch_magpie_snapshot", fetch)
+    merged = h.host._subscription_quotas()
+    assert calls == [False, True]
+    assert merged["magpie-account:claude-acct"]["state"] == "OBSERVED"
+    assert len(merged["magpie-account:claude-acct"]["windows"]) == 2
+    # Cooldown suppresses repeated active refreshes inside MAGPIE_QUOTA_REFRESH_COOLDOWN_SECONDS.
+    calls.clear()
+    h.host._subscription_quota_cache = None
+    monkeypatch.setattr(magpie, "fetch_magpie_snapshot",
+                        lambda *a, **k: calls.append(bool(k.get("refresh", False))) or _snapshot(stale))
+    merged2 = h.host._subscription_quotas()
+    assert calls == [False]
+    assert "magpie-account:claude-acct" not in merged2
