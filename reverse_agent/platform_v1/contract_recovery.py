@@ -57,13 +57,13 @@ def retain_interrupted_tree(store, task_id, *, worktree):
     head = git_output(root, "rev-parse", "HEAD")
     if git_output(root, "merge-base", base, head) != base:
         raise TaskStoreError("failed_snapshot_base_mismatch")
-    _, tree, changed, hygiene = _snapshot_workspace(root, base)
+    base_tree, tree, changed, hygiene = _snapshot_workspace(root, base)
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", value) for value in (task.id, task.execution_id)):
         raise TaskStoreError("failed_snapshot_identity_invalid")
     ref = f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"
     document = {"task_id": task.id, "execution_id": task.execution_id, "repository": task.repository,
         "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
-        "base_commit": base, "head": head, "tree": tree, "ref": ref,
+        "base_commit": base, "base_tree": base_tree, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": "",
         "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
         "feedback": (TERMINATED_FEEDBACK if task.failure_classification == EXECUTOR_TERMINATED
@@ -72,7 +72,7 @@ def retain_interrupted_tree(store, task_id, *, worktree):
         "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
-        if previous != document:
+        if previous != document and not ("base_tree" not in previous and {**previous, "base_tree": base_tree} == document):
             raise TaskStoreError("failed_snapshot_conflict")
         return previous
     found = subprocess.run(["git", "-C", str(root), "show-ref", "--verify", "--hash", ref],

@@ -12,6 +12,7 @@ and the Owner still reviews, edits and approves it.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import threading
 import time
@@ -26,6 +27,8 @@ from .opencode_executor import redact_secrets
 from .run_store import TaskStoreError
 from .task_runtime import ExecutorRuntimeError
 from . import repository_preparation
+
+LOG = logging.getLogger(__name__)
 
 ROLE_GUIDE = {
     "planner": "decomposition and design only (expensive; avoid for implementation)",
@@ -347,6 +350,7 @@ class PlanJob:
     planner: dict[str, str] = field(default_factory=dict)
     usage: dict[str, int] | None = None
     raw_excerpt: str = ""
+    transient: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         data = {"goal_id": self.goal_id, "status": self.status, "error": self.error,
@@ -357,6 +361,8 @@ class PlanJob:
         # Only a failed parse keeps the raw excerpt, so the cause can be diagnosed.
         if self.status == "FAILED" and self.raw_excerpt:
             data["raw_excerpt"] = self.raw_excerpt
+        if self.status == "FAILED" and self.transient:
+            data["transient"] = True
         return data
 
 
@@ -364,16 +370,54 @@ _RUNTIME_CODES = frozenset({
     "native_task_temp_unavailable", "planner_path_invalid", "planner_base_invalid",
     "planner_git_failed", "planner_preparation_failed", "planner_identity_invalid",
     "planner_busy", "planner_destination_exists", "planner_head_mismatch",
+    "repository_preparation_failed", "repo_dir_required", "repo_dir_invalid",
+    "repo_dir_not_a_git_repository", "repo_dir_has_no_HEAD", "base_ref_unresolved",
+    "worktree_add_failed", "worktree_head_mismatch", "worktree_must_be_outside_repo_dir",
+    "worktree_not_registered",
 } | {f"{kind}_{suffix}" for kind in ("codex", "claude_code") for suffix in (
     "cli_missing", "cli_requires_native_executable", "cli_unavailable", "model_id_invalid",
     "sandbox_invalid", "timeout_invalid", "managed_login_unavailable", "process_start_failed",
     "requires_managed_session_binding", "session_unavailable", "relay_requires_lease_provider",
 )} | {
-    "opencode_cli_missing", "opencode_cli_unavailable", "opencode_execution_timeout",
-    "opencode_model_id_invalid", "opencode_transport_kind_invalid", "binding_executor_mismatch",
+    "opencode_cli_missing", "opencode_cli_not_found", "opencode_cli_unavailable",
+    "opencode_execution_timeout", "invalid_execution_timeout",
+    "opencode_model_id_invalid", "model_id_must_be_string", "model_id_required",
+    "model_id_must_not_have_leading_trailing_whitespace", "model_id_too_long",
+    "model_id_contains_control_characters", "model_id_contains_invalid_characters",
+    "model_id_must_be_provider_model_form", "model_id_contains_whitespace",
+    "opencode_transport_kind_invalid", "binding_executor_mismatch",
     "api_key_requires_relay", "lease_provider_required", "lease_id_required", "relay_url_required",
     "api_key_lease_required", "external_session_unavailable", "magpie_unreachable", "opencode_nonzero",
+    "binding_disabled", "binding_not_found", "binding_fetch_failed", "binding_identity_mismatch",
+    "connection_disabled", "connection_not_found", "connection_fetch_failed", "connection_identity_mismatch",
+    "executor_not_operational", "executor_not_found", "executor_fetch_failed", "executor_identity_mismatch",
+    "model_control_unavailable", "model_control_url_invalid", "model_control_not_loopback",
+    "model_control_invalid_json", "model_control_response_too_large", "subscription_through_gateway_forbidden",
+    "auth_method_unsupported", "binding_requires_opencode_executor",
 })
+
+_TRANSIENT_PLANNER_CODES = frozenset({
+    "no_runnable_model", "pinned_model_unavailable", "api_error_429", "quota_exhausted",
+    "provider_quota_limit", "provider_overloaded", "network_provider_failure",
+    "upstream_connection", "executor_stalled", "opencode_execution_timeout", "timeout",
+    "magpie_unreachable", "model_control_unavailable", "executor_terminated",
+    "rate_limit", "transient_overload",
+})
+_TRANSIENT_PLANNER_RE = re.compile(r"(?:429|502|503|529|rate[_ ]limit|quota|overload|timed?[_ ]?out|stalled)", re.IGNORECASE)
+
+
+def is_transient_planner_error(error: str) -> bool:
+    """True when a planner failure reflects transient capacity, network or control unavailability."""
+    if not isinstance(error, str) or not error:
+        return False
+    code = error.removeprefix("agent_planner_error:").split(":", 1)[0].strip()
+    if code.lower() in _TRANSIENT_PLANNER_CODES:
+        return True
+    if error.startswith(("agent_plan_", "unsupported_", "goal_", "artifact_input_")) or code in {
+        "planner_base_invalid", "binding_disabled", "subscription_through_gateway_forbidden",
+    }:
+        return False
+    return bool(_TRANSIENT_PLANNER_RE.search(error))
 
 
 def _runtime_error_code(exc: ExecutorRuntimeError) -> str:
@@ -489,8 +533,12 @@ class AgentPlanner:
             outcome, error = "FAILED", str(exc)[:200]
         except Exception as exc:  # noqa: BLE001 - surface any planner failure as a finite code
             outcome, error = "FAILED", f"agent_planner_error:{type(exc).__name__}"
+        transient = outcome == "FAILED" and is_transient_planner_error(error)
+        if outcome == "FAILED":
+            LOG.warning("agent_planner failed goal=%s binding=%s error=%s transient=%s",
+                        goal.id, binding_ref, error, transient)
         with self._lock:
-            job.status, job.error, job.finished_at = outcome, error, time.time()
+            job.status, job.error, job.finished_at, job.transient = outcome, error, time.time(), transient
 
 
 def planner_status_payload(planner: AgentPlanner | None, goal_id: str) -> Mapping[str, Any]:

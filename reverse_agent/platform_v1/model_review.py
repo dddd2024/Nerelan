@@ -276,8 +276,8 @@ def review_authors(store, task, binding):
             observations = store.list_usage_observations(author_id)
             observed = {model_router.model_identity(row.model_id, groups) for row in observations if row.model_id}
             author_task = store.get_task(author_id)
-            if goals._discarded_without_usage(author_task, observations):
-                continue  # called no model and its tree was discarded: it authored nothing
+            if goals._authored_nothing_without_usage(author_task, observations):
+                continue  # called no model and introduced no tree change: it authored nothing
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
             if author_task.executor_kind in {"codex", "claude_code"}:

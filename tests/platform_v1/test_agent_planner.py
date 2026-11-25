@@ -545,3 +545,23 @@ def test_read_only_opencode_planner_run_uses_devnull_and_parses_json_plan(tmp_pa
     assert cfg["permission"]["bash"] == {"*": "deny"}
     assert cfg["permission"]["edit"]["*"] == "deny"
     assert Path(seen["cwd"]).resolve() == repo.resolve()
+
+
+@pytest.mark.parametrize("raw_error,expected_code,expected_transient", [
+    ("opencode_cli_not_found", "agent_planner_error:opencode_cli_not_found", False),
+    ("model_control_unavailable", "agent_planner_error:model_control_unavailable", True),
+    ("opencode_execution_timeout", "agent_planner_error:opencode_execution_timeout", True),
+    ("binding_disabled", "agent_planner_error:binding_disabled", False),
+])
+def test_planner_surfaces_expanded_runtime_codes_and_transient_flag(tmp_path, raw_error, expected_code, expected_transient):
+    from reverse_agent.platform_v1 import task_runtime
+    goals, goal = _goals()
+
+    def fail(**_):
+        raise task_runtime.ExecutorRuntimeError(raw_error)
+
+    planner, _ = _planner(tmp_path, goals, fail)
+    status = planner.start(goal.id, expected_revision=1, background=False)
+    assert status["status"] == "FAILED"
+    assert status["error"] == expected_code
+    assert bool(status.get("transient")) is expected_transient
