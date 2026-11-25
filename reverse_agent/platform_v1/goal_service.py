@@ -1722,10 +1722,11 @@ class GoalService:
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
             quota_failure = not miss and cause == "quota_or_rate_limit"
+            server_plumbing_failure = not miss and cause in {"server_session_error", "server_role_deadline_exceeded"}
             snapshot = None
             if (patient and not overloaded and not miss
-                    and ((quota_failure and failed.status == "FAILED") or interrupted_dispatch or interrupted_preparation
-                         or no_reply)):
+                    and (((quota_failure or server_plumbing_failure) and failed.status == "FAILED")
+                         or interrupted_dispatch or interrupted_preparation or no_reply)):
                 # Quota answers and interrupted runs past the cap wait out the same doubling
                 # backoff from the attempt's last update, so no failure that repeats in
                 # seconds (e.g. a full disk at preparation) can retry on every tick.
@@ -2298,10 +2299,18 @@ class GoalService:
         return tuple(rows)
 
     def _retain_recoverable_snapshot(self, failed: Any) -> dict[str, Any] | None:
-        """Retain or reuse a non-empty worktree snapshot on FAILED attempts so retries preserve work."""
+        """Retain or reuse a restorable non-empty worktree snapshot on FAILED attempts."""
         if failed.status != "FAILED":
             return None
-        from .contract_recovery import attempt_worktree, failed_snapshot, retain_interrupted_tree
+        from .contract_recovery import (
+            attempt_worktree,
+            failed_snapshot,
+            git_output,
+            load_input_binding,
+            require_reviewable_patch,
+            retain_interrupted_tree,
+            safe_recovery_tree,
+        )
         try:
             root = resolve_repository_workspace(failed.repository).repo_dir
             try:
@@ -2311,9 +2320,22 @@ class GoalService:
                 if worktree is None:
                     return None
                 snapshot = retain_interrupted_tree(self.store, failed.id, worktree=worktree)
+            if not snapshot.get("changed_paths"):
+                return None
+            base = snapshot["base_commit"]
+            source_input = load_input_binding(failed)
+            predecessor = source_input["producer"] if source_input else None
+            apply_base = predecessor["commit"] if predecessor else base
+            expected_tree = git_output(root, "rev-parse", f"{apply_base}^{{tree}}")
+            if predecessor and (expected_tree != predecessor["tree"]
+                    or git_output(root, "merge-base", apply_base, snapshot["head"]) != apply_base):
+                return None
+            recovery_tree = safe_recovery_tree(root, apply_base, snapshot["tree"])
+            paths = tuple((load_contract(failed) or {}).get("allowed_paths", ()))
+            require_reviewable_patch(root, base, recovery_tree, allowed_paths=paths, scope_base=apply_base)
         except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
             return None
-        return snapshot if snapshot.get("changed_paths") else None
+        return snapshot
 
     @staticmethod
     def _approved_base(failed: Any) -> str:
