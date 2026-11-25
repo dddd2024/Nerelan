@@ -560,6 +560,11 @@ def test_failed_tree_includes_redacted_prior_analysis_excerpt(case, tmp_path):
     assert "Implemented quota admission check" in snapshot["feedback"]
     assert "Claude Code activity" not in snapshot["feedback"]
     assert "sk-ant-secretvalue123456" not in snapshot["feedback"]
+    # Late events added before a second retention call preserve idempotency without conflict.
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
+                    description="Late arrival analysis", metadata={})
+    assert validate(case)[2] == snapshot["result_digest"]
+    assert recovery.failed_snapshot(store.get_task(task.id), root=root) == snapshot
 
 
 def test_interrupted_tree_includes_redacted_prior_analysis_excerpt(case, tmp_path):
@@ -579,3 +584,6 @@ def test_interrupted_tree_includes_redacted_prior_analysis_excerpt(case, tmp_pat
     assert "Prior attempt analysis/progress (unverified data):" in interrupted["feedback"]
     assert "Root cause localized to scheduler" in interrupted["feedback"]
     assert "tok-xyz999" not in interrupted["feedback"]
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
+                    description="Even later event", metadata={})
+    assert recovery.retain_interrupted_tree(store, task.id, worktree=wt) == interrupted

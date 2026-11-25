@@ -56,10 +56,36 @@ def _prior_analysis_excerpt(store, task_id: str, *, limit: int = 1200) -> str:
     return public_text("\n".join(snippets), limit)
 
 
+_PRIOR_ANALYSIS_MARKER = "\n\nPrior attempt analysis/progress (unverified data):\n"
+
+
 def _with_prior_analysis(base_feedback: str, excerpt: str) -> str:
     if not excerpt:
         return base_feedback
-    return f"{base_feedback}\n\nPrior attempt analysis/progress (unverified data):\n{excerpt}"
+    return f"{base_feedback}{_PRIOR_ANALYSIS_MARKER}{excerpt}"
+
+
+def _same_snapshot(
+    previous: dict,
+    document: dict,
+    *,
+    base_feedback: str,
+    allow_missing_base_tree: bool = False,
+) -> bool:
+    """True when a prior snapshot matches identically, or only differs by an event-driven prior excerpt."""
+    prev = (
+        {**previous, "base_tree": document["base_tree"]}
+        if allow_missing_base_tree and "base_tree" not in previous and "base_tree" in document
+        else previous
+    )
+    if prev == document:
+        return True
+    if {k: v for k, v in prev.items() if k != "feedback"} != {k: v for k, v in document.items() if k != "feedback"}:
+        return False
+    prev_fb = prev.get("feedback")
+    return isinstance(prev_fb, str) and (
+        prev_fb == base_feedback or prev_fb.startswith(base_feedback + _PRIOR_ANALYSIS_MARKER)
+    )
 
 
 def attempt_worktree(store, task):
@@ -114,7 +140,7 @@ def retain_interrupted_tree(store, task_id, *, worktree):
         "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
-        if previous != document and not ("base_tree" not in previous and {**previous, "base_tree": base_tree} == document):
+        if not _same_snapshot(previous, document, base_feedback=base_feedback, allow_missing_base_tree=True):
             raise TaskStoreError("failed_snapshot_conflict")
         return previous
     found = subprocess.run(["git", "-C", str(root), "show-ref", "--verify", "--hash", ref],
@@ -150,7 +176,8 @@ def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", value) for value in (task.id, task.execution_id)):
         raise TaskStoreError("failed_snapshot_identity_invalid")
     ref = f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"
-    feedback = _with_prior_analysis(functional_feedback(result), _prior_analysis_excerpt(store, task.id))
+    base_feedback = functional_feedback(result)
+    feedback = _with_prior_analysis(base_feedback, _prior_analysis_excerpt(store, task.id))
     document = {"task_id": task.id, "execution_id": task.execution_id, "repository": task.repository,
         "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
@@ -158,8 +185,10 @@ def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
         "failure_kind": result.get("failure_kind"), "feedback": feedback,
         "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
-    if previous is not None and previous != document:
-        raise TaskStoreError("failed_snapshot_conflict")
+    if previous is not None:
+        if not _same_snapshot(previous, document, base_feedback=base_feedback):
+            raise TaskStoreError("failed_snapshot_conflict")
+        return previous
     # Compare-and-create: a different existing ref must never be overwritten.
     found = subprocess.run(["git", "-C", str(root), "show-ref", "--verify", "--hash", ref],
                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
