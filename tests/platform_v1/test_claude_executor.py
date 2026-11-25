@@ -316,3 +316,50 @@ def test_failed_result_clock_reset_uses_host_local_time(monkeypatch):
     turn = parser.finish()
     assert turn.failure_classification == 'claude_code_usage_limit'
     assert turn.failure_reset_at == '2026-10-19T18:30:00Z'
+
+
+def test_claude_read_only_review_argv_and_execution(repository, tmp_path):
+    repo, base = repository
+    review_argv = build_claude_argv("claude", "sonnet", "read-only", review_only=True)
+    assert review_argv[review_argv.index("--tools") + 1] == ""
+    assert review_argv[review_argv.index("--permission-mode") + 1] == "dontAsk"
+    assert "--restricted" in review_argv and "--strict-mcp-config" in review_argv
+
+    seen_argv = []
+    review_events = [
+        {"type": "system", "subtype": "init", "session_id": "rev-sess"},
+        {"type": "result", "subtype": "success", "is_error": False,
+         "result": '{"verdict":"ACCEPT","findings":[]}',
+         "usage": {"input_tokens": 12, "cache_read_input_tokens": 0, "output_tokens": 4},
+         "modelUsage": {"claude-sonnet-5-5": {"inputTokens": 12}}, "total_cost_usd": 0.01},
+    ]
+    review_script = "import sys,json;sys.stdin.read();print(" + repr("\n".join(json.dumps(e) for e in review_events)) + ")"
+
+    def factory(argv, **kwargs):
+        seen_argv.append(list(argv))
+        return subprocess.Popen([sys.executable, "-u", "-c", review_script], **kwargs)
+
+    resolution = SimpleNamespace(binding_ref="claude-sonnet", model_id="sonnet", executor_id="claude_code",
+                                 relay_required=False, auth_method="external_cli_session",
+                                 external_session_status="available")
+    executor = ClaudeCodeExecutor(model_id="sonnet", repo_dir=str(repo), base_ref=base, sandbox="read-only",
+                                  claude_exe=sys.executable, timeout=5, process_factory=factory,
+                                  readiness_probe=lambda _: "managed_login_ready",
+                                  binding_resolution=resolution, parent_env={"PATH": str(Path(sys.executable).parent)})
+    assert executor.enforces_read_only_review() is True
+    assert ClaudeCodeExecutor(model_id="sonnet", repo_dir=str(repo), base_ref=base, sandbox="workspace-write",
+                              claude_exe=sys.executable).enforces_read_only_review() is False
+    relay_res = SimpleNamespace(binding_ref="claude-relay", model_id="claude-sonnet-5-5", executor_id="claude_code",
+                                relay_required=True, auth_method="api_key")
+    assert ClaudeCodeExecutor(model_id="claude-sonnet-5-5", repo_dir=str(repo), base_ref=base, sandbox="read-only",
+                              claude_exe=sys.executable, binding_resolution=relay_res,
+                              lease_provider=lambda r: None).enforces_read_only_review() is False
+
+    ws_root = tmp_path / "rev_ws"
+    prepared = executor.prepare_worktree_once("rev-1", ws_root)
+    store = SimpleNamespace(append_usage_observations=lambda *a, **k: None)
+    reply = executor.execute_review_prepared(prepared, store, task_id="rev-1", prompt="Review JSON")
+    assert seen_argv[0][seen_argv[0].index("--tools") + 1] == ""
+    assert reply["actual_models"] == ["claude-sonnet-5-5"]
+    assert reply["binding_ref"] == "claude-sonnet"
+    assert json.loads(reply["response"]) == {"verdict": "ACCEPT", "findings": []}

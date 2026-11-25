@@ -19,6 +19,7 @@ from tests.platform_v1.test_model_router import candidate, choose
 
 NOW = 1_800_000_000.0
 PACE = dict(DEFAULT_WEEKLY_PACE)
+HARD_PACE = {**DEFAULT_WEEKLY_PACE, "soft_pacing": False}
 
 
 def paced(elapsed, used, *, need=.02, executor="codex", cost="subscription", ref="sub", model="gpt-6-sol"):
@@ -88,14 +89,14 @@ class TestHold:
 class TestRouter:
     def test_routes_around_a_paced_account(self):
         pool = [paced(.479, .74), candidate("free", "kimi-k3")]
-        decision = choose(pool, difficulty=4, now=NOW, weekly_pace=PACE)
+        decision = choose(pool, difficulty=4, now=NOW, weekly_pace=HARD_PACE)
         assert decision["binding_ref"] == "free"
         held = next(row for row in decision["excluded_candidates"] if row["binding_id"] == "sub")
         assert held["filter"] == "weekly_pace" and held["retry_at"] > NOW
 
     def test_a_fully_paced_pool_is_a_temporary_wait_with_a_retry_time(self):
         with pytest.raises(ModelSelectionError) as caught:
-            choose([paced(.479, .74)], difficulty=4, now=NOW, weekly_pace=PACE)
+            choose([paced(.479, .74)], difficulty=4, now=NOW, weekly_pace=HARD_PACE)
         assert caught.value.decision["temporary_resource_blocked"] is True
         assert caught.value.decision["retry_at"] > NOW
 
@@ -108,13 +109,13 @@ class TestRouter:
     def test_an_unvalidated_announcement_does_not_lift_pacing(self):
         signal = {"state": "PLAN_ONLY", "validated": False, "expected_reset_at": NOW + 86400}
         with pytest.raises(ModelSelectionError):
-            choose([paced(.479, .74)], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+            choose([paced(.479, .74)], difficulty=4, now=NOW, weekly_pace=HARD_PACE, reset_signal=signal)
 
     def test_claude_is_never_drained_by_a_codex_announcement(self):
         row = paced(.2, .6, executor="claude_code", model="sonnet")
         signal = {"state": "PLAN_ONLY", "validated": True, "expected_reset_at": NOW + 86400}
         with pytest.raises(ModelSelectionError):
-            choose([row], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=signal)
+            choose([row], difficulty=4, now=NOW, weekly_pace=HARD_PACE, reset_signal=signal)
 
     def test_pacing_is_off_when_the_caller_passes_no_policy(self):
         assert choose([paced(.479, .74)], difficulty=4, now=NOW)["binding_ref"] == "sub"
@@ -142,6 +143,7 @@ class TestOwnerConfig:
     @pytest.mark.parametrize("pace", [
         {"slack": .9}, {"reserve": -.1}, {"enabled": "yes"}, {"executors": "codex"},
         {"executors": [""]}, {"unknown": 1}, [], {"require_fresh": "yes"}, {"require_fresh": 1},
+        {"soft_pacing": "yes"}, {"soft_pacing": 1},
     ])
     def test_invalid_overrides_are_refused(self, tmp_path, pace):
         with pytest.raises(ValueError, match="invalid_model_routing_overrides"):
@@ -186,6 +188,8 @@ class TestHostWiring:
 
     def test_a_real_route_waits_for_an_account_spent_ahead_of_its_week(self, monkeypatch):
         wiring, h = self.host(monkeypatch, 80.0, 6 * 86400)
+        monkeypatch.setattr("reverse_agent.platform_v1.routing_inputs.read_overrides",
+                            lambda path: {"weekly_pace": {"soft_pacing": False}})
         with pytest.raises(wiring.TaskStoreError) as caught:
             wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=3))
         decision = caught.value.decision
@@ -263,6 +267,8 @@ class TestResetAnnouncementThroughTheHost:
 
     def test_without_an_announcement_paced_codex_waits(self, monkeypatch):
         wiring, h = self.route(monkeypatch, lambda: {"state": "UNKNOWN"})
+        monkeypatch.setattr("reverse_agent.platform_v1.routing_inputs.read_overrides",
+                            lambda path: {"weekly_pace": {"soft_pacing": False}})
         with pytest.raises(wiring.TaskStoreError) as caught:
             wiring.CombinedTrustedHost._resolve_task_model(h.host, wiring.PlannedTask("T1", "t", "i", difficulty=3))
         assert [row["filter"] for row in caught.value.decision["excluded_candidates"]] == ["weekly_pace"]
@@ -285,7 +291,7 @@ class TestDrainStopsOnceTheResetHappened:
     def test_paces_again_once_a_new_window_began_after_the_announcement(self):
         fresh_week = paced(.01, .74)  # a window that began ~1.7 hours ago
         with pytest.raises(ModelSelectionError):
-            choose([fresh_week], difficulty=4, now=NOW, weekly_pace=PACE, reset_signal=self.signal(NOW - 3 * 3600))
+            choose([fresh_week], difficulty=4, now=NOW, weekly_pace=HARD_PACE, reset_signal=self.signal(NOW - 3 * 3600))
 
 
 class TestReviewFollowUps:
@@ -525,6 +531,8 @@ class TestGatewayAccounts:
         # Day one of the week (reset in six days) with half of it already spent.
         account = self.week(w._account("claude-acct", 10.0, provider="claude"), used=50.0, reset_in=6 * 86400)
         wiring, h = self.gateway_host(monkeypatch, [account])
+        monkeypatch.setattr("reverse_agent.platform_v1.routing_inputs.read_overrides",
+                            lambda path: {"weekly_pace": {"soft_pacing": False}})
         row = self.held(wiring, h, difficulty=2)
         from reverse_agent.platform_v1.model_router import UNKNOWN_WEEKLY_NEED
         start = _time.time() + 6 * 86400 - WEEK_SECONDS
@@ -622,6 +630,47 @@ def test_admission_and_in_flight_use_the_released_reserve_for_that_window_only()
     assert projection(evidence(), marked, (), **kwargs)["decision"] == "ok"
     spent = {"five_hour": 5, "weekly": 9}
     assert projection(evidence(weekly_used=100), marked, (), **{**kwargs, "spent": spent})["decision"] == "quota_wait"
+
+
+def test_soft_pacing_penalizes_ahead_of_pace_while_failing_free_yields_to_paid():
+    sub = paced(.2, .45, executor="claude_code", model="sonnet")
+    free_ok = candidate("free-ok", "kimi-k3")
+    free_bad = candidate("free-bad", "kimi-k3")
+    profiles = {
+        "sub": {"task_buckets": {"code:4": {"attempts": 4, "success_rate": 1.0, "timeouts": 0}}},
+        "free-ok": {"task_buckets": {"code:4": {"attempts": 5, "success_rate": 1.0, "timeouts": 0}}},
+        "free-bad": {"task_buckets": {"code:4": {"attempts": 5, "success_rate": 0.2, "timeouts": 0}}},
+    }
+    # Ahead of pace stays selectable and receives pace_penalty without weekly_pace exclusion.
+    solo = choose([sub], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)
+    assert solo["binding_ref"] == "sub"
+    bd = solo["score_breakdown"]
+    assert bd["pace_penalty"] > 0 and bd["pace_cause"] == "ahead_of_pace" and bd["pace_retry_at"] > NOW
+    # Healthy free model beats the soft-paced subscription.
+    assert choose([sub, free_ok], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)["binding_ref"] == "free-ok"
+    # Unreliable free model (20% success) gets reliability_penalty=2.0 and loses to ahead-of-pace paid subscription.
+    unreliable = choose([sub, free_bad], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)
+    assert unreliable["binding_ref"] == "sub"
+    bad_row = next(item for item in unreliable["candidates"] if item["binding_id"] == "free-bad")
+    assert bad_row["score_breakdown"]["reliability_penalty"] == pytest.approx(2.0)
+
+
+def test_soft_pacing_still_enforces_weekly_reserve_until_12h_release():
+    from reverse_agent.platform_v1.model_router import weekly_pace_decision
+    pace = {**PACE, "reserve_release_hours": 12}
+    resets = NOW + 48 * 3600
+    row = {**paced(.5, .91), "weekly_resets_at": resets}
+    assert weekly_pace_decision(row, now=resets - 12 * 3600 - 1, pace=pace) == (resets - 12 * 3600, "weekly_reserve")
+    assert weekly_pace_decision(row, now=resets - 12 * 3600, pace=pace) == (None, "")
+    # Even with soft_pacing=True (default in PACE), weekly_reserve still hard-blocks before the 12h release window.
+    with pytest.raises(ModelSelectionError) as caught:
+        choose([{**paced(.5, .95, need=None, ref="sub"), "weekly_resets_at": resets}],
+               difficulty=4, now=resets - 12 * 3600 - 1, weekly_pace={**pace})
+    assert caught.value.decision["excluded_candidates"][0]["filter"] == "weekly_pace"
+    assert caught.value.decision["excluded_candidates"][0]["cause"] == "weekly_reserve"
+    # A task requiring more than remaining weekly_headroom stays held until reset even within 12h.
+    big = {**paced(.5, .99), "weekly_resets_at": resets}
+    assert weekly_pace_decision(big, now=resets - 3600, pace=pace) == (resets, "weekly_reserve")
 
 
 def test_an_unreadable_policy_releases_nothing_and_does_not_raise(monkeypatch):

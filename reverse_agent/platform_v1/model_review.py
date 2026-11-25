@@ -293,16 +293,22 @@ def review_authors(store, task, binding):
 
 
 def require_independent(actual_models, selected_model, authors, groups=None):
-    """The reviewer ran exactly the selected model, and that model authored nothing.
+    """The reviewer ran the selected model (or its concrete Claude alias), and that model authored nothing.
 
     ``groups``: the Owner's declared Magpie routing groups; a group is the model it serves.
     """
     if (not isinstance(selected_model, str) or not selected_model or not isinstance(actual_models, (list, tuple)) or not actual_models or not authors
             or any(not isinstance(model, str) or not model.strip() for model in actual_models)):
         raise TaskStoreError("review_not_independent")
-    actual = {model_router.model_identity(model, groups) for model in actual_models}
-    if (actual != {model_router.model_identity(selected_model, groups)}
-            or actual.intersection(authors) or "" in actual):
+    selected_id = model_router.model_identity(selected_model, groups)
+    actual_ids = [model_router.model_identity(model, groups) for model in actual_models]
+    author_ids = [model_router.model_identity(author, groups) for author in authors]
+    if not selected_id or any(not aid for aid in actual_ids) or any(not aid for aid in author_ids):
+        raise TaskStoreError("review_not_independent")
+    if any(not model_router.same_model_identity(model, selected_model, groups) for model in actual_models):
+        raise TaskStoreError("review_not_independent")
+    if any(model_router.same_model_identity(candidate, author, groups)
+           for candidate in (*actual_models, selected_model) for author in authors):
         raise TaskStoreError("review_not_independent")
 
 
@@ -390,7 +396,7 @@ def execute_review(service, task_id, workspace_root, lease):
                     or resolution.executor_id != task.executor_kind):
                 raise TaskStoreError("review_not_independent")
             require_independent([selected_model], selected_model, authors, groups)
-            toolless = task.executor_kind != "codex"
+            toolless = task.executor_kind not in {"codex", "claude_code"}
             executor = None
             if toolless:
                 from .model_review_transport import validate_connection

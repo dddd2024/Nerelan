@@ -249,9 +249,11 @@ def parse_quotas(payload: Any, now: datetime, max_age_seconds: float = 900) -> l
 
 
 def fetch_magpie_snapshot(base_url: str = "http://127.0.0.1:3425", timeout: float = 2.0,
-                          opener: Any = None) -> dict[str, Any]:
+                          opener: Any = None, *, refresh: bool = False) -> dict[str, Any]:
     """Fetch explicitly; callers may pass REVERSE_AGENT_MAGPIE_URL as base_url.
 
+    When ``refresh`` is True, query ``/v1/magpie/quotas`` without ``?kept=1`` so
+    Magpie actively probes stale/expired upstream windows.
     The injectable opener has the same callable contract as http_safe.urlopen.
     """
     snapshot = dict(status="refused", version=None, models=[], accounts=[], reason="invalid_url")
@@ -275,7 +277,8 @@ def fetch_magpie_snapshot(base_url: str = "http://127.0.0.1:3425", timeout: floa
             return snapshot
         snapshot["version"] = version
         models = parse_models(get("/v1/models"))
-        accounts = parse_quotas(get("/v1/magpie/quotas?kept=1"), datetime.now(timezone.utc))
+        quota_path = "/v1/magpie/quotas" if refresh else "/v1/magpie/quotas?kept=1"
+        accounts = parse_quotas(get(quota_path), datetime.now(timezone.utc))
         for account in accounts:
             account["source_version"] = version
         snapshot.update(status="available", models=models, accounts=accounts, reason=None)

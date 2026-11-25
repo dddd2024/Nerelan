@@ -1662,6 +1662,25 @@ class CombinedTrustedHost:
             return self._merge_magpie_quotas(local)
         return _cached(self, "_subscription_quota_cache", read)
 
+    def _should_refresh_magpie_quotas(self, snapshot: Mapping[str, Any], *, now: float) -> bool:
+        accounts = snapshot.get("accounts") if snapshot.get("status") == "available" else None
+        if not isinstance(accounts, list) or not accounts:
+            return False
+        try:
+            paced = set(self._weekly_pace_policy().get("providers", ()))
+        except (AttributeError, OSError, ValueError):
+            paced = {"codex", "claude"}
+        if not paced:
+            return False
+        from ..model_access.quota_forecast import parse_time
+        for item in accounts:
+            if not isinstance(item, Mapping) or item.get("provider") not in paced:
+                continue
+            obs = parse_time(item.get("observed_at"))
+            if item.get("state") in {"STALE", "UNDATED"} or obs is None or (now - obs) > GATEWAY_PACE_MAX_AGE_SECONDS / 2:
+                return True
+        return False
+
     def _merge_magpie_quotas(self, local: dict[str, Any]) -> dict[str, Any]:
         """Magpie's fresh subscription windows win over the local CLI logs, when enabled.
 
@@ -1676,12 +1695,23 @@ class CombinedTrustedHost:
         if not magpie_enabled(os.environ):
             self._magpie_allowances = None
             return local
+        magpie_url = os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425")
         try:
-            snapshot = fetch_magpie_snapshot(
-                os.environ.get("REVERSE_AGENT_MAGPIE_URL", "http://127.0.0.1:3425"))
+            snapshot = fetch_magpie_snapshot(magpie_url)
         except Exception:  # noqa: BLE001 - a failed observation must not block dispatch
             self._magpie_allowances = None  # no reading now: no allowance is assumed
             return local
+        now_wall = time.time()
+        last_active = getattr(self, "_magpie_last_active_refresh", -1e9)
+        if (time.monotonic() - last_active >= MAGPIE_QUOTA_REFRESH_COOLDOWN_SECONDS
+                and self._should_refresh_magpie_quotas(snapshot, now=now_wall)):
+            self._magpie_last_active_refresh = time.monotonic()
+            try:
+                refreshed = fetch_magpie_snapshot(magpie_url, timeout=8.0, refresh=True)
+                if isinstance(refreshed, Mapping) and refreshed.get("status") == "available":
+                    snapshot = refreshed
+            except Exception:  # noqa: BLE001 - keep the cached snapshot when active refresh fails
+                pass
         try:
             from .resource_allowances import read_allowances
             self._magpie_allowances = read_allowances(snapshot, now=time.time())
@@ -2127,6 +2157,7 @@ def _usable_quota(account: str | None, candidates: Sequence[Mapping[str, Any]]) 
 # _gateway_account_quota). The quota guard keeps the 600 s contract; admission accepts an
 # older reading only as quota_reservation.aged_evidence, padded for unseen spend.
 GATEWAY_PACE_MAX_AGE_SECONDS = 3600
+MAGPIE_QUOTA_REFRESH_COOLDOWN_SECONDS = 600.0
 
 
 def _gateway_pace_reading(reading: Any, *, now: float) -> dict[str, Any] | None:

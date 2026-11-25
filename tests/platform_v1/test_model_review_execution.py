@@ -371,3 +371,15 @@ def test_native_binding_sequential_resume_keeps_reviewer_only_path(review_setup,
     result = restarted.resume_sequential_team(consumer, lease_owner="native-review-restart")
     assert result.success, result
     assert len(created) == 1 and created[0].calls == ["reviewer"]
+
+
+def test_require_independent_handles_claude_alias_and_mixed_models():
+    model_review.require_independent(["claude-sonnet-5-5"], "sonnet", ["gpt-6.1-sol"])
+    model_review.require_independent(["sonnet"], "claude-sonnet-5-5", ["opus"])
+    for bad_actual, selected, authors in (
+        (["claude-sonnet-5-5", "claude-haiku-4-5"], "sonnet", ["gpt-6.1-sol"]),
+        (["claude-sonnet-5-5"], "sonnet", ["claude-sonnet-5-5"]),
+        (["claude-sonnet-5-5"], "sonnet", ["sonnet"]),
+    ):
+        with pytest.raises(TaskStoreError, match="review_not_independent"):
+            model_review.require_independent(bad_actual, selected, authors)

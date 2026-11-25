@@ -488,3 +488,49 @@ class TestFollowUps:
             supervisor_requests._write_atomic(target, {"ok": True})
         assert list(tmp_path.glob("*.tmp")) == []
         assert not target.exists()
+
+    def test_pause_and_resume_dispatch_control_coordinator_without_stopping_window(self, setup, state):  # noqa: F811
+        from types import SimpleNamespace
+        window = TestSupervisorControl().activate(setup, state, setup.planned("a", "codex", "pinned"))
+        events = []
+        lifecycle = ["RUNNING"]
+
+        def fake_stop(*, timeout=5.0):
+            events.append(("stop", timeout))
+            lifecycle[0] = "DRAINING"
+
+        def fake_start():
+            events.append(("start",))
+            lifecycle[0] = "RUNNING"
+
+        setup.host._coordinator = SimpleNamespace(
+            stop=fake_stop,
+            start=fake_start,
+            status=lambda: {"lifecycle": lifecycle[0], "accepting_work": lifecycle[0] == "RUNNING", "inflight_task_count": 1},
+        )
+        ctrl = TestSupervisorControl()
+        paused = ctrl.ask(setup, state, "s0000010", {"action": "pause_dispatch", "reason": "host upgrade"})
+        assert paused["ok"] is True
+        assert paused["result"]["lifecycle"] == "DRAINING" and paused["result"]["reason"] == "host upgrade"
+        assert setup.host._control_store.get_window(window.id).status == "ACTIVE"
+
+        status_ans = ctrl.ask(setup, state, "s0000011", {"action": "status"})
+        assert status_ans["ok"] is True and status_ans["result"]["coordinator"]["lifecycle"] == "DRAINING"
+
+        resumed = ctrl.ask(setup, state, "s0000012", {"action": "resume_dispatch"})
+        assert resumed["ok"] is True and resumed["result"]["lifecycle"] == "RUNNING"
+        assert events == [("stop", 0.0), ("start",)]
+
+        bad = ctrl.ask(setup, state, "s0000013", {"action": "pause_dispatch", "reason": 3})
+        assert bad["error"] == "supervisor_request_invalid"
+
+    @pytest.mark.parametrize("cli_args,expected_payload", [
+        (["pause_dispatch", "--reason", "upgrade"], {"action": "pause_dispatch", "reason": "upgrade"}),
+        (["resume_dispatch"], {"action": "resume_dispatch"}),
+    ])
+    def test_cli_parses_pause_and_resume_dispatch(self, tmp_path, monkeypatch, cli_args, expected_payload):
+        calls = []
+        monkeypatch.setattr(supervisor_requests, "submit",
+                            lambda state_dir, payload, **kwargs: calls.append(payload) or {"ok": True})
+        assert supervisor_requests.main(["--state-dir", str(tmp_path), *cli_args]) == 0
+        assert calls == [expected_payload]
