@@ -450,3 +450,31 @@ def test_leaving_the_approved_scope_is_the_attempts_own_failure():
 def test_only_structured_upstream_connection_failures_are_neutral(classification, detail, neutral):
     from reverse_agent.platform_v1.model_profiles import neutral_failure
     assert neutral_failure(classification, detail) == ("network_provider_failure" if neutral else "")
+
+
+def test_server_session_and_deadline_attribution_and_recency_decay():
+    from datetime import datetime, timedelta, timezone
+    store = TaskStore(":memory:")
+    now = datetime(2026, 11, 25, 12, 0, tzinfo=timezone.utc)
+    iso = lambda dt: dt.isoformat().replace("+00:00", "Z")
+
+    t_sess = _task(store, "srv", "FAILED", "server_session_error")
+    t_dl = _task(store, "srv", "FAILED", "server_role_deadline_exceeded")
+    t_429 = _task(store, "srv", "FAILED", "api_error_429")
+    t_old_fail = _task(store, "srv", "FAILED", "deterministic_validation_failure")
+    t_new_ok = _task(store, "srv", "READY_FOR_REVIEW")
+    old_stamp = iso(now - timedelta(days=9))  # 3 half-lives -> 0.125 weight
+    new_stamp = iso(now)
+    for task in (t_sess, t_dl, t_429, t_new_ok):
+        store._conn.execute("UPDATE tasks SET updated_at=? WHERE id=?", (new_stamp, task.id))
+    store._conn.execute("UPDATE tasks SET updated_at=? WHERE id=?", (old_stamp, t_old_fail.id))
+    store._conn.commit()
+
+    profile = compute_agent_profiles(store, now=now.timestamp())["srv"]
+    assert profile["attempts"] == 2 and profile["ok"] == 1 and profile["failed"] == 1
+    assert profile["failure_attribution"] == {"capability": 1, "upstream": 1, "executor": 2}
+    assert profile["neutral_failures"]["server_session_error"] == 1
+    assert profile["neutral_failures"]["server_role_deadline_exceeded"] == 1
+    assert profile["recent_attempts"] == pytest.approx(1.125, abs=1e-4)
+    assert profile["recent_ok"] == pytest.approx(1.0, abs=1e-4)
+    assert profile["recent_success_rate"] == pytest.approx(1.0 / 1.125, abs=1e-4)

@@ -1807,6 +1807,7 @@ def test_sweep_reexamines_stalled_step_after_backoff_and_clamps_long_backoff(mon
 
         # A backoff longer than SWEEP_REPEAT_SECONDS (2000 s left) clamps to 900 s upper bound.
         monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 2500)
+        monkeypatch.setattr(gs, "PATIENT_BACKOFF_MAX_SECONDS", 7200)
         age_2000 = datetime.fromtimestamp(wall[0] - 500.0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         store._conn.execute(
             "UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "

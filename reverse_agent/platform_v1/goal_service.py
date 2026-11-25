@@ -196,7 +196,7 @@ STALL_ROUTES_CHECKED_LIMIT = 1024
 # Past the free per-step cap such a step keeps retrying, on another binding when one
 # is eligible, after a backoff that doubles up to this ceiling, and never spends
 # max_retries. Model-judging failures (checks, timeouts, refusals) keep their budget.
-PATIENT_BACKOFF_MAX_SECONDS = 2 * 3600
+PATIENT_BACKOFF_MAX_SECONDS = 15 * 60
 OWNER_RETRY_REASON = "owner_retry"
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
@@ -218,7 +218,7 @@ def _non_model_reason(reason: Any) -> bool:
 # prepared wrong, a review it could not keep independent) shares the per-step free cap
 # even in a continuous window, so a deterministic host defect never retries forever.
 _HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_review_abandoned_no_reply",
-                          ORPHANED_PREPARATION})
+                          ORPHANED_PREPARATION, "server_session_error", "server_role_deadline_exceeded"})
 
 
 _WALL_TIMEOUT = re.compile(r"opencode_timeout:(\d+)")
@@ -1722,9 +1722,11 @@ class GoalService:
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
             quota_failure = not miss and cause == "quota_or_rate_limit"
+            server_plumbing_failure = not miss and cause in {"server_session_error", "server_role_deadline_exceeded"}
+            snapshot = None
             if (patient and not overloaded and not miss
-                    and ((quota_failure and failed.status == "FAILED") or interrupted_dispatch or interrupted_preparation
-                         or no_reply)):
+                    and (((quota_failure or server_plumbing_failure) and failed.status == "FAILED")
+                         or interrupted_dispatch or interrupted_preparation or no_reply)):
                 # Quota answers and interrupted runs past the cap wait out the same doubling
                 # backoff from the attempt's last update, so no failure that repeats in
                 # seconds (e.g. a full disk at preparation) can retry on every tick.
@@ -1769,7 +1771,6 @@ class GoalService:
                     if stalled or (patient and host_failure):
                         transient_reason = (f"{HOST_RETRY_REASON}:{cause}:"
                                             f"{STALL_REROUTED if stall_route is not None else STALL_NO_ALTERNATIVE}")
-                    snapshot = None
                     try:
                         from .contract_recovery import attempt_worktree, retain_interrupted_tree
                         worktree = attempt_worktree(self.store, failed)
@@ -1945,12 +1946,18 @@ class GoalService:
                 # The approved plan pinned no base (no checks, no handoff, no native
                 # agent), so the failed attempt itself ran against the live HEAD.
                 base = repository_base(goal.repository)
-            if not miss and not (overloaded and snapshot is not None):
+            retained = (
+                self._retain_recoverable_snapshot(failed)
+                if (not miss and not overloaded and not model_review
+                    and (quota_failure or cause in {"server_session_error", "server_role_deadline_exceeded"}))
+                else None
+            )
+            if not miss and not (overloaded and snapshot is not None) and retained is None:
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
             task = self.store.create_task(
                 title=self._execution_title(goal, plan_task), repository=goal.repository,
                 executor_kind=executor_kind, binding_ref=binding_ref,
-                branch=base if native or miss or overloaded else "",
+                branch=base if native or miss or overloaded or retained is not None else "",
                 permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                 orchestration_mode="single",
@@ -1971,6 +1978,17 @@ class GoalService:
             if repair is not None:
                 self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
                                                  document=repair)
+            if retained is not None:
+                from .functional_validation import digest
+                rerouted = binding_ref != failed.binding_ref or executor_kind != failed.executor_kind
+                self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
+                    document={"task_id": task.id, "execution_id": task.execution_id,
+                              "source_task_id": failed.id, "snapshot_digest": digest(retained),
+                              "feedback": retained["feedback"], "rerouted": rerouted})
+                record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(retained))
+                self.store.add_event(task.id, event_type="VALIDATED", title="Retry with retained workspace changes",
+                                     description=retained["feedback"],
+                                     metadata={"source_task_id": failed.id, "rerouted": rerouted})
             if overloaded and snapshot is not None:
                 from .functional_validation import digest
                 self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
@@ -2206,10 +2224,18 @@ class GoalService:
                         description=f"failure_classification={OWNER_RETRY_SUPERSEDED}", raw_log="",
                         metadata={"failure_classification": OWNER_RETRY_SUPERSEDED, "reason": OWNER_RETRY_REASON})
                     failed = self.store.get_task(source.id)
-                record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
+                non_review_step = (plan_task.kind != "review"
+                                   and (load_handoff_contract(failed) or {}).get("validation_mode") != "model_review")
+                retained = self._retain_recoverable_snapshot(failed) if non_review_step else None
+                if retained is not None:
+                    from .functional_validation import digest
+                    record_attempt_disposition(self.store, failed, reused=True, snapshot_digest=digest(retained))
+                else:
+                    record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")
                 task = self.store.create_task(
                     title=self._execution_title(goal, plan_task), repository=goal.repository,
-                    executor_kind=executor_kind, binding_ref=binding_ref, branch=base if native else "",
+                    executor_kind=executor_kind, binding_ref=binding_ref,
+                    branch=base if (native or retained is not None) else "",
                     permission_profile="AUTONOMOUS_WINDOW", policy_ref=window.policy_id,
                     idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}:e{step}",
                     orchestration_mode="single",
@@ -2226,6 +2252,18 @@ class GoalService:
                 if repair is not None:
                     self.store._bind_artifact_evidence(task.id, category="ReviewRepair", label=task.execution_id,
                                                      document=repair)
+                if retained is not None:
+                    from .contract_recovery import FIXUP
+                    from .functional_validation import digest
+                    rerouted = binding_ref != failed.binding_ref or executor_kind != failed.executor_kind
+                    self.store._bind_artifact_evidence(task.id, category=FIXUP, label=task.execution_id,
+                        document={"task_id": task.id, "execution_id": task.execution_id,
+                                  "source_task_id": failed.id, "snapshot_digest": digest(retained),
+                                  "feedback": retained["feedback"], "rerouted": rerouted})
+                    self.store._append_event(
+                        task_id=task.id, event_type="VALIDATED", title="Retry with retained workspace changes",
+                        description=retained["feedback"], raw_log="",
+                        metadata={"source_task_id": failed.id, "rerouted": rerouted})
                 self.control_store.escalate_goal_task(
                     goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                     to_task_id=task.id, from_role=role, to_role=role, reason=OWNER_RETRY_REASON)
@@ -2259,6 +2297,48 @@ class GoalService:
                     row["cause"] = ""
             rows.append(row)
         return tuple(rows)
+
+    def _retain_recoverable_snapshot(self, failed: Any) -> dict[str, Any] | None:
+        """Retain or reuse a restorable non-empty worktree snapshot on FAILED attempts."""
+        if failed.status != "FAILED":
+            return None
+        from .contract_recovery import (
+            attempt_worktree,
+            failed_snapshot,
+            git_output,
+            load_input_binding,
+            require_reviewable_patch,
+            retain_interrupted_tree,
+            safe_recovery_tree,
+        )
+        try:
+            workspace = resolve_repository_workspace(failed.repository)
+            root = getattr(workspace, "repo_dir", None)
+            if root is None:
+                return None
+            try:
+                snapshot = failed_snapshot(failed, root=root)
+            except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                worktree = attempt_worktree(self.store, failed)
+                if worktree is None:
+                    return None
+                snapshot = retain_interrupted_tree(self.store, failed.id, worktree=worktree)
+            if not snapshot.get("changed_paths"):
+                return None
+            base = snapshot["base_commit"]
+            source_input = load_input_binding(failed)
+            predecessor = source_input["producer"] if source_input else None
+            apply_base = predecessor["commit"] if predecessor else base
+            expected_tree = git_output(root, "rev-parse", f"{apply_base}^{{tree}}")
+            if predecessor and (expected_tree != predecessor["tree"]
+                    or git_output(root, "merge-base", apply_base, snapshot["head"]) != apply_base):
+                return None
+            recovery_tree = safe_recovery_tree(root, apply_base, snapshot["tree"])
+            paths = tuple((load_contract(failed) or {}).get("allowed_paths", ()))
+            require_reviewable_patch(root, base, recovery_tree, allowed_paths=paths, scope_base=apply_base)
+        except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+            return None
+        return snapshot
 
     @staticmethod
     def _approved_base(failed: Any) -> str:
