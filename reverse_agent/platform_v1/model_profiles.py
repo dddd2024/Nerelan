@@ -51,6 +51,7 @@ HOST_PLUMBING_CLASSES = frozenset({
     ORPHANED_PREPARATION, "model_review_abandoned_no_reply", "review_not_independent",
     "ambiguous_external_operation", "executor_dispatch_failed", "cleanup_unconfirmed",
     "review_diff_too_large", "codex_frame_limit_exceeded", "claude_code_frame_limit_exceeded",
+    "codex_stream_limit_exceeded", "claude_code_stream_limit_exceeded",
     # The host dispatched a binding the Owner's window never confirmed (2026-11-19, #1551 review).
     OWNER_WINDOW_POOL_MISROUTE,
     # The host refused a paid subscription behind a gateway before any model call (#1743).

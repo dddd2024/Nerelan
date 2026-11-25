@@ -225,6 +225,10 @@ def test_thinking_progress_notices_do_not_spend_the_event_bound():
     parser = ClaudeStreamJson(max_frame_bytes=1024, max_stream_bytes=4096)
     with pytest.raises(ClaudeProtocolError, match="claude_code_stream_limit_exceeded"):
         parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 100)
+    assert ClaudeStreamJson()._stream_limit == 32 * 1024 * 1024
+    assert ClaudeStreamJson(max_stream_bytes=64 * 1024 * 1024)._stream_limit == 64 * 1024 * 1024
+    with pytest.raises(ValueError, match="claude_protocol_limits_invalid"):
+        ClaudeStreamJson(max_stream_bytes=64 * 1024 * 1024 + 1)
 
 
 def test_router_registers_claude_code_executor():

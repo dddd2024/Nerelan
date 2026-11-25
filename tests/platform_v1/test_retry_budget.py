@@ -520,3 +520,43 @@ def test_quota_429_retains_non_empty_worktree_across_reroute(case, monkeypatch, 
     assert fixup is not None and fixup["rerouted"] is True
     disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
     assert disp is not None and disp["disposition"] == "reused"
+
+
+def test_stream_limit_retains_worktree_and_escalates_repeat_backoff(case, monkeypatch, tmp_path):
+    import subprocess
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    from reverse_agent.platform_v1.contract_recovery import FIXUP
+    assert gs._patient_backoff_seconds(3, quota_failure=False) == gs.PATIENT_BACKOFF_MAX_SECONDS
+    assert gs._patient_backoff_seconds(
+        gs.PATIENT_REPEAT_BACKOFF_THRESHOLD, quota_failure=False
+    ) == gs.PATIENT_BACKOFF_MAX_SECONDS * gs.PATIENT_REPEAT_BACKOFF_MULTIPLIER
+    assert gs._patient_backoff_seconds(
+        gs.PATIENT_REPEAT_BACKOFF_THRESHOLD, quota_failure=True
+    ) == gs.PATIENT_BACKOFF_MAX_SECONDS
+
+    root, _, store, _, service, goal, window, task = case
+    _no_routing_retries(store, window)
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    wt = tmp_path / "wt-stream-limit"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", str(wt), "HEAD"], check=True)
+    (wt / "partial.py").write_text("x = 2\n", encoding="utf-8")
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="wt", description="wt",
+                    metadata={"execution_id": task.execution_id, "workspace": str(wt)})
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="Claude Code",
+                    description="Finished core implementation; writing tests next.",
+                    metadata={"event": {"type": "assistant", "item_type": "agent_message"}})
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='claude_code_stream_limit_exceeded', "
+                        "failure_detail='claude_code_stream_limit_exceeded', updated_at='2000-01-01T00:00:00Z' "
+                        "WHERE id=?", (task.id,))
+    store._conn.commit()
+    service.task_resolver = lambda plan_task, *, goal, failed_binding="", **kw: {
+        "binding_ref": "codex-main", "executor_kind": "codex", "model_id": "gpt", "tier": 4,
+        "reason": "fixture", "context_window": 200000}
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "failed:claude_code_stream_limit_exceeded"
+    retry = store.get_task(step["to_task_id"])
+    fixup = _load_evidence(retry, FIXUP, retry.execution_id)
+    assert fixup is not None and fixup["rerouted"] is True
+    assert "Finished core implementation; writing tests next." in fixup["feedback"]

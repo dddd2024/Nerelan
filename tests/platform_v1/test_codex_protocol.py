@@ -262,6 +262,10 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     parser = CodexJsonl(max_frame_bytes=10, max_stream_bytes=20)
     with pytest.raises(CodexProtocolError, match="codex_stream_limit_exceeded"):
         parser.feed(b"\n" * 21)
+    assert CodexJsonl()._stream_limit == 32 * 1024 * 1024
+    assert CodexJsonl(max_stream_bytes=64 * 1024 * 1024)._stream_limit == 64 * 1024 * 1024
+    with pytest.raises(ValueError, match="codex_protocol_limits_invalid"):
+        CodexJsonl(max_stream_bytes=64 * 1024 * 1024 + 1)
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))

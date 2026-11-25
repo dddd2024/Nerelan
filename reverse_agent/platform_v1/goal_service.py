@@ -197,10 +197,20 @@ STALL_ROUTES_CHECKED_LIMIT = 1024
 # is eligible, after a backoff that doubles up to this ceiling, and never spends
 # max_retries. Model-judging failures (checks, timeouts, refusals) keep their budget.
 PATIENT_BACKOFF_MAX_SECONDS = 15 * 60
+PATIENT_REPEAT_BACKOFF_THRESHOLD = 6
+PATIENT_REPEAT_BACKOFF_MULTIPLIER = 4
 OWNER_RETRY_REASON = "owner_retry"
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
+
+
+def _patient_backoff_seconds(free_used: int, *, quota_failure: bool = False) -> int:
+    """Doubling backoff that escalates the ceiling for repeated non-quota loops."""
+    cap = PATIENT_BACKOFF_MAX_SECONDS
+    if not quota_failure and free_used >= PATIENT_REPEAT_BACKOFF_THRESHOLD:
+        cap = PATIENT_BACKOFF_MAX_SECONDS * PATIENT_REPEAT_BACKOFF_MULTIPLIER
+    return min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), cap)
 
 
 def _non_model_reason(reason: Any) -> bool:
@@ -217,8 +227,14 @@ def _non_model_reason(reason: Any) -> bool:
 # Liveness/quota causes retry like host faults; other host plumbing (a base the host
 # prepared wrong, a review it could not keep independent) shares the per-step free cap
 # even in a continuous window, so a deterministic host defect never retries forever.
+_PLUMBING_RETAIN_CAUSES = frozenset({
+    "server_session_error",
+    "server_role_deadline_exceeded",
+    "claude_code_stream_limit_exceeded",
+    "codex_stream_limit_exceeded",
+})
 _HOST_CAUSES = frozenset({*HOST_RETRY_CLASSES, "quota_or_rate_limit", "model_review_abandoned_no_reply",
-                          ORPHANED_PREPARATION, "server_session_error", "server_role_deadline_exceeded"})
+                          ORPHANED_PREPARATION, *_PLUMBING_RETAIN_CAUSES})
 
 
 _WALL_TIMEOUT = re.compile(r"opencode_timeout:(\d+)")
@@ -1722,7 +1738,7 @@ class GoalService:
             # Continuous run: past the cap, provider/liveness failures wait and retry (#1553).
             patient = window.continuous and free_used >= MAX_TRANSIENT_RETRIES
             quota_failure = not miss and cause == "quota_or_rate_limit"
-            server_plumbing_failure = not miss and cause in {"server_session_error", "server_role_deadline_exceeded"}
+            server_plumbing_failure = not miss and cause in _PLUMBING_RETAIN_CAUSES
             snapshot = None
             if (patient and not overloaded and not miss
                     and (((quota_failure or server_plumbing_failure) and failed.status == "FAILED")
@@ -1731,7 +1747,7 @@ class GoalService:
                 # backoff from the attempt's last update, so no failure that repeats in
                 # seconds (e.g. a full disk at preparation) can retry on every tick.
                 failed_at = _parse_utc(failed.updated_at)
-                wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** free_used), PATIENT_BACKOFF_MAX_SECONDS)
+                wait = _patient_backoff_seconds(free_used, quota_failure=quota_failure)
                 now_wall = time.time()
                 # The account reset after this refusal: its wait is over.
                 released = (quota_failure and failed_at is not None and self.quota_reset_released is not None
@@ -1748,7 +1764,7 @@ class GoalService:
                     overloaded = False  # persistent overload: ordinary routing may move on
                 else:
                     failed_at = _parse_utc(failed.updated_at)
-                    wait = min(TRANSIENT_BACKOFF_SECONDS * (2 ** transient), PATIENT_BACKOFF_MAX_SECONDS)
+                    wait = _patient_backoff_seconds(transient, quota_failure=False)
                     now_wall = time.time()
                     in_backoff = failed_at is not None and now_wall < failed_at + wait
                     checked = self._stall_routes_checked
@@ -1949,7 +1965,7 @@ class GoalService:
             retained = (
                 self._retain_recoverable_snapshot(failed)
                 if (not miss and not overloaded and not model_review
-                    and (quota_failure or cause in {"server_session_error", "server_role_deadline_exceeded"}))
+                    and (quota_failure or cause in _PLUMBING_RETAIN_CAUSES))
                 else None
             )
             if not miss and not (overloaded and snapshot is not None) and retained is None:

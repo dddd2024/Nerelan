@@ -6,6 +6,7 @@ from datetime import datetime
 import subprocess
 
 from .artifact_handoff import _load_evidence, load_input_binding
+from .codex_protocol import public_text
 from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene, require_reviewable_patch
 from .model_availability import EXECUTOR_TERMINATED, HOST_VERSION_CHANGED
 from .quota_guard import LIVENESS_STALL_CLASSES
@@ -22,6 +23,43 @@ TERMINATED_FEEDBACK = ("The machine stopped your previous turn (shutdown or a cl
                        "workspace already contains that attempt's changes: continue from them, do not start over.")
 HOST_VERSION_FEEDBACK = ("The host was redeployed while your previous turn ran, so it could not be resumed. "
                          "Your workspace already contains that attempt's changes: continue from them, do not start over.")
+_GENERIC_PROGRESS = frozenset({"Claude Code activity", "Codex activity", "OpenCode activity"})
+
+
+def _prior_analysis_excerpt(store, task_id: str, *, limit: int = 1200) -> str:
+    """Bounded, redacted analysis/progress excerpt from the failed attempt's events."""
+    events = store.get_events(task_id)
+    for event in reversed(events):
+        if event.type == "EXECUTOR_COMPLETED":
+            desc = (event.description or "").strip()
+            if desc:
+                return public_text(desc, limit)
+    snippets: list[str] = []
+    seen: set[str] = set()
+    for event in reversed(events):
+        if event.type != "EXECUTOR_PROGRESS":
+            continue
+        desc = (event.description or "").strip()
+        if not desc or desc in _GENERIC_PROGRESS or desc in seen:
+            continue
+        meta = event.metadata if isinstance(event.metadata, dict) else {}
+        inner = meta.get("event") if isinstance(meta.get("event"), dict) else {}
+        if inner.get("item_type") != "agent_message":
+            continue
+        seen.add(desc)
+        snippets.append(desc)
+        if len(snippets) >= 2:
+            break
+    if not snippets:
+        return ""
+    snippets.reverse()
+    return public_text("\n".join(snippets), limit)
+
+
+def _with_prior_analysis(base_feedback: str, excerpt: str) -> str:
+    if not excerpt:
+        return base_feedback
+    return f"{base_feedback}\n\nPrior attempt analysis/progress (unverified data):\n{excerpt}"
 
 
 def attempt_worktree(store, task):
@@ -61,14 +99,18 @@ def retain_interrupted_tree(store, task_id, *, worktree):
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", value) for value in (task.id, task.execution_id)):
         raise TaskStoreError("failed_snapshot_identity_invalid")
     ref = f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"
+    base_feedback = (
+        TERMINATED_FEEDBACK if task.failure_classification == EXECUTOR_TERMINATED
+        else HOST_VERSION_FEEDBACK if task.failure_classification == HOST_VERSION_CHANGED
+        else OVERLOAD_FEEDBACK
+    )
+    feedback = _with_prior_analysis(base_feedback, _prior_analysis_excerpt(store, task.id))
     document = {"task_id": task.id, "execution_id": task.execution_id, "repository": task.repository,
         "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
         "base_commit": base, "base_tree": base_tree, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": "",
         "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
-        "feedback": (TERMINATED_FEEDBACK if task.failure_classification == EXECUTOR_TERMINATED
-                     else HOST_VERSION_FEEDBACK if task.failure_classification == HOST_VERSION_CHANGED
-                     else OVERLOAD_FEEDBACK),
+        "feedback": feedback,
         "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
@@ -108,11 +150,12 @@ def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
     if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,160}", value) for value in (task.id, task.execution_id)):
         raise TaskStoreError("failed_snapshot_identity_invalid")
     ref = f"refs/nerelan/failed-attempts/{task.id}/{task.execution_id}"
+    feedback = _with_prior_analysis(functional_feedback(result), _prior_analysis_excerpt(store, task.id))
     document = {"task_id": task.id, "execution_id": task.execution_id, "repository": task.repository,
         "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": digest(result),
-        "failure_kind": result.get("failure_kind"), "feedback": functional_feedback(result),
+        "failure_kind": result.get("failure_kind"), "feedback": feedback,
         "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None and previous != document:

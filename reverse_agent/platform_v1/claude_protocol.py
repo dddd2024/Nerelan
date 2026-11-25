@@ -57,10 +57,10 @@ class ClaudeStreamJson:
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 4 * 1024 * 1024,
-        max_stream_bytes: int = 8 * 1024 * 1024,
+        max_stream_bytes: int = 32 * 1024 * 1024,
         max_events: int = 4000,
     ) -> None:
-        if not (0 < max_frame_bytes <= max_stream_bytes <= 8 * 1024 * 1024):
+        if not (0 < max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
             raise ValueError("claude_protocol_limits_invalid")
         if not 0 < max_events <= 10000:
             raise ValueError("claude_protocol_limits_invalid")
