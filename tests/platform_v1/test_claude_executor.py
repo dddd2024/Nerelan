@@ -225,10 +225,24 @@ def test_thinking_progress_notices_do_not_spend_the_event_bound():
     parser = ClaudeStreamJson(max_frame_bytes=1024, max_stream_bytes=4096)
     with pytest.raises(ClaudeProtocolError, match="claude_code_stream_limit_exceeded"):
         parser.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 100)
-    assert ClaudeStreamJson()._stream_limit == 32 * 1024 * 1024
+    assert ClaudeStreamJson()._stream_limit is None
     assert ClaudeStreamJson(max_stream_bytes=64 * 1024 * 1024)._stream_limit == 64 * 1024 * 1024
     with pytest.raises(ValueError, match="claude_protocol_limits_invalid"):
         ClaudeStreamJson(max_stream_bytes=64 * 1024 * 1024 + 1)
+    # Normal bounded events past max_progress_bytes stay valid; noise floods past max_progress_bytes still abort.
+    long_turn = ClaudeStreamJson(max_frame_bytes=4096, max_progress_bytes=512, max_events=100)
+    user_line = b'{"type":"user","message":{"role":"user","content":"' + b"x" * 600 + b'"}}\n'
+    long_turn.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + user_line * 4
+                   + b'{"type":"result","subtype":"success","is_error":false,"result":"ok"}\n')
+    assert long_turn.finish().final_text == "ok"
+    noise_flood = ClaudeStreamJson(max_frame_bytes=1024, max_progress_bytes=512)
+    with pytest.raises(ClaudeProtocolError, match="claude_code_stream_limit_exceeded"):
+        noise_flood.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 10)
+    # A single huge multi-line chunk is sliced at frame_limit+1 so _buffer stays bounded.
+    sliced = ClaudeStreamJson(max_frame_bytes=512, max_events=50)
+    big_chunk = b'{"type":"system","subtype":"init","session_id":"s"}\n' + (b'{"type":"user","message":{"role":"user","content":"' + b"z" * 200 + b'"}}\n') * 10 + b'{"type":"result","subtype":"success","is_error":false,"result":"sliced"}\n'
+    sliced.feed(big_chunk)
+    assert sliced.finish().final_text == "sliced" and len(sliced._buffer) == 0
 
 
 def test_router_registers_claude_code_executor():

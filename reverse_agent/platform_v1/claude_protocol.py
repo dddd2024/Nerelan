@@ -50,17 +50,22 @@ def _rate_limit(info: Any) -> dict[str, Any] | None:
 
 
 class ClaudeStreamJson:
-    """Incremental UTF-8 framing with independent line, stream and event bounds."""
+    """Incremental UTF-8 framing with independent line, progress-noise and event bounds."""
 
     def __init__(
         self,
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 4 * 1024 * 1024,
-        max_stream_bytes: int = 32 * 1024 * 1024,
+        max_stream_bytes: int | None = None,
+        max_progress_bytes: int = 8 * 1024 * 1024,
         max_events: int = 4000,
     ) -> None:
-        if not (0 < max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
+        if not 0 < max_frame_bytes <= 64 * 1024 * 1024:
+            raise ValueError("claude_protocol_limits_invalid")
+        if max_stream_bytes is not None and not (max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
+            raise ValueError("claude_protocol_limits_invalid")
+        if not 0 < max_progress_bytes <= 64 * 1024 * 1024:
             raise ValueError("claude_protocol_limits_invalid")
         if not 0 < max_events <= 10000:
             raise ValueError("claude_protocol_limits_invalid")
@@ -68,25 +73,31 @@ class ClaudeStreamJson:
         self._callback = callback
         self._frame_limit = max_frame_bytes
         self._stream_limit = max_stream_bytes
+        self._progress_limit = max_progress_bytes
         self._event_limit = max_events
         self._buffer = bytearray()
         self._bytes = 0
+        self._progress_bytes = 0
         self._events = 0
 
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
             raise TypeError("claude_protocol_requires_bytes")
-        self._bytes += len(chunk)
-        if self._bytes > self._stream_limit:
-            raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
-        self._buffer.extend(chunk)
-        while b"\n" in self._buffer:
-            end = self._buffer.index(b"\n")
-            line = bytes(self._buffer[:end])
-            del self._buffer[:end + 1]
-            self._line(line)
-        if len(self._buffer) > self._frame_limit:
-            raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
+        step = self._frame_limit + 1
+        view = memoryview(chunk)
+        for offset in range(0, len(view), step):
+            part = view[offset:offset + step]
+            self._bytes += len(part)
+            if self._stream_limit is not None and self._bytes > self._stream_limit:
+                raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
+            self._buffer.extend(part)
+            while b"\n" in self._buffer:
+                end = self._buffer.index(b"\n")
+                line = bytes(self._buffer[:end])
+                del self._buffer[:end + 1]
+                self._line(line)
+            if len(self._buffer) > self._frame_limit:
+                raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
 
     def finish(self) -> CodexTurn:
         if self._buffer:
@@ -105,10 +116,16 @@ class ClaudeStreamJson:
         if self._callback:
             self._callback(public)
 
+    def _account_uncounted_bytes(self, nbytes: int) -> None:
+        self._progress_bytes += nbytes
+        if self._progress_bytes > self._progress_limit:
+            raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
+
     def _line(self, line: bytes) -> None:
         if len(line) > self._frame_limit:
             raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
         if not line.strip():
+            self._account_uncounted_bytes(len(line) + 1)
             return
         try:
             event = json.loads(line.decode("utf-8"))
@@ -119,7 +136,8 @@ class ClaudeStreamJson:
         kind = event["type"]
         if kind == "system" and event.get("subtype") in _PROGRESS_SUBTYPES:
             # Reasoning models (e.g. GLM via the relay) emit one notice per few thinking tokens,
-            # thousands per turn. They carry no turn state; the stream byte bound limits them.
+            # thousands per turn. They do not advance _events, so bound their total bytes instead.
+            self._account_uncounted_bytes(len(line) + 1)
             return
         self._events += 1
         if self._events > self._event_limit:
