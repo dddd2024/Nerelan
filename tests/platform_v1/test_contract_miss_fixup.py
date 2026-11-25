@@ -587,3 +587,24 @@ def test_interrupted_tree_includes_redacted_prior_analysis_excerpt(case, tmp_pat
     store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
                     description="Even later event", metadata={})
     assert recovery.retain_interrupted_tree(store, task.id, worktree=wt) == interrupted
+
+
+def test_prior_analysis_excerpt_supports_opencode_schemas(case):
+    _, _, store, _, _, _, _, task = case
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="OpenCode",
+                    description="Ran pytest tool",
+                    metadata={"executor_kind": "opencode", "progress_kind": "tool"})
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="OpenCode",
+                    description="OpenCode narrowed failure to scheduler; sk-secret-opencode-123.",
+                    metadata={"executor_kind": "opencode", "progress_kind": "text"})
+    excerpt = recovery._prior_analysis_excerpt(store, task.id)
+    assert "OpenCode narrowed failure to scheduler" in excerpt
+    assert "Ran pytest tool" not in excerpt
+    assert "sk-secret-opencode-123" not in excerpt
+
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="OpenCode response",
+                    description="",
+                    metadata={"executor_kind": "opencode", "final_text": "OpenCode completed patch analysis; bearer oc-tok-999."})
+    final_excerpt = recovery._prior_analysis_excerpt(store, task.id)
+    assert "OpenCode completed patch analysis" in final_excerpt
+    assert "oc-tok-999" not in final_excerpt

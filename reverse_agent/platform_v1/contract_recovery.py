@@ -31,23 +31,28 @@ def _prior_analysis_excerpt(store, task_id: str, *, limit: int = 1200) -> str:
     events = store.get_events(task_id)
     for event in reversed(events):
         if event.type == "EXECUTOR_COMPLETED":
-            desc = (event.description or "").strip()
-            if desc:
-                return public_text(desc, limit)
+            meta = event.metadata if isinstance(event.metadata, dict) else {}
+            final_text = meta.get("final_text") if isinstance(meta.get("final_text"), str) else ""
+            text = (event.description or "").strip() or final_text.strip()
+            if text:
+                return public_text(text, limit)
     snippets: list[str] = []
     seen: set[str] = set()
     for event in reversed(events):
-        if event.type != "EXECUTOR_PROGRESS":
-            continue
-        desc = (event.description or "").strip()
-        if not desc or desc in _GENERIC_PROGRESS or desc in seen:
-            continue
         meta = event.metadata if isinstance(event.metadata, dict) else {}
-        inner = meta.get("event") if isinstance(meta.get("event"), dict) else {}
-        if inner.get("item_type") != "agent_message":
+        candidate = ""
+        if event.type == "EXECUTOR_PROGRESS":
+            inner = meta.get("event") if isinstance(meta.get("event"), dict) else {}
+            if inner.get("item_type") == "agent_message" or meta.get("progress_kind") == "text":
+                candidate = (event.description or "").strip()
+        elif event.title == "Executor action evidence" and meta.get("evidence_label") == "text":
+            val = meta.get("evidence_value")
+            if isinstance(val, str):
+                candidate = val.strip()
+        if not candidate or candidate in _GENERIC_PROGRESS or candidate in seen:
             continue
-        seen.add(desc)
-        snippets.append(desc)
+        seen.add(candidate)
+        snippets.append(candidate)
         if len(snippets) >= 2:
             break
     if not snippets:
