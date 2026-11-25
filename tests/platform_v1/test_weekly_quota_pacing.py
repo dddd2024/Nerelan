@@ -668,8 +668,9 @@ def test_soft_pacing_penalizes_ahead_of_pace_while_failing_free_yields_to_paid()
     assert unreliable["binding_ref"] == "sub"
     bad_row = next(item for item in unreliable["candidates"] if item["binding_id"] == "free-bad")
     assert bad_row["score_breakdown"]["reliability_penalty"] == pytest.approx(1.6071, abs=1e-4)
-    # Time-decayed bucket (< MIN_SAMPLES recent attempts) sheds stale penalty.
+    # Time-decayed bucket (< MIN_SAMPLES recent attempts, including 0.0) sheds stale penalty.
     assert measured_reliability_penalty({"attempts": 10, "ok": 1, "recent_attempts": 2.4, "recent_ok": 0.0}) == 0.0
+    assert measured_reliability_penalty({"attempts": 10, "ok": 0, "recent_attempts": 0.0, "recent_ok": 0.0}) == 0.0
     assert measured_reliability_penalty({"attempts": 3, "ok": 3, "success_rate": 1.0}) == 0.0
 
 

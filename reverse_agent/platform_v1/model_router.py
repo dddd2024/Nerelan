@@ -31,7 +31,7 @@ def measured_reliability_penalty(bucket: Mapping[str, Any]) -> float:
         return 0.0
     ra = bucket.get("recent_attempts")
     ro = bucket.get("recent_ok")
-    if type(ra) in (int, float) and math.isfinite(ra) and ra > 0:
+    if type(ra) in (int, float) and math.isfinite(ra) and ra >= 0:
         eff_attempts = float(ra)
         if type(ro) in (int, float) and math.isfinite(ro):
             eff_ok = float(ro)
