@@ -205,10 +205,20 @@ class TestPoolView:
 
     def test_shows_the_same_hold_the_router_applies(self):
         from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
-        state = pace_state(self.status("codex", 74, WEEK_SECONDS * .521), PACE, NOW)
+        state = pace_state(self.status("codex", 74, WEEK_SECONDS * .521), HARD_PACE, NOW)
         assert state["used"] == pytest.approx(.74) and state["line"] == pytest.approx(.579)
         row = paced(.479, .74, need=None)
-        assert state["held_until"] == pytest.approx(weekly_pace_hold(row, now=NOW, pace=PACE))
+        assert state["held_until"] == pytest.approx(weekly_pace_hold(row, now=NOW, pace=HARD_PACE))
+        assert state["soft_penalty"] == 0.0
+
+    def test_soft_pacing_display_leaves_ahead_unheld_but_keeps_reserve_held(self):
+        from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
+        ahead = pace_state(self.status("codex", 74, WEEK_SECONDS * .521), PACE, NOW)
+        assert ahead["held_until"] is None
+        assert ahead["soft_penalty"] > 0
+        reserved = pace_state(self.status("codex", 95, WEEK_SECONDS * .521), PACE, NOW)
+        assert reserved["held_until"] == pytest.approx(NOW + WEEK_SECONDS * .521)
+        assert reserved["soft_penalty"] == 0.0
 
     def test_on_pace_and_unpaced_accounts(self):
         from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
@@ -310,11 +320,11 @@ class TestReviewFollowUps:
     def test_the_display_lifts_the_hold_while_codex_drains(self):
         from reverse_agent.platform_v1.multi_account.pool_monitor import pace_state
         status = TestPoolView().status("codex", 74, WEEK_SECONDS * .521)
-        assert pace_state(status, PACE, NOW)["held_until"] is not None
-        draining = pace_state(status, PACE, NOW, drain_since=NOW)
+        assert pace_state(status, HARD_PACE, NOW)["held_until"] is not None
+        draining = pace_state(status, HARD_PACE, NOW, drain_since=NOW)
         assert draining["held_until"] is None and draining["draining"] is True
         claude = TestPoolView().status("claude", 95, WEEK_SECONDS * .9)
-        assert pace_state(claude, PACE, NOW, drain_since=NOW)["draining"] is False
+        assert pace_state(claude, HARD_PACE, NOW, drain_since=NOW)["draining"] is False
 
 
 class TestRenewalEndsEveryDrainEffect:
