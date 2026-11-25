@@ -273,6 +273,9 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     blank_flood = CodexJsonl(max_frame_bytes=1024, max_discarded_bytes=32)
     with pytest.raises(CodexProtocolError, match="codex_stream_limit_exceeded"):
         blank_flood.feed(b"\n" * 40)
+    sliced = CodexJsonl(max_frame_bytes=256, max_events=50)
+    sliced.feed(wire(*START, *([{"type": "item.completed", "item": {"type": "agent_message", "text": "a" * 100}}] * 5), DONE))
+    assert sliced.finish().final_text == "a" * 100 and len(sliced._buffer) == 0
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))

@@ -480,6 +480,11 @@ def test_uncalibrated_prior_still_holds_near_exhaustion_and_stale_evidence():
     stale_verdict = reservation.admission(stale, need, now=now)
     assert stale_verdict["decision"] == "quota_wait"
     assert stale_verdict["until"] is None and stale_verdict["uncertain"] is True
+    # Even when the other window is stale and non-exhausted, a known exhausted window keeps its reset.
+    stale_mixed = dict(magpie_codex(now, used=9, weekly=100), observed_at=now - 3600)
+    mixed_verdict = reservation.admission(stale_mixed, need, now=now)
+    assert mixed_verdict["decision"] == "quota_wait"
+    assert mixed_verdict["until"] == reservation.quota_forecast.iso(now + 86400)
     stale_exhausted = dict(magpie_codex(now, used=100, weekly=100), observed_at=now - 3600)
     exhausted_verdict = reservation.admission(stale_exhausted, need, now=now)
     assert exhausted_verdict["decision"] == "quota_wait"

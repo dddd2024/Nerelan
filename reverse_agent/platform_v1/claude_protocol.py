@@ -83,17 +83,21 @@ class ClaudeStreamJson:
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
             raise TypeError("claude_protocol_requires_bytes")
-        self._bytes += len(chunk)
-        if self._stream_limit is not None and self._bytes > self._stream_limit:
-            raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
-        self._buffer.extend(chunk)
-        while b"\n" in self._buffer:
-            end = self._buffer.index(b"\n")
-            line = bytes(self._buffer[:end])
-            del self._buffer[:end + 1]
-            self._line(line)
-        if len(self._buffer) > self._frame_limit:
-            raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
+        step = self._frame_limit + 1
+        view = memoryview(chunk)
+        for offset in range(0, len(view), step):
+            part = view[offset:offset + step]
+            self._bytes += len(part)
+            if self._stream_limit is not None and self._bytes > self._stream_limit:
+                raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
+            self._buffer.extend(part)
+            while b"\n" in self._buffer:
+                end = self._buffer.index(b"\n")
+                line = bytes(self._buffer[:end])
+                del self._buffer[:end + 1]
+                self._line(line)
+            if len(self._buffer) > self._frame_limit:
+                raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
 
     def finish(self) -> CodexTurn:
         if self._buffer:

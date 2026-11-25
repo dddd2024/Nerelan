@@ -243,39 +243,43 @@ class CodexJsonl:
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
             raise TypeError("codex_protocol_requires_bytes")
-        self._bytes += len(chunk)
-        if self._stream_limit is not None and self._bytes > self._stream_limit:
-            raise CodexProtocolError("codex_stream_limit_exceeded")
-        self._buffer.extend(chunk)
-        while b"\n" in self._buffer:
-            end = self._buffer.index(b"\n")
-            line = bytes(self._buffer[:end])
-            del self._buffer[:end + 1]
-            if self._discarding:
-                # The rest of an oversized line: classify it from its ends and resume framing.
-                self._account_discarded_bytes(len(line) + 1)
-                self._remember_dropped(line)
-                self._discarding = False
-                self._drop_frame()
-                continue
-            if len(line) > self._frame_limit:
-                self._account_discarded_bytes(len(line) + 1)
-                self._drop_head, self._drop_tail = bytearray(), bytearray()
-                self._remember_dropped(line)
-                self._drop_frame()
-                continue
-            if not line.strip():
-                self._account_discarded_bytes(len(line) + 1)
-                continue
-            self._line(line)
-        if len(self._buffer) > self._frame_limit:
-            # An oversized line still arriving: keep only its ends, so memory stays bounded.
-            self._account_discarded_bytes(len(self._buffer))
-            if not self._discarding:
-                self._drop_head, self._drop_tail = bytearray(), bytearray()
-                self._discarding = True
-            self._remember_dropped(bytes(self._buffer))
-            self._buffer.clear()
+        step = self._frame_limit + 1
+        view = memoryview(chunk)
+        for offset in range(0, len(view), step):
+            part = view[offset:offset + step]
+            self._bytes += len(part)
+            if self._stream_limit is not None and self._bytes > self._stream_limit:
+                raise CodexProtocolError("codex_stream_limit_exceeded")
+            self._buffer.extend(part)
+            while b"\n" in self._buffer:
+                end = self._buffer.index(b"\n")
+                line = bytes(self._buffer[:end])
+                del self._buffer[:end + 1]
+                if self._discarding:
+                    # The rest of an oversized line: classify it from its ends and resume framing.
+                    self._account_discarded_bytes(len(line) + 1)
+                    self._remember_dropped(line)
+                    self._discarding = False
+                    self._drop_frame()
+                    continue
+                if len(line) > self._frame_limit:
+                    self._account_discarded_bytes(len(line) + 1)
+                    self._drop_head, self._drop_tail = bytearray(), bytearray()
+                    self._remember_dropped(line)
+                    self._drop_frame()
+                    continue
+                if not line.strip():
+                    self._account_discarded_bytes(len(line) + 1)
+                    continue
+                self._line(line)
+            if len(self._buffer) > self._frame_limit:
+                # An oversized line still arriving: keep only its ends, so memory stays bounded.
+                self._account_discarded_bytes(len(self._buffer))
+                if not self._discarding:
+                    self._drop_head, self._drop_tail = bytearray(), bytearray()
+                    self._discarding = True
+                self._remember_dropped(bytes(self._buffer))
+                self._buffer.clear()
 
     def _remember_dropped(self, data: bytes) -> None:
         if len(self._drop_head) < _DROP_HEAD_BYTES:

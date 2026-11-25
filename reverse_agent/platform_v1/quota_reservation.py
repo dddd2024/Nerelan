@@ -220,6 +220,7 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
     selected = observation(account, [evidence], clock=lambda: now,
                            freshness=freshness, small_task=small_task)
     waits = []
+    exhausted_waits = []
     windows = {w["window"]: w for w in _canonical_windows(selected.get("windows", ()))}
     observed = quota_forecast.parse_time(selected.get("observed_at"))
     provider_reported = (selected.get("source") in {"magpie", "official", "cli", "claude_rate_limit_event"}
@@ -238,9 +239,11 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
             if small_task and _number(p80) and 0 < p80 <= 1 and not (_number(used) and used >= 100 and (reset is None or reset > now)):
                 continue
             # Stale (unexhausted) evidence must not lock admission until a distant window reset.
-            stale_not_exhausted = not selected["fresh"] and not (_number(used) and used >= 100)
-            wait_until = None if stale_not_exhausted else (reset if reset is not None and reset > now else None)
+            is_exhausted = _number(used) and used >= 100
+            wait_until = (reset if reset is not None and reset > now else None) if is_exhausted else None
             waits.append((name, wait_until))
+            if is_exhausted:
+                exhausted_waits.append(wait_until)
             continue
         reserved = 0
         for row in outstanding:
@@ -275,10 +278,19 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
                   and now < released and abs(reset - released) <= 900 else buffer)
         # A spent window always waits, however small the need.
         if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
-            waits.append((name, reset if reset is not None and reset > now else None))
+            wait_until = reset if reset is not None and reset > now else None
+            waits.append((name, wait_until))
+            if used >= 100:
+                exhausted_waits.append(wait_until)
+    if waits and all(r is not None for _, r in waits):
+        until = quota_forecast.iso(max(r for _, r in waits))
+    elif exhausted_waits and all(r is not None for r in exhausted_waits):
+        until = quota_forecast.iso(max(exhausted_waits))
+    else:
+        until = None
     return {"decision": "quota_wait" if waits else "ok", "reason": "quota_capacity" if waits else "quota_fit",
             "state": "UNKNOWN" if uncertain else "OBSERVED", "blocking_windows": [w for w, _ in waits],
-            "until": quota_forecast.iso(max(r for _, r in waits)) if waits and all(r is not None for _, r in waits) else None,
+            "until": until,
             "uncertain": uncertain or any(r is None for _, r in waits)}
 
 

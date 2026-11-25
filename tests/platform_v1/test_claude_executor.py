@@ -238,6 +238,11 @@ def test_thinking_progress_notices_do_not_spend_the_event_bound():
     noise_flood = ClaudeStreamJson(max_frame_bytes=1024, max_progress_bytes=512)
     with pytest.raises(ClaudeProtocolError, match="claude_code_stream_limit_exceeded"):
         noise_flood.feed(b'{"type":"system","subtype":"init","session_id":"s"}\n' + notice * 10)
+    # A single huge multi-line chunk is sliced at frame_limit+1 so _buffer stays bounded.
+    sliced = ClaudeStreamJson(max_frame_bytes=512, max_events=50)
+    big_chunk = b'{"type":"system","subtype":"init","session_id":"s"}\n' + (b'{"type":"user","message":{"role":"user","content":"' + b"z" * 200 + b'"}}\n') * 10 + b'{"type":"result","subtype":"success","is_error":false,"result":"sliced"}\n'
+    sliced.feed(big_chunk)
+    assert sliced.finish().final_text == "sliced" and len(sliced._buffer) == 0
 
 
 def test_router_registers_claude_code_executor():
