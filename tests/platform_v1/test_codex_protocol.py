@@ -262,10 +262,17 @@ def test_total_stream_and_event_counts_are_independently_bounded():
     parser = CodexJsonl(max_frame_bytes=10, max_stream_bytes=20)
     with pytest.raises(CodexProtocolError, match="codex_stream_limit_exceeded"):
         parser.feed(b"\n" * 21)
-    assert CodexJsonl()._stream_limit == 32 * 1024 * 1024
+    assert CodexJsonl()._stream_limit is None
     assert CodexJsonl(max_stream_bytes=64 * 1024 * 1024)._stream_limit == 64 * 1024 * 1024
     with pytest.raises(ValueError, match="codex_protocol_limits_invalid"):
         CodexJsonl(max_stream_bytes=64 * 1024 * 1024 + 1)
+    # Normal events past max_discarded_bytes succeed; blank/oversized discard floods abort.
+    long_codex = CodexJsonl(max_frame_bytes=2048, max_discarded_bytes=128)
+    long_codex.feed(wire(*START, {"type": "item.completed", "item": {"type": "agent_message", "text": "y" * 300}}, DONE))
+    assert long_codex.finish().final_text == "y" * 300
+    blank_flood = CodexJsonl(max_frame_bytes=1024, max_discarded_bytes=32)
+    with pytest.raises(CodexProtocolError, match="codex_stream_limit_exceeded"):
+        blank_flood.feed(b"\n" * 40)
     parser = CodexJsonl(max_events=1)
     with pytest.raises(CodexProtocolError, match="codex_event_limit_exceeded"):
         parser.feed(wire(*START))

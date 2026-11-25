@@ -175,18 +175,23 @@ class CodexTurn:
 
 
 class CodexJsonl:
-    """Incremental UTF-8 framing with independent line, stream and item bounds."""
+    """Incremental UTF-8 framing with independent line, discarded-noise and item bounds."""
 
     def __init__(
         self,
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 256 * 1024,
-        max_stream_bytes: int = 32 * 1024 * 1024,
+        max_stream_bytes: int | None = None,
+        max_discarded_bytes: int = 32 * 1024 * 1024,
         max_events: int = 2000,
         limit_classification: str = "codex_usage_limit",
     ) -> None:
-        if not (0 < max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
+        if not 0 < max_frame_bytes <= 64 * 1024 * 1024:
+            raise ValueError("codex_protocol_limits_invalid")
+        if max_stream_bytes is not None and not (max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
+            raise ValueError("codex_protocol_limits_invalid")
+        if not 0 < max_discarded_bytes <= 64 * 1024 * 1024:
             raise ValueError("codex_protocol_limits_invalid")
         if not 0 < max_events <= 10000:
             raise ValueError("codex_protocol_limits_invalid")
@@ -194,6 +199,7 @@ class CodexJsonl:
         self._callback = callback
         self._frame_limit = max_frame_bytes
         self._stream_limit = max_stream_bytes
+        self._discarded_limit = max_discarded_bytes
         self._event_limit = max_events
         self._limit_classification = limit_classification
         self._buffer = bytearray()
@@ -201,6 +207,7 @@ class CodexJsonl:
         self._drop_head = bytearray()
         self._drop_tail = bytearray()
         self._bytes = 0
+        self._discarded_bytes = 0
         self._events = 0
         self._started = False
         self._error_seen = False
@@ -228,11 +235,16 @@ class CodexJsonl:
             if self._callback:
                 self._callback(public)
 
+    def _account_discarded_bytes(self, nbytes: int) -> None:
+        self._discarded_bytes += nbytes
+        if self._discarded_bytes > self._discarded_limit:
+            raise CodexProtocolError("codex_stream_limit_exceeded")
+
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
             raise TypeError("codex_protocol_requires_bytes")
         self._bytes += len(chunk)
-        if self._bytes > self._stream_limit:
+        if self._stream_limit is not None and self._bytes > self._stream_limit:
             raise CodexProtocolError("codex_stream_limit_exceeded")
         self._buffer.extend(chunk)
         while b"\n" in self._buffer:
@@ -241,18 +253,24 @@ class CodexJsonl:
             del self._buffer[:end + 1]
             if self._discarding:
                 # The rest of an oversized line: classify it from its ends and resume framing.
+                self._account_discarded_bytes(len(line) + 1)
                 self._remember_dropped(line)
                 self._discarding = False
                 self._drop_frame()
                 continue
             if len(line) > self._frame_limit:
+                self._account_discarded_bytes(len(line) + 1)
                 self._drop_head, self._drop_tail = bytearray(), bytearray()
                 self._remember_dropped(line)
                 self._drop_frame()
                 continue
+            if not line.strip():
+                self._account_discarded_bytes(len(line) + 1)
+                continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
             # An oversized line still arriving: keep only its ends, so memory stays bounded.
+            self._account_discarded_bytes(len(self._buffer))
             if not self._discarding:
                 self._drop_head, self._drop_tail = bytearray(), bytearray()
                 self._discarding = True

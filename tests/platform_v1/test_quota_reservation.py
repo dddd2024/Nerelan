@@ -477,7 +477,13 @@ def test_uncalibrated_prior_still_holds_near_exhaustion_and_stale_evidence():
     assert reservation.admission(magpie_codex(now, used=70), need, now=now)["blocking_windows"] == ["five_hour"]
     assert reservation.admission(magpie_codex(now, weekly=90), need, now=now)["blocking_windows"] == ["weekly"]
     stale = dict(magpie_codex(now), observed_at=now - 3600)
-    assert reservation.admission(stale, need, now=now)["decision"] == "quota_wait"
+    stale_verdict = reservation.admission(stale, need, now=now)
+    assert stale_verdict["decision"] == "quota_wait"
+    assert stale_verdict["until"] is None and stale_verdict["uncertain"] is True
+    stale_exhausted = dict(magpie_codex(now, used=100, weekly=100), observed_at=now - 3600)
+    exhausted_verdict = reservation.admission(stale_exhausted, need, now=now)
+    assert exhausted_verdict["decision"] == "quota_wait"
+    assert exhausted_verdict["until"] is not None
 
 
 def test_calibration_keyed_by_source_window_name_is_used():

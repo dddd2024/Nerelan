@@ -1,0 +1,166 @@
+{
+  "schema_version": 1,
+  "issue": 1267,
+  "recorded_at": "2026-11-25T15:13:30Z",
+  "scope": "CONTROLLED_SINGLE_TASK_PAIRS_WITH_OBSERVED_TOOL_MATCHING",
+  "general_savings_claim": false,
+  "environment": {
+    "repository": "dddd2024/Nerelan",
+    "platform_head_observed": "c55d5098bdae5ff18f022fe70249987094ca2fbc",
+    "native_cli": "claude 2.x (sonnet, managed claude.ai subscription)",
+    "host_runtime": "Windows (local isolated linked git worktrees)"
+  },
+  "arms": {
+    "1501_native_full": {
+      "issue": 1501,
+      "arm": "native_claude_sonnet_full_tools",
+      "contract_identity": "049d208d324e7d5c18070be989b2aea5e23fa273a0c6a3492f313e1000405701",
+      "base_commit": "a7468696069e5ae8cbfdb7627e78e80a051c9ac7",
+      "tools": ["Read", "Glob", "Grep", "Edit", "Write", "Bash"],
+      "tool_equivalence_vs_nerelan": "tool_mismatch (Bash present)",
+      "exit_code": 0,
+      "pytest_exit": 0,
+      "pytest_passed": 134,
+      "git_diff_check_exit": 0,
+      "diff_stat": "2 files changed, 36 insertions(+), 1 deletion(-)",
+      "diff_digest": "91abfe166d098c541e6b5cb9dce9b3e2f84d2b4bd79befd3005aa41cefef03dd",
+      "wall_seconds": 56.65,
+      "verify_seconds": 23.24,
+      "attempts": 1,
+      "total_tool_calls": 18,
+      "stream_bytes": 375294,
+      "bytes_per_tool_call": 20849.7,
+      "max_line_bytes": 86669,
+      "cost_basis": "cli_reported_cost_usd (non-invoice subscription telemetry)",
+      "cli_total_cost_usd": 0.218384,
+      "usage": {
+        "input_tokens": 20,
+        "cache_creation_input_tokens": 34962,
+        "cache_read_input_tokens": 274263,
+        "output_tokens": 5107
+      }
+    },
+    "1501_native_confined": {
+      "issue": 1501,
+      "arm": "native_claude_sonnet_confined_nobash",
+      "contract_identity": "fd4a76b9788bababb364abc845c15929514c5a6154a799f196cda3d8d56b164f",
+      "base_commit": "a7468696069e5ae8cbfdb7627e78e80a051c9ac7",
+      "tools": ["Read", "Glob", "Grep", "Edit", "Write"],
+      "tool_equivalence_vs_nerelan": "matched_to_claude_executor_workspace_write",
+      "exit_code": 0,
+      "pytest_exit": 0,
+      "pytest_passed": 135,
+      "git_diff_check_exit": 0,
+      "diff_stat": "2 files changed, 36 insertions(+), 1 deletion(-)",
+      "diff_digest": "f615006ab67144f1c5684667e351401c961f6397b045e06884d9287dc26e1a40",
+      "wall_seconds": 56.05,
+      "verify_seconds": 19.79,
+      "attempts": 1,
+      "total_tool_calls": 19,
+      "stream_bytes": 379640,
+      "bytes_per_tool_call": 19981.1,
+      "max_line_bytes": 87545,
+      "cost_basis": "cli_reported_cost_usd (non-invoice subscription telemetry)",
+      "cli_total_cost_usd": 0.176840,
+      "usage": {
+        "input_tokens": 26,
+        "cache_creation_input_tokens": 25476,
+        "cache_read_input_tokens": 238536,
+        "output_tokens": 5103
+      }
+    },
+    "1501_nerelan": {
+      "issue": 1501,
+      "arm": "nerelan_agent_team_observed",
+      "goal_id": "goal-1795441860289-53fac06070ef",
+      "base_commit": "a7468696069e5ae8cbfdb7627e78e80a051c9ac7",
+      "status": "COMPLETED",
+      "wall_seconds": 648.0,
+      "sum_active_seconds": 439.0,
+      "attempts": 3,
+      "attempt_outcomes": [
+        "opencode/coding-kimi: FAILED api_error_429 (75s)",
+        "opencode/magpie-group-nerelan-deepseek-v4-1-flash: READY_FOR_REVIEW (obs unknown)",
+        "opencode/magpie-group-nerelan-glm-5-3: READY_FOR_REVIEW (364s)"
+      ],
+      "cost_basis": "partial_observed_tokens_unknown_subset",
+      "observed_usage": {
+        "input_units": 75161,
+        "output_units": 1753,
+        "cache_read_units": 1079424,
+        "cost_micro_units": 0
+      }
+    },
+    "1504_native_full": {
+      "issue": 1504,
+      "arm": "native_claude_sonnet_full_tools",
+      "contract_identity": "c3f7123df32c38ce0c0f59944135610a36e5e54ef99c2d2787a7084185a9eb78",
+      "base_commit": "bbc20139d1bf9125089a601f37a3232a47b4ef4f",
+      "tools": ["Read", "Glob", "Grep", "Edit", "Write", "Bash"],
+      "exit_code": 0,
+      "pytest_exit": 0,
+      "pytest_passed": 78,
+      "frontend_checks": "not_run",
+      "diff_stat": "",
+      "wall_seconds": 28.98,
+      "verify_seconds": 7.99,
+      "attempts": 1,
+      "total_tool_calls": 6,
+      "stream_bytes": 71401,
+      "bytes_per_tool_call": 11900.2,
+      "cost_basis": "cli_reported_cost_usd (non-invoice subscription telemetry)",
+      "cli_total_cost_usd": 0.114522,
+      "usage": {
+        "input_tokens": 12,
+        "cache_creation_input_tokens": 21758,
+        "cache_read_input_tokens": 128258,
+        "output_tokens": 1464
+      }
+    },
+    "1504_nerelan": {
+      "issue": 1504,
+      "arm": "nerelan_agent_team_observed",
+      "goal_id": "goal-1795587464122-56a7f1a7d227",
+      "base_commit": "bbc20139d1bf9125089a601f37a3232a47b4ef4f",
+      "status": "RUNNING (incomplete at measurement)",
+      "wall_seconds": 19774.0,
+      "sum_active_seconds": 3446.0,
+      "attempts": 11,
+      "attempt_outcomes": {
+        "server_stream_stalled": 5,
+        "api_error_429": 1,
+        "deterministic_validation_failure": 1,
+        "server_session_error": 1,
+        "patch_hygiene_failed_no_bash": 1,
+        "queued": 2
+      },
+      "cost_basis": "observed_gateway_tokens_plus_cli_reported_usd",
+      "observed_usage": {
+        "input_units": 563072,
+        "output_units": 41835,
+        "cache_read_units": 5917304,
+        "cache_write_units": 105500,
+        "cost_micro_units": 0
+      },
+      "cli_reported_usd": 1.094389
+    }
+  },
+  "cost_separation_recent_500_magpie": {
+    "gateway_total_calls": 46867,
+    "gateway_total_cost_usd": 2501.8271,
+    "recent_500_total_usd": 14.2279,
+    "buckets": {
+      "supervision_and_one_time_dev_antigravity": {"reqs": 152, "cost_usd": 13.5261, "share": 0.9507},
+      "steady_state_worker_claude_magpie": {"reqs": 7, "cost_usd": 0.6598, "share": 0.0464},
+      "steady_state_worker_opencode": {"reqs": 115, "cost_usd": 0.0418, "share": 0.0029},
+      "background_probes": {"reqs": 226, "cost_usd": 0.0002, "share": 0.0}
+    }
+  },
+  "context_recovery_audit": {
+    "durable_context_rebuilt_events": 281,
+    "near_16k_compaction_cap_events": 128,
+    "context_summary_evidence_rows": 0,
+    "context_handoff_evidence_rows": 0,
+    "split_last_line_telemetry_underreporting_cases": 40
+  }
+}

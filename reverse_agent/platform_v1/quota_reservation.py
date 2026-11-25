@@ -237,7 +237,10 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
             # Explicitly bounded small work still cannot override known exhaustion.
             if small_task and _number(p80) and 0 < p80 <= 1 and not (_number(used) and used >= 100 and (reset is None or reset > now)):
                 continue
-            waits.append((name, reset if reset is not None and reset > now else None))
+            # Stale (unexhausted) evidence must not lock admission until a distant window reset.
+            stale_not_exhausted = not selected["fresh"] and not (_number(used) and used >= 100)
+            wait_until = None if stale_not_exhausted else (reset if reset is not None and reset > now else None)
+            waits.append((name, wait_until))
             continue
         reserved = 0
         for row in outstanding:
