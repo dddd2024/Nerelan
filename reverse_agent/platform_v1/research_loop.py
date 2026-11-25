@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 
+from .agent_planner import is_transient_planner_error
 from .repository_workspace import resolve_repository_workspace
 from .remote_jobs import JOB_ID, REQUEST_FIELDS, _atomic_json, _relative
 from .run_store import TaskStoreError
@@ -244,22 +245,53 @@ class ResearchLoop:
             if goal["status"] == "DRAFT":
                 status = self.planner.status(goal["id"])
                 if status["status"] == "FAILED":
-                    record["goal_failed"] = True
-                    self._event(record, "FAILED", status.get("error", "planning failed"), path)
-                elif status["status"] != "RUNNING":
+                    err = str(status.get("error") or "planning failed")
+                    if status.get("transient") is True or is_transient_planner_error(err):
+                        seen = status.get("finished_at") or err
+                        if record.get("planner_wait_seen") != seen:
+                            attempts = int(record.get("planner_wait_attempts", 0)) + 1
+                            delay = min(60 * (2 ** min(attempts - 1, 5)), 1800)
+                            record["planner_wait_attempts"] = attempts
+                            record["planner_wait_seen"] = seen
+                            record["planner_retry_after"] = self.clock() + delay
+                            when = time.strftime("; earliest retry %Y-%m-%dT%H:%MZ",
+                                                 time.gmtime(record["planner_retry_after"]))
+                            detail = f"waiting for planner retry: {err}{when}"
+                            if record["history"][-1]["detail"].split("; ")[0] != detail.split("; ")[0]:
+                                self._event(record, "PLANNING", detail, path)
+                            else:
+                                self._save(record, path)
+                            return
+                        if self.clock() < float(record.get("planner_retry_after", 0)):
+                            return
+                    else:
+                        record["goal_failed"] = True
+                        self._event(record, "FAILED", err, path)
+                        return
+                if status["status"] != "RUNNING":
+                    retried = status["status"] == "FAILED"
                     try:
                         self.planner.start(goal["id"], expected_revision=goal["revision"])
                     except TaskStoreError as exc:
                         decision = getattr(exc, "decision", None)
                         if not isinstance(decision, dict):
-                            raise
+                            if str(exc) in {"no_runnable_model", "pinned_model_unavailable", "model_control_unavailable"}:
+                                decision = {}
+                            else:
+                                raise
                         # No model may plan now (quota, pacing, availability): a wait, not a
                         # failure. Say why and until when, once, and look again next tick.
                         detail = self._model_wait(str(exc), decision)
                         # A moving retry time alone is not a new reason.
                         if record["history"][-1]["detail"].split("; ")[0] != detail.split("; ")[0]:
                             self._event(record, "PLANNING", detail, path)
+                    else:
+                        if retried:
+                            record.pop("planner_wait_seen", None)
+                            self._save(record, path)
                 return
+            for key in ("planner_wait_attempts", "planner_wait_seen", "planner_retry_after"):
+                record.pop(key, None)
             if goal["status"] == "PLANNED":
                 self.goals.approve(goal["id"], expected_revision=goal["revision"])
                 goal = self.goals.detail(goal["id"])
@@ -278,6 +310,8 @@ class ResearchLoop:
             if not goal_terminal and (not tasks or not all(t["status"] in terminal for t in tasks)):
                 return
             if not goal_terminal and self._awaiting_resume(record, tasks, window, path):
+                return
+            if goal["status"] == "BLOCKED" and self._awaiting_resource(record, tasks, window, path):
                 return
             record["tasks"] = [dict(t) for t in tasks]
             for task in record["tasks"]:
@@ -383,6 +417,41 @@ class ResearchLoop:
         if record.get("resume_waiting") != interrupted:
             record["resume_waiting"] = interrupted
             self._event(record, "LAUNCHED", "waiting for resume of " + ", ".join(interrupted), path)
+        return True
+
+    def _awaiting_resource(self, record, tasks, window, path):
+        """A goal BLOCKED solely on transient quota/resource availability stays waiting, not failed."""
+        if window is None or not tasks:
+            return False
+        stopped = [t for t in tasks if t.get("status") in {"FAILED", "BLOCKED"}]
+        if not stopped:
+            return False
+        causes = []
+        for task in stopped:
+            failure = task.get("failure") if isinstance(task.get("failure"), dict) else {}
+            classification = str(failure.get("classification") or "")
+            raw_detail = str(failure.get("detail") or "")
+            parsed = None
+            if raw_detail.startswith("{"):
+                try:
+                    parsed = json.loads(raw_detail)
+                except ValueError:
+                    parsed = None
+            if isinstance(parsed, dict) and parsed.get("temporary_resource_blocked") is False:
+                return False
+            is_temp = (
+                (isinstance(parsed, dict) and parsed.get("temporary_resource_blocked") is True)
+                or classification in {
+                    "no_runnable_model", "pinned_model_unavailable", "api_error_429",
+                    "quota_exhausted", "provider_quota_limit", "provider_overloaded",
+                }
+            )
+            if not is_temp:
+                return False
+            causes.append(f"{task.get('task_id')}:{classification or 'resource_wait'}")
+        if record.get("resource_waiting") != causes:
+            record["resource_waiting"] = causes
+            self._event(record, "LAUNCHED", "waiting for resources: " + ", ".join(causes), path)
         return True
 
     def _orphaned_jobs(self, n, record):

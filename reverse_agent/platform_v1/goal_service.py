@@ -1197,6 +1197,65 @@ class GoalService:
                 return False
         return True
 
+    def _unchanged_without_usage(self, attempt: Any, observations: Sequence[Any]) -> bool:
+        """A failed attempt that called no model and left its input tree byte-identical.
+
+        Unlike ``_discarded_without_usage``, ``contract_recovery`` marks a
+        provider-interrupted attempt's ``AttemptDisposition`` as ``"reused"``
+        when its tree snapshot is kept for recovery. When that attempt called no
+        model (``observations == []``) and cryptographically changed nothing
+        from its input tree (either ``FailedTreeRestored.recovery_tree`` or the
+        approved ``base_commit`` tree), it authored nothing the reviewer will
+        see. Any file modification or model observation stays an author.
+        """
+        execution_id = getattr(attempt, "execution_id", "")
+        attempt_id = getattr(attempt, "id", "")
+        if (observations or getattr(attempt, "status", "") != "FAILED" or not execution_id
+                or not attempt_id or not hasattr(attempt, "evidence_refs")):
+            return False
+        from .artifact_handoff import _load_evidence
+        from .contract_recovery import FAILED
+        from .functional_validation import git_output
+        try:
+            failed_tree = _load_evidence(attempt, FAILED, execution_id)
+        except (TaskStoreError, ValueError, TypeError, KeyError):
+            return False
+        if (not isinstance(failed_tree, dict)
+                or failed_tree.get("task_id") != attempt_id
+                or failed_tree.get("execution_id") != execution_id
+                or not isinstance(failed_tree.get("tree"), str)
+                or not failed_tree["tree"]):
+            return False
+        try:
+            restored = _load_evidence(attempt, "FailedTreeRestored", execution_id)
+        except (TaskStoreError, ValueError, TypeError, KeyError):
+            return False
+        if restored is not None:
+            return (isinstance(restored, dict)
+                    and restored.get("task_id") == attempt_id
+                    and restored.get("execution_id") == execution_id
+                    and isinstance(restored.get("recovery_tree"), str)
+                    and restored["recovery_tree"] == failed_tree["tree"])
+        if failed_tree.get("changed_paths") != []:
+            return False
+        base_tree = failed_tree.get("base_tree")
+        if isinstance(base_tree, str) and base_tree:
+            return base_tree == failed_tree["tree"]
+        base_commit = failed_tree.get("base_commit")
+        if not isinstance(base_commit, str) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", base_commit):
+            return False
+        try:
+            root = resolve_repository_workspace(getattr(attempt, "repository", "")).repo_dir
+            resolved_base_tree = git_output(root, "rev-parse", f"{base_commit}^{{tree}}")
+        except (TaskStoreError, RepositoryWorkspaceError, OSError, ValueError, subprocess.SubprocessError):
+            return False
+        return resolved_base_tree == failed_tree["tree"]
+
+    def _authored_nothing_without_usage(self, attempt: Any, observations: Sequence[Any]) -> bool:
+        """True when a failed attempt neither called a model nor introduced tree changes."""
+        return (self._discarded_without_usage(attempt, observations)
+                or self._unchanged_without_usage(attempt, observations))
+
     def _review_authors(self, task: PlannedTask, goal: Any, planned: Mapping[str, PlannedTask], *,
                         require_frozen: bool = False) -> dict[str, Any]:
         """Resolve authors from execution facts, retaining replaced attempts."""
@@ -1233,7 +1292,7 @@ class GoalService:
                                      tuple(tuple(row) for row in selected), tuple(tuple(row) for row in usage),
                                      tuple((ref["id"], ref["category"], ref["value"], ref["status"], ref["raw_json_digest"])
                                            for ref in attempt.evidence_refs)))
-                if self._discarded_without_usage(attempt, observations):
+                if self._authored_nothing_without_usage(attempt, observations):
                     continue
                 recorded = {row.model_id for row in observations if row.model_id}
                 if not recorded:
@@ -1732,6 +1791,16 @@ class GoalService:
             # their evidence is invalid. An attempt without a verdict retries the
             # review itself and must never authorize a producer repair.
             if model_review and failed.failure_classification == "model_review_rejected":
+                continue
+            if model_review and failed.failure_classification == "review_not_independent":
+                held = f"automatic_retry_not_allowed:{failed.failure_classification}"
+                if not any(e.type == "MODEL_SELECTION_FAILED" and e.metadata.get("reason") == held
+                           for e in self.store.get_events(failed.id)):
+                    self.store.add_event(failed.id, event_type="MODEL_SELECTION_FAILED",
+                                         title="Automatic retry not allowed",
+                                         description="Review authorship could not be proved independent. "
+                                                     "Correct its cause and use Owner retry.",
+                                         metadata={"reason": held, "cause": cause})
                 continue
             refusal = failed.failure_classification == "MODEL_REFUSED"
             # Durable executors store "MODEL_UNAVAILABLE:<marker>" (#1460).

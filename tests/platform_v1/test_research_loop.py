@@ -1242,6 +1242,71 @@ class ResearchLoopTests(unittest.TestCase):
             self.assertIs(factory.call_args.kwargs["broker"], broker)
         self.assertEqual(events, ["broker start", "loop start", "loop stop", "broker stop"])
 
+    def test_transient_planner_failure_waits_without_paused_failing(self):
+        calls = []
+        plan_status = {"status": "FAILED", "error": "agent_planner_error:model_control_unavailable",
+                       "transient": True, "finished_at": 100.0}
+        original_start = self.planner.start
+
+        def transient_start(goal_id, **kwargs):
+            calls.append(self.now)
+            if len(calls) < 2:
+                plan_status["finished_at"] = float(self.now)
+                return dict(plan_status)
+            plan_status.clear()
+            plan_status["status"] = "PLANNED"
+            return original_start(goal_id, **kwargs)
+
+        self.planner.status = lambda gid: dict(plan_status)
+        self.planner.start = transient_start
+        # Tick 1 creates goal -> PLANNING; Tick 2 sees existing FAILED status -> enters backoff wait
+        self.tick()
+        self.tick()
+        self.assertEqual(self.state()["state"], "RUNNING")
+        self.assertEqual(self.state()["failed_rounds"], 0)
+        self.assertEqual(self.round()["state"], "PLANNING")
+        # Before backoff expires, planner is not restarted
+        self.now += 30
+        self.tick()
+        self.assertEqual(calls, [])
+        # After backoff expires, planner retries and fails once synchronously (attempt 2 -> 120s backoff)
+        self.now += 40
+        self.tick()
+        self.assertEqual(len(calls), 1)
+        self.tick()
+        self.assertEqual(self.state()["failed_rounds"], 0)
+        self.assertEqual(self.state()["state"], "RUNNING")
+        # After second backoff, planner succeeds and round launches
+        self.now += 125
+        self.tick()
+        self.tick()
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.round()["state"], "LAUNCHED")
+
+    def test_permanent_planner_failure_still_triggers_paused_failing(self):
+        self.planner.status = lambda gid: {"status": "FAILED", "error": "agent_plan_not_json", "finished_at": 100.0}
+        for _ in range(6):
+            self.tick()
+        self.assertEqual(self.state()["state"], "PAUSED_FAILING")
+        self.assertEqual(self.state()["failed_rounds"], 2)
+
+    def test_launched_blocked_on_temporary_resource_wait_stays_waiting(self):
+        self.launch()
+        self.complete([dict(
+            task_id="t1", status="BLOCKED",
+            failure={"classification": "no_runnable_model",
+                     "detail": json.dumps({"reason": "no_runnable_model", "temporary_resource_blocked": True})},
+        )], status="BLOCKED")
+        for _ in range(4):
+            self.tick()
+        self.assertEqual(self.round()["state"], "LAUNCHED")
+        self.assertEqual(self.state()["state"], "RUNNING")
+        self.assertEqual(self.state()["failed_rounds"], 0)
+        self.complete([self.task("t1", {"RESEARCH_LOG.md": "round 1 ok"})], status="COMPLETED")
+        for _ in range(5):
+            self.tick()
+        self.assertEqual(self.round()["state"], "DONE")
+
 
 if __name__ == "__main__":
     unittest.main()

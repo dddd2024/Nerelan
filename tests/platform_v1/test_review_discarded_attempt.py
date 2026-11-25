@@ -77,3 +77,58 @@ def test_discarded_attempt_later_carried_by_a_fixup_stays_an_author(review_setup
                   "source_task_id": earlier, "snapshot_digest": "0" * 64, "feedback": "fix the target"})
     result = run_review(review_setup)
     assert result.failure_classification == "review_not_independent"
+
+
+def test_reused_unchanged_attempt_without_model_call_does_not_block_review(review_setup):
+    import subprocess
+    from reverse_agent.platform_v1.functional_validation import load_contract
+    from reverse_agent.platform_v1.repository_workspace import resolve_repository_workspace
+
+    store, _, producer, *_ = review_setup
+    earlier = _earlier_attempt(store, producer, disposition="reused")
+    task = store.get_task(earlier)
+    producer_task = store.get_task(producer)
+    base_commit = load_contract(producer_task)["base_commit"]
+    root = resolve_repository_workspace(producer_task.repository).repo_dir
+    base_tree = subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", f"{base_commit}^{{tree}}"], encoding="utf-8"
+    ).strip()
+    store._conn.execute("UPDATE tasks SET repository = ? WHERE id = ?", (producer_task.repository, earlier))
+    store._conn.commit()
+    store._bind_artifact_evidence(earlier, category="FailedAttemptTree", label=task.execution_id,
+        document={"task_id": earlier, "execution_id": task.execution_id, "repository": producer_task.repository,
+                  "binding_ref": task.binding_ref, "executor_kind": task.executor_kind,
+                  "base_commit": base_commit, "head": base_commit, "tree": base_tree,
+                  "ref": f"refs/nerelan/failed-attempts/{earlier}/{task.execution_id}",
+                  "changed_paths": []})
+    result = run_review(review_setup)
+    assert result.success, result
+
+
+def test_reused_unchanged_attempt_with_restored_tree_match_does_not_block_review(review_setup):
+    store, _, producer, *_ = review_setup
+    earlier = _earlier_attempt(store, producer, disposition="reused")
+    task = store.get_task(earlier)
+    restored_tree = "a" * 40
+    store._bind_artifact_evidence(earlier, category="FailedTreeRestored", label=task.execution_id,
+        document={"task_id": earlier, "execution_id": task.execution_id,
+                  "source_task_id": "prior-task", "recovery_tree": restored_tree})
+    store._bind_artifact_evidence(earlier, category="FailedAttemptTree", label=task.execution_id,
+        document={"task_id": earlier, "execution_id": task.execution_id, "tree": restored_tree,
+                  "changed_paths": ["app.py"]})
+    result = run_review(review_setup)
+    assert result.success, result
+
+
+def test_reused_attempt_with_tree_modification_still_requires_model(review_setup):
+    store, _, producer, *_ = review_setup
+    earlier = _earlier_attempt(store, producer, disposition="reused")
+    task = store.get_task(earlier)
+    store._bind_artifact_evidence(earlier, category="FailedTreeRestored", label=task.execution_id,
+        document={"task_id": earlier, "execution_id": task.execution_id,
+                  "source_task_id": "prior-task", "recovery_tree": "a" * 40})
+    store._bind_artifact_evidence(earlier, category="FailedAttemptTree", label=task.execution_id,
+        document={"task_id": earlier, "execution_id": task.execution_id, "tree": "b" * 40,
+                  "changed_paths": ["app.py"]})
+    result = run_review(review_setup)
+    assert result.failure_classification == "review_not_independent"

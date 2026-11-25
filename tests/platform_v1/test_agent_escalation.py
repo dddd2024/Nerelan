@@ -369,3 +369,41 @@ def test_escalation_deduplicates_selection_failed_and_preserves_sweep_interval(m
     assert [
         e.metadata for e in store.get_events(first) if e.type == "MODEL_SELECTION_FAILED"
     ] == [{"reason": "no_runnable_model"}, {"reason": "pinned_model_unavailable"}]
+
+
+def test_execution_time_review_not_independent_does_not_loop_escalations(monkeypatch):
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    monkeypatch.setattr(goal_service_module, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(goal_service_module, "repository_base", lambda repository: BASE)
+    roster = {**ROSTER, "reviewer": ("opencode", "rev-binding")}
+    goals = GoalService(store=store, control_store=control, roster_resolver=lambda name: roster[name])
+    goal = goals.create({"objective": "Review independence guard", "repository": "dddd2024/Nerelan",
+                         "idempotency_key": "esc-review-indep", "executor_kind": "opencode",
+                         "orchestration_mode": "agent_team", "binding_ref": ""})
+    checks = [{"profile_id": "python_pytest", "working_directory": "."}]
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "T001", "title": "Implement", "instruction": "Implement", "agent_role": "coder", "validation_checks": checks},
+        {"id": "T002", "title": "Review", "instruction": "Review", "kind": "review", "agent_role": "reviewer",
+         "dependencies": ["T001"], "artifact_input": {"plan_task_id": "T001"}, "validation_checks": checks},
+    ])
+    goals.approve(goal.id, expected_revision=1)
+    window = autonomy.activate({**_window_payload(), "capabilities": ["execute_task", "validate_task"]})
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+
+    first = _link(control, goal.id, "T001")["task_id"]
+    review_id = _link(control, goal.id, "T002")["task_id"]
+    store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (first,))
+    store._conn.execute(
+        "UPDATE tasks SET status = 'FAILED', failure_classification = 'review_not_independent' WHERE id = ?",
+        (review_id,),
+    )
+    store._conn.commit()
+
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert control.list_task_escalations(goal.id) == ()
+    events = [e for e in store.get_events(review_id) if e.type == "MODEL_SELECTION_FAILED"]
+    assert len(events) == 1
+    assert events[0].metadata["reason"] == "automatic_retry_not_allowed:review_not_independent"
