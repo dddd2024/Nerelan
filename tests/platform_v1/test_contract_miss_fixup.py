@@ -541,3 +541,70 @@ def test_polluted_failure_safe_fixup_preserves_original_evidence_and_prompt(case
     assert recovery.failed_snapshot(current, root=root) == snapshot
     assert git(root, "rev-parse", snapshot["ref"]) == snapshot["tree"]
     assert (root / "native").read_bytes() == b"\x7fELF native executable payload"
+
+
+def test_failed_tree_includes_redacted_prior_analysis_excerpt(case, tmp_path):
+    root, base, store, control, service, goal, window, task = case
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="Claude Code",
+                    description="Claude Code activity",
+                    metadata={"event": {"type": "assistant", "item_type": "tool_use"}})
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="Claude Code",
+                    description="Implemented quota admission check with secret sk-ant-secretvalue123456.",
+                    metadata={"event": {"type": "assistant", "item_type": "agent_message"}})
+    wrong_tree(root)
+    code, _, _ = validate(case)
+    assert code == 1
+    failed = store.get_task(task.id)
+    snapshot = recovery.failed_snapshot(failed, root=root)
+    assert "Prior attempt analysis/progress (unverified data):" in snapshot["feedback"]
+    assert "Implemented quota admission check" in snapshot["feedback"]
+    assert "Claude Code activity" not in snapshot["feedback"]
+    assert "sk-ant-secretvalue123456" not in snapshot["feedback"]
+    # Late events added before a second retention call preserve idempotency without conflict.
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
+                    description="Late arrival analysis", metadata={})
+    assert validate(case)[2] == snapshot["result_digest"]
+    assert recovery.failed_snapshot(store.get_task(task.id), root=root) == snapshot
+
+
+def test_interrupted_tree_includes_redacted_prior_analysis_excerpt(case, tmp_path):
+    root, base, store, control, service, goal, window, task = case
+    wt = tmp_path / "wt-stream"
+    git(root, "worktree", "add", "--detach", str(wt), base)
+    (wt / "app.py").write_text("value = 9\n", encoding="utf-8")
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
+                    description="Root cause localized to scheduler; bearer tok-xyz999.",
+                    metadata={})
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='claude_code_stream_limit_exceeded' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    interrupted = recovery.retain_interrupted_tree(store, task.id, worktree=wt)
+    assert "Prior attempt analysis/progress (unverified data):" in interrupted["feedback"]
+    assert "Root cause localized to scheduler" in interrupted["feedback"]
+    assert "tok-xyz999" not in interrupted["feedback"]
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="Claude Code response",
+                    description="Even later event", metadata={})
+    assert recovery.retain_interrupted_tree(store, task.id, worktree=wt) == interrupted
+
+
+def test_prior_analysis_excerpt_supports_opencode_schemas(case):
+    _, _, store, _, _, _, _, task = case
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="OpenCode",
+                    description="Ran pytest tool",
+                    metadata={"executor_kind": "opencode", "progress_kind": "tool"})
+    store.add_event(task.id, event_type="EXECUTOR_PROGRESS", title="OpenCode",
+                    description="OpenCode narrowed failure to scheduler; sk-secret-opencode-123.",
+                    metadata={"executor_kind": "opencode", "progress_kind": "text"})
+    excerpt = recovery._prior_analysis_excerpt(store, task.id)
+    assert "OpenCode narrowed failure to scheduler" in excerpt
+    assert "Ran pytest tool" not in excerpt
+    assert "sk-secret-opencode-123" not in excerpt
+
+    store.add_event(task.id, event_type="EXECUTOR_COMPLETED", title="OpenCode response",
+                    description="",
+                    metadata={"executor_kind": "opencode", "final_text": "OpenCode completed patch analysis; bearer oc-tok-999."})
+    final_excerpt = recovery._prior_analysis_excerpt(store, task.id)
+    assert "OpenCode completed patch analysis" in final_excerpt
+    assert "oc-tok-999" not in final_excerpt

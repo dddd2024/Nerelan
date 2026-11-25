@@ -478,3 +478,19 @@ def test_server_session_and_deadline_attribution_and_recency_decay():
     assert profile["recent_attempts"] == pytest.approx(1.125, abs=1e-4)
     assert profile["recent_ok"] == pytest.approx(1.0, abs=1e-4)
     assert profile["recent_success_rate"] == pytest.approx(1.0 / 1.125, abs=1e-4)
+
+
+def test_stream_limit_exceeded_is_neutral_executor_plumbing():
+    from reverse_agent.platform_v1.model_profiles import HOST_PLUMBING_CLASSES, neutral_failure
+    store = TaskStore(":memory:")
+    t_claude = _task(store, "claude-opus", "FAILED", "claude_code_stream_limit_exceeded", kind="claude_code")
+    t_codex = _task(store, "codex-main", "FAILED", "codex_stream_limit_exceeded", kind="codex")
+    assert {"claude_code_stream_limit_exceeded", "codex_stream_limit_exceeded"} <= HOST_PLUMBING_CLASSES
+    assert neutral_failure("claude_code_stream_limit_exceeded", "") == "claude_code_stream_limit_exceeded"
+    assert neutral_failure("codex_stream_limit_exceeded", "") == "codex_stream_limit_exceeded"
+    profiles = compute_agent_profiles(store)
+    for task, cls in ((t_claude, "claude_code_stream_limit_exceeded"), (t_codex, "codex_stream_limit_exceeded")):
+        p = profiles[task.binding_ref]
+        assert p["attempts"] == 0 and p["failed"] == 0
+        assert p["failure_attribution"] == {"capability": 0, "upstream": 0, "executor": 1}
+        assert p["neutral_failures"][cls] == 1

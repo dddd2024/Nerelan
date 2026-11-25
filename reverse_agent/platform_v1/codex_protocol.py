@@ -182,11 +182,11 @@ class CodexJsonl:
         callback: Callable[[dict[str, Any]], None] | None = None,
         *,
         max_frame_bytes: int = 256 * 1024,
-        max_stream_bytes: int = 8 * 1024 * 1024,
+        max_stream_bytes: int = 32 * 1024 * 1024,
         max_events: int = 2000,
         limit_classification: str = "codex_usage_limit",
     ) -> None:
-        if not (0 < max_frame_bytes <= max_stream_bytes <= 8 * 1024 * 1024):
+        if not (0 < max_frame_bytes <= max_stream_bytes <= 64 * 1024 * 1024):
             raise ValueError("codex_protocol_limits_invalid")
         if not 0 < max_events <= 10000:
             raise ValueError("codex_protocol_limits_invalid")
