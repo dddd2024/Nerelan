@@ -501,3 +501,34 @@ def test_python_getuser_runs_under_sanitized_child_environment(tmp_path, monkeyp
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip()
+
+
+def test_repository_base_respects_configured_base_ref_or_origin_main(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git(repo, "init", "-q")
+    git(repo, "config", "user.email", "fixture@example.invalid")
+    git(repo, "config", "user.name", "Functional fixture")
+    git(repo, "remote", "add", "origin", "https://github.com/owner/sample.git")
+    (repo / "a.txt").write_text("base\n", encoding="utf-8")
+    git(repo, "add", "--", "a.txt")
+    git(repo, "commit", "-q", "-m", "base")
+    origin_sha = git(repo, "rev-parse", "HEAD")
+    git(repo, "update-ref", "refs/remotes/origin/main", origin_sha)
+    (repo / "b.txt").write_text("local-ahead\n", encoding="utf-8")
+    git(repo, "add", "--", "b.txt")
+    git(repo, "commit", "-q", "-m", "local ahead")
+    local_head = git(repo, "rev-parse", "HEAD")
+    assert local_head != origin_sha
+
+    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(repo))
+    monkeypatch.delenv("REVERSE_AGENT_BASE_REF", raising=False)
+    assert fv.repository_base("owner/sample") == origin_sha
+
+    monkeypatch.setenv("REVERSE_AGENT_BASE_REF", "HEAD")
+    assert fv.repository_base("owner/sample") == local_head
+
+    for bad_ref in ("-bad", "HEAD main"):
+        monkeypatch.setenv("REVERSE_AGENT_BASE_REF", bad_ref)
+        with pytest.raises(TaskStoreError, match="functional_base_invalid"):
+            fv.repository_base("owner/sample")

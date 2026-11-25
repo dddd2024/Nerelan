@@ -618,6 +618,7 @@ def build_role_child_env(
         role_perm = build_role_permission_config(role)
         if role_perm:
             child["OPENCODE_CONFIG_CONTENT"] = role_perm
+    child["PYTHONDONTWRITEBYTECODE"] = "1"
     return child
 
 

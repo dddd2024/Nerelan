@@ -85,6 +85,10 @@ def _session_error_texts(properties: Mapping[str, Any]) -> list[str]:
     return candidates
 
 
+def _session_error_no_credits(properties: Mapping[str, Any]) -> bool:
+    return any(no_credits_error(text) for text in _session_error_texts(properties))
+
+
 def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
     candidates = _session_error_texts(properties)
     if any(no_credits_error(text) for text in candidates):
@@ -104,6 +108,13 @@ def _extract_rate_limit_reset_at(texts: Sequence[str]) -> str:
         if reset:
             return reset
     return ""
+
+
+def _account_no_credits_retry(status: Any) -> bool:
+    if not isinstance(status, Mapping) or status.get("type") != "retry":
+        return False
+    message = status.get("message")
+    return isinstance(message, str) and bool(no_credits_error(message))
 
 
 def _account_rate_limit_retry(status: Any) -> bool:
@@ -731,20 +742,30 @@ class OpenCodeServerClient:
                         )
                     continue
                 bound_session = properties.get("sessionID")
-                if (event_type == "session.status" and bound_session == session_id
-                        and _account_rate_limit_retry(properties.get("status"))):
+                if event_type == "session.status" and bound_session == session_id:
                     status = properties.get("status")
-                    reset_at = _extract_rate_limit_reset_at((status.get("message", ""),))
-                    confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
-                    return ServerTransportResult(
-                        success=False,
-                        failure_classification="api_error_429",
-                        abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
-                        server_version=version,
-                        session_digest=_safe_digest(session_id, "session-"),
-                        usage_event_count=usage_count,
-                        failure_reset_at=reset_at,
-                    )
+                    if _account_no_credits_retry(status):
+                        confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
+                        return ServerTransportResult(
+                            success=False,
+                            failure_classification="provider_no_credits",
+                            abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
+                            server_version=version,
+                            session_digest=_safe_digest(session_id, "session-"),
+                            usage_event_count=usage_count,
+                        )
+                    if _account_rate_limit_retry(status):
+                        reset_at = _extract_rate_limit_reset_at((status.get("message", ""),))
+                        confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
+                        return ServerTransportResult(
+                            success=False,
+                            failure_classification="api_error_429",
+                            abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
+                            server_version=version,
+                            session_digest=_safe_digest(session_id, "session-"),
+                            usage_event_count=usage_count,
+                            failure_reset_at=reset_at,
+                        )
                 if event_type == "session.idle" and bound_session == session_id:
                     return ServerTransportResult(
                         success=True,
@@ -754,7 +775,9 @@ class OpenCodeServerClient:
                     )
                 if event_type == "session.error" and bound_session == session_id:
                     classification = (
-                        "api_error_429"
+                        "provider_no_credits"
+                        if _session_error_no_credits(properties)
+                        else "api_error_429"
                         if _session_error_rate_limit(properties)
                         else "server_session_error"
                     )
