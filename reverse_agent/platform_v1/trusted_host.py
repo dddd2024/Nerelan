@@ -1049,7 +1049,8 @@ class CombinedTrustedHost:
             # is not a rate limit: the upstream stays unpaid until credits are
             # bought, so the binding is UNAVAILABLE for a week instead of being
             # re-offered on every dispatch (#1525).
-            elif row["status"] == "FAILED" and no_credits_error(row["failure_detail"] or ""):
+            elif row["status"] == "FAILED" and (
+                    classification == "provider_no_credits" or no_credits_error(row["failure_detail"] or "")):
                 cache.remember(binding, connection, observation(
                     now=at, state="UNAVAILABLE", reason=NO_CREDITS,
                     ttl_seconds=NO_CREDITS_TTL_SECONDS))

@@ -565,3 +565,25 @@ def test_planner_surfaces_expanded_runtime_codes_and_transient_flag(tmp_path, ra
     assert status["status"] == "FAILED"
     assert status["error"] == expected_code
     assert bool(status.get("transient")) is expected_transient
+
+
+def test_planner_prompt_guards_allowed_paths_against_missing_checks():
+    prompt = build_planner_prompt(objective="Scope task", repository="owner/repo")
+    assert "Only add allowed_paths to a task with capability \"execute_task\" and non-empty validation_checks" in prompt
+    assert "omit allowed_paths from any task without validation_checks" in prompt
+
+
+def test_repository_preparation_run_git_closes_stdin_with_devnull(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1 import repository_preparation as rp
+
+    seen = {}
+
+    def fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["kwargs"] = kwargs
+        return subprocess.CompletedProcess(argv, 0, stdout="ok\n", stderr="")
+
+    monkeypatch.setattr(rp.subprocess, "run", fake_run)
+    res = rp._run_git(["git", "status"], cwd=tmp_path, timeout=10)
+    assert res.stdout == "ok\n"
+    assert seen["kwargs"]["stdin"] is subprocess.DEVNULL

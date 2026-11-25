@@ -17,7 +17,7 @@ def _is_path_contained(path: Path, parent: Path) -> bool:
 
 def _run_git(argv: list[str], *, cwd: Path, timeout: int):
     try:
-        return subprocess.run(argv, cwd=cwd, timeout=timeout, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+        return subprocess.run(argv, cwd=cwd, stdin=subprocess.DEVNULL, timeout=timeout, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ExecutorRuntimeError("repository_preparation_failed") from exc
 

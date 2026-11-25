@@ -160,11 +160,17 @@ def git_output(root: Path, *args: str, missing_ref_ok: bool = False) -> str:
 
 
 def repository_base(repository: str) -> str:
-    """Freeze the locally fetched main for new work, or HEAD in an unfetched checkout."""
+    """Freeze the configured base ref, locally fetched main, or HEAD in an unfetched checkout."""
     binding = resolve_repository_workspace(repository)
-    head = (git_output(binding.repo_dir, "rev-parse", "--verify", "--quiet",
-                       "refs/remotes/origin/main^{commit}", missing_ref_ok=True)
-            or git_output(binding.repo_dir, "rev-parse", "HEAD"))
+    base_ref = os.environ.get("REVERSE_AGENT_BASE_REF", "").strip()
+    if base_ref:
+        if base_ref.startswith("-") or any(ch.isspace() for ch in base_ref):
+            raise TaskStoreError("functional_base_invalid")
+        head = git_output(binding.repo_dir, "rev-parse", "--verify", f"{base_ref}^{{commit}}")
+    else:
+        head = (git_output(binding.repo_dir, "rev-parse", "--verify", "--quiet",
+                           "refs/remotes/origin/main^{commit}", missing_ref_ok=True)
+                or git_output(binding.repo_dir, "rev-parse", "HEAD"))
     if not _SHA40.fullmatch(head):
         raise TaskStoreError("functional_base_invalid")
     return head

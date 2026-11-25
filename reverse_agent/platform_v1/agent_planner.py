@@ -84,8 +84,10 @@ def build_planner_prompt(*, objective: str, repository: str) -> str:
         "focused test files (unit tests for the modules the task changes), not large integration suites. "
         "Do not list slow existing suites or untargeted whole-suite checks. "
         "Tell each task: your tests must be in exactly these files: followed by its validation targets. "
-        "When the objective explicitly limits changes, add allowed_paths to the implementation task with checks. "
-        "Use repository-relative files or directory/** patterns and include only the requested scope. "
+        "Only add allowed_paths to a task with capability \"execute_task\" and non-empty validation_checks; "
+        "omit allowed_paths from any task without validation_checks. "
+        "When the objective explicitly limits changes, add allowed_paths only to the implementation task with checks, "
+        "using repository-relative files or directory/** patterns for only the requested scope. "
         "Prefer independent tasks when they do not need each other's output.\n\n"
         "Answer with exactly one JSON object and nothing else:\n"
         '{"tasks": [{"id": "T001", "title": "...", "instruction": "...", "difficulty": 3, "kind": "code", '

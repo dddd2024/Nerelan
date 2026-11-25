@@ -269,7 +269,7 @@ def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status,
     assert "PROVIDER_SENTINEL" not in repr(result)
 
 
-@pytest.mark.parametrize("message", ["connection reset", "HTTP 429 Credits exhausted"])
+@pytest.mark.parametrize("message", ["connection reset"])
 def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message):
     run, _, calls, _ = _timed_role(monkeypatch, [
         (0, _event("server.connected")),
@@ -285,11 +285,28 @@ def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message
     assert calls == []
 
 
+@pytest.mark.parametrize("abort_result", [True, False])
+def test_session_retry_no_credits_aborts_immediately(monkeypatch, abort_result):
+    retry = {"type": "retry", "attempt": 1, "message": "HTTP 429 Credits exhausted"}
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {"sessionID": "session-exact", "status": retry})),
+        (6, _event("session.idle", {"sessionID": "session-exact"})),
+    ], abort_result=abort_result)
+    result = run()
+    assert not result.success
+    assert result.failure_classification == "provider_no_credits"
+    assert result.abort_state == ("STREAM_ABORT_CONFIRMED" if abort_result else "STREAM_ABORT_UNKNOWN")
+    assert clock[0] == 1
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+
+
 @pytest.mark.parametrize("error_payload,expected", [
     ({"name": "APIError", "data": {"message": "OpenCode Zen Free: Free usage limit reached (out of its allowance: not asked again before 07:06 UTC-4)"}}, "api_error_429"),
     ({"message": "Too Many Requests"}, "api_error_429"),
     ("out of its allowance", "api_error_429"),
-    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "server_session_error"),
+    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "provider_no_credits"),
     ({"message": "Internal model execution failed"}, "server_session_error"),
 ])
 def test_session_error_classifies_rate_limit_without_masking_billing_or_generic_errors(monkeypatch, error_payload, expected):
@@ -1079,3 +1096,51 @@ def test_managed_process_uses_transient_auth_without_result_exposure(
         "--port",
         "45678",
     ]
+
+
+def test_build_role_child_env_sets_pythondontwritebytecode_on_both_branches() -> None:
+    from reverse_agent.platform_v1.opencode_executor import build_role_child_env
+
+    parent = {"PATH": "C:/tools"}
+    direct = build_role_child_env(parent, None, "coder")
+    binding = build_role_child_env(parent, '{"provider":{}}', "coder")
+    assert direct["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert binding["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+def test_routing_availability_caches_no_credits_on_provider_no_credits(tmp_path) -> None:
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    host = CombinedTrustedHost.__new__(CombinedTrustedHost)
+    host._store = SimpleNamespace(_state_path=str(tmp_path / "control.sqlite3"))
+    binding = {
+        "binding_id": "magpie-trae-cn-glm-5.3-max",
+        "model_id": "openai-compatible/trae-cn/glm-5.3-max",
+        "executor_id": "opencode",
+        "native_endpoint": "",
+    }
+    connection = {
+        "connection_id": "magpie",
+        "base_url": "http://127.0.0.1:3425/v1",
+        "auth_method": "none",
+        "executor_provider_id": "openai-compatible",
+    }
+    now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    history = [{
+        "status": "FAILED",
+        "failure_classification": "provider_no_credits",
+        "failure_detail": "",
+        "updated_at": now_iso,
+    }]
+    result = host._routing_availability(
+        binding,
+        connection,
+        allow_paid=True,
+        cost_class="subscription",
+        probe_allowed=False,
+        history=history,
+    )
+    assert result["state"] == "UNAVAILABLE"
+    assert result["reason"] == "no_credits"
