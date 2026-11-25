@@ -193,3 +193,41 @@ def test_owner_retry_of_a_review_repair_keeps_its_findings(case):
     _fail(store, task)
     retry = store.get_task(_retry(service, goal)["to_task_id"])
     assert _load_evidence(retry, "ReviewRepair", retry.execution_id) == document
+
+
+def test_owner_retry_retains_non_empty_worktree_across_executor_change(case, tmp_path):
+    import subprocess
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    from reverse_agent.platform_v1.contract_recovery import FIXUP
+    root, _, store, _, service, goal, _, task = case
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", str(wt), "HEAD"], check=True)
+    (wt / "kept.txt").write_text("saved\n", encoding="utf-8")
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="wt", description="wt",
+                    metadata={"execution_id": task.execution_id, "workspace": str(wt)})
+    _fail(store, task, classification="api_error_429")
+    service.task_resolver = lambda plan_task, *, goal, **kw: {
+        "binding_ref": "claude-sonnet", "executor_kind": "claude_code", "model_id": "sonnet",
+        "tier": 4, "reason": "fixture", "context_window": 200000}
+    retry = store.get_task(_retry(service, goal)["to_task_id"])
+    fixup = _load_evidence(retry, FIXUP, retry.execution_id)
+    assert fixup is not None and fixup["rerouted"] is True
+    assert retry.executor_kind == "claude_code" and retry.branch
+    disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
+    assert disp is not None and disp["disposition"] == "reused"
+
+
+def test_owner_retry_discards_empty_worktree(case, tmp_path):
+    import subprocess
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    from reverse_agent.platform_v1.contract_recovery import FIXUP
+    root, _, store, _, service, goal, _, task = case
+    wt = tmp_path / "wt-empty"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", str(wt), "HEAD"], check=True)
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="wt", description="wt",
+                    metadata={"execution_id": task.execution_id, "workspace": str(wt)})
+    _fail(store, task, classification="api_error_429")
+    retry = store.get_task(_retry(service, goal)["to_task_id"])
+    assert _load_evidence(retry, FIXUP, retry.execution_id) is None
+    disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
+    assert disp is not None and disp["disposition"] == "discarded"

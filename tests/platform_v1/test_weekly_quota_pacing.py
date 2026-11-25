@@ -643,13 +643,16 @@ def test_admission_and_in_flight_use_the_released_reserve_for_that_window_only()
 
 
 def test_soft_pacing_penalizes_ahead_of_pace_while_failing_free_yields_to_paid():
-    sub = paced(.2, .45, executor="claude_code", model="sonnet")
+    from reverse_agent.platform_v1.model_router import measured_reliability_penalty
+    sub = paced(.05, .20, executor="claude_code", model="sonnet")
     free_ok = candidate("free-ok", "kimi-k3")
+    free_small_fail = candidate("free-small-fail", "kimi-k3")
     free_bad = candidate("free-bad", "kimi-k3")
     profiles = {
-        "sub": {"task_buckets": {"code:4": {"attempts": 4, "success_rate": 1.0, "timeouts": 0}}},
-        "free-ok": {"task_buckets": {"code:4": {"attempts": 5, "success_rate": 1.0, "timeouts": 0}}},
-        "free-bad": {"task_buckets": {"code:4": {"attempts": 5, "success_rate": 0.2, "timeouts": 0}}},
+        "sub": {"task_buckets": {"code:4": {"attempts": 4, "ok": 4, "success_rate": 1.0, "timeouts": 0}}},
+        "free-ok": {"task_buckets": {"code:4": {"attempts": 5, "ok": 5, "success_rate": 1.0, "timeouts": 0}}},
+        "free-small-fail": {"task_buckets": {"code:4": {"attempts": 3, "ok": 0, "success_rate": 0.0, "timeouts": 0}}},
+        "free-bad": {"task_buckets": {"code:4": {"attempts": 10, "ok": 1, "success_rate": 0.1, "timeouts": 0}}},
     }
     # Ahead of pace stays selectable and receives pace_penalty without weekly_pace exclusion.
     solo = choose([sub], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)
@@ -658,11 +661,16 @@ def test_soft_pacing_penalizes_ahead_of_pace_while_failing_free_yields_to_paid()
     assert bd["pace_penalty"] > 0 and bd["pace_cause"] == "ahead_of_pace" and bd["pace_retry_at"] > NOW
     # Healthy free model beats the soft-paced subscription.
     assert choose([sub, free_ok], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)["binding_ref"] == "free-ok"
-    # Unreliable free model (20% success) gets reliability_penalty=2.0 and loses to ahead-of-pace paid subscription.
+    # Small-sample 0/3 gets Bayesian-shrunk penalty 1.0714 (not full 2.5), avoiding premature lockout.
+    assert measured_reliability_penalty(profiles["free-small-fail"]["task_buckets"]["code:4"]) == pytest.approx(1.0714, abs=1e-4)
+    # Chronic failing free model (1/10) gets penalty 1.6071 and loses to ahead-of-pace paid subscription.
     unreliable = choose([sub, free_bad], difficulty=4, now=NOW, weekly_pace=PACE, profiles=profiles)
     assert unreliable["binding_ref"] == "sub"
     bad_row = next(item for item in unreliable["candidates"] if item["binding_id"] == "free-bad")
-    assert bad_row["score_breakdown"]["reliability_penalty"] == pytest.approx(2.0)
+    assert bad_row["score_breakdown"]["reliability_penalty"] == pytest.approx(1.6071, abs=1e-4)
+    # Time-decayed bucket (< MIN_SAMPLES recent attempts) sheds stale penalty.
+    assert measured_reliability_penalty({"attempts": 10, "ok": 1, "recent_attempts": 2.4, "recent_ok": 0.0}) == 0.0
+    assert measured_reliability_penalty({"attempts": 3, "ok": 3, "success_rate": 1.0}) == 0.0
 
 
 def test_soft_pacing_still_enforces_weekly_reserve_until_12h_release():

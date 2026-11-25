@@ -34,6 +34,7 @@ PROVIDER_QUOTA_LIMIT = "provider_quota_limit"
 # OpenCode reports EXECUTOR_RUNNING; native CLIs start right after WORKSPACE_READY.
 _STARTS, _ENDS = ("EXECUTOR_RUNNING", "WORKSPACE_READY"), ("EXECUTOR_COMPLETED", "EXECUTOR_FINISHED")
 MIN_SAMPLES = 2
+RELIABILITY_HALF_LIFE_SECONDS = 72 * 3600
 
 # Failures that say nothing about what the model can do, so they are neither an
 # attempt nor a failure in its profile (the stored class names the cause):
@@ -59,6 +60,7 @@ HOST_PLUMBING_CLASSES = frozenset({
     "stream_budget_usage_unknown_before_dispatch", "stream_budget_exhausted_before_dispatch",
     "server_budget_snapshot_unavailable", "server_budget_snapshot_invalid",
     "server_transport_failed", "server_transport_internal_failure",
+    "server_session_error", "server_role_deadline_exceeded",
     "server_event_too_large", "server_event_disconnected", "server_event_connect_failed",
     "server_event_content_type_invalid", "server_event_malformed", "server_event_shape_invalid",
     "server_connected_event_missing", "server_http_request_failed", "server_http_status_invalid",
@@ -122,11 +124,23 @@ def _p90(values: list[float]) -> float:
     return ordered[min(len(ordered) - 1, math.ceil(0.9 * len(ordered)) - 1)]
 
 
-def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[str, Any]]:
+def _recency_weight(updated_at: Any, now_ts: float) -> float:
+    """Exponential time decay weight (72h half-life) so stale failures fade cleanly."""
+    if not isinstance(updated_at, str) or not updated_at:
+        return 1.0
+    try:
+        ts = datetime.fromisoformat(updated_at.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 1.0
+    return 0.5 ** (max(0.0, now_ts - ts) / RELIABILITY_HALF_LIFE_SECONDS)
+
+
+def compute_agent_profiles(store: Any, *, limit: int = 500, now: float | None = None) -> dict[str, dict[str, Any]]:
     """Profiles for the most recent ``limit`` model-backed tasks, keyed by binding_ref."""
+    now_ts = time.time() if now is None else float(now)
     conn = store._conn
     tasks = conn.execute(
-        "SELECT id, binding_ref, executor_kind, status, failure_classification, failure_detail FROM tasks "
+        "SELECT id, binding_ref, executor_kind, status, failure_classification, failure_detail, updated_at FROM tasks "
         "WHERE binding_ref <> '' ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
     if not tasks:
         return {}
@@ -177,24 +191,34 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         profile = grouped.setdefault(row["binding_ref"], {
             "binding_ref": row["binding_ref"], "executor_kind": row["executor_kind"], "attempts": 0,
             "ok": 0, "failed": 0, "timeouts": 0, "rate_limited": 0, "failure_kinds": {}, "observed_tokens": 0,
+            "failure_attribution": {"capability": 0, "upstream": 0, "executor": 0},
+            "_recent_attempts": 0.0, "_recent_ok": 0.0,
             "_ok_seconds": [], "_timeout_seconds": [], "_ok_tokens": []})
+        attribution = profile["failure_attribution"]
+        weight = _recency_weight(row["updated_at"], now_ts)
         status = row["status"]
         classification = (row["failure_classification"] or "").lower()
         span = spans.get(row["id"], ["", ""])
         seconds = _seconds(span[0], span[1]) if span[0] and span[1] else None
         if classification.startswith("model_unavailable"):
+            if status == "FAILED":
+                attribution["executor"] += 1
             continue  # entitlement and transient dispatch errors are not capability evidence
         if classification in {EXECUTOR_TERMINATED, HOST_VERSION_CHANGED}:
+            if status == "FAILED":
+                attribution["executor"] += 1
             continue  # the machine stopped the agent (shutdown, closed console, redeploy): no evidence
         if status == "FAILED" and transient_overload(classification, row["failure_detail"] or ""):
             # Provider capacity is availability evidence, never capability evidence.
             profile["overloaded"] = profile.get("overloaded", 0) + 1
+            attribution["upstream"] += 1
             continue
         if status == "FAILED" and classification == PROVIDER_QUOTA_LIMIT:
             # Provider-side capacity, seen before any capability was exercised:
             # keep only the tokens the attempt already spent.
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             profile["provider_quota_limited"] = profile.get("provider_quota_limited", 0) + 1
+            attribution["upstream"] += 1
             continue
         detail = row["failure_detail"] or ""
         if (status == "FAILED" and classification.split(":", 1)[0] == "quota_exhausted"
@@ -205,6 +229,7 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             # Only the diagnostic's status field, not a quoted message, proves 402.
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             profile["billing_refused"] = profile.get("billing_refused", 0) + 1
+            attribution["upstream"] += 1
             continue
         neutral = "" if status in OK_STATUSES else neutral_failure(classification, detail)
         if neutral:
@@ -213,8 +238,12 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             causes = profile.setdefault("neutral_failures", {})
             causes[neutral] = causes.get(neutral, 0) + 1
-            if neutral == "quota_or_rate_limit":
-                profile["rate_limited"] += 1  # availability evidence, still shown
+            if neutral in {"quota_or_rate_limit", UPSTREAM_CONNECTION, "review_refused_by_upstream"}:
+                attribution["upstream"] += 1
+                if neutral == "quota_or_rate_limit":
+                    profile["rate_limited"] += 1  # availability evidence, still shown
+            else:
+                attribution["executor"] += 1
             continue
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}
@@ -230,9 +259,13 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             profile["tool_errors"] = profile.get("tool_errors", 0) + 1
         if row["id"] in traits and (status in OK_STATUSES or status == "FAILED"):
             bucket = profile.setdefault("task_buckets", {}).setdefault(traits[row["id"]],
-                        {"attempts": 0, "ok": 0, "timeouts": 0, "_seconds": [], "_tokens": []})
+                        {"attempts": 0, "ok": 0, "timeouts": 0, "_recent_attempts": 0.0, "_recent_ok": 0.0,
+                         "_seconds": [], "_tokens": []})
             bucket["attempts"] += 1
             bucket["ok"] += int(status in OK_STATUSES)
+            bucket["_recent_attempts"] += weight
+            if status in OK_STATUSES:
+                bucket["_recent_ok"] += weight
             bucket["timeouts"] += int("timeout" in classification)
             if seconds is not None and status in OK_STATUSES:
                 bucket["_seconds"].append(seconds)
@@ -243,6 +276,8 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         if status in OK_STATUSES:
             profile["attempts"] += 1
             profile["ok"] += 1
+            profile["_recent_attempts"] += weight
+            profile["_recent_ok"] += weight
             if seconds is not None:
                 profile["_ok_seconds"].append(seconds)
             if row["id"] in tokens:
@@ -250,6 +285,8 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         elif status == "FAILED":
             profile["attempts"] += 1
             profile["failed"] += 1
+            profile["_recent_attempts"] += weight
+            attribution["capability"] += 1
             kind = classification.split(":")[0] or "unknown"
             profile["failure_kinds"][kind] = profile["failure_kinds"].get(kind, 0) + 1
             if "timeout" in classification:
@@ -265,11 +302,21 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
         for bucket in profile.get("task_buckets", {}).values():
             values = bucket.pop("_seconds")
             bucket["success_rate"] = bucket["ok"] / bucket["attempts"]
+            ra = bucket.pop("_recent_attempts")
+            ro = bucket.pop("_recent_ok")
+            bucket["recent_attempts"] = round(ra, 4)
+            bucket["recent_ok"] = round(ro, 4)
+            bucket["recent_success_rate"] = round(ro / ra, 4) if ra > 0 else None
             bucket["median_ok_seconds"] = median(values) if values else None
             bucket_tokens = bucket.pop("_tokens")
             bucket["median_ok_tokens"] = median(bucket_tokens) if bucket_tokens else None
         ok_seconds, ok_tokens = profile.pop("_ok_seconds"), profile.pop("_ok_tokens")
         timeout_seconds = profile.pop("_timeout_seconds")
+        ra = profile.pop("_recent_attempts")
+        ro = profile.pop("_recent_ok")
+        profile["recent_attempts"] = round(ra, 4)
+        profile["recent_ok"] = round(ro, 4)
+        profile["recent_success_rate"] = round(ro / ra, 4) if ra > 0 else None
         profile["failure_kinds"] = dict(sorted(profile["failure_kinds"].items(), key=lambda kv: -kv[1])[:4])
         profile["success_rate"] = round(profile["ok"] / profile["attempts"], 2) if profile["attempts"] else None
         profile["median_ok_seconds"] = round(median(ok_seconds)) if ok_seconds else None

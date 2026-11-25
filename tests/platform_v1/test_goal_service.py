@@ -966,6 +966,47 @@ def test_server_session_error_escalates_while_local_session_missing_stays_blocke
     assert control.get_goal(goal.id).status == "BLOCKED"
 
 
+def test_server_session_error_is_host_cause_and_retains_tree_across_reroute(case, tmp_path):
+    import subprocess
+    from reverse_agent.platform_v1 import goal_service as gs
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    from reverse_agent.platform_v1.contract_recovery import FIXUP
+    root, _, store, control, service, goal, window, task = case
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET confirmation_mode='OWNER_WINDOW', expires_at='', max_retries=0 WHERE id=?",
+        (window.id,))
+    store.add_event(
+        task.id,
+        event_type="MODEL_SELECTED",
+        title="Model selected",
+        description="fixture",
+        metadata={"binding_ref": task.binding_ref, "tier": 2, "context_window": 128000},
+    )
+    wt = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", str(wt), "HEAD"], check=True)
+    (wt / "notes.txt").write_text("partial-work\n", encoding="utf-8")
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="wt", description="wt",
+                    metadata={"execution_id": task.execution_id, "workspace": str(wt)})
+    store._conn.execute(
+        "UPDATE tasks SET status='FAILED', failure_classification='server_session_error', "
+        "failure_detail='opencode_server:server_session_error' WHERE id=?",
+        (task.id,),
+    )
+    store._conn.commit()
+    calls = []
+    service.task_resolver = _stall_resolver(calls, OTHER_BINDING)
+
+    [step] = service.escalate_failed_tasks(goal.id)
+    assert step["reason"] == "failed:server_session_error"
+    assert gs._retry_kind({"reason": step["reason"], "cause": "server_session_error"}) == "host"
+    retry = store.get_task(step["to_task_id"])
+    fixup = _load_evidence(retry, FIXUP, retry.execution_id)
+    assert fixup is not None and fixup["rerouted"] is True
+    disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
+    assert disp is not None and disp["disposition"] == "reused"
+    assert control.get_goal(goal.id).status == "RUNNING"
+
+
 def _strand(store, task, *, status="INTERRUPTED", classification="", lease_ms=1, operation_state=None,
             operation_key="opencode_dispatch", external_id="", recovery="orphan_stale_lease"):
     """A redeploy-stranded attempt: its durable run, lease and (optionally) an external call (#1515)."""

@@ -22,6 +22,41 @@ import time
 KINDS = frozenset({"code", "analysis", "writing", "research_design", "review"})
 LEGACY_DIFFICULTY = {"simple": 2, "coder": 3, "complex": 4, "planner": 4, "reviewer": 4}
 MIN_SAMPLES = 3
+RELIABILITY_PRIOR_WEIGHT = 4.0
+
+
+def measured_reliability_penalty(bucket: Mapping[str, Any]) -> float:
+    """Bayesian-shrunk reliability penalty prioritizing recency-weighted outcomes."""
+    if not isinstance(bucket, Mapping):
+        return 0.0
+    ra = bucket.get("recent_attempts")
+    ro = bucket.get("recent_ok")
+    if type(ra) in (int, float) and math.isfinite(ra) and ra > 0:
+        eff_attempts = float(ra)
+        if type(ro) in (int, float) and math.isfinite(ro):
+            eff_ok = float(ro)
+        else:
+            sr = bucket.get("recent_success_rate", bucket.get("success_rate"))
+            eff_ok = eff_attempts * float(sr) if type(sr) in (int, float) and math.isfinite(sr) else eff_attempts
+    else:
+        att = bucket.get("attempts")
+        if type(att) is not int or att <= 0:
+            return 0.0
+        eff_attempts = float(att)
+        ok = bucket.get("ok")
+        if type(ok) in (int, float) and math.isfinite(ok):
+            eff_ok = float(ok)
+        else:
+            sr = bucket.get("success_rate")
+            if type(sr) not in (int, float) or not math.isfinite(sr):
+                return 0.0
+            eff_ok = eff_attempts * float(sr)
+    if eff_attempts < MIN_SAMPLES:
+        return 0.0
+    eff_ok = max(0.0, min(eff_attempts, eff_ok))
+    eff_failed = max(0.0, eff_attempts - eff_ok)
+    shrunk_failure = eff_failed / (eff_attempts + RELIABILITY_PRIOR_WEIGHT)
+    return round(2.5 * shrunk_failure, 4)
 
 
 def task_traits(raw: Mapping[str, Any]) -> tuple[int, str]:
@@ -525,11 +560,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         # Use a time-limited allowance or expiring credits before they lapse (#1471).
         resource_urgency = urgency(candidate.get("resources"), now=now)
         success = bucket.get("success_rate")
-        reliability_penalty = (
-            round(2.5 * (1.0 - max(0.0, min(1.0, float(success)))), 4)
-            if success is not None and type(bucket.get("attempts")) is int and bucket["attempts"] >= MIN_SAMPLES
-            else 0.0
-        )
+        reliability_penalty = measured_reliability_penalty(bucket)
         adjusted = (cost + tool_penalty + refusal_penalty + latency_penalty + availability_penalty
                     + pace_penalty + reliability_penalty - context_bonus - resource_urgency)
         breakdown = {"availability_rank": int(candidate.get("availability", {}).get("state") not in {"AVAILABLE", "READY"}),

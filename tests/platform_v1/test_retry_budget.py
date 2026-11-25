@@ -491,3 +491,32 @@ def test_validation_failure_mentioning_overload_counts_as_model_failure_in_profi
     assert profile["failed"] == 1
     assert profile.get("overloaded", 0) == 0
     assert profile["failure_kinds"] == {"deterministic_validation_failure": 1}
+
+
+def test_quota_429_retains_non_empty_worktree_across_reroute(case, monkeypatch, tmp_path):
+    import subprocess
+    from reverse_agent.platform_v1.artifact_handoff import _load_evidence
+    from reverse_agent.platform_v1.contract_recovery import FIXUP
+    root, _, store, _, service, goal, window, task = case
+    _continuous(store, window)
+    monkeypatch.setattr(gs, "MAX_TRANSIENT_RETRIES", 0)
+    monkeypatch.setattr(gs, "TRANSIENT_BACKOFF_SECONDS", 0)
+    wt = tmp_path / "wt-429"
+    subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", str(wt), "HEAD"], check=True)
+    (wt / "partial.py").write_text("x = 1\n", encoding="utf-8")
+    store.add_event(task.id, event_type="WORKSPACE_READY", title="wt", description="wt",
+                    metadata={"execution_id": task.execution_id, "workspace": str(wt)})
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='api_error_429', "
+                        "failure_detail='opencode_server:api_error_429', updated_at='2000-01-01T00:00:00Z' "
+                        "WHERE id=?", (task.id,))
+    store._conn.commit()
+    service.task_resolver = lambda plan_task, *, goal, failed_binding="", **kw: {
+        "binding_ref": "claude-sonnet", "executor_kind": "claude_code", "model_id": "sonnet", "tier": 4,
+        "reason": "fixture", "context_window": 200000}
+    [step] = service.escalate_failed_tasks(goal.id)
+    retry = store.get_task(step["to_task_id"])
+    assert retry.executor_kind == "claude_code" and retry.binding_ref == "claude-sonnet"
+    fixup = _load_evidence(retry, FIXUP, retry.execution_id)
+    assert fixup is not None and fixup["rerouted"] is True
+    disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
+    assert disp is not None and disp["disposition"] == "reused"
