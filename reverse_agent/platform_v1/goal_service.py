@@ -2312,7 +2312,10 @@ class GoalService:
             safe_recovery_tree,
         )
         try:
-            root = resolve_repository_workspace(failed.repository).repo_dir
+            workspace = resolve_repository_workspace(failed.repository)
+            root = getattr(workspace, "repo_dir", None)
+            if root is None:
+                return None
             try:
                 snapshot = failed_snapshot(failed, root=root)
             except (TaskStoreError, OSError, ValueError, RuntimeError, subprocess.SubprocessError):
