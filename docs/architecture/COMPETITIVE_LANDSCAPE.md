@@ -23,6 +23,7 @@ Nerelan 要坚持的差异化：在授权范围内，综合任务能力、账户
 | Agent-Native | `BuilderIO/agent-native` | 中：Agent 与 UI 共用操作接口 | 借鉴 Action 设计 | 无 | 是应用框架，不是调度或治理层 | 前端操作需要同时暴露给 Agent 时 | 2026-11-08 |
 | OpenHands | `OpenHands/OpenHands` | 中：Agent 工作台 | 已复用前端框架 | 侧栏与工作台框架，见 `frontend/OPENHANDS_REUSE_MAP.md` | 只复用 UI，不复用其运行时 | 其前端组件大版本变化时 | 2026-11-08 |
 | LangGraph | `langchain-ai/langgraph` | 低：图式工作流 | 已复用 | 团队图与开发图 | 已是依赖 | 大版本或检查点格式变化时 | 2026-11-08 |
+| MCP Python SDK v2 | `modelcontextprotocol/python-sdk` | 高：正式 MCP Client/Server 协议、stdio/HTTP、能力发现、OAuth 与多 Server 工具 | **DIRECT_REUSE 候选（尚未依赖）** | [源码审计](reuse-study-2026-11-16/mcp-python-sdk-v2.md)、[#1653](https://github.com/dddd2024/Nerelan/issues/1653)；目前仅 metadata-only CapabilityRegistry 和 Claude managed-MCP readiness | 协议库不负责 Nerelan 的配置授权、跨账户缓存隔离、最终 egress/操作收据；2.x 没有 Tasks 扩展的现成执行引擎 | #790 的 MCP-1 Provider-free connector 准备引入依赖时，必须先补协议降级、同名工具、header、缓存与 Windows kill fixtures | 2026-11-17 |
 | OpenCode | `anomalyco/opencode` | 低：执行器 | 已复用 | 执行适配器 | 已是依赖 | 子进程管理或用量上报接口变化时（关联 #1336） | 2026-11-08 |
 | Sogen | `momo5502/sogen` | 低：二进制仿真与动态逆向 | 后续扩展候选 | 无 | 逆向不在默认产品范围 | 逆向扩展立项时 | 2026-11-08 |
 
