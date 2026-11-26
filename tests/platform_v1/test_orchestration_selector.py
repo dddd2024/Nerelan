@@ -305,10 +305,18 @@ def test_failed_goal_spend_moves_the_break_even():
     # Same accepted runs as test_break_even_from_linear_model (cross-over 4).
     base = single_runs([(20.0, 2), (40.0, 4), (80.0, 8)]) + team_runs([(30.0, 2), (40.0, 4), (60.0, 8)])
     assert update_break_even(base)["cross_over_task_count"] == 4.0
-    # Single mode also burned 140 on Goals that never shipped: its price per
-    # shipped change is 2x, so the team now wins from a smaller size.
-    flaky = base + [run("single", accepted=False, cost=140.0, count=4)]
+    # Single mode also burned 150 on Goals that never shipped (50 per shipped
+    # change), so the team now wins from a smaller size.
+    flaky = base + [run("single", accepted=False, cost=150.0, count=4)]
     record = update_break_even(flaky)
-    assert record["failure_cost_factor"] == {"agent_team": 1.0, "single": 2.0}
+    assert record["failure_cost_per_accepted"] == {"agent_team": 0.0, "single": 50.0}
     assert record["cross_over_task_count"] < 4.0
     assert select_orchestration(size_estimate={"task_count": 3}, break_even=record)["mode"] == "agent_team"
+
+
+def test_zero_cost_accepted_runs_still_carry_failure_spend():
+    runs = (single_runs([(0.0, 2), (0.0, 4), (0.0, 8)]) + team_runs([(30.0, 2), (40.0, 4), (60.0, 8)])
+            + [run("single", accepted=False, cost=90.0, count=4)])
+    record = update_break_even(runs)
+    assert record["failure_cost_per_accepted"]["single"] == 30.0
+    assert record["unit_cost_per_task"]["single"] > 0

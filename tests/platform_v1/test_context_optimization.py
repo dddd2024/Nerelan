@@ -375,3 +375,23 @@ def test_compact_context_sheds_activity_history_before_goal_spec_and_plan(tmp_pa
     assert compact['compression']['history_omitted'] > 0
     assert any('DECISION' in event['title'] for event in compact['history'])
     assert len(render_context_packet(compact).encode()) <= 16384
+
+
+def test_compact_context_empty_history_fit_counts_omissions_within_budget(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's-edge.db')
+    for i in range(100):
+        store.add_event(first.id, event_type='MODEL_SELECTED', title=f'e-{i}', description='x' * 200)
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=262144)
+    probe = compact_context(full, budget_bytes=262144)
+    probe['history'] = []
+    probe['sources'] = [s for s in probe['sources'] if s['kind'] in {'goal', 'checkpoint', 'git'}
+                        or (s['kind'] == 'task' and s['ref'] == probe['task']['id'])]
+    for budget in range(len(render_context_packet(probe).encode()) - 8,
+                        len(render_context_packet(probe).encode()) + 8):
+        try:
+            compact = compact_context(full, budget_bytes=budget)
+        except ContextBuilderError:
+            continue
+        assert len(render_context_packet(compact).encode()) <= budget

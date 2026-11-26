@@ -118,6 +118,7 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
     # The Goal's requirements and plan outrank activity history: shed history
     # (keeping critical and recent events) before any goal text is dropped.
     compact['history']=[]
+    compact['compression']['history_omitted']=len(history)
     if len(render_context_packet(compact).encode()) <= budget_bytes:
         return _fill_history(compact, history, priority, budget_bytes)
     if compact['goal']:
