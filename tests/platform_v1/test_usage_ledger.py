@@ -180,3 +180,41 @@ def test_ledger_reads_wait_for_the_store_lock():
             assert not finished.wait(0.2)  # blocked while another thread holds the store
         assert finished.wait(5)
         worker.join(5)
+
+
+def test_partial_native_summary_rows_feed_token_records_and_feedback_without_double_reasoning():
+    from reverse_agent.platform_v1.usage_ledger import task_feedback_metrics
+    store = TaskStore(":memory:")
+    t_codex = store.create_task(title="codex", executor_kind="codex", binding_ref="b-codex")
+    t_claude = store.create_task(title="claude", executor_kind="claude_code", binding_ref="b-claude")
+    for tid in (t_codex.id, t_claude.id):
+        store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (tid,))
+    store._conn.commit()
+    # Codex native_summary: reasoning already folded into output_units, cache_write_units is None.
+    store.append_usage_observation(
+        t_codex.id, observation_id="o-codex", execution_id=t_codex.execution_id, role="executor",
+        model_id="gpt-5", provider_id="openai", source_kind="native_summary", source_id="s-codex",
+        status="PARTIAL", input_units=1000, output_units=250, reasoning_units=100,
+        cache_read_units=400, cache_write_units=None, cost_micro_units=None,
+    )
+    # Claude native_summary: reasoning_units is None while input/output/cache read/write are observed.
+    store.append_usage_observation(
+        t_claude.id, observation_id="o-claude", execution_id=t_claude.execution_id, role="executor",
+        model_id="claude-sonnet-5-5", provider_id="claude-code", source_kind="native_summary", source_id="s-claude",
+        status="PARTIAL", input_units=200, output_units=100, reasoning_units=None,
+        cache_read_units=5000, cache_write_units=300, cost_micro_units=None,
+    )
+    by_binding = {r["binding_ref"]: r for r in task_token_records(store)}
+    assert by_binding["b-codex"]["source"] == "usage_observation"
+    assert by_binding["b-codex"]["tokens"] == {
+        "input": 1000, "cache_read": 400, "cache_write": None, "output": 250, "reasoning": 100,
+    }
+    assert by_binding["b-claude"]["source"] == "usage_observation"
+    assert by_binding["b-claude"]["tokens"] == {
+        "input": 200, "cache_read": 5000, "cache_write": 300, "output": 100, "reasoning": None,
+    }
+    codex_metrics = task_feedback_metrics(store, t_codex.id)
+    claude_metrics = task_feedback_metrics(store, t_claude.id)
+    assert codex_metrics["cost_state"] == "ESTIMATED_LIST_PRICE" and codex_metrics["cost_units"] > 0
+    assert claude_metrics["cost_state"] == "ESTIMATED_LIST_PRICE" and claude_metrics["cost_units"] > 0
+    store._conn.close()

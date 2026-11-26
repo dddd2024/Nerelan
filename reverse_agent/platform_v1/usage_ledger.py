@@ -131,18 +131,27 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
     ids = [row["id"] for row in tasks]
     marks = ",".join("?" * len(ids))
     observed: dict[str, dict[str, int | None]] = {}
+    per_task: dict[str, dict[str, Any]] = {}
     for row in conn.execute(
-            "SELECT task_id, SUM(input_units) AS input, SUM(cache_read_units) AS cache_read, "
-            "SUM(cache_write_units) AS cache_write, SUM(output_units) AS output, "
-            "SUM(reasoning_units) AS reasoning, COUNT(input_units) AS known "
-            f"FROM task_usage_observations WHERE status = 'OBSERVED' AND task_id IN ({marks}) GROUP BY task_id", ids):
-        if row["known"] and row["output"] is not None:
-            counters = {key: (int(row[key]) if row[key] is not None else None) for key in COUNTERS}
-            counters["cache_read"] = counters["cache_read"] or 0
-            # OpenCode counts reasoning beside output, not inside it (often reasoning > output);
-            # providers bill reasoning as output, so fold it in and keep the part for reference.
-            counters["output"] += counters["reasoning"] or 0
-            observed[row["task_id"]] = counters
+            "SELECT task_id, source_kind, input_units, cache_read_units, cache_write_units, "
+            "output_units, reasoning_units FROM task_usage_observations "
+            f"WHERE status IN ('OBSERVED', 'PARTIAL') AND input_units IS NOT NULL "
+            f"AND output_units IS NOT NULL AND task_id IN ({marks})", ids):
+        acc = per_task.setdefault(row["task_id"], {
+            "input": 0, "cache_read": 0, "cache_write": None,
+            "output": 0, "reasoning": None,
+        })
+        acc["input"] += int(row["input_units"])
+        acc["cache_read"] += int(row["cache_read_units"] or 0)
+        if row["cache_write_units"] is not None:
+            acc["cache_write"] = (acc["cache_write"] or 0) + int(row["cache_write_units"])
+        reason = int(row["reasoning_units"]) if row["reasoning_units"] is not None else None
+        if reason is not None:
+            acc["reasoning"] = (acc["reasoning"] or 0) + reason
+        # native_summary already folds reasoning into output_units; OpenCode reports reasoning beside output.
+        extra_reason = 0 if row["source_kind"] == "native_summary" else (reason or 0)
+        acc["output"] += int(row["output_units"]) + extra_reason
+    observed = per_task
     completion: dict[str, dict[str, Any]] = {}
     for row in conn.execute(f"SELECT task_id, metadata FROM task_events WHERE type = 'EXECUTOR_COMPLETED' "
                             f"AND task_id IN ({marks}) ORDER BY seq", ids):
@@ -255,7 +264,7 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
         return metrics
     conn = store._conn
     try:
-        from ..model_access.pricing import equivalent_cost
+        from ..model_access.pricing import equivalent_cost, vendor_for
         import math
         tables = {row["name"] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' "
@@ -288,19 +297,31 @@ def task_feedback_metrics(store: Any, task_id: str) -> dict[str, Any]:
             where = "task_id=? AND window_id=? AND claim_epoch=?"
             params = (task_id, claim["window_id"], claim["epoch"])
         rows = conn.execute(
-            "SELECT model_id, status, input_units, cache_read_units, cache_write_units, "
+            "SELECT model_id, source_kind, status, input_units, cache_read_units, cache_write_units, "
             f"output_units, reasoning_units FROM task_usage_observations WHERE {where}", params).fetchall()
         total = 0.0
         unknown = 0
         groups: dict[str, dict[str, Any]] = {}
         for row in rows:
-            fields = ("input_units", "cache_read_units", "cache_write_units", "output_units", "reasoning_units")
-            if row["status"] not in {"OBSERVED", "PARTIAL"} or any(_int(row[key]) is None for key in fields):
+            if row["status"] not in {"OBSERVED", "PARTIAL"}:
                 unknown += 1
                 continue
-            counters = {"input": row["input_units"], "cache_read": row["cache_read_units"],
-                        "cache_write": row["cache_write_units"],
-                        "output": row["output_units"] + row["reasoning_units"]}
+            is_native = row["source_kind"] == "native_summary"
+            if is_native:
+                needed = ("input_units", "cache_read_units", "output_units")
+                if vendor_for(row["model_id"] or "") == "anthropic":
+                    needed = (*needed, "cache_write_units")
+            else:
+                needed = ("input_units", "cache_read_units", "cache_write_units", "output_units", "reasoning_units")
+            if any(_int(row[key]) is None for key in needed):
+                unknown += 1
+                continue
+            counters = {
+                "input": row["input_units"],
+                "cache_read": row["cache_read_units"],
+                "cache_write": _int(row["cache_write_units"]) or 0,
+                "output": row["output_units"] if is_native else (row["output_units"] + row["reasoning_units"]),
+            }
             group = groups.setdefault(row["model_id"] or "", {"count": 0,
                 "tokens": {key: 0 for key in counters}})
             group["count"] += 1
