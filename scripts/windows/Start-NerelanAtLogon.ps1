@@ -14,7 +14,9 @@
   script reads run.env.json from the task database directory (REVERSE_AGENT_TASK_DB_DIR, or
   the default host-owned store under %LOCALAPPDATA%\Nerelan\platform-v1) if present, so a
   reboot needs no hand-written environment file in a separate folder. An explicit -EnvFile
-  keeps priority. Path values are normalized to forward slashes; a backslash path crashed
+  keeps priority. Once a start has applied a file, its path is remembered in
+  %LOCALAPPDATA%\Nerelan\run.env.path and reused when neither -EnvFile nor discovery finds
+  one; if that file is gone the start fails instead of running without its settings. Path values are normalized to forward slashes; a backslash path crashed
   host startup once. Output goes to %LOCALAPPDATA%\Nerelan\autostart.log.
 #>
 param(
@@ -53,13 +55,25 @@ try {
     Log "magpie not found at $MagpiePath; starting the host without it"
   }
 
+  $envPointer = Join-Path $env:LOCALAPPDATA "Nerelan\run.env.path"
   if (-not $EnvFile) {
     $taskDbDir = $env:REVERSE_AGENT_TASK_DB_DIR
     if ([string]::IsNullOrWhiteSpace($taskDbDir)) {
       $taskDbDir = Join-Path $env:LOCALAPPDATA "Nerelan\platform-v1"
     }
     $candidate = Join-Path $taskDbDir "run.env.json"
-    if (Test-Path -LiteralPath $candidate) { $EnvFile = $candidate }
+    if (Test-Path -LiteralPath $candidate) {
+      $EnvFile = $candidate
+    } elseif (Test-Path -LiteralPath $envPointer) {
+      # Discovery needs REVERSE_AGENT_TASK_DB_DIR, which usually lives in run.env.json
+      # itself: a hand-run start once came up on the default store with no settings
+      # (2026-11-26). Reuse the file the last start applied; never drop it silently.
+      $remembered = (Get-Content -LiteralPath $envPointer -Raw -Encoding UTF8).Trim()
+      if (-not (Test-Path -LiteralPath $remembered)) {
+        throw "the environment file the last start used is missing: $remembered; pass -EnvFile or delete $envPointer"
+      }
+      $EnvFile = $remembered
+    }
   }
   if ($EnvFile) {
     $settings = Get-Content -LiteralPath $EnvFile -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -77,6 +91,10 @@ try {
       $applied++
     }
     Log "applied $applied settings from $EnvFile"
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envPointer) | Out-Null
+    Set-Content -LiteralPath $envPointer -Value (Resolve-Path -LiteralPath $EnvFile).Path -Encoding UTF8
+  } else {
+    Log "no run.env.json found; starting with the host defaults"
   }
 
   $devUp = Join-Path $RepoDir "dev-up.ps1"
