@@ -111,6 +111,24 @@ def test_weekly_buffer_and_october_19_replay():
     assert reservation.admission(quota_evidence(), quota_need(65), now=1000, buffer=15)["decision"] == "ok"
 
 
+def test_an_estimate_beyond_a_whole_window_is_capped_where_it_is_stored():
+    # Production 2026-11-26: p80 = 324% of the 5-hour window, 61% weekly; the
+    # window reset to 0% used and the review still could never be admitted.
+    raw = {"windows": {"five_hour": {"median": 304.9, "p80": 324.1}, "weekly": {"p80": 60.8}}}
+    assert reservation.admission(quota_evidence(used=0, weekly=15), raw, now=1000)["decision"] == "quota_wait"
+    need = reservation.cap_need_to_window(raw, 10)
+    assert need["windows"]["five_hour"] == {"median": 90, "p80": 90, "uncapped_p80": 324.1}
+    assert need["windows"]["weekly"] == {"p80": 60.8} and raw["windows"]["five_hour"]["p80"] == 324.1
+    assert reservation.admission(quota_evidence(used=0, weekly=15), need, now=1000)["decision"] == "ok"
+    busy = reservation.admission(quota_evidence(used=1, weekly=15), need, now=1000)
+    assert busy["decision"] == "quota_wait" and busy["until"] == "1970-01-01T00:33:20Z"
+    # Another reservation still holds it back even on an unused window.
+    row = {"account_ref": "a", "quota_windows": {"five_hour": 5, "weekly": 5}, "state": "ACTIVE"}
+    assert reservation.admission(quota_evidence(used=0, weekly=15), need, [row], now=1000)["decision"] == "quota_wait"
+    # No capacity at all (buffer 100): the need is left as it is and nothing fits.
+    assert reservation.cap_need_to_window(raw, 100) is raw
+
+
 def test_unknown_small_bounds_and_reset_do_not_invent_usage():
     assert reservation.admission(quota_evidence(), quota_need(), now=3001)["state"] == "UNKNOWN"
     assert reservation.admission(quota_evidence(), quota_need(), now=3001)["decision"] == "quota_wait"
@@ -734,3 +752,41 @@ def test_claim_reprices_an_aged_row_and_never_lends_it_to_an_unknown_preparation
         offset[0] = 3500 - 620
         with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
             control.claim_task(window_id=window.id, task_id=first.id, owner="t", lease_ms=60000)
+
+
+def test_prepared_admission_stores_the_capped_need_but_never_for_small_tasks(tmp_path, monkeypatch):
+    import json
+    import time
+    store, control, _ = settled_store(tmp_path, monkeypatch)
+    raw = {"windows": {"five_hour": {"p80": 324.1}, "weekly": {"p80": 60.8}}}
+
+    def stored(small_task, buffer):
+        task = store.create_task(title="big", executor_kind="opencode", binding_ref="b")
+        control.prepare_quota_admission(task_id=task.id, binding_ref="b", account_ref="a",
+                                        evidence=quota_evidence(used=0, weekly=15, now=time.time()),
+                                        need=raw, small_task=small_task, safety_buffer=buffer)
+        row = store._conn.execute("SELECT need_json FROM platform_quota_admissions WHERE task_id=?",
+                                  (task.id,)).fetchone()
+        return json.loads(row[0])["windows"]["five_hour"]
+    assert stored(False, 10) == {"p80": 90, "uncapped_p80": 324.1}
+    # #1786 review: a capped estimate must never pass as a small task.
+    assert stored(True, 99) == {"p80": 324.1}
+
+
+def test_a_capped_need_that_exactly_fits_is_not_paused_by_float_rounding():
+    # #1786 review: capped p80 = 90, 26.15 already spent, remaining need 63.85 against
+    # capacity 100 - 26.15 - 10, which floats evaluate to 63.849999999999994.
+    need = {"windows": {"five_hour": {"p80": 90 - 26.15}, "weekly": {"p80": 1}}}
+    assert reservation.admission(quota_evidence(used=26.15, weekly=0), need, now=1000)["decision"] == "ok"
+    over = {"windows": {"five_hour": {"p80": 90 - 26.15 + 0.01}, "weekly": {"p80": 1}}}
+    assert reservation.admission(quota_evidence(used=26.15, weekly=0), over, now=1000)["decision"] == "quota_wait"
+
+
+def test_a_window_with_a_released_reserve_is_never_capped():
+    # #1786 review: a released weekly reserve is admitted with margin 0, so a cap at
+    # 100 - buffer would let it fit beside existing usage and reserve too little.
+    raw = {"windows": {"five_hour": {"p80": 324.0}, "weekly": {"p80": 324.0, "reserve_released_until": 3000}}}
+    need = reservation.cap_need_to_window(raw, 10)
+    assert need["windows"]["five_hour"]["p80"] == 90
+    assert need["windows"]["weekly"] == {"p80": 324.0, "reserve_released_until": 3000}
+    assert reservation.admission(quota_evidence(used=0, weekly=10), need, now=1000)["decision"] == "quota_wait"

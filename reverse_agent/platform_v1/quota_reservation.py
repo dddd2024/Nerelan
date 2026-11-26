@@ -206,6 +206,39 @@ def release_weekly_reserve(need, evidence, *, release_hours, now):
     return need
 
 
+_FIT_TOLERANCE = 1e-9  # percentage points
+
+
+def cap_need_to_window(need, buffer=10):
+    """A single task's need capped at what one window can hold (``100 - buffer``).
+
+    An estimate beyond a whole window can never fit, so admission would wait
+    forever: Codex reviews estimated at 324% of the 5-hour window stayed QUEUED
+    through resets at 0% used (2026-11-26). Capped once, where the need is
+    stored, admission, reservations and in-flight checks all see the same value;
+    the original is kept as ``uncapped_p80``. Summed goal forecasts are never
+    capped, and a buffer of 100 (no capacity) leaves the need unchanged.
+    """
+    limit = 100 - buffer if _number(buffer) else None
+    if limit is None or limit <= 0 or not isinstance(need, dict):
+        return need
+    capped = dict(need)
+    windows = {}
+    for name, window in (need.get("windows") or {}).items():
+        window = dict(window) if isinstance(window, dict) else window
+        # A window whose reserve was released is admitted with margin 0; capping it at
+        # 100 - buffer would no longer mean "needs an unused window", so leave it.
+        if (isinstance(window, dict) and _number(window.get("p80")) and window["p80"] > limit
+                and not _number(window.get("reserve_released_until"))):
+            window["uncapped_p80"] = window["p80"]
+            window["p80"] = limit
+            if _number(window.get("median")) and window["median"] > limit:
+                window["median"] = limit
+        windows[name] = window
+    capped["windows"] = windows
+    return capped
+
+
 def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
               buffer=10, small_task=False):
     """Check percentage-point p80 against both windows. Never infer reset usage.
@@ -277,7 +310,9 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
         # A spent window always waits, however small the need.
-        if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
+        # A need capped exactly at the boundary must still fit after float arithmetic
+        # (e.g. 90 - 26.15 vs 100 - 26.15 - 10), so compare with a tiny tolerance.
+        if p80 + reserved > 100 - used - margin + _FIT_TOLERANCE or margin == 0 and used >= 100:
             wait_until = reset if reset is not None and reset > now else None
             waits.append((name, wait_until))
             if used >= 100:
