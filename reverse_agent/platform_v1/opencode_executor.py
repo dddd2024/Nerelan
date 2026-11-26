@@ -2227,7 +2227,7 @@ class OpenCodeExecutor:
             },
         })
 
-        val_argv = ["git", "diff", "--check"]
+        val_argv = ["git", "-c", "core.whitespace=cr-at-eol", "diff", "--check"]
         val_proc = self._run_git(val_argv, cwd=worktree, timeout=30)
         val_exit = val_proc.returncode
         val_output = val_proc.stdout
@@ -2596,7 +2596,8 @@ class OpenCodeExecutor:
         event_callback: ExecutorCallback | None,
     ) -> ExecutorResult:
         changed_files = _collect_changed_files(worktree)
-        val_proc = self._run_git(["git", "diff", "--check"], cwd=worktree, timeout=30)
+        val_proc = self._run_git(["git", "-c", "core.whitespace=cr-at-eol", "diff", "--check"],
+                                 cwd=worktree, timeout=30)
         val_output = val_proc.stdout
         if val_proc.stderr:
             val_output += "\n" + val_proc.stderr
