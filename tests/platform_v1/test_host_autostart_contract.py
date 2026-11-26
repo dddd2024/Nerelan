@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -26,9 +27,17 @@ requires_powershell = pytest.mark.skipif(
 )
 
 
+def _q(path) -> str:
+    return str(path).replace("'", "''")
+
+
 def _run_ps(script: str, timeout: int = 15) -> subprocess.CompletedProcess:
+    # Never let a test touch the real profile: the block remembers the applied
+    # env file under LOCALAPPDATA. A script may still set its own value.
+    isolated = tempfile.mkdtemp(prefix="nerelan-localappdata-")
+    prelude = "$env:LOCALAPPDATA = '" + _q(isolated) + "'\nfunction Log([string]$message) { }\n"
     return subprocess.run(
-        [_PWSH or "powershell", "-NoProfile", "-Command", script],
+        [_PWSH or "powershell", "-NoProfile", "-Command", prelude + script],
         capture_output=True, text=True, timeout=timeout,
     )
 
@@ -38,7 +47,7 @@ _SCRIPT = START_LOGON.read_text(encoding="utf-8")
 
 def _env_block() -> str:
     """Return the body of the environment-loading section for execution in tests."""
-    start = _SCRIPT.index("  if (-not $EnvFile) {")
+    start = _SCRIPT.index("  $envPointer = ")
     end = _SCRIPT.index("  $devUp = Join-Path", start)
     return _SCRIPT[start:end].strip()
 
@@ -174,3 +183,54 @@ def test_env_loading_is_noop_when_no_file_exists(tmp_path) -> None:
     result = _run_ps(script)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip().lower() == "true"
+
+
+def test_start_remembers_the_applied_env_file_and_refuses_when_it_vanishes() -> None:
+    assert "run.env.path" in _SCRIPT
+    assert "the environment file the last start used is missing" in _SCRIPT
+    assert _SCRIPT.index("Test-Path -LiteralPath $candidate") < _SCRIPT.index("Test-Path -LiteralPath $envPointer")
+
+
+@requires_powershell
+def test_env_loading_reuses_the_remembered_file_without_task_db_dir(tmp_path) -> None:
+    local = tmp_path / "local"
+    config = tmp_path / "config"
+    config.mkdir()
+    env_file = config / "run.env.json"
+    env_file.write_text(json.dumps({"REVERSE_AGENT_MULTI_ACCOUNT_ENABLED": "1"}), encoding="utf-8")
+    block = _env_block()
+    set_local = "$env:LOCALAPPDATA = '" + _q(local) + "'\n"
+    first = _run_ps(set_local + "$EnvFile = '" + _q(env_file) + "'\n" + block)
+    assert first.returncode == 0, first.stdout + first.stderr
+    pointer = local / "Nerelan" / "run.env.path"
+    assert pointer.read_text(encoding="utf-8-sig").strip() == str(env_file)
+    # A later hand-run start: no -EnvFile and no REVERSE_AGENT_TASK_DB_DIR.
+    second = _run_ps(set_local + "$env:REVERSE_AGENT_TASK_DB_DIR = ''\n$EnvFile = ''\n"
+                     + block + "\n$env:REVERSE_AGENT_MULTI_ACCOUNT_ENABLED")
+    assert second.returncode == 0, second.stdout + second.stderr
+    assert second.stdout.strip() == "1"
+
+
+@requires_powershell
+def test_env_loading_refuses_when_the_remembered_file_is_missing(tmp_path) -> None:
+    local = tmp_path / "local"
+    (local / "Nerelan").mkdir(parents=True)
+    (local / "Nerelan" / "run.env.path").write_text(str(tmp_path / "gone.json"), encoding="utf-8")
+    result = _run_ps("$ErrorActionPreference = 'Stop'\n$env:LOCALAPPDATA = '" + _q(local) + "'\n"
+                     "$env:REVERSE_AGENT_TASK_DB_DIR = ''\n$EnvFile = ''\n"
+                     + _env_block() + "\n'did-not-throw'")
+    assert result.returncode != 0
+    assert "environment file the last start used is missing" in (result.stdout + result.stderr)
+
+
+@requires_powershell
+def test_env_loading_still_applies_when_the_pointer_cannot_be_written(tmp_path) -> None:
+    local = tmp_path / "local"
+    (local / "Nerelan" / "run.env.path").mkdir(parents=True)  # a directory: the write must fail
+    env_file = tmp_path / "run.env.json"
+    env_file.write_text(json.dumps({"REVERSE_AGENT_MULTI_ACCOUNT_ENABLED": "1"}), encoding="utf-8")
+    result = _run_ps("$ErrorActionPreference = 'Stop'\n$env:LOCALAPPDATA = '" + _q(local) + "'\n"
+                     "$EnvFile = '" + _q(env_file) + "'\n" + _env_block()
+                     + "\n$env:REVERSE_AGENT_MULTI_ACCOUNT_ENABLED")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "1"
