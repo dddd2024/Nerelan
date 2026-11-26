@@ -507,6 +507,42 @@ class GoalService:
             return self.control_store.supersede_closed_issue_goal(goal_id, revision=goal.revision)
         return False
 
+    def active_source_issue_goal(self, repository: str, issue_number: int) -> GoalRecord | None:
+        """Return an existing non-terminal Goal for ``(repository, issue_number)``, if any."""
+        from .goal_source_issue import source_issue
+
+        for goal in self.control_store.list_goals(limit=500):
+            if goal.repository != repository:
+                continue
+            if goal.status not in {"DRAFT", "PLANNED", "APPROVED", "RUNNING"}:
+                continue
+            if source_issue(goal) == issue_number:
+                return goal
+        return None
+
+    def reconcile_closed_source_goals(self, *, limit: int = 100, fresh: bool = False) -> list[str]:
+        """Supersede goals whose source GitHub issue is closed across all/inactive windows.
+
+        Preserves existing attempts, evidence, receipts, and COMPLETE/merged landings
+        (delegated to ``control_store.supersede_closed_issue_goal``).
+        """
+        if self.source_issues is None:
+            return []
+        from .goal_source_issue import source_issue
+
+        superseded: list[str] = []
+        eligible_states = {"DRAFT", "PLANNED", "APPROVED", "RUNNING", "BLOCKED", "COMPLETED"}
+        for goal in self.control_store.list_goals(limit=max(1, min(limit, 500))):
+            if goal.status not in eligible_states:
+                continue
+            if source_issue(goal) is None:
+                continue
+            if self.source_issues.closed(goal, fresh=fresh):
+                if self.control_store.supersede_closed_issue_goal(goal.id, revision=goal.revision):
+                    if self.control_store.get_goal(goal.id).status == "SUPERSEDED":
+                        superseded.append(goal.id)
+        return superseded
+
     def _task_route(self, goal: GoalRecord, plan_task: PlannedTask) -> tuple[str, str, str]:
         """(executor_kind, binding_ref, orchestration_mode) for one materialized task."""
         if goal.orchestration_mode != "agent_team":

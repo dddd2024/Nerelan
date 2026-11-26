@@ -261,6 +261,7 @@ class AutonomyService:
         repository: str,
         subject_id: str,
         input_payload: Mapping[str, Any],
+        record_receipt: bool = True,
     ) -> bool:
         decision = "allowed"
         reason = "operation_inside_active_window"
@@ -282,16 +283,17 @@ class AutonomyService:
         except TaskStoreError as exc:
             decision = "denied"
             reason = str(exc)
-        self.control_store.append_receipt(
-            window_id=window_id,
-            operation_type="policy_evaluation",
-            capability=operation,
-            repository=repository,
-            subject_id=subject_id,
-            decision=decision,
-            reason=reason,
-            input_payload=input_payload,
-        )
+        if record_receipt or decision != "allowed":
+            self.control_store.append_receipt(
+                window_id=window_id,
+                operation_type="policy_evaluation",
+                capability=operation,
+                repository=repository,
+                subject_id=subject_id,
+                decision=decision,
+                reason=reason,
+                input_payload=input_payload,
+            )
         return decision == "allowed"
 
     def summary(self, window_id: str, *, limit: int = 100, cursor: str | None = None) -> dict[str, Any]:

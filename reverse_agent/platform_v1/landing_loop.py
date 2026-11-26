@@ -191,7 +191,14 @@ class LandingLoopController:
         self.github.post_review_comment(state, claim_id, body)
         return self.reconcile(identity, "review_comment", window_id=window_id)
 
-    def _authorize(self, state: dict[str, Any], window_id: str, operation: str = "") -> None:
+    def _authorize(
+        self,
+        state: dict[str, Any],
+        window_id: str,
+        operation: str = "",
+        *,
+        record_receipt: bool = True,
+    ) -> None:
         window = self.control_store.get_window(window_id)
         capability = ("open_draft_pr" if operation == "review_comment" and "open_draft_pr" in window.capabilities
                       else OWNER_LANDING_CAPABILITY)
@@ -200,7 +207,7 @@ class LandingLoopController:
         if not self.autonomy.authorize(
                 window_id=window_id, operation=capability,
                 repository=state["repository"], subject_id=state["goal_id"],
-                input_payload=state):
+                input_payload=state, record_receipt=record_receipt):
             raise TaskStoreError("landing_denied_by_window")
 
     def claim(self, identity: str, operation: str, *, window_id: str) -> str | None:
@@ -240,10 +247,10 @@ class LandingLoopController:
             return store.get_landing(identity)
         state = store.get_landing(identity)
         lease = now + 300000
-        def guard():
+        def guard(*, record_receipt: bool = False):
             if store.get_landing(identity)["tick_lease_ms"] != lease or _utc_now_ms() >= lease:
                 raise TaskStoreError("landing_tick_lease_lost")
-            self._authorize(state, window_id)
+            self._authorize(state, window_id, record_receipt=record_receipt)
         def finish(phase, reason="", delay=30000):
             row = store.finish_landing_tick(identity, phase, reason, _utc_now_ms() + delay, lease=lease)
             if phase == "COMPLETE":
@@ -368,7 +375,7 @@ class LandingLoopController:
                 fresh = observe()
                 ready_target_changed = (operation == "mark_ready" and fresh == pr
                                         and not self.github.ready_target_current(state))
-                guard()
+                guard(record_receipt=True)
             except (TaskStoreError, GitHubAdapterError, OSError, ValueError, TimeoutError):
                 if store.landing_operation(identity, operation)["status"] == "CLAIMED":
                     store.record_landing_outcome(identity, operation, claim, outcome="ABSENT",
@@ -388,7 +395,7 @@ class LandingLoopController:
             if operation == "merge":
                 # No API/subprocess operation may intervene between these calls.
                 verdict = self.github.invoke_verdict(state, claim)
-                guard()
+                guard(record_receipt=True)
                 if not verdict.get("passed"):
                     self._require_source_before_write(state, operation, claim)
                     return finish("BLOCKED", verdict.get("reason", "premerge_verdict_rejected"))

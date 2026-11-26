@@ -2327,3 +2327,58 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path, mon
         assert calls.count("sha-fourth") == 2 and receipts("sha-fourth") == 1
     finally:
         store._conn.close()
+
+
+def test_repeated_deferrals_and_undated_quota_wait_avoid_policy_receipt_storms(tmp_path, monkeypatch):
+    store = TaskStore(tmp_path / "defer.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "defer-policy", "policy_revision": 1, "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "max_tasks": 4, "max_concurrent_tasks": 1,
+        "max_retries": 1, "capabilities": ["execute_task"], "confirmation": "ACTIVATE",
+    })
+    goal = control.create_goal(title="Deferred", objective="Avoid receipt storms",
+                               repository="dddd2024/Nerelan", idempotency_key="defer-goal")
+    task = store.create_task(title="Deferred task", repository="dddd2024/Nerelan")
+    control._conn.execute("UPDATE platform_goals SET status='RUNNING', window_id=? WHERE id=?", (window.id, goal.id))
+    control._conn.execute(
+        "INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+        "VALUES (?, 1, 'T1', ?, '[]', 0)",
+        (goal.id, task.id),
+    )
+    control._conn.commit()
+    try:
+        # Generic repeated TaskStoreError deferrals record at most 1 allowed receipt until cleared.
+        preparer_mode = ["fail"]
+        executed = []
+
+        def preparer(_task):
+            if preparer_mode[0] == "fail":
+                raise TaskStoreError("temporary_routing_unavailable")
+            return None
+
+        coordinator = UnattendedCoordinator(
+            store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+            workspace_root=tmp_path / "ws", quota_preparer=preparer,
+            task_executor=lambda tid: executed.append(tid) or SimpleNamespace(failure_classification=""),
+        )
+        for _ in range(5):
+            assert coordinator.tick() == 0
+        receipts = lambda decision: store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts "
+            "WHERE operation_type='policy_evaluation' AND subject_id=? AND decision=?",
+            (task.id, decision),
+        ).fetchone()[0]
+        assert receipts("allowed") == 1
+
+        # Once transient error clears, fresh allowed receipt is recorded right before claim & execution.
+        preparer_mode[0] = "ok"
+        assert coordinator.tick() == 1
+        assert executed == [task.id]
+        assert receipts("allowed") == 2
+    finally:
+        store._conn.close()
