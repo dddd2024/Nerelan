@@ -361,6 +361,19 @@ class CombinedTrustedHost:
                 "window_renews": window_renews(self._control_store, window),
                 "budget": self._control_store.window_budget_summary(window.id)}
 
+    def _run_health_audit(self) -> dict[str, Any] | None:
+        db_path = getattr(self._task_store, "db_path", None)
+        if not isinstance(db_path, (str, Path)) or str(db_path) in {"", ":memory:"}:
+            return None
+        path = Path(db_path)
+        if not path.is_file():
+            return None
+        try:
+            from .health_audit import run_health_audit
+            return run_health_audit(path)
+        except Exception:  # noqa: BLE001 - audit failure must never interrupt pool monitoring
+            return None
+
     def _build_pool_monitor(self) -> Any:
         from .multi_account import MultiAccountConfig
         from .multi_account.dispatch import get_orchestrator
@@ -375,6 +388,7 @@ class CombinedTrustedHost:
             weekly_pace=self._weekly_pace_policy,
             reset_signal=self._routing_reset_signal,
             quota_resets=self._recent_quota_resets,
+            health_audit_provider=self._run_health_audit,
         )
 
     def _weekly_pace_policy(self) -> Mapping[str, Any]:
