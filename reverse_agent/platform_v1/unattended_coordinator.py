@@ -189,7 +189,8 @@ class UnattendedCoordinator:
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._quota_held_authorized: dict[str, tuple[str, str, str]] = {}
-        self._quota_hold_recheck_at: dict[str, float] = {}
+        # task id -> ((binding, status, window), monotonic recheck deadline)
+        self._quota_hold_recheck_at: dict[str, tuple[tuple[str, str, str], float]] = {}
         self._ticks = 0
         self._executions = 0
 
@@ -658,9 +659,11 @@ class UnattendedCoordinator:
                 goal_id = self.control_store.goal_id_for_task(task_id)
                 if goal_id and self.goals.stop_if_source_closed(goal_id):
                     continue
-            recheck_at = hold_recheck.get(task_id)
-            if recheck_at is not None:
-                if time.time() < recheck_at:
+            hold_identity = (str(task.binding_ref or ""), str(task.status), window.id)
+            recheck = hold_recheck.get(task_id)
+            if recheck is not None:
+                # A reroute, status or window change invalidates the hold it was measured for.
+                if recheck[0] == hold_identity and time.monotonic() < recheck[1]:
                     held.append(task_id)  # still offered to the rerouter, but no receipt or quota read
                     continue
                 hold_recheck.pop(task_id, None)
@@ -724,7 +727,9 @@ class UnattendedCoordinator:
                     now = time.time()
                     until = _quota_hold_until(str(exc), now)
                     if until is not None:
-                        hold_recheck[task_id] = min(until, now + QUOTA_HOLD_RECHECK_SECONDS)
+                        # Monotonic deadline: a wall-clock correction cannot stretch the bound.
+                        hold_recheck[task_id] = (hold_identity, time.monotonic()
+                                                 + min(until - now, QUOTA_HOLD_RECHECK_SECONDS))
                     if self._last_error.startswith("QUOTA_WAIT"):
                         self._last_error = ""
                     continue
@@ -1189,6 +1194,7 @@ class UnattendedCoordinator:
 
     def request_reevaluation(self) -> None:
         """End the idle wait and re-examine stuck goals: an account's quota reset was seen."""
+        self.__dict__.setdefault("_quota_hold_recheck_at", {}).clear()  # a reset may end every dated hold
         self._reevaluate.set()
 
     def _idle(self, poll_at: float) -> None:

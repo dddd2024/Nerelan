@@ -2176,6 +2176,7 @@ def test_dated_quota_hold_is_not_rechecked_every_tick(tmp_path, monkeypatch) -> 
     import reverse_agent.platform_v1.unattended_coordinator as coordinator_module
     clock = [1_800_000_000.0]
     monkeypatch.setattr(coordinator_module.time, "time", lambda: clock[0])
+    monkeypatch.setattr(coordinator_module.time, "monotonic", lambda: clock[0])
     until = "2028-01-15T08:00:00Z"  # far beyond the recheck interval
     prepared: list[str] = []
 
@@ -2212,6 +2213,18 @@ def test_dated_quota_hold_is_not_rechecked_every_tick(tmp_path, monkeypatch) -> 
         clock[0] += coordinator_module.QUOTA_HOLD_RECHECK_SECONDS
         assert coordinator.tick() == 0
         assert len(prepared) == 2
+        # An observed reset ends every dated hold at once.
+        coordinator.request_reevaluation()
+        assert coordinator.tick() == 0
+        assert len(prepared) == 3
+        # A reroute to another binding invalidates the hold it was measured for.
+        store._conn.execute("UPDATE tasks SET binding_ref = 'coding-other' WHERE id = ?", (task.id,))
+        store._conn.commit()
+        assert coordinator.tick() == 0
+        assert len(prepared) == 4
+        clock[0] += 30
+        assert coordinator.tick() == 0
+        assert len(prepared) == 4  # held again under the new identity
     finally:
         store._conn.close()
 
