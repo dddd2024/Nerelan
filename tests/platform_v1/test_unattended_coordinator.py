@@ -2249,3 +2249,81 @@ def test_quota_hold_until_reads_only_future_timestamps() -> None:
     assert _quota_hold_until("QUOTA_WAIT:quota_capacity", now) is None
     assert _quota_hold_until("QUOTA_WAIT:unknown_reset", now) is None
     assert _quota_hold_until("window_wip_limit_reached", now) is None
+
+
+def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path, monkeypatch) -> None:
+    import reverse_agent.platform_v1.unattended_coordinator as coordinator_module
+    clock = [1000.0]
+    monkeypatch.setattr(coordinator_module.time, "monotonic", lambda: clock[0])
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "upgrade-sweep-test", "policy_revision": 1, "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "max_tasks": 4, "max_concurrent_tasks": 1, "max_retries": 1,
+        "capabilities": ["execute_task"], "confirmation": "ACTIVATE"})
+    calls: list[str] = []
+
+    class Goals:
+        finished = [True]
+        fail = [False]
+
+        def retry_after_upgrade(self, window_id, *, host_version, authorize, limit):
+            calls.append(host_version)
+            if self.fail[0]:
+                self.fail[0] = False
+                raise RuntimeError("storage fault")
+            return [{"from_task_id": "task-old"}], self.finished[0]
+
+        def stop_if_source_closed(self, goal_id):
+            return False
+    goals = Goals()
+
+    def coordinator(version, authority=None):
+        return UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+                                     workspace_root=tmp_path / "workspaces", goals=goals,
+                                     execution_authority_sha=version if authority is None else authority,
+                                     host_code_version=version)
+
+    def receipts(version):
+        return store._conn.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id = ?",
+                                   (f"upgrade_retry_sweep:{version}",)).fetchone()[0]
+    try:
+        first = coordinator("sha-new")
+        first._upgrade_retry_sweep(window)
+        first._upgrade_retry_sweep(window)
+        assert calls == ["sha-new"] and receipts("sha-new") == 1
+        # A plain restart on the same code: no second sweep. New code: one more.
+        coordinator("sha-new")._upgrade_retry_sweep(window)
+        coordinator("sha-newer")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new", "sha-newer"]
+        # No host code identity, an explicit different authority, or an empty
+        # authority: runs cannot prove which code they ran on, so no sweep.
+        coordinator("", authority="target-head")._upgrade_retry_sweep(window)
+        coordinator("sha-x", authority="explicit-authority")._upgrade_retry_sweep(window)
+        coordinator("sha-y", authority="")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new", "sha-newer"]
+        # Unfinished (full batch or a refusal that may clear): no receipt, retried
+        # after the recheck interval, not on every tick.
+        goals.finished[0] = False
+        busy = coordinator("sha-third")
+        busy._upgrade_retry_sweep(window)
+        busy._upgrade_retry_sweep(window)
+        assert calls[-1:] == ["sha-third"] and calls.count("sha-third") == 1 and receipts("sha-third") == 0
+        clock[0] += coordinator_module.QUOTA_HOLD_RECHECK_SECONDS
+        goals.finished[0] = True
+        busy._upgrade_retry_sweep(window)
+        assert calls.count("sha-third") == 2 and receipts("sha-third") == 1
+        # A storage fault: unfinished, retried later.
+        goals.fail[0] = True
+        failing = coordinator("sha-fourth")
+        failing._upgrade_retry_sweep(window)
+        assert failing.status()["last_error"].startswith("upgrade_retry_sweep_failed")
+        assert receipts("sha-fourth") == 0
+        clock[0] += coordinator_module.QUOTA_HOLD_RECHECK_SECONDS
+        failing._upgrade_retry_sweep(window)
+        assert calls.count("sha-fourth") == 2 and receipts("sha-fourth") == 1
+    finally:
+        store._conn.close()

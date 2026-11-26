@@ -56,6 +56,8 @@ QUOTA_WAIT_MAX_SECONDS = 3600.0
 # reset or fresher reading still wakes it, but not every ~6 s tick (#1575: each
 # tick re-authorized, re-read Magpie and wrote a receipt for a hold whose end was known).
 QUOTA_HOLD_RECHECK_SECONDS = 300.0
+# Retries one post-upgrade sweep batch may start; a full batch continues next tick.
+UPGRADE_SWEEP_BATCH = 10
 
 
 def _quota_hold_until(message: str, now: float) -> float | None:
@@ -114,6 +116,7 @@ class UnattendedCoordinator:
         lease_provider: Any | None = None,
         execution_authority_sha: str = "",
         planning_sha: str = "",
+        host_code_version: str = "",
         task_executor: TaskExecutor | None = None,
         poll_interval: float = 1.0,
         reconcile_interval: float = 60.0,
@@ -156,6 +159,7 @@ class UnattendedCoordinator:
         self.lease_provider = lease_provider
         self.execution_authority_sha = execution_authority_sha
         self.planning_sha = planning_sha
+        self.host_code_version = host_code_version
         self.task_executor = task_executor
         self._attempt_clock = time.monotonic
         self.poll_interval = max(0.1, poll_interval)
@@ -604,6 +608,7 @@ class UnattendedCoordinator:
                 self.goals.reconsider_initial_models(window.id, autonomy=self.autonomy)
             except Exception as exc:
                 self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
+        self._upgrade_retry_sweep(window)
         claimed: dict[str, int] = {}
         held: list[str] = []
         disk_waiting: list[str] = []
@@ -1196,6 +1201,55 @@ class UnattendedCoordinator:
         if not isinstance(hint, (int, float)) or hint <= 0:
             return self.poll_interval
         return max(self.poll_interval, min(float(hint), IDLE_WAIT_CAP_SECONDS))
+
+    def _upgrade_retry_sweep(self, window: Any) -> None:
+        """Once per (window, host version): retry steps a host fault or gate stopped.
+
+        Recorded as an operation receipt, so a restart on the same code does not
+        sweep again; each retry is authorized like any other dispatch (execute_task
+        inside the active window) and goes through GoalService.owner_retry.
+        """
+        version = str(getattr(self, "host_code_version", "") or "").strip()
+        # window id -> monotonic time of the next attempt (inf once finished)
+        next_at = self.__dict__.setdefault("_upgrade_sweep_next_at", {})
+        authority = self.execution_authority_sha.strip()
+        if self.goals is None or not version or time.monotonic() < next_at.get(window.id, 0.0):
+            return
+        if authority != version:
+            # Runs record the execution authority; only when it is the host code can a
+            # run prove which code it ran on. An explicit, different authority: no sweep.
+            return
+        next_at[window.id] = math.inf
+        subject = f"upgrade_retry_sweep:{version}"
+        try:
+            with self.control_store._lock:
+                done = self.control_store._conn.execute(
+                    "SELECT 1 FROM platform_operation_receipts WHERE window_id = ? AND subject_id = ? LIMIT 1",
+                    (window.id, subject)).fetchone() is not None
+            if done or not window.repositories:
+                return
+
+            def authorize(goal: Any, failed: Any) -> bool:
+                return self.autonomy.authorize(
+                    window_id=window.id, operation="execute_task", repository=goal.repository,
+                    subject_id=failed.id,
+                    input_payload={"origin": "host_upgrade_sweep", "host_version": version, "task_id": failed.id})
+
+            retried, finished = self.goals.retry_after_upgrade(
+                window.id, host_version=version, authorize=authorize, limit=UPGRADE_SWEEP_BATCH)
+            if not finished:
+                # A full batch or a refusal that may clear: try again, at most every 5 minutes.
+                next_at[window.id] = time.monotonic() + QUOTA_HOLD_RECHECK_SECONDS
+                return
+            self.control_store.append_receipt(
+                window_id=window.id, operation_type="upgrade_retry_sweep", capability="execute_task",
+                repository=window.repositories[0], subject_id=subject, decision="allowed",
+                reason=f"retried={len(retried)}",
+                input_payload={"host_version": version, "retried": [row["from_task_id"] for row in retried]})
+        except Exception as exc:  # noqa: BLE001 - a recovery sweep never stops the tick
+            # Try again later; a committed retry is not repeated (expected source attempt).
+            next_at[window.id] = time.monotonic() + QUOTA_HOLD_RECHECK_SECONDS
+            self._last_error = f"upgrade_retry_sweep_failed:{type(exc).__name__}"
 
     def request_reevaluation(self) -> None:
         """End the idle wait and re-examine stuck goals: an account's quota reset was seen."""
