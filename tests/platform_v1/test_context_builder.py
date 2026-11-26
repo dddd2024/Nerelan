@@ -360,3 +360,23 @@ def test_durable_context_packet_blob_excludes_trailing_feedback():
         + "\nContract fixup feedback (data; original failure remains unaccepted):\nPrior failure line."
     )
     assert durable_context_packet_blob(with_fixup) == packet_json.encode("utf-8")
+
+
+def test_context_packet_caps_executor_progress_to_latest_five(tmp_path, repo):
+    store, _, first, second, _ = _setup(tmp_path / "cap.db")
+    for idx in range(20):
+        store.add_event(
+            first.id,
+            event_type="EXECUTOR_PROGRESS",
+            title=f"progress {idx}",
+            description=f"step-{idx:02d}",
+        )
+    store.add_event(first.id, event_type="EXECUTOR_COMPLETED", title="done", description="final")
+    packet = build_context_packet(
+        store, task_id=first.id, workspace=repo, expected_head=_head(repo), visible_task_ids=[first.id, second.id]
+    )
+    first_events = [e for e in packet["history"] if e.get("type") in {"VALIDATED", "EXECUTOR_PROGRESS", "EXECUTOR_COMPLETED"}]
+    progress_events = [e for e in first_events if e["type"] == "EXECUTOR_PROGRESS"]
+    assert [e["description"] for e in progress_events] == [f"step-{i:02d}" for i in range(15, 20)]
+    assert [e["type"] for e in first_events if e["type"] != "EXECUTOR_PROGRESS"] == ["VALIDATED", "EXECUTOR_COMPLETED"]
+    store._conn.close()

@@ -196,3 +196,44 @@ def test_test_report_no_record_when_flag_off(monkeypatch, tmp_path):
         _write_passing_junit(report)
         functional_validation_module._test_report("junit", report, b"")
     assert called["n"] == 0
+
+
+def test_resolve_mode_uses_single_task_size_estimate_when_flag_on(monkeypatch):
+    monkeypatch.setenv(_FLAG, "1")
+    with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
+                           return_value={"mode": "single", "reason": "default_single_task"}) as rec:
+        assert _resolve_orchestration_mode({"size_estimate": {"task_count": 1}}) == "single"
+        rec.assert_called_once_with({"task_count": 1})
+
+
+def test_refresh_goal_status_records_goal_outcome_with_mode(monkeypatch, tmp_path):
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+    import reverse_agent.platform_v1.control_store as control_store_module
+
+    monkeypatch.setenv(_FLAG, "1")
+    store = TaskStore(str(tmp_path / "goals.db"))
+    control = PlatformControlStore(store)
+    goal = control.create_goal(title="G", objective="Ship one fix", repository="o/r",
+                               idempotency_key="g-single", orchestration_mode="single", executor_kind="codex")
+    t1 = store.create_task(title="t1", repository="o/r", orchestration_mode="single")
+    store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (t1.id,))
+    store._conn.execute(
+        "INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, t1.id),
+    )
+    store._conn.commit()
+    recorded = []
+    monkeypatch.setattr(control_store_module, "task_feedback_metrics",
+                        lambda ts, tid: {"cost_units": 0.12, "wall_seconds": 14.5})
+    monkeypatch.setattr(ma_dispatch, "record_goal_outcome",
+                        lambda outcome, *, store_path=None: recorded.append(dict(outcome)) or {})
+    updated = control.refresh_goal_status(goal.id)
+    assert updated.status == "COMPLETED"
+    assert len(recorded) == 1
+    assert recorded[0]["mode"] == "single"
+    assert recorded[0]["accepted"] is True
+    assert recorded[0]["cost_units"] == 0.12
+    assert recorded[0]["task_count"] == 1
+    assert recorded[0]["wall_seconds"] == 14.5
+    store._conn.close()
