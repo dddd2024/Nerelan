@@ -26,6 +26,22 @@ REVIEW_CHECKLIST = {"version": "nerelan-review-v1", "items": [
     "Scope: exact frozen diff and approved paths only",
     "Governance: preserve authority and gates; R2 matches the Owner decision"]}
 RPC_OPERATION = "model_review_rpc"
+# Mid-stream interruption/limit failures where codex/claude_code emitted usage
+# observations before dying prior to EXECUTOR_COMPLETED.
+_TRUNCATED_AUTHOR_FAILURES = frozenset({
+    "claude_code_stream_limit_exceeded",
+    "codex_stream_limit_exceeded",
+    "claude_code_frame_limit_exceeded",
+    "codex_frame_limit_exceeded",
+    "timeout",
+    "api_error_429",
+    "executor_stalled",
+    "server_stream_stalled",
+    "server_role_deadline_exceeded",
+    "host_version_changed",
+    "orphaned_preparation",
+    "executor_terminated",
+})
 # Failures the reviewer call reports with a known outcome; anything else from
 # the call (timeout, lost reply, transport error) may have completed remotely.
 KNOWN_CALL_FAILURES = frozenset({"model_review_invalid_output", "review_not_independent",
@@ -281,10 +297,17 @@ def review_authors(store, task, binding):
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
             if author_task.executor_kind in {"codex", "claude_code"}:
+                events = store.get_events(author_id)
+                has_completed_event = any(event.type == "EXECUTOR_COMPLETED" for event in events)
                 reported = {model_router.model_identity(model, groups)
-                    for event in store.get_events(author_id) if event.type == "EXECUTOR_COMPLETED"
+                    for event in events if event.type == "EXECUTOR_COMPLETED"
                     for model in event.metadata.get("models", ()) if isinstance(model, str) and model.strip()}
-                if not reported or reported != observed:
+                is_truncated_failure = (
+                    author_task.status == "FAILED"
+                    and not has_completed_event
+                    and author_task.failure_classification in _TRUNCATED_AUTHOR_FAILURES
+                )
+                if not is_truncated_failure and (not reported or reported != observed):
                     raise TaskStoreError("review_not_independent")
             actual.update(observed)
     if actual != {model_router.model_identity(model, groups) for model in authors["author_models"]}:

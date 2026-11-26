@@ -190,6 +190,16 @@ class LiveLandingGitHubAdapter:
                    "--merge", "--match-head-commit", state["head_sha"]], json_output=False)
 
 
+_READ_ONLY_LANDING_METHODS = frozenset({
+    "observe_pr",
+    "observe_checks",
+    "observe_main",
+    "reconcile_operation",
+    "reconcile_review_comment",
+    "ready_target_current",
+})
+
+
 class RoutedLandingGitHubAdapter:
     """Resolve the retained producer worktree anew, never a browser supplied path."""
     def __init__(self, control_store):
@@ -198,13 +208,32 @@ class RoutedLandingGitHubAdapter:
     def __getattr__(self, name):
         def invoke(state, *args):
             from . import artifact_handoff as artifacts, functional_validation as functional
+            from .repository_workspace import RepositoryWorkspaceError, resolve_repository_workspace
             from .run_store import TaskStoreError
-            for row in self.control_store.list_goal_tasks(state["goal_id"]):
-                task = self.control_store.task_store.get_task(row["task_id"])
+            task_ids = [row["task_id"] for row in self.control_store.list_goal_tasks(state["goal_id"])]
+            for row in self.control_store.list_task_escalations(state["goal_id"]):
+                prior_id = row.get("from_task_id")
+                if prior_id and prior_id not in task_ids:
+                    task_ids.append(prior_id)
+            for task_id in task_ids:
+                try:
+                    task = self.control_store.task_store.get_task(task_id)
+                except TaskStoreError:
+                    continue
                 record = self.control_store.get_publication(task.id)
-                if record and record.pr_number == state["pr_number"]:
+                if not record or record.pr_number != state["pr_number"]:
+                    continue
+                try:
                     proof = functional.functional_evidence(task)
                     workspace = artifacts._producer_worktree(self.control_store.task_store, task, proof)
-                    return getattr(LiveLandingGitHubAdapter(workspace), name)(state, *args)
+                except TaskStoreError:
+                    continue
+                return getattr(LiveLandingGitHubAdapter(workspace), name)(state, *args)
+            if name in _READ_ONLY_LANDING_METHODS:
+                try:
+                    repo_dir = resolve_repository_workspace(state["repository"]).repo_dir
+                except (RepositoryWorkspaceError, KeyError) as exc:
+                    raise TaskStoreError("landing_retained_workspace_required") from exc
+                return getattr(LiveLandingGitHubAdapter(repo_dir), name)(state, *args)
             raise TaskStoreError("landing_retained_workspace_required")
         return invoke

@@ -173,6 +173,7 @@ class UnattendedCoordinator:
         self._manual_tick_idle.set()
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
+        self._quota_held_authorized: dict[str, tuple[str, str, str]] = {}
         self._ticks = 0
         self._executions = 0
 
@@ -441,6 +442,58 @@ class UnattendedCoordinator:
                 return False
         return False
 
+    def _republishes_uncommented_blocked_head(self, goal: Any, task: Any, accepted: Mapping[str, Any],
+                                             landing: Mapping[str, Any]) -> bool:
+        """True when ``task`` is an accepted repair of a Draft head whose prior landing blocked before review_comment."""
+        from . import artifact_handoff as artifacts
+        reason = str(landing.get("parking_reason") or "")
+        if (landing.get("head_sha") == accepted.get("commit")
+                or landing.get("phase") != "BLOCKED"
+                or reason
+                or self.control_store.landing_operation(landing["identity"], "review_comment") is not None):
+            return False
+        review = self._planned_review(goal, task)
+        if review is None or review.status != "READY_FOR_REVIEW" or not self._has_retained_review(review):
+            return False
+        links = {row["plan_task_id"]: row for row in self.control_store.list_goal_tasks(goal.id)
+                 if int(row["goal_revision"]) == goal.revision}
+        plan_task_id = next((key for key, row in links.items() if row["task_id"] == task.id), None)
+        if not plan_task_id:
+            return False
+        escalations = [row for row in self.control_store.list_task_escalations(goal.id)
+                       if int(row["goal_revision"]) == goal.revision and row["plan_task_id"] == plan_task_id]
+        prior_ids = {row["from_task_id"] for row in escalations}
+        matched_prior = False
+        producer, seen = task, set()
+        while producer.id not in seen:
+            seen.add(producer.id)
+            repair = artifacts._load_evidence(producer, "ReviewRepair", producer.execution_id)
+            source = (repair or {}).get("producer") or {}
+            if source.get("commit") == landing.get("head_sha"):
+                matched_prior = True
+                break
+            if not source.get("task_id"):
+                break
+            try:
+                producer = self.store.get_task(source["task_id"])
+            except (TaskStoreError, KeyError):
+                break
+        if not matched_prior:
+            for prior_id in prior_ids:
+                try:
+                    prior_task = self.store.get_task(prior_id)
+                except (TaskStoreError, KeyError):
+                    continue
+                prior_acc = artifacts._load_evidence(prior_task, artifacts.ACCEPTED_CATEGORY, prior_task.execution_id)
+                if prior_acc and prior_acc.get("commit") == landing.get("head_sha"):
+                    matched_prior = True
+                    break
+        if not matched_prior:
+            return False
+        observed = self.landing_loop.github.observe_pr(dict(landing))
+        return (observed.get("state") == "OPEN" and observed.get("draft") is True
+                and observed.get("head_sha") in {landing.get("head_sha"), accepted["commit"]})
+
     def _advance_landing(self, window):
         if self.landing_loop is None:
             return
@@ -468,7 +521,8 @@ class UnattendedCoordinator:
                     break
                 try:
                     if (landing is not None and not self._can_resume_parked_review(goal, task, accepted, landing)
-                            and not self._republishes_rejected_head(goal, task, accepted, landing)):
+                            and not self._republishes_rejected_head(goal, task, accepted, landing)
+                            and not self._republishes_uncommented_blocked_head(goal, task, accepted, landing)):
                         continue
                     self.landing_loop.publish_and_review(task.id, window_id=window.id,
                         publication=self.publication, goals=self.goals,
@@ -539,9 +593,15 @@ class UnattendedCoordinator:
         retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
-        for task_id in self.control_store.runnable_tasks(
+        quota_held_auth = getattr(self, "_quota_held_authorized", None)
+        if quota_held_auth is None:
+            quota_held_auth = self._quota_held_authorized = {}
+        runnable_ids = self.control_store.runnable_tasks(
             window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True
-        ):
+        )
+        for stale_id in set(quota_held_auth) - set(runnable_ids):
+            quota_held_auth.pop(stale_id, None)
+        for task_id in runnable_ids:
             if len(claimed) >= free_slots:
                 break
             if self._stop.is_set():
@@ -582,7 +642,9 @@ class UnattendedCoordinator:
             operation = task_operation(task)
             if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
-            if not self.autonomy.authorize(
+            auth_key = (window.id, operation, task.status)
+            skip_initial_auth = quota_held_auth.get(task_id) == auth_key
+            if not skip_initial_auth and not self.autonomy.authorize(
                 window_id=window.id,
                 operation=operation,
                 repository=task.repository,
@@ -596,6 +658,16 @@ class UnattendedCoordinator:
                 if task.status == "QUOTA_WAIT" and self.quota_preparer is None:
                     raise TaskStoreError("QUOTA_WAIT:fresh_evidence_unavailable")
                 feedback_identity = self.quota_preparer(task) if self.quota_preparer is not None else None
+                if skip_initial_auth:
+                    quota_held_auth.pop(task_id, None)
+                    if not self.autonomy.authorize(
+                        window_id=window.id,
+                        operation=operation,
+                        repository=task.repository,
+                        subject_id=task_id,
+                        input_payload={"task_id": task_id, "status": task.status},
+                    ):
+                        continue
                 epoch, _ = self.control_store.claim_task(
                     window_id=window.id,
                     task_id=task_id,
@@ -623,8 +695,14 @@ class UnattendedCoordinator:
                     continue
                 if str(exc).startswith("QUOTA_WAIT"):
                     held.append(task_id)
+                    quota_held_auth[task_id] = auth_key
+                    if self._last_error.startswith("QUOTA_WAIT"):
+                        self._last_error = ""
+                    continue
+                quota_held_auth.pop(task_id, None)
                 self._last_error = str(exc)
                 continue
+            quota_held_auth.pop(task_id, None)
             claimed[task_id] = epoch
             if self._stop.is_set():
                 break
