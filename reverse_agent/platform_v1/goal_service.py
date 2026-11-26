@@ -201,6 +201,12 @@ def _upgrade_retryable(task: Any) -> bool:
     return (task.failure_classification == "deterministic_validation_failure"
             and str(task.failure_detail or "").strip() in _HYGIENE_GATE_DETAILS)
 UPGRADE_RETRY_LIMIT = 10
+# Refusals that settle a step for this host version. Any other refusal (review
+# intent unverifiable, run still recovering, no model available right now) may
+# clear by itself, so the sweep stays unfinished and is tried again later.
+UPGRADE_RETRY_FINAL_REFUSALS = frozenset({
+    "owner_retry_step_not_stopped", "owner_retry_step_not_found", "owner_retry_not_agent_team",
+    "owner_retry_host_check", "goal_revision_conflict", "goal_source_issue_closed"})
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
@@ -2121,7 +2127,7 @@ class GoalService:
 
     def retry_after_upgrade(self, window_id: str, *, host_version: str,
                             authorize: Callable[[Any, Any], bool],
-                            limit: int = UPGRADE_RETRY_LIMIT) -> list[dict[str, Any]]:
+                            limit: int = UPGRADE_RETRY_LIMIT) -> tuple[list[dict[str, Any]], bool]:
         """Once per host version, retry steps a host fault or host gate stopped.
 
         Reuses :meth:`owner_retry` unchanged (same window pool, budgets, base, review
@@ -2131,8 +2137,9 @@ class GoalService:
         version is skipped: only new code can change a host-caused outcome.
         """
         retried: list[dict[str, Any]] = []
+        finished = True
         if not host_version:
-            return retried
+            return retried, finished
         for goal in self.control_store.list_window_goals(window_id):
             if len(retried) >= limit:
                 break
@@ -2170,13 +2177,16 @@ class GoalService:
                                       "metadata": {"origin": UPGRADE_RETRY_ORIGIN, "host_version": host_version,
                                                    "source_task_id": failed.id,
                                                    "failure_classification": failed.failure_classification}})
-                except TaskStoreError:
-                    # The same refusals an Owner click would get: leave it stopped. Storage
-                    # faults raise sqlite3.Error and end the sweep unfinished instead.
+                except TaskStoreError as exc:
+                    # The same refusals an Owner click would get leave it stopped; one that
+                    # may clear by itself leaves the sweep unfinished. Storage faults raise
+                    # sqlite3.Error and propagate.
+                    if str(exc) not in UPGRADE_RETRY_FINAL_REFUSALS:
+                        finished = False
                     continue
                 retried.append(result)
                 goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
-        return retried
+        return retried, finished and len(retried) < limit
 
     def _upgrade_retried(self, goal: Any, plan_task_id: str, host_version: str) -> bool:
         """Whether a sweep on this host code already retried this step (durable, per step)."""

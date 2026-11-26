@@ -268,7 +268,9 @@ def _sweep(service, window, version="new-host-sha", allow=True):
     def authorize(goal, failed):
         seen.append(failed.id)
         return allow
-    return service.retry_after_upgrade(window.id, host_version=version, authorize=authorize), seen
+    retried, finished = service.retry_after_upgrade(window.id, host_version=version, authorize=authorize)
+    _sweep.finished = finished
+    return retried, seen
 
 
 @pytest.mark.parametrize("classification", ["patch_hygiene_failed", "review_not_independent", "server_stream_stalled"])
@@ -380,3 +382,21 @@ def test_upgrade_sweep_repairs_a_blocked_goal_left_over_a_queued_retry(case):
     store._conn.commit()
     assert _sweep(service, window, version="restarted-same-or-newer")[0] == []
     assert control.get_goal(goal.id).status == "RUNNING"
+
+
+def test_a_refusal_that_may_clear_leaves_the_sweep_unfinished(case, monkeypatch):
+    # #1785 review: a review intent that cannot be verified (e.g. a storage hiccup)
+    # must not let the sweep record itself as done.
+    _, _, store, _, service, _, window, task = case
+    _fail(store, task, "review_not_independent")
+    monkeypatch.setattr(service, "_review_intent_hold", lambda *args, **kwargs: True)
+    assert _sweep(service, window)[0] == [] and _sweep.finished is False
+    monkeypatch.undo()
+    assert _sweep(service, window)[0] and _sweep.finished is True
+
+
+def test_a_final_refusal_finishes_the_sweep(case):
+    _, _, store, _, service, goal, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    service.owner_retry = lambda *a, **k: (_ for _ in ()).throw(TaskStoreError("goal_revision_conflict"))
+    assert _sweep(service, window)[0] == [] and _sweep.finished is True

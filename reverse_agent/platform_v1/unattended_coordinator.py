@@ -1210,15 +1210,16 @@ class UnattendedCoordinator:
         inside the active window) and goes through GoalService.owner_retry.
         """
         version = str(getattr(self, "host_code_version", "") or "").strip()
-        swept = self.__dict__.setdefault("_upgrade_swept_windows", set())
+        # window id -> monotonic time of the next attempt (inf once finished)
+        next_at = self.__dict__.setdefault("_upgrade_sweep_next_at", {})
         authority = self.execution_authority_sha.strip()
-        if self.goals is None or not version or window.id in swept:
+        if self.goals is None or not version or time.monotonic() < next_at.get(window.id, 0.0):
             return
-        if authority and authority != version:
+        if authority != version:
             # Runs record the execution authority; only when it is the host code can a
             # run prove which code it ran on. An explicit, different authority: no sweep.
             return
-        swept.add(window.id)
+        next_at[window.id] = math.inf
         subject = f"upgrade_retry_sweep:{version}"
         try:
             with self.control_store._lock:
@@ -1234,10 +1235,11 @@ class UnattendedCoordinator:
                     subject_id=failed.id,
                     input_payload={"origin": "host_upgrade_sweep", "host_version": version, "task_id": failed.id})
 
-            retried = self.goals.retry_after_upgrade(
+            retried, finished = self.goals.retry_after_upgrade(
                 window.id, host_version=version, authorize=authorize, limit=UPGRADE_SWEEP_BATCH)
-            if len(retried) >= UPGRADE_SWEEP_BATCH:
-                swept.discard(window.id)  # a full batch: continue on the next tick, not done yet
+            if not finished:
+                # A full batch or a refusal that may clear: try again, at most every 5 minutes.
+                next_at[window.id] = time.monotonic() + QUOTA_HOLD_RECHECK_SECONDS
                 return
             self.control_store.append_receipt(
                 window_id=window.id, operation_type="upgrade_retry_sweep", capability="execute_task",
@@ -1245,8 +1247,8 @@ class UnattendedCoordinator:
                 reason=f"retried={len(retried)}",
                 input_payload={"host_version": version, "retried": [row["from_task_id"] for row in retried]})
         except Exception as exc:  # noqa: BLE001 - a recovery sweep never stops the tick
-            # Try again next tick; a committed retry is not repeated (expected source attempt).
-            swept.discard(window.id)
+            # Try again later; a committed retry is not repeated (expected source attempt).
+            next_at[window.id] = time.monotonic() + QUOTA_HOLD_RECHECK_SECONDS
             self._last_error = f"upgrade_retry_sweep_failed:{type(exc).__name__}"
 
     def request_reevaluation(self) -> None:
