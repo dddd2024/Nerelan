@@ -2180,8 +2180,13 @@ def test_dated_quota_hold_is_not_rechecked_every_tick(tmp_path, monkeypatch) -> 
     until = "2028-01-15T08:00:00Z"  # far beyond the recheck interval
     prepared: list[str] = []
 
+    reset_during_preparation = [False]
+
     def prepare(item):
         prepared.append(item.id)
+        if reset_during_preparation[0]:
+            reset_during_preparation[0] = False
+            coordinator.request_reevaluation()  # a reset observed while this preparation runs
         raise TaskStoreError("QUOTA_WAIT:" + until)
 
     coordinator = UnattendedCoordinator(
@@ -2225,6 +2230,13 @@ def test_dated_quota_hold_is_not_rechecked_every_tick(tmp_path, monkeypatch) -> 
         clock[0] += 30
         assert coordinator.tick() == 0
         assert len(prepared) == 4  # held again under the new identity
+        # A hold installed by a preparation that overlapped a reset is not trusted.
+        coordinator.request_reevaluation()
+        reset_during_preparation[0] = True
+        assert coordinator.tick() == 0
+        assert len(prepared) == 5
+        assert coordinator.tick() == 0
+        assert len(prepared) == 6
     finally:
         store._conn.close()
 
