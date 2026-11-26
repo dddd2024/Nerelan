@@ -35,11 +35,13 @@ _NOT_OVERLOAD_CLASS = re.compile(r"limit|quota|rate|429|unavailable|refus|no_wil
 OVERLOADED = "provider_overloaded"
 
 # Recognize an account's rate-limit reply in an executor error or an OpenCode
-# retry event, including Magpie's generic exit diagnostics.
+# retry event, including Magpie's generic exit diagnostics and bilingual CN/EN RPM/TPM limits.
 _PROVIDER_RATE_LIMIT_REPLY_RE = re.compile(
     r"^(?:too many requests\b|rate[ _-]limit(?:ed)?\b|(?:(?:http|status)[ :=]+)?429\b)"
     r"|status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)"
-    r"|\b(?:free\s+)?usage\s+limit\s+reached\b|\bout\s+of\s+its\s+allowance\b",
+    r"|\b(?:free\s+)?usage\s+limit\s+reached\b|\bout\s+of\s+its\s+allowance\b"
+    r"|inference\s+exceeds\s+(?:tpm|rpm)(?:/(?:tpm|rpm))?\s+limit"
+    r"|请求频率超限|频率超限|调用频率超限|并发(?:数)?超限",
     re.IGNORECASE,
 )
 
@@ -175,6 +177,28 @@ def no_credits_error(value: str) -> str | None:
     return NO_CREDITS if _NO_CREDITS_RE.search(text) else None
 
 
+def probe_failure_observation(*, now: float, status_code: int | None = None,
+                              error: str = '') -> dict[str, Any]:
+    """Classify a failed background probe so 402/404/403/400 stop tight re-probing."""
+    if status_code == 402 or no_credits_error(error):
+        return observation(now=now, state='UNAVAILABLE', reason=NO_CREDITS,
+                           ttl_seconds=NO_CREDITS_TTL_SECONDS)
+    marker = availability_error(error)
+    if marker:
+        return observation(now=now, state='UNAVAILABLE', reason=marker, ttl_seconds=86400)
+    lowered = (error or '').lower()
+    if status_code == 404 or 'not_found_error' in lowered:
+        return observation(now=now, state='UNAVAILABLE', reason='model_not_found', ttl_seconds=86400)
+    if status_code in (401, 403) or 'cloudflare' in lowered or 'error-1010' in lowered:
+        reason = f'http_{status_code}' if isinstance(status_code, int) else 'http_403'
+        return observation(now=now, state='UNAVAILABLE', reason=reason, ttl_seconds=86400)
+    if status_code == 400 or 'invalid_request_error' in lowered:
+        return observation(now=now, state='UNAVAILABLE', reason='probe_invalid_request', ttl_seconds=86400)
+    if status_code == 429 or provider_rate_limit_reply(error):
+        return observation(now=now, state='TRANSIENT', reason='rate_limited', ttl_seconds=1800)
+    return observation(now=now, success=False, error=error)
+
+
 def observation(*, now: float, success: bool = False, error: str = '',
                 state: str | None = None, reason: str | None = None,
                 ttl_seconds: float | None = None) -> dict[str, Any]:
@@ -264,7 +288,14 @@ class AvailabilityCache:
             self.next_probe = now + 60
             try:
                 value = probe(binding)
-                result = observation(now=now, success=value.get('ok') is True, error=str(value.get('error', '')))
+                if value.get('ok') is True:
+                    result = observation(now=now, success=True)
+                else:
+                    result = probe_failure_observation(
+                        now=now,
+                        status_code=value.get('status_code'),
+                        error=str(value.get('error', '')),
+                    )
             except Exception:
                 result = observation(now=now, error='transient')
             self.remember(binding, connection, result)

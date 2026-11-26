@@ -1083,7 +1083,20 @@ class CombinedTrustedHost:
         from ..model_access.http_safe import urlopen
         from urllib.request import Request
         from urllib.error import HTTPError
-        from .model_availability import availability_error
+        from .model_availability import (availability_error, no_credits_error,
+                                         provider_rate_limit_reply)
+        def _probe_error_text(raw: bytes) -> str:
+            text = raw.decode("utf-8", errors="replace")
+            marker = availability_error(text) or no_credits_error(text)
+            if marker:
+                return marker
+            if provider_rate_limit_reply(text):
+                return "rate_limited"
+            lowered = text.lower()
+            for token in ("not_found_error", "invalid_request_error", "cloudflare", "error-1010"):
+                if token in lowered:
+                    return token
+            return "transient"
         snapshot = self._store.resolve_execution_snapshot(binding["binding_id"])
         anthropic = snapshot.protocol_family == "anthropic" and binding["executor_id"] == "claude_code"
         endpoint = "/v1/messages" if anthropic else snapshot.native_endpoint
@@ -1093,20 +1106,20 @@ class CombinedTrustedHost:
         if snapshot.auth_method == "none":
             status, response, _ = forward_keyless_probe(snapshot, body=json.dumps(body).encode(), timeout=10)
             if not 200 <= status < 300:
-                return {"ok": False, "error": availability_error(response.decode("utf-8", errors="replace")) or "transient"}
+                return {"ok": False, "status_code": status, "error": _probe_error_text(response)}
             payload = json.loads(response)
             return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
         lease = self._relay_manager.create_lease(snapshot, relay_url=self.relay_url)
         try:
             request = Request(lease.relay_url.rstrip("/") + endpoint, data=json.dumps(body).encode(),
-                headers={"Authorization": "Bearer " + lease.lease_id, "Content-Type": "application/json"})
+                headers={"Authorization": "Bearer " + lease.lease_id,
+                         "Content-Type": "application/json", "User-Agent": "Nerelan/1.0"})
             try:
                 with urlopen(request, timeout=10) as response:
                     payload = json.loads(response.read(65536))
                     return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
             except HTTPError as exc:
-                reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
-                return {"ok": False, "error": reason or "transient"}
+                return {"ok": False, "status_code": exc.code, "error": _probe_error_text(exc.read(65536))}
         finally:
             self._relay_manager.release_lease(lease.lease_id)
 
