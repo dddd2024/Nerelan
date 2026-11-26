@@ -752,7 +752,12 @@ def test_binding_config_contains_only_provider_base_url_metadata() -> None:
             "openai-compatible": {
                 "name": "Reverse Agent Relay",
                 "npm": "@ai-sdk/openai-compatible",
-                "options": {"baseURL": "https://models.example.test/v1"},
+                "options": {
+                    "baseURL": "https://models.example.test/v1",
+                    "setCacheKey": True,
+                    "headerTimeout": 120000,
+                    "chunkTimeout": 120000,
+                },
                 "models": {"sense-coding-fast": {}},
             }
         }
@@ -1298,7 +1303,12 @@ def test_binding_execution_passes_only_secret_free_env_and_sanitized_metadata(au
                 "openai-compatible": {
                     "name": "Reverse Agent Relay",
                     "npm": "@ai-sdk/openai-compatible",
-                    "options": {"baseURL": "https://models.example.test/v1"},
+                    "options": {
+                        "baseURL": "https://models.example.test/v1",
+                        "setCacheKey": True,
+                        "headerTimeout": 120000,
+                        "chunkTimeout": 120000,
+                    },
                     "models": {"sense-coding-fast": {}},
                 }
             }
@@ -3697,6 +3707,14 @@ def test_preexecution_boundary_preserves_and_rejects_unrelated_dirt(tmp_path):
 def test_producer_prompt_excludes_package_installation():
     from reverse_agent.platform_v1.opencode_executor import _PROMPT_CONSTRAINTS
     assert "Do not install dependencies" in _PROMPT_CONSTRAINTS
+
+
+def test_binding_config_sets_cache_key_and_stream_timeouts() -> None:
+    content = build_binding_config_content(_binding_resolution())
+    opts = json.loads(content)["provider"]["openai-compatible"]["options"]
+    assert opts["setCacheKey"] is True
+    assert opts["headerTimeout"] == 120000
+    assert opts["chunkTimeout"] == 120000
 
 
 def test_collection_rejects_indirection_and_escaping_paths(tmp_path):
