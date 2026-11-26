@@ -608,7 +608,11 @@ def _snapshot_workspace(
             "--",
         )
         changed_paths = _changed_paths(name_status.stdout)
-        diff_command = ("git", "diff", "--check", base_tree, observed_tree, "--")
+        # A CRLF file's line terminator is not trailing whitespace: without
+        # cr-at-eol every added line of such a file failed hygiene, and an agent
+        # once deleted its own feature to get past it (#1504, 2026-11-26).
+        diff_command = ("git", "-c", "core.whitespace=cr-at-eol", "diff", "--check",
+                        base_tree, observed_tree, "--")
         diff_result = _command_result(diff_command, _run(diff_command, cwd=repo))
         violations = artifact_tree_diagnostics(repo, base_tree, observed_tree)
         whitespace = []

@@ -694,3 +694,21 @@ class TestNativeScratch:
                 pytest.skip("neither symlinks nor junctions available")
         assert core._ignored_native_scratch(repo / self.SCRATCH) is False
         assert [v["rule"] for v in core._scan_workspace_indirections(repo)] == ["reparse_point"]
+
+
+def test_crlf_file_edit_passes_hygiene_but_real_trailing_space_does_not(tmp_path):
+    repo, _ = _repo(tmp_path)
+    # As on the host checkout: keep CRLF blobs (Git for Windows defaults autocrlf on).
+    _run(repo, "git", "config", "core.autocrlf", "false")
+    (repo / "page.tsx").write_bytes(b"line one\r\nline two\r\n")
+    _run(repo, "git", "add", "page.tsx")
+    _run(repo, "git", "commit", "-q", "-m", "crlf baseline")
+    base = _run(repo, "git", "rev-parse", "HEAD").strip()
+    (repo / "page.tsx").write_bytes(b"line one\r\nline two\r\nadded line\r\n")
+    _, _, changed, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] == 0, hygiene
+    assert "page.tsx" in changed
+    (repo / "page.tsx").write_bytes(b"line one\r\nline two\r\nadded line  \r\n")
+    _, _, _, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    assert any(d["rule"] == "whitespace" for d in hygiene["diagnostics"])
