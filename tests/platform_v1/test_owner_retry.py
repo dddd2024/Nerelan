@@ -285,10 +285,29 @@ def test_upgrade_sweep_retries_a_host_caused_stop_once(case, classification):
     assert _sweep(service, window)[0] == []
 
 
+@pytest.mark.parametrize("detail, retried", [("functional_patch_hygiene_failed", True),
+                                             ("functional_check_failed", False)])
+def test_upgrade_sweep_reads_the_hygiene_gate_inside_a_generic_validation_failure(case, detail, retried):
+    _, _, store, _, service, _, window, task = case
+    _fail(store, task, "deterministic_validation_failure")
+    store._conn.execute("UPDATE tasks SET failure_detail=? WHERE id=?", (detail, task.id))
+    store._conn.commit()
+    assert bool(_sweep(service, window)[0]) is retried
+
+
 def test_upgrade_sweep_leaves_model_judged_failures_alone(case):
     _, _, store, _, service, _, window, task = case
     _fail(store, task, "deterministic_validation_failure")
     assert _sweep(service, window) == ([], [])
+
+
+def test_owner_retry_refuses_when_the_step_moved_past_the_expected_attempt(case):
+    _, _, store, control, service, goal, _, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    with pytest.raises(TaskStoreError, match="owner_retry_step_not_stopped"):
+        _retry(service, goal, expected_source_task_id="task-some-older-attempt")
+    assert tuple(control.list_task_escalations(goal.id)) == ()
+    assert _retry(service, goal, expected_source_task_id=task.id)["from_task_id"] == task.id
 
 
 def test_upgrade_sweep_skips_an_attempt_that_already_ran_on_this_version(case):

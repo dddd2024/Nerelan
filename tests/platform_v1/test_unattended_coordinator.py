@@ -2264,17 +2264,20 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
     calls: list[str] = []
 
     class Goals:
-        def retry_after_upgrade(self, window_id, *, host_version, authorize):
+        batch = [1]
+
+        def retry_after_upgrade(self, window_id, *, host_version, authorize, limit, current_versions):
             calls.append(host_version)
-            return [{"from_task_id": "task-old"}]
+            return [{"from_task_id": f"task-old-{i}"} for i in range(self.batch[0])]
 
         def stop_if_source_closed(self, goal_id):
             return False
 
     def coordinator(version):
         return UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
-                                     workspace_root=tmp_path / "workspaces", goals=Goals(),
-                                     execution_authority_sha=version)
+                                     workspace_root=tmp_path / "workspaces", goals=goals,
+                                     execution_authority_sha="target-head", host_code_version=version)
+    goals = Goals()
     try:
         first = coordinator("sha-new")
         first._upgrade_retry_sweep(window)
@@ -2290,8 +2293,24 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
         # New code: one more sweep.
         coordinator("sha-newer")._upgrade_retry_sweep(window)
         assert calls == ["sha-new", "sha-newer"]
-        # No version identity (library/test hosts): never sweeps.
+        # No host code identity (installed, non-checkout code): never sweeps, even
+        # though the target checkout's HEAD is known.
         coordinator("")._upgrade_retry_sweep(window)
         assert calls == ["sha-new", "sha-newer"]
+        # A full batch is not a finished sweep: it continues on the next tick.
+        import reverse_agent.platform_v1.unattended_coordinator as coordinator_module
+        goals.batch[0] = coordinator_module.UPGRADE_SWEEP_BATCH
+        busy = coordinator("sha-third")
+        busy._upgrade_retry_sweep(window)
+        busy._upgrade_retry_sweep(window)
+        assert calls[-2:] == ["sha-third", "sha-third"]
+        assert store._conn.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id = ?",
+                                   ("upgrade_retry_sweep:sha-third",)).fetchone()[0] == 0
+        goals.batch[0] = 0
+        busy._upgrade_retry_sweep(window)
+        busy._upgrade_retry_sweep(window)
+        assert calls[-3:] == ["sha-third"] * 3
+        assert store._conn.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id = ?",
+                                   ("upgrade_retry_sweep:sha-third",)).fetchone()[0] == 1
     finally:
         store._conn.close()

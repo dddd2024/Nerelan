@@ -190,6 +190,16 @@ OWNER_RETRY_REASON = "owner_retry"
 # and #1552 stayed BLOCKED after their gate fixes shipped).
 UPGRADE_RETRY_CLASSES = HOST_RETRY_CLASSES | frozenset({"patch_hygiene_failed", "review_not_independent"})
 UPGRADE_RETRY_ORIGIN = "host_upgrade_sweep"
+# Executors record a failed hygiene gate as a generic validation failure with
+# this structured reason; ordinary failing tests carry other details.
+_HYGIENE_GATE_DETAILS = ("functional_patch_hygiene_failed",)
+
+
+def _upgrade_retryable(task: Any) -> bool:
+    if task.failure_classification in UPGRADE_RETRY_CLASSES:
+        return True
+    return (task.failure_classification == "deterministic_validation_failure"
+            and str(task.failure_detail or "").strip() in _HYGIENE_GATE_DETAILS)
 UPGRADE_RETRY_LIMIT = 10
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
@@ -2111,6 +2121,7 @@ class GoalService:
 
     def retry_after_upgrade(self, window_id: str, *, host_version: str,
                             authorize: Callable[[Any, Any], bool],
+                            current_versions: frozenset[str] = frozenset(),
                             limit: int = UPGRADE_RETRY_LIMIT) -> list[dict[str, Any]]:
         """Once per host version, retry steps a host fault or host gate stopped.
 
@@ -2134,18 +2145,19 @@ class GoalService:
                 if int(link["goal_revision"]) != goal.revision or link["status"] not in {"FAILED", "BLOCKED"}:
                     continue
                 failed = self.store.get_task(link["task_id"], event_limit=0)
-                if failed.failure_classification not in UPGRADE_RETRY_CLASSES:
+                if not _upgrade_retryable(failed):
                     continue
                 with self.store._lock:
                     ran_on = self.store._conn.execute(
                         "SELECT execution_authority_sha FROM durable_runs WHERE task_id = ? "
                         "ORDER BY created_at DESC LIMIT 1", (failed.id,)).fetchone()
-                if ran_on is not None and ran_on[0] == host_version:
+                if ran_on is not None and ran_on[0] in (current_versions | {host_version}):
                     continue
                 if not authorize(goal, failed):
                     continue
                 try:
-                    result = self.owner_retry(goal.id, link["plan_task_id"], expected_revision=goal.revision)
+                    result = self.owner_retry(goal.id, link["plan_task_id"], expected_revision=goal.revision,
+                                              expected_source_task_id=failed.id)
                 except TaskStoreError:
                     continue  # the same refusals an Owner click would get: leave it stopped
                 self.store.add_event(result["to_task_id"], event_type="VALIDATED", title="Retried after host upgrade",
@@ -2159,7 +2171,7 @@ class GoalService:
         return retried
 
     def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
-                    binding_ref: str = "") -> dict[str, Any]:
+                    binding_ref: str = "", expected_source_task_id: str = "") -> dict[str, Any]:
         """Owner decision 2026-11-12 A: the Owner retries a stopped plan step in the Goal's active window.
 
         The model is the router's choice (``binding_ref`` empty) or one the Owner picks;
@@ -2187,6 +2199,9 @@ class GoalService:
                      if row["plan_task_id"] == plan_task_id and int(row["goal_revision"]) == goal.revision), None)
         if plan_task is None or link is None:
             raise TaskStoreError("owner_retry_step_not_found")
+        if expected_source_task_id and link["task_id"] != expected_source_task_id:
+            # The caller judged a specific attempt; a newer one is not its to retry.
+            raise TaskStoreError("owner_retry_step_not_stopped")
         if plan_task.validation_command_id:
             raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
         # INTERRUPTED is Owner-retryable when nothing of the old run can still be
