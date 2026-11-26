@@ -133,13 +133,86 @@ def test_all_eight_invariants_alert_and_preserve_stranded_publications(tmp_path:
         "active_window_running": 1,
         "stranded_running_inactive_windows": 1,
         "stranded_with_publications": 1,
-        "duplicate_issue_groups": 1,
+        "duplicate_issue_groups": 0,
+        "blocked_duplicate_issue_groups": 0,
         "closed_issue_active_goals": 1,
     }
     assert inv["supervision_to_worker_cost_ratio"]["status"] == "ALERT"
     assert inv["supervision_to_worker_cost_ratio"]["metric"] == 10.0
     assert inv["waiting_receipt_rate"]["status"] == "ALERT"
     assert inv["stalled_or_repeating_tasks"]["status"] == "ALERT"
+
+
+def test_cross_module_usage_status_null_vs_zero_and_active_only_duplicates(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite3"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE platform_autonomous_windows (id TEXT PRIMARY KEY, status TEXT);
+        CREATE TABLE platform_goals (id TEXT PRIMARY KEY, status TEXT, window_id TEXT, title TEXT);
+        CREATE TABLE tasks (id TEXT PRIMARY KEY, status TEXT, created_at TEXT);
+        CREATE TABLE platform_goal_task_links (goal_id TEXT, task_id TEXT);
+        CREATE TABLE platform_publications (id TEXT PRIMARY KEY, task_id TEXT);
+        CREATE TABLE task_usage_observations (
+            id TEXT PRIMARY KEY, task_id TEXT, provider_id TEXT, model_id TEXT,
+            status TEXT, input_units INTEGER, cache_read_units INTEGER, cache_write_units INTEGER,
+            cost_micro_units INTEGER, created_at TEXT
+        );
+        CREATE TABLE platform_operation_receipts (
+            id TEXT PRIMARY KEY, operation_type TEXT, subject_id TEXT, created_at TEXT
+        );
+        """
+    )
+    conn.execute("INSERT INTO platform_autonomous_windows VALUES ('w-act', 'ACTIVE')")
+    conn.executemany("INSERT INTO platform_goals VALUES (?, ?, ?, ?)", [
+        ("gb-1", "BLOCKED", "w-act", "#300 Historical blocked 1"),
+        ("gb-2", "BLOCKED", "w-act", "#300 Historical blocked 2"),
+        ("ga-1", "RUNNING", "w-act", "#301 Single active"),
+    ])
+    conn.executemany("INSERT INTO tasks VALUES (?, ?, ?)", [
+        ("t-fix", "READY_FOR_REVIEW_FIXTURE", RECENT),
+        ("t-fail", "FAILED", RECENT),
+    ])
+    # 20 UNKNOWN rows should NOT inflate low_cache_hit_routes obs count or denominator
+    for i in range(25):
+        conn.execute(
+            "INSERT INTO task_usage_observations VALUES (?, 't-fix', 'unknown-prov', 'm-unk', 'UNKNOWN', NULL, NULL, NULL, NULL, ?)",
+            (f"unk-{i}", RECENT),
+        )
+    # 10 PARTIAL rows with NULL cost + 10 OBSERVED rows with cost=0 + 10 OBSERVED rows with positive cost
+    for i in range(10):
+        conn.execute(
+            "INSERT INTO task_usage_observations VALUES (?, 't-fix', 'claude-code', 'claude-sonnet', 'PARTIAL', 100, 900, 0, NULL, ?)",
+            (f"part-{i}", RECENT),
+        )
+        conn.execute(
+            "INSERT INTO task_usage_observations VALUES (?, 't-fix', 'opencode', 'free-m', 'OBSERVED', 100, 900, 0, 0, ?)",
+            (f"zero-{i}", RECENT),
+        )
+        conn.execute(
+            "INSERT INTO task_usage_observations VALUES (?, 't-fix', 'opencode', 'paid-m', 'OBSERVED', 100, 900, 0, 1200, ?)",
+            (f"pos-{i}", RECENT),
+        )
+    conn.execute(
+        "INSERT INTO task_usage_observations VALUES ('fail-1', 't-fail', 'opencode', 'paid-m', 'OBSERVED', 500, 0, 0, 500, ?)",
+        (RECENT,),
+    )
+    conn.commit()
+    conn.close()
+
+    report = run_health_audit(db, now=NOW)
+    inv = _by_id(report)
+    unpriced = inv["unpriced_usage_obs_ratio"]
+    assert unpriced["metric"] == round(20 / 31, 4)
+    assert "null_cost_rows=10" in unpriced["detail"]
+    assert "zero_cost_rows=10" in unpriced["detail"]
+    assert "positive_cost_rows=11" in unpriced["detail"]
+    assert "unknown_status_rows=25" in unpriced["detail"]
+    assert inv["low_cache_hit_routes"]["status"] == "OK"
+    assert inv["failed_fresh_token_share"]["metric"] == round(500 / 3500, 4)
+    assert inv["goal_hygiene"]["status"] == "OK"
+    assert inv["goal_hygiene"]["metric"]["duplicate_issue_groups"] == 0
+    assert inv["goal_hygiene"]["metric"]["blocked_duplicate_issue_groups"] == 1
 
 
 def test_cli_json_smoke(tmp_path: Path, capsys) -> None:

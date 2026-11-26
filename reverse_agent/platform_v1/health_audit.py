@@ -58,17 +58,26 @@ def _table_names(conn: sqlite3.Connection) -> set[str]:
     }
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
 def _check_failed_fresh_token_share(
     conn: sqlite3.Connection, tables: set[str], cutoff_iso: str
 ) -> dict[str, Any]:
     if "task_usage_observations" not in tables or "tasks" not in tables:
         return _invariant("failed_fresh_token_share", "UNKNOWN", None, FAILED_FRESH_SHARE_THRESHOLD, "missing required tables")
+    cols = _table_columns(conn, "task_usage_observations")
+    status_filter = "AND u.status IN ('OBSERVED', 'PARTIAL')" if "status" in cols else ""
     rows = conn.execute(
-        """
+        f"""
         SELECT COALESCE(t.status, '') AS st, SUM(COALESCE(u.input_units, 0)) AS inp
         FROM task_usage_observations u
         JOIN tasks t ON t.id = u.task_id
-        WHERE u.created_at >= ? AND t.status IN ('FAILED', 'READY_FOR_REVIEW', 'COMPLETED')
+        WHERE u.created_at >= ?
+          {status_filter}
+          AND u.input_units IS NOT NULL
+          AND t.status IN ('FAILED', 'READY_FOR_REVIEW', 'READY_FOR_REVIEW_FIXTURE', 'COMPLETED')
         GROUP BY t.status
         """,
         (cutoff_iso,),
@@ -94,27 +103,61 @@ def _check_unpriced_usage_obs_ratio(
 ) -> dict[str, Any]:
     if "task_usage_observations" not in tables:
         return _invariant("unpriced_usage_obs_ratio", "UNKNOWN", None, UNPRICED_OBS_THRESHOLD, "missing task_usage_observations")
-    row = conn.execute(
-        """
-        SELECT COUNT(*) AS total,
-               SUM(CASE WHEN cost_micro_units IS NULL OR cost_micro_units <= 0 THEN 1 ELSE 0 END) AS unpriced
-        FROM task_usage_observations
-        WHERE created_at >= ?
-        """,
-        (cutoff_iso,),
-    ).fetchone()
-    total = int(row["total"] or 0)
-    unpriced = int(row["unpriced"] or 0)
-    if total <= 0:
-        return _invariant("unpriced_usage_obs_ratio", "UNKNOWN", None, UNPRICED_OBS_THRESHOLD, "no usage observations in window")
-    ratio = round(unpriced / total, 4)
+    cols = _table_columns(conn, "task_usage_observations")
+    if "status" in cols:
+        row = conn.execute(
+            """
+            SELECT
+                SUM(CASE WHEN status IN ('OBSERVED', 'PARTIAL') THEN 1 ELSE 0 END) AS eligible,
+                SUM(CASE WHEN status IN ('OBSERVED', 'PARTIAL') AND cost_micro_units IS NULL THEN 1 ELSE 0 END) AS null_cost,
+                SUM(CASE WHEN status IN ('OBSERVED', 'PARTIAL') AND cost_micro_units = 0 THEN 1 ELSE 0 END) AS zero_cost,
+                SUM(CASE WHEN status IN ('OBSERVED', 'PARTIAL') AND cost_micro_units > 0 THEN 1 ELSE 0 END) AS pos_cost,
+                SUM(CASE WHEN status NOT IN ('OBSERVED', 'PARTIAL') OR status IS NULL THEN 1 ELSE 0 END) AS unknown_rows
+            FROM task_usage_observations
+            WHERE created_at >= ?
+            """,
+            (cutoff_iso,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS eligible,
+                SUM(CASE WHEN cost_micro_units IS NULL THEN 1 ELSE 0 END) AS null_cost,
+                SUM(CASE WHEN cost_micro_units = 0 THEN 1 ELSE 0 END) AS zero_cost,
+                SUM(CASE WHEN cost_micro_units > 0 THEN 1 ELSE 0 END) AS pos_cost,
+                0 AS unknown_rows
+            FROM task_usage_observations
+            WHERE created_at >= ?
+            """,
+            (cutoff_iso,),
+        ).fetchone()
+    eligible = int(row["eligible"] or 0)
+    null_cost = int(row["null_cost"] or 0)
+    zero_cost = int(row["zero_cost"] or 0)
+    pos_cost = int(row["pos_cost"] or 0)
+    unknown_rows = int(row["unknown_rows"] or 0)
+    if eligible <= 0:
+        return _invariant(
+            "unpriced_usage_obs_ratio",
+            "UNKNOWN",
+            None,
+            UNPRICED_OBS_THRESHOLD,
+            f"no OBSERVED/PARTIAL usage observations in window (unknown_status_rows={unknown_rows})",
+        )
+    unpriced = null_cost + zero_cost
+    ratio = round(unpriced / eligible, 4)
     status = "ALERT" if ratio > UNPRICED_OBS_THRESHOLD else "OK"
     return _invariant(
         "unpriced_usage_obs_ratio",
         status,
         ratio,
         UNPRICED_OBS_THRESHOLD,
-        f"unpriced_unknown_rows={unpriced}/{total} (unpriced/UNKNOWN is not $0)",
+        (
+            f"unpriced={unpriced}/{eligible} "
+            f"(null_cost_rows={null_cost}, zero_cost_rows={zero_cost}, "
+            f"positive_cost_rows={pos_cost}, unknown_status_rows={unknown_rows})"
+        ),
     )
 
 
@@ -123,8 +166,10 @@ def _check_low_cache_hit_routes(
 ) -> dict[str, Any]:
     if "task_usage_observations" not in tables:
         return _invariant("low_cache_hit_routes", "UNKNOWN", None, CACHE_HIT_MIN_THRESHOLD, "missing task_usage_observations")
+    cols = _table_columns(conn, "task_usage_observations")
+    status_filter = "AND status IN ('OBSERVED', 'PARTIAL')" if "status" in cols else ""
     rows = conn.execute(
-        """
+        f"""
         SELECT COALESCE(provider_id, '?') AS prov,
                COALESCE(model_id, '?') AS mod,
                COUNT(*) AS obs_count,
@@ -133,6 +178,8 @@ def _check_low_cache_hit_routes(
                SUM(COALESCE(cache_write_units, 0)) AS cw
         FROM task_usage_observations
         WHERE created_at >= ?
+          {status_filter}
+          AND input_units IS NOT NULL
         GROUP BY prov, mod
         HAVING obs_count >= ?
         """,
@@ -181,7 +228,8 @@ def _check_goal_hygiene(
     active_window_running = 0
     stranded_running = 0
     stranded_with_publications = 0
-    by_issue: dict[int, list[str]] = {}
+    by_active_issue: dict[int, list[str]] = {}
+    by_blocked_issue: dict[int, list[str]] = {}
     closed_issue_active = 0
 
     for g in goals:
@@ -191,9 +239,12 @@ def _check_goal_hygiene(
         match = _ISSUE_RE.search(g["title"] or "")
         issue_num = int(match.group(1)) if match else None
         if issue_num is not None:
-            by_issue.setdefault(issue_num, []).append(g["id"])
-            if closed_issue_numbers is not None and st in ("RUNNING", "PLANNED") and issue_num in closed_issue_numbers:
-                closed_issue_active += 1
+            if st in ("RUNNING", "PLANNED"):
+                by_active_issue.setdefault(issue_num, []).append(g["id"])
+                if closed_issue_numbers is not None and issue_num in closed_issue_numbers:
+                    closed_issue_active += 1
+            else:
+                by_blocked_issue.setdefault(issue_num, []).append(g["id"])
 
         if st == "RUNNING":
             win_status = windows.get(g["window_id"], "NONE")
@@ -213,12 +264,14 @@ def _check_goal_hygiene(
                     if int(pub_count or 0) > 0:
                         stranded_with_publications += 1
 
-    duplicate_issue_groups = sum(1 for gids in by_issue.values() if len(gids) > 1)
+    duplicate_issue_groups = sum(1 for gids in by_active_issue.values() if len(gids) > 1)
+    blocked_duplicate_issue_groups = sum(1 for gids in by_blocked_issue.values() if len(gids) > 1)
     metric = {
         "active_window_running": active_window_running,
         "stranded_running_inactive_windows": stranded_running,
         "stranded_with_publications": stranded_with_publications,
         "duplicate_issue_groups": duplicate_issue_groups,
+        "blocked_duplicate_issue_groups": blocked_duplicate_issue_groups,
         "closed_issue_active_goals": closed_issue_active if closed_issue_numbers is not None else "UNKNOWN",
     }
     alert = (
