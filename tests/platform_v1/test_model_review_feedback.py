@@ -385,7 +385,12 @@ def test_review_authors_allows_truncated_failed_claude_attempt_with_usage_observ
     store._conn.commit()
     binding = artifact_handoff.bind_consumer_input(store, review, allow_create=False)
     _, _, actual = model_review.review_authors(store, store.get_task(review), binding)
-    assert "claude-opus-5-5" in actual or "opus" in actual
+    assert "opus" in actual
+    # Ensure a FAILED attempt with an unexpected failure classification still enforces EXECUTOR_COMPLETED.
+    store._conn.execute("UPDATE tasks SET failure_classification='deterministic_validation_failure' WHERE id=?", (prior.id,))
+    store._conn.commit()
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        model_review.review_authors(store, store.get_task(review), binding)
     # Ensure a READY_FOR_REVIEW claude_code attempt still enforces EXECUTOR_COMPLETED models match.
     store._conn.execute("UPDATE tasks SET status='READY_FOR_REVIEW' WHERE id=?", (prior.id,))
     store._conn.commit()

@@ -173,6 +173,7 @@ class UnattendedCoordinator:
         self._manual_tick_idle.set()
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
+        self._quota_held_authorized: dict[str, tuple[str, str, str]] = {}
         self._ticks = 0
         self._executions = 0
 

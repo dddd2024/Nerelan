@@ -1259,7 +1259,7 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
     from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
     from reverse_agent.platform_v1.live_landing import RoutedLandingGitHubAdapter, LiveLandingGitHubAdapter
     from reverse_agent.platform_v1.control_store import PlatformControlStore
-    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
     coordinator = UnattendedCoordinator.__new__(UnattendedCoordinator)
     coordinator.control_store = SimpleNamespace(
@@ -1278,18 +1278,41 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
         "state": "OPEN", "draft": True, "head_sha": "a" * 40}))
     monkeypatch.setattr(coordinator, "_planned_review", lambda goal, task: SimpleNamespace(status="READY_FOR_REVIEW"))
     monkeypatch.setattr(coordinator, "_has_retained_review", lambda review: True)
-    monkeypatch.setattr(artifact_handoff, "_load_evidence",
-                        lambda task, category, label: ({"commit": "a" * 40}
-                                                       if category == artifact_handoff.ACCEPTED_CATEGORY and task.id == "old"
-                                                       else None))
+
+    def fake_load(task, category, label):
+        if category == artifact_handoff.ACCEPTED_CATEGORY and task.id == "old":
+            return {"commit": "a" * 40}
+        if category == "ReviewRepair" and task.id == "new":
+            return {"producer": {"task_id": "old", "commit": "a" * 40}}
+        return None
+
+    monkeypatch.setattr(artifact_handoff, "_load_evidence", fake_load)
     goal = SimpleNamespace(id="g1", revision=1)
     landing = {"identity": "i", "phase": "BLOCKED", "parking_reason": "", "head_sha": "a" * 40}
     assert coordinator._republishes_uncommented_blocked_head(
         goal, SimpleNamespace(id="new", execution_id="exec-new"), {"commit": "b" * 40}, landing) is True
 
-    # RoutedLandingGitHubAdapter resolves via escalation/repo fallback when old published worktree is gone.
+    # RoutedLandingGitHubAdapter resolves retained worktrees via list_task_escalations when pr_number matches,
+    # allows repo_dir fallback only for read-only methods, and fails closed on invoke_verdict.
     store = TaskStore(tmp_path / "tasks.sqlite3")
     control = PlatformControlStore(store)
+    prior_wt = tmp_path / "prior_wt"
+    prior_wt.mkdir()
+    prior_task = store.create_task(title="prior", repository="dddd2024/Nerelan")
+    monkeypatch.setattr(control, "get_publication",
+                        lambda tid: SimpleNamespace(pr_number=1774) if tid == prior_task.id else None)
+    monkeypatch.setattr(control, "list_goal_tasks", lambda gid: [])
+    monkeypatch.setattr(control, "list_task_escalations", lambda gid: [{"from_task_id": prior_task.id}])
+    monkeypatch.setattr("reverse_agent.platform_v1.functional_validation.functional_evidence", lambda t: {"ok": True})
+    monkeypatch.setattr("reverse_agent.platform_v1.artifact_handoff._producer_worktree",
+                        lambda ts, t, proof: prior_wt if t.id == prior_task.id else (_ for _ in ()).throw(TaskStoreError("missing")))
+    verdict_ws = []
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "invoke_verdict",
+                        lambda self, st, cid: verdict_ws.append(self.workspace) or {"passed": True})
+    adapter = RoutedLandingGitHubAdapter(control)
+    assert adapter.invoke_verdict({"goal_id": "g-esc", "pr_number": 1774, "repository": "dddd2024/Nerelan"}, "c1") == {"passed": True}
+    assert verdict_ws == [str(prior_wt.resolve())]
+
     repo_dir = tmp_path / "repo"
     repo_dir.mkdir()
     monkeypatch.setattr(
@@ -1298,7 +1321,8 @@ def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_pa
     )
     called = []
     monkeypatch.setattr(LiveLandingGitHubAdapter, "observe_pr", lambda self, st: called.append(self.workspace) or {"ok": True})
-    adapter = RoutedLandingGitHubAdapter(control)
     res = adapter.observe_pr({"goal_id": "missing-goal", "pr_number": 1, "repository": "dddd2024/Nerelan"})
-    assert res == {"ok": True} and len(called) == 1
+    assert res == {"ok": True} and called == [str(repo_dir.resolve())]
+    with pytest.raises(TaskStoreError, match="landing_retained_workspace_required"):
+        adapter.invoke_verdict({"goal_id": "missing-goal", "pr_number": 1, "repository": "dddd2024/Nerelan"}, "c1")
     store._conn.close()
