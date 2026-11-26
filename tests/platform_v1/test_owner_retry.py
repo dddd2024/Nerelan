@@ -295,6 +295,20 @@ def test_upgrade_sweep_reads_the_hygiene_gate_inside_a_generic_validation_failur
     assert bool(_sweep(service, window)[0]) is retried
 
 
+def test_upgrade_sweep_retries_a_step_at_most_once_per_host_version(case):
+    # Even when the retried attempt fails the same way again on this code and its
+    # run recorded a different (explicit) execution authority (#1785 review).
+    _, _, store, control, service, goal, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    retried, _ = _sweep(service, window)
+    second = store.get_task(retried[0]["to_task_id"])
+    _fail(store, second, "patch_hygiene_failed")
+    assert _sweep(service, window)[0] == []
+    assert len(control.list_task_escalations(goal.id)) == 1
+    retried, _ = _sweep(service, window, version="newer-host-sha")
+    assert [row["from_task_id"] for row in retried] == [second.id]
+
+
 def test_upgrade_sweep_leaves_model_judged_failures_alone(case):
     _, _, store, _, service, _, window, task = case
     _fail(store, task, "deterministic_validation_failure")

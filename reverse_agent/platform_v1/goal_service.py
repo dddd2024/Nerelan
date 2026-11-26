@@ -2152,6 +2152,8 @@ class GoalService:
                         "ORDER BY created_at DESC LIMIT 1", (failed.id,)).fetchone()
                 if ran_on is not None and ran_on[0] == host_version:
                     continue
+                if self._upgrade_retried(goal, link["plan_task_id"], host_version):
+                    continue  # at most one sweep retry per step and host code version
                 if not authorize(goal, failed):
                     continue
                 try:
@@ -2168,6 +2170,18 @@ class GoalService:
                 retried.append(result)
                 goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
         return retried
+
+    def _upgrade_retried(self, goal: Any, plan_task_id: str, host_version: str) -> bool:
+        """Whether a sweep on this host code already retried this step (durable, per step)."""
+        for row in self.control_store.list_task_escalations(goal.id):
+            if (int(row["goal_revision"]) != goal.revision or row["plan_task_id"] != plan_task_id
+                    or row["reason"] != OWNER_RETRY_REASON):
+                continue
+            if any(event.type == "VALIDATED" and event.metadata.get("origin") == UPGRADE_RETRY_ORIGIN
+                   and event.metadata.get("host_version") == host_version
+                   for event in self.store.get_events(row["to_task_id"])):
+                return True
+        return False
 
     def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
                     binding_ref: str = "", expected_source_task_id: str = "") -> dict[str, Any]:
