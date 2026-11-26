@@ -70,34 +70,20 @@ from .model_review import ABANDONED_NO_REPLY
 
 
 def _resolve_orchestration_mode(payload: Mapping[str, Any]) -> str:
-    """Goal-level orchestration mode with opt-in, evidence-gated self-evolution.
+    """Goal routing mode: an explicit choice, else the legacy default.
 
-    When callers omit ``size_estimate``, we keep the legacy ``"sequential_team"``
-    default until measured break-even evidence exists. When ``size_estimate``
-    is supplied, a single-task estimate routes to ``"single"`` via
-    :func:`orchestration_selector.select_orchestration` (`default_single_task`),
-    while explicit Owner pins always win.
+    ``orchestration_mode`` is a *routing* contract, not an economic label:
+    ``single`` runs every planned task on one binding and refuses the agent
+    planner, so it cannot carry an independent review; ``agent_team`` routes
+    each task by role (a review gets another model family). The break-even
+    selector (#1267) compares one executing agent against several, which is a
+    plan-shape question; mapping its answer onto this field would silently
+    drop review independence. The former hook also only ever received ``{}``
+    (no task count exists at creation), so it could never fire. Outcomes are
+    recorded per Goal by ``control_store.refresh_goal_status``.
     """
     explicit = payload.get("orchestration_mode") if "orchestration_mode" in payload else None
-    if explicit:
-        return str(explicit)  # explicit Owner choice wins
-    if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") != "1":
-        return "sequential_team"
-    try:
-        from .multi_account.dispatch import recommend_orchestration_mode
-        raw_estimate = payload.get("size_estimate")
-        size_estimate = dict(raw_estimate) if isinstance(raw_estimate, Mapping) else {}
-        recommendation = recommend_orchestration_mode(size_estimate)
-        mode = recommendation.get("mode")
-        reason = str(recommendation.get("reason", ""))
-        if mode in ("single", "agent_team") and (
-            reason.startswith("measured_")
-            or (bool(size_estimate) and mode == "single" and reason == "default_single_task")
-        ):
-            return str(mode)
-    except Exception:  # noqa: BLE001 - brain optional; legacy default must hold
-        pass
-    return "sequential_team"
+    return str(explicit) if explicit else "sequential_team"
 
 
 def _reroute_guard_skip(goal_service: Any, decision: Mapping[str, Any]) -> tuple[bool, Any]:

@@ -167,9 +167,9 @@ def all_in_economics(runs: Iterable[Mapping[str, Any]], *, basis: str = "list_pr
     on its own; a run missing that basis makes the basis ``UNKNOWN`` for the mode
     instead of entering as zero.
 
-    Reported only — it changes no decision. Switching the decision target to a
-    basis needs an Owner decision and an independent review after a controlled
-    comparison, so :func:`update_break_even` keeps its current accepted-run model.
+    Reported only. :func:`update_break_even` folds failed Goals' list-price
+    spend into its fit through :func:`_failure_cost_per_accepted`; switching the
+    decision to the cash or quota basis still needs its own Owner decision.
     """
     if basis not in COST_BASIS_FIELDS:
         raise ValueError(f"unsupported cost basis: {basis}")
@@ -209,9 +209,29 @@ def all_in_economics(runs: Iterable[Mapping[str, Any]], *, basis: str = "list_pr
     return result
 
 
+def _failure_cost_per_accepted(rows: list[dict[str, Any]]) -> dict[str, float]:
+    """Per mode: known spend of Goals that never shipped / accepted runs.
+
+    Added to every accepted run's cost (additive, so an honest zero-cost
+    accepted run still carries the failures it shares). Accepted Goal outcomes
+    already include their own retries. Unpriced failures cannot be priced.
+    """
+    result: dict[str, float] = {}
+    for mode in sorted(_MODES):
+        mine = [row for row in rows if row["mode"] == mode]
+        accepted = sum(1 for row in mine if row.get("accepted") is True)
+        failed = sum(cost for cost in (_known_number(row.get("cost_units")) for row in mine
+                                       if row.get("accepted") is not True) if cost is not None)
+        result[mode] = round(failed / accepted, 6) if accepted else 0.0
+    return result
+
+
 def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[str, Any] | None = None,
                       min_observations_per_mode: int = _MIN_OBSERVATIONS_PER_MODE) -> dict[str, Any]:
-    """Recompute the measured single/team cross-over from accepted runs.
+    """Recompute the measured single/team cross-over from accepted runs,
+    each mode's cost surcharged by its failed Goals' spend
+    (:func:`_failure_cost_per_accepted`; Owner instruction 2026-11-25: failure cost
+    must take part in the decision).
 
     Uses the linear model from the module docstring: ``S`` = median
     cost-per-task of accepted single runs (no overhead term); the team's
@@ -230,8 +250,9 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
     if (type(min_observations_per_mode) is not int
             or min_observations_per_mode < _MIN_OBSERVATIONS_PER_MODE):
         raise ValueError("min_observations_per_mode must be an integer >= 3")
-    rows = [dict(row) for row in runs
-            if isinstance(row, Mapping) and _mode(row.get("mode")) and row.get("accepted") is True]
+    all_rows = [dict(row) for row in runs if isinstance(row, Mapping) and _mode(row.get("mode"))]
+    rows = [row for row in all_rows if row.get("accepted") is True]
+    failure_surcharge = _failure_cost_per_accepted(all_rows)
     usable: dict[str, dict[str, list[tuple[float, float]]]] = {}
     for row in rows:
         cost, count = _known_number(row.get("cost_units")), _positive(row.get("task_count"))
@@ -249,6 +270,7 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
         "sufficient_evidence": False,
         "carried_from_previous": False,
         "hint": None,
+        "failure_cost_per_accepted": failure_surcharge,
     }
     enough = (bool(band_counts) and all(
         min(counts["single"], counts["agent_team"]) >= min_observations_per_mode
@@ -259,8 +281,12 @@ def update_break_even(runs: Iterable[Mapping[str, Any]], *, previous: Mapping[st
             record["cross_over_task_count"] = previous["cross_over_task_count"]
             record["carried_from_previous"] = True
         return record
-    pooled_single = [(cost, count) for sides in usable.values() for cost, count in sides["single"]]
-    pooled_team = [(cost, count) for sides in usable.values() for cost, count in sides["agent_team"]]
+    # Price each mode per *shipped* change: failed Goals' spend is surcharged
+    # onto that mode's accepted runs, so a cheap-but-flaky mode cannot win.
+    pooled_single = [(cost + failure_surcharge["single"], count)
+                     for sides in usable.values() for cost, count in sides["single"]]
+    pooled_team = [(cost + failure_surcharge["agent_team"], count)
+                   for sides in usable.values() for cost, count in sides["agent_team"]]
     single_per_task = statistics.median(cost / count for cost, count in pooled_single)
     # Team cost follows the linear model C + T·n; the median of cost/n is NOT
     # the marginal cost when overhead is present (it drifts down with n), so

@@ -5,6 +5,7 @@ These verify that the multi-account brain is wired into the dispatch path
 recording) WITHOUT changing behaviour when ``REVERSE_AGENT_MULTI_ACCOUNT_ENABLED``
 is off, and only overriding the legacy default with *measured* evidence.
 """
+import json
 import os
 from unittest import mock
 
@@ -132,31 +133,15 @@ def test_resolve_mode_explicit_pin_always_wins(monkeypatch):
     assert _resolve_orchestration_mode({"orchestration_mode": "single"}) == "single"
 
 
-def test_resolve_mode_flag_on_ignores_default_ladder(monkeypatch):
-    # No measured evidence -> selector returns the default ladder branch, which
-    # we deliberately ignore so the legacy "sequential_team" default is kept.
+def test_resolve_mode_never_maps_break_even_onto_routing(monkeypatch):
+    # "single" routing would put the review on the author's binding; the
+    # economic recommendation must not flip it, even with measured evidence.
     monkeypatch.setenv(_FLAG, "1")
     with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
-                           return_value={"mode": "agent_team",
-                                         "reason": "default_multi_task_no_evidence"}):
+                           return_value={"mode": "single", "reason": "measured_break_even"}) as rec:
         assert _resolve_orchestration_mode({}) == "sequential_team"
-
-
-def test_resolve_mode_flag_on_applies_measured_evidence(monkeypatch):
-    monkeypatch.setenv(_FLAG, "1")
-    with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
-                           return_value={"mode": "single", "reason": "measured_break_even"}):
-        assert _resolve_orchestration_mode({}) == "single"
-    with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
-                           return_value={"mode": "agent_team", "reason": "measured_break_even"}):
-        assert _resolve_orchestration_mode({}) == "agent_team"
-
-
-def test_resolve_mode_brain_failure_keeps_legacy(monkeypatch):
-    monkeypatch.setenv(_FLAG, "1")
-    with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
-                           side_effect=RuntimeError("brain down")):
-        assert _resolve_orchestration_mode({}) == "sequential_team"
+        assert _resolve_orchestration_mode({"size_estimate": {"task_count": 1}}) == "sequential_team"
+    rec.assert_not_called()
 
 
 # --- Seam B: functional-validation outcome recording -------------------------
@@ -166,74 +151,65 @@ def _write_passing_junit(path):
         '<testcase classname="C" name="t"/></testsuite>', encoding="utf-8")
 
 
-def test_test_report_records_outcome_when_flag_on(monkeypatch, tmp_path):
+def test_test_report_never_writes_modeless_break_even_rows(monkeypatch, tmp_path):
     monkeypatch.setenv(_FLAG, "1")
-    captured = {}
-
-    def fake_record(outcome, *, store_path=None):
-        captured.update(outcome)
-        return {}
-
-    with mock.patch.object(ma_dispatch, "record_goal_outcome", side_effect=fake_record):
+    with mock.patch.object(ma_dispatch, "record_goal_outcome") as record:
         report = tmp_path / "r.xml"
         _write_passing_junit(report)
         result = functional_validation_module._test_report("junit", report, b"")
     assert result["accepted"] is True
-    assert captured.get("accepted") is True
-    assert captured.get("mode") is None
+    record.assert_not_called()
 
 
-def test_test_report_no_record_when_flag_off(monkeypatch, tmp_path):
-    monkeypatch.delenv(_FLAG, raising=False)
-    called = {"n": 0}
-
-    def fake_record(outcome, *, store_path=None):
-        called["n"] += 1
-        return {}
-
-    with mock.patch.object(ma_dispatch, "record_goal_outcome", side_effect=fake_record):
-        report = tmp_path / "r.xml"
-        _write_passing_junit(report)
-        functional_validation_module._test_report("junit", report, b"")
-    assert called["n"] == 0
-
-
-def test_resolve_mode_uses_single_task_size_estimate_when_flag_on(monkeypatch):
-    monkeypatch.setenv(_FLAG, "1")
-    with mock.patch.object(ma_dispatch, "recommend_orchestration_mode",
-                           return_value={"mode": "single", "reason": "default_single_task"}) as rec:
-        assert _resolve_orchestration_mode({"size_estimate": {"task_count": 1}}) == "single"
-        rec.assert_called_once_with({"task_count": 1})
-
-
-def test_refresh_goal_status_records_goal_outcome_with_mode(monkeypatch, tmp_path):
+def _goal_with_links(tmp_path, plan, statuses):
     from reverse_agent.platform_v1.control_store import PlatformControlStore
     from reverse_agent.platform_v1.run_store import TaskStore
-    import reverse_agent.platform_v1.control_store as control_store_module
-
-    monkeypatch.setenv(_FLAG, "1")
     store = TaskStore(str(tmp_path / "goals.db"))
     control = PlatformControlStore(store)
     goal = control.create_goal(title="G", objective="Ship one fix", repository="o/r",
-                               idempotency_key="g-single", orchestration_mode="single", executor_kind="codex")
-    t1 = store.create_task(title="t1", repository="o/r", orchestration_mode="single")
-    store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (t1.id,))
-    store._conn.execute(
-        "INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
-        "VALUES (?, ?, 'T1', ?, '[]', 1)", (goal.id, goal.revision, t1.id),
-    )
+                               idempotency_key="g-1", orchestration_mode="agent_team", executor_kind="codex")
+    store._conn.execute("UPDATE platform_goals SET tasks_json = ? WHERE id = ?", (json.dumps(plan), goal.id))
+    for seq, (plan_task, status) in enumerate(zip(plan, statuses), start=1):
+        task = store.create_task(title=plan_task["id"], repository="o/r")
+        store._conn.execute("UPDATE tasks SET status = ? WHERE id = ?", (status, task.id))
+        store._conn.execute(
+            "INSERT INTO platform_goal_task_links (goal_id, goal_revision, plan_task_id, task_id, dependencies_json, seq) "
+            "VALUES (?, ?, ?, ?, '[]', ?)", (goal.id, goal.revision, plan_task["id"], task.id, seq))
     store._conn.commit()
+    return store, control, goal
+
+
+_IMPLEMENT = {"id": "implement", "kind": "code"}
+_REVIEW = {"id": "review", "kind": "review", "agent_role": "reviewer"}
+
+
+def test_single_implementation_with_independent_review_records_single(monkeypatch, tmp_path):
+    import reverse_agent.platform_v1.control_store as control_store_module
+    monkeypatch.setenv(_FLAG, "1")
+    store, control, goal = _goal_with_links(tmp_path, [_IMPLEMENT, _REVIEW], ["READY_FOR_REVIEW"] * 2)
     recorded = []
     monkeypatch.setattr(control_store_module, "task_feedback_metrics",
-                        lambda ts, tid: {"cost_units": 0.12, "wall_seconds": 14.5})
+                        lambda ts, tid: {"cost_units": 0.5, "wall_seconds": 10.0})
     monkeypatch.setattr(ma_dispatch, "record_goal_outcome",
                         lambda outcome, *, store_path=None: recorded.append(dict(outcome)) or {})
-    updated = control.refresh_goal_status(goal.id)
-    assert updated.status == "COMPLETED"
-    assert len(recorded) == 1
-    assert recorded[0]["mode"] == "single"
-    assert recorded[0]["accepted"] is True
-    assert recorded[0]["cost_units"] == 0.12
-    assert recorded[0]["task_count"] == 1
-    assert recorded[0]["wall_seconds"] == 14.5
+    assert control.refresh_goal_status(goal.id).status == "COMPLETED"
+    assert recorded == [{"outcome_id": f"goal:{goal.id}:r{goal.revision}", "mode": "single",
+                         "accepted": True, "cost_units": 1.0, "task_count": 1, "wall_seconds": 20.0}]
+    store._conn.close()
+
+
+def test_unpriced_attempt_keeps_goal_cost_unknown(monkeypatch, tmp_path):
+    import reverse_agent.platform_v1.control_store as control_store_module
+    monkeypatch.setenv(_FLAG, "1")
+    plan = [_IMPLEMENT, {"id": "docs", "kind": "code"}]
+    store, control, goal = _goal_with_links(tmp_path, plan, ["READY_FOR_REVIEW", "FAILED"])
+    costs = iter([0.5, None])
+    recorded = []
+    monkeypatch.setattr(control_store_module, "task_feedback_metrics",
+                        lambda ts, tid: {"cost_units": next(costs), "wall_seconds": None})
+    monkeypatch.setattr(ma_dispatch, "record_goal_outcome",
+                        lambda outcome, *, store_path=None: recorded.append(dict(outcome)) or {})
+    assert control.refresh_goal_status(goal.id).status == "BLOCKED"
+    assert recorded[0]["mode"] == "agent_team" and recorded[0]["task_count"] == 2
+    assert recorded[0]["accepted"] is False and recorded[0]["cost_units"] is None
     store._conn.close()

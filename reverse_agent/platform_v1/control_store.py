@@ -1410,42 +1410,46 @@ class PlatformControlStore:
         links: Sequence[Mapping[str, Any]],
         escalations: Sequence[Mapping[str, Any]],
     ) -> None:
-        """Emit one best-effort goal outcome for break-even learning (#1267)."""
+        """Emit one best-effort goal outcome for break-even learning (#1267).
+
+        The economic mode follows what actually executed, not the routing
+        label: one implementing task plus its independent review is a single
+        agent's work (the review is verification, not collaboration), however
+        the Goal was routed. Cost spans every attempt of the revision,
+        including failed and escalated ones, so retry waste stays in the price.
+        One outcome per revision: a later BLOCKED or COMPLETED replaces an
+        earlier failure, never an accepted result.
+        """
         try:
             from .multi_account.dispatch import record_goal_outcome
+            review_ids = {
+                str(task.get("id")) for task in prior_goal.tasks
+                if task.get("kind") == "review" or task.get("agent_role") == "reviewer"}
+            executing = {str(row["plan_task_id"]) for row in links} - review_ids
             task_ids = [str(row["task_id"]) for row in links]
             for row in escalations:
-                prior_id = row.get("from_task_id")
-                if prior_id and str(prior_id) not in task_ids:
-                    task_ids.append(str(prior_id))
+                for key in ("from_task_id", "to_task_id"):
+                    prior_id = row.get(key)
+                    if prior_id and str(prior_id) not in task_ids:
+                        task_ids.append(str(prior_id))
             total_cost: float | None = 0.0
             total_wall: float | None = 0.0
-            seen_cost = False
-            seen_wall = False
             for tid in task_ids:
                 metrics = task_feedback_metrics(self.task_store, tid)
-                cost = metrics.get("cost_units")
-                if total_cost is not None:
-                    if isinstance(cost, (int, float)) and not isinstance(cost, bool):
-                        total_cost += float(cost)
-                        seen_cost = True
-                    else:
-                        total_cost = None
-                wall = metrics.get("wall_seconds")
-                if total_wall is not None:
-                    if isinstance(wall, (int, float)) and not isinstance(wall, bool) and wall > 0:
-                        total_wall += float(wall)
-                        seen_wall = True
-                    else:
-                        total_wall = None
-            mode = "single" if prior_goal.orchestration_mode == "single" else "agent_team"
+                cost, wall = metrics.get("cost_units"), metrics.get("wall_seconds")
+                known_cost = isinstance(cost, (int, float)) and not isinstance(cost, bool)
+                total_cost = total_cost + float(cost) if total_cost is not None and known_cost else None
+                known_wall = isinstance(wall, (int, float)) and not isinstance(wall, bool) and wall > 0
+                total_wall = total_wall + float(wall) if total_wall is not None and known_wall else None
+            if not executing:
+                return
             record_goal_outcome({
-                "outcome_id": f"goal:{prior_goal.id}:r{revision}:{status}",
-                "mode": mode,
+                "outcome_id": f"goal:{prior_goal.id}:r{revision}",
+                "mode": "single" if len(executing) == 1 else "agent_team",
                 "accepted": status == "COMPLETED",
-                "cost_units": round(total_cost, 6) if seen_cost and total_cost is not None else None,
-                "task_count": len(links),
-                "wall_seconds": round(total_wall, 3) if seen_wall and total_wall is not None else None,
+                "cost_units": None if total_cost is None else round(total_cost, 6),
+                "task_count": len(executing),
+                "wall_seconds": None if total_wall is None else round(total_wall, 3),
             })
         except Exception:  # noqa: BLE001 - learning must never block goal status transitions
             pass

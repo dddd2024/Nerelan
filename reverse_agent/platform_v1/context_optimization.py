@@ -111,6 +111,16 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
         event['title']=_clip(event['title'],64)
     if len(render_context_packet(compact).encode()) <= budget_bytes:
         return compact
+    # Deterministic recent critical events first. Every omitted event is in catalog.
+    critical=re.compile(r'FAIL|BLOCK|INTERRUPT|CANCEL|ERROR|REJECT|ESCALAT|DECISION',re.I)
+    priority=sorted(enumerate(history),key=lambda pair:
+        (0 if critical.search(pair[1]['type']+' '+pair[1]['title']) else 1,-pair[0]))
+    # The Goal's requirements and plan outrank activity history: shed history
+    # (keeping critical and recent events) before any goal text is dropped.
+    compact['history']=[]
+    compact['compression']['history_omitted']=len(history)
+    if len(render_context_packet(compact).encode()) <= budget_bytes:
+        return _fill_history(compact, history, priority, budget_bytes)
     if compact['goal']:
         had_md=False
         for key in ('spec_markdown','plan_markdown'):
@@ -120,12 +130,6 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
                 compact['goal'][key]=''
         if had_md:
             compact['compression']['goal_text_omitted']=True
-    if len(render_context_packet(compact).encode()) <= budget_bytes:
-        return compact
-    # Deterministic recent critical events first. Every omitted event is in catalog.
-    critical=re.compile(r'FAIL|BLOCK|INTERRUPT|CANCEL|ERROR|REJECT|ESCALAT|DECISION',re.I)
-    priority=sorted(enumerate(history),key=lambda pair:
-        (0 if critical.search(pair[1]['type']+' '+pair[1]['title']) else 1,-pair[0]))
     compact['history']=[]
     compact['compression']['history_omitted']=len(history)
     if len(render_context_packet(compact).encode())>budget_bytes:
@@ -175,6 +179,11 @@ def compact_context(packet: dict, *, budget_bytes: int) -> dict:
             for task in [compact['task'],*compact['tasks']]:task['title']=''
         if len(render_context_packet(compact).encode())>budget_bytes:
             raise ContextBuilderError('context_budget_insufficient')
+    return _fill_history(compact, history, priority, budget_bytes)
+
+
+def _fill_history(compact: dict, history: list, priority: list, budget_bytes: int) -> dict:
+    """Greedily re-add events in priority order while the packet fits."""
     selected=[]
     for index,event in priority:
         selected.append((index,event))

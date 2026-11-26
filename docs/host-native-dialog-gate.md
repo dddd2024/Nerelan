@@ -31,7 +31,7 @@ Connecting this boolean directly to the legacy activation API would be unsafe.
 
 ## Test-only grant preparer (P0 #1207 continuation)
 
-`owner_grant_preparer.py` is an isolated protocol prototype with **no production
+`owner_grant_preparer.py` (removed 2026-11-26 in #1779 as an unreferenced prototype; see Git history) is an isolated protocol prototype with **no production
 caller**, including no TrustedHost integration. Only isolated fixtures may
 instantiate it. `FixturePolicy` is not a resolved production execution policy.
 It loads a persisted PLANNED Goal, requires one single-mode Codex task, pinned

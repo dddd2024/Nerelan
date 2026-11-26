@@ -220,3 +220,14 @@ def test_long_band_identity_is_rejected_without_manufacturing_evidence(tmp_path)
     for row in _rich_runs():
         store.record_run({**row, "size_band": "x" * 79 + ("A" if row["mode"] == "single" else "B")})
     assert store.get_break_even()["sufficient_evidence"] is False
+
+
+def test_failed_outcome_is_replaced_by_later_outcome_for_same_goal(tmp_path):
+    store = SelfEvolutionStore(MultiAccountConfig(), path=tmp_path / "feedback.json")
+    event = {**_run("single"), "outcome_id": "goal:9:r1"}
+    store.record_run({**event, "accepted": False}, now=1)
+    store.record_run(event, now=2)
+    runs = store.get_runs()
+    assert len(runs) == 1 and runs[0]["accepted"] is True
+    with pytest.raises(ValueError, match="conflicting"):
+        store.record_run({**event, "accepted": False}, now=3)

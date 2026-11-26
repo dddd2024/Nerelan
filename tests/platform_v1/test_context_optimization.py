@@ -352,3 +352,46 @@ def test_compact_context_recovers_objective_after_blanking_many_task_titles(tmp_
     assert compact['goal']['objective'] == 'RECOVER_ME_OBJECTIVE'
     assert compact['compression']['goal_text_omitted'] is False
     assert len(render_context_packet(compact).encode()) <= tight_budget
+
+
+def test_compact_context_sheds_activity_history_before_goal_spec_and_plan(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's-order.db')
+    spec_md = '# Spec\n' + ('requirement line\n' * 150)
+    plan_md = '# Plan\n' + ('plan step line\n' * 150)
+    store._conn.execute('UPDATE platform_goals SET spec_markdown = ?, plan_markdown = ? WHERE id = ?',
+                        (spec_md, plan_md, goal.id))
+    store._conn.commit()
+    for i in range(120):
+        store.add_event(first.id, event_type='MODEL_SELECTED', title=f'tool-{i}', description='noise ' * 40)
+    store.add_event(first.id, event_type='VALIDATED', title='DECISION keep this', description='why')
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=262144)
+    assert len(render_context_packet(full).encode()) > 16384
+    compact = compact_context(full, budget_bytes=16384)
+    assert compact['goal']['spec_markdown'] == spec_md
+    assert compact['goal']['plan_markdown'] == plan_md
+    assert compact['compression']['goal_text_omitted'] is False
+    assert compact['compression']['history_omitted'] > 0
+    assert any('DECISION' in event['title'] for event in compact['history'])
+    assert len(render_context_packet(compact).encode()) <= 16384
+
+
+def test_compact_context_empty_history_fit_counts_omissions_within_budget(tmp_path):
+    from reverse_agent.platform_v1.context_optimization import compact_context
+    r = _make_local_repo(tmp_path)
+    store, goal, first, _, _ = _setup(tmp_path / 's-edge.db')
+    for i in range(100):
+        store.add_event(first.id, event_type='MODEL_SELECTED', title=f'e-{i}', description='x' * 200)
+    full = build_context_packet(store, task_id=first.id, workspace=r, expected_head=_head(r), budget_bytes=262144)
+    probe = compact_context(full, budget_bytes=262144)
+    probe['history'] = []
+    probe['sources'] = [s for s in probe['sources'] if s['kind'] in {'goal', 'checkpoint', 'git'}
+                        or (s['kind'] == 'task' and s['ref'] == probe['task']['id'])]
+    for budget in range(len(render_context_packet(probe).encode()) - 8,
+                        len(render_context_packet(probe).encode()) + 8):
+        try:
+            compact = compact_context(full, budget_bytes=budget)
+        except ContextBuilderError:
+            continue
+        assert len(render_context_packet(compact).encode()) <= budget

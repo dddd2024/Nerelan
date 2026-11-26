@@ -194,12 +194,20 @@ class SelfEvolutionStore:
         with self._lock:
             self._refresh_unlocked()
             runs = self._state["runs"]
-            for row in runs if outcome_id is not None else ():
+            replaced = False
+            for index, row in enumerate(runs if outcome_id is not None else ()):
                 if row.get("outcome_id") == outcome_id:
-                    if any(row.get(key) != value for key, value in cleaned.items() if key != "recorded_at"):
+                    if not any(row.get(key) != value for key, value in cleaned.items() if key != "recorded_at"):
+                        return copy.deepcopy(self._recompute_break_even() or {})
+                    # A failure is provisional (a blocked Goal may still be
+                    # repaired); an accepted result is final.
+                    if row.get("accepted") is not False:
                         raise ValueError("conflicting outcome_id")
-                    return copy.deepcopy(self._recompute_break_even() or {})
-            runs.append(cleaned)
+                    runs[index] = cleaned
+                    replaced = True
+                    break
+            if not replaced:
+                runs.append(cleaned)
             overflow = len(runs) - self._config.max_recorded_runs
             if overflow > 0:
                 del runs[:overflow]
