@@ -782,11 +782,11 @@ def test_a_capped_need_that_exactly_fits_is_not_paused_by_float_rounding():
     assert reservation.admission(quota_evidence(used=26.15, weekly=0), over, now=1000)["decision"] == "quota_wait"
 
 
-def test_a_capped_need_still_needs_an_unused_window_when_the_weekly_reserve_is_released():
-    # #1786 review: a released weekly reserve uses margin 0; a need capped at
-    # 100 - buffer must not then fit beside 10% already used.
-    raw = {"windows": {"five_hour": {"p80": 5}, "weekly": {"p80": 324.0}}}
+def test_a_window_with_a_released_reserve_is_never_capped():
+    # #1786 review: a released weekly reserve is admitted with margin 0, so a cap at
+    # 100 - buffer would let it fit beside existing usage and reserve too little.
+    raw = {"windows": {"five_hour": {"p80": 324.0}, "weekly": {"p80": 324.0, "reserve_released_until": 3000}}}
     need = reservation.cap_need_to_window(raw, 10)
-    need["windows"]["weekly"]["reserve_released_until"] = 1000 + 2000  # the weekly reset
+    assert need["windows"]["five_hour"]["p80"] == 90
+    assert need["windows"]["weekly"] == {"p80": 324.0, "reserve_released_until": 3000}
     assert reservation.admission(quota_evidence(used=0, weekly=10), need, now=1000)["decision"] == "quota_wait"
-    assert reservation.admission(quota_evidence(used=0, weekly=0), need, now=1000)["decision"] == "ok"
