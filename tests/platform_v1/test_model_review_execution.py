@@ -488,3 +488,37 @@ def test_require_independent_handles_claude_alias_and_mixed_models():
     ):
         with pytest.raises(TaskStoreError, match="review_not_independent"):
             model_review.require_independent(bad_actual, selected, authors)
+
+
+def test_verified_evidence_accepts_legacy_unnormalized_findings(review_setup):
+    import hashlib
+    store, _, _, consumer, _, _, _ = review_setup
+    assert run_review(review_setup).success
+    task = store.get_task(consumer)
+    row = evidence(store, consumer)[0]
+    document = json.loads(row["detail"])
+    run = store._get_durable_run(document["run_id"])
+    raw_findings = [
+        {"path": f"file_{i}.py", "line": i + 1, "severity": "low", "message": f"advisory {i}"}
+        for i in range(model_review.MAX_REVIEW_FINDINGS + 1)
+    ] + [{"path": "core.py", "line": 42, "severity": "high", "message": "legacy high after lows"}]
+    raw_response = json.dumps({"verdict": "REJECT", "findings": raw_findings})
+    legacy_document = {
+        **document,
+        "response": raw_response,
+        "response_digest": hashlib.sha256(raw_response.encode()).hexdigest(),
+        "result": {"verdict": "REJECT", "findings": raw_findings},
+    }
+    digest_value = model_review.digest(legacy_document)
+    store._conn.execute(
+        "UPDATE task_evidence SET value = ?, raw_json_digest = ?, detail = ? "
+        "WHERE task_id = ? AND category = 'ModelReview' AND label = ?",
+        (digest_value, digest_value, json.dumps(legacy_document, sort_keys=True), consumer, task.execution_id),
+    )
+    store._conn.commit()
+    reloaded = store.get_task(consumer)
+    verified = model_review.verified_evidence(store, reloaded, run, require_accept=False)
+    assert len(verified["result"]["findings"]) == len(raw_findings)
+    assert model_review.gate_decision(verified["result"]) == "REJECT"
+    with pytest.raises(TaskStoreError, match="model_review_rejected"):
+        model_review.verified_evidence(store, reloaded, run, require_accept=True)

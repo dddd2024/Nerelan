@@ -210,7 +210,7 @@ def digest(value: Any) -> str:
     return artifacts._digest(value)
 
 
-def parse_response(text: str) -> dict[str, Any]:
+def parse_response(text: str, *, normalize: bool = True) -> dict[str, Any]:
     def unique(pairs):
         result = {}
         for key, value in pairs:
@@ -237,12 +237,14 @@ def parse_response(text: str) -> dict[str, Any]:
         if (result["verdict"] == "ACCEPT" and any(f["severity"] in BLOCKING_SEVERITIES for f in result["findings"])) or (
                 result["verdict"] == "REJECT" and not result["findings"]):
             raise ValueError()
-        # Preserve raw reviewer verdict verbatim while deterministically bounding findings to MAX_REVIEW_FINDINGS;
-        # callers separate raw reviewer opinion from host gate_decision(result).
-        findings = [f for _, f in sorted(
-            enumerate(result["findings"]),
-            key=lambda item: (_SEVERITY_RANK[item[1]["severity"]], item[0]),
-        )[:MAX_REVIEW_FINDINGS]]
+        findings = result["findings"]
+        if normalize:
+            # Preserve raw reviewer verdict verbatim while deterministically bounding findings to MAX_REVIEW_FINDINGS;
+            # callers separate raw reviewer opinion from host gate_decision(result).
+            findings = [f for _, f in sorted(
+                enumerate(findings),
+                key=lambda item: (_SEVERITY_RANK[item[1]["severity"]], item[0]),
+            )[:MAX_REVIEW_FINDINGS]]
         return {"verdict": result["verdict"], "findings": findings}
     except (ValueError, TypeError, KeyError, RecursionError) as exc:
         raise TaskStoreError("model_review_invalid_output") from exc
@@ -398,7 +400,10 @@ def verified_evidence(store, task, run, *, require_accept=True):
                 or evidence["tree"] != binding["producer"]["tree"] or evidence["base"] != binding["base_commit"]
                 or evidence["head"] != run.worktree_head_sha or evidence["base"] != run.repository_base_sha
                 or evidence["response_digest"] != hashlib.sha256(evidence["response"].encode()).hexdigest()
-                or parse_response(evidence["response"]) != evidence["result"]):
+                or evidence["result"] not in (
+                    parse_response(evidence["response"]),
+                    parse_response(evidence["response"], normalize=False),
+                )):
             raise TaskStoreError("model_review_evidence_invalid")
         require_independent(evidence["actual_models"], evidence["selected_model"], authors,
                             model_router.store_groups(store))
