@@ -306,6 +306,11 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         # Only for the window it was released for: a renewed week keeps its reserve.
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
+        uncapped = (need.get("windows", {}).get(name) or {}).get("uncapped_p80")
+        if _number(uncapped) and 100 - margin > 0:
+            # A capped need re-derives its cap from this window's effective margin
+            # (a released weekly reserve has margin 0), so it still needs an unused window.
+            p80 = min(uncapped, 100 - margin)
         # A spent window always waits, however small the need.
         # A need capped exactly at the boundary must still fit after float arithmetic
         # (e.g. 90 - 26.15 vs 100 - 26.15 - 10), so compare with a tiny tolerance.
