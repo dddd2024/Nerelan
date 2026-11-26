@@ -385,7 +385,8 @@ def forward_keyless_probe(snapshot: ExecutionSnapshot, *, body: bytes, timeout: 
         raise CredentialRelayError("keyless_probe_payload_invalid")
     _validate_upstream_url(snapshot.base_url)
     return _http_roundtrip(snapshot.base_url + snapshot.native_endpoint, "POST", body,
-                          {"Content-Type": "application/json", "Accept": "application/json"}, timeout)
+                          {"Content-Type": "application/json", "Accept": "application/json",
+                           "User-Agent": "Nerelan/1.0"}, timeout)
 
 
 def forward_to_upstream(

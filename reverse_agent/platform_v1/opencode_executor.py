@@ -450,13 +450,21 @@ def build_binding_config_content(
         options = {
             "baseURL": lease.relay_url,
             "apiKey": lease.lease_id,
+            "setCacheKey": True,
+            "headerTimeout": 120000,
+            "chunkTimeout": 120000,
         }
         provider_facing_model = _extract_provider_facing_model(lease.model_id)
     else:
         if resolution.auth_method == "api_key":
             raise ExecutorRuntimeError("api_key_lease_required")
         provider_key = resolution.provider_id or _TRANSIENT_PROVIDER_ID
-        options = {"baseURL": resolution.base_url}
+        options = {
+            "baseURL": resolution.base_url,
+            "setCacheKey": True,
+            "headerTimeout": 120000,
+            "chunkTimeout": 120000,
+        }
         provider_facing_model = _extract_provider_facing_model(resolution.model_id)
     model_config: dict[str, Any] = {}
     context_limit = _positive_int(context_window)
