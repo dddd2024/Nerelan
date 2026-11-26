@@ -21,6 +21,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 import collections
+import hashlib
 import json
 import logging
 import os
@@ -289,6 +290,9 @@ class CombinedTrustedHost:
             coordinator = getattr(self, "_coordinator", None)
             if coordinator is not None:
                 coordinator.request_reevaluation()
+            pool_verifier = getattr(self, "_pool_verifier", None)
+            if pool_verifier is not None and hasattr(pool_verifier, "clear_tried"):
+                pool_verifier.clear_tried()
         except Exception:  # noqa: BLE001 - detection is optional evidence
             return
 
@@ -1006,6 +1010,72 @@ class CombinedTrustedHost:
             result.setdefault(row["binding_ref"], []).append(row)
         return result
 
+    def _availability_config_version(self, binding: Mapping[str, Any], connection: Mapping[str, Any]) -> str:
+        """Stable hash of public routing/endpoint fields so config edits clear stale probe holds."""
+        payload = {
+            "binding": {k: binding.get(k) for k in ("binding_id", "model_id", "executor_id", "native_endpoint",
+                                                   "enabled", "cost_class", "updated_at")},
+            "connection": {k: connection.get(k) for k in ("connection_id", "base_url", "auth_method",
+                                                          "account_ref", "enabled", "updated_at")},
+        }
+        return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
+
+    def _availability_catalog_digest(self) -> str:
+        connections = {c["connection_id"]: c for c in self._store.list_connections_public()}
+        items = [
+            (b["binding_id"], self._availability_config_version(b, connections.get(b["connection_id"], {})))
+            for b in sorted(self._store.list_bindings_public(), key=lambda x: str(x.get("binding_id", "")))
+        ]
+        return hashlib.sha256(json.dumps(items, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+    def _availability_invalidation(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
+                                   cached_entry: Mapping[str, Any]) -> "tuple[float | None, float | None, str]":
+        from .model_availability import CREDIT_RECOVERABLE_REASONS, QUOTA_WINDOW_RECOVERABLE_REASONS
+        config_version = self._availability_config_version(binding, connection)
+        recovered_at: float | None = None
+        credit_recovered_at: float | None = None
+        if cached_entry.get("state") in {"UNAVAILABLE", "TRANSIENT"}:
+            reason = cached_entry.get("reason")
+            observed_at = cached_entry.get("observed_at")
+            observed_ts = float(observed_at) if isinstance(observed_at, (int, float)) else None
+            account = self._reset_account(connection, binding)
+            model_id = str(binding.get("model_id") or "")
+            if account and observed_ts is not None:
+                if reason in QUOTA_WINDOW_RECOVERABLE_REASONS:
+                    try:
+                        if self._control_store.quota_resets.released(account, model_id, hit_at=observed_ts, now=time.time()):
+                            events = self._control_store.quota_resets.recent([account], since=observed_ts)
+                            recovered_at = max((float(e["observed_at"]) for e in events), default=time.time())
+                    except Exception:  # noqa: BLE001
+                        pass
+                elif reason in CREDIT_RECOVERABLE_REASONS:
+                    try:
+                        events = self._control_store.quota_resets.recent([account], since=observed_ts)
+                        credit_events = [e for e in events if "credit" in str(e.get("window") or "").lower()]
+                        if credit_events and self._control_store.quota_resets.released(account, model_id, hit_at=observed_ts, now=time.time()):
+                            credit_recovered_at = max(float(e["observed_at"]) for e in credit_events)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    if credit_recovered_at is None:
+                        reading = getattr(self, "_magpie_account_readings", {}).get(account)
+                        if isinstance(reading, Mapping) and reading.get("state") == "FRESH":
+                            from ..model_access.quota_forecast import parse_time
+                            from .quota_resets import ROOM_LIMIT, may_limit_model
+                            obs_at = parse_time(reading.get("observed_at"))
+                            credit_windows = [
+                                w for w in (reading.get("windows") or ())
+                                if isinstance(w, Mapping)
+                                and "credit" in str(w.get("name") or "").lower()
+                                and may_limit_model(str(w.get("name") or ""), model_id)
+                            ]
+                            if (obs_at is not None and obs_at > observed_ts and credit_windows
+                                    and all(bool(w.get("unlimited"))
+                                            or (isinstance(w.get("used_percent"), (int, float))
+                                                and float(w["used_percent"]) < ROOM_LIMIT)
+                                            for w in credit_windows)):
+                                credit_recovered_at = obs_at
+        return recovered_at, credit_recovered_at, config_version
+
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
                               history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
@@ -1057,12 +1127,22 @@ class CombinedTrustedHost:
             elif row["status"] == "FAILED" and any(marker in classification.lower() for marker in
                     ("timeout", "network_provider", "api_error_429", "api_error_5", "rate_limit")):
                 cache.remember(binding, connection, observation(now=at, error="transient"))
+        recovered_at, credit_recovered_at, config_version = self._availability_invalidation(
+            binding, connection, cached_entry=cache.entries.get(cache.key(binding, connection), {}),
+        )
         probe = getattr(self, "_availability_probe", None)
         live = (os.environ.get("REVERSE_AGENT_MODEL_CONTROL_LIVE") == "1"
                 and os.environ.get("REVERSE_AGENT_ROUTING_PROBES") == "1")
         result = cache.check(binding, connection,
                            probe=probe or self._probe_routing_binding,
-                           allow_probe=probe_allowed and (probe is not None or live) and (cost_class != "paid_api" or allow_paid))
+                           allow_probe=probe_allowed and (probe is not None or live) and (cost_class != "paid_api" or allow_paid),
+                           recovered_at=recovered_at,
+                           credit_recovered_at=credit_recovered_at,
+                           config_version=config_version)
+        if result.get("reason") in {"quota_recovered", "config_changed"} and not readonly:
+            pool_verifier = getattr(self, "_pool_verifier", None)
+            if pool_verifier is not None and hasattr(pool_verifier, "clear_tried"):
+                pool_verifier.clear_tried(binding.get("binding_id"))
         if native_owner_account(binding, connection) and result["state"] in {"UNKNOWN", "TRANSIENT"}:
             if runnable is None:
                 runnable = binding["binding_id"] in self._runnable_bindings()
@@ -1083,7 +1163,20 @@ class CombinedTrustedHost:
         from ..model_access.http_safe import urlopen
         from urllib.request import Request
         from urllib.error import HTTPError
-        from .model_availability import availability_error
+        from .model_availability import (availability_error, no_credits_error,
+                                         provider_rate_limit_reply)
+        def _probe_error_text(raw: bytes) -> str:
+            text = raw.decode("utf-8", errors="replace")
+            marker = availability_error(text) or no_credits_error(text)
+            if marker:
+                return marker
+            if provider_rate_limit_reply(text):
+                return "rate_limited"
+            lowered = text.lower()
+            for token in ("not_found_error", "invalid_request_error", "cloudflare", "error-1010"):
+                if token in lowered:
+                    return token
+            return "transient"
         snapshot = self._store.resolve_execution_snapshot(binding["binding_id"])
         anthropic = snapshot.protocol_family == "anthropic" and binding["executor_id"] == "claude_code"
         endpoint = "/v1/messages" if anthropic else snapshot.native_endpoint
@@ -1093,20 +1186,20 @@ class CombinedTrustedHost:
         if snapshot.auth_method == "none":
             status, response, _ = forward_keyless_probe(snapshot, body=json.dumps(body).encode(), timeout=10)
             if not 200 <= status < 300:
-                return {"ok": False, "error": availability_error(response.decode("utf-8", errors="replace")) or "transient"}
+                return {"ok": False, "status_code": status, "error": _probe_error_text(response)}
             payload = json.loads(response)
             return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
         lease = self._relay_manager.create_lease(snapshot, relay_url=self.relay_url)
         try:
             request = Request(lease.relay_url.rstrip("/") + endpoint, data=json.dumps(body).encode(),
-                headers={"Authorization": "Bearer " + lease.lease_id, "Content-Type": "application/json"})
+                headers={"Authorization": "Bearer " + lease.lease_id,
+                         "Content-Type": "application/json", "User-Agent": "Nerelan/1.0"})
             try:
                 with urlopen(request, timeout=10) as response:
                     payload = json.loads(response.read(65536))
                     return {"ok": isinstance(payload, dict) and bool(payload.get("choices") or payload.get("content") or payload.get("output"))}
             except HTTPError as exc:
-                reason = availability_error(exc.read(65536).decode("utf-8", errors="replace"))
-                return {"ok": False, "error": reason or "transient"}
+                return {"ok": False, "status_code": exc.code, "error": _probe_error_text(exc.read(65536))}
         finally:
             self._relay_manager.release_lease(lease.lease_id)
 

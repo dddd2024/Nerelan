@@ -99,12 +99,20 @@ class PoolVerifier:
         # verified first, so it can be used before the allowance lapses.
         allowances = host._resource_allowances(refresh=True) if hasattr(host, "_resource_allowances") else {}
         pending = []
+        try:
+            config_digest = host._availability_catalog_digest() if hasattr(host, "_availability_catalog_digest") else None
+        except Exception:  # noqa: BLE001
+            config_digest = None
+        if config_digest is not None:
+            previous_digest = getattr(self, "_last_config_digest", None)
+            if previous_digest is not None and previous_digest != config_digest:
+                self._tried.clear()
+            self._last_config_digest = config_digest
         for binding in host._store.list_bindings_public():
             binding_id = binding["binding_id"]
             connection = connections.get(binding["connection_id"])
             if (connection is None or not binding.get("enabled", True) or not connection.get("enabled", True)
                     or binding_id not in runnable or native_owner_account(binding, connection)
-                    or now - self._tried.get(binding_id, float("-inf")) < RETRY_SECONDS
                     or (owner.get("bindings", {}).get(binding_id) or {}).get("exclude") is True):
                 continue
             cost_class, resources = effective_cost(binding, connection, owner, allowances, now=now)
@@ -112,6 +120,10 @@ class PoolVerifier:
                 continue
             known = host._routing_availability(binding, connection, allow_paid=allow_paid, cost_class=cost_class,
                                                probe_allowed=False, history=history.get(binding_id, ()), runnable=True)
+            if known.get("reason") in {"quota_recovered", "config_changed"}:
+                self._tried.pop(binding_id, None)
+            if now - self._tried.get(binding_id, float("-inf")) < RETRY_SECONDS:
+                continue
             if known.get("state") != "UNKNOWN":
                 continue
             tier = capability(binding["model_id"], profiles.get(binding_id, {}), "code", 3)[0]
@@ -124,7 +136,16 @@ class PoolVerifier:
         if now < cache.next_probe:
             return None  # the one-per-minute limit shared with selection-time probes
         probe = getattr(host, "_availability_probe", None) or host._probe_routing_binding
+        config_version = (host._availability_config_version(binding, connection)
+                          if hasattr(host, "_availability_config_version") else None)
         self._tried[binding_id] = now
-        result = cache.check(binding, connection, probe=probe, allow_probe=True, now=now)
+        result = cache.check(binding, connection, probe=probe, allow_probe=True, now=now,
+                             config_version=config_version)
         LOG.info("routing pool verification: %s is %s (%s)", binding_id, result.get("state"), result.get("reason"))
         return binding_id
+
+    def clear_tried(self, binding_id: str | None = None) -> None:
+        if binding_id is None:
+            self._tried.clear()
+        else:
+            self._tried.pop(binding_id, None)
