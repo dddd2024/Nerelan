@@ -255,3 +255,24 @@ def test_cli_json_smoke(tmp_path: Path, capsys) -> None:
     out = json.loads(capsys.readouterr().out)
     assert out["schema_version"] == 1
     assert len(out["invariants"]) == 8
+
+
+def test_health_audit_reads_magpie_cache_when_csv_absent(tmp_path: Path) -> None:
+    from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache
+
+    db = tmp_path / "tasks.sqlite3"
+    conn = _init_db(db)
+    conn.close()
+    cache = tmp_path / "magpie_cache.jsonl"
+    merge_into_cache([
+        {"request_id": "p1", "time": "2026-11-25T10:00:00-04:00", "agent": "Python-urllib", "status": 500, "rejected": True, "reported_cost_usd": 0.0},
+        {"request_id": "p2", "time": "2026-11-25T10:01:00-04:00", "agent": "Python-urllib", "status": 200, "rejected": False, "reported_cost_usd": 0.0},
+        {"request_id": "s1", "time": "2026-11-25T10:02:00-04:00", "agent": "codex", "status": 200, "rejected": False, "reported_cost_usd": 1.0},
+        {"request_id": "w1", "time": "2026-11-25T10:03:00-04:00", "agent": "opencode", "status": 200, "rejected": False, "reported_cost_usd": 2.0},
+    ], path=cache)
+    report = run_health_audit(db, now=NOW, lookback_days=7, magpie_cache_path=cache)
+    inv = _by_id(report)
+    assert inv["probe_error_rate"]["status"] == "ALERT"
+    assert inv["probe_error_rate"]["metric"] == 0.5
+    assert inv["supervision_to_worker_cost_ratio"]["status"] == "OK"
+    assert inv["supervision_to_worker_cost_ratio"]["metric"] == 0.5

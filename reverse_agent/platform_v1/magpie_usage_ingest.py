@@ -44,7 +44,7 @@ from typing import Any, Iterable, Mapping, Optional
 # Bounded so a long window cannot exhaust memory; Magpie writes one row per request.
 MAX_ROWS = 20_000
 CACHE_LIMIT = 5_000
-NORMALIZATION_VERSION = 2
+NORMALIZATION_VERSION = 3
 DEFAULT_LAST = "6h"
 DEFAULT_TIMEOUT = 25.0
 
@@ -158,6 +158,7 @@ def _normalize(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         "tokens": tokens,
         # Magpie's own number, kept verbatim so a classification change is reversible.
         "reported_cost_usd": _number(raw.get("cost_usd")),
+        "reported_credits": _number(raw.get("credits")),
         "account_id": account,
         "billing_class": billing_class,
     }
@@ -187,7 +188,7 @@ def cost_facts(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     """
     accounts: dict[str, dict[str, Any]] = {}
     totals = {"requests": 0, "failed": 0, "unknown_cost": 0,
-              "cash_usd": 0.0, "quota_value_usd": 0.0,
+              "cash_usd": 0.0, "quota_value_usd": 0.0, "reported_credits_total": 0.0,
               "failed_cash_usd": 0.0, "failed_quota_value_usd": 0.0}
     for row in rows:
         basis = cost_basis_values(row)
@@ -197,7 +198,7 @@ def cost_facts(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             "account_id": None if key == "unattributed" else key,
             "billing_class": row.get("billing_class"),
             "requests": 0, "failed": 0, "unknown_cost": 0,
-            "cash_usd": 0.0, "quota_value_usd": 0.0,
+            "cash_usd": 0.0, "quota_value_usd": 0.0, "reported_credits_total": 0.0,
             "swapped": 0, "providers": set(), "models": set(),
         })
         entry["requests"] += 1
@@ -211,6 +212,10 @@ def cost_facts(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
             entry["providers"].add(row["provider"])
         if row.get("served_model"):
             entry["models"].add(row["served_model"])
+        credits_val = _number(row.get("reported_credits"))
+        if credits_val is not None:
+            entry["reported_credits_total"] = round(entry["reported_credits_total"] + credits_val, 6)
+            totals["reported_credits_total"] = round(totals["reported_credits_total"] + credits_val, 6)
         cash, quota = basis["cash_cost_usd"], basis["quota_opportunity_units"]
         if cash is None or quota is None:
             entry["unknown_cost"] += 1
@@ -369,6 +374,7 @@ if __name__ == "__main__":  # pragma: no cover - manual entry point
 AGENTS_BY_EXECUTOR: dict[str, frozenset[str]] = {
     "codex": frozenset({"codex"}),
     "claude_code": frozenset({"claude", "claude-desktop"}),
+    "opencode": frozenset({"opencode"}),
 }
 
 ATTRIBUTION_SLACK_SECONDS = 120.0
@@ -516,9 +522,16 @@ def correlate_usage(rows: Iterable[Mapping[str, Any]],
 
     for window in windows:
         windows_rows = window.pop("rows")
-        cash = quota = 0.0
-        unknown = 0
+        cash = quota = credits_total = 0.0
+        unknown = credit_requests = 0
+        request_ids: list[str] = []
         for row in windows_rows:
+            if row.get("request_id"):
+                request_ids.append(str(row["request_id"]))
+            credits_val = _number(row.get("reported_credits"))
+            if credits_val is not None:
+                credits_total += credits_val
+                credit_requests += 1
             basis = cost_basis_values(row)
             if basis["cash_cost_usd"] is None or basis["quota_opportunity_units"] is None:
                 unknown += 1
@@ -530,7 +543,10 @@ def correlate_usage(rows: Iterable[Mapping[str, Any]],
             "unknown_cost_requests": unknown,
             "cash_cost_usd": round(cash, 6),
             "quota_opportunity_units": round(quota, 6),
+            "reported_credits_total": round(credits_total, 6) if credit_requests else None,
+            "credit_requests": credit_requests,
             "spend_total": round(cash + quota, 6),
+            "request_ids": sorted(request_ids),
         })
     attributed = sum(window["requests"] for window in windows)
     row_times = [_epoch(row.get("time")) for row in rows]
@@ -597,3 +613,116 @@ def economics_runs(correlated: Mapping[str, Any], *, strict: bool = True) -> lis
             "cost_complete": complete,
         })
     return runs
+
+
+def reconcile_task_settlements(
+    store: Any,
+    magpie_rows: Iterable[Mapping[str, Any]],
+    *,
+    limit: int = 200,
+    coverage_window: Optional[tuple[float, float]] = None,
+) -> dict[str, Any]:
+    """Reconcile task token ledgers with deduplicated Magpie usage across all cost bases.
+
+    Pure and idempotent: duplicate ``request_id`` entries are deduplicated before
+    attribution, ambiguous/unattributed rows remain explicitly separate (never
+    split artificially), and each task carries an ``inputs_digest`` plus distinct
+    cost dimensions (``confirmed_zero``, ``payg_cash_usd``, ``subscription_quota_usd``,
+    ``credit_debit``, ``list_price_estimate_usd``).
+    """
+    from .usage_ledger import task_token_records
+    from ..model_access import pricing
+
+    deduped: dict[str, Mapping[str, Any]] = {}
+    anonymous: list[Mapping[str, Any]] = []
+    for row in magpie_rows:
+        rid = str(row.get("request_id") or "").strip()
+        if rid:
+            deduped.setdefault(rid, row)
+        else:
+            anonymous.append(row)
+    unique_rows = list(deduped.values()) + anonymous
+    attempts = attempts_from_store(store, limit=limit)
+    correlated = correlate_usage(unique_rows, attempts, coverage_window=coverage_window)
+    ledger_by_task = {row["task_id"]: row for row in task_token_records(store, limit=limit)}
+
+    settlements: dict[str, dict[str, Any]] = {}
+    for task_id, entry in sorted(correlated["attempts"].items()):
+        ledger = ledger_by_task.get(task_id)
+        tokens = ledger.get("tokens") if ledger else None
+        obs_model_row = store._conn.execute(
+            "SELECT model_id FROM task_usage_observations WHERE task_id=? AND model_id<>'' ORDER BY rowid DESC LIMIT 1",
+            (task_id,),
+        ).fetchone()
+        model_id = (
+            (ledger.get("models") or [None])[0] if ledger else None
+        ) or (obs_model_row["model_id"] if obs_model_row else None) or (ledger.get("binding_ref") if ledger else None)
+        list_est = None
+        if ledger and tokens and tokens.get("input") is not None and tokens.get("output") is not None:
+            model_name = model_id or ""
+            if model_name:
+                eq = pricing.equivalent_cost(model_name, {
+                    "input": tokens["input"],
+                    "cache_read": tokens.get("cache_read") or 0,
+                    "cache_write": tokens.get("cache_write") or 0,
+                    "output": tokens["output"],
+                })
+                usd = eq.get("usd") if isinstance(eq, Mapping) else None
+                if usd is not None:
+                    list_est = round(float(usd), 6)
+
+        reqs = entry["requests"]
+        unknown_reqs = entry["unknown_cost_requests"]
+        cash = entry["cash_cost_usd"] if reqs and unknown_reqs == 0 else None
+        quota = entry["quota_opportunity_units"] if reqs and unknown_reqs == 0 else None
+        credits_debit = entry.get("reported_credits_total")
+        zero_tokens = bool(
+            tokens
+            and sum(int(tokens.get(k) or 0) for k in ("input", "cache_read", "cache_write", "output")) == 0
+        )
+        confirmed_zero = bool(
+            (reqs > 0 and unknown_reqs == 0 and cash == 0.0 and quota == 0.0 and (credits_debit in (None, 0.0)) and zero_tokens)
+            or (zero_tokens and not reqs and entry.get("accepted"))
+        )
+        if credits_debit is not None and credits_debit > 0:
+            cost_basis = "credit_debit"
+        elif cash is not None and cash > 0:
+            cost_basis = "payg_cash"
+        elif quota is not None and quota > 0:
+            cost_basis = "subscription_quota"
+        elif confirmed_zero:
+            cost_basis = "confirmed_zero"
+        elif list_est is not None:
+            cost_basis = "list_price_estimate"
+        else:
+            cost_basis = "unknown"
+
+        digest_payload = json.dumps({
+            "task_id": task_id,
+            "request_ids": entry.get("request_ids", []),
+            "tokens": tokens,
+            "cost_basis": cost_basis,
+        }, sort_keys=True, ensure_ascii=True)
+        settlements[task_id] = {
+            "task_id": task_id,
+            "inputs_digest": hashlib.sha256(digest_payload.encode("utf-8")).hexdigest(),
+            "requests": reqs,
+            "unknown_cost_requests": unknown_reqs,
+            "confirmed_zero": confirmed_zero,
+            "payg_cash_usd": cash if (cash is not None and cash > 0) else (0.0 if confirmed_zero else None),
+            "subscription_quota_usd": quota if (quota is not None and quota > 0) else None,
+            "credit_debit": credits_debit,
+            "list_price_estimate_usd": list_est,
+            "cost_basis": cost_basis,
+            "attribution_complete": bool(
+                entry.get("coverage_complete") and reqs > 0 and unknown_reqs == 0
+                and not correlated["ambiguous"] and not correlated["unattributed"]
+            ),
+            "tokens": tokens,
+        }
+    return {
+        "tasks": settlements,
+        "unattributed": correlated["unattributed"],
+        "ambiguous": correlated["ambiguous"],
+        "summary": correlated["summary"],
+    }

@@ -3261,6 +3261,9 @@ def _normalize_usage_metrics(tokens: Any, cost: Any) -> dict[str, Any]:
     }
     if any(type(value) is not int or value < 0 for value in raw_metrics.values()):
         return unknown
+    total_tokens = sum(raw_metrics.values())
+    if cost is None:
+        return {"status": "OBSERVED", **raw_metrics, "cost_micro_units": None}
     if isinstance(cost, bool) or not isinstance(cost, (int, float)):
         return unknown
     try:
@@ -3274,6 +3277,10 @@ def _normalize_usage_metrics(tokens: Any, cost: Any) -> dict[str, Any]:
             Decimal("1"), rounding=ROUND_HALF_UP
         )
     )
+    # OpenCode reports 0 for uncatalogued/proxy models even when tokens > 0:
+    # record NULL (unknown price) rather than a false confirmed $0.00.
+    if cost_micro_units == 0 and total_tokens > 0:
+        cost_micro_units = None
     return {"status": "OBSERVED", **raw_metrics, "cost_micro_units": cost_micro_units}
 
 

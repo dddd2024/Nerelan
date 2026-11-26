@@ -1562,7 +1562,10 @@ class TaskStore:
         }
         if status == "OBSERVED":
             for name, value in metrics.items():
-                if type(value) is not int or value < 0:
+                if name == "cost_micro_units":
+                    if value is not None and (type(value) is not int or value < 0):
+                        raise TaskStoreError(f"invalid_usage_metric:{name}")
+                elif type(value) is not int or value < 0:
                     raise TaskStoreError(f"invalid_usage_metric:{name}")
         elif status == "PARTIAL":
             if not any(value is not None for value in metrics.values()):
@@ -1754,8 +1757,12 @@ class TaskStore:
             observed_tokens = 0
             observed_cost = 0
             unknown_count = 0
+            cost_limit = int(row["reserved_cost_micro_units"])
             for usage in usage_rows:
                 if usage["status"] != "OBSERVED":
+                    unknown_count += 1
+                    continue
+                if cost_limit > 0 and usage["cost_micro_units"] is None:
                     unknown_count += 1
                     continue
                 observed_tokens += cost_equivalent_units(usage) or 0

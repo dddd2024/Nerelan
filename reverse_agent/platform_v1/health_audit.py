@@ -465,12 +465,33 @@ def _check_magpie_csv_invariants(
     return probe_inv, sup_inv
 
 
+def _load_magpie_cache_as_rows(cache_path: Path) -> list[dict[str, str]] | None:
+    if not cache_path.is_file():
+        return None
+    from .magpie_usage_ingest import read_cache
+
+    adapted: list[dict[str, str]] = []
+    for item in read_cache(cache_path):
+        status = item.get("status")
+        reported = item.get("reported_cost_usd")
+        adapted.append({
+            "time": str(item.get("time") or ""),
+            "agent": str(item.get("agent") or ""),
+            "status": str(int(status)) if isinstance(status, (int, float)) else "0",
+            "rejected": "true" if item.get("rejected") else "false",
+            "cost_usd": "" if reported is None else str(reported),
+            "error": "",
+        })
+    return adapted
+
+
 def run_health_audit(
     db_path: Path | str,
     *,
     now: datetime | None = None,
     lookback_days: int = 7,
     magpie_csv_path: Path | str | None = None,
+    magpie_cache_path: Path | str | None = None,
     closed_issue_numbers: Iterable[int] | None = None,
 ) -> dict[str, Any]:
     """Run all 8 deterministic read-only invariants without LLM or network calls."""
@@ -481,7 +502,12 @@ def run_health_audit(
     cutoff_iso = _iso_cutoff(ref_now, days=lookback_days)
     cutoff_24h = _iso_cutoff(ref_now, hours=24)
     closed_set = set(int(n) for n in closed_issue_numbers) if closed_issue_numbers is not None else None
-    magpie_rows = _load_magpie_csv(Path(magpie_csv_path)) if magpie_csv_path is not None else None
+    if magpie_csv_path is not None:
+        magpie_rows = _load_magpie_csv(Path(magpie_csv_path))
+    elif magpie_cache_path is not None:
+        magpie_rows = _load_magpie_cache_as_rows(Path(magpie_cache_path))
+    else:
+        magpie_rows = None
 
     db = Path(db_path)
     conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
@@ -523,6 +549,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--db", required=True, help="Path to tasks.sqlite3 (opened read-only)")
     parser.add_argument("--lookback-days", type=int, default=7)
     parser.add_argument("--magpie-csv", default=None, help="Optional path to `magpie usage --csv` export")
+    parser.add_argument("--magpie-cache", default=None, help="Optional path to magpie_usage_cache.jsonl")
     parser.add_argument("--closed-issues", default=None, help="Optional JSON file with list of closed GitHub issue numbers")
     parser.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON")
     return parser.parse_args(argv)
@@ -539,6 +566,7 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.db),
         lookback_days=args.lookback_days,
         magpie_csv_path=Path(args.magpie_csv) if args.magpie_csv else None,
+        magpie_cache_path=Path(args.magpie_cache) if args.magpie_cache else None,
         closed_issue_numbers=closed,
     )
     if args.as_json:

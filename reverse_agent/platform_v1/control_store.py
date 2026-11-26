@@ -2976,11 +2976,32 @@ class PlatformControlStore:
                     "AND charge.observation_id IS NULL ORDER BY observation.created_at, observation.id",
                     (task_id, window_id),
                 ).fetchall()
-                unknown_count = sum(
-                    1 for observation in observations
-                    if observation["status"] != "OBSERVED" or any(observation[key] is None for key in
-                        ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units", "cost_micro_units"))
-                )
+                owner_window = window["confirmation_mode"] == OWNER_WINDOW_MODE
+                free_route = owner_window and self._task_route_is_free(cur, task_id)
+                token_enforced = int(window["max_token_units"]) > 0
+                cost_enforced = int(window["max_cost_micro_units"]) > 0
+
+                def _has_known_tokens(obs: Any) -> bool:
+                    if obs["status"] == "OBSERVED":
+                        return all(
+                            obs[k] is not None
+                            for k in ("input_units", "output_units", "reasoning_units", "cache_read_units", "cache_write_units")
+                        )
+                    return (
+                        obs["status"] == "PARTIAL"
+                        and obs["source_kind"] == "native_summary"
+                        and obs["input_units"] is not None
+                        and obs["output_units"] is not None
+                    )
+
+                def _has_known_cost(obs: Any) -> bool:
+                    return obs["status"] == "OBSERVED" and obs["cost_micro_units"] is not None
+
+                tokens_unknown_count = sum(1 for o in observations if not _has_known_tokens(o))
+                cost_unknown_count = sum(1 for o in observations if not _has_known_cost(o))
+                unknown_count = tokens_unknown_count
+                if cost_enforced and not free_route:
+                    unknown_count = max(unknown_count, cost_unknown_count)
                 if quota_usage_before is not None and not any(
                         o["id"] not in quota_usage_before and o["claim_epoch"] == epoch
                         and o["execution_id"] == task["execution_id"] for o in observations):
@@ -2994,20 +3015,27 @@ class PlatformControlStore:
                     unknown_count = 1
                 token_units = 0
                 cost_micro_units = 0
+                all_costs_known = bool(observations) and cost_unknown_count == 0
+                if not observations and host_zero:
+                    all_costs_known = True
                 if not usage_unknown:
                     for observation in observations:
                         # #1504: the window is charged in cost-equivalent units
                         # (cache reads at 0.1, cache writes at 1.25), so a cached
                         # route no longer burns the budget like fresh input. The
                         # raw counters stay untouched in the observations.
-                        units = cost_equivalent_units(observation)
+                        units = cost_equivalent_units(
+                            observation,
+                            unknown_as_zero=(observation["status"] == "PARTIAL" and observation["source_kind"] == "native_summary"),
+                        )
                         if units is None:
                             usage_unknown = True
                             unknown_count = max(1, unknown_count)
                             token_units = 0
                             break
                         token_units += units
-                        cost_micro_units += int(observation["cost_micro_units"] or 0)
+                        if _has_known_cost(observation):
+                            cost_micro_units += int(observation["cost_micro_units"] or 0)
                 for observation in observations:
                     cur.execute(
                         "INSERT INTO platform_usage_charges "
@@ -3015,8 +3043,6 @@ class PlatformControlStore:
                         "VALUES (?, ?, ?, ?, ?)",
                         (observation["id"], window_id, task_id, epoch, _utc_now()),
                     )
-                token_enforced = int(window["max_token_units"]) > 0
-                cost_enforced = int(window["max_cost_micro_units"]) > 0
                 overrun = not usage_unknown and (
                     (
                         token_enforced
@@ -3024,12 +3050,14 @@ class PlatformControlStore:
                     )
                     or (
                         cost_enforced
+                        and all_costs_known
                         and cost_micro_units > int(reservation["reserved_cost_micro_units"])
                     )
                 )
                 reservation_state = (
                     "UNKNOWN" if usage_unknown else "OVERRUN" if overrun else "RECONCILED"
                 )
+                recorded_cost = None if (usage_unknown or not all_costs_known) else cost_micro_units
                 cur.execute(
                     "UPDATE platform_budget_reservations SET state = ?, "
                     "observed_token_units = ?, observed_cost_micro_units = ?, "
@@ -3038,7 +3066,7 @@ class PlatformControlStore:
                     (
                         reservation_state,
                         None if usage_unknown else token_units,
-                        None if usage_unknown else cost_micro_units,
+                        recorded_cost,
                         _utc_now(), _utc_now(), task_id, epoch,
                     ),
                 )
