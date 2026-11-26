@@ -557,11 +557,13 @@ class ResearchLoop:
         completed = 0
         for k in range(1, n):
             path = self.root / "rounds" / f"{k}.json"
-            if path.exists():
+            try:
                 record = json.loads(path.read_text(encoding="utf-8"))
                 if not record.get("goal_failed") and any(
                         v.get("integrated") for v in record.get("integrations", {}).values()):
                     completed += 1
+            except (OSError, ValueError, AttributeError, TypeError):
+                continue  # missing or unreadable evidence never counts as a completed round
 
         return (f"{self.config['objective']}\n\nResearch round {completed + 1} (attempt {n}; "
                 f"{completed} earlier round(s) integrated work, {n - 1 - completed} earlier attempt(s) "

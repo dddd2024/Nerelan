@@ -596,6 +596,10 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertIn("Research round 2 (attempt 4; 1 earlier round(s) integrated work, "
                       "2 earlier attempt(s) produced nothing", objective)
         self.assertNotIn("Research round 4", objective)
+        # Malformed history must not stop the campaign, nor count as a round.
+        (rounds / "1.json").write_text("{not json", encoding="utf-8")
+        write_json(rounds / "3.json", ["not", "a", "record"])
+        self.assertIn("Research round 2 (attempt 4;", loop._objective(4, False))
 
     def test_objective_states_a_request_the_broker_accepts(self):
         # Short test 2026-10-21: without the schema, agents refused to invent one and requested nothing.
