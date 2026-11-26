@@ -261,6 +261,20 @@ def test_verified_review_posts_only_host_generated_marker(review_setup, reject):
     assert len(github.comments) == 1
 
 
+def test_advisory_only_reject_gates_to_accept_and_records_both(review_setup):
+    review_setup[5]["response"] = json.dumps({"verdict": "REJECT", "findings": [
+        {"path": "app.py", "line": 1, "severity": "low", "message": "minor style note"}]})
+    assert run_review(review_setup).success
+    _, goal, state, github, loop = review_loop(review_setup)
+    result = loop.post_review(state["identity"], review_setup[3], window_id=goal.window_id)
+    assert result["status"] == "SUCCEEDED"
+    body, = github.comments.values()
+    assert "raw_verdict=REJECT" in body
+    assert "gate_decision=ACCEPT" in body
+    assert "0 blocking, 1 advisory" in body
+    assert f"Nerelan-Review: ACCEPT {state['head_sha']}" in body
+
+
 def test_restart_after_comment_creation_reconciles_without_repost(review_setup):
     assert run_review(review_setup).success
     control, goal, state, github, loop = review_loop(review_setup)
