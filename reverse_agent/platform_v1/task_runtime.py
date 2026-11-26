@@ -121,7 +121,8 @@ class Executor(Protocol):
 # ---------------------------------------------------------------------------
 
 _APPROVED_VALIDATION_COMMANDS: dict[str, list[str]] = {
-    "git_diff_check": ["git", "diff", "--check"],
+    # A CRLF line ending is not trailing whitespace (see executor_neutral.core).
+    "git_diff_check": ["git", "-c", "core.whitespace=cr-at-eol", "diff", "--check"],
     "git_status_porcelain": ["git", "status", "--porcelain=v1"],
 }
 
@@ -236,7 +237,8 @@ class LocalValidationRunner:
                                GIT_CONFIG_SYSTEM=os.devnull, GIT_TERMINAL_PROMPT="0",
                                GIT_OPTIONAL_LOCKS="0", GIT_LITERAL_PATHSPECS="1")
             prefix = ["git", "--no-pager", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.devnull,
-                      "-c", "core.pager=cat", "-c", "diff.external=", "-c", "core.attributesFile=" + os.devnull]
+                      "-c", "core.pager=cat", "-c", "diff.external=", "-c", "core.attributesFile=" + os.devnull,
+                      "-c", "core.whitespace=cr-at-eol"]
             if expected_head:
                 observed = subprocess.run([*prefix, "rev-parse", "--verify", "HEAD"], cwd=cwd,
                                           env=environment, stdin=subprocess.DEVNULL, capture_output=True,
