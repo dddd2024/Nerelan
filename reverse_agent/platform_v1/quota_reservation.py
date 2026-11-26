@@ -207,7 +207,7 @@ def release_weekly_reserve(need, evidence, *, release_hours, now):
 
 
 def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
-              buffer=10, small_task=False):
+              buffer=10, small_task=False, cap_to_window=True):
     """Check percentage-point p80 against both windows. Never infer reset usage.
 
     Completed usage is covered only by an observation taken after completion;
@@ -279,7 +279,10 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         # An estimate beyond what a whole window can hold can never fit: it waits
         # for an unused window, not forever. Codex reviews estimated at 324% of the
         # 5-hour window stayed QUEUED through resets at 0% used (2026-11-26).
-        p80 = min(p80, 100 - margin)
+        # Single-task admission only: summed demand (goal_fit) must still show it does
+        # not fit, and a window with no capacity left (margin 100) admits nothing.
+        if cap_to_window and 100 - margin > 0:
+            p80 = min(p80, 100 - margin)
         # A spent window always waits, however small the need.
         if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
             wait_until = reset if reset is not None and reset > now else None
@@ -465,7 +468,7 @@ def goal_fit(tasks, evidence, outstanding=(), *, now=None, buffer=10, alternativ
     accounts = {}
     for account, total in totals.items():
         observation = evidence.get(account, {"account_ref": account, "state": "UNKNOWN", "windows": []})
-        verdict = admission(observation, total, outstanding, now=now, buffer=buffer)
+        verdict = admission(observation, total, outstanding, now=now, buffer=buffer, cap_to_window=False)
         accounts[account] = {**verdict, "need": total, "observation": observation, "resets": {
             w.get("window", w.get("name")): w.get("resets_at") for w in observation.get("windows", ())}}
     unknown = any(not t.get("account_ref") for t in tasks) or any(v["state"] == "UNKNOWN" for v in accounts.values())
