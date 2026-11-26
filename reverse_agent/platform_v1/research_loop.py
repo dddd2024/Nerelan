@@ -551,8 +551,23 @@ class ResearchLoop:
             stale = [job for job, entry in earlier.get("imports", {}).items()
                      if entry.get("error") == "STALE_RECEIPT"]
             orphaned = earlier.get("orphaned_jobs", [])
+        # Attempts that integrated nothing are not research rounds: counting them
+        # let six infrastructure failures exhaust a 3-round objective, and the
+        # agent closed jev-agent-security-002 with nothing run (2026-11-26).
+        completed = 0
+        for k in range(1, n):
+            path = self.root / "rounds" / f"{k}.json"
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+                if not record.get("goal_failed") and any(
+                        v.get("integrated") for v in record.get("integrations", {}).values()):
+                    completed += 1
+            except (OSError, ValueError, AttributeError, TypeError):
+                continue  # missing or unreadable evidence never counts as a completed round
 
-        return (f"{self.config['objective']}\n\nResearch round {n}.\n"
+        return (f"{self.config['objective']}\n\nResearch round {completed + 1} (attempt {n}; "
+                f"{completed} earlier round(s) integrated work, {n - 1 - completed} earlier attempt(s) "
+                "produced nothing and do not count as rounds).\n"
                 + ("The previous round was INTERRUPTED; nothing was automatically replayed.\n" if interrupted else "")
                 + ("STALE_RECEIPT jobs: " + ", ".join(stale) + "; use new job ids for these experiments.\n" if stale else "")
                 + ("ORPHANED jobs (they ran, but their request was never integrated, so no results were "
