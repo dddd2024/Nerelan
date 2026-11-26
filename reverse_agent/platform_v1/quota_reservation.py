@@ -206,6 +206,9 @@ def release_weekly_reserve(need, evidence, *, release_hours, now):
     return need
 
 
+_FIT_TOLERANCE = 1e-9  # percentage points
+
+
 def cap_need_to_window(need, buffer=10):
     """A single task's need capped at what one window can hold (``100 - buffer``).
 
@@ -304,7 +307,9 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
         # A spent window always waits, however small the need.
-        if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
+        # A need capped exactly at the boundary must still fit after float arithmetic
+        # (e.g. 90 - 26.15 vs 100 - 26.15 - 10), so compare with a tiny tolerance.
+        if p80 + reserved > 100 - used - margin + _FIT_TOLERANCE or margin == 0 and used >= 100:
             wait_until = reset if reset is not None and reset > now else None
             waits.append((name, wait_until))
             if used >= 100:

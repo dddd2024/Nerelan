@@ -771,3 +771,12 @@ def test_prepared_admission_stores_the_capped_need_but_never_for_small_tasks(tmp
     assert stored(False, 10) == {"p80": 90, "uncapped_p80": 324.1}
     # #1786 review: a capped estimate must never pass as a small task.
     assert stored(True, 99) == {"p80": 324.1}
+
+
+def test_a_capped_need_that_exactly_fits_is_not_paused_by_float_rounding():
+    # #1786 review: capped p80 = 90, 26.15 already spent, remaining need 63.85 against
+    # capacity 100 - 26.15 - 10, which floats evaluate to 63.849999999999994.
+    need = {"windows": {"five_hour": {"p80": 90 - 26.15}, "weekly": {"p80": 1}}}
+    assert reservation.admission(quota_evidence(used=26.15, weekly=0), need, now=1000)["decision"] == "ok"
+    over = {"windows": {"five_hour": {"p80": 90 - 26.15 + 0.01}, "weekly": {"p80": 1}}}
+    assert reservation.admission(quota_evidence(used=26.15, weekly=0), over, now=1000)["decision"] == "quota_wait"
