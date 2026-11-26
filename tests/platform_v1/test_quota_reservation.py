@@ -111,6 +111,19 @@ def test_weekly_buffer_and_october_19_replay():
     assert reservation.admission(quota_evidence(), quota_need(65), now=1000, buffer=15)["decision"] == "ok"
 
 
+def test_an_estimate_beyond_a_whole_window_waits_for_an_unused_window_not_forever():
+    # Production 2026-11-26: p80 = 324% of the 5-hour window, 61% weekly; the
+    # window reset to 0% used and the review still could never be admitted.
+    need = {"windows": {"five_hour": {"p80": 324.1}, "weekly": {"p80": 60.8}}}
+    assert reservation.admission(quota_evidence(used=0, weekly=15), need, now=1000)["decision"] == "ok"
+    busy = reservation.admission(quota_evidence(used=1, weekly=15), need, now=1000)
+    assert busy["decision"] == "quota_wait" and busy["blocking_windows"] == ["five_hour"]
+    assert busy["until"] == "1970-01-01T00:33:20Z"  # the reset, which then admits it
+    # Another reservation still holds it back even on an unused window.
+    row = {"account_ref": "a", "quota_windows": {"five_hour": 5, "weekly": 5}, "state": "ACTIVE"}
+    assert reservation.admission(quota_evidence(used=0, weekly=15), need, [row], now=1000)["decision"] == "quota_wait"
+
+
 def test_unknown_small_bounds_and_reset_do_not_invent_usage():
     assert reservation.admission(quota_evidence(), quota_need(), now=3001)["state"] == "UNKNOWN"
     assert reservation.admission(quota_evidence(), quota_need(), now=3001)["decision"] == "quota_wait"

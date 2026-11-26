@@ -276,6 +276,10 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         # Only for the window it was released for: a renewed week keeps its reserve.
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
+        # An estimate beyond what a whole window can hold can never fit: it waits
+        # for an unused window, not forever. Codex reviews estimated at 324% of the
+        # 5-hour window stayed QUEUED through resets at 0% used (2026-11-26).
+        p80 = min(p80, 100 - margin)
         # A spent window always waits, however small the need.
         if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
             wait_until = reset if reset is not None and reset > now else None
