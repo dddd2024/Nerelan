@@ -219,6 +219,20 @@ def observation(*, now: float, success: bool = False, error: str = '',
             'observed_at': now, 'expires_at': now + ttl_seconds}
 
 
+_RECOVERABLE_PROBE_REASONS = frozenset({
+    NO_CREDITS, 'rate_limited', 'quota_exhausted', 'transient_error',
+    'service_unavailable', 'overloaded',
+})
+INVALIDATION_REASONS = frozenset({'quota_recovered', 'config_changed'})
+
+
+def _stamp_config(result: Mapping[str, Any], config_version: str | None) -> dict[str, Any]:
+    stamped = dict(result)
+    if config_version is not None:
+        stamped['config_version'] = config_version
+    return stamped
+
+
 class AvailabilityCache:
     """Sanitized daily cache, keyed by public pairing + endpoint configuration.
 
@@ -248,10 +262,16 @@ class AvailabilityCache:
         identity += [connection.get(k) for k in ('connection_id', 'base_url', 'auth_method')]
         return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
-    def remember(self, binding: Mapping[str, Any], connection: Mapping[str, Any], result: Mapping[str, Any]) -> None:
+    def _persist_locked(self) -> None:
+        if self.path:
+            from ..model_access.store import _write_atomic
+            _write_atomic(json.dumps(self.entries, allow_nan=False).encode('utf-8'), self.path)
+
+    def remember(self, binding: Mapping[str, Any], connection: Mapping[str, Any], result: Mapping[str, Any],
+                 *, config_version: str | None = None) -> None:
         with self.lock:
             key = self.key(binding, connection)
-            result = dict(result)
+            result = _stamp_config(result, config_version)
             previous = self.entries.get(key, {})
             if result.get("state") == "TRANSIENT":
                 if previous.get("state") == "AVAILABLE":
@@ -259,20 +279,33 @@ class AvailabilityCache:
                 elif previous.get("state") == "TRANSIENT":
                     result["verified_until"] = previous.get("verified_until", 0)
             self.entries[key] = result
-            if self.path:
-                from ..model_access.store import _write_atomic
-                _write_atomic(json.dumps(self.entries, allow_nan=False).encode('utf-8'), self.path)
+            self._persist_locked()
 
     def check(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
               probe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
               allow_probe: bool = False, now: float | None = None,
-              recent_success: float | None = None) -> dict[str, Any]:
+              recent_success: float | None = None,
+              recovered_at: float | None = None,
+              config_version: str | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
         with self.lock:
-            entry = self.entries.get(self.key(binding, connection), {})
+            cache_key = self.key(binding, connection)
+            entry = self.entries.get(cache_key, {})
+            invalidation_reason: str | None = None
+            if entry and entry.get('state') in {'UNAVAILABLE', 'TRANSIENT'}:
+                stored_cfg = entry.get('config_version')
+                if config_version is not None and stored_cfg is not None and stored_cfg != config_version:
+                    invalidation_reason = 'config_changed'
+                elif (recovered_at is not None and recovered_at > entry.get('observed_at', 0)
+                      and entry.get('reason') in _RECOVERABLE_PROBE_REASONS):
+                    invalidation_reason = 'quota_recovered'
+                if invalidation_reason is not None:
+                    self.entries.pop(cache_key, None)
+                    self._persist_locked()
+                    entry = {}
             # A more recent successful task supersedes an earlier rejection.
             if recent_success is not None and 0 <= now - recent_success < 86400 and recent_success > entry.get('observed_at', 0):
-                entry = observation(now=recent_success, success=True)
+                entry = _stamp_config(observation(now=recent_success, success=True), config_version)
                 self.remember(binding, connection, entry)
             if entry.get('observed_at', 0) > now:
                 return {'state': 'UNKNOWN', 'reason': 'clock_discontinuity'}
@@ -284,7 +317,7 @@ class AvailabilityCache:
                 return dict(entry)
             owner_account = native_owner_account(binding, connection)
             if not allow_probe or owner_account or probe is None or now < self.next_probe:
-                return {'state': 'UNKNOWN', 'reason': 'unverified'}
+                return {'state': 'UNKNOWN', 'reason': invalidation_reason or 'unverified'}
             self.next_probe = now + 60
             try:
                 value = probe(binding)
@@ -298,5 +331,5 @@ class AvailabilityCache:
                     )
             except Exception:
                 result = observation(now=now, error='transient')
-            self.remember(binding, connection, result)
-            return result
+            self.remember(binding, connection, result, config_version=config_version)
+            return _stamp_config(result, config_version)
