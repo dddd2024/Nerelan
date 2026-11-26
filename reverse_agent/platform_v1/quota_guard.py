@@ -167,6 +167,14 @@ def limit_hit_until(hit_at: float, quota: Mapping[str, Any] | None,
 # limit-hit hold above: no separate ledger. Repeated stalls double it up to the cap; a
 # successful attempt on the binding clears it. Stalls older than the look-back are history.
 LIVENESS_STALL_CLASSES = frozenset({"executor_stalled", "server_stream_stalled"})
+# Route faults: the upstream pool did not serve the attempt (no reply, rate limit, broken
+# session or connection), whatever the model could have done. They cool that pool down
+# like a stall. Routing scored free pools at cost 0 and their reliability only as a
+# 0.1 tie-breaker, so pools failing most attempts kept winning (#1533, 2026-11-26:
+# 59 of 89 failures since 11-20 were these). Stall-specific retry rules still use
+# LIVENESS_STALL_CLASSES alone.
+ROUTE_FAULT_CLASSES = LIVENESS_STALL_CLASSES | frozenset({
+    "model_review_abandoned_no_reply", "api_error_429", "server_session_error", "network_provider_failure"})
 LIVENESS_COOLDOWN_SECONDS = 15 * 60
 LIVENESS_COOLDOWN_MAX_SECONDS = 2 * 3600
 LIVENESS_LOOKBACK_SECONDS = 24 * 3600
@@ -187,7 +195,7 @@ def liveness_cooldown(attempts: Iterable[Mapping[str, Any]], *, now: float) -> d
             continue
         if row.get("status") in LIVENESS_SUCCESS_STATUSES:
             break  # a later success on this binding cleared every earlier stall
-        if row.get("status") == "FAILED" and row.get("failure_classification") in LIVENESS_STALL_CLASSES:
+        if row.get("status") == "FAILED" and row.get("failure_classification") in ROUTE_FAULT_CLASSES:
             stalls += 1
             last = at if last is None else max(last, at)
     if not stalls:
