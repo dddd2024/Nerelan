@@ -352,3 +352,16 @@ def test_cooldown_reads_the_task_table_once_per_routing_pass(monkeypatch, tmp_pa
         "EXPLAIN QUERY PLAN SELECT binding_ref FROM tasks WHERE updated_at >= 'x' "
         "AND status IN ('FAILED', 'READY_FOR_REVIEW') AND binding_ref != ''"))
     assert "idx_tasks_updated" in plan
+
+
+@pytest.mark.parametrize("classification", ["model_review_abandoned_no_reply", "api_error_429",
+                                            "server_session_error", "network_provider_failure"])
+def test_a_route_fault_cools_the_pool_down_like_a_stall(classification):
+    # #1533: a pool that did not serve the attempt is avoided for a while, so
+    # routing stops choosing a free pool that keeps failing.
+    fault = {"status": "FAILED", "failure_classification": classification, "at": NOW - MIN}
+    hold = quota_guard.liveness_cooldown([fault], now=NOW)
+    assert hold is not None and hold["stalls"] == 1
+    assert quota_guard.liveness_cooldown([_ok(NOW), fault], now=NOW) is None
+    # Stall-specific retry rules keep their own, narrower set.
+    assert classification not in quota_guard.LIVENESS_STALL_CLASSES
