@@ -315,12 +315,17 @@ def test_upgrade_retry_and_its_version_mark_commit_together(case, monkeypatch):
     count = store.count_tasks()
     original = store._append_event
 
+    import sqlite3
+
     def failing(**kwargs):
         if (kwargs.get("metadata") or {}).get("origin") == gs.UPGRADE_RETRY_ORIGIN:
-            raise TaskStoreError("event_write_failed")
+            raise sqlite3.OperationalError("disk I/O error")
         return original(**kwargs)
     monkeypatch.setattr(store, "_append_event", failing)
-    assert _sweep(service, window)[0] == []
+    # A storage fault is not a refusal: it ends the sweep unfinished (the
+    # coordinator retries next tick) and commits nothing.
+    with pytest.raises(sqlite3.OperationalError):
+        _sweep(service, window)
     assert store.count_tasks() == count and tuple(control.list_task_escalations(goal.id)) == ()
     monkeypatch.setattr(store, "_append_event", original)
     assert [row["from_task_id"] for row in _sweep(service, window)[0]] == [task.id]
@@ -363,3 +368,15 @@ def test_upgrade_sweep_needs_the_dispatch_authorization(case):
     retried, seen = _sweep(service, window, allow=False)
     assert retried == [] and seen == [task.id]
     assert tuple(control.list_task_escalations(goal.id)) == ()
+
+
+def test_upgrade_sweep_repairs_a_blocked_goal_left_over_a_queued_retry(case):
+    # #1785 review: a crash after owner_retry committed but before the goal status
+    # refresh leaves a BLOCKED goal whose current attempt is QUEUED.
+    _, _, store, control, service, goal, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    retried, _ = _sweep(service, window)
+    store._conn.execute("UPDATE platform_goals SET status='BLOCKED' WHERE id=?", (goal.id,))
+    store._conn.commit()
+    assert _sweep(service, window, version="restarted-same-or-newer")[0] == []
+    assert control.get_goal(goal.id).status == "RUNNING"

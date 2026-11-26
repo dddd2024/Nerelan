@@ -2138,6 +2138,10 @@ class GoalService:
                 break
             if goal.orchestration_mode != "agent_team" or goal.status not in {"RUNNING", "BLOCKED"}:
                 continue
+            if goal.status == "BLOCKED":
+                # A crash between a retry's commit and its status refresh leaves a
+                # BLOCKED goal over a QUEUED attempt that nothing claims; re-derive it.
+                goal = self.control_store.refresh_goal_status(goal.id)
             for link in self.control_store.list_goal_tasks(goal.id):
                 if len(retried) >= limit:
                     break
@@ -2167,7 +2171,9 @@ class GoalService:
                                                    "source_task_id": failed.id,
                                                    "failure_classification": failed.failure_classification}})
                 except TaskStoreError:
-                    continue  # the same refusals an Owner click would get: leave it stopped
+                    # The same refusals an Owner click would get: leave it stopped. Storage
+                    # faults raise sqlite3.Error and end the sweep unfinished instead.
+                    continue
                 retried.append(result)
                 goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
         return retried
