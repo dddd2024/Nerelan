@@ -309,6 +309,23 @@ def test_upgrade_sweep_retries_a_step_at_most_once_per_host_version(case):
     assert [row["from_task_id"] for row in retried] == [second.id]
 
 
+def test_upgrade_retry_and_its_version_mark_commit_together(case, monkeypatch):
+    _, _, store, control, service, goal, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    count = store.count_tasks()
+    original = store._append_event
+
+    def failing(**kwargs):
+        if (kwargs.get("metadata") or {}).get("origin") == gs.UPGRADE_RETRY_ORIGIN:
+            raise TaskStoreError("event_write_failed")
+        return original(**kwargs)
+    monkeypatch.setattr(store, "_append_event", failing)
+    assert _sweep(service, window)[0] == []
+    assert store.count_tasks() == count and tuple(control.list_task_escalations(goal.id)) == ()
+    monkeypatch.setattr(store, "_append_event", original)
+    assert [row["from_task_id"] for row in _sweep(service, window)[0]] == [task.id]
+
+
 def test_upgrade_sweep_leaves_model_judged_failures_alone(case):
     _, _, store, _, service, _, window, task = case
     _fail(store, task, "deterministic_validation_failure")

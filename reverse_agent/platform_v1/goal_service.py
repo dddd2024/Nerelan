@@ -2157,16 +2157,17 @@ class GoalService:
                 if not authorize(goal, failed):
                     continue
                 try:
-                    result = self.owner_retry(goal.id, link["plan_task_id"], expected_revision=goal.revision,
-                                              expected_source_task_id=failed.id)
+                    result = self.owner_retry(
+                        goal.id, link["plan_task_id"], expected_revision=goal.revision,
+                        expected_source_task_id=failed.id,
+                        origin_event={"title": "Retried after host upgrade",
+                                      "description": (f"{failed.failure_classification} under earlier host code; "
+                                                      f"retried once on {host_version[:12]}"),
+                                      "metadata": {"origin": UPGRADE_RETRY_ORIGIN, "host_version": host_version,
+                                                   "source_task_id": failed.id,
+                                                   "failure_classification": failed.failure_classification}})
                 except TaskStoreError:
                     continue  # the same refusals an Owner click would get: leave it stopped
-                self.store.add_event(result["to_task_id"], event_type="VALIDATED", title="Retried after host upgrade",
-                                     description=(f"{failed.failure_classification} under earlier host code; "
-                                                  f"retried once on {host_version[:12]}"),
-                                     metadata={"origin": UPGRADE_RETRY_ORIGIN, "host_version": host_version,
-                                               "source_task_id": failed.id,
-                                               "failure_classification": failed.failure_classification})
                 retried.append(result)
                 goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
         return retried
@@ -2184,7 +2185,8 @@ class GoalService:
         return False
 
     def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
-                    binding_ref: str = "", expected_source_task_id: str = "") -> dict[str, Any]:
+                    binding_ref: str = "", expected_source_task_id: str = "",
+                    origin_event: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Owner decision 2026-11-12 A: the Owner retries a stopped plan step in the Goal's active window.
 
         The model is the router's choice (``binding_ref`` empty) or one the Owner picks;
@@ -2351,6 +2353,12 @@ class GoalService:
                 self.control_store.escalate_goal_task(
                     goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                     to_task_id=task.id, from_role=role, to_role=role, reason=OWNER_RETRY_REASON)
+                if origin_event is not None:
+                    # Committed with the attempt it marks: an automatic retry is never left unmarked.
+                    self.store._append_event(
+                        task_id=task.id, event_type="VALIDATED", title=str(origin_event["title"]),
+                        description=str(origin_event["description"]), raw_log="",
+                        metadata=dict(origin_event["metadata"]))
                 if owns_transaction:
                     self.store._conn.execute("COMMIT")
             except BaseException:

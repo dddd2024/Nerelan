@@ -2278,10 +2278,11 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
         def stop_if_source_closed(self, goal_id):
             return False
 
-    def coordinator(version):
+    def coordinator(version, authority=None):
         return UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
                                      workspace_root=tmp_path / "workspaces", goals=goals,
-                                     execution_authority_sha="target-head", host_code_version=version)
+                                     execution_authority_sha=version if authority is None else authority,
+                                     host_code_version=version)
     goals = Goals()
     try:
         first = coordinator("sha-new")
@@ -2300,7 +2301,11 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
         assert calls == ["sha-new", "sha-newer"]
         # No host code identity (installed, non-checkout code): never sweeps, even
         # though the target checkout's HEAD is known.
-        coordinator("")._upgrade_retry_sweep(window)
+        coordinator("", authority="target-head")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new", "sha-newer"]
+        # An explicit authority that is not the host code: runs cannot prove which
+        # code they ran on, so no sweep.
+        coordinator("sha-x", authority="explicit-authority")._upgrade_retry_sweep(window)
         assert calls == ["sha-new", "sha-newer"]
         # A full batch is not a finished sweep: it continues on the next tick.
         import reverse_agent.platform_v1.unattended_coordinator as coordinator_module

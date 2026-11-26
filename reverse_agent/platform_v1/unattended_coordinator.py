@@ -1211,7 +1211,12 @@ class UnattendedCoordinator:
         """
         version = str(getattr(self, "host_code_version", "") or "").strip()
         swept = self.__dict__.setdefault("_upgrade_swept_windows", set())
+        authority = self.execution_authority_sha.strip()
         if self.goals is None or not version or window.id in swept:
+            return
+        if authority and authority != version:
+            # Runs record the execution authority; only when it is the host code can a
+            # run prove which code it ran on. An explicit, different authority: no sweep.
             return
         swept.add(window.id)
         subject = f"upgrade_retry_sweep:{version}"
