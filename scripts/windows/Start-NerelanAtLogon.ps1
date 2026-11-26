@@ -91,8 +91,13 @@ try {
       $applied++
     }
     Log "applied $applied settings from $EnvFile"
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envPointer) | Out-Null
-    Set-Content -LiteralPath $envPointer -Value (Resolve-Path -LiteralPath $EnvFile).Path -Encoding UTF8
+    try {
+      # Remembering is best-effort: a start that has its settings must never stop here.
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $envPointer) -ErrorAction Stop | Out-Null
+      Set-Content -LiteralPath $envPointer -Value (Resolve-Path -LiteralPath $EnvFile).Path -Encoding UTF8 -ErrorAction Stop
+    } catch {
+      Log "could not remember the environment file in ${envPointer}: $($_.Exception.Message)"
+    }
   } else {
     Log "no run.env.json found; starting with the host defaults"
   }

@@ -221,3 +221,16 @@ def test_env_loading_refuses_when_the_remembered_file_is_missing(tmp_path) -> No
                      + _env_block() + "\n'did-not-throw'")
     assert result.returncode != 0
     assert "environment file the last start used is missing" in (result.stdout + result.stderr)
+
+
+@requires_powershell
+def test_env_loading_still_applies_when_the_pointer_cannot_be_written(tmp_path) -> None:
+    local = tmp_path / "local"
+    (local / "Nerelan" / "run.env.path").mkdir(parents=True)  # a directory: the write must fail
+    env_file = tmp_path / "run.env.json"
+    env_file.write_text(json.dumps({"REVERSE_AGENT_MULTI_ACCOUNT_ENABLED": "1"}), encoding="utf-8")
+    result = _run_ps("$ErrorActionPreference = 'Stop'\n$env:LOCALAPPDATA = '" + _q(local) + "'\n"
+                     "$EnvFile = '" + _q(env_file) + "'\n" + _env_block()
+                     + "\n$env:REVERSE_AGENT_MULTI_ACCOUNT_ENABLED")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "1"
