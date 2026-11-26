@@ -2123,3 +2123,104 @@ def test_quota_wait_skips_duplicate_policy_receipts_and_last_error(tmp_path) -> 
         assert count_after_clear == 2
     finally:
         store._conn.close()
+
+
+def test_dated_quota_hold_is_not_rechecked_every_tick(tmp_path, monkeypatch) -> None:
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate(
+        {
+            "policy_id": "quota-wait-receipt-test",
+            "policy_revision": 1,
+            "owner_identity": "owner@example",
+            "starts_at": (now - timedelta(seconds=5)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+            "repositories": ["dddd2024/Nerelan"],
+            "max_tasks": 4,
+            "max_concurrent_tasks": 1,
+            "max_retries": 1,
+            "capabilities": ["execute_task"],
+            "confirmation": "ACTIVATE",
+        }
+    )
+    goal = control.create_goal(
+        title="Held goal",
+        objective="Held goal",
+        repository="dddd2024/Nerelan",
+        idempotency_key="quota-wait-receipt-goal",
+        executor_kind="opencode",
+        orchestration_mode="single",
+        binding_ref="coding-free",
+    )
+    control.save_goal_plan(
+        goal.id,
+        expected_revision=1,
+        spec_markdown="spec",
+        plan_markdown="plan",
+        tasks=({"id": "T001", "title": "Held task", "instruction": "Held task"},),
+        acceptance_criteria=("ok",),
+    )
+    control.approve_goal(goal.id, expected_revision=1)
+    task = store.create_task(
+        title="Held task",
+        repository="dddd2024/Nerelan",
+        executor_kind="opencode",
+        binding_ref="coding-free",
+        permission_profile="AUTONOMOUS_WINDOW",
+        policy_ref=window.policy_id,
+    )
+    control.link_goal_task(goal.id, goal_revision=1, plan_task_id="T001", task_id=task.id, dependencies=(), seq=0)
+    control.mark_goal_running(goal.id, revision=1, window_id=window.id)
+    import reverse_agent.platform_v1.unattended_coordinator as coordinator_module
+    clock = [1_800_000_000.0]
+    monkeypatch.setattr(coordinator_module.time, "time", lambda: clock[0])
+    until = "2028-01-15T08:00:00Z"  # far beyond the recheck interval
+    prepared: list[str] = []
+
+    def prepare(item):
+        prepared.append(item.id)
+        raise TaskStoreError("QUOTA_WAIT:" + until)
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces",
+        quota_preparer=prepare,
+        task_executor=lambda tid: _ready_fixture(store, tid),
+    )
+
+    def receipts():
+        return store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=? AND operation_type='policy_evaluation'",
+            (task.id,),
+        ).fetchone()[0]
+
+    try:
+        assert coordinator.tick() == 0
+        assert (len(prepared), receipts()) == (1, 1)
+        # Within the recheck interval: no quota read, no receipt, no claim.
+        for _ in range(5):
+            clock[0] += 30
+            assert coordinator.tick() == 0
+        assert (len(prepared), receipts()) == (1, 1)
+        assert coordinator.status()["last_error"] == ""
+        # After the interval the hold is checked again (a reset may come early).
+        clock[0] += coordinator_module.QUOTA_HOLD_RECHECK_SECONDS
+        assert coordinator.tick() == 0
+        assert len(prepared) == 2
+    finally:
+        store._conn.close()
+
+
+def test_quota_hold_until_reads_only_future_timestamps() -> None:
+    from reverse_agent.platform_v1.unattended_coordinator import _quota_hold_until
+    now = 1_800_000_000.0
+    assert _quota_hold_until("QUOTA_WAIT:2028-01-15T08:00:00Z", now) is not None
+    assert _quota_hold_until("QUOTA_WAIT:2020-01-01T00:00:00Z", now) is None
+    assert _quota_hold_until("QUOTA_WAIT:quota_capacity", now) is None
+    assert _quota_hold_until("QUOTA_WAIT:unknown_reset", now) is None
+    assert _quota_hold_until("window_wip_limit_reached", now) is None

@@ -52,6 +52,21 @@ SWEEP_REPEAT_SECONDS = 900.0
 # a stop request by more than a minute (cancellation polls every 0.2 s).
 QUOTA_WAIT_MIN_SECONDS = 60.0
 QUOTA_WAIT_MAX_SECONDS = 3600.0
+# A dated quota hold is rechecked at most this often before its reset: an earlier
+# reset or fresher reading still wakes it, but not every ~6 s tick (#1575: each
+# tick re-authorized, re-read Magpie and wrote a receipt for a hold whose end was known).
+QUOTA_HOLD_RECHECK_SECONDS = 300.0
+
+
+def _quota_hold_until(message: str, now: float) -> float | None:
+    """The future reset a ``QUOTA_WAIT:<ISO time>`` hold names, else None."""
+    from datetime import datetime
+    stamp = message.split(":", 1)[1] if message.startswith("QUOTA_WAIT:") else ""
+    try:
+        until = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+    return until if math.isfinite(until) and until > now else None
 REEVALUATE_POLL_SECONDS = 5.0
 
 
@@ -174,6 +189,7 @@ class UnattendedCoordinator:
         self._last_error = ""
         self._last_batch: dict[str, Any] = {}
         self._quota_held_authorized: dict[str, tuple[str, str, str]] = {}
+        self._quota_hold_recheck_at: dict[str, float] = {}
         self._ticks = 0
         self._executions = 0
 
@@ -601,6 +617,9 @@ class UnattendedCoordinator:
         )
         for stale_id in set(quota_held_auth) - set(runnable_ids):
             quota_held_auth.pop(stale_id, None)
+        hold_recheck = self.__dict__.setdefault("_quota_hold_recheck_at", {})
+        for stale_id in set(hold_recheck) - set(runnable_ids):
+            hold_recheck.pop(stale_id, None)
         for task_id in runnable_ids:
             if len(claimed) >= free_slots:
                 break
@@ -639,6 +658,12 @@ class UnattendedCoordinator:
                 goal_id = self.control_store.goal_id_for_task(task_id)
                 if goal_id and self.goals.stop_if_source_closed(goal_id):
                     continue
+            recheck_at = hold_recheck.get(task_id)
+            if recheck_at is not None:
+                if time.time() < recheck_at:
+                    held.append(task_id)  # still offered to the rerouter, but no receipt or quota read
+                    continue
+                hold_recheck.pop(task_id, None)
             operation = task_operation(task)
             if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
                 operation = "resume_task"
@@ -696,6 +721,10 @@ class UnattendedCoordinator:
                 if str(exc).startswith("QUOTA_WAIT"):
                     held.append(task_id)
                     quota_held_auth[task_id] = auth_key
+                    now = time.time()
+                    until = _quota_hold_until(str(exc), now)
+                    if until is not None:
+                        hold_recheck[task_id] = min(until, now + QUOTA_HOLD_RECHECK_SECONDS)
                     if self._last_error.startswith("QUOTA_WAIT"):
                         self._last_error = ""
                     continue
