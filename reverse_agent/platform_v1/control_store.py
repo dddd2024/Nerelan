@@ -2402,7 +2402,9 @@ class PlatformControlStore:
         The transaction rechecks freshness; this preparation grants no claim.
         """
         from . import quota_reservation
-        need = quota_reservation.cap_need_to_window(need, safety_buffer)
+        if not small_task:
+            # Small-task eligibility is judged on the real estimate, never a capped one.
+            need = quota_reservation.cap_need_to_window(need, safety_buffer)
         selected = quota_reservation.observation(account_ref, [evidence], refresh=refresh,
                                                  small_task=small_task)
         quota_reservation.admission(selected, need, buffer=safety_buffer, small_task=small_task)

@@ -752,3 +752,22 @@ def test_claim_reprices_an_aged_row_and_never_lends_it_to_an_unknown_preparation
         offset[0] = 3500 - 620
         with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
             control.claim_task(window_id=window.id, task_id=first.id, owner="t", lease_ms=60000)
+
+
+def test_prepared_admission_stores_the_capped_need_but_never_for_small_tasks(tmp_path, monkeypatch):
+    import json
+    import time
+    store, control, _ = settled_store(tmp_path, monkeypatch)
+    raw = {"windows": {"five_hour": {"p80": 324.1}, "weekly": {"p80": 60.8}}}
+
+    def stored(small_task, buffer):
+        task = store.create_task(title="big", executor_kind="opencode", binding_ref="b")
+        control.prepare_quota_admission(task_id=task.id, binding_ref="b", account_ref="a",
+                                        evidence=quota_evidence(used=0, weekly=15, now=time.time()),
+                                        need=raw, small_task=small_task, safety_buffer=buffer)
+        row = store._conn.execute("SELECT need_json FROM platform_quota_admissions WHERE task_id=?",
+                                  (task.id,)).fetchone()
+        return json.loads(row[0])["windows"]["five_hour"]
+    assert stored(False, 10) == {"p80": 90, "uncapped_p80": 324.1}
+    # #1786 review: a capped estimate must never pass as a small task.
+    assert stored(True, 99) == {"p80": 324.1}
