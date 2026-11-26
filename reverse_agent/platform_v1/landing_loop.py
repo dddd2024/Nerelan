@@ -128,7 +128,7 @@ class LandingLoopController:
             return self.control_store.get_landing(state["identity"])
         current = store.get_task(review.id)
         evidence_row = next(row for row in current.evidence_refs if row.get("category") == model_review.CATEGORY)
-        if json.loads(evidence_row["detail"])["result"]["verdict"] == "REJECT":
+        if model_review.gate_decision(json.loads(evidence_row["detail"])["result"]) == "REJECT":
             goals._repair_rejected_reviews(goal_id)
             if store.get_task(review.id).status == "BLOCKED":
                 self.control_store.schedule_landing(state["identity"], expected_phase="WAITING", phase="BLOCKED")
@@ -178,11 +178,15 @@ class LandingLoopController:
         if not claim_id:
             return self.control_store.landing_operation(identity, "review_comment")
         result = evidence["result"]
+        decision = model_review.gate_decision(result)
+        blocking_count = len(model_review.blocking_findings(result))
+        advisory_count = len(model_review.advisory_findings(result))
         # Every byte is host-generated, so credentials and trusted markers in
         # model findings cannot be laundered through the host's GitHub identity.
-        body = (f"Independent review: {len(result['findings'])} retained findings.\n"
+        body = (f"Independent review: raw_verdict={result['verdict']}, gate_decision={decision} "
+                f"({blocking_count} blocking, {advisory_count} advisory findings).\n"
                 f"<!-- nerelan-operation:{claim_id} -->\n"
-                f"Nerelan-Review: {result['verdict']} {state['head_sha']}")
+                f"Nerelan-Review: {decision} {state['head_sha']}")
         self._require_source_before_write(state, "review_comment", claim_id)
         self.github.post_review_comment(state, claim_id, body)
         return self.reconcile(identity, "review_comment", window_id=window_id)

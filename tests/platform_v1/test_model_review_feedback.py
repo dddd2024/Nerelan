@@ -396,3 +396,48 @@ def test_review_authors_allows_truncated_failed_claude_attempt_with_usage_observ
     store._conn.commit()
     with pytest.raises(TaskStoreError, match="review_not_independent"):
         model_review.review_authors(store, store.get_task(review), binding)
+
+
+def test_advisory_only_reject_does_not_trigger_repair(review_setup):
+    import json
+    store, _, producer, _, _, options, _ = review_setup
+    options["response"] = json.dumps({
+        "verdict": "REJECT",
+        "findings": [{"path": "app.py", "line": 1, "severity": "low", "message": "style note"}],
+    })
+    assert run_review(review_setup).success
+    control = PlatformControlStore(store)
+    goal_id = control.goal_id_for_task(producer)
+    assert GoalService(store=store, control_store=control).escalate_failed_tasks(goal_id) == ()
+
+
+def test_incremental_review_receives_previous_findings_and_repair_diff(review_setup):
+    store, control, service, goal_id = rejected(review_setup)
+    _, router, _, _, _, _, root = review_setup
+    outcome, = service.escalate_failed_tasks(goal_id)
+    repair = outcome["to_task_id"]
+    old = artifact_handoff._load_evidence(store.get_task(repair), "ReviewRepair", store.get_task(repair).execution_id)
+    source = artifact_handoff._producer_worktree(
+        store, store.get_task(old["producer"]["task_id"]),
+        goal_service.functional_evidence(store.get_task(old["producer"]["task_id"])),
+    )
+    implementation = LocalImplementation(source, old["producer"]["commit"], f"value = 2\n# repaired {repair}\n")
+    router.replace("opencode", lambda **kwargs: implementation)
+    assert ordinary(store, router).execute(repair, workspace_root=str(root / "repair")).success
+    store.append_usage_observation(
+        repair, observation_id=f"repair-author-{repair}", execution_id=store.get_task(repair).execution_id,
+        role="executor", model_id="local/repair-author", provider_id="local",
+        source_kind="assistant_message", source_id="repair-turn", status="UNKNOWN",
+    )
+    refreshed, = service.escalate_failed_tasks(goal_id)
+    seen = []
+    router.replace(
+        "opencode",
+        lambda **kwargs: (seen.append(Reviewer(source, kwargs["base_ref"])), seen[-1])[1],
+    )
+    from test_functional_execution import durable
+    result = durable(store, router).execute_durable_single(refreshed["to_task_id"], workspace_root=str(root / "fresh"))
+    assert result.success, result
+    assert "incremental_review" in seen[0].prompt
+    assert "previous_findings" in seen[0].prompt and "Incorrect value" in seen[0].prompt
+    assert "repair_diff" in seen[0].prompt and f"# repaired {repair}" in seen[0].prompt

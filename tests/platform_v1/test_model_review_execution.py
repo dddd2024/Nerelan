@@ -233,7 +233,7 @@ def test_accept_allows_non_blocking_low_and_medium_findings(review_setup):
     assert rec["verdict"] == "ACCEPT" and len(rec["findings"]) == 2
 
 
-def test_reject_with_only_low_medium_findings_normalizes_to_accept(review_setup):
+def test_reject_with_only_low_medium_findings_preserves_raw_verdict_and_gates_accept(review_setup):
     store, _, _, consumer, _, selected, _ = review_setup
     selected["response"] = json.dumps({
         "verdict": "REJECT",
@@ -242,7 +242,60 @@ def test_reject_with_only_low_medium_findings_normalizes_to_accept(review_setup)
     result = run_review(review_setup)
     assert result.success, result
     rec = json.loads(evidence(store, consumer)[0]["detail"])["result"]
-    assert rec["verdict"] == "ACCEPT" and rec["findings"][0]["severity"] == "medium"
+    assert rec["verdict"] == "REJECT"
+    assert model_review.gate_decision(rec) == "ACCEPT"
+    assert rec["findings"][0]["severity"] == "medium"
+
+
+def test_parse_response_caps_findings_to_six_keeping_blocking_severities():
+    findings = [{"path": f"f{i}.py", "line": i, "severity": "low", "message": f"note {i}"} for i in range(6)]
+    findings.append({"path": "bug.py", "line": 9, "severity": "critical", "message": "critical bug"})
+    findings.append({"path": "race.py", "line": 10, "severity": "high", "message": "high bug"})
+    parsed = model_review.parse_response(json.dumps({"verdict": "REJECT", "findings": findings}))
+    assert parsed["verdict"] == "REJECT"
+    assert len(parsed["findings"]) == 6
+    assert [f["severity"] for f in parsed["findings"][:2]] == ["critical", "high"]
+    assert model_review.gate_decision(parsed) == "REJECT"
+
+
+def test_execute_review_includes_agents_rules_in_request(goal_checks, tmp_path, monkeypatch):
+    from dataclasses import replace
+    from test_functional_execution import LocalBinding
+    from test_goal_functional_checks import planned_check
+
+    repo_root, _, store, control, goals, goal, window = goal_checks
+    (repo_root / "AGENTS.md").write_text("# AGENTS\nRule: verify diff.", encoding="utf-8")
+    git(repo_root, "add", "--", "AGENTS.md")
+    git(repo_root, "commit", "-q", "-m", "add agents rules")
+    base = git(repo_root, "rev-parse", "HEAD")
+
+    planned = goals.plan(goal.id, expected_revision=goal.revision, tasks=[planned_check("A"),
+        {**planned_check("B"), "kind": "review", "agent_role": "reviewer", "dependencies": ["A"],
+         "artifact_input": {"plan_task_id": "A"}}]).goal
+    goals.approve(goal.id, expected_revision=planned.revision)
+    goals.launch(goal.id, expected_revision=planned.revision, window_id=window.id)
+    producer, consumer = [link["task_id"] for link in control.list_goal_tasks(goal.id)]
+    router = ExecutorRouter()
+    implementation = LocalImplementation(repo_root, base, "value = 2\n")
+    router.replace("opencode", lambda **kwargs: implementation)
+    assert ordinary(store, router).execute(producer, workspace_root=str(tmp_path / "producer")).success
+    store.append_usage_observation(producer, observation_id="author-observation",
+        execution_id=store.get_task(producer).execution_id, role="executor", model_id="local/author",
+        provider_id="local", source_kind="assistant_message", source_id="author-turn", status="UNKNOWN")
+
+    original_resolve = LocalBinding.resolve
+    def resolve(self, binding_ref, *, task_executor):
+        return replace(original_resolve(self, binding_ref, task_executor="opencode"), executor_id=task_executor)
+    monkeypatch.setattr(LocalBinding, "resolve", resolve)
+    store._conn.execute("UPDATE tasks SET executor_kind = 'codex' WHERE id = ?", (consumer,))
+    created = []
+    router.replace("codex", lambda **kwargs: (created.append(Reviewer(repo_root, kwargs["base_ref"])), created[-1])[1])
+
+    setup = (store, router, producer, consumer, created, {}, tmp_path / "reviews")
+    result = run_review(setup)
+    assert result.success, result
+    assert "repo_review_rules" in created[0].prompt
+    assert "Rule: verify diff." in created[0].prompt
 
 
 def test_reject_with_mixed_high_and_low_findings_remains_rejected(review_setup):

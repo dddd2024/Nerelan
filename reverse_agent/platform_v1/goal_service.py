@@ -1593,7 +1593,7 @@ class GoalService:
                             continue
                         run = self.store._get_durable_run(json.loads(rows[0]["detail"])["run_id"])
                         evidence = model_review.verified_evidence(self.store, failed, run, require_accept=False)
-                        if evidence["result"]["verdict"] != "REJECT":
+                        if model_review.gate_decision(evidence["result"]) != "REJECT":
                             continue
                         binding = artifacts.load_input_binding(failed)
                     except (TaskStoreError, KeyError, ValueError, TypeError, OSError):
