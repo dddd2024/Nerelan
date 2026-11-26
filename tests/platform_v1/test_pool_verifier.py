@@ -162,6 +162,67 @@ def test_a_binding_that_keeps_failing_is_tried_once_and_does_not_hold_up_the_res
     assert verifier.verify_once(now=clock["now"]) in {"free-0", "free-1", "free-2"}
 
 
+@pytest.mark.parametrize(
+    ("probe_reply", "expected_state", "expected_reason", "expected_ttl"),
+    [
+        ({"ok": False, "status_code": 402, "error": "transient"}, "UNAVAILABLE", "no_credits", 7 * 86400),
+        ({"ok": False, "status_code": 404, "error": "not_found_error"}, "UNAVAILABLE", "model_not_found", 86400),
+        ({"ok": False, "status_code": 403, "error": "cloudflare"}, "UNAVAILABLE", "http_403", 86400),
+        ({"ok": False, "status_code": 400, "error": "invalid_request_error"}, "UNAVAILABLE", "probe_invalid_request", 86400),
+        ({"ok": False, "status_code": 429, "error": "rate_limited"}, "TRANSIENT", "rate_limited", 1800),
+    ],
+)
+def test_probe_failure_status_codes_stop_tight_reprobing(
+    probe_reply, expected_state, expected_reason, expected_ttl
+):
+    cache = AvailabilityCache()
+    binding = _binding("b-1", "free/a")
+    conn = {"connection_id": "gateway", "auth_method": "none", "enabled": True}
+    calls = []
+
+    def _probe(_binding):
+        calls.append(1)
+        return probe_reply
+
+    first = cache.check(binding, conn, probe=_probe, allow_probe=True, now=1000.0)
+    assert first["state"] == expected_state
+    assert first["reason"] == expected_reason
+    assert first["expires_at"] == 1000.0 + expected_ttl
+    # Still held inside TTL even if global next_probe resets.
+    cache.next_probe = 0.0
+    second = cache.check(binding, conn, probe=_probe, allow_probe=True, now=1100.0)
+    assert second["state"] == expected_state
+    assert len(calls) == 1
+
+
+def test_probe_routing_binding_sends_nerelan_user_agent_and_preserves_status(monkeypatch, tmp_path):
+    from reverse_agent.model_access import credential_relay as relay
+    from reverse_agent.model_access.store import ModelProfileStore
+    from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
+
+    host = object.__new__(CombinedTrustedHost)
+    host._store = ModelProfileStore(state_path=tmp_path / "model_setup_state.json")
+    host._store.upsert_connection({
+        "connection_id": "openrouter", "name": "OR", "provider": "openai-compatible",
+        "base_url": "https://example.invalid/v1", "auth_method": "none", "enabled": True,
+    })
+    host._store.upsert_binding({
+        "binding_id": "or-free", "name": "OR Free", "executor_id": "opencode",
+        "connection_id": "openrouter", "model_id": "openrouter/model", "enabled": True,
+    })
+    seen_headers = []
+    monkeypatch.setattr(relay, "_validate_upstream_url", lambda url: None)
+    monkeypatch.setattr(
+        relay,
+        "_http_roundtrip",
+        lambda url, method, body, headers, timeout: seen_headers.append(headers) or (402, b'{"error":"no credits"}', {}),
+    )
+    res = host._probe_routing_binding(host._store.get_binding_public("or-free"))
+    assert res["ok"] is False
+    assert res["status_code"] == 402
+    assert seen_headers and seen_headers[0]["User-Agent"] == "Nerelan/1.0"
+
+
 def test_an_unreadable_cache_entry_is_not_returned_forever(tmp_path):
     bindings = [_binding("a-free", "free/a"), _binding("b-free", "free/b")]
     host = _Host(tmp_path, bindings, overrides=_OVERRIDES)

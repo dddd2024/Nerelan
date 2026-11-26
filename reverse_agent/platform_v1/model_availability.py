@@ -35,11 +35,13 @@ _NOT_OVERLOAD_CLASS = re.compile(r"limit|quota|rate|429|unavailable|refus|no_wil
 OVERLOADED = "provider_overloaded"
 
 # Recognize an account's rate-limit reply in an executor error or an OpenCode
-# retry event, including Magpie's generic exit diagnostics.
+# retry event, including Magpie's generic exit diagnostics and bilingual CN/EN RPM/TPM limits.
 _PROVIDER_RATE_LIMIT_REPLY_RE = re.compile(
     r"^(?:too many requests\b|rate[ _-]limit(?:ed)?\b|(?:(?:http|status)[ :=]+)?429\b)"
     r"|status=429\b|\(429\b|\b(?:rpm|tpm)(?:/(?:rpm|tpm))? (?:exhausted|limit)"
-    r"|\b(?:free\s+)?usage\s+limit\s+reached\b|\bout\s+of\s+its\s+allowance\b",
+    r"|\b(?:free\s+)?usage\s+limit\s+reached\b|\bout\s+of\s+its\s+allowance\b"
+    r"|inference\s+exceeds\s+(?:tpm|rpm)(?:/(?:tpm|rpm))?\s+limit"
+    r"|请求频率超限|频率超限|调用频率超限|并发(?:数)?超限",
     re.IGNORECASE,
 )
 
@@ -175,6 +177,28 @@ def no_credits_error(value: str) -> str | None:
     return NO_CREDITS if _NO_CREDITS_RE.search(text) else None
 
 
+def probe_failure_observation(*, now: float, status_code: int | None = None,
+                              error: str = '') -> dict[str, Any]:
+    """Classify a failed background probe so 402/404/403/400 stop tight re-probing."""
+    if status_code == 402 or no_credits_error(error):
+        return observation(now=now, state='UNAVAILABLE', reason=NO_CREDITS,
+                           ttl_seconds=NO_CREDITS_TTL_SECONDS)
+    marker = availability_error(error)
+    if marker:
+        return observation(now=now, state='UNAVAILABLE', reason=marker, ttl_seconds=86400)
+    lowered = (error or '').lower()
+    if status_code == 404 or 'not_found_error' in lowered:
+        return observation(now=now, state='UNAVAILABLE', reason='model_not_found', ttl_seconds=86400)
+    if status_code in (401, 403) or 'cloudflare' in lowered or 'error-1010' in lowered:
+        reason = f'http_{status_code}' if isinstance(status_code, int) else 'http_403'
+        return observation(now=now, state='UNAVAILABLE', reason=reason, ttl_seconds=86400)
+    if status_code == 400 or 'invalid_request_error' in lowered:
+        return observation(now=now, state='UNAVAILABLE', reason='probe_invalid_request', ttl_seconds=86400)
+    if status_code == 429 or provider_rate_limit_reply(error):
+        return observation(now=now, state='TRANSIENT', reason='rate_limited', ttl_seconds=1800)
+    return observation(now=now, success=False, error=error)
+
+
 def observation(*, now: float, success: bool = False, error: str = '',
                 state: str | None = None, reason: str | None = None,
                 ttl_seconds: float | None = None) -> dict[str, Any]:
@@ -193,6 +217,18 @@ def observation(*, now: float, success: bool = False, error: str = '',
         ttl_seconds = 86400 if success or marker else 300
     return {'state': resolved_state, 'reason': resolved_reason,
             'observed_at': now, 'expires_at': now + ttl_seconds}
+
+
+QUOTA_WINDOW_RECOVERABLE_REASONS = frozenset({'quota_exhausted'})
+CREDIT_RECOVERABLE_REASONS = frozenset({NO_CREDITS})
+INVALIDATION_REASONS = frozenset({'quota_recovered', 'config_changed'})
+
+
+def _stamp_config(result: Mapping[str, Any], config_version: str | None) -> dict[str, Any]:
+    stamped = dict(result)
+    if config_version is not None:
+        stamped['config_version'] = config_version
+    return stamped
 
 
 class AvailabilityCache:
@@ -224,10 +260,16 @@ class AvailabilityCache:
         identity += [connection.get(k) for k in ('connection_id', 'base_url', 'auth_method')]
         return hashlib.sha256(json.dumps(identity).encode()).hexdigest()
 
-    def remember(self, binding: Mapping[str, Any], connection: Mapping[str, Any], result: Mapping[str, Any]) -> None:
+    def _persist_locked(self) -> None:
+        if self.path:
+            from ..model_access.store import _write_atomic
+            _write_atomic(json.dumps(self.entries, allow_nan=False).encode('utf-8'), self.path)
+
+    def remember(self, binding: Mapping[str, Any], connection: Mapping[str, Any], result: Mapping[str, Any],
+                 *, config_version: str | None = None) -> None:
         with self.lock:
             key = self.key(binding, connection)
-            result = dict(result)
+            result = _stamp_config(result, config_version)
             previous = self.entries.get(key, {})
             if result.get("state") == "TRANSIENT":
                 if previous.get("state") == "AVAILABLE":
@@ -235,20 +277,39 @@ class AvailabilityCache:
                 elif previous.get("state") == "TRANSIENT":
                     result["verified_until"] = previous.get("verified_until", 0)
             self.entries[key] = result
-            if self.path:
-                from ..model_access.store import _write_atomic
-                _write_atomic(json.dumps(self.entries, allow_nan=False).encode('utf-8'), self.path)
+            self._persist_locked()
 
     def check(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
               probe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
               allow_probe: bool = False, now: float | None = None,
-              recent_success: float | None = None) -> dict[str, Any]:
+              recent_success: float | None = None,
+              recovered_at: float | None = None,
+              credit_recovered_at: float | None = None,
+              config_version: str | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
         with self.lock:
-            entry = self.entries.get(self.key(binding, connection), {})
+            cache_key = self.key(binding, connection)
+            entry = self.entries.get(cache_key, {})
+            invalidation_reason: str | None = None
+            if entry and entry.get('state') in {'UNAVAILABLE', 'TRANSIENT'}:
+                stored_cfg = entry.get('config_version')
+                reason = entry.get('reason')
+                observed = entry.get('observed_at', 0)
+                if config_version is not None and stored_cfg is not None and stored_cfg != config_version:
+                    invalidation_reason = 'config_changed'
+                elif (recovered_at is not None and recovered_at > observed
+                      and reason in QUOTA_WINDOW_RECOVERABLE_REASONS):
+                    invalidation_reason = 'quota_recovered'
+                elif (credit_recovered_at is not None and credit_recovered_at > observed
+                      and reason in CREDIT_RECOVERABLE_REASONS):
+                    invalidation_reason = 'quota_recovered'
+                if invalidation_reason is not None:
+                    self.entries.pop(cache_key, None)
+                    self._persist_locked()
+                    entry = {}
             # A more recent successful task supersedes an earlier rejection.
             if recent_success is not None and 0 <= now - recent_success < 86400 and recent_success > entry.get('observed_at', 0):
-                entry = observation(now=recent_success, success=True)
+                entry = _stamp_config(observation(now=recent_success, success=True), config_version)
                 self.remember(binding, connection, entry)
             if entry.get('observed_at', 0) > now:
                 return {'state': 'UNKNOWN', 'reason': 'clock_discontinuity'}
@@ -260,12 +321,19 @@ class AvailabilityCache:
                 return dict(entry)
             owner_account = native_owner_account(binding, connection)
             if not allow_probe or owner_account or probe is None or now < self.next_probe:
-                return {'state': 'UNKNOWN', 'reason': 'unverified'}
+                return {'state': 'UNKNOWN', 'reason': invalidation_reason or 'unverified'}
             self.next_probe = now + 60
             try:
                 value = probe(binding)
-                result = observation(now=now, success=value.get('ok') is True, error=str(value.get('error', '')))
+                if value.get('ok') is True:
+                    result = observation(now=now, success=True)
+                else:
+                    result = probe_failure_observation(
+                        now=now,
+                        status_code=value.get('status_code'),
+                        error=str(value.get('error', '')),
+                    )
             except Exception:
                 result = observation(now=now, error='transient')
-            self.remember(binding, connection, result)
-            return result
+            self.remember(binding, connection, result, config_version=config_version)
+            return _stamp_config(result, config_version)

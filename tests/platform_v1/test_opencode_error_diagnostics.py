@@ -892,3 +892,21 @@ def test_provider_quota_limit_reaches_real_durable_failure_detail(
 def test_provider_entitlement_rejections_classify_as_model_unavailable(message: str, expected: str) -> None:
     ev = {"type": "error", "error": {"name": "APIError", "data": {"message": message, "statusCode": 400}}}
     assert _executor()._classify_exit(1, [ev]) == expected
+
+
+@pytest.mark.parametrize("message", [
+    "商汤小浣熊: 您的模型请求频率超限，请稍后重试",
+    "商汤小浣熊: 您的模型请求频率超限，请稍后重试 (429: you can retry your request)",
+    "商汤: inference exceeds tpm/rpm limit",
+    "并发超限，请稍后再试",
+])
+def test_bilingual_rpm_tpm_replies_classify_as_api_error_429(message: str) -> None:
+    ev = {"type": "error", "error": {"name": "UnknownError", "data": {"message": message}}}
+    assert _executor()._classify_exit(1, [ev]) == "api_error_429"
+
+
+def test_bilingual_no_credits_message_stays_quota_exhausted() -> None:
+    ev = {"type": "error", "error": {"name": "UnknownError", "data": {
+        "message": "Credits exhausted: 请求频率超限"
+    }}}
+    assert _executor()._classify_exit(1, [ev]) == "quota_exhausted"
