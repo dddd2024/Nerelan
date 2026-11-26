@@ -122,13 +122,32 @@ def _runtime_alerts(runtime: Mapping[str, Any], config: MultiAccountConfig,
                         "自治窗口将在一小时内到期，且未配置续期")
 
 
+def _health_audit_alerts(health_audit: Optional[Mapping[str, Any]]) -> Iterable[Alert]:
+    if not isinstance(health_audit, Mapping):
+        return
+    for inv in health_audit.get("invariants") or ():
+        if not isinstance(inv, Mapping) or inv.get("status") != "ALERT":
+            continue
+        inv_id = str(inv.get("id") or "").strip()
+        if not inv_id:
+            continue
+        detail = str(inv.get("detail") or "").strip()
+        metric = inv.get("metric")
+        threshold = inv.get("threshold")
+        summary = f"{inv_id}: metric={metric} (threshold={threshold})"
+        yield Alert(f"health_audit_{inv_id}", WARNING, "platform",
+                    f"{summary} - {detail}"[:240] if detail else summary[:240])
+
+
 def evaluate_alerts(pool: Mapping[str, Any], runtime: Mapping[str, Any],
                     config: MultiAccountConfig, *, now: float,
-                    stalled_seconds: Optional[float] = None) -> list[Alert]:
+                    stalled_seconds: Optional[float] = None,
+                    health_audit: Optional[Mapping[str, Any]] = None) -> list[Alert]:
     """Pure rule evaluation: the same inputs always yield the same alerts."""
     alerts = list(_pool_alerts(pool, config))
     alerts.extend(_budget_alerts(runtime.get("budget") or {}, config))
     alerts.extend(_runtime_alerts(runtime, config, now, stalled_seconds))
+    alerts.extend(_health_audit_alerts(health_audit))
     unique = {alert.key: alert for alert in alerts}
     return sorted(unique.values(), key=lambda a: (_SEVERITY_ORDER[a.severity], a.code, a.subject))
 

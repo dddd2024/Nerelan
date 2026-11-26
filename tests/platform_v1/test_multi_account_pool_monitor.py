@@ -609,3 +609,71 @@ class TestHostLifecycle:
             task_store._conn.close()
         assert not thread.is_alive()
         assert host._pool_monitor is None
+
+
+class TestHealthAuditIntegration:
+    def test_auto_triggers_on_interval_and_raises_then_resolves_alerts(self):
+        calls = 0
+        alerts_on = True
+        clock_now = NOW
+
+        def provider():
+            nonlocal calls
+            calls += 1
+            return {
+                "schema_version": 1,
+                "generated_at": "2027-01-15T08:00:00Z",
+                "lookback_days": 7,
+                "overall_status": "ALERT" if alerts_on else "OK",
+                "invariants": [
+                    {
+                        "id": "failed_fresh_token_share",
+                        "status": "ALERT" if alerts_on else "OK",
+                        "metric": 0.68 if alerts_on else 0.12,
+                        "threshold": 0.30,
+                        "detail": "failed_input_units=680, total_terminal_input_units=1000",
+                    },
+                ],
+            }
+
+        m = monitor(
+            stored_statuses=lambda: [status("a"), status("b")],
+            health_audit_provider=provider,
+            health_audit_interval_seconds=3600.0,
+            clock=lambda: clock_now,
+        )
+        view1 = m.refresh()
+        assert calls == 1
+        assert view1["health_audit"]["overall_status"] == "ALERT"
+        assert any(a["code"] == "health_audit_failed_fresh_token_share" for a in view1["alerts"]["active"])
+
+        # Within cadence interval: cached report is reused without re-running audit.
+        clock_now += 600.0
+        view2 = m.refresh()
+        assert calls == 1
+        assert any(a["code"] == "health_audit_failed_fresh_token_share" for a in view2["alerts"]["active"])
+
+        # Past interval with OK report: alert resolves automatically.
+        alerts_on = False
+        clock_now += 3100.0
+        view3 = m.refresh()
+        assert calls == 2
+        assert view3["health_audit"]["overall_status"] == "OK"
+        assert not any(a["code"] == "health_audit_failed_fresh_token_share" for a in view3["alerts"]["active"])
+        assert any(
+            e["code"] == "health_audit_failed_fresh_token_share" and e["event"] == "resolved"
+            for e in view3["alerts"]["recent"]
+        )
+
+    def test_trusted_host_wires_health_audit_into_pool_monitor_without_writes(self, tmp_path, monkeypatch):
+        monkeypatch.delenv("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED", raising=False)
+        monkeypatch.delenv("REVERSE_AGENT_MAGPIE", raising=False)
+        host, task_store = TestHostLifecycle.host(tmp_path, monkeypatch)
+        try:
+            view = host._build_pool_monitor().refresh()
+            assert view["health_audit"] is not None
+            assert view["health_audit"]["schema_version"] == 1
+            assert len(view["health_audit"]["invariants"]) == 8
+            assert any(inv["id"] == "failed_fresh_token_share" for inv in view["health_audit"]["invariants"])
+        finally:
+            task_store._conn.close()

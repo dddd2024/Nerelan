@@ -112,11 +112,15 @@ class PoolMonitor:
                  weekly_pace: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
                  reset_signal: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
                  quota_resets: Callable[[], list[Mapping[str, Any]]] = lambda: [],
+                 health_audit_provider: Callable[[], Optional[Mapping[str, Any]]] = lambda: None,
+                 health_audit_interval_seconds: float = 3600.0,
                  clock: Callable[[], float] = time.time) -> None:
         self._config = config
         self._quota_resets = quota_resets
         self._reset_signal = reset_signal
         self._weekly_pace = weekly_pace
+        self._health_audit_provider = health_audit_provider
+        self._health_audit_interval_seconds = max(0.0, float(health_audit_interval_seconds))
         self._fetch_snapshot = fetch_snapshot
         self._stored_statuses = stored_statuses
         self._runtime_status = runtime_status
@@ -139,6 +143,8 @@ class PoolMonitor:
         self._last_cooldowns: dict[str, Any] = {}
         self._last_ledger: tuple[dict[str, Any], ...] = ({}, {}, {})
         self._last_runtime: dict[str, Any] = {}
+        self._last_health_audit: Optional[dict[str, Any]] = None
+        self._last_health_audit_at: Optional[float] = None
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
@@ -258,8 +264,10 @@ class PoolMonitor:
             runtime = {**self._last_runtime, "stale": True}
         with self._lock:
             stalled = self._stalled_seconds(runtime.get("coordinator") or {}, now)
+            health_audit = self._refresh_health_audit(now)
             self._ledger.observe(evaluate_alerts(pool, runtime, self._config, now=now,
-                                                 stalled_seconds=stalled), now=now)
+                                                 stalled_seconds=stalled,
+                                                 health_audit=health_audit), now=now)
             view = {
                 "observed_at": now,
                 "source": source,
@@ -270,11 +278,25 @@ class PoolMonitor:
                 "budget": runtime.get("budget") or None,
                 "codex_reset": codex_reset,
                 "quota_resets": resets,
+                "health_audit": health_audit,
                 "alerts": {"active": self._ledger.active(), "recent": self._ledger.recent()},
                 "monitoring": self._thread is not None,
             }
             self._view, self._view_at = view, now
         return view
+
+    def _refresh_health_audit(self, now: float) -> Optional[dict[str, Any]]:
+        if (self._last_health_audit_at is not None
+                and now - self._last_health_audit_at < self._health_audit_interval_seconds):
+            return self._last_health_audit
+        try:
+            report = self._health_audit_provider()
+        except Exception:  # noqa: BLE001 - a failing audit read must not blank the pool view
+            return self._last_health_audit
+        if isinstance(report, Mapping):
+            self._last_health_audit = dict(report)
+        self._last_health_audit_at = now
+        return self._last_health_audit
 
     def view(self) -> dict[str, Any]:
         """Cached view; refreshed here only when no monitor thread keeps it fresh."""
