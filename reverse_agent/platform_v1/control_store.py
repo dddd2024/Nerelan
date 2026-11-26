@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import time
@@ -21,7 +22,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .run_store import TERMINAL_STATUSES, TaskStore, TaskStoreError
 from .history_pagination import decode_cursor, encode_cursor, page_limit
 from .repository_workspace import normalize_github_origin, normalize_repository_identity
-from .usage_ledger import cost_equivalent_units
+from .usage_ledger import cost_equivalent_units, task_feedback_metrics
 
 
 GOAL_STATES = frozenset(
@@ -1379,13 +1380,75 @@ class PlatformControlStore:
             status = "BLOCKED"
         else:
             status = "RUNNING"
+        prior_goal = self.get_goal(goal_id)
         with self._lock:
             self._conn.execute(
                 "UPDATE platform_goals SET status = ?, updated_at = ? "
                 "WHERE id = ? AND status <> ? AND status <> 'SUPERSEDED'",
                 (status, _utc_now(), goal_id, status),
             )
+        if (
+            status in {"COMPLETED", "BLOCKED"}
+            and prior_goal.status not in {status, "SUPERSEDED"}
+            and os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1"
+        ):
+            self._record_terminal_goal_outcome(
+                prior_goal=prior_goal,
+                revision=revision,
+                status=status,
+                links=links,
+                escalations=escalations,
+            )
         return self.get_goal(goal_id)
+
+    def _record_terminal_goal_outcome(
+        self,
+        *,
+        prior_goal: GoalRecord,
+        revision: int,
+        status: str,
+        links: Sequence[Mapping[str, Any]],
+        escalations: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """Emit one best-effort goal outcome for break-even learning (#1267)."""
+        try:
+            from .multi_account.dispatch import record_goal_outcome
+            task_ids = [str(row["task_id"]) for row in links]
+            for row in escalations:
+                prior_id = row.get("from_task_id")
+                if prior_id and str(prior_id) not in task_ids:
+                    task_ids.append(str(prior_id))
+            total_cost: float | None = 0.0
+            total_wall: float | None = 0.0
+            seen_cost = False
+            seen_wall = False
+            for tid in task_ids:
+                metrics = task_feedback_metrics(self.task_store, tid)
+                cost = metrics.get("cost_units")
+                if total_cost is not None:
+                    if isinstance(cost, (int, float)) and not isinstance(cost, bool):
+                        total_cost += float(cost)
+                        seen_cost = True
+                    else:
+                        total_cost = None
+                wall = metrics.get("wall_seconds")
+                if total_wall is not None:
+                    if isinstance(wall, (int, float)) and not isinstance(wall, bool) and wall > 0:
+                        total_wall += float(wall)
+                        seen_wall = True
+                    else:
+                        total_wall = None
+            mode = "single" if prior_goal.orchestration_mode == "single" else "agent_team"
+            record_goal_outcome({
+                "outcome_id": f"goal:{prior_goal.id}:r{revision}:{status}",
+                "mode": mode,
+                "accepted": status == "COMPLETED",
+                "cost_units": round(total_cost, 6) if seen_cost and total_cost is not None else None,
+                "task_count": len(links),
+                "wall_seconds": round(total_wall, 3) if seen_wall and total_wall is not None else None,
+            })
+        except Exception:  # noqa: BLE001 - learning must never block goal status transitions
+            pass
 
     # Window rebind (#1277) -------------------------------------------
 

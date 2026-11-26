@@ -700,6 +700,10 @@ def _build_context_packet(
             sources.append(source)
         rows = _query(store, "SELECT id,type,timestamp,title,description,seq FROM task_events "
                       "WHERE task_id=? ORDER BY seq", (item.id,))
+        progress_indices = [idx for idx, row in enumerate(rows) if _text(row[1]) == "EXECUTOR_PROGRESS"]
+        if len(progress_indices) > 5:
+            drop_progress = set(progress_indices[:-5])
+            rows = [row for idx, row in enumerate(rows) if idx not in drop_progress]
         events = [dict(zip(("id", "type", "timestamp", "title", "description"),
                            (_text(value) for value in row[:5]))) for row in rows]
         event_sequences.update((str(row[0]), int(row[5])) for row in rows)
