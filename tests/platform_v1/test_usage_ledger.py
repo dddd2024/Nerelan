@@ -183,11 +183,14 @@ def test_ledger_reads_wait_for_the_store_lock():
 
 
 def test_partial_native_summary_rows_feed_token_records_and_feedback_without_double_reasoning():
+    from reverse_agent.model_access.pricing import equivalent_cost
     from reverse_agent.platform_v1.usage_ledger import task_feedback_metrics
     store = TaskStore(":memory:")
     t_codex = store.create_task(title="codex", executor_kind="codex", binding_ref="b-codex")
     t_claude = store.create_task(title="claude", executor_kind="claude_code", binding_ref="b-claude")
-    for tid in (t_codex.id, t_claude.id):
+    t_claude_missing_cw = store.create_task(title="claude-nocw", executor_kind="claude_code", binding_ref="b-claude-nocw")
+    t_opencode_partial = store.create_task(title="opencode-timeout", executor_kind="opencode", binding_ref="b-opencode-timeout")
+    for tid in (t_codex.id, t_claude.id, t_claude_missing_cw.id, t_opencode_partial.id):
         store._conn.execute("UPDATE tasks SET status = 'READY_FOR_REVIEW' WHERE id = ?", (tid,))
     store._conn.commit()
     # Codex native_summary: reasoning already folded into output_units, cache_write_units is None.
@@ -204,6 +207,22 @@ def test_partial_native_summary_rows_feed_token_records_and_feedback_without_dou
         status="PARTIAL", input_units=200, output_units=100, reasoning_units=None,
         cache_read_units=5000, cache_write_units=300, cost_micro_units=None,
     )
+    # Anthropic native_summary missing cache_write_units must stay UNKNOWN in feedback pricing.
+    store.append_usage_observation(
+        t_claude_missing_cw.id, observation_id="o-claude-nocw", execution_id=t_claude_missing_cw.execution_id,
+        role="executor", model_id="claude-sonnet-5-5", provider_id="claude-code",
+        source_kind="native_summary", source_id="s-claude-nocw", status="PARTIAL",
+        input_units=200, output_units=100, reasoning_units=None, cache_read_units=5000,
+        cache_write_units=None, cost_micro_units=None,
+    )
+    # OpenCode timeout-downgraded PARTIAL step_finish row stays excluded from task_token_records.
+    store.append_usage_observation(
+        t_opencode_partial.id, observation_id="o-oc-part", execution_id=t_opencode_partial.execution_id,
+        role="executor", model_id="gpt-5", provider_id="openai",
+        source_kind="step_finish", source_id="s-oc-part", status="PARTIAL",
+        input_units=999, output_units=111, reasoning_units=0, cache_read_units=0,
+        cache_write_units=0, cost_micro_units=0,
+    )
     by_binding = {r["binding_ref"]: r for r in task_token_records(store)}
     assert by_binding["b-codex"]["source"] == "usage_observation"
     assert by_binding["b-codex"]["tokens"] == {
@@ -213,8 +232,12 @@ def test_partial_native_summary_rows_feed_token_records_and_feedback_without_dou
     assert by_binding["b-claude"]["tokens"] == {
         "input": 200, "cache_read": 5000, "cache_write": 300, "output": 100, "reasoning": None,
     }
+    assert by_binding["b-opencode-timeout"]["tokens"] is None
     codex_metrics = task_feedback_metrics(store, t_codex.id)
     claude_metrics = task_feedback_metrics(store, t_claude.id)
-    assert codex_metrics["cost_state"] == "ESTIMATED_LIST_PRICE" and codex_metrics["cost_units"] > 0
+    nocw_metrics = task_feedback_metrics(store, t_claude_missing_cw.id)
+    expected_codex_usd = equivalent_cost("gpt-5", {"input": 1000, "cache_read": 400, "cache_write": 0, "output": 250})["usd"]
+    assert codex_metrics["cost_state"] == "ESTIMATED_LIST_PRICE" and codex_metrics["cost_units"] == round(expected_codex_usd, 6)
     assert claude_metrics["cost_state"] == "ESTIMATED_LIST_PRICE" and claude_metrics["cost_units"] > 0
+    assert nocw_metrics["cost_state"] == "UNKNOWN" and nocw_metrics["cost_units"] is None
     store._conn.close()

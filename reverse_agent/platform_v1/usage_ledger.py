@@ -130,13 +130,13 @@ def task_token_records(store: Any, *, limit: int = 500) -> list[dict[str, Any]]:
         (*sorted(OK_STATUSES), "FAILED", limit)).fetchall()
     ids = [row["id"] for row in tasks]
     marks = ",".join("?" * len(ids))
-    observed: dict[str, dict[str, int | None]] = {}
-    per_task: dict[str, dict[str, Any]] = {}
+    per_task: dict[str, dict[str, int | None]] = {}
     for row in conn.execute(
             "SELECT task_id, source_kind, input_units, cache_read_units, cache_write_units, "
             "output_units, reasoning_units FROM task_usage_observations "
-            f"WHERE status IN ('OBSERVED', 'PARTIAL') AND input_units IS NOT NULL "
-            f"AND output_units IS NOT NULL AND task_id IN ({marks})", ids):
+            "WHERE (status = 'OBSERVED' OR (status = 'PARTIAL' AND source_kind = 'native_summary')) "
+            "AND input_units IS NOT NULL AND output_units IS NOT NULL "
+            f"AND task_id IN ({marks})", ids):
         acc = per_task.setdefault(row["task_id"], {
             "input": 0, "cache_read": 0, "cache_write": None,
             "output": 0, "reasoning": None,
