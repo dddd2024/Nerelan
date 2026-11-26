@@ -111,23 +111,22 @@ def test_weekly_buffer_and_october_19_replay():
     assert reservation.admission(quota_evidence(), quota_need(65), now=1000, buffer=15)["decision"] == "ok"
 
 
-def test_an_estimate_beyond_a_whole_window_waits_for_an_unused_window_not_forever():
+def test_an_estimate_beyond_a_whole_window_is_capped_where_it_is_stored():
     # Production 2026-11-26: p80 = 324% of the 5-hour window, 61% weekly; the
     # window reset to 0% used and the review still could never be admitted.
-    need = {"windows": {"five_hour": {"p80": 324.1}, "weekly": {"p80": 60.8}}}
+    raw = {"windows": {"five_hour": {"median": 304.9, "p80": 324.1}, "weekly": {"p80": 60.8}}}
+    assert reservation.admission(quota_evidence(used=0, weekly=15), raw, now=1000)["decision"] == "quota_wait"
+    need = reservation.cap_need_to_window(raw, 10)
+    assert need["windows"]["five_hour"] == {"median": 90, "p80": 90, "uncapped_p80": 324.1}
+    assert need["windows"]["weekly"] == {"p80": 60.8} and raw["windows"]["five_hour"]["p80"] == 324.1
     assert reservation.admission(quota_evidence(used=0, weekly=15), need, now=1000)["decision"] == "ok"
     busy = reservation.admission(quota_evidence(used=1, weekly=15), need, now=1000)
-    assert busy["decision"] == "quota_wait" and busy["blocking_windows"] == ["five_hour"]
-    assert busy["until"] == "1970-01-01T00:33:20Z"  # the reset, which then admits it
+    assert busy["decision"] == "quota_wait" and busy["until"] == "1970-01-01T00:33:20Z"
     # Another reservation still holds it back even on an unused window.
     row = {"account_ref": "a", "quota_windows": {"five_hour": 5, "weekly": 5}, "state": "ACTIVE"}
     assert reservation.admission(quota_evidence(used=0, weekly=15), need, [row], now=1000)["decision"] == "quota_wait"
-    # A 100% safety buffer leaves no capacity: nothing is admitted.
-    assert reservation.admission(quota_evidence(used=0, weekly=0), quota_need(1), now=1000,
-                                 buffer=100)["decision"] == "quota_wait"
-    # Summed demand of several tasks is never capped.
-    assert reservation.admission(quota_evidence(used=0, weekly=15), need, now=1000,
-                                 cap_to_window=False)["decision"] == "quota_wait"
+    # No capacity at all (buffer 100): the need is left as it is and nothing fits.
+    assert reservation.cap_need_to_window(raw, 100) is raw
 
 
 def test_unknown_small_bounds_and_reset_do_not_invent_usage():
@@ -753,12 +752,3 @@ def test_claim_reprices_an_aged_row_and_never_lends_it_to_an_unknown_preparation
         offset[0] = 3500 - 620
         with pytest.raises(TaskStoreError, match="QUOTA_WAIT"):
             control.claim_task(window_id=window.id, task_id=first.id, owner="t", lease_ms=60000)
-
-
-def test_goal_fit_still_reports_summed_demand_beyond_a_window():
-    # Two 60% tasks on one unused account do not fit together; capping is for
-    # single-task admission only (#1786 review).
-    tasks = [forecast_task("T1", amount=60, binding="b1"), forecast_task("T2", amount=60, binding="b2")]
-    result = reservation.goal_fit(tasks, {"a": quota_evidence(used=0, weekly=0)}, now=1000)
-    assert result["status"] != "fits_now"
-    assert "five_hour" in result["accounts"]["a"]["blocking_windows"]

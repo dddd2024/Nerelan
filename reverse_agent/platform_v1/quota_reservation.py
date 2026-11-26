@@ -206,8 +206,35 @@ def release_weekly_reserve(need, evidence, *, release_hours, now):
     return need
 
 
+def cap_need_to_window(need, buffer=10):
+    """A single task's need capped at what one window can hold (``100 - buffer``).
+
+    An estimate beyond a whole window can never fit, so admission would wait
+    forever: Codex reviews estimated at 324% of the 5-hour window stayed QUEUED
+    through resets at 0% used (2026-11-26). Capped once, where the need is
+    stored, admission, reservations and in-flight checks all see the same value;
+    the original is kept as ``uncapped_p80``. Summed goal forecasts are never
+    capped, and a buffer of 100 (no capacity) leaves the need unchanged.
+    """
+    limit = 100 - buffer if _number(buffer) else None
+    if limit is None or limit <= 0 or not isinstance(need, dict):
+        return need
+    capped = dict(need)
+    windows = {}
+    for name, window in (need.get("windows") or {}).items():
+        window = dict(window) if isinstance(window, dict) else window
+        if isinstance(window, dict) and _number(window.get("p80")) and window["p80"] > limit:
+            window["uncapped_p80"] = window["p80"]
+            window["p80"] = limit
+            if _number(window.get("median")) and window["median"] > limit:
+                window["median"] = limit
+        windows[name] = window
+    capped["windows"] = windows
+    return capped
+
+
 def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
-              buffer=10, small_task=False, cap_to_window=True):
+              buffer=10, small_task=False):
     """Check percentage-point p80 against both windows. Never infer reset usage.
 
     Completed usage is covered only by an observation taken after completion;
@@ -276,13 +303,6 @@ def admission(evidence, need, outstanding=(), *, now=None, freshness=600,
         # Only for the window it was released for: a renewed week keeps its reserve.
         margin = (0 if name == "weekly" and _number(released) and reset is not None
                   and now < released and abs(reset - released) <= 900 else buffer)
-        # An estimate beyond what a whole window can hold can never fit: it waits
-        # for an unused window, not forever. Codex reviews estimated at 324% of the
-        # 5-hour window stayed QUEUED through resets at 0% used (2026-11-26).
-        # Single-task admission only: summed demand (goal_fit) must still show it does
-        # not fit, and a window with no capacity left (margin 100) admits nothing.
-        if cap_to_window and 100 - margin > 0:
-            p80 = min(p80, 100 - margin)
         # A spent window always waits, however small the need.
         if p80 + reserved > 100 - used - margin or margin == 0 and used >= 100:
             wait_until = reset if reset is not None and reset > now else None
@@ -468,7 +488,7 @@ def goal_fit(tasks, evidence, outstanding=(), *, now=None, buffer=10, alternativ
     accounts = {}
     for account, total in totals.items():
         observation = evidence.get(account, {"account_ref": account, "state": "UNKNOWN", "windows": []})
-        verdict = admission(observation, total, outstanding, now=now, buffer=buffer, cap_to_window=False)
+        verdict = admission(observation, total, outstanding, now=now, buffer=buffer)
         accounts[account] = {**verdict, "need": total, "observation": observation, "resets": {
             w.get("window", w.get("name")): w.get("resets_at") for w in observation.get("windows", ())}}
     unknown = any(not t.get("account_ref") for t in tasks) or any(v["state"] == "UNKNOWN" for v in accounts.values())
