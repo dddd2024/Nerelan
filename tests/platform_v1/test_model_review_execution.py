@@ -218,6 +218,58 @@ def test_task_service_routes_review_through_durable_entry(review_setup):
     assert created[0].calls == ["reviewer"]
 
 
+def test_accept_allows_non_blocking_low_and_medium_findings(review_setup):
+    store, _, _, consumer, _, selected, _ = review_setup
+    selected["response"] = json.dumps({
+        "verdict": "ACCEPT",
+        "findings": [
+            {"path": "app.py", "line": 1, "severity": "low", "message": "Optional naming polish"},
+            {"path": "app.py", "line": 2, "severity": "medium", "message": "Could extract helper"},
+        ],
+    })
+    result = run_review(review_setup)
+    assert result.success, result
+    rec = json.loads(evidence(store, consumer)[0]["detail"])["result"]
+    assert rec["verdict"] == "ACCEPT" and len(rec["findings"]) == 2
+
+
+def test_reject_with_only_low_medium_findings_normalizes_to_accept(review_setup):
+    store, _, _, consumer, _, selected, _ = review_setup
+    selected["response"] = json.dumps({
+        "verdict": "REJECT",
+        "findings": [{"path": "app.py", "line": 4, "severity": "medium", "message": "Minor docstring typo"}],
+    })
+    result = run_review(review_setup)
+    assert result.success, result
+    rec = json.loads(evidence(store, consumer)[0]["detail"])["result"]
+    assert rec["verdict"] == "ACCEPT" and rec["findings"][0]["severity"] == "medium"
+
+
+def test_reject_with_mixed_high_and_low_findings_remains_rejected(review_setup):
+    store, _, _, consumer, _, selected, _ = review_setup
+    selected["response"] = json.dumps({
+        "verdict": "REJECT",
+        "findings": [
+            {"path": "app.py", "line": 1, "severity": "low", "message": "Optional naming polish"},
+            {"path": "app.py", "line": 2, "severity": "high", "message": "Null dereference on empty input"},
+        ],
+    })
+    result = run_review(review_setup)
+    assert not result.success and result.failure_classification == "model_review_rejected", result
+    rec = json.loads(evidence(store, consumer)[0]["detail"])["result"]
+    assert rec["verdict"] == "REJECT" and len(rec["findings"]) == 2
+
+
+@pytest.mark.parametrize("severity", ["high", "critical"])
+def test_accept_with_blocking_finding_is_rejected_as_invalid_output(severity):
+    raw = json.dumps({
+        "verdict": "ACCEPT",
+        "findings": [{"path": "app.py", "line": 1, "severity": severity, "message": "Broken invariant"}],
+    })
+    with pytest.raises(TaskStoreError, match="model_review_invalid_output"):
+        model_review.parse_response(raw)
+
+
 def test_terminal_replay_rejects_changed_input_and_missing_review(review_setup):
     store, router, _, consumer, created, _, _ = review_setup
     assert run_review(review_setup).success
