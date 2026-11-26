@@ -583,6 +583,20 @@ class ResearchLoopTests(unittest.TestCase):
         self.assertIn("campaign-r1-job", objective)
         self.assertIn("new job ids", objective)
 
+    def test_failed_attempts_do_not_count_as_research_rounds(self):
+        # jev-agent-security-002: six failed attempts, then "Research round 7" made a
+        # 3-round objective look exhausted and the agent closed it with nothing run.
+        loop = self.loop()
+        rounds = loop.root / "rounds"
+        rounds.mkdir(parents=True, exist_ok=True)
+        write_json(rounds / "1.json", {"state": "DONE", "goal_failed": True, "integrations": {}})
+        write_json(rounds / "2.json", {"state": "DONE", "integrations": {"t": {"integrated": True}}})
+        write_json(rounds / "3.json", {"state": "FAILED", "integrations": {"t": {"integrated": False}}})
+        objective = loop._objective(4, False)
+        self.assertIn("Research round 2 (attempt 4; 1 earlier round(s) integrated work, "
+                      "2 earlier attempt(s) produced nothing", objective)
+        self.assertNotIn("Research round 4", objective)
+
     def test_objective_states_a_request_the_broker_accepts(self):
         # Short test 2026-10-21: without the schema, agents refused to invent one and requested nothing.
         from reverse_agent.platform_v1.remote_jobs import RemoteJobBroker, REQUEST_FIELDS
