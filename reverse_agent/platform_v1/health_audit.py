@@ -351,7 +351,41 @@ def _load_magpie_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(fh))
 
 
-def _check_magpie_csv_invariants(magpie_rows: list[dict[str, str]] | None) -> tuple[dict[str, Any], dict[str, Any]]:
+def _parse_magpie_cost(raw: Any) -> float | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    if value < 0 or value != value:  # reject negative or NaN
+        return None
+    return value
+
+
+def _row_in_window(row: Mapping[str, str], cutoff_dt: datetime | None) -> bool:
+    if cutoff_dt is None:
+        return True
+    raw_time = (row.get("time") or "").strip()
+    if not raw_time:
+        return True
+    try:
+        parsed = datetime.fromisoformat(raw_time.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return parsed >= cutoff_dt
+
+
+def _check_magpie_csv_invariants(
+    magpie_rows: list[dict[str, str]] | None,
+    *,
+    cutoff_dt: datetime | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     if magpie_rows is None:
         return (
             _invariant("probe_error_rate", "UNKNOWN", None, PROBE_ERROR_RATE_THRESHOLD, "no Magpie usage CSV provided"),
@@ -361,19 +395,31 @@ def _check_magpie_csv_invariants(magpie_rows: list[dict[str, str]] | None) -> tu
     probe_err = 0
     sup_cost = 0.0
     worker_cost = 0.0
+    sup_unpriced = 0
+    worker_unpriced = 0
     for row in magpie_rows:
+        if not _row_in_window(row, cutoff_dt):
+            continue
         agent = (row.get("agent") or "").strip()
         status = (row.get("status") or "0").strip()
-        is_err = (status not in ("0", "200", "")) or bool(row.get("error_type")) or (row.get("rejected") == "1")
-        cost = float(row.get("cost_usd") or 0.0)
+        err_text = (row.get("error") or row.get("error_type") or "").strip()
+        rejected = (row.get("rejected") or "").strip().lower() in ("1", "true", "yes")
+        is_err = (status not in ("0", "200", "")) or bool(err_text) or rejected
+        cost = _parse_magpie_cost(row.get("cost_usd"))
         if agent == "Python-urllib":
             probe_total += 1
             if is_err:
                 probe_err += 1
         if agent in SUPERVISION_AGENTS:
-            sup_cost += cost
+            if cost is None:
+                sup_unpriced += 1
+            else:
+                sup_cost += cost
         elif agent in WORKER_AGENTS:
-            worker_cost += cost
+            if cost is None:
+                worker_unpriced += 1
+            else:
+                worker_cost += cost
 
     if probe_total == 0:
         probe_inv = _invariant("probe_error_rate", "OK", 0.0, PROBE_ERROR_RATE_THRESHOLD, "0 Python-urllib probe rows")
@@ -387,7 +433,19 @@ def _check_magpie_csv_invariants(magpie_rows: list[dict[str, str]] | None) -> tu
             f"probe_errors={probe_err}/{probe_total}",
         )
 
-    if worker_cost <= 0.0:
+    if sup_unpriced > 0 or worker_unpriced > 0:
+        sup_inv = _invariant(
+            "supervision_to_worker_cost_ratio",
+            "UNKNOWN",
+            None,
+            SUPERVISION_TO_WORKER_THRESHOLD,
+            (
+                f"unpriced_sup_rows={sup_unpriced}, unpriced_worker_rows={worker_unpriced}, "
+                f"supervision_list_usd={sup_cost:.4f}, worker_list_usd={worker_cost:.4f} "
+                "(missing prices stay UNKNOWN)"
+            ),
+        )
+    elif worker_cost <= 0.0:
         sup_inv = _invariant(
             "supervision_to_worker_cost_ratio",
             "UNKNOWN",
@@ -419,17 +477,18 @@ def run_health_audit(
     if lookback_days <= 0:
         raise ValueError("lookback_days must be positive")
     ref_now = _utc_now(now)
+    cutoff_dt = ref_now - timedelta(days=lookback_days)
     cutoff_iso = _iso_cutoff(ref_now, days=lookback_days)
     cutoff_24h = _iso_cutoff(ref_now, hours=24)
     closed_set = set(int(n) for n in closed_issue_numbers) if closed_issue_numbers is not None else None
     magpie_rows = _load_magpie_csv(Path(magpie_csv_path)) if magpie_csv_path is not None else None
 
     db = Path(db_path)
-    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    conn = sqlite3.connect(f"{db.resolve().as_uri()}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     try:
         tables = _table_names(conn)
-        probe_inv, sup_inv = _check_magpie_csv_invariants(magpie_rows)
+        probe_inv, sup_inv = _check_magpie_csv_invariants(magpie_rows, cutoff_dt=cutoff_dt)
         invariants = [
             _check_failed_fresh_token_share(conn, tables, cutoff_iso),
             _check_unpriced_usage_obs_ratio(conn, tables, cutoff_iso),

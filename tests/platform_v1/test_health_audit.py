@@ -215,6 +215,37 @@ def test_cross_module_usage_status_null_vs_zero_and_active_only_duplicates(tmp_p
     assert inv["goal_hygiene"]["metric"]["blocked_duplicate_issue_groups"] == 1
 
 
+def test_magpie_csv_handles_unpriced_boolean_rejected_and_lookback_window(tmp_path: Path) -> None:
+    db = tmp_path / "tasks.sqlite3"
+    conn = _init_db(db)
+    conn.close()
+
+    csv_path = tmp_path / "magpie.csv"
+    csv_path.write_text(
+        "\n".join([
+            "time,agent,status,error,rejected,cost_usd",
+            # Out of 7-day window -> must be excluded from both invariants
+            "2026-11-01T10:00:00Z,Python-urllib,500,old_outage,true,0.0",
+            "2026-11-01T10:00:00Z,antigravity,200,,false,99.0",
+            # In window: probe failed with status=0 + error + rejected="true"
+            "2026-11-25T10:00:00-04:00,Python-urllib,0,connection_reset,true,0.0",
+            "2026-11-25T10:01:00-04:00,Python-urllib,200,,false,0.0",
+            # In window: missing supervision cost_usd must leave ratio UNKNOWN (not $0.0)
+            "2026-11-25T10:02:00-04:00,codex,200,,false,",
+            "2026-11-25T10:03:00-04:00,opencode,200,,false,5.0",
+        ]),
+        encoding="utf-8",
+    )
+
+    report = run_health_audit(db, now=NOW, lookback_days=7, magpie_csv_path=csv_path)
+    inv = _by_id(report)
+    assert inv["probe_error_rate"]["status"] == "ALERT"
+    assert inv["probe_error_rate"]["metric"] == 0.5
+    assert inv["supervision_to_worker_cost_ratio"]["status"] == "UNKNOWN"
+    assert inv["supervision_to_worker_cost_ratio"]["metric"] is None
+    assert "unpriced_sup_rows=1" in inv["supervision_to_worker_cost_ratio"]["detail"]
+
+
 def test_cli_json_smoke(tmp_path: Path, capsys) -> None:
     db = tmp_path / "tasks.sqlite3"
     conn = _init_db(db)
