@@ -2266,8 +2266,13 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
     class Goals:
         batch = [1]
 
-        def retry_after_upgrade(self, window_id, *, host_version, authorize, limit, current_versions):
+        fail = [False]
+
+        def retry_after_upgrade(self, window_id, *, host_version, authorize, limit):
             calls.append(host_version)
+            if self.fail[0]:
+                self.fail[0] = False
+                raise RuntimeError("event write failed")
             return [{"from_task_id": f"task-old-{i}"} for i in range(self.batch[0])]
 
         def stop_if_source_closed(self, goal_id):
@@ -2310,6 +2315,13 @@ def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> 
         busy._upgrade_retry_sweep(window)
         busy._upgrade_retry_sweep(window)
         assert calls[-3:] == ["sha-third"] * 3
+        # A sweep that fails midway is retried on the next tick, not dropped.
+        goals.fail[0] = True
+        failing = coordinator("sha-fourth")
+        failing._upgrade_retry_sweep(window)
+        assert failing.status()["last_error"].startswith("upgrade_retry_sweep_failed")
+        failing._upgrade_retry_sweep(window)
+        assert calls[-2:] == ["sha-fourth", "sha-fourth"]
         assert store._conn.execute("SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id = ?",
                                    ("upgrade_retry_sweep:sha-third",)).fetchone()[0] == 1
     finally:

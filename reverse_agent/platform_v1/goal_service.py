@@ -2121,7 +2121,6 @@ class GoalService:
 
     def retry_after_upgrade(self, window_id: str, *, host_version: str,
                             authorize: Callable[[Any, Any], bool],
-                            current_versions: frozenset[str] = frozenset(),
                             limit: int = UPGRADE_RETRY_LIMIT) -> list[dict[str, Any]]:
         """Once per host version, retry steps a host fault or host gate stopped.
 
@@ -2151,7 +2150,7 @@ class GoalService:
                     ran_on = self.store._conn.execute(
                         "SELECT execution_authority_sha FROM durable_runs WHERE task_id = ? "
                         "ORDER BY created_at DESC LIMIT 1", (failed.id,)).fetchone()
-                if ran_on is not None and ran_on[0] in (current_versions | {host_version}):
+                if ran_on is not None and ran_on[0] == host_version:
                     continue
                 if not authorize(goal, failed):
                     continue

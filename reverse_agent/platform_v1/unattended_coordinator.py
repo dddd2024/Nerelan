@@ -1230,8 +1230,7 @@ class UnattendedCoordinator:
                     input_payload={"origin": "host_upgrade_sweep", "host_version": version, "task_id": failed.id})
 
             retried = self.goals.retry_after_upgrade(
-                window.id, host_version=version, authorize=authorize, limit=UPGRADE_SWEEP_BATCH,
-                current_versions=frozenset(filter(None, (version, self.execution_authority_sha.strip()))))
+                window.id, host_version=version, authorize=authorize, limit=UPGRADE_SWEEP_BATCH)
             if len(retried) >= UPGRADE_SWEEP_BATCH:
                 swept.discard(window.id)  # a full batch: continue on the next tick, not done yet
                 return
@@ -1241,6 +1240,8 @@ class UnattendedCoordinator:
                 reason=f"retried={len(retried)}",
                 input_payload={"host_version": version, "retried": [row["from_task_id"] for row in retried]})
         except Exception as exc:  # noqa: BLE001 - a recovery sweep never stops the tick
+            # Try again next tick; a committed retry is not repeated (expected source attempt).
+            swept.discard(window.id)
             self._last_error = f"upgrade_retry_sweep_failed:{type(exc).__name__}"
 
     def request_reevaluation(self) -> None:
