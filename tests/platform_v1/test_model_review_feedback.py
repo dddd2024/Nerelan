@@ -363,3 +363,31 @@ def test_review_loop_rows_spend_retries_only_outside_a_continuous_run():
                {"plan_task_id": "T1", "reason": "failed:deterministic_validation_failure", "cause": ""}]
     assert goal_service._routing_retries_spent(history) == 3
     assert goal_service._routing_retries_spent(history, patient=True) == 1
+
+
+def test_review_authors_allows_truncated_failed_claude_attempt_with_usage_observation(review_setup):
+    from reverse_agent.platform_v1 import model_review
+    store, control, service, goal_id = rejected(review_setup)
+    _, _, producer, review, *_ = review_setup
+    goal = control.get_goal(goal_id)
+    prior = store.create_task(title="truncated", repository=goal.repository,
+                              executor_kind="claude_code", binding_ref="claude-opus")
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='claude_code_stream_limit_exceeded' WHERE id=?",
+                        (prior.id,))
+    store._conn.execute(
+        "INSERT INTO platform_task_escalations (goal_id, goal_revision, plan_task_id, step, from_task_id, to_task_id, "
+        "from_role, to_role, reason, created_at) VALUES (?, ?, 'A', 1, ?, ?, 'coder', 'coder', "
+        "'failed:claude_code_stream_limit_exceeded', '2026-01-01T00:00:00Z')",
+        (goal_id, goal.revision, prior.id, producer))
+    store.append_usage_observation(prior.id, observation_id="obs-trunc-1", execution_id=prior.execution_id,
+                                   role="executor", model_id="opus", provider_id="claude",
+                                   source_kind="executor", source_id="turn-1", status="UNKNOWN")
+    store._conn.commit()
+    binding = artifact_handoff.bind_consumer_input(store, review, allow_create=False)
+    _, _, actual = model_review.review_authors(store, store.get_task(review), binding)
+    assert "claude-opus-5-5" in actual or "opus" in actual
+    # Ensure a READY_FOR_REVIEW claude_code attempt still enforces EXECUTOR_COMPLETED models match.
+    store._conn.execute("UPDATE tasks SET status='READY_FOR_REVIEW' WHERE id=?", (prior.id,))
+    store._conn.commit()
+    with pytest.raises(TaskStoreError, match="review_not_independent"):
+        model_review.review_authors(store, store.get_task(review), binding)

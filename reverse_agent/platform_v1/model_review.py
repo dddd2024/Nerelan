@@ -281,11 +281,14 @@ def review_authors(store, task, binding):
             if not observed or "" in observed:
                 raise TaskStoreError("review_not_independent")
             if author_task.executor_kind in {"codex", "claude_code"}:
+                events = store.get_events(author_id)
+                has_completed_event = any(event.type == "EXECUTOR_COMPLETED" for event in events)
                 reported = {model_router.model_identity(model, groups)
-                    for event in store.get_events(author_id) if event.type == "EXECUTOR_COMPLETED"
+                    for event in events if event.type == "EXECUTOR_COMPLETED"
                     for model in event.metadata.get("models", ()) if isinstance(model, str) and model.strip()}
-                if not reported or reported != observed:
-                    raise TaskStoreError("review_not_independent")
+                if has_completed_event or author_task.status == "READY_FOR_REVIEW":
+                    if not reported or reported != observed:
+                        raise TaskStoreError("review_not_independent")
             actual.update(observed)
     if actual != {model_router.model_identity(model, groups) for model in authors["author_models"]}:
         raise TaskStoreError("review_not_independent")

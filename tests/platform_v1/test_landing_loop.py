@@ -1253,3 +1253,52 @@ def test_live_adapter_confirms_a_merge_by_ancestry(tmp_path, monkeypatch, status
     assert adapter.observe_pr(state)["merge_on_main"] is on_main
     outcome = adapter.reconcile_operation(state, "merge", "claim")["outcome"]
     assert outcome == ("SUCCEEDED" if on_main else "UNKNOWN")
+
+
+def test_republishes_uncommented_blocked_head_and_routed_adapter_fallback(tmp_path, monkeypatch):
+    from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
+    from reverse_agent.platform_v1.live_landing import RoutedLandingGitHubAdapter, LiveLandingGitHubAdapter
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+
+    coordinator = UnattendedCoordinator.__new__(UnattendedCoordinator)
+    coordinator.control_store = SimpleNamespace(
+        landing_operation=lambda identity, op: None,
+        list_goal_tasks=lambda goal_id: [{"plan_task_id": "implement", "task_id": "new", "goal_revision": 1}],
+        list_task_escalations=lambda goal_id: [{"plan_task_id": "implement", "from_task_id": "old", "goal_revision": 1}],
+    )
+    coordinator.store = SimpleNamespace(
+        get_task=lambda task_id: SimpleNamespace(
+            id=task_id, execution_id="exec-" + task_id,
+            evidence_refs=[{"category": "AcceptedArtifact", "label": "exec-" + task_id,
+                            "status": "BOUND", "detail": '{"commit":"' + ("a" * 40) + '"}'}] if task_id == "old" else [],
+        )
+    )
+    coordinator.landing_loop = SimpleNamespace(github=SimpleNamespace(observe_pr=lambda state: {
+        "state": "OPEN", "draft": True, "head_sha": "a" * 40}))
+    monkeypatch.setattr(coordinator, "_planned_review", lambda goal, task: SimpleNamespace(status="READY_FOR_REVIEW"))
+    monkeypatch.setattr(coordinator, "_has_retained_review", lambda review: True)
+    monkeypatch.setattr(artifact_handoff, "_load_evidence",
+                        lambda task, category, label: ({"commit": "a" * 40}
+                                                       if category == artifact_handoff.ACCEPTED_CATEGORY and task.id == "old"
+                                                       else None))
+    goal = SimpleNamespace(id="g1", revision=1)
+    landing = {"identity": "i", "phase": "BLOCKED", "parking_reason": "", "head_sha": "a" * 40}
+    assert coordinator._republishes_uncommented_blocked_head(
+        goal, SimpleNamespace(id="new", execution_id="exec-new"), {"commit": "b" * 40}, landing) is True
+
+    # RoutedLandingGitHubAdapter resolves via escalation/repo fallback when old published worktree is gone.
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    control = PlatformControlStore(store)
+    repo_dir = tmp_path / "repo"
+    repo_dir.mkdir()
+    monkeypatch.setattr(
+        "reverse_agent.platform_v1.repository_workspace.resolve_repository_workspace",
+        lambda repo: SimpleNamespace(repo_dir=repo_dir),
+    )
+    called = []
+    monkeypatch.setattr(LiveLandingGitHubAdapter, "observe_pr", lambda self, st: called.append(self.workspace) or {"ok": True})
+    adapter = RoutedLandingGitHubAdapter(control)
+    res = adapter.observe_pr({"goal_id": "missing-goal", "pr_number": 1, "repository": "dddd2024/Nerelan"})
+    assert res == {"ok": True} and len(called) == 1
+    store._conn.close()

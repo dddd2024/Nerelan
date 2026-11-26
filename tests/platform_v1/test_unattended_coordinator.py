@@ -2026,3 +2026,100 @@ def test_live_coordinator_runs_due_backoff_sweep_before_reconcile_interval(tmp_p
     finally:
         coordinator.stop(timeout=5.0)
         store._conn.close()
+
+
+def test_quota_wait_skips_duplicate_policy_receipts_and_last_error(tmp_path) -> None:
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate(
+        {
+            "policy_id": "quota-wait-receipt-test",
+            "policy_revision": 1,
+            "owner_identity": "owner@example",
+            "starts_at": (now - timedelta(seconds=5)).isoformat(),
+            "expires_at": (now + timedelta(hours=1)).isoformat(),
+            "repositories": ["dddd2024/Nerelan"],
+            "max_tasks": 4,
+            "max_concurrent_tasks": 1,
+            "max_retries": 1,
+            "capabilities": ["execute_task"],
+            "confirmation": "ACTIVATE",
+        }
+    )
+    goal = control.create_goal(
+        title="Held goal",
+        objective="Held goal",
+        repository="dddd2024/Nerelan",
+        idempotency_key="quota-wait-receipt-goal",
+        executor_kind="opencode",
+        orchestration_mode="single",
+        binding_ref="coding-free",
+    )
+    control.save_goal_plan(
+        goal.id,
+        expected_revision=1,
+        spec_markdown="spec",
+        plan_markdown="plan",
+        tasks=({"id": "T001", "title": "Held task", "instruction": "Held task"},),
+        acceptance_criteria=("ok",),
+    )
+    control.approve_goal(goal.id, expected_revision=1)
+    task = store.create_task(
+        title="Held task",
+        repository="dddd2024/Nerelan",
+        executor_kind="opencode",
+        binding_ref="coding-free",
+        permission_profile="AUTONOMOUS_WINDOW",
+        policy_ref=window.policy_id,
+    )
+    control.link_goal_task(goal.id, goal_revision=1, plan_task_id="T001", task_id=task.id, dependencies=(), seq=0)
+    control.mark_goal_running(goal.id, revision=1, window_id=window.id)
+    allow_quota = [False]
+    executed: list[str] = []
+
+    def prepare(item):
+        if not allow_quota[0]:
+            raise TaskStoreError("QUOTA_WAIT:quota_capacity")
+        return None
+
+    coordinator = UnattendedCoordinator(
+        store=store,
+        control_store=control,
+        autonomy=autonomy,
+        router=ExecutorRouter(),
+        workspace_root=tmp_path / "workspaces",
+        quota_preparer=prepare,
+        task_executor=lambda tid: executed.append(tid) or _ready_fixture(store, tid),
+    )
+    try:
+        assert coordinator.tick() == 0
+        assert coordinator.status()["last_error"] == ""
+        count_after_first = store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=? AND operation_type='policy_evaluation'",
+            (task.id,),
+        ).fetchone()[0]
+        assert count_after_first == 1
+
+        # Repeated QUOTA_WAIT ticks write zero duplicate policy_evaluation receipts.
+        assert coordinator.tick() == 0
+        assert coordinator.tick() == 0
+        assert coordinator.status()["last_error"] == ""
+        count_while_held = store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=? AND operation_type='policy_evaluation'",
+            (task.id,),
+        ).fetchone()[0]
+        assert count_while_held == 1
+
+        # Once quota clears, authorize runs right before claim_task and dispatches.
+        allow_quota[0] = True
+        assert coordinator.tick() == 1
+        assert executed == [task.id]
+        count_after_clear = store._conn.execute(
+            "SELECT COUNT(*) FROM platform_operation_receipts WHERE subject_id=? AND operation_type='policy_evaluation'",
+            (task.id,),
+        ).fetchone()[0]
+        assert count_after_clear == 2
+    finally:
+        store._conn.close()
