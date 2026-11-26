@@ -258,18 +258,23 @@ def test_cli_json_smoke(tmp_path: Path, capsys) -> None:
 
 
 def test_health_audit_reads_magpie_cache_when_csv_absent(tmp_path: Path) -> None:
-    from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache
+    from reverse_agent.platform_v1.magpie_usage_ingest import merge_into_cache, parse_usage_csv
 
     db = tmp_path / "tasks.sqlite3"
     conn = _init_db(db)
     conn.close()
     cache = tmp_path / "magpie_cache.jsonl"
-    merge_into_cache([
-        {"request_id": "p1", "time": "2026-11-25T10:00:00-04:00", "agent": "Python-urllib", "status": 500, "rejected": True, "reported_cost_usd": 0.0},
-        {"request_id": "p2", "time": "2026-11-25T10:01:00-04:00", "agent": "Python-urllib", "status": 200, "rejected": False, "reported_cost_usd": 0.0},
-        {"request_id": "s1", "time": "2026-11-25T10:02:00-04:00", "agent": "codex", "status": 200, "rejected": False, "reported_cost_usd": 1.0},
-        {"request_id": "w1", "time": "2026-11-25T10:03:00-04:00", "agent": "opencode", "status": 200, "rejected": False, "reported_cost_usd": 2.0},
-    ], path=cache)
+    # Normalize through parse_usage_csv so agent casing ("Python-urllib" -> "python-urllib") matches production cache.
+    rows = parse_usage_csv(
+        "\n".join([
+            "time,agent,status,rejected,cost_usd,request_id",
+            "2026-11-25T10:00:00-04:00,Python-urllib,500,true,0.0,p1",
+            "2026-11-25T10:01:00-04:00,Python-urllib,200,false,0.0,p2",
+            "2026-11-25T10:02:00-04:00,codex,200,false,1.0,s1",
+            "2026-11-25T10:03:00-04:00,opencode,200,false,2.0,w1",
+        ])
+    )
+    merge_into_cache(rows, path=cache)
     report = run_health_audit(db, now=NOW, lookback_days=7, magpie_cache_path=cache)
     inv = _by_id(report)
     assert inv["probe_error_rate"]["status"] == "ALERT"

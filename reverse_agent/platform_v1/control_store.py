@@ -3016,7 +3016,7 @@ class PlatformControlStore:
                 token_units = 0
                 cost_micro_units = 0
                 all_costs_known = bool(observations) and cost_unknown_count == 0
-                if not observations and host_zero:
+                if not observations and (host_zero or task["executor_kind"] == "deterministic_fixture"):
                     all_costs_known = True
                 if not usage_unknown:
                     for observation in observations:

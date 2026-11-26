@@ -1732,12 +1732,14 @@ class TaskStore:
             row = self._conn.execute(
                 "SELECT reservation.reserved_token_units, "
                 "reservation.reserved_cost_micro_units, claim.epoch, "
-                "claim.window_id "
+                "claim.window_id, COALESCE(win.confirmation_mode, '') AS confirmation_mode "
                 "FROM platform_coordinator_claims AS claim "
                 "JOIN platform_budget_reservations AS reservation "
                 "ON reservation.task_id = claim.task_id "
                 "AND reservation.window_id = claim.window_id "
                 "AND reservation.claim_epoch = claim.epoch "
+                "LEFT JOIN platform_autonomous_windows AS win "
+                "ON win.id = claim.window_id "
                 "WHERE claim.task_id = ? AND claim.status = 'ACTIVE' "
                 "AND reservation.state = 'ACTIVE'",
                 (task_id,),
@@ -1758,13 +1760,21 @@ class TaskStore:
             observed_cost = 0
             unknown_count = 0
             cost_limit = int(row["reserved_cost_micro_units"])
+            free_route: bool | None = None
             for usage in usage_rows:
                 if usage["status"] != "OBSERVED":
                     unknown_count += 1
                     continue
                 if cost_limit > 0 and usage["cost_micro_units"] is None:
-                    unknown_count += 1
-                    continue
+                    if free_route is None:
+                        if str(row["confirmation_mode"]) == "OWNER_WINDOW":
+                            from .control_store import PlatformControlStore
+                            free_route = PlatformControlStore._task_route_is_free(self._conn, task_id)
+                        else:
+                            free_route = False
+                    if not free_route:
+                        unknown_count += 1
+                        continue
                 observed_tokens += cost_equivalent_units(usage) or 0
                 observed_cost += int(usage["cost_micro_units"] or 0)
             return {

@@ -406,7 +406,7 @@ def _check_magpie_csv_invariants(
         rejected = (row.get("rejected") or "").strip().lower() in ("1", "true", "yes")
         is_err = (status not in ("0", "200", "")) or bool(err_text) or rejected
         cost = _parse_magpie_cost(row.get("cost_usd"))
-        if agent == "Python-urllib":
+        if agent.lower() == "python-urllib":
             probe_total += 1
             if is_err:
                 probe_err += 1
