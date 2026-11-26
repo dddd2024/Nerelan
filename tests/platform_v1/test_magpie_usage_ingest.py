@@ -457,4 +457,40 @@ def test_parse_credits_and_idempotent_multi_basis_task_settlement():
     assert settled["list_price_estimate_usd"] > 0
     assert settled["cost_basis"] == "credit_debit"
     assert settled["confirmed_zero"] is False
+
+    # Multi-model task: each observation must be priced using its own model_id before summing.
+    t2 = store.create_task(title="multi-model", executor_kind="opencode", binding_ref="gpt-5", repository="o/r")
+    store.append_usage_observation(
+        t2.id, observation_id="mm-1", execution_id=t2.execution_id, role="planner",
+        model_id="gpt-5", provider_id="openai", source_kind="step_finish", source_id="s-m1",
+        status="OBSERVED", input_units=1_000_000, output_units=0, reasoning_units=0,
+        cache_read_units=0, cache_write_units=0, cost_micro_units=None,
+    )
+    store.append_usage_observation(
+        t2.id, observation_id="mm-2", execution_id=t2.execution_id, role="executor",
+        model_id="gpt-6.1-sol", provider_id="openai", source_kind="step_finish", source_id="s-m2",
+        status="OBSERVED", input_units=1_000_000, output_units=0, reasoning_units=0,
+        cache_read_units=0, cache_write_units=0, cost_micro_units=None,
+    )
+    store._conn.execute("UPDATE tasks SET status='READY_FOR_REVIEW', created_at=?, updated_at=? WHERE id=?",
+                        (T0, "2026-11-04T09:05:00+00:00", t2.id))
+    store._conn.commit()
+    from reverse_agent.model_access.pricing import equivalent_cost
+    expected_multi = round(
+        float(equivalent_cost("gpt-5", {"input": 1_000_000, "cache_read": 0, "cache_write": 0, "output": 0})["usd"])
+        + float(equivalent_cost("gpt-6.1-sol", {"input": 1_000_000, "cache_read": 0, "cache_write": 0, "output": 0})["usd"]),
+        6,
+    )
+    multi_settled = reconcile_task_settlements(store, [], coverage_window=(0.0, 2_000_000_000.0))["tasks"][t2.id]
+    assert multi_settled["list_price_estimate_usd"] == expected_multi
     store._conn.close()
+
+
+def test_read_cache_preserves_v2_billing_class_and_downgrades_v1(tmp_path):
+    cache_file = tmp_path / "usage_cache.jsonl"
+    v2_sub = dict(parse_usage_csv(_csv(SUBSCRIPTION_ROW))[0], normalization_version=2, request_id="r-v2")
+    v1_row = dict(v2_sub, normalization_version=1, request_id="r-v1")
+    cache_file.write_text(json.dumps(v2_sub) + "\n" + json.dumps(v1_row) + "\n", encoding="utf-8")
+    loaded = {r["request_id"]: r for r in read_cache(cache_file)}
+    assert loaded["r-v2"]["billing_class"] == "subscription"
+    assert loaded["r-v1"]["billing_class"] == "unknown"

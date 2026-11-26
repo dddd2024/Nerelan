@@ -307,9 +307,9 @@ def read_cache(path: Optional[Path] = None) -> list[dict[str, Any]]:
                 except ValueError:
                     continue
                 if isinstance(item, dict):
-                    # Old normalization guessed subscription from account names.
-                    # Preserve the observation but distrust that classification.
-                    if item.get("normalization_version") != NORMALIZATION_VERSION:
+                    # Version-1 normalization guessed subscription from account names; v2+ uses explicit keys.
+                    ver = item.get("normalization_version")
+                    if not isinstance(ver, int) or isinstance(ver, bool) or ver < 2:
                         item["billing_class"] = "unknown"
                     rows.append(item)
     except OSError:
@@ -650,18 +650,37 @@ def reconcile_task_settlements(
     for task_id, entry in sorted(correlated["attempts"].items()):
         ledger = ledger_by_task.get(task_id)
         tokens = ledger.get("tokens") if ledger else None
-        obs_model_row = store._conn.execute(
-            "SELECT model_id FROM task_usage_observations WHERE task_id=? AND model_id<>'' ORDER BY rowid DESC LIMIT 1",
+        obs_rows = store._conn.execute(
+            "SELECT model_id, source_kind, input_units, output_units, reasoning_units, "
+            "cache_read_units, cache_write_units FROM task_usage_observations "
+            "WHERE task_id=? AND (status='OBSERVED' OR (status='PARTIAL' AND source_kind='native_summary')) "
+            "AND input_units IS NOT NULL AND output_units IS NOT NULL ORDER BY rowid",
             (task_id,),
-        ).fetchone()
-        model_id = (
-            (ledger.get("models") or [None])[0] if ledger else None
-        ) or (obs_model_row["model_id"] if obs_model_row else None) or (ledger.get("binding_ref") if ledger else None)
+        ).fetchall()
         list_est = None
-        if ledger and tokens and tokens.get("input") is not None and tokens.get("output") is not None:
-            model_name = model_id or ""
-            if model_name:
+        if obs_rows:
+            total_usd = 0.0
+            all_priced = True
+            for obs in obs_rows:
+                model_name = obs["model_id"] or ""
+                extra_reason = 0 if obs["source_kind"] == "native_summary" else int(obs["reasoning_units"] or 0)
                 eq = pricing.equivalent_cost(model_name, {
+                    "input": int(obs["input_units"]),
+                    "cache_read": int(obs["cache_read_units"] or 0),
+                    "cache_write": int(obs["cache_write_units"] or 0),
+                    "output": int(obs["output_units"]) + extra_reason,
+                }) if model_name else {}
+                usd = eq.get("usd") if isinstance(eq, Mapping) else None
+                if usd is None:
+                    all_priced = False
+                    break
+                total_usd += float(usd)
+            if all_priced:
+                list_est = round(total_usd, 6)
+        elif ledger and tokens and tokens.get("input") is not None and tokens.get("output") is not None:
+            models = [m for m in (ledger.get("models") or ()) if isinstance(m, str) and m]
+            if len(models) == 1:
+                eq = pricing.equivalent_cost(models[0], {
                     "input": tokens["input"],
                     "cache_read": tokens.get("cache_read") or 0,
                     "cache_write": tokens.get("cache_write") or 0,
