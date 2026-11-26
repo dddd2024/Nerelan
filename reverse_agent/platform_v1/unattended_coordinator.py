@@ -604,6 +604,7 @@ class UnattendedCoordinator:
                 self.goals.reconsider_initial_models(window.id, autonomy=self.autonomy)
             except Exception as exc:
                 self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
+        self._upgrade_retry_sweep(window)
         claimed: dict[str, int] = {}
         held: list[str] = []
         disk_waiting: list[str] = []
@@ -1196,6 +1197,42 @@ class UnattendedCoordinator:
         if not isinstance(hint, (int, float)) or hint <= 0:
             return self.poll_interval
         return max(self.poll_interval, min(float(hint), IDLE_WAIT_CAP_SECONDS))
+
+    def _upgrade_retry_sweep(self, window: Any) -> None:
+        """Once per (window, host version): retry steps a host fault or gate stopped.
+
+        Recorded as an operation receipt, so a restart on the same code does not
+        sweep again; each retry is authorized like any other dispatch (execute_task
+        inside the active window) and goes through GoalService.owner_retry.
+        """
+        version = self.execution_authority_sha.strip()
+        swept = self.__dict__.setdefault("_upgrade_swept_windows", set())
+        if self.goals is None or not version or window.id in swept:
+            return
+        swept.add(window.id)
+        subject = f"upgrade_retry_sweep:{version}"
+        try:
+            with self.control_store._lock:
+                done = self.control_store._conn.execute(
+                    "SELECT 1 FROM platform_operation_receipts WHERE window_id = ? AND subject_id = ? LIMIT 1",
+                    (window.id, subject)).fetchone() is not None
+            if done or not window.repositories:
+                return
+
+            def authorize(goal: Any, failed: Any) -> bool:
+                return self.autonomy.authorize(
+                    window_id=window.id, operation="execute_task", repository=goal.repository,
+                    subject_id=failed.id,
+                    input_payload={"origin": "host_upgrade_sweep", "host_version": version, "task_id": failed.id})
+
+            retried = self.goals.retry_after_upgrade(window.id, host_version=version, authorize=authorize)
+            self.control_store.append_receipt(
+                window_id=window.id, operation_type="upgrade_retry_sweep", capability="execute_task",
+                repository=window.repositories[0], subject_id=subject, decision="allowed",
+                reason=f"retried={len(retried)}",
+                input_payload={"host_version": version, "retried": [row["from_task_id"] for row in retried]})
+        except Exception as exc:  # noqa: BLE001 - a recovery sweep never stops the tick
+            self._last_error = f"upgrade_retry_sweep_failed:{type(exc).__name__}"
 
     def request_reevaluation(self) -> None:
         """End the idle wait and re-examine stuck goals: an account's quota reset was seen."""

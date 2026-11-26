@@ -21,7 +21,7 @@ import shutil
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, UPSTREAM_CONNECTION,
                                  OWNER_WINDOW_POOL_MISROUTE, transient_overload)
 from .goal_source_issue import GoalSourceIssues
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
 from .repository_workspace import (
@@ -184,6 +184,13 @@ PATIENT_BACKOFF_MAX_SECONDS = 15 * 60
 PATIENT_REPEAT_BACKOFF_THRESHOLD = 6
 PATIENT_REPEAT_BACKOFF_MULTIPLIER = 4
 OWNER_RETRY_REASON = "owner_retry"
+# A stop the host caused rather than the model's work: its own liveness/plumbing
+# faults (Owner decision 2026-11-12 B) and its own gate defects. Once the host runs
+# new code, such a stop is retried once without an Owner click (2026-11-26: #1504
+# and #1552 stayed BLOCKED after their gate fixes shipped).
+UPGRADE_RETRY_CLASSES = HOST_RETRY_CLASSES | frozenset({"patch_hygiene_failed", "review_not_independent"})
+UPGRADE_RETRY_ORIGIN = "host_upgrade_sweep"
+UPGRADE_RETRY_LIMIT = 10
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
@@ -2101,6 +2108,55 @@ class GoalService:
                            for entry in pool]
         options["available"] = True
         return options
+
+    def retry_after_upgrade(self, window_id: str, *, host_version: str,
+                            authorize: Callable[[Any, Any], bool],
+                            limit: int = UPGRADE_RETRY_LIMIT) -> list[dict[str, Any]]:
+        """Once per host version, retry steps a host fault or host gate stopped.
+
+        Reuses :meth:`owner_retry` unchanged (same window pool, budgets, base, review
+        and stranded-run safety checks; it spends no ``max_retries``), so nothing new is
+        authorized beyond a retry inside the active window. ``authorize`` is the
+        coordinator's per-step policy check. An attempt that already ran on this
+        version is skipped: only new code can change a host-caused outcome.
+        """
+        retried: list[dict[str, Any]] = []
+        if not host_version:
+            return retried
+        for goal in self.control_store.list_window_goals(window_id):
+            if len(retried) >= limit:
+                break
+            if goal.orchestration_mode != "agent_team" or goal.status not in {"RUNNING", "BLOCKED"}:
+                continue
+            for link in self.control_store.list_goal_tasks(goal.id):
+                if len(retried) >= limit:
+                    break
+                if int(link["goal_revision"]) != goal.revision or link["status"] not in {"FAILED", "BLOCKED"}:
+                    continue
+                failed = self.store.get_task(link["task_id"], event_limit=0)
+                if failed.failure_classification not in UPGRADE_RETRY_CLASSES:
+                    continue
+                with self.store._lock:
+                    ran_on = self.store._conn.execute(
+                        "SELECT execution_authority_sha FROM durable_runs WHERE task_id = ? "
+                        "ORDER BY created_at DESC LIMIT 1", (failed.id,)).fetchone()
+                if ran_on is not None and ran_on[0] == host_version:
+                    continue
+                if not authorize(goal, failed):
+                    continue
+                try:
+                    result = self.owner_retry(goal.id, link["plan_task_id"], expected_revision=goal.revision)
+                except TaskStoreError:
+                    continue  # the same refusals an Owner click would get: leave it stopped
+                self.store.add_event(result["to_task_id"], event_type="VALIDATED", title="Retried after host upgrade",
+                                     description=(f"{failed.failure_classification} under earlier host code; "
+                                                  f"retried once on {host_version[:12]}"),
+                                     metadata={"origin": UPGRADE_RETRY_ORIGIN, "host_version": host_version,
+                                               "source_task_id": failed.id,
+                                               "failure_classification": failed.failure_classification})
+                retried.append(result)
+                goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
+        return retried
 
     def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
                     binding_ref: str = "") -> dict[str, Any]:

@@ -2249,3 +2249,49 @@ def test_quota_hold_until_reads_only_future_timestamps() -> None:
     assert _quota_hold_until("QUOTA_WAIT:quota_capacity", now) is None
     assert _quota_hold_until("QUOTA_WAIT:unknown_reset", now) is None
     assert _quota_hold_until("window_wip_limit_reached", now) is None
+
+
+def test_upgrade_retry_sweep_runs_once_per_window_and_host_version(tmp_path) -> None:
+    store = TaskStore(tmp_path / "tasks.sqlite3")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "upgrade-sweep-test", "policy_revision": 1, "owner_identity": "owner@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(), "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "max_tasks": 4, "max_concurrent_tasks": 1, "max_retries": 1,
+        "capabilities": ["execute_task"], "confirmation": "ACTIVATE"})
+    calls: list[str] = []
+
+    class Goals:
+        def retry_after_upgrade(self, window_id, *, host_version, authorize):
+            calls.append(host_version)
+            return [{"from_task_id": "task-old"}]
+
+        def stop_if_source_closed(self, goal_id):
+            return False
+
+    def coordinator(version):
+        return UnattendedCoordinator(store=store, control_store=control, autonomy=autonomy, router=ExecutorRouter(),
+                                     workspace_root=tmp_path / "workspaces", goals=Goals(),
+                                     execution_authority_sha=version)
+    try:
+        first = coordinator("sha-new")
+        first._upgrade_retry_sweep(window)
+        first._upgrade_retry_sweep(window)
+        assert calls == ["sha-new"]
+        receipt = store._conn.execute(
+            "SELECT operation_type, reason FROM platform_operation_receipts WHERE subject_id = ?",
+            ("upgrade_retry_sweep:sha-new",)).fetchone()
+        assert tuple(receipt) == ("upgrade_retry_sweep", "retried=1")
+        # A plain restart on the same code: no second sweep.
+        coordinator("sha-new")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new"]
+        # New code: one more sweep.
+        coordinator("sha-newer")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new", "sha-newer"]
+        # No version identity (library/test hosts): never sweeps.
+        coordinator("")._upgrade_retry_sweep(window)
+        assert calls == ["sha-new", "sha-newer"]
+    finally:
+        store._conn.close()

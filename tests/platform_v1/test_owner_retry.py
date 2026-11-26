@@ -258,3 +258,58 @@ def test_owner_retry_discards_out_of_scope_worktree(case, tmp_path):
     assert _load_evidence(retry, FIXUP, retry.execution_id) is None
     disp = _load_evidence(store.get_task(task.id), "AttemptDisposition", task.execution_id)
     assert disp is not None and disp["disposition"] == "discarded"
+
+
+# --- Host upgrade sweep: host-caused stops resume without an Owner click (2026-11-26) ---
+
+def _sweep(service, window, version="new-host-sha", allow=True):
+    seen = []
+
+    def authorize(goal, failed):
+        seen.append(failed.id)
+        return allow
+    return service.retry_after_upgrade(window.id, host_version=version, authorize=authorize), seen
+
+
+@pytest.mark.parametrize("classification", ["patch_hygiene_failed", "review_not_independent", "server_stream_stalled"])
+def test_upgrade_sweep_retries_a_host_caused_stop_once(case, classification):
+    _, _, store, control, service, goal, window, task = case
+    _fail(store, task, classification)
+    retried, seen = _sweep(service, window)
+    assert [row["from_task_id"] for row in retried] == [task.id] and seen == [task.id]
+    [row] = control.list_task_escalations(goal.id)
+    assert row["reason"] == gs.OWNER_RETRY_REASON  # the Owner-retry path: no max_retries spent
+    events = store.get_events(retried[0]["to_task_id"])
+    assert any(e.metadata.get("origin") == gs.UPGRADE_RETRY_ORIGIN for e in events)
+    # The new attempt is pending: a second sweep moves nothing.
+    assert _sweep(service, window)[0] == []
+
+
+def test_upgrade_sweep_leaves_model_judged_failures_alone(case):
+    _, _, store, _, service, _, window, task = case
+    _fail(store, task, "deterministic_validation_failure")
+    assert _sweep(service, window) == ([], [])
+
+
+def test_upgrade_sweep_skips_an_attempt_that_already_ran_on_this_version(case):
+    _, _, store, _, service, _, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    values = {"run_id": "run-x", "task_id": task.id, "execution_authority_sha": "new-host-sha",
+              "created_at": "2026-11-26T00:00:00Z", "updated_at": "2026-11-26T00:00:00Z"}
+    for _, name, kind, notnull, default, _ in store._conn.execute("PRAGMA table_info(durable_runs)").fetchall():
+        if notnull and default is None and name not in values:
+            values[name] = 0 if "INT" in str(kind).upper() else "x"
+    store._conn.execute(f"INSERT INTO durable_runs ({', '.join(values)}) VALUES ({', '.join('?' * len(values))})",
+                        tuple(values.values()))
+    store._conn.commit()
+    assert _sweep(service, window) == ([], [])
+    retried, _ = _sweep(service, window, version="newer-host-sha")
+    assert [row["from_task_id"] for row in retried] == [task.id]
+
+
+def test_upgrade_sweep_needs_the_dispatch_authorization(case):
+    _, _, store, control, service, goal, window, task = case
+    _fail(store, task, "patch_hygiene_failed")
+    retried, seen = _sweep(service, window, allow=False)
+    assert retried == [] and seen == [task.id]
+    assert tuple(control.list_task_escalations(goal.id)) == ()
