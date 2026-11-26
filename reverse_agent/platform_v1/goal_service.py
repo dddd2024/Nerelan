@@ -21,7 +21,7 @@ import shutil
 from .model_availability import (EXECUTOR_TERMINATED, HOST_RETRY_CLASSES, HOST_VERSION_CHANGED, UPSTREAM_CONNECTION,
                                  OWNER_WINDOW_POOL_MISROUTE, transient_overload)
 from .goal_source_issue import GoalSourceIssues
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 from .control_store import GoalRecord, PlatformControlStore, reject_sensitive_keys
 from .repository_workspace import (
@@ -184,6 +184,29 @@ PATIENT_BACKOFF_MAX_SECONDS = 15 * 60
 PATIENT_REPEAT_BACKOFF_THRESHOLD = 6
 PATIENT_REPEAT_BACKOFF_MULTIPLIER = 4
 OWNER_RETRY_REASON = "owner_retry"
+# A stop the host caused rather than the model's work: its own liveness/plumbing
+# faults (Owner decision 2026-11-12 B) and its own gate defects. Once the host runs
+# new code, such a stop is retried once without an Owner click (2026-11-26: #1504
+# and #1552 stayed BLOCKED after their gate fixes shipped).
+UPGRADE_RETRY_CLASSES = HOST_RETRY_CLASSES | frozenset({"patch_hygiene_failed", "review_not_independent"})
+UPGRADE_RETRY_ORIGIN = "host_upgrade_sweep"
+# Executors record a failed hygiene gate as a generic validation failure with
+# this structured reason; ordinary failing tests carry other details.
+_HYGIENE_GATE_DETAILS = ("functional_patch_hygiene_failed",)
+
+
+def _upgrade_retryable(task: Any) -> bool:
+    if task.failure_classification in UPGRADE_RETRY_CLASSES:
+        return True
+    return (task.failure_classification == "deterministic_validation_failure"
+            and str(task.failure_detail or "").strip() in _HYGIENE_GATE_DETAILS)
+UPGRADE_RETRY_LIMIT = 10
+# Refusals that settle a step for this host version. Any other refusal (review
+# intent unverifiable, run still recovering, no model available right now) may
+# clear by itself, so the sweep stays unfinished and is tried again later.
+UPGRADE_RETRY_FINAL_REFUSALS = frozenset({
+    "owner_retry_step_not_stopped", "owner_retry_step_not_found", "owner_retry_not_agent_team",
+    "owner_retry_host_check", "goal_revision_conflict", "goal_source_issue_closed"})
 REVIEW_LOOP_REASONS = ("model_review_repair:", "model_review_refresh:")
 # An INTERRUPTED attempt the Owner retry closed so it never runs beside its replacement (#1515).
 OWNER_RETRY_SUPERSEDED = "owner_retry_superseded"
@@ -2102,8 +2125,84 @@ class GoalService:
         options["available"] = True
         return options
 
+    def retry_after_upgrade(self, window_id: str, *, host_version: str,
+                            authorize: Callable[[Any, Any], bool],
+                            limit: int = UPGRADE_RETRY_LIMIT) -> tuple[list[dict[str, Any]], bool]:
+        """Once per host version, retry steps a host fault or host gate stopped.
+
+        Reuses :meth:`owner_retry` unchanged (same window pool, budgets, base, review
+        and stranded-run safety checks; it spends no ``max_retries``), so nothing new is
+        authorized beyond a retry inside the active window. ``authorize`` is the
+        coordinator's per-step policy check. An attempt that already ran on this
+        version is skipped: only new code can change a host-caused outcome.
+        """
+        retried: list[dict[str, Any]] = []
+        finished = True
+        if not host_version:
+            return retried, finished
+        for goal in self.control_store.list_window_goals(window_id):
+            if len(retried) >= limit:
+                break
+            if goal.orchestration_mode != "agent_team" or goal.status not in {"RUNNING", "BLOCKED"}:
+                continue
+            if goal.status == "BLOCKED":
+                # A crash between a retry's commit and its status refresh leaves a
+                # BLOCKED goal over a QUEUED attempt that nothing claims; re-derive it.
+                goal = self.control_store.refresh_goal_status(goal.id)
+            for link in self.control_store.list_goal_tasks(goal.id):
+                if len(retried) >= limit:
+                    break
+                if int(link["goal_revision"]) != goal.revision or link["status"] not in {"FAILED", "BLOCKED"}:
+                    continue
+                failed = self.store.get_task(link["task_id"], event_limit=0)
+                if not _upgrade_retryable(failed):
+                    continue
+                with self.store._lock:
+                    ran_on = self.store._conn.execute(
+                        "SELECT execution_authority_sha FROM durable_runs WHERE task_id = ? "
+                        "ORDER BY created_at DESC LIMIT 1", (failed.id,)).fetchone()
+                if ran_on is not None and ran_on[0] == host_version:
+                    continue
+                if self._upgrade_retried(goal, link["plan_task_id"], host_version):
+                    continue  # at most one sweep retry per step and host code version
+                if not authorize(goal, failed):
+                    continue
+                try:
+                    result = self.owner_retry(
+                        goal.id, link["plan_task_id"], expected_revision=goal.revision,
+                        expected_source_task_id=failed.id,
+                        origin_event={"title": "Retried after host upgrade",
+                                      "description": (f"{failed.failure_classification} under earlier host code; "
+                                                      f"retried once on {host_version[:12]}"),
+                                      "metadata": {"origin": UPGRADE_RETRY_ORIGIN, "host_version": host_version,
+                                                   "source_task_id": failed.id,
+                                                   "failure_classification": failed.failure_classification}})
+                except TaskStoreError as exc:
+                    # The same refusals an Owner click would get leave it stopped; one that
+                    # may clear by itself leaves the sweep unfinished. Storage faults raise
+                    # sqlite3.Error and propagate.
+                    if str(exc) not in UPGRADE_RETRY_FINAL_REFUSALS:
+                        finished = False
+                    continue
+                retried.append(result)
+                goal = self.control_store.get_goal(goal.id)  # the retry refreshed its status
+        return retried, finished and len(retried) < limit
+
+    def _upgrade_retried(self, goal: Any, plan_task_id: str, host_version: str) -> bool:
+        """Whether a sweep on this host code already retried this step (durable, per step)."""
+        for row in self.control_store.list_task_escalations(goal.id):
+            if (int(row["goal_revision"]) != goal.revision or row["plan_task_id"] != plan_task_id
+                    or row["reason"] != OWNER_RETRY_REASON):
+                continue
+            if any(event.type == "VALIDATED" and event.metadata.get("origin") == UPGRADE_RETRY_ORIGIN
+                   and event.metadata.get("host_version") == host_version
+                   for event in self.store.get_events(row["to_task_id"])):
+                return True
+        return False
+
     def owner_retry(self, goal_id: str, plan_task_id: str, *, expected_revision: int,
-                    binding_ref: str = "") -> dict[str, Any]:
+                    binding_ref: str = "", expected_source_task_id: str = "",
+                    origin_event: Mapping[str, Any] | None = None) -> dict[str, Any]:
         """Owner decision 2026-11-12 A: the Owner retries a stopped plan step in the Goal's active window.
 
         The model is the router's choice (``binding_ref`` empty) or one the Owner picks;
@@ -2131,6 +2230,9 @@ class GoalService:
                      if row["plan_task_id"] == plan_task_id and int(row["goal_revision"]) == goal.revision), None)
         if plan_task is None or link is None:
             raise TaskStoreError("owner_retry_step_not_found")
+        if expected_source_task_id and link["task_id"] != expected_source_task_id:
+            # The caller judged a specific attempt; a newer one is not its to retry.
+            raise TaskStoreError("owner_retry_step_not_stopped")
         if plan_task.validation_command_id:
             raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
         # INTERRUPTED is Owner-retryable when nothing of the old run can still be
@@ -2267,6 +2369,12 @@ class GoalService:
                 self.control_store.escalate_goal_task(
                     goal.id, goal_revision=goal.revision, plan_task_id=plan_task.id, from_task_id=failed.id,
                     to_task_id=task.id, from_role=role, to_role=role, reason=OWNER_RETRY_REASON)
+                if origin_event is not None:
+                    # Committed with the attempt it marks: an automatic retry is never left unmarked.
+                    self.store._append_event(
+                        task_id=task.id, event_type="VALIDATED", title=str(origin_event["title"]),
+                        description=str(origin_event["description"]), raw_log="",
+                        metadata=dict(origin_event["metadata"]))
                 if owns_transaction:
                     self.store._conn.execute("COMMIT")
             except BaseException:

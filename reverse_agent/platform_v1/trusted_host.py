@@ -1941,6 +1941,10 @@ class CombinedTrustedHost:
                 idle_wait_hint=self._multi_account_idle_wait,
                 quota_wait_target=self._quota_wait_target(),
                 landing_loop=landing, publication=self._publication_controller, goals=self._goal_service,
+                # Only the host's own code identity, never a target checkout's HEAD:
+                # the post-upgrade retry sweep runs once per real code change.
+                # (The sweep needs authority == host code, so no authority: no git lookup.)
+                host_code_version=_host_source_head() if self._execution_authority_sha else "",
                 # Independent of REVERSE_AGENT_WORKSPACE_RECLAIM: works when reclaim is off.
                 disk_guard=configured_disk_guard(workspace_root),
             )
