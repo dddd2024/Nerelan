@@ -109,7 +109,7 @@ E 自进化（依任务结果与运行反馈优化调度/容错/资源利用/执
 | **多账户池化** | `trusted_host.py:1048 _merge_magpie_quotas` 按 provider 逐键覆盖 `merged[key] = quota` | **最大缺陷** | 同 provider 多账户的独立窗口证据丢失 |
 | 准入/调度 | `quota_reservation.py`（admission / task_need / window_need / goal_fit）、`quota_guard.py`、reroute | **成熟** | 与多账户联动弱 |
 | 无人值守 | `autonomy.py`（单窗≤7d / standing≤90d）、`unattended_coordinator.py`、`durable_execution.py`（租约 fencing/崩溃恢复） | **成熟** | host sleep/休眠恢复**缺失** |
-| 容错 | `goal_service.reroute_quota_held`、`fallback_ladder`、retry budget、`active_cancel.py` | **成熟** | dead letter / quarantine **零命中**；orphan claim 仅诊断（docstring 明示 NOT a reconciler） |
+| 容错 | `goal_service.reroute_quota_held`、`fallback_ladder`、retry budget、`active_cancel.py` (removed 2026-11-26 in #1779 as an unreferenced prototype; see Git history) | **成熟** | dead letter / quarantine **零命中**；orphan claim 仅诊断（docstring 明示 NOT a reconciler） |
 | 自进化 | `delta_calibration` / `attributable_calibration`（唯一闭环）、`capability_benchmarks` → `model_router` | 部分闭环 | `break_even` 无持久化、无回路 |
 
 ### 3.1 三层账户模型（边界澄清）

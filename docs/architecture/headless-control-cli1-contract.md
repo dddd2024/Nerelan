@@ -4,7 +4,7 @@
 
 ## Components and status
 
-`reverse_agent/platform_v1/control_contract.py` owns a **pure** `nerelan-control/v1` request envelope. It accepts only a bounded UTF-8 JSON object with exactly `protocol`, `operation`, `request_id`, and `args`. All request keys are unique; NaN/Infinity, extra fields, wrong types, unknown operations and oversized bytes fail with static error codes. Output objects do not echo untrusted caller bytes. `ControlRequest` is immutable and explicitly untrusted; constructing one never creates an authorization principal.
+`reverse_agent/platform_v1/control_contract.py` (removed 2026-11-26 in #1779 as an unreferenced prototype; see Git history) owns a **pure** `nerelan-control/v1` request envelope. It accepts only a bounded UTF-8 JSON object with exactly `protocol`, `operation`, `request_id`, and `args`. All request keys are unique; NaN/Infinity, extra fields, wrong types, unknown operations and oversized bytes fail with static error codes. Output objects do not echo untrusted caller bytes. `ControlRequest` is immutable and explicitly untrusted; constructing one never creates an authorization principal.
 
 The parser reserves `doctor`, `status`, `goal.create/inspect/plan/approve/launch`, `task.list/inspect`, `run.status/watch/stop`, `window.status` as versioned operation names. Parsing is **not** endpoint support. No transport or operation handler is installed. Every valid parsed request sent to `unavailable_response` yields `WAITING`, `authenticated:false`, `dispatch_permitted:false`, `execution_started:false`.
 

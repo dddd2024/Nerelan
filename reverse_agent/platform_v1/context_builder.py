@@ -34,6 +34,7 @@ _DRIVE_RE = re.compile(r"^[A-Za-z]:")
 _GIT_TIMEOUT_SECONDS = 15.0
 _MAX_GIT_OUTPUT = 64 * 1024 * 1024
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+_PROGRESS_EVENTS_KEPT = 5
 _IMPORTANT_EVENT_MARKERS = ("FAIL", "BLOCK", "INTERRUPT", "CANCEL", "ERROR", "REJECT", "ESCALAT", "DECISION")
 # Environment variables that could redirect Git to another repository, index,
 # object store, external diff program or injected configuration.
@@ -682,6 +683,7 @@ def _build_context_packet(
     history: list[dict] = []
     latest_ids: set[str] = set()
     event_sequences: dict[str, int] = {}
+    progress_capped = 0
     for item in visible:
         summary = _task_summary(item)
         summary["title"] = _scrub(summary["title"], excluded, redacted)
@@ -700,9 +702,12 @@ def _build_context_packet(
             sources.append(source)
         rows = _query(store, "SELECT id,type,timestamp,title,description,seq FROM task_events "
                       "WHERE task_id=? ORDER BY seq", (item.id,))
+        # Executor progress is activity noise; only the latest few rows carry
+        # signal. The rest are counted, never silently lost.
         progress_indices = [idx for idx, row in enumerate(rows) if _text(row[1]) == "EXECUTOR_PROGRESS"]
-        if len(progress_indices) > 5:
-            drop_progress = set(progress_indices[:-5])
+        if len(progress_indices) > _PROGRESS_EVENTS_KEPT:
+            drop_progress = set(progress_indices[:-_PROGRESS_EVENTS_KEPT])
+            progress_capped += len(drop_progress)
             rows = [row for idx, row in enumerate(rows) if idx not in drop_progress]
         events = [dict(zip(("id", "type", "timestamp", "title", "description"),
                            (_text(value) for value in row[:5]))) for row in rows]
@@ -775,6 +780,7 @@ def _build_context_packet(
         "latest_event_ids": frozenset(latest_ids),
         "base_omissions": {
             "excluded_tasks": len(excluded),
+            "progress_events_capped": progress_capped,
             "redacted_fields": redacted[0],
         },
     }

@@ -1,6 +1,6 @@
 # Orphan claim reconciliation evidence (#1206)
 
-`orphan_claim_plan.plan_orphan_claim` is an R0, provider-free dry-run observation
+`orphan_claim_plan.plan_orphan_claim` (removed 2026-11-26 in #1779 as an unreferenced prototype; see Git history) is an R0, provider-free dry-run observation
 of one explicit task/run, not an R1 durable transition. It never opens a window,
 releases a claim/reservation, appends a receipt, charges usage, or dispatches work.
 FAILED/INTERRUPTED Tasks, expired leases/windows and an empty external-operation
