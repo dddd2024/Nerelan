@@ -37,15 +37,36 @@ def _connection(base_url: str = "https://relay.example/v1", updated_at: str = "2
     }
 
 
-def test_availability_cache_clears_no_credits_on_quota_recovery():
+def test_availability_cache_clears_no_credits_only_on_credit_recovery():
     cache = AvailabilityCache()
     b, c = _binding(), _connection()
     t0 = 1_700_000_000.0
     cache.remember(b, c, observation(now=t0, state="UNAVAILABLE", reason=NO_CREDITS, ttl_seconds=7 * 86400),
                    config_version="v1")
 
-    held = cache.check(b, c, allow_probe=False, now=t0 + 60, recovered_at=None, config_version="v1")
+    held = cache.check(b, c, allow_probe=False, now=t0 + 60, recovered_at=t0 + 30, config_version="v1")
     assert held["state"] == "UNAVAILABLE" and held["reason"] == NO_CREDITS
+
+    probes = []
+    recovered = cache.check(
+        b, c,
+        probe=lambda item: (probes.append(item["binding_id"]), {"ok": True})[1],
+        allow_probe=True,
+        now=t0 + 120,
+        credit_recovered_at=t0 + 90,
+        config_version="v1",
+    )
+    assert probes == ["opencode:m1"]
+    assert recovered["state"] == "AVAILABLE"
+    assert recovered["config_version"] == "v1"
+
+
+def test_availability_cache_clears_quota_exhausted_on_window_recovery():
+    cache = AvailabilityCache()
+    b, c = _binding(), _connection()
+    t0 = 1_700_000_000.0
+    cache.remember(b, c, observation(now=t0, state="UNAVAILABLE", reason="quota_exhausted", ttl_seconds=86400),
+                   config_version="v1")
 
     probes = []
     recovered = cache.check(
@@ -58,7 +79,24 @@ def test_availability_cache_clears_no_credits_on_quota_recovery():
     )
     assert probes == ["opencode:m1"]
     assert recovered["state"] == "AVAILABLE"
-    assert recovered["config_version"] == "v1"
+
+
+def test_availability_cache_does_not_clear_rate_limit_on_quota_or_credit_recovery():
+    cache = AvailabilityCache()
+    b, c = _binding(), _connection()
+    t0 = 1_700_000_000.0
+    cache.remember(b, c, observation(now=t0, state="TRANSIENT", reason="rate_limited", ttl_seconds=1800),
+                   config_version="v1")
+
+    still_held = cache.check(
+        b, c,
+        allow_probe=False,
+        now=t0 + 120,
+        recovered_at=t0 + 90,
+        credit_recovered_at=t0 + 90,
+        config_version="v1",
+    )
+    assert still_held["state"] == "TRANSIENT" and still_held["reason"] == "rate_limited"
 
 
 def test_availability_cache_does_not_clear_model_not_found_on_quota_recovery():
@@ -68,7 +106,14 @@ def test_availability_cache_does_not_clear_model_not_found_on_quota_recovery():
     cache.remember(b, c, observation(now=t0, state="UNAVAILABLE", reason="model_not_found", ttl_seconds=86400),
                    config_version="v1")
 
-    still_held = cache.check(b, c, allow_probe=False, now=t0 + 120, recovered_at=t0 + 90, config_version="v1")
+    still_held = cache.check(
+        b, c,
+        allow_probe=False,
+        now=t0 + 120,
+        recovered_at=t0 + 90,
+        credit_recovered_at=t0 + 90,
+        config_version="v1",
+    )
     assert still_held["state"] == "UNAVAILABLE" and still_held["reason"] == "model_not_found"
 
 
@@ -103,7 +148,7 @@ def test_availability_cache_returns_invalidation_reason_when_probe_deferred():
     assert res == {"state": "UNKNOWN", "reason": "config_changed"}
 
 
-def test_pool_verifier_reprobes_after_quota_recovery_or_config_change(tmp_path):
+def test_trusted_host_invalidation_distinguishes_5h_window_from_credits_and_rate_limit(tmp_path):
     from reverse_agent.model_access.store import ModelProfileStore
     from reverse_agent.platform_v1.run_store import TaskStore
     from reverse_agent.platform_v1.trusted_host import CombinedTrustedHost
@@ -120,10 +165,9 @@ def test_pool_verifier_reprobes_after_quota_recovery_or_config_change(tmp_path):
         cache = AvailabilityCache()
         host._availability_cache = cache
         t0 = 1_700_000_000.0
-        cache.remember(b, c, observation(now=t0, state="UNAVAILABLE", reason=NO_CREDITS, ttl_seconds=7 * 86400),
-                       config_version=cfg1)
         obs_iso = datetime.fromtimestamp(t0 + 60, tz=timezone.utc).isoformat()
         host._magpie_provider_accounts = {"codex": ["codex:1"]}
+        # A 5-hour time window does NOT invalidate a billing `no_credits` hold.
         host._magpie_account_readings = {
             "codex:1": {
                 "account_ref": "codex:1",
@@ -133,14 +177,30 @@ def test_pool_verifier_reprobes_after_quota_recovery_or_config_change(tmp_path):
                 "windows": [{"name": "5 hours", "used_percent": 15.0, "unlimited": False}],
             }
         }
-        recovered_at, cfg = host._availability_invalidation(
+        cache.remember(b, c, observation(now=t0, state="UNAVAILABLE", reason=NO_CREDITS, ttl_seconds=7 * 86400),
+                       config_version=cfg1)
+        rec_at, cred_at, cfg = host._availability_invalidation(
             b, c, cached_entry=cache.entries[cache.key(b, c)],
         )
-        assert recovered_at == t0 + 60
-        assert cfg == cfg1
+        assert rec_at is None and cred_at is None and cfg == cfg1
 
-        probes = []
-        host._availability_probe = lambda item: (probes.append(item["binding_id"]), {"ok": True})[1]
+        # A FRESH `Credits` window with headroom DOES clear `no_credits`.
+        host._magpie_account_readings["codex:1"]["windows"] = [
+            {"name": "Credits", "used_percent": 15.0, "unlimited": False}
+        ]
+        rec_at, cred_at, cfg = host._availability_invalidation(
+            b, c, cached_entry=cache.entries[cache.key(b, c)],
+        )
+        assert rec_at is None and cred_at == t0 + 60 and cfg == cfg1
+
+        # RPM/TPM `rate_limited` keeps its time cooldown even when Credits has headroom.
+        cache.remember(b, c, observation(now=t0, state="TRANSIENT", reason="rate_limited", ttl_seconds=1800),
+                       config_version=cfg1)
+        rec_at, cred_at, cfg = host._availability_invalidation(
+            b, c, cached_entry=cache.entries[cache.key(b, c)],
+        )
+        assert rec_at is None and cred_at is None and cfg == cfg1
+
         verifier = PoolVerifier(host)
         verifier._tried[b["binding_id"]] = t0
         verifier.clear_tried()

@@ -219,10 +219,8 @@ def observation(*, now: float, success: bool = False, error: str = '',
             'observed_at': now, 'expires_at': now + ttl_seconds}
 
 
-_RECOVERABLE_PROBE_REASONS = frozenset({
-    NO_CREDITS, 'rate_limited', 'quota_exhausted', 'transient_error',
-    'service_unavailable', 'overloaded',
-})
+QUOTA_WINDOW_RECOVERABLE_REASONS = frozenset({'quota_exhausted'})
+CREDIT_RECOVERABLE_REASONS = frozenset({NO_CREDITS})
 INVALIDATION_REASONS = frozenset({'quota_recovered', 'config_changed'})
 
 
@@ -286,6 +284,7 @@ class AvailabilityCache:
               allow_probe: bool = False, now: float | None = None,
               recent_success: float | None = None,
               recovered_at: float | None = None,
+              credit_recovered_at: float | None = None,
               config_version: str | None = None) -> dict[str, Any]:
         now = time.time() if now is None else now
         with self.lock:
@@ -294,10 +293,15 @@ class AvailabilityCache:
             invalidation_reason: str | None = None
             if entry and entry.get('state') in {'UNAVAILABLE', 'TRANSIENT'}:
                 stored_cfg = entry.get('config_version')
+                reason = entry.get('reason')
+                observed = entry.get('observed_at', 0)
                 if config_version is not None and stored_cfg is not None and stored_cfg != config_version:
                     invalidation_reason = 'config_changed'
-                elif (recovered_at is not None and recovered_at > entry.get('observed_at', 0)
-                      and entry.get('reason') in _RECOVERABLE_PROBE_REASONS):
+                elif (recovered_at is not None and recovered_at > observed
+                      and reason in QUOTA_WINDOW_RECOVERABLE_REASONS):
+                    invalidation_reason = 'quota_recovered'
+                elif (credit_recovered_at is not None and credit_recovered_at > observed
+                      and reason in CREDIT_RECOVERABLE_REASONS):
                     invalidation_reason = 'quota_recovered'
                 if invalidation_reason is not None:
                     self.entries.pop(cache_key, None)
