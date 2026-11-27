@@ -1539,11 +1539,23 @@ class CombinedTrustedHost:
         pool_limits = effective_pool_limits(owner_overrides)
         all_bindings = self._store.list_bindings_public()
         bindings_by_id = {b["binding_id"]: b for b in all_bindings}
-        conns_by_id = {c["connection_id"]: c for c in self._store.list_connections_public()}
-        pool_key = self._binding_pool_key(binding, conns_by_id)
+        list_conns = getattr(self._store, "list_connections_public", None)
+        if callable(list_conns):
+            conns_by_id = {c["connection_id"]: c for c in list_conns()}
+        else:
+            conns_by_id = {binding["connection_id"]: connection}
+            for b in all_bindings:
+                cid = b.get("connection_id")
+                if cid and cid not in conns_by_id:
+                    try:
+                        conns_by_id[cid] = self._store.get_connection_public(cid)
+                    except KeyError:
+                        continue
+        pool_key = CombinedTrustedHost._binding_pool_key(binding, conns_by_id)
         pool_limit = (pool_limits.get(pool_key) or {}).get("max_in_flight")
-        if isinstance(pool_limit, int) and pool_limit > 0:
-            in_flight = self._in_flight_by_upstream(
+        in_flight_fn = getattr(self, "_in_flight_by_upstream", None)
+        if isinstance(pool_limit, int) and pool_limit > 0 and callable(in_flight_fn):
+            in_flight = in_flight_fn(
                 bindings_by_id,
                 conns_by_id,
                 exclude_task_id=task.id,
